@@ -224,31 +224,42 @@ public partial class GameSession : Node
         {
             return;
         }
+        bool sessionInTree = IsSessionInTree();
         GC.SuppressFinalize(this);
-        DisposeManagedSession();
+        DisposeManagedSession(sessionInTree);
         if (GodotObject.IsInstanceValid(this))
         {
-            Free();
+            if (sessionInTree)
+                Free();
+            else
+                base.Dispose();
         }
+    }
+
+    public override void _ExitTree()
+    {
+        DisposeManagedSession(suppressContentFinalizers: true);
     }
 
     protected override void Dispose(bool disposing)
     {
         if (disposing)
         {
-            DisposeManagedSession();
+            DisposeManagedSession(IsSessionInTree());
         }
         base.Dispose(disposing);
     }
 
-    private void DisposeManagedSession()
+    private void DisposeManagedSession(bool suppressContentFinalizers = false)
     {
         if (_disposed)
         {
             return;
         }
         _disposed = true;
-        DisposeOwnedRuntimeResources();
+        DisposePartyStateGraph(_party_state);
+        _party_state = null;
+        DisposeOwnedRuntimeResources(suppressContentFinalizers);
         DisposeOwned(_log_service, _ => { });
         if (_log_sink != null)
         {
@@ -257,10 +268,18 @@ public partial class GameSession : Node
         }
     }
 
-    internal void DisposeOwnedRuntimeResources()
+    internal void DisposeOwnedRuntimeResources(bool suppressContentFinalizers = false)
     {
+        HashSet<GodotObject> shutdownSuppressionVisited = suppressContentFinalizers
+            ? new HashSet<GodotObject>()
+            : null;
+        if (shutdownSuppressionVisited != null)
+        {
+            SuppressOwnedContentFinalizerGraphsForShutdown(shutdownSuppressionVisited);
+        }
         _game_root?.Dispose();
         _game_root = null;
+        ClearSessionGodotObjectReferences(shutdownSuppressionVisited);
         DisposeOwned(_progression_content_registry, registry => registry.Dispose());
         DisposeOwned(_item_content_registry, registry => registry.Dispose());
         DisposeOwned(_recipe_content_registry, registry => registry.Dispose());
@@ -289,6 +308,445 @@ public partial class GameSession : Node
         cleanup?.Invoke(owned);
         if (GodotObject.IsInstanceValid(owned))
             owned.Dispose();
+    }
+
+    private static void DisposeCapturedPartyState(GDictionary runtimeState)
+    {
+        if (runtimeState == null || !runtimeState.ContainsKey("party_state"))
+            return;
+        DisposePartyStateGraph(runtimeState["party_state"].AsGodotObject() as PartyState);
+        runtimeState["party_state"] = default(Variant);
+    }
+
+    private static void DisposePartyStateGraph(
+        PartyState state,
+        PartyState preservedState = null
+    )
+    {
+        if (state == null || ReferenceEquals(state, preservedState))
+            return;
+
+        var disposed = new HashSet<GodotObject>();
+        foreach (PartyMemberState memberState in state.GetMemberStates())
+            DisposePartyMemberStateGraph(memberState, disposed);
+        foreach (PendingCharacterReward reward in state.pending_character_rewards)
+            DisposePendingCharacterRewardGraph(reward, disposed);
+        foreach (QuestState quest in state.active_quests)
+            DisposeQuestStateGraph(quest, disposed);
+        foreach (QuestState quest in state.claimable_quests)
+            DisposeQuestStateGraph(quest, disposed);
+        DisposeWarehouseStateGraph(state.warehouse_state, disposed);
+        state.member_states.Clear();
+        state.active_member_ids.Clear();
+        state.reserve_member_ids.Clear();
+        state.pending_character_rewards.Clear();
+        state.active_quests.Clear();
+        state.claimable_quests.Clear();
+        state.completed_quest_ids.Clear();
+        DisposeIfValid(state, disposed);
+    }
+
+    private static void DisposePartyMemberStateGraph(
+        PartyMemberState memberState,
+        HashSet<GodotObject> disposed
+    )
+    {
+        if (memberState == null)
+            return;
+        DisposeUnitProgressGraph(memberState.progression, disposed);
+        DisposeEquipmentStateGraph(memberState.equipment_state, disposed);
+        foreach (TraitInstanceState trait in memberState.trait_instances)
+            DisposeIfValid(trait, disposed);
+        foreach (
+            ContingencyMatrixSetupState setup in memberState.ReleaseContingencySetupsForDispose()
+        )
+        {
+            DisposeContingencySetupGraph(setup, disposed);
+        }
+        memberState.trait_instances.Clear();
+        memberState.active_stage_advancement_modifier_ids.Clear();
+        DisposeIfValid(memberState, disposed);
+    }
+
+    private static void DisposeContingencySetupGraph(
+        ContingencyMatrixSetupState setup,
+        HashSet<GodotObject> disposed
+    )
+    {
+        // Contingency setup state is plain C#; this method remains as the
+        // ownership boundary for callers that release setup lists during teardown.
+    }
+
+    private static void DisposeUnitProgressGraph(
+        UnitProgress progress,
+        HashSet<GodotObject> disposed
+    )
+    {
+        if (progress == null)
+            return;
+        foreach (UnitProfessionProgress professionProgress in progress.ProfessionsTyped.Values)
+            DisposeProfessionProgressGraph(professionProgress, disposed);
+        foreach (PendingProfessionChoice choice in progress.PendingProfessionChoicesTyped)
+            DisposeIfValid(choice, disposed);
+    }
+
+    private static void DisposeProfessionProgressGraph(
+        UnitProfessionProgress professionProgress,
+        HashSet<GodotObject> disposed
+    )
+    {
+        if (professionProgress == null)
+            return;
+        foreach (ProfessionPromotionRecord record in professionProgress.promotion_history)
+        {
+            DisposeIfValid(record, disposed);
+        }
+        professionProgress.promotion_history.Clear();
+        professionProgress.core_skill_ids.Clear();
+        professionProgress.granted_skill_ids.Clear();
+    }
+
+    private static void DisposeEquipmentStateGraph(
+        EquipmentState equipmentState,
+        HashSet<GodotObject> disposed
+    )
+    {
+        if (equipmentState == null)
+            return;
+        foreach (StringName entrySlotId in equipmentState.GetEntrySlotIdsTyped())
+            DisposeIfValid(equipmentState.GetEntry(entrySlotId)?.GetEquipmentInstance(), disposed);
+    }
+
+    private static void DisposeWarehouseStateGraph(
+        WarehouseState warehouseState,
+        HashSet<GodotObject> disposed
+    )
+    {
+        if (warehouseState == null)
+            return;
+        foreach (EquipmentInstanceState instance in warehouseState.GetEquipmentInstancesTyped())
+            DisposeIfValid(instance, disposed);
+        warehouseState.stacks.Clear();
+        warehouseState.equipment_instances.Clear();
+    }
+
+    private static void DisposePendingCharacterRewardGraph(
+        PendingCharacterReward reward,
+        HashSet<GodotObject> disposed
+    )
+    {
+        if (reward == null)
+            return;
+        foreach (PendingCharacterRewardEntry entry in reward.entries)
+            DisposeIfValid(entry, disposed);
+        reward.entries.Clear();
+        DisposeIfValid(reward, disposed);
+    }
+
+    private static void DisposeQuestStateGraph(
+        QuestState quest,
+        HashSet<GodotObject> disposed
+    )
+    {
+        DisposeIfValid(quest, disposed);
+    }
+
+    private static void DisposeIfValid<T>(T owned, HashSet<GodotObject> disposed)
+        where T : GodotObject
+    {
+        if (owned == null || !disposed.Add(owned))
+            return;
+        GC.SuppressFinalize(owned);
+        if (GodotObject.IsInstanceValid(owned))
+            owned.Dispose();
+    }
+
+    private static void SuppressBorrowedGodotFinalizer(GodotObject borrowed)
+    {
+        if (borrowed == null)
+            return;
+        if (borrowed is Resource resource)
+        {
+            if (!string.IsNullOrEmpty(resource.ResourcePath))
+            {
+                GodotContentOwnership.RegisterBorrowedContent(
+                    resource,
+                    $"GameSession.static-content:{resource.ResourcePath}"
+                );
+                return;
+            }
+
+            GodotContentOwnership.RegisterDerivedContent(
+                resource,
+                $"GameSession.pathless-static:{resource.GetType().Name}:{resource.GetInstanceId()}",
+                "GameSession.SuppressBorrowedGodotFinalizer"
+            );
+            return;
+        }
+
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            borrowed,
+            "GameSession.SuppressBorrowedGodotFinalizer"
+        );
+    }
+
+    private bool IsSessionInTree()
+    {
+        try
+        {
+            return GodotObject.IsInstanceValid(this) && IsInsideTree();
+        }
+        catch (ObjectDisposedException)
+        {
+            return false;
+        }
+    }
+
+    private void SuppressOwnedContentFinalizerGraphsForShutdown(
+        HashSet<GodotObject> visited
+    )
+    {
+        if (visited == null)
+            return;
+        SuppressResourceValues(_progression_content_registry?.GetSkillDefsTyped(), visited);
+        SuppressResourceValues(_progression_content_registry?.GetProfessionDefsTyped(), visited);
+        SuppressResourceValues(_progression_content_registry?.GetAchievementDefsTyped(), visited);
+        SuppressResourceValues(_progression_content_registry?.GetQuestDefsTyped(), visited);
+        SuppressResourceValues(_progression_content_registry?.GetRaceDefsTyped(), visited);
+        SuppressResourceValues(_progression_content_registry?.GetSubraceDefsTyped(), visited);
+        SuppressResourceValues(_progression_content_registry?.GetTraitDefsTyped(), visited);
+        SuppressResourceValues(_progression_content_registry?.GetAgeProfileDefsTyped(), visited);
+        SuppressResourceValues(_progression_content_registry?.GetBloodlineDefsTyped(), visited);
+        SuppressResourceValues(_progression_content_registry?.GetBloodlineStageDefsTyped(), visited);
+        SuppressResourceValues(_progression_content_registry?.GetAscensionDefsTyped(), visited);
+        SuppressResourceValues(_progression_content_registry?.GetAscensionStageDefsTyped(), visited);
+        SuppressResourceValues(
+            _progression_content_registry?.GetStageAdvancementDefsTyped(),
+            visited
+        );
+        SuppressResourceValues(_item_content_registry?.GetItemDefsTyped(), visited);
+        SuppressResourceValues(_recipe_content_registry?.GetRecipeDefsTyped(), visited);
+        SuppressResourceValues(_enemy_content_registry?.GetEnemyTemplatesTyped(), visited);
+        SuppressResourceValues(_enemy_content_registry?.GetEnemyAiBrainsTyped(), visited);
+        SuppressResourceValues(_enemy_content_registry?.GetWildEncounterRostersTyped(), visited);
+        SuppressResourceValues(_battle_special_profile_registry?.GetManifestsTyped(), visited);
+        WorldMapContentValidator.SuppressCachedResourceFinalizersForShutdown();
+    }
+
+    internal void SuppressContentFinalizersForFinalizerDrain()
+    {
+        var visited = new HashSet<GodotObject>();
+        SuppressOwnedContentFinalizerGraphsForShutdown(visited);
+        SuppressGodotObjectFinalizerGraph(_generation_config, visited);
+        SuppressResourceDictionaryProjectionFinalizers(_skill_defs, visited);
+        SuppressResourceDictionaryProjectionFinalizers(_profession_defs, visited);
+        SuppressResourceDictionaryProjectionFinalizers(_achievement_defs, visited);
+        SuppressResourceDictionaryProjectionFinalizers(_quest_defs, visited);
+        SuppressResourceDictionaryProjectionFinalizers(_item_defs, visited);
+        SuppressResourceDictionaryProjectionFinalizers(_recipe_defs, visited);
+        SuppressResourceDictionaryProjectionFinalizers(_enemy_templates, visited);
+        SuppressResourceDictionaryProjectionFinalizers(_enemy_ai_brains, visited);
+        SuppressResourceDictionaryProjectionFinalizers(_wild_encounter_rosters, visited);
+    }
+
+    private static void SuppressResourceValues<T>(
+        IReadOnlyDictionary<StringName, T> resources,
+        HashSet<GodotObject> visited
+    )
+    {
+        if (resources == null || visited == null)
+            return;
+        foreach (T contentDef in resources.Values)
+        {
+            if (contentDef is GodotObject godotObject)
+                SuppressGodotObjectFinalizerGraph(godotObject, visited);
+        }
+    }
+
+    private void ClearSessionGodotObjectReferences(HashSet<GodotObject> finalizerSuppressionVisited)
+    {
+        if (finalizerSuppressionVisited != null)
+            SuppressGodotObjectFinalizerGraph(_generation_config, finalizerSuppressionVisited);
+        _generation_config = null;
+        ClearResourceDictionaryProjection(_skill_defs, finalizerSuppressionVisited);
+        ClearResourceDictionaryProjection(_profession_defs, finalizerSuppressionVisited);
+        ClearResourceDictionaryProjection(_achievement_defs, finalizerSuppressionVisited);
+        ClearResourceDictionaryProjection(_quest_defs, finalizerSuppressionVisited);
+        ClearResourceDictionaryProjection(_item_defs, finalizerSuppressionVisited);
+        ClearResourceDictionaryProjection(_recipe_defs, finalizerSuppressionVisited);
+        ClearResourceDictionaryProjection(_enemy_templates, finalizerSuppressionVisited);
+        ClearResourceDictionaryProjection(_enemy_ai_brains, finalizerSuppressionVisited);
+        ClearResourceDictionaryProjection(_wild_encounter_rosters, finalizerSuppressionVisited);
+        _skill_defs = new GDictionary();
+        _profession_defs = new GDictionary();
+        _achievement_defs = new GDictionary();
+        _quest_defs = new GDictionary();
+        _item_defs = new GDictionary();
+        _recipe_defs = new GDictionary();
+        _enemy_templates = new GDictionary();
+        _enemy_ai_brains = new GDictionary();
+        _wild_encounter_rosters = new GDictionary();
+        _content_validation_snapshot.Clear();
+        _content_validation_snapshot = new GDictionary();
+        _contentValidationSnapshotData = new ContentValidationSnapshotData();
+        _questDefIndex.Clear();
+    }
+
+    private static void ClearResourceDictionaryProjection(
+        GDictionary projection,
+        HashSet<GodotObject> finalizerSuppressionVisited
+    )
+    {
+        if (projection == null)
+            return;
+        SuppressResourceDictionaryProjectionFinalizers(
+            projection,
+            finalizerSuppressionVisited
+        );
+        projection.Clear();
+    }
+
+    private static void SuppressResourceDictionaryProjectionFinalizers(
+        GDictionary projection,
+        HashSet<GodotObject> finalizerSuppressionVisited
+    )
+    {
+        if (projection == null || finalizerSuppressionVisited == null)
+            return;
+        foreach (Variant key in projection.Keys)
+            SuppressGodotObjectFinalizersInValue(
+                projection[key],
+                finalizerSuppressionVisited,
+                0
+            );
+    }
+
+    private static void SuppressGodotObjectFinalizerGraph(
+        GodotObject root,
+        HashSet<GodotObject> visited
+    )
+    {
+        SuppressGodotObjectFinalizerGraph(root, visited, 0);
+    }
+
+    private static void SuppressGodotObjectFinalizerGraph(
+        GodotObject root,
+        HashSet<GodotObject> visited,
+        int depth
+    )
+    {
+        if (root == null || visited == null || depth > 8)
+            return;
+        try
+        {
+            if (!GodotObject.IsInstanceValid(root))
+                return;
+        }
+        catch (ObjectDisposedException)
+        {
+            return;
+        }
+        if (!visited.Add(root))
+            return;
+
+        GC.SuppressFinalize(root);
+        GC.KeepAlive(root);
+        if (depth >= 8)
+            return;
+
+        const System.Reflection.BindingFlags flags =
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public;
+        Type type = root.GetType();
+        foreach (System.Reflection.FieldInfo field in type.GetFields(flags))
+        {
+            if (field.IsStatic || !MayContainGodotObject(field.FieldType))
+                continue;
+            object value;
+            try
+            {
+                value = field.GetValue(root);
+            }
+            catch (Exception)
+            {
+                continue;
+            }
+            SuppressGodotObjectFinalizersInValue(value, visited, depth + 1);
+        }
+        foreach (System.Reflection.PropertyInfo property in type.GetProperties(flags))
+        {
+            if (
+                !property.CanRead
+                || property.GetIndexParameters().Length > 0
+                || !MayContainGodotObject(property.PropertyType)
+            )
+                continue;
+            object value;
+            try
+            {
+                value = property.GetValue(root);
+            }
+            catch (Exception)
+            {
+                continue;
+            }
+            SuppressGodotObjectFinalizersInValue(value, visited, depth + 1);
+        }
+    }
+
+    private static bool MayContainGodotObject(Type type)
+    {
+        if (type == null || type == typeof(string))
+            return false;
+        return typeof(GodotObject).IsAssignableFrom(type)
+            || type == typeof(Variant)
+            || typeof(System.Collections.IEnumerable).IsAssignableFrom(type);
+    }
+
+    private static void SuppressGodotObjectFinalizersInValue(
+        object value,
+        HashSet<GodotObject> visited,
+        int depth
+    )
+    {
+        if (value == null || depth > 8)
+            return;
+        switch (value)
+        {
+            case GodotObject godotObject:
+                SuppressGodotObjectFinalizerGraph(godotObject, visited, depth);
+                return;
+            case Variant variant:
+                SuppressGodotObjectFinalizersInVariant(variant, visited, depth);
+                return;
+            case GDictionary dictionary:
+                foreach (Variant key in dictionary.Keys)
+                    SuppressGodotObjectFinalizersInValue(dictionary[key], visited, depth + 1);
+                return;
+            case System.Collections.IEnumerable enumerable when value is not string:
+                foreach (object entry in enumerable)
+                    SuppressGodotObjectFinalizersInValue(entry, visited, depth + 1);
+                return;
+        }
+    }
+
+    private static void SuppressGodotObjectFinalizersInVariant(
+        Variant value,
+        HashSet<GodotObject> visited,
+        int depth
+    )
+    {
+        switch (value.VariantType)
+        {
+            case Variant.Type.Object:
+                SuppressGodotObjectFinalizerGraph(value.AsGodotObject(), visited, depth + 1);
+                break;
+            case Variant.Type.Dictionary:
+                SuppressGodotObjectFinalizersInValue(value.AsGodotDictionary(), visited, depth + 1);
+                break;
+            case Variant.Type.Array:
+                SuppressGodotObjectFinalizersInValue(value.AsGodotArray(), visited, depth + 1);
+                break;
+        }
     }
 
     private GameRoot EnsureGameRoot()
@@ -407,6 +865,7 @@ public partial class GameSession : Node
                     ["preset_name"] = preset_name,
                 })
             );
+            DisposeCapturedPartyState(previousRuntimeState);
         }
         else
         {
@@ -492,6 +951,7 @@ public partial class GameSession : Node
                     ["generation_config_path"] = generationConfigPath,
                 })
             );
+            DisposeCapturedPartyState(previousRuntimeState);
         }
         else
         {
@@ -583,10 +1043,13 @@ public partial class GameSession : Node
         _active_save_path = BuildSaveFilePath(_active_save_id);
         _generation_config_path = generationConfigPath ?? "";
         _generation_config = ResourceLoader.Load<WorldMapGenerationConfig>(_generation_config_path);
+        SuppressBorrowedGodotFinalizer(_generation_config);
         _world_data = worldData ?? new GDictionary();
         _player_coord = Vector2I.Zero;
         _player_faction_id = "player";
+        PartyState previousPartyState = _party_state;
         _party_state = partyState ?? new PartyState();
+        DisposePartyStateGraph(previousPartyState, _party_state);
         if (questDefs != null)
         {
             _quest_defs = questDefs;
@@ -693,7 +1156,16 @@ public partial class GameSession : Node
 
     public int SetPartyState(PartyState party_state)
     {
+        if (ReferenceEquals(_party_state, party_state))
+        {
+            _party_state ??= new PartyState();
+            MarkRuntimeStateDirty(SaveDirtyScopePartyState);
+            return (int)Error.Ok;
+        }
+
+        PartyState previousPartyState = _party_state;
         _party_state = NormalizePartyState(party_state);
+        DisposePartyStateGraph(previousPartyState, _party_state);
         MarkRuntimeStateDirty(SaveDirtyScopePartyState);
         return (int)Error.Ok;
     }
@@ -910,6 +1382,7 @@ public partial class GameSession : Node
         if (!TryGetTestContentRegistry(domain_id, out var registry, out var refreshBattleSpecialProfiles))
             return (int)Error.InvalidParameter;
 
+        SuppressBorrowedGodotFinalizer(content_def);
         registry[content_key] = content_def;
         if (domain_id == "quest")
             _questDefIndex = BuildQuestDefIndex(_quest_defs);
@@ -932,6 +1405,7 @@ public partial class GameSession : Node
         if (!TryGetTestContentRegistry(domain_id, out var registry, out var refreshBattleSpecialProfiles))
             return (int)Error.InvalidParameter;
 
+        SuppressBorrowedGodotFinalizer(content_def);
         registry[content_key] = content_def;
         if (domain_id == "quest")
             _questDefIndex = BuildQuestDefIndex(_quest_defs);
@@ -1077,7 +1551,7 @@ public partial class GameSession : Node
             }
         }
         string unloadedSaveId = _active_save_id;
-        ResetRuntimeState();
+        ResetRuntimeState(dispose_current_party_state: false);
         RotateLogSession();
         LogSessionInfo(
             "session.runtime.unload.ok",
@@ -1133,6 +1607,7 @@ public partial class GameSession : Node
 
         _generation_config_path = generation_config_path;
         _generation_config = generation_config;
+        SuppressBorrowedGodotFinalizer(_generation_config);
         _world_data = NormalizeWorldData(worldData);
         _player_coord = worldBuild.PlayerStartCoord;
         _player_faction_id = "player";
@@ -1251,6 +1726,7 @@ public partial class GameSession : Node
             (ReadGodotObject(decodeResult, "generation_config") ?? generation_config)
                 as WorldMapGenerationConfig
             ?? generation_config;
+        SuppressBorrowedGodotFinalizer(_generation_config);
         _world_data = GetDictionary(decodeResult, "world_data").Duplicate(true);
         _player_coord = GetVector2I(decodeResult, "player_coord", Vector2I.Zero);
         _player_faction_id = GetString(decodeResult, "player_faction_id", "player");
@@ -1363,7 +1839,8 @@ public partial class GameSession : Node
 
     private string GenerateUniqueSaveId(int timestamp, string prefix = "save")
     {
-        var rng = new RandomNumberGenerator();
+        using var rngScope = new GodotTransientResourceScope("GameSession.GenerateUniqueSaveId");
+        var rng = rngScope.OwnWrapper(new RandomNumberGenerator(), "rng");
         rng.Randomize();
         GDictionary existingSaveIds = new();
         foreach (GDictionary entry in LoadSaveIndexEntries())
@@ -1393,7 +1870,9 @@ public partial class GameSession : Node
                 !existingSaveIds.ContainsKey(saveId)
                 && !FileAccess.FileExists(BuildSaveFilePath(saveId))
             )
+            {
                 return saveId;
+            }
         }
         return "";
     }
@@ -1431,6 +1910,10 @@ public partial class GameSession : Node
             );
             return null;
         }
+        GodotContentOwnership.RegisterBorrowedContent(
+            generationConfig,
+            $"GameSession.LoadGenerationConfig:{generation_config_path}"
+        );
         return generationConfig;
     }
 
@@ -1501,7 +1984,7 @@ public partial class GameSession : Node
         }
         else
         {
-            using FileAccess indexFile = FileAccess.OpenCompressed(
+            FileAccess indexFile = FileAccess.OpenCompressed(
                 SaveIndexPath,
                 FileAccess.ModeFlags.Read,
                 (FileAccess.CompressionMode)SaveFileCompressionMode
@@ -1512,28 +1995,35 @@ public partial class GameSession : Node
             }
             else
             {
-                bool hasIndexPayload = TryReadSaveIndexPayload(indexFile, out GDictionary rawPayloadDict);
-                indexFile.Close();
-                if (hasIndexPayload)
+                try
                 {
-                    TryRead(rawPayloadDict, "version", out var indexVersionValue);
-                    TryRead(rawPayloadDict, "saves", out var savesValue);
-                    if (
-                        !_is_save_index_integer_value(indexVersionValue)
-                        || indexVersionValue.AsInt32() != SaveIndexVersion
-                        || savesValue.VariantType != Variant.Type.Array
-                    )
+                    bool hasIndexPayload = TryReadSaveIndexPayload(indexFile, out GDictionary rawPayloadDict);
+                    indexFile.Close();
+                    if (hasIndexPayload)
                     {
-                        shouldRewriteIndex = true;
+                        TryRead(rawPayloadDict, "version", out var indexVersionValue);
+                        TryRead(rawPayloadDict, "saves", out var savesValue);
+                        if (
+                            !_is_save_index_integer_value(indexVersionValue)
+                            || indexVersionValue.AsInt32() != SaveIndexVersion
+                            || savesValue.VariantType != Variant.Type.Array
+                        )
+                        {
+                            shouldRewriteIndex = true;
+                        }
+                        else
+                        {
+                            rawEntries = savesValue.AsGodotArray();
+                        }
                     }
                     else
                     {
-                        rawEntries = savesValue.AsGodotArray();
+                        shouldRewriteIndex = true;
                     }
                 }
-                else
+                finally
                 {
-                    shouldRewriteIndex = true;
+                    GodotObjectLifecycle.DisposeGodotObject(indexFile);
                 }
             }
         }
@@ -1555,17 +2045,25 @@ public partial class GameSession : Node
         if (!FileAccess.FileExists(SaveIndexPath))
             return new GDictionaryArray();
 
-        using FileAccess indexFile = FileAccess.OpenCompressed(
+        FileAccess indexFile = FileAccess.OpenCompressed(
             SaveIndexPath,
             FileAccess.ModeFlags.Read,
             (FileAccess.CompressionMode)SaveFileCompressionMode
         );
         if (indexFile == null)
             return new GDictionaryArray();
-        bool hasIndexPayload = TryReadSaveIndexPayload(indexFile, out GDictionary rawPayloadDict);
-        indexFile.Close();
-        if (!hasIndexPayload)
-            return new GDictionaryArray();
+        GDictionary rawPayloadDict;
+        try
+        {
+            bool hasIndexPayload = TryReadSaveIndexPayload(indexFile, out rawPayloadDict);
+            indexFile.Close();
+            if (!hasIndexPayload)
+                return new GDictionaryArray();
+        }
+        finally
+        {
+            GodotObjectLifecycle.DisposeGodotObject(indexFile);
+        }
 
         TryRead(rawPayloadDict, "version", out var indexVersionValue);
         TryRead(rawPayloadDict, "saves", out var savesValue);
@@ -1657,14 +2155,21 @@ public partial class GameSession : Node
 
         int size = -1;
         string fingerprint = "";
-        using FileAccess indexFile = FileAccess.Open(SaveIndexPath, FileAccess.ModeFlags.Read);
+        FileAccess indexFile = FileAccess.Open(SaveIndexPath, FileAccess.ModeFlags.Read);
         if (indexFile != null)
         {
-            long fileLength = (long)indexFile.GetLength();
-            size = (int)fileLength;
-            if (fileLength > 0)
-                fingerprint = BuildFileFingerprint(indexFile.GetBuffer(fileLength));
-            indexFile.Close();
+            try
+            {
+                long fileLength = (long)indexFile.GetLength();
+                size = (int)fileLength;
+                if (fileLength > 0)
+                    fingerprint = BuildFileFingerprint(indexFile.GetBuffer(fileLength));
+                indexFile.Close();
+            }
+            finally
+            {
+                GodotObjectLifecycle.DisposeGodotObject(indexFile);
+            }
         }
         return new GDictionary
         {
@@ -1793,81 +2298,88 @@ public partial class GameSession : Node
         if (saveDir == null)
             return new GDictionaryArray();
 
-        GDictionary rebuiltById = new();
-        Error listError = saveDir.ListDirBegin();
-        if (listError != Error.Ok)
+        try
         {
-            throw new InvalidOperationException(
-                $"Failed to list save directory {SaveDirectory} for index rebuild. Error: {(int)listError}"
-            );
-        }
-
-        while (true)
-        {
-            string fileName = saveDir.GetNext();
-            if (string.IsNullOrEmpty(fileName))
-                break;
-            if (fileName == "." || fileName == ".." || saveDir.CurrentIsDir())
-                continue;
-            if (!fileName.EndsWith(".dat") || fileName == "index.dat")
-                continue;
-            string candidateSaveId = fileName[..^4];
-            if (!_save_serializer.IsValidSaveIdToken(candidateSaveId))
-                continue;
-            string savePath = $"{SaveDirectory}/{fileName}";
-            GDictionary readResult = ReadSavePayload(savePath, false);
-            if (GetInt(readResult, "error", (int)Error.InvalidData) != (int)Error.Ok)
-                continue;
-            if (!TryRead(readResult, "payload", out var payloadValue)
-                || payloadValue.VariantType != Variant.Type.Dictionary)
-                continue;
-            GDictionary payload = payloadValue.AsGodotDictionary();
-            GDictionary saveMeta = ExtractSaveMetaFromPayload(payload);
-            if (saveMeta.Count == 0)
-                continue;
-            string generationConfigPath = GetString(saveMeta, "generation_config_path");
-            WorldMapGenerationConfig generationConfig = LoadGenerationConfig(
-                generationConfigPath
-            );
-            if (generationConfig == null)
-                continue;
-            GDictionary decodeResult = _save_serializer.DecodePayload(
-                payload,
-                generationConfigPath,
-                generationConfig,
-                saveMeta
-            );
-            if (GetInt(decodeResult, "error", (int)Error.InvalidData) != (int)Error.Ok)
-                continue;
-            try
+            GDictionary rebuiltById = new();
+            Error listError = saveDir.ListDirBegin();
+            if (listError != Error.Ok)
             {
-                if (
-                    ValidateDecodedPartyIdentityForSave(
-                        ReadGodotObject(decodeResult, "party_state") as PartyState,
-                        GetString(saveMeta, "save_id"),
-                        "index_rebuild"
-                    ) != (int)Error.Ok
-                )
+                throw new InvalidOperationException(
+                    $"Failed to list save directory {SaveDirectory} for index rebuild. Error: {(int)listError}"
+                );
+            }
+
+            while (true)
+            {
+                string fileName = saveDir.GetNext();
+                if (string.IsNullOrEmpty(fileName))
+                    break;
+                if (fileName == "." || fileName == ".." || saveDir.CurrentIsDir())
+                    continue;
+                if (!fileName.EndsWith(".dat") || fileName == "index.dat")
+                    continue;
+                string candidateSaveId = fileName[..^4];
+                if (!_save_serializer.IsValidSaveIdToken(candidateSaveId))
+                    continue;
+                string savePath = $"{SaveDirectory}/{fileName}";
+                GDictionary readResult = ReadSavePayload(savePath, false);
+                if (GetInt(readResult, "error", (int)Error.InvalidData) != (int)Error.Ok)
+                    continue;
+                if (!TryRead(readResult, "payload", out var payloadValue)
+                    || payloadValue.VariantType != Variant.Type.Dictionary)
+                    continue;
+                GDictionary payload = payloadValue.AsGodotDictionary();
+                GDictionary saveMeta = ExtractSaveMetaFromPayload(payload);
+                if (saveMeta.Count == 0)
+                    continue;
+                string generationConfigPath = GetString(saveMeta, "generation_config_path");
+                WorldMapGenerationConfig generationConfig = LoadGenerationConfig(
+                    generationConfigPath
+                );
+                if (generationConfig == null)
+                    continue;
+                GDictionary decodeResult = _save_serializer.DecodePayload(
+                    payload,
+                    generationConfigPath,
+                    generationConfig,
+                    saveMeta
+                );
+                if (GetInt(decodeResult, "error", (int)Error.InvalidData) != (int)Error.Ok)
+                    continue;
+                try
+                {
+                    if (
+                        ValidateDecodedPartyIdentityForSave(
+                            ReadGodotObject(decodeResult, "party_state") as PartyState,
+                            GetString(saveMeta, "save_id"),
+                            "index_rebuild"
+                        ) != (int)Error.Ok
+                    )
+                    {
+                        continue;
+                    }
+                }
+                catch (InvalidOperationException)
                 {
                     continue;
                 }
+                rebuiltById[GetString(saveMeta, "save_id")] = saveMeta;
             }
-            catch (InvalidOperationException)
-            {
-                continue;
-            }
-            rebuiltById[GetString(saveMeta, "save_id")] = saveMeta;
-        }
-        saveDir.ListDirEnd();
 
-        GDictionaryArray rebuiltEntries = new();
-        foreach (var saveMetaValue in rebuiltById.Values)
-        {
-            if (TryUnboxToDictionary(saveMetaValue, out GDictionary saveMeta))
-                rebuiltEntries.Add(saveMeta);
+            GDictionaryArray rebuiltEntries = new();
+            foreach (var saveMetaValue in rebuiltById.Values)
+            {
+                if (TryUnboxToDictionary(saveMetaValue, out GDictionary saveMeta))
+                    rebuiltEntries.Add(saveMeta);
+            }
+            SortSaveMetaNewestFirst(rebuiltEntries);
+            return rebuiltEntries;
         }
-        SortSaveMetaNewestFirst(rebuiltEntries);
-        return rebuiltEntries;
+        finally
+        {
+            saveDir.ListDirEnd();
+            GodotObjectLifecycle.DisposeGodotObject(saveDir);
+        }
     }
 
     public GDictionaryArray MergeSaveIndexEntries(
@@ -2357,7 +2869,8 @@ public partial class GameSession : Node
         if (eligibleSkillIds.Count == 0)
             return null;
 
-        var rng = new RandomNumberGenerator();
+        using var rngScope = new GodotTransientResourceScope("GameSession.GrantRandomStartBookSkill");
+        var rng = rngScope.OwnWrapper(new RandomNumberGenerator(), "rng");
         rng.Randomize();
         StringName selectedSkillId = eligibleSkillIds[
             (int)rng.RandiRange(0, eligibleSkillIds.Count - 1)
@@ -2652,7 +3165,6 @@ public partial class GameSession : Node
             ["active_save_path"] = _active_save_path,
             ["active_save_meta"] = _active_save_meta.Duplicate(true),
             ["generation_config_path"] = _generation_config_path,
-            ["generation_config"] = _generation_config,
             ["world_data"] = _world_data.Duplicate(true),
             ["player_coord"] = _player_coord,
             ["player_faction_id"] = _player_faction_id,
@@ -2671,18 +3183,21 @@ public partial class GameSession : Node
 
     public void RestoreRuntimeState(GDictionary state)
     {
+        PartyState previousPartyState = _party_state;
         _active_save_id = GetString(state, "active_save_id");
         _active_save_path = GetString(state, "active_save_path");
         _active_save_meta = GetDictionary(state, "active_save_meta").Duplicate(true);
         _generation_config_path = GetString(state, "generation_config_path");
-        _generation_config =
-            ReadGodotObject(state, "generation_config") as WorldMapGenerationConfig;
+        _generation_config = string.IsNullOrEmpty(_generation_config_path)
+            ? null
+            : LoadGenerationConfig(_generation_config_path);
         _world_data = GetDictionary(state, "world_data").Duplicate(true);
         _player_coord = GetVector2I(state, "player_coord", Vector2I.Zero);
         _player_faction_id = GetString(state, "player_faction_id", "player");
         _party_state =
             (ReadGodotObject(state, "party_state") ?? new PartyState()) as PartyState
             ?? new PartyState();
+        DisposePartyStateGraph(previousPartyState, _party_state);
         _has_active_world = ReadExactBool(state, "has_active_world", false);
         _battle_save_lock_enabled = ReadExactBool(state, "battle_save_lock_enabled", false);
         _battle_save_dirty = ReadExactBool(state, "battle_save_dirty", false);
@@ -2700,8 +3215,9 @@ public partial class GameSession : Node
         );
     }
 
-    private void ResetRuntimeState()
+    private void ResetRuntimeState(bool dispose_current_party_state = true)
     {
+        PartyState previousPartyState = _party_state;
         _active_save_id = "";
         _active_save_path = "";
         _active_save_meta = new GDictionary();
@@ -2711,6 +3227,8 @@ public partial class GameSession : Node
         _player_coord = Vector2I.Zero;
         _player_faction_id = "player";
         _party_state = new PartyState();
+        if (dispose_current_party_state)
+            DisposePartyStateGraph(previousPartyState, _party_state);
         _has_active_world = false;
         _battle_save_lock_enabled = false;
         _battle_save_dirty = false;
@@ -3007,10 +3525,12 @@ public partial class GameSession : Node
         var result = new GDictionary();
         if (values == null)
             return result;
+        var visited = new HashSet<GodotObject>();
         foreach ((StringName id, T value) in values)
         {
             if (id == default || id == (StringName)"" || value == null)
                 continue;
+            SuppressGodotObjectFinalizerGraph(value, visited);
             result[id] = value;
         }
         return result;

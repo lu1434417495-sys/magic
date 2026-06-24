@@ -179,7 +179,7 @@ public partial class run_battle_ai_skill_affordance_classifier_regression : Scen
             combat.effect_defs.Add(effectDef);
         }
         skill.combat_profile = combat;
-        return skill;
+        return TestResourceOwnership.Own(skill, "BattleAiSkillAffordanceClassifier.BuildSkill");
     }
 
     private static CombatEffectDef Effect(StringName effectType, StringName effectFilter = default)

@@ -9,7 +9,6 @@ public partial class run_battle_runtime_terrain_generator_ownership_regression :
         TestRuntimeDisposesDefaultTerrainGenerator();
         TestInjectedTerrainGeneratorRemainsCallerOwned();
         TestReplacingDefaultTerrainGeneratorDisposesOwnedPreviousInstance();
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Battle runtime terrain generator ownership regression"));
     }
 

@@ -30,7 +30,6 @@ public partial class run_fortuna_guidance_regression : SceneTree
         TestFortunaGuidanceUnlockChainFeedsRank2To5();
         TestRuntimeChapterAdapterUsesFormalPermanentDeathField();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         return _test.Finish("Fortuna guidance regression");
     }
 

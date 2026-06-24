@@ -19,7 +19,6 @@ public partial class run_effective_mp_reservation_regression : SceneTree
         TestDailyPracticeGrowthClampsToEffectiveMp();
         TestBattleUnitFactoryUsesEffectiveMp();
         TestBattleWritebackUsesCurrentEffectiveMpAfterSetupStateChanges();
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Effective MP reservation regression"));
     }
 

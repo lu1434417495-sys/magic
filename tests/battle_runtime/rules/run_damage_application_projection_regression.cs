@@ -24,7 +24,6 @@ public partial class run_damage_application_projection_regression : SceneTree
             _test.Fail($"Damage application projection regression crashed: {ex}");
         }
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Damage application projection regression"));
     }
 

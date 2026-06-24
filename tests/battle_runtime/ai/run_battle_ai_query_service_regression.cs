@@ -213,22 +213,25 @@ public partial class run_battle_ai_query_service_regression : SceneTree
 
     private static SkillDef BuildSkill()
     {
-        return new SkillDef
-        {
-            skill_id = "query_skill",
-            display_name = "Query Skill",
-            combat_profile = new CombatSkillDef
+        return TestResourceOwnership.Own(
+            new SkillDef
             {
                 skill_id = "query_skill",
-                range_value = 5,
-                target_mode = "ground",
-                target_team_filter = "enemy",
-                area_pattern = "diamond",
-                area_value = 1,
-                target_selection_mode = "single_unit",
-                ai_tags = new Godot.Collections.Array<StringName> { "setup" },
+                display_name = "Query Skill",
+                combat_profile = new CombatSkillDef
+                {
+                    skill_id = "query_skill",
+                    range_value = 5,
+                    target_mode = "ground",
+                    target_team_filter = "enemy",
+                    area_pattern = "diamond",
+                    area_value = 1,
+                    target_selection_mode = "single_unit",
+                    ai_tags = new Godot.Collections.Array<StringName> { "setup" },
+                },
             },
-        };
+            "BattleAiQueryService.BuildSkill"
+        );
     }
 
     private static bool IsGodotDynamicBoundaryType(Type type) =>

@@ -42,8 +42,8 @@ public partial class BattleCellState : RefCounted
     public Godot.Collections.Array<StringName> terrain_effect_ids = new();
     public Godot.Collections.Array<BattleTerrainEffectState> timed_terrain_effects = new();
     public Vector2I flow_direction = Vector2I.Zero;
-    public BattleEdgeFeatureState edge_feature_east = BattleEdgeFeatureState.MakeNone();
-    public BattleEdgeFeatureState edge_feature_south = BattleEdgeFeatureState.MakeNone();
+    public BattleEdgeFeatureState edge_feature_east;
+    public BattleEdgeFeatureState edge_feature_south;
 
     public void SetCoord(Vector2I value)
     {
@@ -128,17 +128,21 @@ public partial class BattleCellState : RefCounted
         BattleEdgeFeatureState normalizedFeature = NormalizeEdgeFeature(feature_state);
         if (direction == Vector2I.Right)
         {
-            edge_feature_east = normalizedFeature;
+            ReplaceEdgeFeature(ref edge_feature_east, normalizedFeature);
         }
         else if (direction == Vector2I.Down)
         {
-            edge_feature_south = normalizedFeature;
+            ReplaceEdgeFeature(ref edge_feature_south, normalizedFeature);
+        }
+        else
+        {
+            return;
         }
     }
 
     public void ClearEdgeFeature(Vector2I direction)
     {
-        SetEdgeFeature(direction, BattleEdgeFeatureState.MakeNone());
+        SetEdgeFeature(direction, null);
     }
 
     public BattleCellState DuplicateCell()
@@ -313,8 +317,8 @@ public partial class BattleCellState : RefCounted
             terrain_effect_ids = parsedTerrainEffectIds,
             timed_terrain_effects = parsedTimedTerrainEffects,
             flow_direction = flowDirection,
-            edge_feature_east = NormalizeEdgeFeature(eastFeature),
-            edge_feature_south = NormalizeEdgeFeature(southFeature),
+            edge_feature_east = eastFeature,
+            edge_feature_south = southFeature,
         };
         cellState.RecalculateRuntimeValues();
         return cellState;
@@ -415,9 +419,6 @@ public partial class BattleCellState : RefCounted
                     passable = false,
                     move_cost = 1,
                     occupant_unit_id = "",
-                    prop_ids = new Godot.Collections.Array<StringName>(),
-                    terrain_effect_ids = new Godot.Collections.Array<StringName>(),
-                    timed_terrain_effects = new Godot.Collections.Array<BattleTerrainEffectState>(),
                     flow_direction = Vector2I.Zero,
                 };
                 column.Add(supportCell);
@@ -500,8 +501,7 @@ public partial class BattleCellState : RefCounted
 
     private static GDictionary EdgeFeatureToDict(BattleEdgeFeatureState featureState)
     {
-        BattleEdgeFeatureState normalizedFeature = NormalizeEdgeFeature(featureState);
-        return normalizedFeature.ToDictionary();
+        return featureState != null ? featureState.ToDictionary() : NoneEdgeFeatureToDict();
     }
 
     private static bool HasExactRequiredKeys(GDictionary data)
@@ -669,6 +669,63 @@ public partial class BattleCellState : RefCounted
             return BattleEdgeFeatureState.MakeNone();
         }
         return featureState.DuplicateFeature();
+    }
+
+    private static void ReplaceEdgeFeature(
+        ref BattleEdgeFeatureState slot,
+        BattleEdgeFeatureState replacement
+    )
+    {
+        slot = replacement;
+    }
+
+    private static GDictionary NoneEdgeFeatureToDict()
+    {
+        return new GDictionary
+        {
+            ["feature_kind"] = BattleEdgeFeatureState
+                .ToStringName(BattleEdgeFeatureKind.None)
+                .ToString(),
+            ["render_kind"] = BattleEdgeFeatureState
+                .ToStringName(BattleEdgeRenderKind.None)
+                .ToString(),
+            ["render_layers"] = 0,
+            ["blocks_move"] = false,
+            ["blocks_occupancy"] = false,
+            ["blocks_los"] = false,
+            ["interaction_kind"] = BattleEdgeFeatureState
+                .ToStringName(BattleEdgeInteractionKind.None)
+                .ToString(),
+            ["state_tag"] = "",
+        };
+    }
+
+    internal static void DisposeRuntimeGraph(BattleCellState cell)
+    {
+        if (cell == null)
+            return;
+        if (!GodotObject.IsInstanceValid(cell))
+        {
+            GodotObjectLifecycle.DisposeGodotObject(cell);
+            return;
+        }
+
+        if (cell.timed_terrain_effects != null)
+        {
+            foreach (BattleTerrainEffectState timedEffect in cell.timed_terrain_effects)
+                GodotObjectLifecycle.DisposeGodotObject(timedEffect);
+            cell.timed_terrain_effects.Clear();
+            GodotWrapperOwnershipRegistry.SuppressWrapper(cell.timed_terrain_effects);
+        }
+        cell.prop_ids?.Clear();
+        cell.terrain_effect_ids?.Clear();
+        GodotWrapperOwnershipRegistry.SuppressWrapper(cell.prop_ids);
+        GodotWrapperOwnershipRegistry.SuppressWrapper(cell.terrain_effect_ids);
+
+        cell.edge_feature_east = null;
+        cell.edge_feature_south = null;
+
+        GodotObjectLifecycle.DisposeGodotObject(cell);
     }
 
     private static Godot.Collections.Array<StringName> DuplicateStringNameArray(

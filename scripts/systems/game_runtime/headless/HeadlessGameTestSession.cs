@@ -627,6 +627,7 @@ public sealed class HeadlessGameTestSession : IDisposable
         _ownsGameSession = false;
         _activeHeadlessEncounterAnchor = null;
         GC.SuppressFinalize(this);
+        GodotObjectLifecycle.PrepareForFinalizerDrain();
     }
 
     private void EnsureGameSession()
@@ -645,6 +646,8 @@ public sealed class HeadlessGameTestSession : IDisposable
         _gameSession = sceneTree.Root.GetNodeOrNull<GameSession>("GameSession");
         if (_gameSession != null)
         {
+            GC.SuppressFinalize(_gameSession);
+            GC.KeepAlive(_gameSession);
             _ownsGameSession = false;
             return;
         }
@@ -1393,6 +1396,13 @@ public sealed class HeadlessGameTestSession : IDisposable
             return NormalizeDictionary(dictionaryValue);
         if (rawValue is GArray arrayValue)
             return NormalizeArray(arrayValue);
+        if (rawValue is GodotObject godotObjectValue)
+        {
+            LifecycleViolation.Report(
+                $"Headless snapshot payload contains live GodotObject. type={godotObjectValue.GetType().Name}"
+            );
+            return godotObjectValue.ToString() ?? "";
+        }
         return rawValue;
     }
 
@@ -1409,8 +1419,21 @@ public sealed class HeadlessGameTestSession : IDisposable
             Variant.Type.Vector2I => value.AsVector2I(),
             Variant.Type.Dictionary => NormalizeDictionary(value.AsGodotDictionary()),
             Variant.Type.Array => NormalizeArray(value.AsGodotArray()),
-            _ => value.Obj,
+            Variant.Type.Object => NormalizeVariantObject(value),
+            _ => value.ToString() ?? "",
         };
+    }
+
+    private static object NormalizeVariantObject(Variant value)
+    {
+        GodotObject godotObject = value.AsGodotObject();
+        if (godotObject != null)
+        {
+            LifecycleViolation.Report(
+                $"Headless snapshot Variant contains live GodotObject. type={godotObject.GetType().Name}"
+            );
+        }
+        return value.ToString() ?? "";
     }
 
     private static GDictionary ProjectTypedDictionary(IReadOnlyDictionary<string, object> source)
@@ -1452,7 +1475,7 @@ public sealed class HeadlessGameTestSession : IDisposable
             string stringValue => stringValue,
             StringName stringNameValue => stringNameValue,
             Vector2I vectorValue => vectorValue,
-            GodotObject godotObjectValue => godotObjectValue,
+            GodotObject godotObjectValue => godotObjectValue.ToString() ?? "",
             _ => value.ToString() ?? "",
         };
     }

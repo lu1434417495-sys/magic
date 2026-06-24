@@ -936,9 +936,22 @@ public class WorldMapContentValidator : IDisposable
         var resource = ResourceLoader.Load<Resource>(resourcePath);
         if (resource != null)
         {
+            GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
             ResourceCache[resourcePath] = resource;
         }
         return resource;
+    }
+
+    internal static void SuppressCachedResourceFinalizersForShutdown()
+    {
+        foreach (Resource resource in ResourceCache.Values)
+        {
+            GodotObjectOwnershipRegistry.AssertBorrowedOrOwnedKnown(
+                resource,
+                "WorldMapContentValidator.SuppressCachedResourceFinalizersForShutdown"
+            );
+        }
+        GodotContentOwnership.SuppressBorrowedContentForFinalizerDrain();
     }
 
     private static bool ContainsStringName(

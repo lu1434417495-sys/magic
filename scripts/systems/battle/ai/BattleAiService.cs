@@ -1,7 +1,8 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 
-internal sealed class BattleAiService
+internal sealed class BattleAiService : IDisposable
 {
     private readonly Dictionary<StringName, EnemyAiBrainDef> _enemyAiBrains = new();
     private readonly BattleAiScoreService _scoreService = new();
@@ -25,6 +26,10 @@ internal sealed class BattleAiService
                 {
                     continue;
                 }
+                GodotObjectOwnershipRegistry.AssertBorrowedOrOwnedKnown(
+                    entry.Value,
+                    "BattleAiService.Setup"
+                );
                 _enemyAiBrains[entry.Key] = entry.Value;
                 if (entry.Value.score_profile != null)
                 {
@@ -38,7 +43,7 @@ internal sealed class BattleAiService
 
     internal void SetScoreProfile(BattleAiScoreProfile profile)
     {
-        _scoreService.SetProfile(profile ?? new BattleAiScoreProfile());
+        _scoreService.SetProfile(profile);
     }
 
     internal void SetFactionScoreProfiles(
@@ -56,6 +61,12 @@ internal sealed class BattleAiService
     internal BattleAiScoreService GetScoreService()
     {
         return _scoreService;
+    }
+
+    public void Dispose()
+    {
+        _enemyAiBrains.Clear();
+        _scoreService.Dispose();
     }
 
     internal BattleAiDecision ChooseCommand(BattleAiContext context)

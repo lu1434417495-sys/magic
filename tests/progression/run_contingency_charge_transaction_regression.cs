@@ -23,6 +23,7 @@ public partial class run_contingency_charge_transaction_regression : SceneTree
 		try
 		{
 			TestSaveValidUnchargedConfigDoesNotDebitMaterialOrClampMp();
+			TestSaveSetupRespectsBattleMutationGuard();
 			TestSaveInvalidContentReturnsInvalidSetupWithoutMutation();
 			TestSaveOverExistingChargedSetupReturnsSetupChargedWithoutMutation();
 			TestInsufficientMaterialLeavesStateUnchanged();
@@ -39,7 +40,6 @@ public partial class run_contingency_charge_transaction_regression : SceneTree
         }
         finally
         {
-            GodotSharpCleanup.CollectPendingFinalizers();
             Quit(_test.Finish("Contingency charge transaction regression"));
 		}
 	}
@@ -78,6 +78,51 @@ public partial class run_contingency_charge_transaction_regression : SceneTree
 			partyState.GetMemberState("hero").GetContingencySetupsTyped()[0].DisplayName,
 			"Updated Emergency Matrix",
 			"SaveSetup should replace the setup contents when the payload is valid."
+		);
+	}
+
+	private void TestSaveSetupRespectsBattleMutationGuard()
+	{
+		PartyState partyState = BuildPartyState(ValidSetup("save_guarded"), currentMp: 30);
+		PartyWarehouseService warehouse = BuildWarehouseService(partyState);
+		warehouse.AddItemTyped(GemId, 1);
+		using CharacterManagementModule manager = BuildManager(partyState);
+		PartyContingencySetupService service = BuildService(
+			partyState,
+			warehouse,
+			manager,
+			() => true
+		);
+		ContingencyMatrixSetupState replacement = ContingencyMatrixSetupState.FromDictionary(
+			BuildSetupPayload(
+				"save_guarded",
+				"mage_mirror_image",
+				displayName: "Should Not Save During Battle"
+			)
+		);
+
+		ContingencySetupMutationResult result = service.SaveSetup("hero", replacement);
+
+		_test.False(result.Ok, "SaveSetup should fail while battle mutation is blocked.");
+		_test.Eq(
+			result.ErrorCode,
+			"battle_mutation_blocked",
+			"SaveSetup should use the same stable battle guard code as charge and clear."
+		);
+		_test.Eq(warehouse.CountItem(GemId), 1, "Guarded save should not mutate warehouse.");
+		_test.Eq(partyState.GetMemberState("hero").current_mp, 30, "Guarded save should not clamp MP.");
+		AssertSetupState(
+			partyState,
+			"save_guarded",
+			charged: false,
+			reservedMpMax: 0,
+			materialCount: 0,
+			"Guarded save should leave the original setup intact."
+		);
+		_test.Eq(
+			partyState.GetMemberState("hero").GetContingencySetupsTyped()[0].DisplayName,
+			"Emergency Matrix",
+			"Guarded save should not replace the stored setup."
 		);
 	}
 
@@ -363,7 +408,8 @@ public partial class run_contingency_charge_transaction_regression : SceneTree
     private static PartyContingencySetupService BuildService(
         PartyState partyState,
         PartyWarehouseService warehouse,
-        CharacterManagementModule manager
+        CharacterManagementModule manager,
+        Func<bool> battleMutationBlockedProvider = null
     )
     {
         PartyContingencySetupService service = new();
@@ -372,7 +418,7 @@ public partial class run_contingency_charge_transaction_regression : SceneTree
             warehouse,
             BuildSkillIndex(),
             manager.GetMemberAttributeSnapshot,
-            () => false
+            battleMutationBlockedProvider ?? (() => false)
         );
         return service;
     }

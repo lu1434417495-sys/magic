@@ -139,10 +139,12 @@ internal partial class GameLogService : RefCounted
 
     private static string BuildSessionLogVirtualPath()
     {
-        var rng = new RandomNumberGenerator();
+        using var rngScope = new GodotTransientResourceScope("GameLogService.BuildSessionLogVirtualPath");
+        var rng = rngScope.OwnWrapper(new RandomNumberGenerator(), "rng");
         rng.Randomize();
         long timestampMs = (long)(Time.GetUnixTimeFromSystem() * 1000.0);
-        return $"{LogDirectory}/session_{timestampMs}_{rng.RandiRange(0, 999999):D6}.jsonl";
+        int suffix = rng.RandiRange(0, 999999);
+        return $"{LogDirectory}/session_{timestampMs}_{suffix:D6}.jsonl";
     }
 
     private void StartFileSessionIfEnabled()
@@ -173,7 +175,7 @@ internal partial class GameLogService : RefCounted
             );
             return;
         }
-        using var file = FileAccess.Open(_sessionLogVirtualPath, FileAccess.ModeFlags.Write);
+        FileAccess file = FileAccess.Open(_sessionLogVirtualPath, FileAccess.ModeFlags.Write);
         if (file == null)
         {
             DisableFileWrite(
@@ -181,7 +183,14 @@ internal partial class GameLogService : RefCounted
             );
             return;
         }
-        _writeEnabled = true;
+        try
+        {
+            _writeEnabled = true;
+        }
+        finally
+        {
+            GodotObjectLifecycle.DisposeGodotObject(file);
+        }
     }
 
     private void AppendToFile(GameLogEntry entry)
@@ -190,7 +199,7 @@ internal partial class GameLogService : RefCounted
         {
             return;
         }
-        using var file = FileAccess.Open(_sessionLogVirtualPath, FileAccess.ModeFlags.ReadWrite);
+        FileAccess file = FileAccess.Open(_sessionLogVirtualPath, FileAccess.ModeFlags.ReadWrite);
         if (file == null)
         {
             DisableFileWrite(
@@ -198,8 +207,15 @@ internal partial class GameLogService : RefCounted
             );
             return;
         }
-        file.SeekEnd();
-        file.StoreLine(Json.Stringify(entry.ToDictionary()));
+        try
+        {
+            file.SeekEnd();
+            file.StoreLine(Json.Stringify(entry.ToDictionary()));
+        }
+        finally
+        {
+            GodotObjectLifecycle.DisposeGodotObject(file);
+        }
     }
 
     private void DisableFileWrite(string message)

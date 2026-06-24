@@ -23,9 +23,20 @@ internal sealed class BattleMeteorSwarmResolver
     // 镜像 BattleDamageResolver.cs 的预览常量。
 
     private readonly BattleReportFormatter _reportFormatter = new();
+    private readonly GodotTransientResourceScope _transientScope =
+        new("BattleMeteorSwarmResolver");
+    private readonly RuntimeSkillDefFactory _runtimeSkillFactory;
 
     private BattleRuntimeModule _runtime;
     private BattleAttackCheckPolicyService _attack_check_policy_service;
+
+    internal BattleMeteorSwarmResolver()
+    {
+        _runtimeSkillFactory = new RuntimeSkillDefFactory(
+            _transientScope,
+            "BattleMeteorSwarmResolver"
+        );
+    }
 
     internal void Setup(
         BattleRuntimeModule runtime,
@@ -38,6 +49,7 @@ internal sealed class BattleMeteorSwarmResolver
 
     internal void Dispose()
     {
+        _transientScope.Drain();
         _runtime = null;
         _attack_check_policy_service = null;
     }
@@ -616,58 +628,70 @@ internal sealed class BattleMeteorSwarmResolver
         int distance_from_anchor
     )
     {
-        var effect = new CombatEffectDef
-        {
-            effect_type = "damage",
-            damage_tag = component.damage_tag,
-            effect_target_team_filter = "any",
-            power = component.base_power,
-            dice_count = component.dice_count,
-            dice_sides = component.dice_sides,
-            pre_resistance_damage_multiplier = component.GetDamageScale(distance_from_anchor),
-        };
+        var effect = _runtimeSkillFactory.NewEffect(
+            runtimeEffect =>
+            {
+                runtimeEffect.effect_type = "damage";
+                runtimeEffect.damage_tag = component.damage_tag;
+                runtimeEffect.effect_target_team_filter = "any";
+                runtimeEffect.power = component.base_power;
+                runtimeEffect.dice_count = component.dice_count;
+                runtimeEffect.dice_sides = component.dice_sides;
+                runtimeEffect.pre_resistance_damage_multiplier =
+                    component.GetDamageScale(distance_from_anchor);
+            },
+            $"damage_component:{component?.component_id}"
+        );
         ApplySaveProfileToDamageEffect(effect, component);
         return effect;
     }
 
     internal CombatEffectDef _build_terrain_effect_def(GDictionary terrain_profile)
     {
-        var effect = new CombatEffectDef();
         StringName terrainProfileId = ProgressionDataUtils.to_string_name(
             DictStringName(terrain_profile, "terrain_profile_id")
         );
-        effect.effect_type = "terrain_effect";
-        effect.tick_effect_type = ProgressionDataUtils.to_string_name(
-            DictStringName(terrain_profile, "tick_effect_type", "none")
+        var effect = _runtimeSkillFactory.NewEffect(
+            runtimeEffect =>
+            {
+                runtimeEffect.effect_type = "terrain_effect";
+                runtimeEffect.tick_effect_type = ProgressionDataUtils.to_string_name(
+                    DictStringName(terrain_profile, "tick_effect_type", "none")
+                );
+                runtimeEffect.lifetime_policy = DictStringName(
+                    terrain_profile,
+                    "lifetime_policy",
+                    "timed"
+                );
+                runtimeEffect.move_cost_delta = DictInt(terrain_profile, "move_cost_delta", 0);
+                runtimeEffect.render_overlay_id = DictStringName(
+                    terrain_profile,
+                    "render_overlay_id"
+                );
+                runtimeEffect.overlay_priority = DictInt(terrain_profile, "overlay_priority", 0);
+                runtimeEffect.display_name = TerrainProfileDisplayName(terrainProfileId);
+                runtimeEffect.terrain_effect_id = terrainProfileId;
+                runtimeEffect.duration_tu = DictInt(terrain_profile, "duration_tu", 0);
+                runtimeEffect.tick_interval_tu = DictInt(terrain_profile, "tick_interval_tu", 0);
+                runtimeEffect.stack_behavior = "refresh";
+                runtimeEffect.effect_target_team_filter = "any";
+                runtimeEffect.@params = new GDictionary
+                {
+                    ["move_cost_stack_key"] = DictStringName(
+                        terrain_profile,
+                        "move_cost_stack_key",
+                        ""
+                    ),
+                    ["move_cost_stack_mode"] = DictStringName(
+                        terrain_profile,
+                        "move_cost_stack_mode",
+                        ""
+                    ),
+                };
+                runtimeEffect.accuracy_modifier_spec = BuildAccuracyModifierSpec(terrain_profile);
+            },
+            $"terrain_effect:{terrainProfileId}"
         );
-        effect.lifetime_policy = DictStringName(
-            terrain_profile,
-            "lifetime_policy",
-            "timed"
-        );
-        effect.move_cost_delta = DictInt(terrain_profile, "move_cost_delta", 0);
-        effect.render_overlay_id = DictStringName(terrain_profile, "render_overlay_id");
-        effect.overlay_priority = DictInt(terrain_profile, "overlay_priority", 0);
-        effect.display_name = TerrainProfileDisplayName(terrainProfileId);
-        effect.terrain_effect_id = terrainProfileId;
-        effect.duration_tu = DictInt(terrain_profile, "duration_tu", 0);
-        effect.tick_interval_tu = DictInt(terrain_profile, "tick_interval_tu", 0);
-        effect.stack_behavior = "refresh";
-        effect.effect_target_team_filter = "any";
-        effect.@params = new GDictionary
-        {
-            ["move_cost_stack_key"] = DictStringName(
-                terrain_profile,
-                "move_cost_stack_key",
-                ""
-            ),
-            ["move_cost_stack_mode"] = DictStringName(
-                terrain_profile,
-                "move_cost_stack_mode",
-                ""
-            ),
-        };
-        effect.accuracy_modifier_spec = BuildAccuracyModifierSpec(terrain_profile);
         return effect;
     }
 
@@ -676,14 +700,17 @@ internal sealed class BattleMeteorSwarmResolver
         BattleUnitState target_unit
     )
     {
-        var effect = new CombatEffectDef
-        {
-            effect_type = "apply_status",
-            status_id = plan.profile.concussed_status_id,
-            power = 1,
-            duration_tu = 60,
-            attack_roll_penalty = 2,
-        };
+        var effect = _runtimeSkillFactory.NewEffect(
+            runtimeEffect =>
+            {
+                runtimeEffect.effect_type = "apply_status";
+                runtimeEffect.status_id = plan.profile.concussed_status_id;
+                runtimeEffect.power = 1;
+                runtimeEffect.duration_tu = 60;
+                runtimeEffect.attack_roll_penalty = 2;
+            },
+            "concussed_status"
+        );
         return DamageResolver()
             .ResolveEffects(
                 plan.source_unit,

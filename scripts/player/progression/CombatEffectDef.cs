@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -504,8 +505,14 @@ public partial class CombatEffectDef : Resource
     [Export]
     public Godot.Collections.Dictionary @params { get; set; } = new();
 
-    public CombatEffectDef DuplicateForRuntime()
+    internal CombatEffectDef DuplicateForRuntime(
+        GodotTransientResourceScope owner,
+        string reason
+    )
     {
+        if (owner == null)
+            throw new ArgumentNullException(nameof(owner));
+
         var copy = (CombatEffectDef)Duplicate(true);
 
         if (copy == null)
@@ -517,7 +524,7 @@ public partial class CombatEffectDef : Resource
                 : new Godot.Collections.Dictionary();
         copy.accuracy_modifier_spec = accuracy_modifier_spec?.Clone();
 
-        return copy;
+        return owner.Own(copy, reason);
     }
 
     internal int GetIntParamTyped(string key, int fallback = 0)

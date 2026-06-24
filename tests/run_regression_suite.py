@@ -9,12 +9,15 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
 
 SLOW_TEST_SECONDS = 30.0
+LEAKED_UNSAFE_REFERENCE_MARKER = "Leaked unsafe reference to object:"
+LEAKED_UNSAFE_REFERENCE_STACK = "at: finalize (modules/mono/csharp_script.cpp:177)"
 
 
 @dataclass(frozen=True)
@@ -143,6 +146,85 @@ def is_godot_finalizer_crash(returncode: int, stderr: str) -> bool:
 	)
 
 
+def run_godot_process(
+	godot_command: str,
+	repo_root: Path,
+	test_path: str,
+	env: dict[str, str] | None,
+	realtime_output: bool,
+) -> tuple[int, str, str]:
+	process = subprocess.Popen(
+		[godot_command, "--headless", "--script", test_path],
+		cwd=repo_root,
+		env=env,
+		stdout=subprocess.PIPE,
+		stderr=subprocess.PIPE,
+		text=True,
+		encoding="utf-8",
+		errors="replace",
+		bufsize=1,
+	)
+	stdout_result: dict[str, object] = {}
+	stderr_result: dict[str, object] = {}
+
+	def collect_stream(stream, sink: dict[str, object], echo: bool) -> None:
+		lines: list[str] = []
+		leaked_unsafe_count = 0
+		skip_finalize_stack = False
+		try:
+			for line in stream:
+				if LEAKED_UNSAFE_REFERENCE_MARKER in line:
+					leaked_unsafe_count += 1
+					skip_finalize_stack = True
+					continue
+				if skip_finalize_stack and LEAKED_UNSAFE_REFERENCE_STACK in line:
+					skip_finalize_stack = False
+					continue
+				skip_finalize_stack = False
+				lines.append(line)
+				if echo:
+					print(line, end="", flush=True)
+		finally:
+			try:
+				stream.close()
+			except Exception:
+				pass
+		sink["text"] = "".join(lines)
+		sink["leaked_unsafe_count"] = leaked_unsafe_count
+
+	stdout_thread = threading.Thread(
+		target=collect_stream,
+		args=(process.stdout, stdout_result, realtime_output),
+		daemon=True,
+	)
+	stderr_thread = threading.Thread(
+		target=collect_stream,
+		args=(process.stderr, stderr_result, realtime_output),
+		daemon=True,
+	)
+	stdout_thread.start()
+	stderr_thread.start()
+	returncode = process.wait()
+	stdout_thread.join()
+	stderr_thread.join()
+
+	stdout = str(stdout_result.get("text", ""))
+	stderr = str(stderr_result.get("text", ""))
+	stdout_leaks = int(stdout_result.get("leaked_unsafe_count", 0))
+	stderr_leaks = int(stderr_result.get("leaked_unsafe_count", 0))
+	if stdout_leaks > 0:
+		stdout += (
+			f"[godot] suppressed {stdout_leaks} leaked unsafe reference log entries "
+			"from stdout.\n"
+		)
+	if stderr_leaks > 0:
+		stderr += (
+			f"[godot] suppressed {stderr_leaks} leaked unsafe reference log entries "
+			"from stderr.\n"
+		)
+	return returncode, stdout, stderr
+
+
 def run_one_test(
 	godot_command: str,
 	repo_root: Path,
@@ -168,38 +250,13 @@ def run_one_test(
 		if user_data_root is not None:
 			attempt_root = Path(user_data_dir) / f"attempt_{attempt + 1}"
 			env = prepare_user_data_env(os.environ, attempt_root)
-		if realtime_output:
-			with tempfile.TemporaryDirectory(prefix="godot-regression-stderr-") as output_dir:
-				stderr_path = Path(output_dir) / "stderr.txt"
-				with open(stderr_path, "w", encoding="utf-8", errors="replace") as stderr_file:
-					result = subprocess.run(
-						[godot_command, "--headless", "--script", test_path],
-						cwd=repo_root,
-						env=env,
-						stderr=stderr_file,
-					)
-				stdout = ""
-				stderr = stderr_path.read_text(encoding="utf-8", errors="replace")
-		else:
-			with tempfile.TemporaryDirectory(prefix="godot-regression-output-") as output_dir:
-				stdout_path = Path(output_dir) / "stdout.txt"
-				stderr_path = Path(output_dir) / "stderr.txt"
-				with open(stdout_path, "w", encoding="utf-8", errors="replace") as stdout_file, open(
-					stderr_path,
-					"w",
-					encoding="utf-8",
-					errors="replace",
-				) as stderr_file:
-					result = subprocess.run(
-						[godot_command, "--headless", "--script", test_path],
-						cwd=repo_root,
-						env=env,
-						stdout=stdout_file,
-						stderr=stderr_file,
-					)
-				stdout = stdout_path.read_text(encoding="utf-8", errors="replace")
-				stderr = stderr_path.read_text(encoding="utf-8", errors="replace")
-		returncode = result.returncode
+		returncode, stdout, stderr = run_godot_process(
+			godot_command,
+			repo_root,
+			test_path,
+			env,
+			realtime_output,
+		)
 		if not is_godot_finalizer_crash(returncode, stderr) or attempt + 1 >= max_attempts:
 			break
 		retry_count += 1

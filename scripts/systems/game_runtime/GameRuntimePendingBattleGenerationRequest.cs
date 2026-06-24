@@ -24,6 +24,10 @@ internal sealed class GameRuntimePendingBattleGenerationRequest
         var result = new GDictionary();
         foreach (GameRuntimePayloadEntry entry in _context)
             result[entry.Key] = entry.Value;
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            result,
+            "GameRuntimePendingBattleGenerationRequest.CloneContext"
+        );
         return result;
     }
 
@@ -31,16 +35,23 @@ internal sealed class GameRuntimePendingBattleGenerationRequest
     {
         EncounterAnchor = null;
         Seed = 0;
-        _context.Clear();
+        ClearContextEntries();
     }
 
     private void ReplaceContext(GDictionary context)
     {
-        _context.Clear();
+        ClearContextEntries();
         if (context == null)
             return;
         foreach (Variant key in context.Keys)
             _context.Add(new GameRuntimePayloadEntry(key, context[key]));
+    }
+
+    private void ClearContextEntries()
+    {
+        foreach (GameRuntimePayloadEntry entry in _context)
+            entry.SuppressFinalizers();
+        _context.Clear();
     }
 }
 
@@ -53,9 +64,27 @@ internal readonly struct GameRuntimePayloadEntry
     {
         Key = key;
         _value = DuplicateVariant(value);
+        MarkRuntimeStateGraph("store");
     }
 
     internal Variant Value => DuplicateVariant(_value);
+
+    internal void SuppressFinalizers()
+    {
+        MarkRuntimeStateGraph("clear");
+    }
+
+    private void MarkRuntimeStateGraph(string phase)
+    {
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            Key,
+            $"GameRuntimePendingBattleGenerationRequest.{phase}.key"
+        );
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            _value,
+            $"GameRuntimePendingBattleGenerationRequest.{phase}.value"
+        );
+    }
 
     private static Variant DuplicateVariant(Variant value)
     {

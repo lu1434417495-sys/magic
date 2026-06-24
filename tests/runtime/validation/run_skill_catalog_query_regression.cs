@@ -52,7 +52,6 @@ public partial class run_skill_catalog_query_regression : SceneTree
             gameSession.Dispose();
         }
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Skill catalog query regression"));
     }
 

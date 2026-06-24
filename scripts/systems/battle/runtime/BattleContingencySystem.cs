@@ -370,9 +370,12 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
 
         StringName sourceEventId =
             _runtime?.AllocateContingencySourceEventId("damage_hook") ?? "";
+        StringName damageEventId =
+            _runtime?.AllocateContingencySourceEventId("damage_event") ?? sourceEventId;
         ContingencyFrozenTriggerFacts facts = BuildDamageFrozenFacts(context);
         int executed = 0;
         int matched = 0;
+        bool cancelCurrentDamage = false;
         foreach (BattleContingencyInstance instance in GetDamageTriggerInstances(context))
         {
             if (instance == null)
@@ -387,7 +390,7 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
                 "damage_hook_matched",
                 instance,
                 sourceEventId,
-                sourceEventId,
+                damageEventId,
                 instance.Setup?.Trigger?.Type ?? ""
             );
             ContingencyReleaseContext releaseContext = EnterReleaseContext(
@@ -407,7 +410,7 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
                 sequential ? "sequential_queued" : "ok",
                 instance,
                 sourceEventId,
-                sourceEventId,
+                damageEventId,
                 releaseContext.TriggerType
             );
 
@@ -424,10 +427,18 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
                 continue;
             }
             foreach (AutoCastRequest request in requests)
+            {
                 if (_runtime?.ExecuteAutoCast(request, context.Batch) == true)
+                {
                     executed += 1;
+                    if (request.TargetResolution?.MovedOutsideCurrentDamageEvent == true)
+                        cancelCurrentDamage = true;
+                }
+            }
         }
 
+        if (cancelCurrentDamage)
+            return BattleDamageApplicationHookResult.Cancel();
         return executed > 0 || matched > 0
             ? BattleDamageApplicationHookResult.StateChanged()
             : BattleDamageApplicationHookResult.None;
@@ -730,6 +741,7 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
             TriggerTargetUnitId = context.TargetUnit?.unit_id ?? "",
             TriggerTargetCell = targetCell,
             TriggerCell = targetCell,
+            CurrentDamageEventAreaCells = context.CurrentDamageEventAreaCells,
             FatalDamageIncoming = context.Projection.WouldBeFatalBeforeDeathPrevention,
         };
     }

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
-public sealed partial class BattleAiScoreService
+public sealed partial class BattleAiScoreService : IDisposable
 {
     private static readonly StringName BonusConditionTargetLowHp = "target_low_hp";
     private static readonly StringName PathStepAoeEffectType = "path_step_aoe";
@@ -15,8 +15,10 @@ public sealed partial class BattleAiScoreService
     private const int MinRangedThreatRange = 3;
     private const int FriendlyLethalMinProbabilityThreshold = 15;
 
-    private BattleAiScoreProfile _scoreProfile = new();
-    private BattleAiScoreProfile _defaultProfile = new();
+    private readonly GodotTransientResourceScope _transientScope =
+        new("BattleAiScoreService");
+    private BattleAiScoreProfile _scoreProfile;
+    private BattleAiScoreProfile _defaultProfile;
     private readonly Dictionary<StringName, BattleAiScoreProfile> _factionProfiles = new();
     private readonly Dictionary<StringName, BattleAiScoreProfile> _brainProfiles = new();
     private BattleDamageResolver _damageResolver;
@@ -30,6 +32,23 @@ public sealed partial class BattleAiScoreService
         new();
     private readonly Dictionary<AnchorDistanceCacheKey, int> _anchorDistanceCache = new();
     private bool _decisionScopeActive;
+
+    internal BattleAiScoreService()
+    {
+        _defaultProfile = NewRuntimeScoreProfile("default_profile");
+        _scoreProfile = _defaultProfile;
+    }
+
+    public void Dispose()
+    {
+        _transientScope.Dispose();
+        _scoreProfile = null;
+        _defaultProfile = null;
+        _factionProfiles.Clear();
+        _brainProfiles.Clear();
+        _damageResolver = null;
+        EndDecisionScope();
+    }
 
     private readonly record struct ThreatProjectionCacheKey(
         StringName ActorUnitId,
@@ -193,6 +212,12 @@ public sealed partial class BattleAiScoreService
         }
     }
 
+    private BattleAiScoreProfile NewRuntimeScoreProfile(string reason)
+    {
+        var profile = new BattleAiScoreProfile();
+        return _transientScope.Own(profile, reason);
+    }
+
     internal void Setup(BattleDamageResolver damageResolver = null)
     {
         _damageResolver = damageResolver;
@@ -201,7 +226,11 @@ public sealed partial class BattleAiScoreService
 
     internal void SetProfile(BattleAiScoreProfile profile)
     {
-        _defaultProfile = profile ?? new BattleAiScoreProfile();
+        _defaultProfile = profile ?? NewRuntimeScoreProfile("set_profile_default");
+        GodotObjectOwnershipRegistry.AssertBorrowedOrOwnedKnown(
+            _defaultProfile,
+            "BattleAiScoreService.SetProfile"
+        );
         _scoreProfile = _defaultProfile;
         ClearDecisionCaches();
     }
@@ -223,6 +252,10 @@ public sealed partial class BattleAiScoreService
                 {
                     continue;
                 }
+                GodotObjectOwnershipRegistry.AssertBorrowedOrOwnedKnown(
+                    entry.Value,
+                    "BattleAiScoreService.SetFactionProfiles"
+                );
                 _factionProfiles[entry.Key] = entry.Value;
             }
         }
@@ -242,6 +275,10 @@ public sealed partial class BattleAiScoreService
                 {
                     continue;
                 }
+                GodotObjectOwnershipRegistry.AssertBorrowedOrOwnedKnown(
+                    entry.Value,
+                    "BattleAiScoreService.SetBrainProfiles"
+                );
                 _brainProfiles[entry.Key] = entry.Value;
             }
         }
@@ -308,6 +345,17 @@ public sealed partial class BattleAiScoreService
         IReadOnlyDictionary<string, object> metadata = null
     )
     {
+        GodotObjectOwnershipRegistry.AssertBorrowedOrOwnedKnown(
+            skillDef,
+            "BattleAiScoreService.BuildSkillScoreInput.skill"
+        );
+        foreach (CombatEffectDef effectDef in effectDefs ?? System.Array.Empty<CombatEffectDef>())
+        {
+            GodotObjectOwnershipRegistry.AssertBorrowedOrOwnedKnown(
+                effectDef,
+                "BattleAiScoreService.BuildSkillScoreInput.effect"
+            );
+        }
         AiTraceRecorder.Enter("build_skill_score_input");
         AiTraceRecorder.Enter("score_input:metadata");
         ScoreBuildMetadata scoreMetadata = ScoreBuildMetadata.FromMetadata(

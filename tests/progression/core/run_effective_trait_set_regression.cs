@@ -12,7 +12,6 @@ public partial class run_effective_trait_set_regression : SceneTree
     private void Run()
     {
         TestTraitSetLookupsAndSortedBattleProjection();
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Effective trait set regression"));
     }
 

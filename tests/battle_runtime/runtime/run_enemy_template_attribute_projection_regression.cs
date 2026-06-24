@@ -15,7 +15,6 @@ public partial class run_enemy_template_attribute_projection_regression : SceneT
     private void Run()
     {
         TestEnemyTemplateTypedOverridesProjectIntoEncounterRosterBuilder();
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Enemy template attribute projection regression"));
     }
 

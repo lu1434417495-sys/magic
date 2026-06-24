@@ -20,7 +20,7 @@ public static class FileIOCoordinator
             return cleanupTempError;
         }
 
-        using FileAccess file = FileAccess.OpenCompressed(
+        FileAccess file = FileAccess.OpenCompressed(
             tempPath,
             FileAccess.ModeFlags.Write,
             (FileAccess.CompressionMode)compression_mode
@@ -37,28 +37,35 @@ public static class FileIOCoordinator
             return (int)openError;
         }
 
-        file.StoreVar(payload, false);
-        Error writeError = file.GetError();
-        file.Close();
-        if (writeError != Error.Ok)
+        try
         {
-            RemoveFileIfExists(tempPath);
-            PushError(
-                error_sink,
-                $"{error_event_prefix}.write_failed",
-                $"Failed to write {label} file {tempPath}. Error: {(int)writeError}",
-                Json.Stringify(new GDictionary { ["path"] = tempPath, ["write_error"] = (int)writeError })
-            );
-            return (int)writeError;
-        }
+            file.StoreVar(payload, false);
+            Error writeError = file.GetError();
+            file.Close();
+            if (writeError != Error.Ok)
+            {
+                RemoveFileIfExists(tempPath);
+                PushError(
+                    error_sink,
+                    $"{error_event_prefix}.write_failed",
+                    $"Failed to write {label} file {tempPath}. Error: {(int)writeError}",
+                    Json.Stringify(new GDictionary { ["path"] = tempPath, ["write_error"] = (int)writeError })
+                );
+                return (int)writeError;
+            }
 
-        return ReplaceFileAtomically(
-            tempPath,
-            virtual_path,
-            error_event_prefix,
-            label,
-            error_sink
-        );
+            return ReplaceFileAtomically(
+                tempPath,
+                virtual_path,
+                error_event_prefix,
+                label,
+                error_sink
+            );
+        }
+        finally
+        {
+            GodotObjectLifecycle.DisposeGodotObject(file);
+        }
     }
 
     public static int ReplaceFileAtomically(
@@ -210,7 +217,7 @@ public static class FileIOCoordinator
             return false;
         }
 
-        using FileAccess file = FileAccess.OpenCompressed(
+        FileAccess file = FileAccess.OpenCompressed(
             virtual_path,
             FileAccess.ModeFlags.Read,
             (FileAccess.CompressionMode)compression_mode
@@ -219,16 +226,23 @@ public static class FileIOCoordinator
         {
             return false;
         }
-        if ((long)file.GetLength() < 8)
+        try
         {
-            file.Close();
-            return false;
-        }
+            if ((long)file.GetLength() < 8)
+            {
+                file.Close();
+                return false;
+            }
 
-        _ = file.GetVar(false);
-        Error readError = file.GetError();
-        file.Close();
-        return readError == Error.Ok;
+            using Variant readValue = file.GetVar(false);
+            Error readError = file.GetError();
+            file.Close();
+            return readError == Error.Ok;
+        }
+        finally
+        {
+            GodotObjectLifecycle.DisposeGodotObject(file);
+        }
     }
 
     public static int RenameFile(string from_virtual_path, string to_virtual_path)
@@ -260,7 +274,7 @@ public static class FileIOCoordinator
             return (int)Error.Ok;
         }
 
-        using DirAccess dir = DirAccess.Open(virtual_path);
+        DirAccess dir = DirAccess.Open(virtual_path);
         if (dir == null)
         {
             Error openError = DirAccess.GetOpenError();
@@ -273,54 +287,62 @@ public static class FileIOCoordinator
             return (int)openError;
         }
 
-        Error listError = dir.ListDirBegin();
-        if (listError != Error.Ok)
+        bool listingStarted = false;
+        try
         {
-            PushError(
-                error_sink,
-                "session.cleanup.list_directory_failed",
-                $"Failed to list directory {virtual_path} for cleanup. Error: {(int)listError}",
-                Json.Stringify(new GDictionary { ["virtual_path"] = virtual_path, ["list_error"] = (int)listError })
-            );
-            return (int)listError;
-        }
-
-        while (true)
-        {
-            string name = dir.GetNext();
-            if (string.IsNullOrEmpty(name))
+            Error listError = dir.ListDirBegin();
+            if (listError != Error.Ok)
             {
-                break;
+                PushError(
+                    error_sink,
+                    "session.cleanup.list_directory_failed",
+                    $"Failed to list directory {virtual_path} for cleanup. Error: {(int)listError}",
+                    Json.Stringify(new GDictionary { ["virtual_path"] = virtual_path, ["list_error"] = (int)listError })
+                );
+                return (int)listError;
             }
-            if (name == "." || name == "..")
-            {
-                continue;
-            }
+            listingStarted = true;
 
-            string childVirtualPath = $"{virtual_path}/{name}";
-            if (dir.CurrentIsDir())
+            while (true)
             {
-                int nestedError = RemoveDirectoryRecursive(childVirtualPath, error_sink);
-                if (nestedError != (int)Error.Ok)
+                string name = dir.GetNext();
+                if (string.IsNullOrEmpty(name))
                 {
-                    dir.ListDirEnd();
-                    return nestedError;
+                    break;
                 }
-                continue;
+                if (name == "." || name == "..")
+                {
+                    continue;
+                }
+
+                string childVirtualPath = $"{virtual_path}/{name}";
+                if (dir.CurrentIsDir())
+                {
+                    int nestedError = RemoveDirectoryRecursive(childVirtualPath, error_sink);
+                    if (nestedError != (int)Error.Ok)
+                    {
+                        return nestedError;
+                    }
+                    continue;
+                }
+
+                Error removeFileError = DirAccess.RemoveAbsolute(
+                    ProjectSettings.GlobalizePath(childVirtualPath)
+                );
+                if (removeFileError != Error.Ok)
+                {
+                    return (int)removeFileError;
+                }
             }
 
-            Error removeFileError = DirAccess.RemoveAbsolute(
-                ProjectSettings.GlobalizePath(childVirtualPath)
-            );
-            if (removeFileError != Error.Ok)
-            {
-                dir.ListDirEnd();
-                return (int)removeFileError;
-            }
+            return (int)DirAccess.RemoveAbsolute(absolutePath);
         }
-
-        dir.ListDirEnd();
-        return (int)DirAccess.RemoveAbsolute(absolutePath);
+        finally
+        {
+            if (listingStarted)
+                dir.ListDirEnd();
+            GodotObjectLifecycle.DisposeGodotObject(dir);
+        }
     }
 
     private static void PushError(

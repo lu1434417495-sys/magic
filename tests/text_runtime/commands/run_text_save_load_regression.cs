@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -5,107 +6,110 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_text_save_load_regression : SceneTree
 {
     private readonly TestHarness _test = new();
+    private GameTextCommandRunner _runner;
 
     public override void _Initialize()
     {
-        TestGameLoadReopensNewlyCreatedSave();
-        TestGameLoadReopensForgePersistedSave();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Text save/load regression"));
-    }
-
-    private void TestGameLoadReopensNewlyCreatedSave()
-    {
-        var runner = new GameTextCommandRunner();
+        int exitCode = 1;
         try
         {
-            runner.initialize();
+            _runner = new GameTextCommandRunner();
+            _runner.initialize();
 
-            GameTextCommandResult createResult = runner.ExecuteLine("game new ashen_intersection");
-            _test.True(createResult.ok, "game new ashen_intersection 应创建成功。");
-            if (!createResult.ok)
-                return;
+            TestGameLoadReopensNewlyCreatedSave(_runner);
+            TestGameLoadReopensForgePersistedSave(_runner);
+            _runner.Dispose(true);
+            _runner = null;
 
-            string saveId = runner.GetSession().GetGameSession().GetActiveSaveId();
-            _test.True(!string.IsNullOrEmpty(saveId), "新建世界后应能读取 active save id。");
-            _test.True(SaveSlotsIncludeId(runner, saveId), "新建世界后 save slots 应包含 active save id。");
-            AssertUngeneratedSubmapPlaceholder(
-                runner,
-                "ashen_ashlands",
-                "新建 ashen_intersection 后应保留未生成子地图空占位。"
-            );
-
-            GameTextCommandResult loadResult = runner.ExecuteLine($"game load {saveId}");
-            _test.True(loadResult.ok, "game load 刚创建的 save_id 应成功。");
-            _test.Eq(
-                runner.GetSession().GetGameSession().GetActiveSaveId(),
-                saveId,
-                "重新载入后 active save id 应保持不变。"
-            );
-            AssertUngeneratedSubmapPlaceholder(
-                runner,
-                "ashen_ashlands",
-                "重新载入后未生成子地图占位仍应是空 world_data。"
-            );
+            exitCode = _test.Finish("Text save/load regression");
         }
         finally
         {
-            runner.Dispose(true);
+            if (_runner != null)
+            {
+                _runner.Dispose(true);
+                _runner = null;
+            }
+            Quit(exitCode);
         }
     }
 
-    private void TestGameLoadReopensForgePersistedSave()
+    private void TestGameLoadReopensNewlyCreatedSave(GameTextCommandRunner runner)
     {
-        var runner = new GameTextCommandRunner();
-        try
-        {
-            runner.initialize();
+        using GameTextCommandResult createResult = runner.ExecuteLine(
+            "game new ashen_intersection"
+        );
+        _test.True(createResult.ok, "game new ashen_intersection 应创建成功。");
+        if (!createResult.ok)
+            return;
 
-            GameTextCommandResult createResult = runner.ExecuteLine("game new ashen_intersection");
-            _test.True(createResult.ok, "forge save/load 回归前置：应能创建 ashen_intersection 世界。");
-            if (!createResult.ok)
-                return;
+        string saveId = runner.GetSession().GetGameSession().GetActiveSaveId();
+        _test.True(!string.IsNullOrEmpty(saveId), "新建世界后应能读取 active save id。");
+        _test.True(SaveSlotsIncludeId(runner, saveId), "新建世界后 save slots 应包含 active save id。");
+        AssertUngeneratedSubmapPlaceholder(
+            runner,
+            "ashen_ashlands",
+            "新建 ashen_intersection 后应保留未生成子地图空占位。"
+        );
 
-            string saveId = runner.GetSession().GetGameSession().GetActiveSaveId();
-            _test.True(!string.IsNullOrEmpty(saveId), "forge save/load 回归前置：应能读取 active save id。");
+        using GameTextCommandResult loadResult = runner.ExecuteLine($"game load {saveId}");
+        _test.True(loadResult.ok, "game load 刚创建的 save_id 应成功。");
+        _test.Eq(
+            runner.GetSession().GetGameSession().GetActiveSaveId(),
+            saveId,
+            "重新载入后 active save id 应保持不变。"
+        );
+        AssertUngeneratedSubmapPlaceholder(
+            runner,
+            "ashen_ashlands",
+            "重新载入后未生成子地图占位仍应是空 world_data。"
+        );
+    }
 
-            AssertCommandOk(runner, "warehouse add bronze_sword 1");
-            AssertCommandOk(runner, "warehouse add iron_ore 3");
-            AssertCommandOk(runner, "world open");
-            AssertCommandOk(runner, "settlement action service:repair_gear");
-            AssertCommandOk(
-                runner,
-                "settlement action service:repair_gear submission_source=forge recipe_id=forge_smith_iron_greatsword"
-            );
-            _test.Eq(
-                CountRuntimeWarehouseItem(runner, "iron_greatsword"),
-                1,
-                "锻造完成后，当前 runtime 仓库应立即包含铁制大剑。"
-            );
-            _test.Eq(
-                CountPartyStateItem(runner.GetSession().GetGameSession().GetPartyState(), "iron_greatsword"),
-                1,
-                "锻造完成并持久化后，GameSession 内部 PartyState 应包含铁制大剑。"
-            );
+    private void TestGameLoadReopensForgePersistedSave(GameTextCommandRunner runner)
+    {
+        using GameTextCommandResult createResult = runner.ExecuteLine(
+            "game new ashen_intersection"
+        );
+        _test.True(createResult.ok, "forge save/load 回归前置：应能创建 ashen_intersection 世界。");
+        if (!createResult.ok)
+            return;
 
-            _test.True(SaveSlotsIncludeId(runner, saveId), "forge 持久化后 save slots 应继续包含原始 save id。");
-            GameTextCommandResult loadResult = runner.ExecuteLine($"game load {saveId}");
-            _test.True(loadResult.ok, "game load forge 持久化后的 save_id 应成功。");
-            _test.Eq(
-                CountPartyStateItem(runner.GetSession().GetGameSession().GetPartyState(), "iron_greatsword"),
-                1,
-                "重新载入后，GameSession 内部 PartyState 应包含铁制大剑。"
-            );
-            _test.Eq(
-                CountWarehouseItem(loadResult.snapshot, "iron_greatsword"),
-                1,
-                "重新载入后应保留通用 forge 产出的铁制大剑。"
-            );
-        }
-        finally
-        {
-            runner.Dispose(true);
-        }
+        string saveId = runner.GetSession().GetGameSession().GetActiveSaveId();
+        _test.True(!string.IsNullOrEmpty(saveId), "forge save/load 回归前置：应能读取 active save id。");
+
+        AssertCommandOk(runner, "warehouse add bronze_sword 1");
+        AssertCommandOk(runner, "warehouse add iron_ore 3");
+        AssertCommandOk(runner, "world open");
+        AssertCommandOk(runner, "settlement action service:repair_gear");
+        AssertCommandOk(
+            runner,
+            "settlement action service:repair_gear submission_source=forge recipe_id=forge_smith_iron_greatsword"
+        );
+        _test.Eq(
+            CountRuntimeWarehouseItem(runner, "iron_greatsword"),
+            1,
+            "锻造完成后，当前 runtime 仓库应立即包含铁制大剑。"
+        );
+        _test.Eq(
+            CountPartyStateItem(runner.GetSession().GetGameSession().GetPartyState(), "iron_greatsword"),
+            1,
+            "锻造完成并持久化后，GameSession 内部 PartyState 应包含铁制大剑。"
+        );
+
+        _test.True(SaveSlotsIncludeId(runner, saveId), "forge 持久化后 save slots 应继续包含原始 save id。");
+        using GameTextCommandResult loadResult = runner.ExecuteLine($"game load {saveId}");
+        _test.True(loadResult.ok, "game load forge 持久化后的 save_id 应成功。");
+        _test.Eq(
+            CountPartyStateItem(runner.GetSession().GetGameSession().GetPartyState(), "iron_greatsword"),
+            1,
+            "重新载入后，GameSession 内部 PartyState 应包含铁制大剑。"
+        );
+        _test.Eq(
+            CountWarehouseItem(loadResult.SnapshotTyped, "iron_greatsword"),
+            1,
+            "重新载入后应保留通用 forge 产出的铁制大剑。"
+        );
     }
 
     private static bool SaveSlotsIncludeId(GameTextCommandRunner runner, string saveId)
@@ -120,17 +124,18 @@ public partial class run_text_save_load_regression : SceneTree
         return false;
     }
 
-    private static int CountWarehouseItem(GDictionary snapshot, string itemId)
+    private static int CountWarehouseItem(IReadOnlyDictionary<string, object> snapshot, string itemId)
     {
-        GDictionary warehouseSnapshot = Dict(snapshot, "warehouse");
-        GDictionary windowData = Dict(warehouseSnapshot, "window_data");
-        foreach (Variant entryValue in ArrayValue(windowData, "entries"))
+        IReadOnlyDictionary<string, object> warehouseSnapshot = TypedDict(snapshot, "warehouse");
+        IReadOnlyDictionary<string, object> windowData = TypedDict(warehouseSnapshot, "window_data");
+        foreach (object entryValue in TypedArray(windowData, "entries"))
         {
-            GDictionary entry = entryValue.AsGodotDictionary();
-            if (DictString(entry, "item_id") == itemId)
+            if (entryValue is not IReadOnlyDictionary<string, object> entry)
+                continue;
+            if (TypedString(entry, "item_id") == itemId)
                 return entry.ContainsKey("quantity")
-                    ? entry["quantity"].AsInt32()
-                    : DictInt(entry, "total_quantity");
+                    ? TypedInt(entry, "quantity")
+                    : TypedInt(entry, "total_quantity");
         }
         return 0;
     }
@@ -197,8 +202,59 @@ public partial class run_text_save_load_regression : SceneTree
 
     private void AssertCommandOk(GameTextCommandRunner runner, string commandText)
     {
-        GameTextCommandResult result = runner.ExecuteLine(commandText);
+        using GameTextCommandResult result = runner.ExecuteLine(commandText);
         _test.True(result.ok, $"命令失败：{commandText} | {result.message}");
+    }
+
+    private static IReadOnlyDictionary<string, object> TypedDict(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key
+    )
+    {
+        return dictionary != null
+            && dictionary.TryGetValue(key, out object rawValue)
+            && rawValue is IReadOnlyDictionary<string, object> typedDictionary
+            ? typedDictionary
+            : new Dictionary<string, object>();
+    }
+
+    private static IReadOnlyList<object> TypedArray(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key
+    )
+    {
+        return dictionary != null
+            && dictionary.TryGetValue(key, out object rawValue)
+            && rawValue is IReadOnlyList<object> typedArray
+            ? typedArray
+            : System.Array.Empty<object>();
+    }
+
+    private static int TypedInt(IReadOnlyDictionary<string, object> dictionary, string key)
+    {
+        if (dictionary == null || !dictionary.TryGetValue(key, out object rawValue))
+            return 0;
+        return rawValue switch
+        {
+            int intValue => intValue,
+            long longValue => (int)longValue,
+            _ => 0,
+        };
+    }
+
+    private static string TypedString(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key
+    )
+    {
+        if (dictionary == null || !dictionary.TryGetValue(key, out object rawValue))
+            return "";
+        return rawValue switch
+        {
+            string stringValue => stringValue,
+            StringName stringNameValue => stringNameValue.ToString(),
+            _ => "",
+        };
     }
 
     private static GArray ArrayValue(GDictionary dictionary, string key)

@@ -161,12 +161,15 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
             state_id = "engage",
             actions = new Godot.Collections.Array<EnemyAiAction> { Wait("authored_wait") },
         };
-        return new EnemyAiBrainDef
-        {
-            brain_id = "plan_brain",
-            default_state_id = "engage",
-            states = new Godot.Collections.Array<EnemyAiStateDef> { state },
-        };
+        return TestResourceOwnership.Own(
+            new EnemyAiBrainDef
+            {
+                brain_id = "plan_brain",
+                default_state_id = "engage",
+                states = new Godot.Collections.Array<EnemyAiStateDef> { state },
+            },
+            "BattleAiRuntimeActionPlan.BuildBrain"
+        );
     }
 
     private static BattleState BuildState()

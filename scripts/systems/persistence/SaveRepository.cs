@@ -47,7 +47,7 @@ internal sealed class SaveRepository
             return new GDictionary { ["error"] = (int)Error.DoesNotExist };
         }
 
-        using FileAccess saveFile = FileAccess.OpenCompressed(
+        FileAccess saveFile = FileAccess.OpenCompressed(
             savePath,
             FileAccess.ModeFlags.Read,
             (FileAccess.CompressionMode)_compressionMode
@@ -64,19 +64,30 @@ internal sealed class SaveRepository
             return new GDictionary { ["error"] = (int)openError };
         }
 
-        int saveSize = (int)saveFile.GetLength();
-        if (saveSize < 8)
+        try
         {
+            int saveSize = (int)saveFile.GetLength();
+            if (saveSize < 8)
+            {
+                saveFile.Close();
+                return new GDictionary { ["error"] = (int)Error.InvalidData };
+            }
+
+            using Variant rawPayload = saveFile.GetVar(false);
             saveFile.Close();
-            return new GDictionary { ["error"] = (int)Error.InvalidData };
+            if (rawPayload.VariantType != Variant.Type.Dictionary)
+                return new GDictionary { ["error"] = (int)Error.InvalidData };
+
+            return new GDictionary
+            {
+                ["error"] = (int)Error.Ok,
+                ["payload"] = rawPayload.AsGodotDictionary().Duplicate(true),
+            };
         }
-
-        var rawPayload = saveFile.GetVar(false);
-        saveFile.Close();
-        if (rawPayload.VariantType != Variant.Type.Dictionary)
-            return new GDictionary { ["error"] = (int)Error.InvalidData };
-
-        return new GDictionary { ["error"] = (int)Error.Ok, ["payload"] = rawPayload };
+        finally
+        {
+            GodotObjectLifecycle.DisposeGodotObject(saveFile);
+        }
     }
 
     internal int EnsureSaveDirectory()

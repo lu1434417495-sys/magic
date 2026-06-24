@@ -12,8 +12,7 @@ internal enum UnitSkillGrantSourceType
     Bloodline,
 }
 
-[GlobalClass]
-public partial class UnitSkillProgress : RefCounted
+public class UnitSkillProgress
 {
     private static readonly StringName GrantedSourcePlayer = "player";
     private static readonly StringName GrantedSourceProfession = "profession";
@@ -22,7 +21,7 @@ public partial class UnitSkillProgress : RefCounted
     private static readonly StringName GrantedSourceAscension = "ascension";
     private static readonly StringName GrantedSourceBloodline = "bloodline";
 
-    private static readonly Godot.Collections.Array<string> TO_DICT_FIELDS = new()
+    private static readonly string[] TO_DICT_FIELDS =
     {
         "skill_id",
         "is_learned",
@@ -373,7 +372,7 @@ public partial class UnitSkillProgress : RefCounted
 
     private static bool _has_exact_fields(
         Godot.Collections.Dictionary data,
-        Godot.Collections.Array<string> expected
+        IReadOnlyCollection<string> expected
     )
     {
         if (data.Count != expected.Count)

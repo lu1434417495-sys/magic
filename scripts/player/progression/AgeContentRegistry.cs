@@ -48,6 +48,7 @@ public partial class AgeContentRegistry : IdentityContentRegistryBase
             _validation_errors.Add($"Failed to load age profile config {resourcePath}.");
             return;
         }
+        GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
         if (resource is not AgeProfileDef profileDef)
         {
             _validation_errors.Add($"Age profile config {resourcePath} is not an AgeProfileDef.");

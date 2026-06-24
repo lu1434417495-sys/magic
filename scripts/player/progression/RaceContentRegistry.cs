@@ -50,7 +50,7 @@ public partial class RaceContentRegistry : IdentityContentRegistryBase
             _validation_errors.Add($"Failed to load race config {resourcePath}.");
             return;
         }
-
+        GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
         if (resource is not RaceDef raceDef)
         {
             _validation_errors.Add($"Race config {resourcePath} is not a RaceDef.");

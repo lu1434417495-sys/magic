@@ -10,21 +10,24 @@ public partial class GodotSharpCleanup : RefCounted
     // runs while the native runtime is alive.
     public static void CollectPendingFinalizers()
     {
-        GC.Collect();
-        GC.WaitForPendingFinalizers();
-        GC.Collect();
+        GodotObjectLifecycle.CollectPendingFinalizers();
     }
 
     public static void DisposeGodotObject(GodotObject owned)
     {
-        if (owned == null)
-        {
+        GodotObjectLifecycle.DisposeGodotObject(owned);
+    }
+
+    public static void DisposeGodotObject(BattleCommand command)
+    {
+        if (command == null)
             return;
-        }
-        GC.SuppressFinalize(owned);
-        if (GodotObject.IsInstanceValid(owned))
-        {
-            owned.Dispose();
-        }
+        DisposeGodotObject(command.equipment_instance);
+        command.equipment_instance = null;
+    }
+
+    public static void DisposeGodotObject(BattleEventBatch batch)
+    {
+        batch?.Dispose();
     }
 }

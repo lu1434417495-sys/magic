@@ -1486,7 +1486,7 @@ public sealed class GameTextCommandRunner : IDisposable
             string stringValue => stringValue,
             StringName stringNameValue => stringNameValue,
             Vector2I vectorValue => vectorValue,
-            GodotObject godotObject => godotObject,
+            GodotObject godotObject => godotObject.ToString() ?? "",
             _ => value.ToString() ?? "",
         };
     }

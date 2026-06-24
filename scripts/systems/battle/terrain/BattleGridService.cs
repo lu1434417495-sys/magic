@@ -1812,7 +1812,7 @@ public sealed class BattleGridService : IDisposable
 
     internal bool ClearEdgeFeature(BattleState state, Vector2I coord, Vector2I direction)
     {
-        return SetEdgeFeature(state, coord, direction, BattleEdgeFeatureState.MakeNone());
+        return SetEdgeFeature(state, coord, direction, null);
     }
 
     internal BattleHeightDeltaResult ApplyHeightDeltaResult(

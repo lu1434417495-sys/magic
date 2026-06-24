@@ -15,7 +15,6 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
         TestGroundApplicationResultsProjectInternalBoundary();
         TestBuildGroundEffectCoordsUsesTypedHelperBoundary();
         TestDedupeEffectDefsUsesTypedHelperBoundary();
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Battle ground effect typed sets regression"));
     }
 

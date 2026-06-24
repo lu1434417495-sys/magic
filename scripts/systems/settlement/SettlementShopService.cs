@@ -174,6 +174,7 @@ public sealed class SettlementShopService : IDisposable
     public void Dispose()
     {
         System.GC.SuppressFinalize(this);
+        System.GC.SuppressFinalize(_rng);
         if (GodotObject.IsInstanceValid(_rng))
             _rng.Dispose();
     }

@@ -10,7 +10,6 @@ public partial class run_battle_execute_ground_protocol_regression : SceneTree
         TestGroundExecutePreviewDenied();
         TestGroundExecuteIssueDeniedBeforeCost();
         TestGroundExecuteDoesNotMutateDamageOrStatus();
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Battle execute ground protocol regression"));
     }
 

@@ -219,33 +219,40 @@ public partial class SkillContentRegistry : RefCounted
             return;
         }
 
-        using var directory = DirAccess.Open(directoryPath);
+        DirAccess directory = DirAccess.Open(directoryPath);
         if (directory == null)
         {
             _validation_errors.Add($"SkillContentRegistry could not open {directoryPath}.");
             return;
         }
 
-        directory.ListDirBegin();
-        while (true)
+        try
         {
-            string entryName = directory.GetNext();
-            if (string.IsNullOrEmpty(entryName))
-                break;
-            if (entryName == "." || entryName == "..")
-                continue;
-
-            string entryPath = $"{directoryPath}/{entryName}";
-            if (directory.CurrentIsDir())
+            directory.ListDirBegin();
+            while (true)
             {
-                ScanDirectory(entryPath);
-                continue;
+                string entryName = directory.GetNext();
+                if (string.IsNullOrEmpty(entryName))
+                    break;
+                if (entryName == "." || entryName == "..")
+                    continue;
+
+                string entryPath = $"{directoryPath}/{entryName}";
+                if (directory.CurrentIsDir())
+                {
+                    ScanDirectory(entryPath);
+                    continue;
+                }
+                if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
+                    continue;
+                RegisterSkillResource(entryPath);
             }
-            if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
-                continue;
-            RegisterSkillResource(entryPath);
+            directory.ListDirEnd();
         }
-        directory.ListDirEnd();
+        finally
+        {
+            GodotObjectLifecycle.DisposeGodotObject(directory);
+        }
     }
 
     private void RegisterSkillResource(string resourcePath)
@@ -261,6 +268,7 @@ public partial class SkillContentRegistry : RefCounted
             _validation_errors.Add($"Skill config {resourcePath} is not a SkillDef.");
             return;
         }
+        GodotContentOwnership.RegisterBorrowedContent(skillDef, resourcePath);
 
         NormalizeSkillDef(skillDef);
 

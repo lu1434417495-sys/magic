@@ -14,7 +14,6 @@ public partial class run_battle_shield_service_typed_context_regression : SceneT
         TestTypedApplyPathUsesSharedContext();
         TestApplyResultPublicApiStaysTyped();
         TestApplyResultProjectsInternalBoundary();
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Battle shield service typed context regression"));
     }
 

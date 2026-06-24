@@ -11,7 +11,6 @@ public partial class run_battle_spawn_side_regression : SceneTree
         TestTallMapUsesLeftAndRightLongEdges();
         TestSpawnPlacementDoesNotClearExistingOccupantsFromStaleCoords();
         TestFailedSpawnPlacementRollsBackPartialUnits();
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Battle spawn side regression"));
     }
 
@@ -250,7 +249,6 @@ public partial class run_battle_spawn_side_regression : SceneTree
         }
 
         stateOwnedUnits.Clear();
-        GodotSharpCleanup.CollectPendingFinalizers();
     }
 
     private static bool ContainsReference(List<BattleUnitState> units, BattleUnitState candidate)

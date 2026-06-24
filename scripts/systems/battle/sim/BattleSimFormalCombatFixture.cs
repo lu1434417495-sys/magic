@@ -487,21 +487,13 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     {
         if (progress == null)
             return;
-        foreach (UnitSkillProgress skillProgress in progress.SkillsTyped.Values)
-            DisposeIfValid(skillProgress);
-        foreach (AchievementProgressState achievementProgress in progress.AchievementProgressTyped.Values)
-            DisposeIfValid(achievementProgress);
         foreach (UnitProfessionProgress professionProgress in progress.ProfessionsTyped.Values)
         {
             foreach (ProfessionPromotionRecord record in professionProgress.promotion_history)
                 DisposeIfValid(record);
-            DisposeIfValid(professionProgress);
         }
         foreach (PendingProfessionChoice choice in progress.PendingProfessionChoicesTyped)
             DisposeIfValid(choice);
-        DisposeIfValid(progress.unit_base_attributes);
-        DisposeIfValid(progress.reputation_state);
-        DisposeIfValid(progress);
     }
 
     private static void DisposeEquipmentState(EquipmentState equipmentState)
@@ -513,20 +505,16 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
             EquipmentInstanceState instance = equipmentState.GetEntry(entrySlotId)?.GetEquipmentInstance();
             DisposeIfValid(instance);
         }
-        DisposeIfValid(equipmentState);
     }
 
     private static void DisposeWarehouseState(WarehouseState warehouseState)
     {
         if (warehouseState == null)
             return;
-        foreach (WarehouseStackState stack in warehouseState.GetStacksTyped())
-            DisposeIfValid(stack);
         foreach (EquipmentInstanceState instance in warehouseState.GetEquipmentInstancesTyped())
             DisposeIfValid(instance);
         warehouseState.stacks.Clear();
         warehouseState.equipment_instances.Clear();
-        DisposeIfValid(warehouseState);
     }
 
     private static void DisposeIfValid<T>(T value)

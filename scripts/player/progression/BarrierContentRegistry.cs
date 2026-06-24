@@ -75,7 +75,7 @@ public partial class BarrierContentRegistry : RefCounted
             return;
         }
 
-        var dir = DirAccess.Open(directoryPath);
+        DirAccess dir = DirAccess.Open(directoryPath);
 
         if (dir == null)
         {
@@ -83,36 +83,44 @@ public partial class BarrierContentRegistry : RefCounted
             return;
         }
 
-        dir.ListDirBegin();
-
-        while (true)
+        try
         {
-            string entryName = dir.GetNext();
+            dir.ListDirBegin();
 
-            if (string.IsNullOrEmpty(entryName))
-                break;
-
-            if (entryName == "." || entryName == "..")
-                continue;
-
-            string entryPath = $"{directoryPath}/{entryName}";
-
-            if (dir.CurrentIsDir())
+            while (true)
             {
-                _scan_directory(entryPath);
-                continue;
+                string entryName = dir.GetNext();
+
+                if (string.IsNullOrEmpty(entryName))
+                    break;
+
+                if (entryName == "." || entryName == "..")
+                    continue;
+
+                string entryPath = $"{directoryPath}/{entryName}";
+
+                if (dir.CurrentIsDir())
+                {
+                    _scan_directory(entryPath);
+                    continue;
+                }
+
+                if (entryName.EndsWith(".tres") || entryName.EndsWith(".res"))
+                    _register_profile_resource(entryPath);
             }
 
-            if (entryName.EndsWith(".tres") || entryName.EndsWith(".res"))
-                _register_profile_resource(entryPath);
+            dir.ListDirEnd();
         }
-
-        dir.ListDirEnd();
+        finally
+        {
+            GodotObjectLifecycle.DisposeGodotObject(dir);
+        }
     }
 
     private void _register_profile_resource(string resourcePath)
     {
         var resource = GD.Load<Resource>(resourcePath);
+        GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
         var profile = resource as BarrierProfileDef;
 
         if (profile == null)

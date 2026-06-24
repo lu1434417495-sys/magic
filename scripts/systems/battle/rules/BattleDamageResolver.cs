@@ -103,6 +103,7 @@ public partial class BattleDamageResolver : IDisposable
 
     public void Dispose()
     {
+        _transientScope.Dispose();
         _fate_event_bus.Dispose();
     }
 
@@ -474,9 +475,20 @@ public partial class BattleDamageResolver : IDisposable
     private readonly BattleFateEventBus _fate_event_bus = new();
     private readonly BattleReportFormatter _report_formatter = new();
     private readonly TraitTriggerHooks _trait_trigger_hooks = new();
+    private readonly GodotTransientResourceScope _transientScope =
+        new("BattleDamageResolver");
+    private readonly RuntimeSkillDefFactory _runtimeSkillFactory;
     private BattleHitResolver _hit_resolver = new();
     private IBattleDamageApplicationHook _damage_application_hook;
     private bool _suppress_last_stand_mastery_records;
+
+    public BattleDamageResolver()
+    {
+        _runtimeSkillFactory = new RuntimeSkillDefFactory(
+            _transientScope,
+            "BattleDamageResolver"
+        );
+    }
 
     internal static BattleDamagePreviewRollMode ToDamagePreviewRollMode(StringName value)
     {
@@ -2116,6 +2128,8 @@ public partial class BattleDamageResolver : IDisposable
         DamageApplicationProjection projection = ProjectDamageApplication(targetUnit, damageInput);
         if (_damage_application_hook != null && !damageInput.SuppressDamageApplicationHook)
         {
+            IReadOnlyList<Vector2I> currentDamageEventAreaCells =
+                BuildCurrentDamageEventAreaCells(targetUnit);
             BattleDamageApplicationHookResult hookResult =
                 _damage_application_hook.BeforeDamageResolved(
                     new BattleDamageApplicationHookContext
@@ -2127,6 +2141,7 @@ public partial class BattleDamageResolver : IDisposable
                         Batch = damageContext?.DamageApplicationHookBatch,
                         Origin = damageContext?.DamageApplicationHookOrigin
                             ?? BattleEffectOrigin.PlayerCommand(),
+                        CurrentDamageEventAreaCells = currentDamageEventAreaCells,
                     }
                 );
             if (hookResult.CancelDamage)
@@ -2246,6 +2261,23 @@ public partial class BattleDamageResolver : IDisposable
             shieldAbsorbed,
             shieldBroken
         );
+    }
+
+    private static IReadOnlyList<Vector2I> BuildCurrentDamageEventAreaCells(
+        BattleUnitState targetUnit
+    )
+    {
+        if (targetUnit == null)
+            return Array.Empty<Vector2I>();
+        targetUnit.RefreshFootprint();
+        if (targetUnit.occupied_coords == null || targetUnit.occupied_coords.Count == 0)
+            return Array.AsReadOnly(new[] { targetUnit.coord });
+
+        var cells = new List<Vector2I>();
+        foreach (Vector2I cell in targetUnit.occupied_coords)
+            if (!cells.Contains(cell))
+                cells.Add(cell);
+        return cells.Count == 0 ? Array.Empty<Vector2I>() : Array.AsReadOnly(cells.ToArray());
     }
 
     private static bool TryGetBlockingDeathWard(

@@ -165,6 +165,7 @@ internal sealed class BattleAiDecisionEngine
 
             if (decision == null || decision.command == null)
             {
+                decision?.DisposeOwnedGodotObjects();
                 continue;
             }
 
@@ -176,6 +177,7 @@ internal sealed class BattleAiDecisionEngine
             {
                 if (!BattleAiSafetyGate.IsEligible(scoreInput))
                 {
+                    decision.DisposeOwnedGodotObjects();
                     continue;
                 }
                 if (
@@ -187,18 +189,36 @@ internal sealed class BattleAiDecisionEngine
                     )
                 )
                 {
+                    if (
+                        bestScoredDecision != null
+                        && !ReferenceEquals(bestScoredDecision, decision)
+                    )
+                        bestScoredDecision.DisposeOwnedGodotObjects();
                     bestScoredDecision = decision;
                     bestScoredActionIndex = actionIndex;
+                }
+                else
+                {
+                    decision.DisposeOwnedGodotObjects();
                 }
                 continue;
             }
 
-            fallbackDecision ??= decision;
+            if (fallbackDecision == null)
+                fallbackDecision = decision;
+            else
+                decision.DisposeOwnedGodotObjects();
         }
 
         BattleAiDecision resolvedDecision = bestScoredDecision ?? fallbackDecision;
         if (resolvedDecision != null)
         {
+            if (
+                bestScoredDecision != null
+                && fallbackDecision != null
+                && !ReferenceEquals(bestScoredDecision, fallbackDecision)
+            )
+                fallbackDecision.DisposeOwnedGodotObjects();
             AttachPatchAndMark(context, resolvedDecision);
             return resolvedDecision;
         }

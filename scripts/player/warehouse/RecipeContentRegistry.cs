@@ -92,7 +92,7 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
             return;
         }
 
-        var dir = DirAccess.Open(directoryPath);
+        DirAccess dir = DirAccess.Open(directoryPath);
 
         if (dir == null)
         {
@@ -100,23 +100,30 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
             return;
         }
 
-        dir.ListDirBegin();
-
-        while (true)
+        try
         {
-            string n = dir.GetNext();
-            if (string.IsNullOrEmpty(n))
-                break;
-            if (n == "." || n == "..")
-                continue;
-            string p = $"{directoryPath}/{n}";
-            if (dir.CurrentIsDir())
-                _scan_directory(p);
-            else if (n.EndsWith(".tres") || n.EndsWith(".res"))
-                _register_recipe_resource(p);
-        }
+            dir.ListDirBegin();
 
-        dir.ListDirEnd();
+            while (true)
+            {
+                string n = dir.GetNext();
+                if (string.IsNullOrEmpty(n))
+                    break;
+                if (n == "." || n == "..")
+                    continue;
+                string p = $"{directoryPath}/{n}";
+                if (dir.CurrentIsDir())
+                    _scan_directory(p);
+                else if (n.EndsWith(".tres") || n.EndsWith(".res"))
+                    _register_recipe_resource(p);
+            }
+
+            dir.ListDirEnd();
+        }
+        finally
+        {
+            GodotObjectLifecycle.DisposeGodotObject(dir);
+        }
     }
 
     private void _register_recipe_resource(string resourcePath)
@@ -127,7 +134,7 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
             _validation_errors.Add($"Failed to load recipe config {resourcePath}.");
             return;
         }
-
+        GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
         if (resource is not RecipeDef rd)
         {
             _validation_errors.Add($"Recipe config {resourcePath} is not a RecipeDef.");

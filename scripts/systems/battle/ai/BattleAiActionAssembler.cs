@@ -40,7 +40,7 @@ internal sealed class BattleAiActionAssembler
 
             StringName stateId = stateDef.state_id;
             List<EnemyAiAction> authoredActions = GetActions(stateDef);
-            List<EnemyAiAction> runtimeActions = CloneRuntimeActions(authoredActions);
+            List<EnemyAiAction> runtimeActions = CloneRuntimeActions(plan, authoredActions);
             plan.AddStateActions(stateId, runtimeActions);
 
             List<EnemyAiGenerationSlotDef> generationSlots = GetGenerationSlots(stateDef);
@@ -99,6 +99,10 @@ internal sealed class BattleAiActionAssembler
                         {
                             continue;
                         }
+                        generatedAction = plan.OwnRuntimeAction(
+                            generatedAction,
+                            $"generated_action:{stateId}:{slot.slot_id}:{skillId}:{actionFamily}"
+                        );
 
                         SetActionIntent(
                             generatedAction,
@@ -207,7 +211,10 @@ internal sealed class BattleAiActionAssembler
         return slots;
     }
 
-    private static List<EnemyAiAction> CloneRuntimeActions(List<EnemyAiAction> authoredActions)
+    private static List<EnemyAiAction> CloneRuntimeActions(
+        BattleAiRuntimeActionPlan plan,
+        List<EnemyAiAction> authoredActions
+    )
     {
         var runtimeActions = new List<EnemyAiAction>();
         foreach (EnemyAiAction action in authoredActions ?? new List<EnemyAiAction>())
@@ -216,20 +223,22 @@ internal sealed class BattleAiActionAssembler
             {
                 continue;
             }
-            EnemyAiAction runtimeAction = CloneAction(action);
+            EnemyAiAction runtimeAction = CloneAction(plan, action);
             EnableRuntimeActionDefaults(runtimeAction);
             runtimeActions.Add(runtimeAction);
         }
         return runtimeActions;
     }
 
-    private static EnemyAiAction CloneAction(EnemyAiAction action)
+    private static EnemyAiAction CloneAction(BattleAiRuntimeActionPlan plan, EnemyAiAction action)
     {
         if (action is Resource resource)
         {
             if (resource.Duplicate(true) is EnemyAiAction clone)
             {
-                return clone;
+                return plan != null
+                    ? plan.OwnRuntimeAction(clone, $"clone_action:{action.action_id}")
+                    : clone;
             }
         }
         return action;

@@ -20,7 +20,6 @@ public partial class run_battle_ai_wait_behavior_regression : SceneTree
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Battle AI wait behavior regression"));
     }
 
@@ -196,7 +195,7 @@ public partial class run_battle_ai_wait_behavior_regression : SceneTree
             default_state_id = "pressure",
         };
         brain.states.Add(pressureState);
-        return brain;
+        return TestResourceOwnership.Own(brain, "BattleAiWaitBehavior.BuildActiveRestProbeBrain");
     }
 
     private static EnemyAiBrainDef BuildFallbackRestProbeBrain()
@@ -209,7 +208,7 @@ public partial class run_battle_ai_wait_behavior_regression : SceneTree
             default_state_id = "engage",
         };
         brain.states.Add(engageState);
-        return brain;
+        return TestResourceOwnership.Own(brain, "BattleAiWaitBehavior.BuildFallbackRestProbeBrain");
     }
 
     private static BattleRuntimeScope BuildRuntimeWithEnemyContent(params EnemyAiBrainDef[] extraBrains)

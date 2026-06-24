@@ -167,7 +167,7 @@ internal sealed class BattleTestFixture : IDisposable
     public static void DisposeBattleFixture(
         BattleRuntimeModule runtime,
         BattleState state,
-        params GodotObject[] ownedObjects
+        params object[] ownedObjects
     )
     {
         if (runtime != null)
@@ -175,7 +175,7 @@ internal sealed class BattleTestFixture : IDisposable
 
         if (ownedObjects != null)
         {
-            foreach (GodotObject ownedObject in ownedObjects)
+            foreach (object ownedObject in ownedObjects)
                 DisposeFixtureObject(ownedObject);
         }
         DisposeBattleState(state);
@@ -205,19 +205,38 @@ internal sealed class BattleTestFixture : IDisposable
             DisposeBattleUnit(unit);
         foreach (BattleCellState cell in cells)
             DisposeBattleCell(cell);
-        GodotSharpCleanup.DisposeGodotObject(state.timeline);
-        GodotSharpCleanup.DisposeGodotObject(state.party_backpack_view);
+        DisposeWarehouseState(state.party_backpack_view);
         GodotSharpCleanup.DisposeGodotObject(state);
     }
 
-    public static void DisposeFixtureObject(GodotObject ownedObject)
+    public static void DisposeFixtureObject(object ownedObject)
     {
         switch (ownedObject)
         {
             case null:
                 return;
+            case BattleCommand command:
+                DisposeBattleCommand(command);
+                return;
             case BattlePreview preview:
                 DisposeBattlePreview(preview);
+                return;
+            case BattleEventBatch batch:
+                batch.Dispose();
+                return;
+            case GodotObject godotObject:
+                DisposeFixtureGodotObject(godotObject);
+                return;
+            default:
+                return;
+        }
+    }
+
+    private static void DisposeFixtureGodotObject(GodotObject ownedObject)
+    {
+        switch (ownedObject)
+        {
+            case null:
                 return;
             case BattleUnitState unit:
                 DisposeBattleUnit(unit);
@@ -239,7 +258,7 @@ internal sealed class BattleTestFixture : IDisposable
         if (scoreInput == null)
             return;
         DisposeBattlePreview(scoreInput.preview);
-        GodotSharpCleanup.DisposeGodotObject(scoreInput.command);
+        DisposeBattleCommand(scoreInput.command);
         scoreInput.preview = null;
         scoreInput.command = null;
         scoreInput.skill_def = null;
@@ -249,13 +268,8 @@ internal sealed class BattleTestFixture : IDisposable
     {
         if (preview == null)
             return;
-        if (!GodotObject.IsInstanceValid(preview))
-        {
-            GodotSharpCleanup.DisposeGodotObject(preview);
-            return;
-        }
         GodotSharpCleanup.DisposeGodotObject(preview.hit_preview);
-        GodotSharpCleanup.DisposeGodotObject(preview);
+        preview.hit_preview = null;
     }
 
     public static void DisposeBattleUnit(BattleUnitState unit)
@@ -270,27 +284,41 @@ internal sealed class BattleTestFixture : IDisposable
 
         foreach (BattleStatusEffectState statusEffect in unit.GetStatusEffectsTyped())
             GodotSharpCleanup.DisposeGodotObject(statusEffect);
-        GodotSharpCleanup.DisposeGodotObject(unit.ai_blackboard);
-        GodotSharpCleanup.DisposeGodotObject(unit.attribute_snapshot);
-        GodotSharpCleanup.DisposeGodotObject(unit.equipment_view);
+        DisposeEquipmentState(unit.equipment_view);
         GodotSharpCleanup.DisposeGodotObject(unit);
     }
 
     public static void DisposeBattleCell(BattleCellState cell)
     {
-        if (cell == null)
-            return;
-        if (!GodotObject.IsInstanceValid(cell))
-        {
-            GodotSharpCleanup.DisposeGodotObject(cell);
-            return;
-        }
+        BattleCellState.DisposeRuntimeGraph(cell);
+    }
 
-        foreach (BattleTerrainEffectState timedEffect in cell.timed_terrain_effects)
-            GodotSharpCleanup.DisposeGodotObject(timedEffect);
-        GodotSharpCleanup.DisposeGodotObject(cell.edge_feature_east);
-        GodotSharpCleanup.DisposeGodotObject(cell.edge_feature_south);
-        GodotSharpCleanup.DisposeGodotObject(cell);
+    public static void DisposeWarehouseState(WarehouseState warehouseState)
+    {
+        if (warehouseState == null)
+            return;
+        foreach (EquipmentInstanceState instance in warehouseState.GetEquipmentInstancesTyped())
+            GodotSharpCleanup.DisposeGodotObject(instance);
+        warehouseState.stacks.Clear();
+        warehouseState.equipment_instances.Clear();
+    }
+
+    public static void DisposeBattleCommand(BattleCommand command)
+    {
+        if (command == null)
+            return;
+        GodotSharpCleanup.DisposeGodotObject(command.equipment_instance);
+        command.equipment_instance = null;
+    }
+
+    public static void DisposeEquipmentState(EquipmentState equipmentState)
+    {
+        if (equipmentState == null)
+            return;
+        foreach (StringName entrySlotId in equipmentState.GetEntrySlotIdsTyped())
+            GodotSharpCleanup.DisposeGodotObject(
+                equipmentState.GetEntry(entrySlotId)?.GetEquipmentInstance()
+            );
     }
 
     public static void DisposeSkill(SkillDef skill)

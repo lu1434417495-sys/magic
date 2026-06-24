@@ -12,6 +12,17 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
     private const int TuGranularity = 5;
 
     private WeakReference<BattleRuntimeModule> _runtimeRef = null;
+    private readonly GodotTransientResourceScope _transientScope =
+        new("BattleTerrainEffectSystem");
+    private readonly RuntimeSkillDefFactory _runtimeSkillFactory;
+
+    internal BattleTerrainEffectSystem()
+    {
+        _runtimeSkillFactory = new RuntimeSkillDefFactory(
+            _transientScope,
+            "BattleTerrainEffectSystem"
+        );
+    }
 
     private BattleRuntimeModule _ResolveRuntime()
     {
@@ -29,6 +40,7 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
     public void Dispose()
     {
         GC.SuppressFinalize(this);
+        _transientScope.Drain();
         _runtimeRef = null;
     }
 
@@ -315,14 +327,19 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
             return;
         processedTickKeys.Add(tickKey);
 
-        var tempEffect = new CombatEffectDef();
-        tempEffect.effect_type = effectState.effect_type;
-        tempEffect.power = effectState.power;
-        tempEffect.damage_tag = effectState.damage_tag;
-        tempEffect.status_id = effectState.applied_status_id;
-        tempEffect.applied_status_duration_tu = effectState.applied_status_duration_tu;
-        tempEffect.duration_tu = effectState.applied_status_duration_tu;
-        tempEffect.@params = BattleTerrainEffectState.CopyResidualParams(effectState.@params);
+        CombatEffectDef tempEffect = _runtimeSkillFactory.NewEffect(
+            effect =>
+            {
+                effect.effect_type = effectState.effect_type;
+                effect.power = effectState.power;
+                effect.damage_tag = effectState.damage_tag;
+                effect.status_id = effectState.applied_status_id;
+                effect.applied_status_duration_tu = effectState.applied_status_duration_tu;
+                effect.duration_tu = effectState.applied_status_duration_tu;
+                effect.@params = BattleTerrainEffectState.CopyResidualParams(effectState.@params);
+            },
+            $"tick_effect:{effectState.effect_id}"
+        );
 
         AttackEffectResolutionResult damageResult = damageResolver.ResolveEffects(
             sourceUnit,

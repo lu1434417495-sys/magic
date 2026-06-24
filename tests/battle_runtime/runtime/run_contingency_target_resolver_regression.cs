@@ -36,7 +36,6 @@ public partial class run_contingency_target_resolver_regression : SceneTree
             _test.Fail($"Unhandled exception: {ex.GetType().Name}: {ex.Message}");
         }
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Contingency target resolver regression"));
     }
 

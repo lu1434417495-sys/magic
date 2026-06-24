@@ -23,7 +23,6 @@ public partial class run_phantasmal_kill_ai_regression : SceneTree
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Phantasmal Kill AI regression"));
     }
 
@@ -342,7 +341,7 @@ public partial class run_phantasmal_kill_ai_regression : SceneTree
             },
         };
         skill.combat_profile.effect_defs.Add(BuildPhantasmalKillEffect());
-        return skill;
+        return TestResourceOwnership.Own(skill, "PhantasmalKillAi.BuildPhantasmalKillSkill");
     }
 
     private static CombatEffectDef BuildPhantasmalKillEffect() => new()

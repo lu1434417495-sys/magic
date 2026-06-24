@@ -402,7 +402,7 @@ public sealed class BattleRuntimeModule : IDisposable
         if (terrain_generator != null)
             SetTerrainGenerator(terrain_generator, false);
 
-        _ai_action_plans_by_unit_id.Clear();
+        ClearAiActionPlans();
         _last_start_failure.Clear();
         _ai_service.Setup(_enemyAiBrainIndex, _damage_resolver);
         _terrain_effect_system.Setup(this);
@@ -457,23 +457,26 @@ public sealed class BattleRuntimeModule : IDisposable
         GDictionary context = null
     )
     {
-        context ??= new GDictionary();
+        using var contextScope = new GodotTransientResourceScope("BattleRuntimeModule.StartBattle");
+        context = contextScope.OwnWrapper(context ?? new GDictionary(), "context");
         _last_start_failure.Clear();
         _ensure_sidecars_ready();
         var partyState =
             _characterGateway != null ? _characterGateway.GetPartyState() : null;
         GBattleUnitArray allyUnits = ToBattleUnitArray(
-            _unit_factory.BuildAllyUnits(partyState, context)
+            _unit_factory.BuildAllyUnits(partyState, context, contextScope)
         );
         if (allyUnits.Count == 0)
         {
-            allyUnits = ToBattleUnitArray(_unit_factory.BuildAllyUnits(null, context));
+            allyUnits = ToBattleUnitArray(
+                _unit_factory.BuildAllyUnits(null, context, contextScope)
+            );
         }
 
         GBattleUnitArray enemyUnits = new();
         _active_loot_entries.Clear();
         _looted_defeated_unit_ids.Clear();
-        _ai_action_plans_by_unit_id.Clear();
+        ClearAiActionPlans();
         calamity_by_member_id.Clear();
 
         bool hasExplicitEnemyUnits =
@@ -486,7 +489,7 @@ public sealed class BattleRuntimeModule : IDisposable
         if (hasExplicitEnemyUnits)
         {
             enemyUnits = ToBattleUnitArray(
-                _unit_factory.BuildEnemyUnits(encounter_anchor, context)
+                _unit_factory.BuildEnemyUnits(encounter_anchor, context, contextScope)
             );
         }
         else if (_encounter_builder != null)
@@ -507,8 +510,8 @@ public sealed class BattleRuntimeModule : IDisposable
             || !ValidateBattleUnitsForStart(enemyUnits, "enemy")
         )
         {
-            _state = null;
-            _ai_action_plans_by_unit_id.Clear();
+            ClearRuntimeBattleStateReference();
+            ClearAiActionPlans();
             _last_start_failure.ReplaceWithPayload(
                 new GDictionary
                 {
@@ -530,7 +533,8 @@ public sealed class BattleRuntimeModule : IDisposable
             GDictionary terrainData = _unit_factory.BuildTerrainData(
                 encounter_anchor,
                 terrainSeed,
-                context
+                context,
+                contextScope
             );
             if (terrainData.Count == 0)
                 continue;
@@ -589,12 +593,12 @@ public sealed class BattleRuntimeModule : IDisposable
             }
             if (!PlaceUnitsTyped(allyUnits, ToVector2IArray(allySpawnCoords), true, allySpawnSide))
             {
-                _state = null;
+                ClearRuntimeBattleStateReference();
                 continue;
             }
             if (!PlaceUnitsTyped(enemyUnits, ToVector2IArray(enemySpawnCoords), false, enemySpawnSide))
             {
-                _state = null;
+                ClearRuntimeBattleStateReference();
                 continue;
             }
             _initialize_unit_trait_hooks();
@@ -622,8 +626,8 @@ public sealed class BattleRuntimeModule : IDisposable
                             ["reachability"] = BattleSpawnReachabilityProjection.Project(reachability),
                         }
                     );
-                    _state = null;
-                    _ai_action_plans_by_unit_id.Clear();
+                    ClearRuntimeBattleStateReference();
+                    ClearAiActionPlans();
                     continue;
                 }
             }
@@ -647,8 +651,8 @@ public sealed class BattleRuntimeModule : IDisposable
             return _state;
         }
 
-        _state = null;
-        _ai_action_plans_by_unit_id.Clear();
+        ClearRuntimeBattleStateReference();
+        ClearAiActionPlans();
         if (_last_start_failure.Count == 0)
         {
             _last_start_failure.ReplaceWithPayload(
@@ -713,7 +717,7 @@ public sealed class BattleRuntimeModule : IDisposable
 
     internal void _build_ai_action_plans()
     {
-        _ai_action_plans_by_unit_id.Clear();
+        ClearAiActionPlans();
         if (_state == null || _ai_action_assembler == null)
             return;
         foreach (BattleUnitState unitState in _state.GetUnitsTyped())
@@ -735,6 +739,15 @@ public sealed class BattleRuntimeModule : IDisposable
             if (actionPlan != null)
                 _ai_action_plans_by_unit_id[unitState.unit_id] = actionPlan;
         }
+    }
+
+    private void ClearAiActionPlans()
+    {
+        foreach (BattleAiRuntimeActionPlan plan in _ai_action_plans_by_unit_id.Values)
+        {
+            plan?.Clear();
+        }
+        _ai_action_plans_by_unit_id.Clear();
     }
 
     internal void _ensure_ai_action_plan_for_unit(BattleUnitState unit_state)
@@ -990,6 +1003,7 @@ public sealed class BattleRuntimeModule : IDisposable
                         decisionBatch.InsertLogLine(0, aiLine);
                     AiTraceRecorder.Exit("advance:prepend_ai_batch_log");
                     AiTraceRecorder.Exit("advance:ai_trace_after_command");
+                    decision.DisposeOwnedGodotObjects();
                     return decisionBatch;
                 }
             }
@@ -1330,16 +1344,23 @@ public sealed class BattleRuntimeModule : IDisposable
     )
     {
         BattlePreview preview = PreviewCommand(command);
-        if (preview != null && preview.allowed)
-            return false;
-        if (preview != null)
+        try
         {
-            foreach (string logLine in preview.LogLinesTyped)
-                batch.AddLogLine(logLine);
+            if (preview != null && preview.allowed)
+                return false;
+            if (preview != null)
+            {
+                foreach (string logLine in preview.LogLinesTyped)
+                    batch.AddLogLine(logLine);
+            }
+            if (batch.LogLinesTyped.Count == 0)
+                batch.AddLogLine("技能或目标无效。");
+            return true;
         }
-        if (batch.LogLinesTyped.Count == 0)
-            batch.AddLogLine("技能或目标无效。");
-        return true;
+        finally
+        {
+            DisposeBattlePreview(preview);
+        }
     }
 
     internal void _append_batch_logs_to_state(BattleEventBatch batch) =>
@@ -1528,6 +1549,11 @@ public sealed class BattleRuntimeModule : IDisposable
 
     internal void SetupStateForTests(BattleState state)
     {
+        if (!ReferenceEquals(_state, state))
+            RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+                _state,
+                "BattleRuntimeModule.SetupStateForTests.replace"
+            );
         if (state == null)
             _contingency_system.ClearBattleState();
         _state = state;
@@ -2862,6 +2888,8 @@ public sealed class BattleRuntimeModule : IDisposable
         _unit_factory?.DisposeRuntime();
         _charge_resolver?.DisposeRuntime();
         _repeat_attack_resolver?.DisposeRuntime();
+        _skill_resolution_rules?.Dispose();
+        _ai_service?.Dispose();
         _runtime_services.Dispose();
         _change_equipment_resolver?.Dispose();
         _loot_resolver?.Dispose();
@@ -2891,7 +2919,7 @@ public sealed class BattleRuntimeModule : IDisposable
         _active_loot_entries.Clear();
         _looted_defeated_unit_ids.Clear();
         _ai_turn_traces.Clear();
-        _ai_action_plans_by_unit_id.Clear();
+        ClearAiActionPlans();
         _contingency_system.ClearBattleState();
         _battle_metrics.Clear();
         calamity_by_member_id.Clear();
@@ -2910,6 +2938,26 @@ public sealed class BattleRuntimeModule : IDisposable
         _equipment_instance_id_allocator = null;
         if (_state != null)
         {
+            RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+                _state,
+                "BattleRuntimeModule.DisposeManagedRuntime"
+            );
+            _state.ClearBattleTopology();
+            _state.ally_unit_ids.Clear();
+            _state.enemy_unit_ids.Clear();
+            _state.timeline?.ready_unit_ids.Clear();
+        }
+        _state = null;
+    }
+
+    private void ClearRuntimeBattleStateReference()
+    {
+        if (_state != null)
+        {
+            RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+                _state,
+                "BattleRuntimeModule.ClearRuntimeBattleStateReference"
+            );
             _state.ClearBattleTopology();
             _state.ally_unit_ids.Clear();
             _state.enemy_unit_ids.Clear();
@@ -2932,6 +2980,14 @@ public sealed class BattleRuntimeModule : IDisposable
         {
             owned.Dispose();
         }
+    }
+
+    private static void DisposeBattlePreview(BattlePreview preview)
+    {
+        if (preview == null)
+            return;
+        GodotObjectLifecycle.DisposeGodotObject(preview.hit_preview);
+        preview.hit_preview = null;
     }
 
     internal bool _place_units(

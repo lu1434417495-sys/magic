@@ -118,21 +118,24 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : S
 
     private static SkillDef BuildUnitSkill(StringName skillId, int rangeValue)
     {
-        return new SkillDef
-        {
-            skill_id = skillId,
-            display_name = skillId.ToString(),
-            combat_profile = new CombatSkillDef
+        return TestResourceOwnership.Own(
+            new SkillDef
             {
                 skill_id = skillId,
-                target_mode = "unit",
-                target_team_filter = "enemy",
-                range_value = rangeValue,
-                ap_cost = 0,
-                mp_cost = 0,
-                stamina_cost = 0,
+                display_name = skillId.ToString(),
+                combat_profile = new CombatSkillDef
+                {
+                    skill_id = skillId,
+                    target_mode = "unit",
+                    target_team_filter = "enemy",
+                    range_value = rangeValue,
+                    ap_cost = 0,
+                    mp_cost = 0,
+                    stamina_cost = 0,
+                },
             },
-        };
+            "BattleAiUnitSkillCandidateEvaluator.BuildUnitSkill"
+        );
     }
 
 }

@@ -67,6 +67,7 @@ public partial class TraitContentRegistry : IdentityContentRegistryBase
             _validation_errors.Add($"Failed to load trait config {resourcePath}.");
             return;
         }
+        GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
         if (resource is not TraitDef traitDef)
         {
             _validation_errors.Add($"Trait config {resourcePath} is not a TraitDef.");

@@ -767,7 +767,7 @@ public partial class run_party_equipment_regression : SceneTree
                 rollValues: TraitTestData.RollValues(TraitTestData.IntRoll("amount", 4))
             )
         );
-        partyState.warehouse_state.equipment_instances = new Godot.Collections.Array<EquipmentInstanceState> { epicInstance };
+        partyState.warehouse_state.equipment_instances = new List<EquipmentInstanceState> { epicInstance };
 
         var equipResult = equipmentService.EquipItemTyped("hero", "bronze_sword");
         _test.True(equipResult.Success, "Equipment with full instance fields should equip.");
@@ -810,7 +810,7 @@ public partial class run_party_equipment_regression : SceneTree
         EquipmentInstanceState epicInstance = EquipmentInstanceState.CreateInstance("bronze_sword", "eq_epic_bronze_sword");
         epicInstance.rarity = (int)EquipmentInstanceState.RarityTier.EPIC;
         epicInstance.current_durability = DefaultCurrentDurabilityForRarity(epicInstance.rarity);
-        partyState.warehouse_state.equipment_instances = new Godot.Collections.Array<EquipmentInstanceState> { epicInstance };
+        partyState.warehouse_state.equipment_instances = new List<EquipmentInstanceState> { epicInstance };
 
         PartyState restoredPartyState = PartyState.FromDictionary(partyState.ToDictionary());
         _test.True(restoredPartyState != null, "Rarity PartyState round-trip should parse.");
@@ -887,7 +887,7 @@ public partial class run_party_equipment_regression : SceneTree
         rareInstance.rarity = (int)EquipmentInstanceState.RarityTier.RARE;
         rareInstance.current_durability = 23;
         EquipmentInstanceState mismatchInstance = EquipmentInstanceState.CreateInstance("scout_charm", "eq_duplicate_wrong_item");
-        partyState.warehouse_state.equipment_instances = new Godot.Collections.Array<EquipmentInstanceState>
+        partyState.warehouse_state.equipment_instances = new List<EquipmentInstanceState>
         {
             commonInstance,
             rareInstance,
@@ -930,7 +930,7 @@ public partial class run_party_equipment_regression : SceneTree
     private void TestPartyStateRejectsDuplicateEquipmentInstanceIds()
     {
         PartyState warehouseDuplicateParty = BuildPartyWithMember("hero", "Hero", 8);
-        warehouseDuplicateParty.warehouse_state.equipment_instances = new Godot.Collections.Array<EquipmentInstanceState>
+        warehouseDuplicateParty.warehouse_state.equipment_instances = new List<EquipmentInstanceState>
         {
             EquipmentInstanceState.CreateInstance("bronze_sword", "eq_party_duplicate"),
             EquipmentInstanceState.CreateInstance("scout_charm", "eq_party_duplicate"),
@@ -938,7 +938,7 @@ public partial class run_party_equipment_regression : SceneTree
         _test.True(PartyState.FromDictionary(warehouseDuplicateParty.ToDictionary()) == null, "Duplicate warehouse instance ids should reject PartyState payload.");
 
         PartyState warehouseAndEquippedParty = BuildPartyWithMember("hero", "Hero", 8);
-        warehouseAndEquippedParty.warehouse_state.equipment_instances = new Godot.Collections.Array<EquipmentInstanceState>
+        warehouseAndEquippedParty.warehouse_state.equipment_instances = new List<EquipmentInstanceState>
         {
             EquipmentInstanceState.CreateInstance("bronze_sword", "eq_party_shared"),
         };

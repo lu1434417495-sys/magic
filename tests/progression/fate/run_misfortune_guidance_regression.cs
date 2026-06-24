@@ -32,11 +32,9 @@ public partial class run_misfortune_guidance_regression : SceneTree
 
     private int Run()
     {
-        GodotSharpCleanup.CollectPendingFinalizers();
         TestMisfortuneGuidanceUnlockChainFeedsRank2To5();
         TestForgeResultRejectsStringKeyOnlyDarkEquipmentDef();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         return _test.Finish("Misfortune guidance regression");
     }
 

@@ -228,35 +228,50 @@ internal sealed class BattleUnitFactory
 
     internal IReadOnlyList<BattleUnitState> BuildAllyUnits(
         PartyState party_state,
-        Godot.Collections.Dictionary context
+        Godot.Collections.Dictionary context,
+        GodotTransientResourceScope owner = null
     )
     {
-        context ??= new Godot.Collections.Dictionary();
-        Godot.Collections.Array battleParty = ReadArray(context, "battle_party");
-        if (battleParty.Count > 0)
+        GodotTransientResourceScope localScope = null;
+        GodotTransientResourceScope contextScope = owner;
+        if (contextScope == null)
         {
-            return _normalize_unit_payloads(battleParty);
+            localScope = new GodotTransientResourceScope("BattleUnitFactory.BuildAllyUnits");
+            contextScope = localScope;
         }
-        var member_ids = new Godot.Collections.Array();
-        if (party_state?.active_member_ids != null && party_state.active_member_ids.Count > 0)
+
+        using (localScope)
         {
-            foreach (var memberId in party_state.active_member_ids)
-                member_ids.Add(memberId);
+            context = contextScope.OwnWrapper(
+                context ?? new Godot.Collections.Dictionary(),
+                "context"
+            );
+            Godot.Collections.Array battleParty = ReadArray(context, "battle_party");
+            if (battleParty.Count > 0)
+            {
+                return _normalize_unit_payloads(battleParty);
+            }
+            var member_ids = new Godot.Collections.Array();
+            if (party_state?.active_member_ids != null && party_state.active_member_ids.Count > 0)
+            {
+                foreach (var memberId in party_state.active_member_ids)
+                    member_ids.Add(memberId);
+            }
+            if (member_ids.Count == 0)
+                member_ids = _extract_ally_member_ids(context);
+            var units = new List<BattleUnitState>();
+            for (int i = 0; i < member_ids.Count; i++)
+            {
+                var mid = ProgressionDataUtils.to_string_name(member_ids[i]);
+                var ms = party_state?.GetMemberState(mid);
+                if (ms != null && ms.progression == null)
+                    continue;
+                var us = _build_runtime_ally_unit(mid, ms, i, context);
+                if (us != null)
+                    units.Add(us);
+            }
+            return units;
         }
-        if (member_ids.Count == 0)
-            member_ids = _extract_ally_member_ids(context);
-        var units = new List<BattleUnitState>();
-        for (int i = 0; i < member_ids.Count; i++)
-        {
-            var mid = ProgressionDataUtils.to_string_name(member_ids[i]);
-            var ms = party_state?.GetMemberState(mid);
-            if (ms != null && ms.progression == null)
-                continue;
-            var us = _build_runtime_ally_unit(mid, ms, i, context);
-            if (us != null)
-                units.Add(us);
-        }
-        return units;
     }
 
     internal void RefreshBattleUnit(BattleUnitState us)
@@ -392,18 +407,33 @@ internal sealed class BattleUnitFactory
 
     internal IReadOnlyList<BattleUnitState> BuildEnemyUnits(
         EncounterAnchorData enc,
-        Godot.Collections.Dictionary ctx
+        Godot.Collections.Dictionary ctx,
+        GodotTransientResourceScope owner = null
     )
     {
-        ctx ??= new Godot.Collections.Dictionary();
-        Godot.Collections.Array enemyUnits = ReadArray(ctx, "enemy_units");
-        if (enemyUnits.Count > 0)
+        GodotTransientResourceScope localScope = null;
+        GodotTransientResourceScope contextScope = owner;
+        if (contextScope == null)
         {
-            return _normalize_unit_payloads(enemyUnits);
+            localScope = new GodotTransientResourceScope("BattleUnitFactory.BuildEnemyUnits");
+            contextScope = localScope;
         }
-        var aid = enc != null ? (string)enc.entity_id : "unknown";
-        GameLog.Warning($"BattleUnitFactory cannot build fallback enemy units for {aid}.", "battle.factory.fallback_failed", "battle");
-        return Array.Empty<BattleUnitState>();
+
+        using (localScope)
+        {
+            ctx = contextScope.OwnWrapper(
+                ctx ?? new Godot.Collections.Dictionary(),
+                "context"
+            );
+            Godot.Collections.Array enemyUnits = ReadArray(ctx, "enemy_units");
+            if (enemyUnits.Count > 0)
+            {
+                return _normalize_unit_payloads(enemyUnits);
+            }
+            var aid = enc != null ? (string)enc.entity_id : "unknown";
+            GameLog.Warning($"BattleUnitFactory cannot build fallback enemy units for {aid}.", "battle.factory.fallback_failed", "battle");
+            return Array.Empty<BattleUnitState>();
+        }
     }
 
     private List<BattleUnitState> _normalize_unit_payloads(Godot.Collections.Array pl)
@@ -429,24 +459,36 @@ internal sealed class BattleUnitFactory
     internal Godot.Collections.Dictionary BuildTerrainData(
         EncounterAnchorData enc,
         long seed,
-        Godot.Collections.Dictionary ctx
+        Godot.Collections.Dictionary ctx,
+        GodotTransientResourceScope owner
     )
     {
-        var tc = ctx.Duplicate(true);
+        if (owner == null)
+            throw new ArgumentNullException(nameof(owner));
+        var tc = owner.NewDictionary("terrain-context");
+        CopyTerrainContext(ctx, tc);
         tc.Remove("map_size");
         BattleTerrainGenerator terrainGenerator = GetTerrainGenerator();
         if (terrainGenerator != null)
-            return _atgo(terrainGenerator.GenerateTyped(enc, seed, tc), tc);
-        return _atgo(new Godot.Collections.Dictionary(), tc);
+            return _atgo(
+                owner.OwnWrapper(
+                    terrainGenerator.GenerateTyped(enc, seed, tc),
+                    "terrain-generator-output"
+                ),
+                tc,
+                owner
+            );
+        return _atgo(owner.NewDictionary("empty-terrain-generator-output"), tc, owner);
     }
 
     private static Godot.Collections.Dictionary _atgo(
         Godot.Collections.Dictionary td,
-        Godot.Collections.Dictionary ctx
+        Godot.Collections.Dictionary ctx,
+        GodotTransientResourceScope owner
     )
     {
         if (td == null || td.Count == 0)
-            return new Godot.Collections.Dictionary();
+            return owner.NewDictionary("terrain-output-empty");
         var tr = td.Duplicate(true);
         Godot.Collections.Array allySpawns = ReadArray(ctx, "ally_spawns");
         if (allySpawns.Count > 0)
@@ -454,7 +496,44 @@ internal sealed class BattleUnitFactory
         Godot.Collections.Array enemySpawns = ReadArray(ctx, "enemy_spawns");
         if (enemySpawns.Count > 0)
             tr["enemy_spawns"] = enemySpawns.Duplicate(true);
-        return tr;
+        return owner.OwnWrapper(tr, "terrain-output");
+    }
+
+    private static void CopyTerrainContext(
+        Godot.Collections.Dictionary source,
+        Godot.Collections.Dictionary target
+    )
+    {
+        if (source == null || target == null)
+            return;
+        CopyTerrainContextValue(source, target, "world_coord");
+        CopyTerrainContextValue(source, target, "action_points");
+        CopyTerrainContextValue(source, target, "battle_terrain_profile");
+        CopyTerrainContextValue(source, target, "battle_map_size");
+        CopyTerrainContextValue(source, target, "battle_test_vertical_slice");
+        CopyTerrainContextValue(source, target, "ally_spawns");
+        CopyTerrainContextValue(source, target, "enemy_spawns");
+    }
+
+    private static void CopyTerrainContextValue(
+        Godot.Collections.Dictionary source,
+        Godot.Collections.Dictionary target,
+        string key
+    )
+    {
+        if (!source.ContainsKey(key))
+            return;
+        target[key] = DuplicateTerrainContextVariant(source[key]);
+    }
+
+    private static Variant DuplicateTerrainContextVariant(Variant value)
+    {
+        return value.VariantType switch
+        {
+            Variant.Type.Dictionary => Variant.From(value.AsGodotDictionary().Duplicate(true)),
+            Variant.Type.Array => Variant.From(value.AsGodotArray().Duplicate(true)),
+            _ => value,
+        };
     }
 
     private BattleUnitState _build_runtime_ally_unit(

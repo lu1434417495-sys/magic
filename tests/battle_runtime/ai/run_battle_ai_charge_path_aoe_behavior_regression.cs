@@ -19,7 +19,6 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Battle AI charge path AOE behavior regression"));
     }
 

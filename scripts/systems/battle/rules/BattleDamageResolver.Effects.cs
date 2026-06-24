@@ -513,7 +513,8 @@ public partial class BattleDamageResolver
         AppliedDamageResult fatalResult = ApplyDamageToTargetResult(
             targetUnit,
             fatalDamageInput,
-            sourceUnit
+            sourceUnit,
+            resolutionContext
         );
         TryApplyExecuteSoulFracture(
             targetUnit,
@@ -549,21 +550,24 @@ public partial class BattleDamageResolver
         return true;
     }
 
-    private static CombatEffectDef BuildSoulFractureStatusEffect(
+    private CombatEffectDef BuildSoulFractureStatusEffect(
         BattleExecuteSoulFractureParams soulFractureParams
     )
     {
         BattleExecuteSoulFractureParams resolvedParams = soulFractureParams.HasValue
             ? soulFractureParams
             : BattleExecuteSoulFractureParams.DefaultResisted;
-        return new CombatEffectDef
-        {
-            effect_type = "apply_status",
-            status_id = resolvedParams.StatusId,
-            duration_tu = resolvedParams.DurationTu,
-            heal_multiplier_percent = resolvedParams.HealMultiplierPercent,
-            shield_gain_multiplier_percent = resolvedParams.ShieldGainMultiplierPercent,
-        };
+        return _runtimeSkillFactory.NewEffect(
+            effect =>
+            {
+                effect.effect_type = "apply_status";
+                effect.status_id = resolvedParams.StatusId;
+                effect.duration_tu = resolvedParams.DurationTu;
+                effect.heal_multiplier_percent = resolvedParams.HealMultiplierPercent;
+                effect.shield_gain_multiplier_percent = resolvedParams.ShieldGainMultiplierPercent;
+            },
+            "soul_fracture_status"
+        );
     }
 
     private static DamageApplicationInput BuildFatalExecuteDamageInput(
@@ -680,7 +684,8 @@ public partial class BattleDamageResolver
                 return ApplyPhantasmalKillExecuteDamage(
                     sourceUnit,
                     targetUnit,
-                    effectDef
+                    effectDef,
+                    resolutionContext
                 );
             }
             GradedSaveExecuteEffectResult damageResult =
@@ -728,7 +733,12 @@ public partial class BattleDamageResolver
             );
         if (IsTargetWithinExecuteThreshold(targetUnit, failureExecuteThreshold))
         {
-            return ApplyPhantasmalKillExecuteDamage(sourceUnit, targetUnit, effectDef);
+            return ApplyPhantasmalKillExecuteDamage(
+                sourceUnit,
+                targetUnit,
+                effectDef,
+                resolutionContext
+            );
         }
         GradedSaveExecuteEffectResult failureDamageResult =
             ApplyPhantasmalKillNonExecuteDamage(
@@ -764,7 +774,8 @@ public partial class BattleDamageResolver
     private GradedSaveExecuteEffectResult ApplyPhantasmalKillExecuteDamage(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        CombatEffectDef effectDef
+        CombatEffectDef effectDef,
+        DamageResolutionContext resolutionContext
     )
     {
         int fatalDamage = Math.Max(targetUnit?.current_hp ?? 0, 0);
@@ -776,7 +787,8 @@ public partial class BattleDamageResolver
         AppliedDamageResult fatalResult = ApplyDamageToTargetResult(
             targetUnit,
             fatalDamageInput,
-            sourceUnit
+            sourceUnit,
+            resolutionContext
         );
         return new GradedSaveExecuteEffectResult(
             true,
@@ -815,7 +827,8 @@ public partial class BattleDamageResolver
         AppliedDamageResult damageResult = ApplyDamageToTargetResult(
             targetUnit,
             damageOutcome,
-            sourceUnit
+            sourceUnit,
+            resolutionContext
         );
         return new GradedSaveExecuteEffectResult(
             true,
@@ -852,51 +865,60 @@ public partial class BattleDamageResolver
         return true;
     }
 
-    private static CombatEffectDef BuildPhantasmalKillStatusEffect(
+    private CombatEffectDef BuildPhantasmalKillStatusEffect(
         StringName statusId,
         int durationTu,
         bool lockCounterattack,
         bool lockGuard
     )
     {
-        return new CombatEffectDef
-        {
-            effect_type = BattleTypedNames.EffectApplyStatus,
-            status_id = statusId,
-            duration_tu = Math.Max(durationTu, 0),
-            lock_counterattack = lockCounterattack,
-            lock_guard = lockGuard,
-        };
+        return _runtimeSkillFactory.NewEffect(
+            effect =>
+            {
+                effect.effect_type = BattleTypedNames.EffectApplyStatus;
+                effect.status_id = statusId;
+                effect.duration_tu = Math.Max(durationTu, 0);
+                effect.lock_counterattack = lockCounterattack;
+                effect.lock_guard = lockGuard;
+            },
+            "phantasmal_kill_status"
+        );
     }
 
-    private static CombatEffectDef BuildPhantasmalKillDamageEffect(
+    private CombatEffectDef BuildPhantasmalKillDamageEffect(
         CombatEffectDef sourceEffectDef,
         int diceCount,
         int diceSides
     )
     {
-        return new CombatEffectDef
-        {
-            effect_type = BattleTypedNames.EffectDamage,
-            effect_target_team_filter =
-                sourceEffectDef?.effect_target_team_filter ?? BattleTypedNames.TargetFilterAny,
-            damage_tag = ResolvePhantasmalKillDamageTag(sourceEffectDef),
-            dice_count = Math.Max(diceCount, 0),
-            dice_sides = Math.Max(diceSides, 0),
-        };
+        return _runtimeSkillFactory.NewEffect(
+            effect =>
+            {
+                effect.effect_type = BattleTypedNames.EffectDamage;
+                effect.effect_target_team_filter =
+                    sourceEffectDef?.effect_target_team_filter ?? BattleTypedNames.TargetFilterAny;
+                effect.damage_tag = ResolvePhantasmalKillDamageTag(sourceEffectDef);
+                effect.dice_count = Math.Max(diceCount, 0);
+                effect.dice_sides = Math.Max(diceSides, 0);
+            },
+            "phantasmal_kill_damage"
+        );
     }
 
-    private static CombatEffectDef BuildPhantasmalKillFatalDamageEffect(
+    private CombatEffectDef BuildPhantasmalKillFatalDamageEffect(
         CombatEffectDef sourceEffectDef
     )
     {
-        return new CombatEffectDef
-        {
-            effect_type = BattleTypedNames.EffectDamage,
-            effect_target_team_filter =
-                sourceEffectDef?.effect_target_team_filter ?? BattleTypedNames.TargetFilterAny,
-            damage_tag = ResolvePhantasmalKillDamageTag(sourceEffectDef),
-        };
+        return _runtimeSkillFactory.NewEffect(
+            effect =>
+            {
+                effect.effect_type = BattleTypedNames.EffectDamage;
+                effect.effect_target_team_filter =
+                    sourceEffectDef?.effect_target_team_filter ?? BattleTypedNames.TargetFilterAny;
+                effect.damage_tag = ResolvePhantasmalKillDamageTag(sourceEffectDef);
+            },
+            "phantasmal_kill_fatal_damage"
+        );
     }
 
     private static StringName ResolvePhantasmalKillDamageTag(CombatEffectDef effectDef)
@@ -1087,7 +1109,10 @@ public partial class BattleDamageResolver
         {
             ClearOtherCrownBreakSeals(targetUnit, resolvedStatusId);
         }
-        CombatEffectDef runtimeEffectDef = effectDef.DuplicateForRuntime();
+        CombatEffectDef runtimeEffectDef = effectDef.DuplicateForRuntime(
+            _transientScope,
+            "BattleDamageResolver.ApplyStatusEffect"
+        );
         if (runtimeEffectDef == null)
         {
             return false;
@@ -1466,7 +1491,10 @@ public partial class BattleDamageResolver
             {
                 continue;
             }
-            CombatEffectDef runtimeEffectDef = effectDef.DuplicateForRuntime();
+            CombatEffectDef runtimeEffectDef = effectDef.DuplicateForRuntime(
+                _transientScope,
+                "BattleDamageResolver.TryTriggerLastStand"
+            );
             if (runtimeEffectDef == null)
             {
                 continue;

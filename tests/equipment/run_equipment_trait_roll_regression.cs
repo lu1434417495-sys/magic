@@ -19,7 +19,6 @@ public partial class run_equipment_trait_roll_regression : SceneTree
         TestWarehouseAddItemMintsAfterStableInstanceId();
         TestWarehouseDepositingExistingInstanceDoesNotReroll();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Equipment trait roll regression"));
     }
 

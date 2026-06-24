@@ -24,7 +24,6 @@ public partial class run_black_star_brand_regression : SceneTree
         TestBlackStarBrandNormalTargetBlocksGuardAndCounterattack();
         TestBlackStarBrandEliteTargetUsesEliteOnlyDebuffs();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Black star brand regression"));
     }
 

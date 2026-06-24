@@ -23,7 +23,6 @@ public partial class run_item_recipe_registry_typed_regression : SceneTree
         TestItemTraitValidationAcceptsSourceScopedReferences();
         TestItemTraitValidationRejectsWrongSourceAndUnsatisfiableRollGroups();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Item/recipe registry typed regression"));
     }
 

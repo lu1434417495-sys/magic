@@ -18,7 +18,6 @@ public partial class run_move_to_range_progress_regression : SceneTree
         TestScreeningMoveToRangeUsesPathProgressBeforeLocalGreedyMove();
         TestHighGroundPositionRequiresProgressWhenBeyondBand();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Move-to-range progress regression"));
     }
 
@@ -455,12 +454,15 @@ public partial class run_move_to_range_progress_regression : SceneTree
             state_id = stateId,
             actions = new GActionArray { moveAction, waitAction },
         };
-        return new EnemyAiBrainDef
-        {
-            brain_id = brainId,
-            default_state_id = stateId,
-            states = new GStateArray { state },
-        };
+        return TestResourceOwnership.Own(
+            new EnemyAiBrainDef
+            {
+                brain_id = brainId,
+                default_state_id = stateId,
+                states = new GStateArray { state },
+            },
+            "MoveToRangeProgress.BuildBrain"
+        );
     }
 
     private static BattleRuntimeScope BuildRuntimeWithEnemyContent()

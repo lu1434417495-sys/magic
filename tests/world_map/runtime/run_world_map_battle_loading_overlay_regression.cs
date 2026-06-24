@@ -174,7 +174,6 @@ public partial class run_world_map_battle_loading_overlay_regression : SceneTree
             return;
         node.QueueFree();
         await ProcessFrames(2);
-        GodotSharpCleanup.CollectPendingFinalizers();
     }
 
     private async Task ProcessFrames(int count)

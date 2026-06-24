@@ -301,11 +301,31 @@ public partial class CombatSkillDef : Resource
     public Godot.Collections.Array<CombatCastVariantDef> GetUnlockedCastVariants(int skillLevel)
     {
         var r = new Godot.Collections.Array<CombatCastVariantDef>();
+        string skillKey = skill_id == "" ? "anonymous_skill" : (string)skill_id;
+        int variantIndex = 0;
         foreach (var cv in cast_variants)
         {
             if (cv != null && skillLevel >= cv.min_skill_level)
-                r.Add((CombatCastVariantDef)cv.Duplicate(true));
+            {
+                CombatCastVariantDef variant = (CombatCastVariantDef)cv.Duplicate(true);
+                string variantKey =
+                    variant.variant_id == ""
+                        ? $"index_{variantIndex}"
+                        : (string)variant.variant_id;
+                GodotContentOwnership.RegisterDerivedContent(
+                    variant,
+                    $"skill:{skillKey}:level:{skillLevel}:variant:{variantKey}:{variantIndex}",
+                    "CombatSkillDef.GetUnlockedCastVariants"
+                );
+                r.Add(variant);
+                variantIndex += 1;
+            }
         }
+        GodotContentOwnership.RegisterDerivedWrapper(
+            r,
+            $"skill:{skillKey}:level:{skillLevel}:unlocked_cast_variants",
+            "CombatSkillDef.GetUnlockedCastVariants"
+        );
         return r;
     }
 

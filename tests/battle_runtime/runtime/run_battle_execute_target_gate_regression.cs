@@ -12,7 +12,6 @@ public partial class run_battle_execute_target_gate_regression : SceneTree
         TestHighHpCommandDoesNotConsumeApMpCooldown();
         TestLowHpTargetPreviewAllowed();
         TestBossAndNormalUseSameThresholdGate();
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Battle execute target gate regression"));
     }
 

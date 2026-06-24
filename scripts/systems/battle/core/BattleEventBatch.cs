@@ -1,10 +1,11 @@
 using Godot;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class BattleEventBatch : RefCounted
+public class BattleEventBatch : IDisposable
 {
     private readonly List<StringName> _changedUnitIds = new();
     private readonly List<Vector2I> _changedCoords = new();
@@ -46,6 +47,8 @@ public partial class BattleEventBatch : RefCounted
     internal IReadOnlyList<string> LogLinesTyped => _logLines;
     internal IReadOnlyList<GDictionary> ReportEntriesTyped => _reportEntries;
     internal IReadOnlyList<CharacterProgressionDelta> ProgressionDeltasTyped => _progressionDeltas;
+
+    public void Dispose() { }
 
     internal void SetChangedUnitIds(IEnumerable values)
     {
@@ -178,7 +181,9 @@ public partial class BattleEventBatch : RefCounted
         {
             return;
         }
-        _reportEntries.Add((GDictionary)reportEntry.Duplicate(true));
+        var copy = (GDictionary)reportEntry.Duplicate(true);
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(copy, "BattleEventBatch.report_entry");
+        _reportEntries.Add(copy);
     }
 
     internal void SetProgressionDeltas(IEnumerable values)

@@ -168,6 +168,7 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
             );
             return;
         }
+        GodotContentOwnership.RegisterBorrowedContent(seed, resourcePath);
         foreach (var b in seed.enemy_ai_brains)
         {
             _remember_seed_resource_path(_seed_enemy_ai_brain_paths, b);
@@ -245,30 +246,37 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
     private static List<string> _collect_resource_paths_in_directory(string dirPath)
     {
         var r = new List<string>();
-        var dir = DirAccess.Open(dirPath);
+        DirAccess dir = DirAccess.Open(dirPath);
         if (dir == null)
             return r;
-        dir.ListDirBegin();
-        while (true)
+        try
         {
-            string n = dir.GetNext();
-            if (string.IsNullOrEmpty(n))
-                break;
-            if (n == "." || n == "..")
-                continue;
-            string ep = $"{dirPath}/{n}";
-            if (dir.CurrentIsDir())
+            dir.ListDirBegin();
+            while (true)
             {
-                foreach (var cr in _collect_resource_paths_in_directory(ep))
+                string n = dir.GetNext();
+                if (string.IsNullOrEmpty(n))
+                    break;
+                if (n == "." || n == "..")
+                    continue;
+                string ep = $"{dirPath}/{n}";
+                if (dir.CurrentIsDir())
                 {
-                    r.Add(cr);
+                    foreach (var cr in _collect_resource_paths_in_directory(ep))
+                    {
+                        r.Add(cr);
+                    }
+                    continue;
                 }
-                continue;
+                if (n.EndsWith(".tres") || n.EndsWith(".res"))
+                    r.Add(ep.Replace("\\", "/"));
             }
-            if (n.EndsWith(".tres") || n.EndsWith(".res"))
-                r.Add(ep.Replace("\\", "/"));
+            dir.ListDirEnd();
         }
-        dir.ListDirEnd();
+        finally
+        {
+            GodotObjectLifecycle.DisposeGodotObject(dir);
+        }
         r.Sort(System.StringComparer.Ordinal);
         return r;
     }
@@ -284,27 +292,34 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
             _validation_errors.Add($"{scanLabel} could not find {dirPath}.");
             return;
         }
-        var dir = DirAccess.Open(dirPath);
+        DirAccess dir = DirAccess.Open(dirPath);
         if (dir == null)
         {
             _validation_errors.Add($"{scanLabel} could not open {dirPath}.");
             return;
         }
-        dir.ListDirBegin();
-        while (true)
+        try
         {
-            string n = dir.GetNext();
-            if (string.IsNullOrEmpty(n))
-                break;
-            if (n == "." || n == "..")
-                continue;
-            string ep = $"{dirPath}/{n}";
-            if (dir.CurrentIsDir())
-                _scan_directory(ep, registerCallback, scanLabel);
-            else if (n.EndsWith(".tres") || n.EndsWith(".res"))
-                registerCallback(ep);
+            dir.ListDirBegin();
+            while (true)
+            {
+                string n = dir.GetNext();
+                if (string.IsNullOrEmpty(n))
+                    break;
+                if (n == "." || n == "..")
+                    continue;
+                string ep = $"{dirPath}/{n}";
+                if (dir.CurrentIsDir())
+                    _scan_directory(ep, registerCallback, scanLabel);
+                else if (n.EndsWith(".tres") || n.EndsWith(".res"))
+                    registerCallback(ep);
+            }
+            dir.ListDirEnd();
         }
-        dir.ListDirEnd();
+        finally
+        {
+            GodotObjectLifecycle.DisposeGodotObject(dir);
+        }
     }
 
     private void _register_brain_resource(string rp)
@@ -337,6 +352,7 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
             _validation_errors.Add($"Enemy brain config {sourceLabel} is not an EnemyAiBrainDef.");
             return;
         }
+        GodotContentOwnership.RegisterBorrowedContent(brain, sourceLabel);
         if (_enemy_ai_brains.ContainsKey(brain.brain_id))
         {
             _validation_errors.Add($"Duplicate enemy brain_id registered: {brain.brain_id}");
@@ -359,6 +375,7 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
             );
             return;
         }
+        GodotContentOwnership.RegisterBorrowedContent(tmpl, sourceLabel);
         if (tmpl.template_id == "")
         {
             var knownBrains = new Dictionary<StringName, EnemyAiBrainDef>(_enemy_ai_brains);
@@ -392,6 +409,7 @@ public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
             );
             return;
         }
+        GodotContentOwnership.RegisterBorrowedContent(roster, sourceLabel);
         if (_wild_encounter_rosters.ContainsKey(roster.profile_id))
         {
             _validation_errors.Add(

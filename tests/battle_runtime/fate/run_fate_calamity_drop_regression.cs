@@ -19,7 +19,6 @@ public partial class run_fate_calamity_drop_regression : SceneTree
         TestBossTargetWithoutFortuneMarkCountsAsEliteOrBoss();
         TestDoomSentenceBossDefeatReturnsCalamityAndCore();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Fate calamity drop regression"));
     }
 

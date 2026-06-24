@@ -154,11 +154,11 @@ public partial class run_party_state_duplicate_regression : SceneTree
             active_member_ids = new GStringNameArray { "hero" },
             warehouse_state = new WarehouseState
             {
-                stacks = new Godot.Collections.Array<WarehouseStackState>
+                stacks = new List<WarehouseStackState>
                 {
                     new() { item_id = "potion", quantity = 3 },
                 },
-                equipment_instances = new Godot.Collections.Array<EquipmentInstanceState>
+                equipment_instances = new List<EquipmentInstanceState>
                 {
                     spare,
                 },

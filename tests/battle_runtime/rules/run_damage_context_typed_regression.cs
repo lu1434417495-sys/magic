@@ -18,7 +18,6 @@ public partial class run_damage_context_typed_regression : SceneTree
         TestTypedContextDrivesCriticalDamageAndVirtualDice();
         TestFixedMitigationSourcesRemainStructured();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Damage context typed regression"));
     }
 

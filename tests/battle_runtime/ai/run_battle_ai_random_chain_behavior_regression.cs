@@ -17,7 +17,6 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Battle AI random-chain behavior regression"));
     }
 
@@ -388,7 +387,7 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
             }
         );
         skill.combat_profile = combat;
-        return skill;
+        return TestResourceOwnership.Own(skill, "BattleAiRandomChain.BuildTestRandomChainSkill");
     }
 
     private static string ReadString(IReadOnlyDictionary<string, object> source, string key)

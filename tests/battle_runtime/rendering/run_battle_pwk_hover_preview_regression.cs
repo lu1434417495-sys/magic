@@ -11,7 +11,6 @@ public partial class run_battle_pwk_hover_preview_regression : SceneTree
         TestHighHpHoverHasNoBranchHitChanceOrDamageText();
         TestLowHpHoverShowsBranchTextAndHitChance();
         TestHudDoesNotParseLogLinesOrDamagePreviewText();
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Battle PWK hover preview regression"));
     }
 

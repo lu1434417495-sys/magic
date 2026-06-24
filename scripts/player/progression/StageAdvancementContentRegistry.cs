@@ -51,6 +51,7 @@ public partial class StageAdvancementContentRegistry : IdentityContentRegistryBa
             _validation_errors.Add($"Failed to load stage advancement config {resourcePath}.");
             return;
         }
+        GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
         if (resource is not StageAdvancementModifier modifier)
         {
             _validation_errors.Add(

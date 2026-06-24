@@ -199,26 +199,33 @@ public class FaithService
             return;
         }
 
-        directory.ListDirBegin();
-        while (true)
+        try
         {
-            string entryName = directory.GetNext();
-            if (string.IsNullOrEmpty(entryName))
-                break;
-            if (entryName == "." || entryName == "..")
-                continue;
-
-            string entryPath = $"{directoryPath}/{entryName}";
-            if (directory.CurrentIsDir())
+            directory.ListDirBegin();
+            while (true)
             {
-                ScanDirectory(entryPath);
-                continue;
+                string entryName = directory.GetNext();
+                if (string.IsNullOrEmpty(entryName))
+                    break;
+                if (entryName == "." || entryName == "..")
+                    continue;
+
+                string entryPath = $"{directoryPath}/{entryName}";
+                if (directory.CurrentIsDir())
+                {
+                    ScanDirectory(entryPath);
+                    continue;
+                }
+                if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
+                    continue;
+                RegisterDeityResource(entryPath);
             }
-            if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
-                continue;
-            RegisterDeityResource(entryPath);
+            directory.ListDirEnd();
         }
-        directory.ListDirEnd();
+        finally
+        {
+            GodotObjectLifecycle.DisposeGodotObject(directory);
+        }
     }
 
     private void RegisterDeityResource(string resourcePath)

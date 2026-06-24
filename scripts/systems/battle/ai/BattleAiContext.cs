@@ -871,6 +871,10 @@ public class BattleAiContext : IBattleAiScoreContext
             StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
             if (!IsEmpty(normalizedSkillId) && skillDef != null)
             {
+                GodotObjectOwnershipRegistry.AssertBorrowedOrOwnedKnown(
+                    skillDef,
+                    "BattleAiContext.RebuildSkillDefs"
+                );
                 _skillDefsById[normalizedSkillId] = skillDef;
             }
         }

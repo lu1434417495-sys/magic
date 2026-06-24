@@ -1,7 +1,7 @@
 using Godot;
 using System.Collections.Generic;
 
-public partial class BattleCommand : RefCounted
+public class BattleCommand
 {
     public StringName command_type = "";
     public StringName unit_id = "";

@@ -101,17 +101,20 @@ public partial class run_enemy_ai_transition_schema_regression : SceneTree
 
     private static EnemyAiBrainDef BuildBrain()
     {
-        return new EnemyAiBrainDef
-        {
-            brain_id = "custom_transition_brain",
-            default_state_id = "hold",
-            states = new Godot.Collections.Array<EnemyAiStateDef>
+        return TestResourceOwnership.Own(
+            new EnemyAiBrainDef
             {
-                State("hold"),
-                State("recover"),
-                State("close_range"),
+                brain_id = "custom_transition_brain",
+                default_state_id = "hold",
+                states = new Godot.Collections.Array<EnemyAiStateDef>
+                {
+                    State("hold"),
+                    State("recover"),
+                    State("close_range"),
+                },
             },
-        };
+            "EnemyAiTransitionSchema.BuildBrain"
+        );
     }
 
     private static EnemyAiStateDef State(StringName stateId)

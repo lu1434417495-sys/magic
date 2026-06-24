@@ -17,7 +17,6 @@ public partial class run_battle_status_effect_typed_state_regression : SceneTree
         TestCollectionRoundTripsValidStatus();
         TestBattleUnitStatusProjectionIsNotLiveOwner();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Battle status effect typed state regression"));
     }
 

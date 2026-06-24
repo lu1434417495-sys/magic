@@ -19,7 +19,6 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             TestFormalEnemyTemplatesHaveRealPressureSkillAction();
             TestDepletedRangedTemplatesCloseForBasicAttackFallback();
             TestEnemyTemplateUsesCanonicalTemplateId();
-            GodotSharpCleanup.CollectPendingFinalizers();
             Quit(_test.Finish("Battle AI enemy template runtime regression"));
         }
         catch (Exception exception)

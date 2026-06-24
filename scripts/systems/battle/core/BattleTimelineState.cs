@@ -4,7 +4,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 // 战斗时间轴状态数据。
 // 翻译自 battle_timeline_state.gd（2026-05-24，数据层 C# 迁移）。
-public partial class BattleTimelineState : RefCounted
+public class BattleTimelineState
 {
     internal const int TuGranularity = 5;
 

@@ -83,9 +83,11 @@ public partial class run_party_equipment_service_regression : SceneTree
         var result = new BattleResolutionResult();
         result.SetLootEntries(
             BattleLootEntryPayload.ParseEntries(
-                new GArray
+                TestResourceOwnership.OwnWrapper(
+                    new GArray
                 {
-                    new GDictionary
+                    TestResourceOwnership.OwnWrapper(
+                        new GDictionary
                     {
                         ["drop_type"] = BattleLootIds.ToStringName(
                             BattleLootDropKind.RandomEquipment
@@ -98,7 +100,11 @@ public partial class run_party_equipment_service_regression : SceneTree
                         ["quantity"] = 2,
                         ["drop_luck"] = 8,
                     },
-                }
+                        "PartyEquipmentService.RandomEquipmentLootEntry"
+                    ),
+                },
+                    "PartyEquipmentService.RandomEquipmentLootEntries"
+                )
             )
         );
 
@@ -118,9 +124,11 @@ public partial class run_party_equipment_service_regression : SceneTree
         var result = new BattleResolutionResult();
         result.SetLootEntries(
             BattleLootEntryPayload.ParseEntries(
-                new GArray
+                TestResourceOwnership.OwnWrapper(
+                    new GArray
                 {
-                    new GDictionary
+                    TestResourceOwnership.OwnWrapper(
+                        new GDictionary
                     {
                         ["drop_type"] = BattleLootIds.ToStringName(
                             BattleLootDropKind.EquipmentInstance
@@ -131,11 +139,17 @@ public partial class run_party_equipment_service_regression : SceneTree
                         ["drop_entry_id"] = "enemy_unit_wolf_alpha_equipment_instance",
                         ["item_id"] = "iron_sword",
                         ["quantity"] = 1,
-                        ["equipment_instance"] = EquipmentInstanceState
-                            .CreateInstance("iron_sword", "eq_000321")
-                            .ToDictionary(),
+                        ["equipment_instance"] = BuildEquipmentInstancePayload(
+                            "iron_sword",
+                            "eq_000321",
+                            "PartyEquipmentService.EquipmentInstanceLootEntry"
+                        ),
                     },
-                }
+                        "PartyEquipmentService.EquipmentInstanceLootEntry"
+                    ),
+                },
+                    "PartyEquipmentService.EquipmentInstanceLootEntries"
+                )
             )
         );
 
@@ -155,7 +169,8 @@ public partial class run_party_equipment_service_regression : SceneTree
         LootCommitFixture fixture = BuildLootCommitFixture();
         try
         {
-            GDictionary mismatchedEntry = new()
+            GDictionary mismatchedEntry = TestResourceOwnership.OwnWrapper(
+                new GDictionary
             {
                 ["drop_type"] = BattleLootIds.ToStringName(
                     BattleLootDropKind.EquipmentInstance
@@ -166,10 +181,14 @@ public partial class run_party_equipment_service_regression : SceneTree
                 ["drop_entry_id"] = "enemy_unit_wolf_alpha_equipment_instance",
                 ["item_id"] = "bronze_sword",
                 ["quantity"] = 1,
-                ["equipment_instance"] = EquipmentInstanceState
-                    .CreateInstance("iron_sword", "eq_000654")
-                    .ToDictionary(),
-            };
+                ["equipment_instance"] = BuildEquipmentInstancePayload(
+                    "iron_sword",
+                    "eq_000654",
+                    "PartyEquipmentService.MismatchedEquipmentInstanceLootEntry"
+                ),
+            },
+                "PartyEquipmentService.MismatchedEquipmentInstanceLootEntry"
+            );
 
             BattleLootEntry typedEntry = BattleLootEntryPayload.FormalDropEntryPayloadToTyped(
                 mismatchedEntry
@@ -209,11 +228,15 @@ public partial class run_party_equipment_service_regression : SceneTree
             .unit_base_attributes
             .SetAttributeValue(PartyWarehouseService.StorageSpaceAttributeId, 4);
         partyState.SetMemberState(memberState);
-        return partyState;
+        return TestResourceOwnership.OwnWrapper(
+            partyState,
+            "PartyEquipmentService.BuildPartyState"
+        );
     }
 
     private static GDictionary BuildItemDefs() =>
-        new()
+        TestResourceOwnership.OwnWrapper(
+            new GDictionary
         {
             [new StringName("bronze_sword")] = new ItemDef
             {
@@ -250,7 +273,25 @@ public partial class run_party_equipment_service_regression : SceneTree
                 EquipmentTypeKind = ItemEquipmentTypeKind.Weapon,
                 equipment_slot_ids = new Godot.Collections.Array<string> { "main_hand" },
             },
-        };
+        },
+            "PartyEquipmentService.BuildItemDefs"
+        );
+
+    private static GDictionary BuildEquipmentInstancePayload(
+        StringName itemId,
+        StringName instanceId,
+        string reason
+    )
+    {
+        EquipmentInstanceState equipmentInstance = TestResourceOwnership.OwnWrapper(
+            EquipmentInstanceState.CreateInstance(itemId, instanceId),
+            $"{reason}.State"
+        );
+        return TestResourceOwnership.OwnWrapper(
+            equipmentInstance.ToDictionary(),
+            $"{reason}.Payload"
+        );
+    }
 
     private static LootCommitFixture BuildLootCommitFixture()
     {
@@ -334,7 +375,7 @@ public partial class run_party_equipment_service_regression : SceneTree
         {
             Service?.Dispose();
             Runtime?.Dispose();
-            GameSession?.QueueFree();
+            GameSession?.Dispose();
         }
     }
 }

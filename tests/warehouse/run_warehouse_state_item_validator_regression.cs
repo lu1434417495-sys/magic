@@ -23,11 +23,11 @@ public partial class run_warehouse_state_item_validator_regression : SceneTree
     {
         WarehouseState warehouseState = new()
         {
-            stacks = new Godot.Collections.Array<WarehouseStackState>
+            stacks = new List<WarehouseStackState>
             {
                 new() { item_id = "healing_herb", quantity = 3 },
             },
-            equipment_instances = new Godot.Collections.Array<EquipmentInstanceState>
+            equipment_instances = new List<EquipmentInstanceState>
             {
                 EquipmentInstanceState.CreateInstance("iron_sword", "eq_000001"),
             },
@@ -46,13 +46,13 @@ public partial class run_warehouse_state_item_validator_regression : SceneTree
     {
         WarehouseState warehouseState = new()
         {
-            stacks = new Godot.Collections.Array<WarehouseStackState>
+            stacks = new List<WarehouseStackState>
             {
                 new() { item_id = "healing_herb", quantity = 9 },
                 new() { item_id = "iron_sword", quantity = 1 },
                 new() { item_id = "missing_item", quantity = 1 },
             },
-            equipment_instances = new Godot.Collections.Array<EquipmentInstanceState>
+            equipment_instances = new List<EquipmentInstanceState>
             {
                 EquipmentInstanceState.CreateInstance("healing_herb", "eq_bad_stack_item"),
                 EquipmentInstanceState.CreateInstance("missing_equipment", "eq_missing"),

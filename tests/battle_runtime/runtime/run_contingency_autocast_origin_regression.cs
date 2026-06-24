@@ -27,7 +27,6 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
         }
 
         CleanupFixtures();
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Contingency auto-cast origin regression"));
     }
 

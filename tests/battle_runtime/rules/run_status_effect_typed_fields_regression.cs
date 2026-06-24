@@ -22,7 +22,6 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
         TestRuntimeBodySizeOverrideWrapperForwardsTypedFields();
         TestRuntimeSourceWrapperForwardsCoreFields();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Status effect typed fields regression"));
     }
 

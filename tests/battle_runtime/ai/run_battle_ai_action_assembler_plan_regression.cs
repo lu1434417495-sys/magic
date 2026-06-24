@@ -183,12 +183,15 @@ public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
             ),
         };
 
-        var brain = new EnemyAiBrainDef
-        {
-            brain_id = "plan_brain",
-            default_state_id = "engage",
-            states = new Godot.Collections.Array<EnemyAiStateDef> { stateDef },
-        };
+        var brain = TestResourceOwnership.Own(
+            new EnemyAiBrainDef
+            {
+                brain_id = "plan_brain",
+                default_state_id = "engage",
+                states = new Godot.Collections.Array<EnemyAiStateDef> { stateDef },
+            },
+            "BattleAiActionAssemblerPlan.BuildFixture.brain"
+        );
         var unit = new BattleUnitState
         {
             unit_id = "actor",
@@ -268,7 +271,7 @@ public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
         };
         combat.effect_defs.Add(Effect(effectType));
         skill.combat_profile = combat;
-        return skill;
+        return TestResourceOwnership.Own(skill, "BattleAiActionAssemblerPlan.Skill");
     }
 
     private static SkillDef ChainSkill()

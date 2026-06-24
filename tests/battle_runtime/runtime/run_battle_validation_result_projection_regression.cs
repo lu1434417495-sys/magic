@@ -17,7 +17,6 @@ public partial class run_battle_validation_result_projection_regression : SceneT
         TestRuntimeUnitSkillEffectTypedProjectionPreservesCritLock();
         TestRuntimeChainDamageInternalHelperStillExecutesTypedChainEffects();
         TestTargetCollectionSortsAndProjectsCoords();
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Battle validation result projection regression"));
     }
 

@@ -25,13 +25,11 @@ public partial class run_phantasmal_kill_regression : SceneTree
             TestPsychicResistanceAndImmunityAffectOnlyNonExecuteDamage();
             TestGroundSkillAffectsAnyTeamInSevenBySevenOnly();
 
-            GodotSharpCleanup.CollectPendingFinalizers();
             Quit(_test.Finish("Phantasmal Kill regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            GodotSharpCleanup.CollectPendingFinalizers();
             Quit(_test.Finish("Phantasmal Kill regression"));
         }
     }

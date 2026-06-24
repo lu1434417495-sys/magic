@@ -21,7 +21,6 @@ public partial class run_titan_colossus_form_regression : SceneTree
         TestTitanColossusFormChangesAndRestoresBodySize();
         TestBodySizeRestoreWaitsWhenPreviousFootprintIsBlocked();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
 
         Quit(_test.Finish("Titan colossus form regression"));
     }

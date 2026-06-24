@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class EquipmentState : RefCounted
+public class EquipmentState
 {
     private readonly Dictionary<StringName, EquipmentEntryState> _equipped_slots = new();
     private readonly Dictionary<StringName, StringName> _slot_to_entry_slot = new();

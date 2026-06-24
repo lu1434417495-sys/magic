@@ -17,7 +17,6 @@ public partial class run_encounter_roster_loot_preview_regression : SceneTree
         TestTemplateLootSchemaUsesFormalBoundary();
         TestTemplateLootSchemaRejectsMissingDropSourceLabel();
         TestRosterLootPreviewAggregatesEntriesByItemId();
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Encounter roster loot preview regression"));
     }
 

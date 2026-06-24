@@ -27,7 +27,6 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
     {
         _TestForceHitSkillRuntimePreviewIsGuaranteed();
         await _TestSingleHitSkillHudSurfacesRuntimePreview();
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Battle hit preview contract regression"));
     }
 
@@ -105,7 +104,6 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         {
             BattleTestFixture.DisposeBattleFixture(runtime, state, command, preview, caster, target);
             registry.Dispose();
-            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 

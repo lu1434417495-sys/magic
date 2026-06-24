@@ -15,8 +15,45 @@ public partial class ContingencySetupWindow : Control
     [Signal]
     public delegate void closedEventHandler();
 
-    private static readonly StringName V1PayloadName = "hp_mirror_self";
-    private static readonly StringName V1SetupId = "hp_mirror_self";
+    private sealed class TemplateOption
+    {
+        public StringName PayloadName { get; init; }
+        public StringName SetupId { get; init; }
+        public string DisplayName { get; init; } = "";
+        public string TriggerType { get; init; } = "";
+        public string ReleaseMode { get; init; } = "";
+        public string SpellSummary { get; init; } = "";
+        public string TargetResolver { get; init; } = "";
+        public int MatrixLoad { get; init; }
+    }
+
+    private static readonly TemplateOption[] V1Templates =
+    {
+        new()
+        {
+            PayloadName = "hp_mirror_self",
+            SetupId = "hp_mirror_self",
+            DisplayName = "濒死镜影",
+            TriggerType = "hp_below_percent",
+            ReleaseMode = "burst_release",
+            SpellSummary = "mage_mirror_image@2:self",
+            TargetResolver = "self",
+            MatrixLoad = 3,
+        },
+        new()
+        {
+            PayloadName = "owner_turn_mirror_self",
+            SetupId = "owner_turn_mirror_self",
+            DisplayName = "起手镜影",
+            TriggerType = "owner_turn_started",
+            ReleaseMode = "burst_release",
+            SpellSummary = "mage_mirror_image@2:self",
+            TargetResolver = "self",
+            MatrixLoad = 3,
+        },
+    };
+
+    private static TemplateOption DefaultTemplate => V1Templates[0];
 
     public Label member_status_label;
     public Label setup_status_label;
@@ -33,8 +70,10 @@ public partial class ContingencySetupWindow : Control
     public Button close_button;
 
     private StringName _member_id = "";
-    private StringName _setup_id = V1SetupId;
+    private StringName _setup_id = DefaultTemplate.SetupId;
+    private StringName _selected_payload_name = DefaultTemplate.PayloadName;
     private bool _charged;
+    private bool _selected_template_saved;
 
     public override void _Ready()
     {
@@ -56,6 +95,7 @@ public partial class ContingencySetupWindow : Control
         charge_button.Pressed += OnChargePressed;
         clear_charge_button.Pressed += OnClearChargePressed;
         close_button.Pressed += CloseWindow;
+        trigger_selector.ItemSelected += OnTriggerSelected;
         HideWindow();
     }
 
@@ -64,38 +104,43 @@ public partial class ContingencySetupWindow : Control
         Visible = true;
         _member_id = member?.member_id ?? new StringName("");
         ContingencyMatrixSetupState setup = ResolveSetup(member);
-        _setup_id = setup?.SetupId ?? V1SetupId;
+        TemplateOption template = ResolveTemplate(setup) ?? DefaultTemplate;
+        _setup_id = setup?.SetupId ?? template.SetupId;
+        _selected_payload_name = template.PayloadName;
         _charged = setup?.Charged ?? false;
+        _selected_template_saved = setup != null;
 
         member_status_label.Text =
             member != null
                 ? $"{member.display_name} | member_id={member.member_id}"
                 : "member_id=";
+        PopulateTriggerOptions(template);
+        RenderTemplateState(template, setup, characterManagement, member);
+    }
+
+    private void RenderTemplateState(
+        TemplateOption template,
+        ContingencyMatrixSetupState setup,
+        CharacterManagementModule characterManagement,
+        PartyMemberState member
+    )
+    {
         setup_status_label.Text =
-            setup != null
+            setup != null && setup.SetupId == template.SetupId
                 ? $"{setup.SetupId} | {setup.DisplayName} | charged={(_charged ? "yes" : "no")}"
-                : "hp_mirror_self | 未保存";
+                : $"{template.SetupId} | {template.DisplayName} | 未保存";
 
-        SetSingleOption(trigger_selector, setup?.Trigger?.ToDictionary()?["type"].AsString() ?? "hp_below_percent");
-        SetSingleOption(release_mode_selector, setup?.ReleaseMode.ToString() ?? "burst_release");
-        SetSingleOption(target_resolver_selector, ResolveTargetResolver(setup));
+        SetSingleOption(release_mode_selector, setup?.ReleaseMode.ToString() ?? template.ReleaseMode);
+        SetSingleOption(target_resolver_selector, ResolveTargetResolver(setup) ?? template.TargetResolver);
         stored_spell_list.Clear();
-        if (setup != null)
-        {
+        if (setup != null && setup.SetupId == template.SetupId)
             foreach (ContingencyStoredSpellEntryState spell in setup.StoredSpells)
-            {
-                stored_spell_list.AddItem(
-                    $"{spell.StoredSkillId}@{spell.CastLevel}:{spell.TargetResolver?.Type}"
-                );
-            }
-        }
+                stored_spell_list.AddItem($"{spell.StoredSkillId}@{spell.CastLevel}:{spell.TargetResolver?.Type}");
         else
-        {
-            stored_spell_list.AddItem("mage_mirror_image@2:self");
-        }
+            stored_spell_list.AddItem(template.SpellSummary);
 
-        int matrixLoad = setup?.MatrixLoad ?? 3;
-        int reservedMpMax = setup?.ReservedMpMax ?? 0;
+        int matrixLoad = setup?.SetupId == template.SetupId ? setup.MatrixLoad : template.MatrixLoad;
+        int reservedMpMax = setup?.SetupId == template.SetupId ? setup.ReservedMpMax : 0;
         int effectiveMpMax = Mathf.Max(
             characterManagement?.GetMemberAttributeSnapshot(_member_id)?.GetValue(AttributeService.MP_MAX)
                 ?? member?.current_mp
@@ -105,9 +150,9 @@ public partial class ContingencySetupWindow : Control
         matrix_preview_label.Text =
             $"matrix_load={matrixLoad} | reserved_mp_max={reservedMpMax} | effective_mp_max={effectiveMpMax}";
         material_preview_label.Text =
-            $"special_contingency_gem:{GetMaterialQuantity(setup)}";
+            $"special_contingency_gem:{(setup?.SetupId == template.SetupId ? GetMaterialQuantity(setup) : 0)}";
         save_button.Disabled = _member_id == "" || _charged;
-        charge_button.Disabled = _member_id == "" || _charged;
+        charge_button.Disabled = _member_id == "" || _charged || !_selected_template_saved;
         clear_charge_button.Disabled = _member_id == "" || !_charged;
         clear_charge_confirmation_label.Visible = _charged;
         clear_charge_confirmation_label.Text =
@@ -118,8 +163,10 @@ public partial class ContingencySetupWindow : Control
     {
         Visible = false;
         _member_id = "";
-        _setup_id = V1SetupId;
+        _setup_id = DefaultTemplate.SetupId;
+        _selected_payload_name = DefaultTemplate.PayloadName;
         _charged = false;
+        _selected_template_saved = false;
         if (clear_charge_confirmation_label != null)
             clear_charge_confirmation_label.Text = "";
     }
@@ -128,16 +175,56 @@ public partial class ContingencySetupWindow : Control
     {
         if (member == null)
             return null;
-        if (member.TryGetContingencySetupTyped(V1SetupId, out ContingencyMatrixSetupState setup))
-            return setup;
-        return null;
+        ContingencyMatrixSetupState first = null;
+        foreach (ContingencyMatrixSetupState setup in member.GetContingencySetupsTyped())
+        {
+            if (setup == null)
+                continue;
+            first ??= setup;
+            if (setup.Charged)
+                return setup;
+        }
+        return first;
     }
 
     private static string ResolveTargetResolver(ContingencyMatrixSetupState setup)
     {
         if (setup == null || setup.StoredSpells.Count == 0)
-            return "self";
+            return null;
         return setup.StoredSpells[0].TargetResolver?.Type.ToString() ?? "self";
+    }
+
+    private static TemplateOption ResolveTemplate(ContingencyMatrixSetupState setup)
+    {
+        if (setup == null)
+            return null;
+        foreach (TemplateOption option in V1Templates)
+            if (option.SetupId == setup.SetupId)
+                return option;
+        return null;
+    }
+
+    private static TemplateOption ResolveTemplateByPayload(StringName payloadName)
+    {
+        foreach (TemplateOption option in V1Templates)
+            if (option.PayloadName == payloadName)
+                return option;
+        return DefaultTemplate;
+    }
+
+    private void PopulateTriggerOptions(TemplateOption selected)
+    {
+        trigger_selector.Clear();
+        int selectedIndex = 0;
+        for (int index = 0; index < V1Templates.Length; index++)
+        {
+            TemplateOption option = V1Templates[index];
+            trigger_selector.AddItem(option.TriggerType);
+            trigger_selector.SetItemMetadata(index, option.PayloadName.ToString());
+            if (option.PayloadName == selected.PayloadName)
+                selectedIndex = index;
+        }
+        trigger_selector.Selected = selectedIndex;
     }
 
     private static int GetMaterialQuantity(ContingencyMatrixSetupState setup)
@@ -160,7 +247,7 @@ public partial class ContingencySetupWindow : Control
     {
         if (_member_id == "" || _charged)
             return;
-        EmitSignal(SignalName.save_requested, _member_id, V1PayloadName);
+        EmitSignal(SignalName.save_requested, _member_id, _selected_payload_name);
     }
 
     private void OnChargePressed()
@@ -183,5 +270,22 @@ public partial class ContingencySetupWindow : Control
             return;
         HideWindow();
         EmitSignal(SignalName.closed);
+    }
+
+    private void OnTriggerSelected(long itemIndex)
+    {
+        if (itemIndex < 0 || itemIndex >= trigger_selector.ItemCount)
+            return;
+        Variant metadata = trigger_selector.GetItemMetadata((int)itemIndex);
+        StringName payloadName =
+            metadata.VariantType == Variant.Type.String || metadata.VariantType == Variant.Type.StringName
+                ? new StringName(metadata.AsString())
+                : DefaultTemplate.PayloadName;
+        TemplateOption template = ResolveTemplateByPayload(payloadName);
+        _selected_payload_name = template.PayloadName;
+        _setup_id = template.SetupId;
+        _charged = false;
+        _selected_template_saved = false;
+        RenderTemplateState(template, null, null, null);
     }
 }

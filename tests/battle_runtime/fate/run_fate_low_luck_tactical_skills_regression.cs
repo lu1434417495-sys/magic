@@ -27,16 +27,27 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
     private const int BLACK_CONTRACT_PUSH_HP_COST = 10;
 
     private readonly TestHarness _test = new();
+    private ProgressionContentRegistry _progressionContentRegistry;
+    private IReadOnlyDictionary<StringName, SkillDef> _skillDefs;
 
     public override void _Initialize()
     {
-        TestMisstepToSchemeGrantsBonusCalamityWithoutDuplicateCriticalFailEvents();
-        TestBlackContractPushOptionsPayTheirSelectedCostAndForceHitWithoutCrit();
-        TestDoomShiftMarksSelfAndSwapsWithNearbyAlly();
-        TestBlackCrownSealIsBossOnlyOncePerBattleAndAppliesBothLockOptions();
+        int exitCode = 1;
+        try
+        {
+            TestMisstepToSchemeGrantsBonusCalamityWithoutDuplicateCriticalFailEvents();
+            TestBlackContractPushOptionsPayTheirSelectedCostAndForceHitWithoutCrit();
+            TestDoomShiftMarksSelfAndSwapsWithNearbyAlly();
+            TestBlackCrownSealIsBossOnlyOncePerBattleAndAppliesBothLockOptions();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("FATE_25 regression"));
+            SuppressSkillDefFinalizers(_skillDefs);
+            exitCode = _test.Finish("FATE_25 regression");
+        }
+        finally
+        {
+            DisposeContentRegistry();
+            Quit(exitCode);
+        }
     }
 
     private void TestMisstepToSchemeGrantsBonusCalamityWithoutDuplicateCriticalFailEvents()
@@ -382,23 +393,15 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
 
     private BattleRuntimeModule BuildRuntime()
     {
-        var registry = new ProgressionContentRegistry();
         var runtime = new BattleRuntimeModule();
-        try
-        {
-            runtime.setup(
-                null,
-                registry.GetSkillDefsTyped(),
-                new Dictionary<StringName, EnemyTemplateDef>(),
-                new Dictionary<StringName, EnemyAiBrainDef>()
-            );
-            BattleTestFixture.ConfigureDamageResolverForTests(runtime, new DeterministicBattleDamageResolver());
-            BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
-        }
-        finally
-        {
-            GodotSharpCleanup.DisposeGodotObject(registry);
-        }
+        runtime.setup(
+            null,
+            GetSkillDefsForTests(),
+            new Dictionary<StringName, EnemyTemplateDef>(),
+            new Dictionary<StringName, EnemyAiBrainDef>()
+        );
+        BattleTestFixture.ConfigureDamageResolverForTests(runtime, new DeterministicBattleDamageResolver());
+        BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
         return runtime;
     }
 
@@ -416,6 +419,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
             GetCaseValue<BattleUnitState>(testCase, "caster"),
             GetCaseValue<BattleUnitState>(testCase, "enemy")
         );
+        testCase.Clear();
     }
 
     private static T GetCaseValue<T>(Dictionary<string, object> testCase, string key)
@@ -424,12 +428,12 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
 
     private static void DisposeBlackCrownSealCase(
         BlackCrownSealCase testCase,
-        params GodotObject[] ownedObjects
+        params object[] ownedObjects
     )
     {
         if (testCase == null)
             return;
-        var owned = new List<GodotObject>();
+        var owned = new List<object>();
         if (ownedObjects != null)
             owned.AddRange(ownedObjects);
         owned.Add(testCase.Caster);
@@ -437,6 +441,75 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         owned.Add(testCase.Elite);
         owned.Add(testCase.AllyTarget);
         BattleTestFixture.DisposeBattleFixture(testCase.Runtime, testCase.State, owned.ToArray());
+        testCase.Runtime = null;
+        testCase.State = null;
+        testCase.Caster = null;
+        testCase.Boss = null;
+        testCase.Elite = null;
+        testCase.AllyTarget = null;
+    }
+
+    private IReadOnlyDictionary<StringName, SkillDef> GetSkillDefsForTests()
+    {
+        if (_skillDefs != null)
+            return _skillDefs;
+        _progressionContentRegistry = new ProgressionContentRegistry();
+        _skillDefs = _progressionContentRegistry.GetSkillDefsTyped();
+        return _skillDefs;
+    }
+
+    private void DisposeContentRegistry()
+    {
+        SuppressSkillDefFinalizers(_skillDefs);
+        GodotSharpCleanup.DisposeGodotObject(_progressionContentRegistry);
+        _skillDefs = null;
+        _progressionContentRegistry = null;
+    }
+
+    private static void SuppressSkillDefFinalizers(
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+    )
+    {
+        if (skillDefs == null)
+            return;
+        foreach (SkillDef skillDef in skillDefs.Values)
+            SuppressSkillDefFinalizer(skillDef);
+    }
+
+    private static void SuppressSkillDefFinalizer(SkillDef skillDef)
+    {
+        if (skillDef == null)
+            return;
+        SuppressGodotObjectFinalizer(skillDef);
+        CombatSkillDef combatProfile = skillDef.combat_profile;
+        if (combatProfile == null)
+            return;
+        SuppressGodotObjectFinalizer(combatProfile);
+        SuppressEffectDefFinalizers(combatProfile.effect_defs);
+        SuppressEffectDefFinalizers(combatProfile.passive_effect_defs);
+        foreach (CombatCastVariantDef castVariant in combatProfile.cast_variants)
+        {
+            if (castVariant == null)
+                continue;
+            SuppressGodotObjectFinalizer(castVariant);
+            SuppressEffectDefFinalizers(castVariant.effect_defs);
+        }
+    }
+
+    private static void SuppressEffectDefFinalizers(
+        Godot.Collections.Array<CombatEffectDef> effectDefs
+    )
+    {
+        if (effectDefs == null)
+            return;
+        foreach (CombatEffectDef effectDef in effectDefs)
+            SuppressGodotObjectFinalizer(effectDef);
+    }
+
+    private static void SuppressGodotObjectFinalizer(GodotObject value)
+    {
+        if (value != null && GodotObject.IsInstanceValid(value))
+            System.GC.SuppressFinalize(value);
     }
 
     private void BeginRuntimeBattle(BattleRuntimeModule runtime)

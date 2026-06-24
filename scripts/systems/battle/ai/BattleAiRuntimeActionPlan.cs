@@ -14,6 +14,17 @@ internal sealed class BattleAiRuntimeActionPlan
     private readonly Dictionary<long, RuntimeActionMetadata> _metadataByInstanceId = new();
     private readonly Dictionary<StringName, BattleAiSkillAffordanceRecord> _skillAffordanceRecordsBySkillId =
         new();
+    private readonly GodotTransientResourceScope _transientScope =
+        new("BattleAiRuntimeActionPlan");
+    private readonly RuntimeEnemyAiResourceFactory _enemyAiResourceFactory;
+
+    internal BattleAiRuntimeActionPlan()
+    {
+        _enemyAiResourceFactory = new RuntimeEnemyAiResourceFactory(
+            _transientScope,
+            "BattleAiRuntimeActionPlan"
+        );
+    }
 
     public void SetSource(BattleUnitState unitState, EnemyAiBrainDef brain)
     {
@@ -33,6 +44,10 @@ internal sealed class BattleAiRuntimeActionPlan
         List<EnemyAiAction> copiedActions = CopyActionList(actions);
         foreach (EnemyAiAction action in copiedActions)
         {
+            GodotObjectOwnershipRegistry.AssertBorrowedOrOwnedKnown(
+                action,
+                "BattleAiRuntimeActionPlan.AddStateActions"
+            );
             if (!_metadataByInstanceId.ContainsKey(InstanceKey(action)))
             {
                 SetActionMetadataTyped(
@@ -56,6 +71,10 @@ internal sealed class BattleAiRuntimeActionPlan
             return;
         }
         EnsureState(normalizedStateId);
+        GodotObjectOwnershipRegistry.AssertBorrowedOrOwnedKnown(
+            action,
+            "BattleAiRuntimeActionPlan.AddAction"
+        );
         List<EnemyAiAction> stateActions = GetStateActions(normalizedStateId);
         stateActions.Add(action);
 
@@ -92,6 +111,10 @@ internal sealed class BattleAiRuntimeActionPlan
             return;
         }
         EnsureState(normalizedStateId);
+        GodotObjectOwnershipRegistry.AssertBorrowedOrOwnedKnown(
+            action,
+            "BattleAiRuntimeActionPlan.AddGeneratedActionTyped"
+        );
         List<EnemyAiAction> stateActions = GetStateActions(normalizedStateId);
         stateActions.Add(action);
 
@@ -108,6 +131,25 @@ internal sealed class BattleAiRuntimeActionPlan
         SetActionMetadataTyped(action, metadata);
         List<EnemyAiAction> generatedActions = GetGeneratedActions(normalizedStateId);
         generatedActions.Add(action);
+    }
+
+    internal EnemyAiAction OwnRuntimeAction(EnemyAiAction action, string reason)
+    {
+        return _enemyAiResourceFactory.OwnAction(action, reason);
+    }
+
+    internal void Clear()
+    {
+        _actionsByState.Clear();
+        _generatedActionsByState.Clear();
+        _metadataByInstanceId.Clear();
+        _skillAffordanceRecordsBySkillId.Clear();
+        warnings.Clear();
+        errors.Clear();
+        unit_id = "";
+        brain_id = "";
+        fingerprint = "";
+        _transientScope.Drain();
     }
 
     internal IReadOnlyList<EnemyAiAction> GetActions(StringName state_id)

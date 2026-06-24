@@ -30,7 +30,6 @@ public partial class run_game_root_content_catalog_regression : SceneTree
         TestRuntimeFacadeDiscardsStaleContentCatalog();
         TestRuntimeFacadeDiscardsCatalogBoundToOtherSession();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Game root content catalog regression"));
     }
 

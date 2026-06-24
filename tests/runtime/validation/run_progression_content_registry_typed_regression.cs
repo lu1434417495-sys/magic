@@ -20,7 +20,6 @@ public partial class run_progression_content_registry_typed_regression : SceneTr
         TestTraitDefinitionBucketsSyncIntoTypedIndexes();
         TestIdentityCatalogTypedBoundaryMatchesPublicBuckets();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Progression content registry typed regression"));
     }
 

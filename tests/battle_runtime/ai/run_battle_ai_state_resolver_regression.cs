@@ -250,7 +250,7 @@ public partial class run_battle_ai_state_resolver_regression : SceneTree
         {
             brain.transition_rules.Add(rule);
         }
-        return brain;
+        return TestResourceOwnership.Own(brain, "BattleAiStateResolver.BuildBrain");
     }
 
     private static EnemyAiStateDef State(StringName stateId)
@@ -402,7 +402,7 @@ public partial class run_battle_ai_state_resolver_regression : SceneTree
             power = 8,
         };
         ((CombatSkillDef)skillDef.combat_profile).effect_defs.Add(healEffect);
-        return skillDef;
+        return TestResourceOwnership.Own(skillDef, "BattleAiStateResolver.BuildSupportSkill");
     }
 
     private static bool IsGodotDynamicBoundaryType(Type type)

@@ -230,32 +230,38 @@ public partial class run_enemy_template_schema_boundary_regression : SceneTree
 
     private static EnemyAiBrainDef BuildBrain(StringName brainId, StringName stateId)
     {
-        return new EnemyAiBrainDef
-        {
-            brain_id = brainId,
-            default_state_id = stateId,
-            states = new Godot.Collections.Array<EnemyAiStateDef>
+        return TestResourceOwnership.Own(
+            new EnemyAiBrainDef
             {
-                new EnemyAiStateDef
+                brain_id = brainId,
+                default_state_id = stateId,
+                states = new Godot.Collections.Array<EnemyAiStateDef>
                 {
-                    state_id = stateId,
-                    actions = new Godot.Collections.Array<EnemyAiAction>
+                    new EnemyAiStateDef
                     {
-                        new WaitAction { action_id = $"{stateId}_wait" },
+                        state_id = stateId,
+                        actions = new Godot.Collections.Array<EnemyAiAction>
+                        {
+                            new WaitAction { action_id = $"{stateId}_wait" },
+                        },
                     },
                 },
             },
-        };
+            "EnemyTemplateSchemaBoundary.BuildBrain"
+        );
     }
 
     private static SkillDef BuildSkill(StringName skillId, int maxLevel)
     {
-        return new SkillDef
-        {
-            skill_id = skillId,
-            display_name = skillId.ToString(),
-            max_level = maxLevel,
-        };
+        return TestResourceOwnership.Own(
+            new SkillDef
+            {
+                skill_id = skillId,
+                display_name = skillId.ToString(),
+                max_level = maxLevel,
+            },
+            "EnemyTemplateSchemaBoundary.BuildSkill"
+        );
     }
 
     private static ItemDef MakeWeapon(StringName itemId, StringName weaponTypeId)

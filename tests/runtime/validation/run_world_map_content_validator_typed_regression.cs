@@ -20,7 +20,6 @@ public partial class run_world_map_content_validator_typed_regression : SceneTre
         TestPublicGenerationConfigRejectsStringKeyCatalogIds();
         TestSiblingMountedSubmapsMayReuseConfigPath();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("World map content validator typed regression"));
     }
 

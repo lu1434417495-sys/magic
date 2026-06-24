@@ -47,7 +47,6 @@ public partial class run_headless_game_test_session_regression : SceneTree
 
     private async void RunAsync()
     {
-        GodotSharpCleanup.CollectPendingFinalizers();
         await TestDisposeClearsBattleSaveLockOnSharedGameSession();
         await TestOwnedGameSessionDisposeRemovesLogSink();
         await TestBuildSnapshotDoesNotRebuildMissingSaveIndex();

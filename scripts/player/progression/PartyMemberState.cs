@@ -84,6 +84,7 @@ public partial class PartyMemberState : RefCounted
 
     public PartyMemberState()
     {
+        RuntimeStateLifecycle.MarkFinalizerless(this, GetType().Name);
         progression = new UnitProgress();
     }
 
@@ -649,6 +650,13 @@ public partial class PartyMemberState : RefCounted
             if (setup != null)
                 result.Add(setup.ToDictionary());
         return result;
+    }
+
+    internal List<ContingencyMatrixSetupState> ReleaseContingencySetupsForDispose()
+    {
+        List<ContingencyMatrixSetupState> released = _contingencyMatrixSetups;
+        _contingencyMatrixSetups = new List<ContingencyMatrixSetupState>();
+        return released ?? new List<ContingencyMatrixSetupState>();
     }
 
     private static List<ContingencyMatrixSetupState> DuplicateContingencySetups(

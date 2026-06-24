@@ -1,5 +1,6 @@
 using System;
 using Godot;
+using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 public sealed class GameTextCommandResult : IDisposable
@@ -139,11 +140,71 @@ public sealed class GameTextCommandResult : IDisposable
     {
         if (value == null)
             return null;
+        if (value is Variant variantValue)
+            return CloneVariantValue(variantValue);
+        if (value is GDictionary godotDictionaryValue)
+            return CloneGodotDictionary(godotDictionaryValue);
+        if (value is GArray arrayValue)
+            return CloneGodotArray(arrayValue);
         if (value is System.Collections.Generic.IReadOnlyDictionary<string, object> dictionaryValue)
             return CloneTypedDictionary(dictionaryValue);
         if (value is System.Collections.Generic.IReadOnlyList<object> listValue)
             return CloneTypedArray(listValue);
+        if (value is GodotObject godotObjectValue)
+            return godotObjectValue.ToString() ?? "";
         return value;
+    }
+
+    private static System.Collections.Generic.Dictionary<string, object> CloneGodotDictionary(
+        GDictionary source
+    )
+    {
+        var result = new System.Collections.Generic.Dictionary<string, object>(
+            System.StringComparer.Ordinal
+        );
+        if (source == null)
+            return result;
+        foreach (Variant rawKey in source.Keys)
+        {
+            string key = rawKey.VariantType switch
+            {
+                Variant.Type.String => rawKey.AsString(),
+                Variant.Type.StringName => rawKey.AsStringName().ToString(),
+                _ => "",
+            };
+            if (key.Length == 0)
+                continue;
+            result[key] = CloneTypedValue(source[rawKey]);
+        }
+        return result;
+    }
+
+    private static System.Collections.Generic.List<object> CloneGodotArray(GArray source)
+    {
+        var result = new System.Collections.Generic.List<object>();
+        if (source == null)
+            return result;
+        foreach (object value in source)
+            result.Add(CloneTypedValue(value));
+        return result;
+    }
+
+    private static object CloneVariantValue(Variant value)
+    {
+        return value.VariantType switch
+        {
+            Variant.Type.Nil => null,
+            Variant.Type.Bool => value.AsBool(),
+            Variant.Type.Int => value.AsInt64(),
+            Variant.Type.Float => value.AsDouble(),
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName(),
+            Variant.Type.Vector2I => value.AsVector2I(),
+            Variant.Type.Dictionary => CloneGodotDictionary(value.AsGodotDictionary()),
+            Variant.Type.Array => CloneGodotArray(value.AsGodotArray()),
+            Variant.Type.Object => value.ToString() ?? "",
+            _ => value.ToString() ?? "",
+        };
     }
 
     private static GDictionary ProjectDictionary(
@@ -189,7 +250,7 @@ public sealed class GameTextCommandResult : IDisposable
             string stringValue => stringValue,
             StringName stringNameValue => stringNameValue,
             Vector2I vectorValue => vectorValue,
-            GodotObject godotObjectValue => godotObjectValue,
+            GodotObject godotObjectValue => godotObjectValue.ToString() ?? "",
             _ => value.ToString() ?? "",
         };
     }

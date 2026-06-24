@@ -1,6 +1,6 @@
 using Godot;
 
-internal partial class BattleAiBlackboard : RefCounted
+internal class BattleAiBlackboard
 {
     public StringName last_brain_id = "";
     public StringName last_state_id = "";

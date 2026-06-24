@@ -17,6 +17,8 @@ public partial class run_battle_grid_service_pathfinding_invariants_typed : Scen
     };
 
     private readonly TestHarness _test = new();
+    private readonly GodotTransientResourceScope _runtimeScope =
+        new("battle_grid_service_pathfinding_invariants", quarantineOnDrain: true);
     private BattleGridService _grid = null!;
 
     public override void _Initialize()
@@ -29,17 +31,22 @@ public partial class run_battle_grid_service_pathfinding_invariants_typed : Scen
 
     private int Run()
     {
-        _grid = new BattleGridService();
-
-        TestStepCostFloor();
-        TestAStarSimpleOptimality();
-        TestAStarStopsWhenMoveBudgetBelowHeuristic();
-        TestAStarBudgetCapKeepsAdjacentPlacementFailure();
-        TestAStarMatchesReferenceWithMudStripe();
-        TestAStarMatchesReferenceRandomized();
-        TestPathTreeMatchesReferenceWithMudStripe();
-        TestPathTreeRespectsOccupantBlocks();
-
+        _grid = _runtimeScope.OwnValueGraph(new BattleGridService(), "grid");
+        try
+        {
+            TestStepCostFloor();
+            TestAStarSimpleOptimality();
+            TestAStarStopsWhenMoveBudgetBelowHeuristic();
+            TestAStarBudgetCapKeepsAdjacentPlacementFailure();
+            TestAStarMatchesReferenceWithMudStripe();
+            TestAStarMatchesReferenceRandomized();
+            TestPathTreeMatchesReferenceWithMudStripe();
+            TestPathTreeRespectsOccupantBlocks();
+        }
+        finally
+        {
+            DisposeOwnedRuntimeState();
+        }
         return _test.Finish("Battle grid service pathfinding inoptions");
     }
 
@@ -461,27 +468,34 @@ public partial class run_battle_grid_service_pathfinding_invariants_typed : Scen
         return -1;
     }
 
-    private static BattleState BuildState(Vector2I mapSize)
+    private BattleState BuildState(Vector2I mapSize)
     {
-        var state = new BattleState { map_size = mapSize };
+        var state = _runtimeScope.OwnWrapper(
+            new BattleState { map_size = mapSize },
+            "battle-state"
+        );
         for (int y = 0; y < mapSize.Y; y++)
         {
             for (int x = 0; x < mapSize.X; x++)
             {
                 Vector2I coord = new(x, y);
-                var cell = new BattleCellState
-                {
-                    coord = coord,
-                    base_terrain = "land",
-                    passable = true,
-                };
+                var cell = _runtimeScope.OwnWrapper(
+                    new BattleCellState
+                    {
+                        coord = coord,
+                        base_terrain = "land",
+                        passable = true,
+                    },
+                    "battle-cell"
+                );
                 state.SetCell(coord, cell);
             }
         }
+        _runtimeScope.OwnWrapper(state, "battle-state-built");
         return state;
     }
 
-    private static BattleUnitState BuildUnit(Vector2I coord)
+    private BattleUnitState BuildUnit(Vector2I coord)
     {
         var unit = new BattleUnitState
         {
@@ -492,6 +506,13 @@ public partial class run_battle_grid_service_pathfinding_invariants_typed : Scen
             is_alive = true,
         };
         unit.RefreshFootprint();
-        return unit;
+        return _runtimeScope.OwnWrapper(unit, "battle-unit");
+    }
+
+    private void DisposeOwnedRuntimeState()
+    {
+        _runtimeScope.Close();
+        _grid?.Dispose();
+        _grid = null!;
     }
 }

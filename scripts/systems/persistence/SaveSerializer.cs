@@ -861,7 +861,7 @@ public sealed class SaveSerializer
             return null;
 
         indexFile.Seek(0);
-        var rawPayload = indexFile.GetVar(false);
+        using Variant rawPayload = indexFile.GetVar(false);
         if (rawPayload.VariantType != Variant.Type.Dictionary)
             return null;
         return RestoreMinimizedSavePayloadStrings(rawPayload.AsGodotDictionary());

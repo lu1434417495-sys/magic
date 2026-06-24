@@ -56,4 +56,19 @@ public partial class BattleEdgeFaceState : RefCounted
     {
         return feature_blocks_occupancy;
     }
+
+    internal static void DisposeRuntimeGraph(BattleEdgeFaceState edgeFace)
+    {
+        if (edgeFace == null)
+            return;
+        if (!GodotObject.IsInstanceValid(edgeFace))
+        {
+            GodotObjectLifecycle.DisposeGodotObject(edgeFace);
+            return;
+        }
+
+        edgeFace.drop_face_layer_heights?.Clear();
+        GodotWrapperOwnershipRegistry.SuppressWrapper(edgeFace.drop_face_layer_heights);
+        GodotObjectLifecycle.DisposeGodotObject(edgeFace);
+    }
 }

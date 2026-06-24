@@ -22,7 +22,6 @@ public partial class run_power_word_kill_execute_schema_regression : SceneTree
         TestExecuteRejectsOldFieldsAndHiddenSiblings();
         TestFormalResourceLoadsAndValidates();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Power Word Kill execute schema regression"));
     }
 

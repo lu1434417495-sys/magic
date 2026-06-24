@@ -18,7 +18,6 @@ public partial class run_fate_typed_event_regression : SceneTree
         TestTypedMisfortuneRequestCannotLoseUnitStateToDictionaryTypo();
         TestRawDictionaryFateEventSurfaceIsAbsent();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Fate typed event regression"));
     }
 

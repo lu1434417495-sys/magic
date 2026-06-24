@@ -58,6 +58,7 @@ public partial class BloodlineContentRegistry : IdentityContentRegistryBase
             _validation_errors.Add($"Failed to load bloodline config {resourcePath}.");
             return;
         }
+        GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
         if (resource is BloodlineDef bloodlineDef)
         {
             _register_bloodline(resourcePath, bloodlineDef);

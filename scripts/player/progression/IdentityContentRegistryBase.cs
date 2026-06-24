@@ -114,7 +114,7 @@ public partial class IdentityContentRegistryBase : RefCounted
             return;
         }
 
-        var directory = DirAccess.Open(directoryPath);
+        DirAccess directory = DirAccess.Open(directoryPath);
 
         if (directory == null)
         {
@@ -123,34 +123,41 @@ public partial class IdentityContentRegistryBase : RefCounted
             return;
         }
 
-        directory.ListDirBegin();
-
-        while (true)
+        try
         {
-            string entryName = directory.GetNext();
+            directory.ListDirBegin();
 
-            if (string.IsNullOrEmpty(entryName))
-                break;
-
-            if (entryName == "." || entryName == "..")
-                continue;
-
-            string entryPath = $"{directoryPath}/{entryName}";
-
-            if (directory.CurrentIsDir())
+            while (true)
             {
-                _scan_directory(entryPath);
+                string entryName = directory.GetNext();
 
-                continue;
+                if (string.IsNullOrEmpty(entryName))
+                    break;
+
+                if (entryName == "." || entryName == "..")
+                    continue;
+
+                string entryPath = $"{directoryPath}/{entryName}";
+
+                if (directory.CurrentIsDir())
+                {
+                    _scan_directory(entryPath);
+
+                    continue;
+                }
+
+                if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
+                    continue;
+
+                _register_resource(entryPath);
             }
 
-            if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
-                continue;
-
-            _register_resource(entryPath);
+            directory.ListDirEnd();
         }
-
-        directory.ListDirEnd();
+        finally
+        {
+            GodotObjectLifecycle.DisposeGodotObject(directory);
+        }
     }
 
     protected virtual void _register_resource(string resourcePath)

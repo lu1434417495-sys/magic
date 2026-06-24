@@ -20,7 +20,6 @@ public partial class run_battle_ai_melee_screening_behavior_regression : SceneTr
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Battle AI melee screening behavior regression"));
     }
 

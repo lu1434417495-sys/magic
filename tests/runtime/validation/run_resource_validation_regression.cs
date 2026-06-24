@@ -420,7 +420,6 @@ public partial class run_resource_validation_regression : SceneTree
         foreach (string reportText in _reports)
             GD.Print(reportText);
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Resource validation regression"));
     }
 

@@ -84,7 +84,7 @@ internal partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRe
             return;
         }
 
-        var directory = DirAccess.Open(_manifestDirectory);
+        DirAccess directory = DirAccess.Open(_manifestDirectory);
         if (directory == null)
         {
             _validationErrors.Add(
@@ -93,25 +93,32 @@ internal partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRe
             return;
         }
 
-        directory.ListDirBegin();
-        while (true)
+        try
         {
-            string entryName = directory.GetNext();
-            if (string.IsNullOrEmpty(entryName))
-                break;
-            if (entryName == "." || entryName == ".." || directory.CurrentIsDir())
-                continue;
-            if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
-                continue;
-            RegisterManifestResource(
-                $"{_manifestDirectory}/{entryName}",
-                skillDefs,
-                specialProfileIdBySkillId,
-                projectedSkillDefs,
-                asOfDate
-            );
+            directory.ListDirBegin();
+            while (true)
+            {
+                string entryName = directory.GetNext();
+                if (string.IsNullOrEmpty(entryName))
+                    break;
+                if (entryName == "." || entryName == ".." || directory.CurrentIsDir())
+                    continue;
+                if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
+                    continue;
+                RegisterManifestResource(
+                    $"{_manifestDirectory}/{entryName}",
+                    skillDefs,
+                    specialProfileIdBySkillId,
+                    projectedSkillDefs,
+                    asOfDate
+                );
+            }
+            directory.ListDirEnd();
         }
-        directory.ListDirEnd();
+        finally
+        {
+            GodotObjectLifecycle.DisposeGodotObject(directory);
+        }
 
         AppendMissingManifestErrors(specialProfileIdBySkillId);
     }
@@ -209,7 +216,7 @@ internal partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRe
             _validationErrors.Add($"BattleSpecialProfileRegistry failed to load {resourcePath}.");
             return;
         }
-
+        GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
         var manifest = resource as BattleSpecialProfileManifest;
         if (manifest == null)
         {

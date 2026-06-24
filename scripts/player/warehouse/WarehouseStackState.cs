@@ -1,8 +1,8 @@
 using Godot;
 
-public partial class WarehouseStackState : RefCounted
+public class WarehouseStackState
 {
-    public static readonly Godot.Collections.Array<string> TO_DICT_FIELDS = new()
+    public static readonly string[] TO_DICT_FIELDS =
     {
         "item_id",
         "quantity",

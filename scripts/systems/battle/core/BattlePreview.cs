@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class BattlePreview : RefCounted
+public class BattlePreview
 {
     private readonly List<string> _logLines = new();
     private readonly List<StringName> _targetUnitIds = new();
@@ -13,6 +13,11 @@ public partial class BattlePreview : RefCounted
     private GDictionary _saveBranchPreview = new();
     private BattleDamagePreviewRangeService.SkillDamagePreview? _damagePreview;
     private BattleFatePreviewData _fatePreview;
+
+    public BattlePreview()
+    {
+        RegisterRuntimeWrappers("BattlePreview");
+    }
 
     public bool allowed { get; set; } = false;
     public GArray log_lines
@@ -51,7 +56,7 @@ public partial class BattlePreview : RefCounted
     public GDictionary save_branch_preview
     {
         get => _saveBranchPreview.Duplicate(true);
-        set => _saveBranchPreview = value?.Duplicate(true) ?? new GDictionary();
+        set => SetSaveBranchPreview(value);
     }
     public BattleSpecialProfileGateResult special_profile_gate_result { get; set; }
     public BattleSpecialProfilePreviewFacts special_profile_preview_facts { get; set; }
@@ -206,11 +211,17 @@ public partial class BattlePreview : RefCounted
     internal void SetSaveBranchPreview(GDictionary value)
     {
         _saveBranchPreview = value?.Duplicate(true) ?? new GDictionary();
+        RegisterRuntimeWrappers("BattlePreview.save_branch_preview");
     }
 
     internal void ClearSaveBranchPreview()
     {
         _saveBranchPreview.Clear();
+    }
+
+    private void RegisterRuntimeWrappers(string reason)
+    {
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(_saveBranchPreview, reason);
     }
 
     private static BattleDamagePreviewRangeService.SkillDamagePreview? DecodeDamagePreview(

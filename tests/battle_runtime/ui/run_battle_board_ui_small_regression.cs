@@ -1,33 +1,28 @@
 using System;
-using System.Collections.Generic;
 using Godot;
 
 public partial class run_battle_board_ui_small_regression : SceneTree
 {
+    private readonly TestHarness _test = new();
+
     public override void _Initialize()
     {
         try
         {
-            var failures = new List<string>();
             if (BattleBoardController.GetVariantIndexForTest(int.MinValue, 5) < 0)
             {
-                failures.Add("variant index was negative");
+                _test.Fail("variant index was negative");
             }
             if (BattleMapPanel.BuildTimelineTooltipForTest("Hero", 10, 3).Contains("/n"))
             {
-                failures.Add("tooltip contains literal /n");
+                _test.Fail("tooltip contains literal /n");
             }
-            if (failures.Count > 0)
-            {
-                throw new Exception(string.Join("; ", failures));
-            }
-            GD.Print("Battle board UI small regression: PASS");
-            Quit(0);
         }
         catch (Exception ex)
         {
-            GD.PushError($"Battle board UI small regression failed: {ex}");
-            Quit(1);
+            _test.Fail(ex.ToString());
         }
+
+        Quit(_test.Finish("Battle board UI small regression"));
     }
 }

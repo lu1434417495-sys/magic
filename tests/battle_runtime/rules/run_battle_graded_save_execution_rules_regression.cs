@@ -18,7 +18,6 @@ public partial class run_battle_graded_save_execution_rules_regression : SceneTr
         TestGradeDistributionImmuneIsAllImmune();
         TestRollOverridesProduceDeterministicDistribution();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Battle graded save execution rules regression"));
     }
 

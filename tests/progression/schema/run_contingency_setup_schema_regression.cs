@@ -27,7 +27,6 @@ public partial class run_contingency_setup_schema_regression : SceneTree
         TestParameterBindingsAcceptOnlyFlatSupportedValues();
         TestParameterBindingArraysRoundTripAsStringNames();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Contingency setup schema regression"));
     }
 

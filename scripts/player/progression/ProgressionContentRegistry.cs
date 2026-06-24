@@ -1050,6 +1050,11 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             );
             return;
         }
+        GodotContentOwnership.RegisterDerivedWrapper(
+            achievementDef,
+            $"achievement:{(string)achievementDef.achievement_id}",
+            "ProgressionContentRegistry._register_achievement"
+        );
         _achievementDefs[achievementDef.achievement_id] = achievementDef;
         _achievementDefIndex[achievementDef.achievement_id] = achievementDef;
     }
@@ -1066,6 +1071,11 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             _questRegistrationErrors.Add($"Duplicate quest_id registered: {questDef.quest_id}");
             return;
         }
+        GodotContentOwnership.RegisterDerivedContent(
+            questDef,
+            $"quest:{(string)questDef.quest_id}",
+            "ProgressionContentRegistry._register_quest"
+        );
         _questDefs[questDef.quest_id] = questDef;
         _questDefIndex[questDef.quest_id] = questDef;
     }

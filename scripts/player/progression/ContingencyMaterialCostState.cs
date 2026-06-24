@@ -1,7 +1,7 @@
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class ContingencyMaterialCostState : RefCounted
+public class ContingencyMaterialCostState
 {
     private static readonly string[] PayloadKeys = { "item_id", "quantity" };
 

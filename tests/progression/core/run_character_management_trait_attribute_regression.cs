@@ -16,7 +16,6 @@ public partial class run_character_management_trait_attribute_regression : Scene
     {
         TestCharacterManagementUsesClrLifecycle();
         TestCharacterManagementInjectsTraitAttributeModifiers();
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Character management trait attribute regression"));
     }
 

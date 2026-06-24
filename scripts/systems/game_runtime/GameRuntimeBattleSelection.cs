@@ -19,6 +19,8 @@ public sealed class GameRuntimeBattleSelection : IDisposable
     private static readonly StringName SelfSelectionMode = BattleTypedNames.TargetSelectionSelf;
     private static readonly StringName EnemyFilter = "enemy";
     private readonly BattleTargetCollectionService _targetCollectionService = new();
+    private readonly Dictionary<StringName, CombatCastVariantDef> _implicitGroundCastVariantsBySkillId =
+        new();
     private WeakReference<GameRuntimeFacade> _runtimeRef;
 
     private GameRuntimeFacade Runtime
@@ -34,6 +36,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
 
     public void Dispose()
     {
+        _implicitGroundCastVariantsBySkillId.Clear();
         Runtime = null;
     }
 
@@ -814,7 +817,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         );
     }
 
-    private static CombatCastVariantDef BuildImplicitGroundCastVariant(SkillDef skillDef)
+    private CombatCastVariantDef BuildImplicitGroundCastVariant(SkillDef skillDef)
     {
         if (
             skillDef?.combat_profile == null
@@ -823,7 +826,19 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             return null;
         }
-        return new CombatCastVariantDef
+        StringName skillId = ProgressionDataUtils.to_string_name(skillDef.skill_id);
+        if (
+            skillId != ""
+            && _implicitGroundCastVariantsBySkillId.TryGetValue(
+                skillId,
+                out CombatCastVariantDef cachedVariant
+            )
+        )
+        {
+            return cachedVariant;
+        }
+
+        var variant = new CombatCastVariantDef
         {
             variant_id = "",
             display_name = "",
@@ -834,6 +849,15 @@ public sealed class GameRuntimeBattleSelection : IDisposable
                 skillDef.combat_profile.effect_defs
             ),
         };
+        string derivedKey = skillId == "" ? "anonymous_ground_skill" : skillId.ToString();
+        GodotContentOwnership.RegisterDerivedContent(
+            variant,
+            $"battle_selection:implicit_ground_variant:{derivedKey}",
+            "GameRuntimeBattleSelection.BuildImplicitGroundCastVariant"
+        );
+        if (skillId != "")
+            _implicitGroundCastVariantsBySkillId[skillId] = variant;
+        return variant;
     }
 
     private SkillDef GetSkillDef(StringName skillId)

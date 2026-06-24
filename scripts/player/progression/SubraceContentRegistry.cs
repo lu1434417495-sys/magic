@@ -50,7 +50,7 @@ public partial class SubraceContentRegistry : IdentityContentRegistryBase
             _validation_errors.Add($"Failed to load subrace config {resourcePath}.");
             return;
         }
-
+        GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
         if (resource is not SubraceDef subraceDef)
         {
             _validation_errors.Add($"Subrace config {resourcePath} is not a SubraceDef.");

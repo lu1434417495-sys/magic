@@ -426,7 +426,10 @@ public partial class BattleAiScoreService
         {
             return;
         }
-        CombatEffectDef damageEffect = BuildPathStepDamageEffect(pathStepEffect);
+        CombatEffectDef damageEffect = BuildPathStepDamageEffect(
+            pathStepEffect,
+            _transientScope
+        );
         if (damageEffect == null)
         {
             return;
@@ -581,13 +584,19 @@ public partial class BattleAiScoreService
         return null;
     }
 
-    private static CombatEffectDef BuildPathStepDamageEffect(CombatEffectDef pathStepEffect)
+    private static CombatEffectDef BuildPathStepDamageEffect(
+        CombatEffectDef pathStepEffect,
+        GodotTransientResourceScope owner
+    )
     {
         if (pathStepEffect == null)
         {
             return null;
         }
-        CombatEffectDef damageEffect = pathStepEffect.DuplicateForRuntime();
+        CombatEffectDef damageEffect = pathStepEffect.DuplicateForRuntime(
+            owner,
+            "BattleAiScoreService.BuildPathStepDamageEffect"
+        );
         if (damageEffect == null)
         {
             return null;

@@ -47,7 +47,6 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         TestProceduralWildSpawnRegionTagsIgnoreRuleOrder();
         TestSmallWorldGenerationAssignsUniqueDisplayNames();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("World map shared content injection regression"));
     }
 

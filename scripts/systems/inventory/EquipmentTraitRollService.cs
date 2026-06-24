@@ -2,9 +2,10 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public class EquipmentTraitRollService
+public class EquipmentTraitRollService : IDisposable
 {
     private readonly List<TraitDef> _traitDefs;
+    private GodotTransientResourceScope _ownedRngScope;
     private RandomNumberGenerator _rng;
     private Func<int, int, int> _rollRange;
     private Func<float> _rollUnit;
@@ -26,11 +27,29 @@ public class EquipmentTraitRollService
 
     public void ConfigureRng(RandomNumberGenerator rng = null)
     {
-        _rng = rng ?? new RandomNumberGenerator();
-        if (rng == null)
+        _ownedRngScope?.Dispose();
+        _ownedRngScope = null;
+        if (rng != null)
+        {
+            _rng = rng;
+        }
+        else
+        {
+            _ownedRngScope = new GodotTransientResourceScope("EquipmentTraitRollService");
+            _rng = _ownedRngScope.OwnWrapper(new RandomNumberGenerator(), "rng");
             _rng.Randomize();
+        }
         _rollRange = _rng.RandiRange;
         _rollUnit = _rng.Randf;
+    }
+
+    public void Dispose()
+    {
+        _ownedRngScope?.Dispose();
+        _ownedRngScope = null;
+        _rng = null;
+        _rollRange = null;
+        _rollUnit = null;
     }
 
     public void SetRollHooksForTesting(Func<int, int, int> rollRange, Func<float> rollUnit)

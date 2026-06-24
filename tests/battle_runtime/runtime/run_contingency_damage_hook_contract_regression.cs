@@ -16,7 +16,10 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
         {
             TestIncomingDamagePercentTriggersBeforeShieldAndHpMutation();
             TestFatalDamageIncomingUsesProjectedFatalBeforeDeathPrevention();
+            TestFatalBlinkOutsideCurrentDamageAreaCancelsCurrentDamage();
             TestHookCancelDoesNotStopLaterEffectsInSameSkill();
+            TestExecuteDamagePreservesDamageApplicationHookContext();
+            TestGradedSaveExecuteDamagePreservesDamageApplicationHookContext();
             TestHookReportEntriesReachBatchAndRuntimeReport();
             TestZeroDamageDoesNotTriggerContingencyOnHitStatusOrMastery();
         }
@@ -26,7 +29,6 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
         }
 
         CleanupFixtures();
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Contingency damage hook contract regression"));
     }
 
@@ -104,6 +106,44 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
         );
     }
 
+    private void TestFatalBlinkOutsideCurrentDamageAreaCancelsCurrentDamage()
+    {
+        BattleRuntimeModule runtime = BuildRuntimeWithSetup(
+            ChargedSetup(
+                "fatal_blink",
+                "fatal_damage_incoming",
+                storedSkillId: "contingency_blink",
+                targetResolver: EmptyCellResolver("safe_cell", 3)
+            )
+        );
+        BattleUnitState hero = runtime.GetState().GetUnit("hero_unit");
+        BattleUnitState enemy = runtime.GetState().GetUnit("enemy_unit");
+        hero.current_hp = 10;
+        Vector2I originalCoord = hero.coord;
+
+        using BattleEventBatch batch = new();
+        runtime.GetDamageResolver().ResolveEffects(
+            enemy,
+            hero,
+            new GArray { DamageEffect(25) },
+            DamageResolutionContext
+                .ForSkill("enemy_blink_finisher")
+                .WithDamageApplicationHookContext(batch, BattleEffectOrigin.PlayerCommand())
+        );
+
+        _test.True(hero.is_alive, "fatal blink should keep the owner alive.");
+        _test.Eq(
+            hero.current_hp,
+            10,
+            "fatal blink outside the current damage area should cancel the triggering damage."
+        );
+        _test.Ne(hero.coord, originalCoord, "fatal blink should relocate the owner before HP mutation.");
+        _test.True(
+            runtime.GetContingencySystemTyped().IsSetupConsumedForMember("hero", "fatal_blink"),
+            "fatal blink should consume the matching setup."
+        );
+    }
+
     private void TestHookCancelDoesNotStopLaterEffectsInSameSkill()
     {
         BattleDamageResolver resolver = new();
@@ -131,6 +171,82 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
 
         _test.Eq(target.current_hp, 20, "CancelDamage should cancel only the current damage effect.");
         _test.True(target.HasStatusEffect("burning"), "CancelDamage should not stop later effects in the same skill.");
+    }
+
+    private void TestExecuteDamagePreservesDamageApplicationHookContext()
+    {
+        BattleDamageResolver resolver = new();
+        CaptureDamageHook hook = new();
+        resolver.SetDamageApplicationHook(hook);
+        BattleUnitState source = Unit("execute_source", "player", 100);
+        BattleUnitState target = Unit("execute_target", "enemy", 30);
+        AutoCastRequest request = HookContextAutoCastRequest();
+        using BattleEventBatch batch = new();
+
+        resolver.ResolveEffects(
+            source,
+            target,
+            new GArray { ExecuteEffect() },
+            DamageResolutionContext
+                .ForSkill("execute_context_probe")
+                .WithDamageApplicationHookContext(batch, BattleEffectOrigin.AutoCast(request))
+        );
+
+        _test.Eq(hook.CallCount, 1, "execute fatal damage should invoke the damage hook once.");
+        _test.True(
+            ReferenceEquals(hook.LastBatch, batch),
+            "execute fatal damage should preserve the hook batch."
+        );
+        _test.Eq(
+            hook.LastOrigin?.OriginKind ?? "",
+            new StringName("contingency_auto_cast"),
+            "execute fatal damage should preserve the auto-cast origin."
+        );
+        _test.False(
+            hook.LastOrigin?.CanTriggerContingencies ?? true,
+            "execute fatal damage should preserve contingency suppression origin metadata."
+        );
+    }
+
+    private void TestGradedSaveExecuteDamagePreservesDamageApplicationHookContext()
+    {
+        BattleDamageResolver resolver = new();
+        CaptureDamageHook hook = new();
+        resolver.SetDamageApplicationHook(hook);
+        BattleUnitState source = Unit("graded_execute_source", "player", 100);
+        BattleUnitState target = Unit("graded_execute_target", "enemy", 40);
+        AutoCastRequest request = HookContextAutoCastRequest();
+        using BattleEventBatch batch = new();
+
+        resolver.ResolveEffects(
+            source,
+            target,
+            new GArray { GradedSaveExecuteEffect() },
+            DamageResolutionContext
+                .Create(
+                    false,
+                    false,
+                    false,
+                    skillId: "graded_execute_context_probe",
+                    saveRollOverrides: new[] { 5 }
+                )
+                .WithDamageApplicationHookContext(batch, BattleEffectOrigin.AutoCast(request))
+        );
+
+        _test.Eq(hook.CallCount, 1, "graded-save execute fatal damage should invoke the damage hook once.");
+        _test.True(
+            ReferenceEquals(hook.LastBatch, batch),
+            "graded-save execute fatal damage should preserve the hook batch."
+        );
+        _test.Eq(
+            hook.LastOrigin?.OriginKind ?? "",
+            new StringName("contingency_auto_cast"),
+            "graded-save execute fatal damage should preserve the auto-cast origin."
+        );
+        _test.False(
+            hook.LastOrigin?.CanTriggerContingencies ?? true,
+            "graded-save execute fatal damage should preserve contingency suppression origin metadata."
+        );
     }
 
     private void TestHookReportEntriesReachBatchAndRuntimeReport()
@@ -212,9 +328,14 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
         TrackingBattleGateway gateway = new(partyState);
         BattleRuntimeModule runtime = Track(new BattleRuntimeModule());
         SkillDef guardSkill = GuardSkill();
+        SkillDef blinkSkill = BlinkSkill();
         runtime.setup(
             character_gateway: gateway,
-            skill_defs: new Dictionary<StringName, SkillDef> { [guardSkill.skill_id] = guardSkill }
+            skill_defs: new Dictionary<StringName, SkillDef>
+            {
+                [guardSkill.skill_id] = guardSkill,
+                [blinkSkill.skill_id] = blinkSkill,
+            }
         );
         BattleState state = BattleTestFixture.BuildFlatState(
             $"damage_hook_{setup?.SetupId}",
@@ -258,6 +379,37 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
         return skill;
     }
 
+    private static SkillDef BlinkSkill()
+    {
+        SkillDef skill = new()
+        {
+            skill_id = "contingency_blink",
+            display_name = "Contingency Blink",
+            max_level = 5,
+            non_core_max_level = 5,
+            combat_profile = new CombatSkillDef
+            {
+                skill_id = "contingency_blink",
+                target_mode = "ground",
+                target_team_filter = "ally",
+                target_selection_mode = "single_coord",
+                range_value = 5,
+                ap_cost = 0,
+                mp_cost = 0,
+                cooldown_tu = 0,
+            },
+        };
+        skill.combat_profile.effect_defs.Add(
+            new CombatEffectDef
+            {
+                effect_type = "forced_move",
+                forced_move_mode = "blink",
+                forced_move_distance = 5,
+            }
+        );
+        return skill;
+    }
+
     private static CombatEffectDef DamageEffect(int power, GDictionary parameters = null) =>
         new()
         {
@@ -268,10 +420,54 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
             @params = parameters ?? new GDictionary(),
         };
 
+    private static CombatEffectDef ExecuteEffect() =>
+        new()
+        {
+            effect_type = "execute",
+            effect_target_team_filter = "enemy",
+            damage_tag = "physical_slash",
+            threshold_base_value = 999,
+            threshold_max_hp_ratio_percent = 100,
+            threshold_cap_max_hp_ratio_percent = 100,
+            save_dc_mode = "none",
+        };
+
+    private static CombatEffectDef GradedSaveExecuteEffect() =>
+        new()
+        {
+            effect_type = "graded_save_execute",
+            effect_target_team_filter = "enemy",
+            damage_tag = "psychic",
+            save_dc_mode = "static",
+            save_dc = 10,
+            save_dc_source_ability = "intelligence",
+            save_ability = "willpower",
+            save_tag = "illusion",
+            save_partial_on_success = false,
+            @params = new GDictionary
+            {
+                ["profile_id"] = "phantasmal_kill",
+                ["failure_execute_threshold_fixed"] = 50,
+                ["failure_execute_threshold_max_hp_percent"] = 25,
+                ["failure_damage_dice_count"] = 6,
+                ["failure_damage_dice_sides"] = 6,
+                ["failure_frightened_duration_tu"] = 60,
+                ["failure_reaction_lock_duration_tu"] = 30,
+                ["critical_failure_execute_threshold_max_hp_percent"] = 35,
+                ["critical_failure_damage_dice_count"] = 10,
+                ["critical_failure_damage_dice_sides"] = 6,
+                ["critical_failure_frightened_duration_tu"] = 90,
+                ["critical_failure_stunned_duration_tu"] = 30,
+                ["success_aftershock_duration_tu"] = 30,
+            },
+        };
+
     private static ContingencyMatrixSetupState ChargedSetup(
         string setupId,
         StringName triggerType,
-        int percent = 0
+        int percent = 0,
+        StringName storedSkillId = default,
+        GDictionary targetResolver = null
     ) =>
         ContingencyMatrixSetupState.FromDictionary(
             new GDictionary
@@ -291,10 +487,12 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
                 {
                     new GDictionary
                     {
-                        ["stored_skill_id"] = "contingency_guard",
+                        ["stored_skill_id"] = storedSkillId == default || storedSkillId == ""
+                            ? "contingency_guard"
+                            : storedSkillId.ToString(),
                         ["cast_level"] = 1,
                         ["order"] = 1,
-                        ["target_resolver"] = new GDictionary { ["type"] = "self" },
+                        ["target_resolver"] = targetResolver ?? new GDictionary { ["type"] = "self" },
                         ["parameter_bindings"] = new GDictionary(),
                         ["fallback_policy"] = "skip_if_invalid",
                     },
@@ -318,6 +516,14 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
         }
         return trigger;
     }
+
+    private static GDictionary EmptyCellResolver(string preference, int maxDistance) =>
+        new()
+        {
+            ["type"] = "empty_cell_near_owner",
+            ["preference"] = preference,
+            ["max_distance"] = maxDistance,
+        };
 
     private static PartyMemberState Member(StringName memberId, ContingencyMatrixSetupState setup)
     {
@@ -361,7 +567,40 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, hp);
         unit.attribute_snapshot.SetValue(AttributeService.MP_MAX, 200);
         unit.attribute_snapshot.SetValue(AttributeService.ACTION_POINTS, 2);
+        unit.attribute_snapshot.SetValue("intelligence", 10);
+        unit.attribute_snapshot.SetValue("willpower", 10);
+        unit.UnlockCombatResource("mp");
+        unit.UnlockCombatResource("aura");
         return unit;
+    }
+
+    private static AutoCastRequest HookContextAutoCastRequest()
+    {
+        ContingencyReleaseContext releaseContext = new()
+        {
+            InstanceId = "hero:context_probe",
+            SetupId = "context_probe",
+            OwnerMemberId = "hero",
+            OwnerUnitId = "execute_source",
+            CasterUnitId = "execute_source",
+            TriggerType = "fatal_damage_incoming",
+        };
+        return new AutoCastRequest
+        {
+            CasterUnitId = "execute_source",
+            OwnerMemberId = "hero",
+            OwnerUnitId = "execute_source",
+            SetupId = "context_probe",
+            InstanceId = "hero:context_probe",
+            StoredSkillId = "execute_context_probe",
+            CastLevel = 1,
+            TargetResolution = ContingencyTargetResolutionResult.UnitTarget(
+                "execute_target",
+                Vector2I.Zero
+            ),
+            ReleaseContext = releaseContext,
+            FrozenFacts = ContingencyFrozenTriggerFacts.Empty,
+        };
     }
 
     private void AssertV1ReportEntry(
@@ -383,6 +622,11 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
         _test.Eq(DictString(entry, "setup_id"), setupId, $"{message} setup mismatch.");
         _test.True(DictString(entry, "source_event_id") != "", $"{message} should expose source_event_id.");
         _test.True(DictString(entry, "damage_event_id") != "", $"{message} should expose damage_event_id.");
+        _test.Ne(
+            DictString(entry, "source_event_id"),
+            DictString(entry, "damage_event_id"),
+            $"{message} source_event_id should identify the contingency source separately from damage_event_id."
+        );
         _test.Eq(DictString(entry, "trigger_type"), triggerType, $"{message} trigger mismatch.");
         _test.Eq(DictString(entry, "release_mode"), "burst_release", $"{message} release mode mismatch.");
         _test.Eq(DictString(entry, "stored_skill_id"), "", $"{message} stored skill should be empty.");
@@ -439,6 +683,23 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
             BattleDamageApplicationHookContext context
         ) =>
             BattleDamageApplicationHookResult.Cancel();
+    }
+
+    private sealed class CaptureDamageHook : IBattleDamageApplicationHook
+    {
+        internal int CallCount { get; private set; }
+        internal BattleEventBatch LastBatch { get; private set; }
+        internal BattleEffectOrigin LastOrigin { get; private set; }
+
+        public BattleDamageApplicationHookResult BeforeDamageResolved(
+            BattleDamageApplicationHookContext context
+        )
+        {
+            CallCount += 1;
+            LastBatch = context?.Batch;
+            LastOrigin = context?.Origin;
+            return BattleDamageApplicationHookResult.None;
+        }
     }
 
     private sealed class TrackingBattleGateway : IBattleRuntimeCharacterGateway, IDisposable

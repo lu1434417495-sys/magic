@@ -31,6 +31,17 @@ internal sealed class BattleChargeResolver
 
     private WeakReference<BattleRuntimeModule> _runtimeRef;
     private BattleSkillMasteryService _skillMasteryService;
+    private readonly GodotTransientResourceScope _transientScope =
+        new("BattleChargeResolver");
+    private readonly RuntimeSkillDefFactory _runtimeSkillFactory;
+
+    internal BattleChargeResolver()
+    {
+        _runtimeSkillFactory = new RuntimeSkillDefFactory(
+            _transientScope,
+            "BattleChargeResolver"
+        );
+    }
 
     private BattleRuntimeModule Runtime
     {
@@ -46,6 +57,7 @@ internal sealed class BattleChargeResolver
 
     internal void DisposeRuntime()
     {
+        _transientScope.Drain();
         Runtime = null;
         _skillMasteryService = null;
     }
@@ -566,14 +578,17 @@ internal sealed class BattleChargeResolver
                 continue;
             }
 
-            var statusEffect = new CombatEffectDef
-            {
-                effect_type = StatusEffectType,
-                status_id = statusId,
-                power = statusPower,
-                duration_tu = statusDurationTu,
-                @params = BattleStatusEffectState.CopyResidualParams(extraStatusParams),
-            };
+            CombatEffectDef statusEffect = _runtimeSkillFactory.NewEffect(
+                effect =>
+                {
+                    effect.effect_type = StatusEffectType;
+                    effect.status_id = statusId;
+                    effect.power = statusPower;
+                    effect.duration_tu = statusDurationTu;
+                    effect.@params = BattleStatusEffectState.CopyResidualParams(extraStatusParams);
+                },
+                $"repeat_hit_status:{statusId}"
+            );
             BattleStatusEffectState statusEntry = BattleStatusSemanticTable.MergeStatus(
                 statusEffect,
                 activeUnit.unit_id,
@@ -866,7 +881,10 @@ internal sealed class BattleChargeResolver
         var unitHitCounts = new Dictionary<StringName, int>();
         StringName targetFilter = ResolveEffectTargetFilter(skillDef, pathStepAoeEffect);
         string pathStepResultLabel = GetPathStepResultLabel(pathStepAoeEffect);
-        CombatEffectDef stageEffect = pathStepAoeEffect.DuplicateForRuntime();
+        CombatEffectDef stageEffect = pathStepAoeEffect.DuplicateForRuntime(
+            _transientScope,
+            "BattleChargeResolver.ApplyChargePathStepAoeEffects"
+        );
         if (stageEffect == null)
         {
             return new PathStepResult(false);

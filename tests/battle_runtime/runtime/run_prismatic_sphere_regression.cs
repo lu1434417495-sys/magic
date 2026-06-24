@@ -11,6 +11,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
 
     public override void _Initialize()
     {
+        int exitCode = 1;
         try
         {
             TestPrismaticSphereCreatesOrderedLayers();
@@ -22,18 +23,17 @@ public partial class run_prismatic_sphere_regression : SceneTree
             TestVioletLayerTeleportsNonSummonsAndRemovesSummons();
             TestCleanseHarmfulRemovesMadnessButNotPetrified();
             TestDispelMagicRemovesMagicStatusesByRelation();
-            Quit(_test.Finish("Prismatic sphere regression"));
+            exitCode = _test.Finish("Prismatic sphere regression");
         }
-        catch (Exception ex)
+        finally
         {
-            GD.PushError($"Prismatic sphere regression crashed: {ex}");
-            Quit(1);
+            Quit(exitCode);
         }
     }
 
     private void TestPrismaticSphereCreatesOrderedLayers()
     {
-        Fixture fixture = BuildRuntimeWithSphere();
+        using Fixture fixture = BuildRuntimeWithSphere();
         BattleBarrierInstanceState barrier = FirstBarrier(fixture.State);
         _test.True(barrier != null && !barrier.IsEmpty, "虹光法球应写入 battle_state.layered_barrier_fields。");
         _test.Eq(ActiveLayerId(barrier), new StringName("red"), "新建虹光法球的第一活动层应为红色层。");
@@ -42,7 +42,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
 
     private void TestPrismaticSphereBlocksDeeperBreakersUntilOuterLayerBreaks()
     {
-        Fixture fixture = BuildRuntimeWithSphere();
+        using Fixture fixture = BuildRuntimeWithSphere();
         BattleRuntimeModule runtime = fixture.Runtime;
         BattleState state = fixture.State;
         BattleUnitState caster = fixture.Caster;
@@ -227,7 +227,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
 
     private void TestGreenLayerInstantDeathUsesFatalDamageChain()
     {
-        Fixture fixture = BuildRuntimeWithSphere();
+        using Fixture fixture = BuildRuntimeWithSphere();
         BattleRuntimeModule runtime = fixture.Runtime;
         BattleState state = fixture.State;
         BattleUnitState enemy = fixture.Enemy;
@@ -259,6 +259,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
         SetStatus(enemy, "staggered");
         MarkLayersBroken(state, "red", "orange", "yellow", "blue", "indigo", "violet");
         SetLayerSaveRollOverride(state, "green", 1);
+        AssertActiveLayerSaveRollOverride(state, "green", 1);
 
         BattleBarrierInteractionResult result =
             runtime._layered_barrier_service.ResolveUnitBoundaryCrossingResult(
@@ -276,7 +277,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
 
     private void TestPetrifiedBlocksTurnUntilSelfSaveSucceeds()
     {
-        Fixture fixture = BuildRuntimeWithSphere();
+        using Fixture fixture = BuildRuntimeWithSphere();
         BattleRuntimeModule runtime = fixture.Runtime;
         BattleUnitState target = fixture.Enemy;
         var batch = new BattleEventBatch();
@@ -310,13 +311,14 @@ public partial class run_prismatic_sphere_regression : SceneTree
 
     private void TestVioletLayerTeleportsNonSummonsAndRemovesSummons()
     {
-        Fixture fixture = BuildRuntimeWithSphere();
+        using Fixture fixture = BuildRuntimeWithSphere();
         BattleRuntimeModule runtime = fixture.Runtime;
         BattleState state = fixture.State;
         BattleUnitState enemy = fixture.Enemy;
         var batch = new BattleEventBatch();
         MarkLayersBroken(state, "red", "orange", "yellow", "green", "blue", "indigo");
         SetLayerSaveRollOverride(state, "violet", 1);
+        AssertActiveLayerSaveRollOverride(state, "violet", 1);
 
         BattleBarrierInteractionResult result =
             runtime._layered_barrier_service.ResolveUnitBoundaryCrossingResult(
@@ -594,18 +596,36 @@ public partial class run_prismatic_sphere_regression : SceneTree
 
     private static StringName ActiveLayerId(BattleBarrierInstanceState barrier)
     {
+        return ActiveLayer(barrier)?.LayerId ?? "";
+    }
+
+    private static BattleBarrierLayerState ActiveLayer(BattleBarrierInstanceState barrier)
+    {
         if (barrier == null)
-        {
-            return "";
-        }
+            return null;
         foreach (BattleBarrierLayerState layer in barrier.Layers)
-        {
             if (layer != null && !layer.Broken)
-            {
-                return layer.LayerId;
-            }
-        }
-        return "";
+                return layer;
+        return null;
+    }
+
+    private void AssertActiveLayerSaveRollOverride(
+        BattleState state,
+        StringName expectedLayerId,
+        int expectedRoll
+    )
+    {
+        BattleBarrierLayerState activeLayer = ActiveLayer(FirstBarrier(state));
+        _test.Eq(
+            activeLayer?.LayerId ?? new StringName(""),
+            expectedLayerId,
+            $"{expectedLayerId} 应成为当前活动层。"
+        );
+        _test.True(
+            activeLayer?.HasSaveRollOverride == true
+                && activeLayer.SaveRollOverride == expectedRoll,
+            $"{expectedLayerId} 应保留保存检定 override={expectedRoll}，避免回退到随机豁免。"
+        );
     }
 
     private static void MarkLayersBroken(BattleState state, params StringName[] layerIds)
@@ -710,5 +730,14 @@ public partial class run_prismatic_sphere_regression : SceneTree
         BattleState State,
         BattleUnitState Caster,
         BattleUnitState Enemy
-    );
+    ) : IDisposable
+    {
+        public void Dispose()
+        {
+            Runtime?.Dispose();
+            GodotSharpCleanup.DisposeGodotObject(Caster);
+            GodotSharpCleanup.DisposeGodotObject(Enemy);
+            GodotSharpCleanup.DisposeGodotObject(State);
+        }
+    }
 }

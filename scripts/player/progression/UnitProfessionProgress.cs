@@ -1,9 +1,9 @@
+using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class UnitProfessionProgress : RefCounted
+public class UnitProfessionProgress
 {
-    private static readonly Godot.Collections.Array<string> TO_DICT_FIELDS = new()
+    private static readonly string[] TO_DICT_FIELDS =
     {
         "profession_id",
         "rank",
@@ -171,7 +171,7 @@ public partial class UnitProfessionProgress : RefCounted
 
     private static bool _has_exact_fields(
         Godot.Collections.Dictionary data,
-        Godot.Collections.Array<string> expected
+        IReadOnlyCollection<string> expected
     )
     {
         if (data.Count != expected.Count)

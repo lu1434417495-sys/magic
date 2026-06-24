@@ -18,7 +18,6 @@ public partial class run_world_map_spawn_typed_regression : SceneTree
     {
         TestTypedWorldBuildProjectsSettlementsAndAnchors();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("World map spawn typed regression"));
     }
 

@@ -15,7 +15,6 @@ public partial class run_attribute_trait_modifier_regression : SceneTree
     private void Run()
     {
         TestTraitAttributeModifiersApplyAndPreserveSource();
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Attribute trait modifier regression"));
     }
 

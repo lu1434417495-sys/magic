@@ -1,10 +1,10 @@
 using Godot;
 using System.Collections.Generic;
 
-public partial class WarehouseState : RefCounted
+public class WarehouseState
 {
-    public Godot.Collections.Array<WarehouseStackState> stacks = new();
-    public Godot.Collections.Array<EquipmentInstanceState> equipment_instances = new();
+    public List<WarehouseStackState> stacks = new();
+    public List<EquipmentInstanceState> equipment_instances = new();
 
     public IReadOnlyList<WarehouseStackState> GetStacksTyped()
     {
@@ -34,7 +34,7 @@ public partial class WarehouseState : RefCounted
 
     public void AddStack(WarehouseStackState stack)
     {
-        stacks ??= new Godot.Collections.Array<WarehouseStackState>();
+        stacks ??= new List<WarehouseStackState>();
         stacks.Add(stack);
     }
 
@@ -48,7 +48,7 @@ public partial class WarehouseState : RefCounted
 
     public void ReplaceStacks(IEnumerable<WarehouseStackState> values)
     {
-        stacks = new Godot.Collections.Array<WarehouseStackState>();
+        stacks = new List<WarehouseStackState>();
         if (values == null)
             return;
         foreach (WarehouseStackState stack in values)
@@ -83,7 +83,7 @@ public partial class WarehouseState : RefCounted
 
     public void AddEquipmentInstance(EquipmentInstanceState instance)
     {
-        equipment_instances ??= new Godot.Collections.Array<EquipmentInstanceState>();
+        equipment_instances ??= new List<EquipmentInstanceState>();
         equipment_instances.Add(instance);
     }
 
@@ -98,7 +98,7 @@ public partial class WarehouseState : RefCounted
 
     public void ReplaceEquipmentInstances(IEnumerable<EquipmentInstanceState> values)
     {
-        equipment_instances = new Godot.Collections.Array<EquipmentInstanceState>();
+        equipment_instances = new List<EquipmentInstanceState>();
         if (values == null)
             return;
         foreach (EquipmentInstanceState instance in values)

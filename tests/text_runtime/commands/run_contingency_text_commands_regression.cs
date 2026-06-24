@@ -85,7 +85,6 @@ public partial class run_contingency_text_commands_regression : SceneTree
 
         TestHeadlessBattleContingencySnapshot();
         TestHeadlessBattleContingencyReportEntries();
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Contingency text commands regression"));
     }
 

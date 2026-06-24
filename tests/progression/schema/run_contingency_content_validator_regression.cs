@@ -31,7 +31,6 @@ public partial class run_contingency_content_validator_regression : SceneTree
         TestUnsupportedParameterBindingKeyIsRejected();
         TestLoadSaveFailsWhenPersistedSetupReferencesInvalidStoredSkill();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Contingency content validator regression"));
     }
 

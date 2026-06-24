@@ -20,7 +20,6 @@ public partial class run_status_effect_semantics_regression : SceneTree
         finally
         {
             DisposeOwnedRuntimes();
-            GodotSharpCleanup.CollectPendingFinalizers();
         }
 
         Quit(_test.Finish("Status effect semantics regression"));

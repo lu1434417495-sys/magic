@@ -160,33 +160,40 @@ public partial class ItemContentRegistry : RefCounted
         if (!DirAccess.DirExistsAbsolute(ProjectSettings.GlobalizePath(directoryPath)))
             return;
 
-        using var directory = DirAccess.Open(directoryPath);
+        DirAccess directory = DirAccess.Open(directoryPath);
         if (directory == null)
         {
             _validationErrors.Add($"ItemContentRegistry could not open templates {directoryPath}.");
             return;
         }
 
-        directory.ListDirBegin();
-        while (true)
+        try
         {
-            string entryName = directory.GetNext();
-            if (string.IsNullOrEmpty(entryName))
-                break;
-            if (entryName == "." || entryName == "..")
-                continue;
-
-            string entryPath = $"{directoryPath}/{entryName}";
-            if (directory.CurrentIsDir())
+            directory.ListDirBegin();
+            while (true)
             {
-                ScanTemplateDirectory(entryPath);
-                continue;
+                string entryName = directory.GetNext();
+                if (string.IsNullOrEmpty(entryName))
+                    break;
+                if (entryName == "." || entryName == "..")
+                    continue;
+
+                string entryPath = $"{directoryPath}/{entryName}";
+                if (directory.CurrentIsDir())
+                {
+                    ScanTemplateDirectory(entryPath);
+                    continue;
+                }
+                if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
+                    continue;
+                RegisterTemplateResource(entryPath);
             }
-            if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
-                continue;
-            RegisterTemplateResource(entryPath);
+            directory.ListDirEnd();
         }
-        directory.ListDirEnd();
+        finally
+        {
+            GodotObjectLifecycle.DisposeGodotObject(directory);
+        }
     }
 
     private void RegisterTemplateResource(string resourcePath)
@@ -197,6 +204,7 @@ public partial class ItemContentRegistry : RefCounted
             _validationErrors.Add($"Failed to load item template {resourcePath}.");
             return;
         }
+        GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
         if (resource is not ItemDef templateDef)
         {
             _validationErrors.Add($"Item template {resourcePath} is not an ItemDef.");
@@ -234,7 +242,9 @@ public partial class ItemContentRegistry : RefCounted
                 _validationErrors
             );
             if (resolved != null)
+            {
                 _resolvedTemplateCache[entry.Key] = resolved;
+            }
         }
     }
 
@@ -246,33 +256,40 @@ public partial class ItemContentRegistry : RefCounted
             return;
         }
 
-        using var directory = DirAccess.Open(directoryPath);
+        DirAccess directory = DirAccess.Open(directoryPath);
         if (directory == null)
         {
             _validationErrors.Add($"ItemContentRegistry could not open {directoryPath}.");
             return;
         }
 
-        directory.ListDirBegin();
-        while (true)
+        try
         {
-            string entryName = directory.GetNext();
-            if (string.IsNullOrEmpty(entryName))
-                break;
-            if (entryName == "." || entryName == "..")
-                continue;
-
-            string entryPath = $"{directoryPath}/{entryName}";
-            if (directory.CurrentIsDir())
+            directory.ListDirBegin();
+            while (true)
             {
-                ScanDirectory(entryPath);
-                continue;
+                string entryName = directory.GetNext();
+                if (string.IsNullOrEmpty(entryName))
+                    break;
+                if (entryName == "." || entryName == "..")
+                    continue;
+
+                string entryPath = $"{directoryPath}/{entryName}";
+                if (directory.CurrentIsDir())
+                {
+                    ScanDirectory(entryPath);
+                    continue;
+                }
+                if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
+                    continue;
+                RegisterItemResource(entryPath);
             }
-            if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
-                continue;
-            RegisterItemResource(entryPath);
+            directory.ListDirEnd();
         }
-        directory.ListDirEnd();
+        finally
+        {
+            GodotObjectLifecycle.DisposeGodotObject(directory);
+        }
     }
 
     private void RegisterItemResource(string resourcePath)
@@ -283,6 +300,7 @@ public partial class ItemContentRegistry : RefCounted
             _validationErrors.Add($"Failed to load item config {resourcePath}.");
             return;
         }
+        GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
         if (resource is not ItemDef rawDef)
         {
             _validationErrors.Add($"Item config {resourcePath} is not an ItemDef.");
@@ -675,7 +693,13 @@ public partial class ItemContentRegistry : RefCounted
                 cache[templateId] = resolvedTemplate;
         }
 
-        return resolvedTemplate == null ? null : MergeWithTemplate(resolvedTemplate, itemDef);
+        return resolvedTemplate == null
+            ? null
+            : MergeWithTemplateAsDerivedContent(
+                resolvedTemplate,
+                itemDef,
+                "ItemContentRegistry.ResolveWithTemplateChain"
+            );
     }
 
     private static ItemDef ResolveWithTemplateChainProjected(
@@ -734,7 +758,31 @@ public partial class ItemContentRegistry : RefCounted
                 cache[templateId] = resolvedTemplate;
         }
 
-        return resolvedTemplate == null ? null : MergeWithTemplate(resolvedTemplate, itemDef);
+        return resolvedTemplate == null
+            ? null
+            : MergeWithTemplateAsDerivedContent(
+                resolvedTemplate,
+                itemDef,
+                "ItemContentRegistry.ResolveWithTemplateChainProjected"
+            );
+    }
+
+    private static ItemDef MergeWithTemplateAsDerivedContent(
+        ItemDef template,
+        ItemDef instance,
+        string reason
+    )
+    {
+        ItemDef merged = MergeWithTemplate(template, instance);
+        if (merged != null)
+        {
+            GodotContentOwnership.RegisterDerivedContent(
+                merged,
+                $"item:{(string)merged.item_id}",
+                reason
+            );
+        }
+        return merged;
     }
 
     public static ItemDef MergeWithTemplate(ItemDef template, ItemDef instance)

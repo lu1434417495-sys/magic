@@ -13,13 +13,11 @@ public partial class run_phantasmal_kill_hover_preview_regression : SceneTree
         try
         {
             TestGroundHoverPreviewReportsFriendlyExecuteAndImmuneRisk();
-            GodotSharpCleanup.CollectPendingFinalizers();
             Quit(_test.Finish("Phantasmal Kill hover preview regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            GodotSharpCleanup.CollectPendingFinalizers();
             Quit(_test.Finish("Phantasmal Kill hover preview regression"));
         }
     }

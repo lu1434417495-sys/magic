@@ -6,6 +6,8 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_battle_ai_score_execute_regression : SceneTree
 {
     private readonly TestHarness _test = new();
+    private readonly GodotTransientResourceScope _resourceScope =
+        new("run_battle_ai_score_execute_regression");
 
     public override void _Initialize()
     {
@@ -22,7 +24,7 @@ public partial class run_battle_ai_score_execute_regression : SceneTree
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        GodotSharpCleanup.CollectPendingFinalizers();
+        _resourceScope.Drain();
         Quit(_test.Finish("Battle AI score execute regression"));
     }
 
@@ -164,7 +166,7 @@ public partial class run_battle_ai_score_execute_regression : SceneTree
 
     private static Fixture BuildFixture(string battleId) => new(battleId, new Vector2I(4, 2));
 
-    private static SkillDef BuildExecuteSkill()
+    private SkillDef BuildExecuteSkill()
     {
         var skill = new SkillDef
         {
@@ -198,7 +200,7 @@ public partial class run_battle_ai_score_execute_regression : SceneTree
                 shield_gain_multiplier_percent = 50,
             }
         );
-        return skill;
+        return _resourceScope.Own(skill, "BuildExecuteSkill");
     }
 
     private static BattleUnitState BuildUnit(

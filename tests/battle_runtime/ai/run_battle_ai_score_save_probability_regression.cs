@@ -37,22 +37,28 @@ public partial class run_battle_ai_score_save_probability_regression : SceneTree
             unit_state = source,
         };
 
-        var skill = new SkillDef
-        {
-            skill_id = "save_weighted_fire",
-            display_name = "Save Weighted Fire",
-        };
+        var skill = TestResourceOwnership.Own(
+            new SkillDef
+            {
+                skill_id = "save_weighted_fire",
+                display_name = "Save Weighted Fire",
+            },
+            "BattleAiScoreSaveProbability.skill"
+        );
 
-        var effect = new CombatEffectDef
-        {
-            effect_type = "damage",
-            damage_tag = "fire",
-            power = 40,
-            save_dc = 11,
-            save_ability = "constitution",
-            save_tag = "fireball",
-            save_partial_on_success = true,
-        };
+        var effect = TestResourceOwnership.Own(
+            new CombatEffectDef
+            {
+                effect_type = "damage",
+                damage_tag = "fire",
+                power = 40,
+                save_dc = 11,
+                save_ability = "constitution",
+                save_tag = "fireball",
+                save_partial_on_success = true,
+            },
+            "BattleAiScoreSaveProbability.effect"
+        );
 
         var preview = new BattlePreview
         {

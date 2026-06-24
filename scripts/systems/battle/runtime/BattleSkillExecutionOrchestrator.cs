@@ -36,6 +36,17 @@ internal sealed class BattleSkillExecutionOrchestrator
     }
 
     private WeakReference<BattleRuntimeModule> _runtimeRef;
+    private readonly GodotTransientResourceScope _transientScope =
+        new("BattleSkillExecutionOrchestrator");
+    private readonly RuntimeSkillDefFactory _runtimeSkillFactory;
+
+    internal BattleSkillExecutionOrchestrator()
+    {
+        _runtimeSkillFactory = new RuntimeSkillDefFactory(
+            _transientScope,
+            "BattleSkillExecutionOrchestrator"
+        );
+    }
 
     private BattleRuntimeModule _runtime
     {
@@ -52,6 +63,7 @@ internal sealed class BattleSkillExecutionOrchestrator
 
     internal void DisposeRuntime()
     {
+        _transientScope.Drain();
         _runtime = null;
     }
 
@@ -1105,6 +1117,7 @@ internal sealed class BattleSkillExecutionOrchestrator
             batch?.AddLogLine(precastValidationMessage);
             return false;
         }
+        Vector2I casterCoordBeforePrecast = caster?.coord ?? new Vector2I(-1, -1);
         if (
             !ApplyGroundPrecastSpecialEffects(
                 caster,
@@ -1115,6 +1128,8 @@ internal sealed class BattleSkillExecutionOrchestrator
             )
         )
             return false;
+        bool precastRelocationApplied =
+            caster != null && caster.coord != casterCoordBeforePrecast;
 
         IReadOnlyList<Vector2I> effectCoords = BuildGroundEffectCoords(
             skillDef,
@@ -1138,7 +1153,7 @@ internal sealed class BattleSkillExecutionOrchestrator
             effectCoords,
             batch
         );
-        bool applied = unitResult.Applied || terrainResult.Applied;
+        bool applied = precastRelocationApplied || unitResult.Applied || terrainResult.Applied;
         if (applied)
         {
             batch?.AddLogLine(
@@ -4143,14 +4158,20 @@ internal sealed class BattleSkillExecutionOrchestrator
         CombatEffectDef chain_effect
     )
     {
-        var chainTargetEffects = new GCombatEffectArray();
+        var chainTargetEffects = _transientScope.OwnWrapper(
+            new GCombatEffectArray(),
+            "chain-target-effects"
+        );
         foreach (CombatEffectDef effectDef in effect_defs ?? new GCombatEffectArray())
         {
             if (effectDef == null || effectDef.EffectKind == BattleEffectKind.ChainDamage)
             {
                 continue;
             }
-            CombatEffectDef runtimeEffect = effectDef.DuplicateForRuntime();
+            CombatEffectDef runtimeEffect = effectDef.DuplicateForRuntime(
+                _transientScope,
+                "BattleSkillExecutionOrchestrator.BuildChainTargetEffects"
+            );
             if (runtimeEffect == null)
             {
                 continue;
@@ -5127,13 +5148,17 @@ internal sealed class BattleSkillExecutionOrchestrator
 
     internal CombatCastVariantDef _build_implicit_ground_cast_variant(SkillDef skill_def)
     {
-        CombatCastVariantDef castVariant = new CombatCastVariantDef();
-        castVariant.variant_id = new StringName("");
-        castVariant.display_name = "";
-        castVariant.TargetModeKind = BattleTargetMode.Ground;
-        castVariant.FootprintPatternKind = CombatCastFootprintPattern.Single;
-        castVariant.required_coord_count = 1;
-        return castVariant;
+        return _runtimeSkillFactory.NewCastVariant(
+            castVariant =>
+            {
+                castVariant.variant_id = new StringName("");
+                castVariant.display_name = "";
+                castVariant.TargetModeKind = BattleTargetMode.Ground;
+                castVariant.FootprintPatternKind = CombatCastFootprintPattern.Single;
+                castVariant.required_coord_count = 1;
+            },
+            $"implicit_ground_cast_variant:{skill_def?.skill_id}"
+        );
     }
 
     internal int _get_unit_skill_level(BattleUnitState unit_state, StringName skill_id)

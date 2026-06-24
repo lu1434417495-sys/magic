@@ -64,33 +64,47 @@ public static class FateAttackFormula
     )
     {
         int normalizedDieSize = Math.Max(dieSize, 1);
-        IRollSource resolvedRng = rng ?? new GodotRandomRollSource(null);
-        int firstRoll = resolvedRng.RandiRange(1, normalizedDieSize);
-        if (!isDisadvantage)
-            return firstRoll;
-        int secondRoll = resolvedRng.RandiRange(1, normalizedDieSize);
-        return Math.Min(firstRoll, secondRoll);
+        GodotRandomRollSource ownedRng = rng == null ? new GodotRandomRollSource(null) : null;
+        IRollSource resolvedRng = rng ?? ownedRng;
+        try
+        {
+            int firstRoll = resolvedRng.RandiRange(1, normalizedDieSize);
+            if (!isDisadvantage)
+                return firstRoll;
+            int secondRoll = resolvedRng.RandiRange(1, normalizedDieSize);
+            return Math.Min(firstRoll, secondRoll);
+        }
+        finally
+        {
+            ownedRng?.Dispose();
+        }
     }
 
-    private sealed class GodotRandomRollSource : IRollSource
+    private sealed class GodotRandomRollSource : IRollSource, IDisposable
     {
+        private readonly GodotTransientResourceScope _scope;
         private readonly RandomNumberGenerator _rng;
 
         public GodotRandomRollSource(RandomNumberGenerator rng)
         {
-            _rng = rng ?? CreateRandomizedRng();
+            if (rng != null)
+            {
+                _rng = rng;
+                return;
+            }
+            _scope = new GodotTransientResourceScope("FateAttackFormula.GodotRandomRollSource");
+            _rng = _scope.OwnWrapper(new RandomNumberGenerator(), "rng");
+            _rng.Randomize();
         }
 
         public int RandiRange(int minValue, int maxValue)
         {
             return _rng.RandiRange(minValue, maxValue);
         }
-    }
 
-    private static RandomNumberGenerator CreateRandomizedRng()
-    {
-        var rng = new RandomNumberGenerator();
-        rng.Randomize();
-        return rng;
+        public void Dispose()
+        {
+            _scope?.Dispose();
+        }
     }
 }

@@ -32,7 +32,6 @@ public partial class run_crown_break_regression : SceneTree
         TestCrownBreakBlindedEyeBlocksEvasion();
         TestCrownBreakRejectsIllegalTargetsInSelectionPreviewAndIssue();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Crown break regression"));
     }
 

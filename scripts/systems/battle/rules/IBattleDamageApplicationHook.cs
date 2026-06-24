@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using Godot;
 
 internal interface IBattleDamageApplicationHook
@@ -15,6 +17,8 @@ internal sealed class BattleDamageApplicationHookContext
     internal DamageApplicationProjection Projection { get; init; }
     internal BattleEventBatch Batch { get; init; }
     internal BattleEffectOrigin Origin { get; init; }
+    internal IReadOnlyList<Vector2I> CurrentDamageEventAreaCells { get; init; } =
+        Array.Empty<Vector2I>();
 }
 
 internal readonly record struct BattleDamageApplicationHookResult(

@@ -18,7 +18,6 @@ public partial class run_wild_encounter_roster_typed_regression : SceneTree
         TestTypedStageSelectionUsesNearestDeclaredStage();
         TestSchemaValidationUsesTypedTemplateIdBoundary();
         TestEncounterRosterBuilderBuildsMixedMistHollowUnits();
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Wild encounter roster typed regression"));
     }
 

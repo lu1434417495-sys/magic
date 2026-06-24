@@ -22,7 +22,6 @@ public partial class run_doom_sentence_regression : SceneTree
         TestDoomSentenceIsLimitedToOncePerBattle();
         TestDoomSentenceIsBlockedWhenCalamityCapCannotPayCost();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Doom sentence regression"));
     }
 

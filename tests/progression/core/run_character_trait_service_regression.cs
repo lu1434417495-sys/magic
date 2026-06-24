@@ -15,7 +15,6 @@ public partial class run_character_trait_service_regression : SceneTree
         TestAggregatesIdentityCharacterAndEquipmentSources();
         TestStackPoliciesCollapseOrPreserveKeys();
         TestTraitAttributeModifiersUseEffectiveSourceKeys();
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Character trait service regression"));
     }
 

@@ -2,8 +2,9 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public class EquipmentDropService
+public class EquipmentDropService : IDisposable
 {
+    private GodotTransientResourceScope _ownedRngScope;
     private RandomNumberGenerator _rng;
     private Func<int, int, int> _rollRange;
 
@@ -17,20 +18,29 @@ public class EquipmentDropService
 
     private void ConfigureRng(RandomNumberGenerator rng)
     {
+        _ownedRngScope?.Dispose();
+        _ownedRngScope = null;
         if (rng != null)
         {
             _rng = rng;
         }
         else
         {
-            var fallbackRng = new RandomNumberGenerator();
-
+            _ownedRngScope = new GodotTransientResourceScope("EquipmentDropService");
+            var fallbackRng = _ownedRngScope.OwnWrapper(new RandomNumberGenerator(), "rng");
             fallbackRng.Randomize();
-
             _rng = fallbackRng;
         }
 
         _rollRange = _rng.RandiRange;
+    }
+
+    public void Dispose()
+    {
+        _ownedRngScope?.Dispose();
+        _ownedRngScope = null;
+        _rng = null;
+        _rollRange = null;
     }
 
     public void SetRngForTesting(RandomNumberGenerator rng)

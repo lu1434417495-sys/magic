@@ -30,7 +30,6 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
         }
 
         CleanupFixtures();
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Contingency trigger contract regression"));
     }
 

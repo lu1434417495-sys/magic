@@ -10,7 +10,7 @@ public enum ContingencyReleaseModeKind
     SequentialRelease,
 }
 
-public partial class ContingencyMatrixSetupState : RefCounted
+public class ContingencyMatrixSetupState
 {
     private static readonly string[] PayloadKeys =
     {

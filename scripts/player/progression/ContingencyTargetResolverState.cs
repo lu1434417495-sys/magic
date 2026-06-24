@@ -21,7 +21,7 @@ public enum ContingencyEmptyCellPreferenceKind
     SafeCell,
 }
 
-public partial class ContingencyTargetResolverState : RefCounted
+public class ContingencyTargetResolverState
 {
     public ContingencyTargetResolverKind ResolverKind { get; private set; } =
         ContingencyTargetResolverKind.Unknown;

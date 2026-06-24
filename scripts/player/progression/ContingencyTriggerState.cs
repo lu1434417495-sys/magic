@@ -27,7 +27,7 @@ public enum ContingencyTimingKind
     OwnerTurnStarted,
 }
 
-public partial class ContingencyTriggerState : RefCounted
+public class ContingencyTriggerState
 {
     public ContingencyTriggerKind TriggerKind { get; private set; } =
         ContingencyTriggerKind.Unknown;

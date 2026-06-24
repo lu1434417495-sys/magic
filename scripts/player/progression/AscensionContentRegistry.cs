@@ -58,6 +58,7 @@ public partial class AscensionContentRegistry : IdentityContentRegistryBase
             _validation_errors.Add($"Failed to load ascension config {resourcePath}.");
             return;
         }
+        GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
         if (resource is AscensionDef ascensionDef)
         {
             _register_ascension(resourcePath, ascensionDef);

@@ -16,7 +16,6 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
         TestMeteorSwarmUseCasesAndHighPriorityTrace();
         TestMeteorSwarmFriendlyFireSoftAndProtectedPaths();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Meteor swarm AI regression"));
     }
 

@@ -21,7 +21,6 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         TestPerKillRandomEquipmentOverflowIsLostInSettlementCommit();
         TestPerKillAttackEquipmentIsNotImplicitLoot();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Battle loot drop luck regression"));
     }
 

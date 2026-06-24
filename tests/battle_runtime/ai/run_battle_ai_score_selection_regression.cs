@@ -30,12 +30,15 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
     private void TestBrainScoreProfileFeedsDecisionScopeAndFactionOverrideWins()
     {
         BattleAiScoreProfile brainProfile = new() { damage_weight = 77 };
-        EnemyAiBrainDef brain = new()
-        {
-            brain_id = "score_profile_brain",
-            default_state_id = "pressure",
-            score_profile = brainProfile,
-        };
+        EnemyAiBrainDef brain = TestResourceOwnership.Own(
+            new EnemyAiBrainDef
+            {
+                brain_id = "score_profile_brain",
+                default_state_id = "pressure",
+                score_profile = brainProfile,
+            },
+            "BattleAiScoreSelection.scoreProfileBrain"
+        );
         BattleAiService aiService = new() { EnableMutationGuard = false };
         aiService.Setup(BuildBrainMap(brain));
 
@@ -54,7 +57,10 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
         );
         scoreService.EndDecisionScope();
 
-        BattleAiScoreProfile factionProfile = new() { damage_weight = 12 };
+        BattleAiScoreProfile factionProfile = TestResourceOwnership.Own(
+            new BattleAiScoreProfile { damage_weight = 12 },
+            "BattleAiScoreSelection.factionScoreProfile"
+        );
         aiService.SetFactionScoreProfiles(
             new Dictionary<StringName, BattleAiScoreProfile>
             {
@@ -405,7 +411,7 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
             default_state_id = state.state_id,
         };
         brain.states.Add(state);
-        return brain;
+        return TestResourceOwnership.Own(brain, "BattleAiScoreSelection.BuildTwoUnitSkillActionBrain");
     }
 
     private static BattleState BuildFlatState(string battleId, Vector2I mapSize)
@@ -509,12 +515,15 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
                 power = power,
             }
         );
-        return new SkillDef
-        {
-            skill_id = skillId,
-            display_name = displayName,
-            combat_profile = combatProfile,
-        };
+        return TestResourceOwnership.Own(
+            new SkillDef
+            {
+                skill_id = skillId,
+                display_name = displayName,
+                combat_profile = combatProfile,
+            },
+            "BattleAiScoreSelection.BuildSkill"
+        );
     }
 
     private static BattleCommand BuildCommand(
@@ -630,6 +639,7 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
             {
                 return;
             }
+            TestResourceOwnership.Own(skillDef, "BattleAiScoreSelectionFixture.AddSkill");
             _skillDefs[skillDef.skill_id] = skillDef;
         }
 

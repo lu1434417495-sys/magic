@@ -49,7 +49,7 @@ public sealed class BattleSkillResolutionPolicy
 
 }
 
-public sealed class BattleSkillResolutionRules
+public sealed class BattleSkillResolutionRules : IDisposable
 {
     private static readonly StringName EmptyStringName = "";
     private static readonly StringName BlackContractPushSkillId = "black_contract_push";
@@ -57,6 +57,22 @@ public sealed class BattleSkillResolutionRules
     private static readonly StringName FatePreviewModeStandard = "standard";
     private static readonly StringName FatePreviewModeForceHitNoCritName = "force_hit_no_crit";
     public static StringName FatePreviewModeForceHitNoCrit => FatePreviewModeForceHitNoCritName;
+    private readonly GodotTransientResourceScope _transientScope =
+        new("BattleSkillResolutionRules");
+    private readonly RuntimeSkillDefFactory _runtimeSkillFactory;
+
+    public BattleSkillResolutionRules()
+    {
+        _runtimeSkillFactory = new RuntimeSkillDefFactory(
+            _transientScope,
+            "BattleSkillResolutionRules"
+        );
+    }
+
+    public void Dispose()
+    {
+        _transientScope.Drain();
+    }
 
     public BattleSkillResolutionPolicy BuildSkillResolutionPolicy(
         SkillDef skillDef,
@@ -1007,21 +1023,24 @@ public sealed class BattleSkillResolutionRules
         return result;
     }
 
-    private static CombatCastVariantDef BuildImplicitGroundCastVariant(SkillDef skillDef)
+    private CombatCastVariantDef BuildImplicitGroundCastVariant(SkillDef skillDef)
     {
         CombatSkillDef combatProfile = skillDef?.combat_profile;
         if (combatProfile == null)
         {
             return null;
         }
-        return new CombatCastVariantDef
-        {
-            variant_id = EmptyStringName,
-            display_name = "",
-            target_mode = BattleTypedNames.TargetModeGround,
-            FootprintPatternKind = CombatCastFootprintPattern.Single,
-            required_coord_count = 1,
-        };
+        return _runtimeSkillFactory.NewCastVariant(
+            variant =>
+            {
+                variant.variant_id = EmptyStringName;
+                variant.display_name = "";
+                variant.target_mode = BattleTypedNames.TargetModeGround;
+                variant.FootprintPatternKind = CombatCastFootprintPattern.Single;
+                variant.required_coord_count = 1;
+            },
+            $"implicit_ground_cast_variant:{skillDef?.skill_id}"
+        );
     }
 
     private static bool IsEmpty(StringName value)

@@ -423,6 +423,7 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
             {
                 return;
             }
+            TestResourceOwnership.Own(skillDef, "BattleAiScoreInputMetricsFixture.AddSkill");
             _skillDefs[skillDef.skill_id] = skillDef;
         }
 

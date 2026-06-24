@@ -2,8 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class UnitProgress : RefCounted
+public class UnitProgress
 {
     private static readonly Godot.Collections.Array<string> TO_DICT_FIELDS = new()
     {
@@ -284,7 +283,10 @@ public partial class UnitProgress : RefCounted
             StringName skillId = ProgressionDataUtils.to_string_name(rawKey);
             if (skillId == "")
                 continue;
-            UnitSkillProgress skillProgress = values[rawKey].AsGodotObject() as UnitSkillProgress;
+            object rawValue = values[rawKey];
+            if (!TryAsDictionary(rawValue, out Godot.Collections.Dictionary skillPayload))
+                continue;
+            UnitSkillProgress skillProgress = UnitSkillProgress.FromDictionary(skillPayload);
             if (skillProgress == null || skillProgress.skill_id == "" || skillProgress.skill_id != skillId)
                 continue;
             _skills[skillId] = skillProgress.DuplicateState();
@@ -380,9 +382,11 @@ public partial class UnitProgress : RefCounted
             StringName achievementId = ProgressionDataUtils.to_string_name(rawKey);
             if (achievementId == "")
                 continue;
-            Variant rawValue = values[rawKey];
+            object rawValue = values[rawKey];
+            if (!TryAsDictionary(rawValue, out Godot.Collections.Dictionary progressPayload))
+                continue;
             AchievementProgressState progressState =
-                rawValue.AsGodotObject() as AchievementProgressState;
+                AchievementProgressState.FromDictionary(progressPayload);
             if (progressState == null || progressState.achievement_id != achievementId)
                 continue;
             _achievementProgress[achievementId] = progressState.DuplicateState();
@@ -414,8 +418,11 @@ public partial class UnitProgress : RefCounted
             StringName professionId = ProgressionDataUtils.to_string_name(rawKey);
             if (professionId == "")
                 continue;
+            object rawValue = values[rawKey];
+            if (!TryAsDictionary(rawValue, out Godot.Collections.Dictionary professionPayload))
+                continue;
             UnitProfessionProgress professionProgress =
-                values[rawKey].AsGodotObject() as UnitProfessionProgress;
+                UnitProfessionProgress.FromDictionary(professionPayload);
             if (
                 professionProgress == null
                 || professionProgress.profession_id == ""
@@ -1103,7 +1110,7 @@ public partial class UnitProgress : RefCounted
         foreach (StringName skillId in GetSortedSkillIdsTyped())
         {
             if (_skills.TryGetValue(skillId, out UnitSkillProgress value))
-                result[skillId] = value?.DuplicateState();
+                result[skillId] = value?.ToDictionary() ?? new Godot.Collections.Dictionary();
         }
         return result;
     }
@@ -1114,7 +1121,7 @@ public partial class UnitProgress : RefCounted
         foreach (StringName professionId in GetSortedProfessionIdsTyped())
         {
             if (_professions.TryGetValue(professionId, out UnitProfessionProgress value))
-                result[professionId] = value?.DuplicateState();
+                result[professionId] = value?.ToDictionary() ?? new Godot.Collections.Dictionary();
         }
         return result;
     }
@@ -1140,7 +1147,7 @@ public partial class UnitProgress : RefCounted
         {
             var achievementId = new StringName(key);
             if (_achievementProgress.TryGetValue(achievementId, out AchievementProgressState value))
-                result[achievementId] = value?.DuplicateState();
+                result[achievementId] = value?.ToDictionary() ?? new Godot.Collections.Dictionary();
         }
         return result;
     }

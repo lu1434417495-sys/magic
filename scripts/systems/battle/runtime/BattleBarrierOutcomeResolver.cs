@@ -88,7 +88,18 @@ internal sealed class BattleBarrierOutcomeResolver
 
     private const int DEFAULT_FATAL_DAMAGE = 99999;
     private WeakReference<BattleRuntimeModule> _runtimeRef;
+    private readonly GodotTransientResourceScope _transientScope =
+        new("BattleBarrierOutcomeResolver");
+    private readonly RuntimeSkillDefFactory _runtimeSkillFactory;
     private bool _disposed;
+
+    internal BattleBarrierOutcomeResolver()
+    {
+        _runtimeSkillFactory = new RuntimeSkillDefFactory(
+            _transientScope,
+            "BattleBarrierOutcomeResolver"
+        );
+    }
 
     internal void Setup(BattleRuntimeModule runtime)
     {
@@ -102,6 +113,7 @@ internal sealed class BattleBarrierOutcomeResolver
             return;
         }
         _disposed = true;
+        _transientScope.Drain();
         _runtimeRef = null;
     }
 
@@ -325,12 +337,17 @@ internal sealed class BattleBarrierOutcomeResolver
             layer,
             outcome
         );
-        var effect = new CombatEffectDef();
-        effect.effect_type = "status";
-        effect.save_dc = saveParams.SaveDc;
-        effect.SaveDcModeKind = BattleSaveDcMode.Static;
-        effect.save_ability = saveParams.SaveAbility;
-        effect.save_tag = saveParams.SaveTag;
+        CombatEffectDef effect = _runtimeSkillFactory.NewEffect(
+            runtimeEffect =>
+            {
+                runtimeEffect.effect_type = "status";
+                runtimeEffect.save_dc = saveParams.SaveDc;
+                runtimeEffect.SaveDcModeKind = BattleSaveDcMode.Static;
+                runtimeEffect.save_ability = saveParams.SaveAbility;
+                runtimeEffect.save_tag = saveParams.SaveTag;
+            },
+            "outcome_save_effect"
+        );
         return BattleSaveResolver.ResolveSaveResult(
             _GetBarrierSourceUnit(barrier),
             unitState,

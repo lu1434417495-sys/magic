@@ -219,19 +219,22 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
 
     private static SkillDef BuildSkill()
     {
-        return new SkillDef
-        {
-            skill_id = "adapter_skill",
-            display_name = "Adapter Skill",
-            combat_profile = new CombatSkillDef
+        return TestResourceOwnership.Own(
+            new SkillDef
             {
                 skill_id = "adapter_skill",
-                ap_cost = 2,
-                mp_cost = 3,
-                stamina_cost = 0,
-                cooldown_tu = 0,
+                display_name = "Adapter Skill",
+                combat_profile = new CombatSkillDef
+                {
+                    skill_id = "adapter_skill",
+                    ap_cost = 2,
+                    mp_cost = 3,
+                    stamina_cost = 0,
+                    cooldown_tu = 0,
+                },
             },
-        };
+            "BattleAiScoreContextAdapter.BuildSkill"
+        );
     }
 
     private static bool IsGodotDynamicBoundaryType(Type type) =>

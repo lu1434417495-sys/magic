@@ -30,7 +30,7 @@ Choose the narrowest layer that proves the behavior:
 Prefer existing project fixtures:
 
 - Use `tests/shared/TestHarness.cs` for assertions and final status. Avoid ad hoc `GD.PushError` assertion frameworks in new tests.
-- Use `GodotSharpCleanup.CollectPendingFinalizers()` before `Quit(...)` when a runner creates/disposes Godot C# objects, touches many `Variant` boundaries, or has native wrapper lifecycle risk.
+- Use `TestHarness.Finish(...)` as the only normal runner-level finalizer drain. Do not call `GodotSharpCleanup.CollectPendingFinalizers()` or `GodotObjectLifecycle.CollectPendingFinalizers()` from ordinary test runners; register Godot runtime graphs with the appropriate owner scope and let the centralized exit path drain known owners.
 - Use `SnapshotTestRuntime` for snapshot renderer tests instead of rebuilding a fake runtime source from scratch.
 - Reuse deterministic damage resolvers in `tests/shared/` and domain helpers in `tests/battle_runtime/helpers/` before adding new battle test doubles.
 - Use `HeadlessGameTestSession.GetGameSessionTyped()` / `GetRuntimeFacadeTyped()` and typed runtime APIs. Do not route formal test setup through `GodotObject.Call(...)` or string method names when typed APIs exist.
@@ -45,7 +45,7 @@ Prefer existing project fixtures:
 4. In `_Initialize()`, use `CallDeferred(nameof(Run))` when the test needs autoloads, scene tree readiness, async waits, or Godot resources that should settle before assertions. Direct `Run()` is acceptable for isolated pure logic runners.
 5. Split assertions into small private methods named for the contract being protected.
 6. Build the smallest fixture that exercises the behavior. Prefer typed setup APIs and formal content injection helpers already present in the codebase.
-7. Dispose owned sessions, runtimes, registries, windows, resources, and services in `finally` blocks when cleanup affects later assertions or finalizers.
+7. Dispose owned sessions, runtimes, registries, windows, resources, and services in `finally` blocks when cleanup affects later assertions or finalizers, but do not run a local forced-GC/finalizer drain there.
 8. If the runtime relationship, ownership boundary, or recommended read set changed, update `docs/design/project_context_units.md` after the code change.
 
 ## Assert These Things

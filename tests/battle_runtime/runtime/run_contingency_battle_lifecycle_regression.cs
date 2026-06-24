@@ -36,7 +36,6 @@ public partial class run_contingency_battle_lifecycle_regression : SceneTree
             _test.Fail($"Unhandled exception: {ex.GetType().Name}: {ex.Message}");
         }
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Contingency battle lifecycle regression"));
     }
 

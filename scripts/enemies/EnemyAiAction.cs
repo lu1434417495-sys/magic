@@ -22,6 +22,8 @@ public partial class EnemyAiAction : Resource
 
     protected readonly BattleSkillResolutionRules _skill_resolution_rules =
         new BattleSkillResolutionRules();
+    private readonly Dictionary<StringName, CombatCastVariantDef> _implicitGroundOptionsBySkillId =
+        new();
 
     internal virtual BattleAiDecision Decide(BattleAiContext context) => null;
 
@@ -1354,6 +1356,18 @@ public partial class EnemyAiAction : Resource
 
     protected CombatCastVariantDef _build_implicit_ground_option(SkillDef sd)
     {
+        StringName skillId = ProgressionDataUtils.to_string_name(sd?.skill_id ?? "");
+        if (
+            skillId != ""
+            && _implicitGroundOptionsBySkillId.TryGetValue(
+                skillId,
+                out CombatCastVariantDef cachedOption
+            )
+        )
+        {
+            return cachedOption;
+        }
+
         var effects = new Godot.Collections.Array<CombatEffectDef>();
         if (sd?.combat_profile is CombatSkillDef profile)
             foreach (var effect in profile.effect_defs)
@@ -1368,6 +1382,14 @@ public partial class EnemyAiAction : Resource
             required_coord_count = 1,
             effect_defs = effects,
         };
+        string derivedKey = skillId == "" ? "anonymous_ground_skill" : skillId.ToString();
+        GodotContentOwnership.RegisterDerivedContent(
+            cv,
+            $"enemy_ai_action:{action_id}:implicit_ground_option:{derivedKey}",
+            "EnemyAiAction._build_implicit_ground_option"
+        );
+        if (skillId != "")
+            _implicitGroundOptionsBySkillId[skillId] = cv;
         return cv;
     }
 

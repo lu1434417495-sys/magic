@@ -20,9 +20,9 @@ public partial class run_contingency_setup_window_regression : SceneTree
     {
         await TestPartyManagementExposesContingencyEntrySignal();
         await TestContingencyWindowRendersUnchargedSetup();
+        await TestUnchargedTemplateSelectionEmitsSelectedPayload();
         await TestChargedSetupDisablesSaveAndShowsClearWarning();
         await TestActionButtonsEmitSignalsWithoutMutatingMember();
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Contingency setup window regression"));
     }
 
@@ -52,6 +52,46 @@ public partial class run_contingency_setup_window_regression : SceneTree
         await ProcessFrames(1);
         if (button != null)
             _test.True(button.Disabled, "ContingencySetupButton should be disabled when no member is selected.");
+        await DisposeNode(window);
+    }
+
+    private async Task TestUnchargedTemplateSelectionEmitsSelectedPayload()
+    {
+        ContingencySetupWindow window = await CreateContingencyWindow();
+        PartyMemberState member = MakeMember("hero", "Hero", UnchargedSetup());
+        using CharacterManagementModule manager = BuildManager(member);
+        var saveRequests = new List<(StringName MemberId, StringName PayloadName)>();
+        window.save_requested += (memberId, payloadName) => saveRequests.Add((memberId, payloadName));
+
+        window.ShowForMember(member, manager);
+        await ProcessFrames(1);
+        int ownerTurnIndex = FindOptionIndex(window.trigger_selector, "owner_turn_started");
+        _test.True(ownerTurnIndex >= 0, "trigger selector should expose owner_turn_started template.");
+        if (ownerTurnIndex >= 0)
+        {
+            window.trigger_selector.Select(ownerTurnIndex);
+            window.trigger_selector.EmitSignal(OptionButton.SignalName.ItemSelected, ownerTurnIndex);
+            await ProcessFrames(1);
+        }
+        window.save_button.EmitSignal(Button.SignalName.Pressed);
+        await ProcessFrames(1);
+
+        _test.Eq(saveRequests.Count, 1, "uncharged save action should emit one save request.");
+        if (saveRequests.Count > 0)
+        {
+            _test.Eq(saveRequests[0].MemberId, new StringName("hero"), "save request should include member id.");
+            _test.Eq(
+                saveRequests[0].PayloadName,
+                new StringName("owner_turn_mirror_self"),
+                "save request should use the selected template payload."
+            );
+        }
+        _test.True(
+            member.TryGetContingencySetupTyped("hp_mirror_self", out ContingencyMatrixSetupState setup),
+            "UI save signal should not directly mutate PartyMemberState."
+        );
+        _test.True(setup != null && !setup.Charged, "UI save signal should leave original setup uncharged.");
+
         await DisposeNode(window);
     }
 
@@ -326,5 +366,15 @@ public partial class run_contingency_setup_window_regression : SceneTree
     {
         for (int index = 0; index < count; index++)
             await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+    }
+
+    private static int FindOptionIndex(OptionButton selector, string text)
+    {
+        if (selector == null)
+            return -1;
+        for (int index = 0; index < selector.ItemCount; index++)
+            if (selector.GetItemText(index).Contains(text))
+                return index;
+        return -1;
     }
 }

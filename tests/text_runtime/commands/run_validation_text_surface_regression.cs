@@ -20,7 +20,6 @@ public partial class run_validation_text_surface_regression : SceneTree
         AssertInvalidWorldValidationSurface(runner);
 
         runner.Dispose(true);
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Validation text surface regression"));
     }
 

@@ -46,6 +46,8 @@ public sealed class PartyContingencySetupService
         StringName normalizedMemberId = Normalize(memberId);
         if (setup == null)
             return Fail("invalid_setup", normalizedMemberId);
+        if (IsBattleMutationBlocked())
+            return Fail("battle_mutation_blocked", normalizedMemberId, setup.SetupId);
         PartyMemberState member = _partyState?.GetMemberState(normalizedMemberId);
         if (member == null)
             return Fail("member_not_found", normalizedMemberId, setup.SetupId);

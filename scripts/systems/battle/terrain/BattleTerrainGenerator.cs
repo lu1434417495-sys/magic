@@ -284,119 +284,247 @@ public class BattleTerrainGenerator : IDisposable
             DefaultFormalSizes
         );
         long battleSeed = BuildBattleSeed(encounterContext);
-        GDictionary bestLayout = new();
+        GDictionary bestLayout = null;
         int bestScore = int.MinValue;
         for (int attempt = 0; attempt < CandidateAttemptCount; attempt++)
         {
-            long attemptSeed = battleSeed + attempt * 1777L;
-            Dictionary<Vector2I, BattleCellState> cells = BuildHeightfieldCells(
-                mapSize,
-                attemptSeed,
-                coord => ResolveDefaultMacroHeight(coord, mapSize),
-                coord =>
-                    StableCoordHash(coord, attemptSeed + 11L) % 9 == 0
-                        ? TerrainForest
-                        : TerrainLand
-            );
-            AddConnectedWater(
-                cells,
-                mapSize,
-                new Vector2I(Math.Max(1, mapSize.X / 3), Math.Max(1, mapSize.Y / 2)),
-                5
-            );
-            RelaxOrdinarySlopeDeltas(cells, mapSize);
-            GDictionary cellPayload = ToCellDictionary(cells);
-            GDictionary edgeFaces = BuildEdgeFaces(cellPayload, mapSize);
-            Vector2I playerCoord = FirstDryCoord(
-                cellPayload,
-                new Vector2I(1, Math.Max(1, mapSize.Y / 2))
-            );
-            Vector2I enemyCoord = FirstDryCoord(
-                cellPayload,
-                new Vector2I(mapSize.X - 2, Math.Max(1, mapSize.Y / 2))
-            );
-            TerrainQualityResult quality = ScoreCandidate(
-                cells,
-                cellPayload,
-                mapSize,
-                edgeFaces,
-                playerCoord,
-                enemyCoord
-            );
-            if (quality.Score > bestScore)
+            Dictionary<Vector2I, BattleCellState> cells = null;
+            GDictionary cellPayload = null;
+            GDictionary edgeFaces = null;
+            bool candidateTransferredToLayout = false;
+            try
             {
-                bestScore = quality.Score;
-                bestLayout = BuildLayout(mapSize, cellPayload, playerCoord, enemyCoord, terrainProfileId);
+                long attemptSeed = battleSeed + attempt * 1777L;
+                cells = BuildHeightfieldCells(
+                    mapSize,
+                    attemptSeed,
+                    coord => ResolveDefaultMacroHeight(coord, mapSize),
+                    coord =>
+                        StableCoordHash(coord, attemptSeed + 11L) % 9 == 0
+                            ? TerrainForest
+                            : TerrainLand
+                );
+                AddConnectedWater(
+                    cells,
+                    mapSize,
+                    new Vector2I(Math.Max(1, mapSize.X / 3), Math.Max(1, mapSize.Y / 2)),
+                    5
+                );
+                RelaxOrdinarySlopeDeltas(cells, mapSize);
+                cellPayload = ToCellDictionary(cells);
+                edgeFaces = BuildEdgeFaces(cellPayload, mapSize);
+                Vector2I playerCoord = FirstDryCoord(
+                    cellPayload,
+                    new Vector2I(1, Math.Max(1, mapSize.Y / 2))
+                );
+                Vector2I enemyCoord = FirstDryCoord(
+                    cellPayload,
+                    new Vector2I(mapSize.X - 2, Math.Max(1, mapSize.Y / 2))
+                );
+                TerrainQualityResult quality = ScoreCandidate(
+                    cells,
+                    cellPayload,
+                    mapSize,
+                    edgeFaces,
+                    playerCoord,
+                    enemyCoord
+                );
+                if (quality.Score > bestScore)
+                {
+                    DisposeGeneratedLayout(bestLayout);
+                    bestScore = quality.Score;
+                    bestLayout = BuildLayout(
+                        mapSize,
+                        cellPayload,
+                        playerCoord,
+                        enemyCoord,
+                        terrainProfileId
+                    );
+                    candidateTransferredToLayout = true;
+                }
+                if (quality.Passed)
+                {
+                    if (!candidateTransferredToLayout)
+                    {
+                        DisposeGeneratedLayout(bestLayout);
+                        bestLayout = BuildLayout(
+                            mapSize,
+                            cellPayload,
+                            playerCoord,
+                            enemyCoord,
+                            terrainProfileId
+                        );
+                        candidateTransferredToLayout = true;
+                    }
+                    GDictionary result = bestLayout;
+                    bestLayout = null;
+                    return result;
+                }
             }
-            if (quality.Passed)
+            finally
             {
-                return BuildLayout(mapSize, cellPayload, playerCoord, enemyCoord, terrainProfileId);
+                BattleState.DisposeRuntimeEdgeFacesPayload(edgeFaces);
+                if (!candidateTransferredToLayout)
+                    DisposeGeneratedCandidate(cells, cellPayload);
             }
         }
-        return bestLayout;
+        return bestLayout ?? new GDictionary();
     }
 
     private GDictionary GenerateCanyon(GDictionary encounterContext, StringName terrainProfileId)
     {
         Vector2I mapSize = ResolveCanyonMapSize(encounterContext);
         long battleSeed = BuildBattleSeed(encounterContext);
-        GDictionary bestLayout = new();
+        GDictionary bestLayout = null;
         int bestScore = int.MinValue;
         for (int attempt = 0; attempt < CandidateAttemptCount; attempt++)
         {
-            long attemptSeed = battleSeed + attempt * 1777L;
-            _rng.Seed = unchecked((ulong)attemptSeed);
-            Dictionary<Vector2I, BattleCellState> cells = BuildHeightfieldCells(
-                mapSize,
-                attemptSeed,
-                coord => ResolveCanyonMacroHeight(coord, mapSize),
-                coord =>
-                    StableCoordHash(coord, attemptSeed + 11L) % 7 == 0
-                        ? TerrainForest
-                        : TerrainLand
-            );
-
-            int riverY = Mathf.Clamp(mapSize.Y / 2, 1, mapSize.Y - 2);
-            for (
-                int x = Math.Max(1, mapSize.X / 4);
-                x <= Math.Min(mapSize.X - 2, mapSize.X / 4 + 4);
-                x++
-            )
+            Dictionary<Vector2I, BattleCellState> cells = null;
+            GDictionary cellPayload = null;
+            GDictionary edgeFaces = null;
+            bool candidateTransferredToLayout = false;
+            try
             {
-                SetTerrain(
-                    cells,
-                    new Vector2I(x, riverY),
-                    TerrainShallowWater,
-                    DefaultMinHeight
+                long attemptSeed = battleSeed + attempt * 1777L;
+                _rng.Seed = unchecked((ulong)attemptSeed);
+                cells = BuildHeightfieldCells(
+                    mapSize,
+                    attemptSeed,
+                    coord => ResolveCanyonMacroHeight(coord, mapSize),
+                    coord =>
+                        StableCoordHash(coord, attemptSeed + 11L) % 7 == 0
+                            ? TerrainForest
+                            : TerrainLand
                 );
-            }
-            RelaxOrdinarySlopeDeltas(cells, mapSize);
 
-            GDictionary cellPayload = ToCellDictionary(cells);
-            GDictionary edgeFaces = BuildEdgeFaces(cellPayload, mapSize);
-            if (!TryFindSpawnPair(cellPayload, mapSize, edgeFaces, out var playerCoord, out var enemyCoord))
-                continue;
-            AddStandardProps(cellPayload, mapSize, playerCoord, enemyCoord, mapSize.X / 2, true);
-            TerrainQualityResult quality = ScoreCandidate(
-                cells,
-                cellPayload,
-                mapSize,
-                edgeFaces,
-                playerCoord,
-                enemyCoord
-            );
-            GDictionary layout = BuildLayout(mapSize, cellPayload, playerCoord, enemyCoord, terrainProfileId);
-            if (quality.Score > bestScore)
-            {
-                bestScore = quality.Score;
-                bestLayout = layout;
+                int riverY = Mathf.Clamp(mapSize.Y / 2, 1, mapSize.Y - 2);
+                for (
+                    int x = Math.Max(1, mapSize.X / 4);
+                    x <= Math.Min(mapSize.X - 2, mapSize.X / 4 + 4);
+                    x++
+                )
+                {
+                    SetTerrain(
+                        cells,
+                        new Vector2I(x, riverY),
+                        TerrainShallowWater,
+                        DefaultMinHeight
+                    );
+                }
+                RelaxOrdinarySlopeDeltas(cells, mapSize);
+
+                cellPayload = ToCellDictionary(cells);
+                edgeFaces = BuildEdgeFaces(cellPayload, mapSize);
+                if (
+                    !TryFindSpawnPair(
+                        cellPayload,
+                        mapSize,
+                        edgeFaces,
+                        out var playerCoord,
+                        out var enemyCoord
+                    )
+                )
+                {
+                    continue;
+                }
+                AddStandardProps(cellPayload, mapSize, playerCoord, enemyCoord, mapSize.X / 2, true);
+                TerrainQualityResult quality = ScoreCandidate(
+                    cells,
+                    cellPayload,
+                    mapSize,
+                    edgeFaces,
+                    playerCoord,
+                    enemyCoord
+                );
+                if (quality.Score > bestScore)
+                {
+                    DisposeGeneratedLayout(bestLayout);
+                    bestScore = quality.Score;
+                    bestLayout = BuildLayout(
+                        mapSize,
+                        cellPayload,
+                        playerCoord,
+                        enemyCoord,
+                        terrainProfileId
+                    );
+                    candidateTransferredToLayout = true;
+                }
+                if (quality.Passed)
+                {
+                    if (!candidateTransferredToLayout)
+                    {
+                        DisposeGeneratedLayout(bestLayout);
+                        bestLayout = BuildLayout(
+                            mapSize,
+                            cellPayload,
+                            playerCoord,
+                            enemyCoord,
+                            terrainProfileId
+                        );
+                        candidateTransferredToLayout = true;
+                    }
+                    GDictionary result = bestLayout;
+                    bestLayout = null;
+                    return result;
+                }
             }
-            if (quality.Passed)
+            finally
             {
-                return layout;
+                BattleState.DisposeRuntimeEdgeFacesPayload(edgeFaces);
+                if (!candidateTransferredToLayout)
+                    DisposeGeneratedCandidate(cells, cellPayload);
             }
         }
-        return bestLayout;
+        return bestLayout ?? new GDictionary();
+    }
+
+    private static void DisposeGeneratedCandidate(
+        Dictionary<Vector2I, BattleCellState> cells,
+        GDictionary cellPayload
+    )
+    {
+        if (cells != null)
+        {
+            var disposedCells = new HashSet<BattleCellState>();
+            foreach (BattleCellState cell in cells.Values)
+            {
+                if (cell != null && disposedCells.Add(cell))
+                    BattleCellState.DisposeRuntimeGraph(cell);
+            }
+            cells.Clear();
+        }
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            cellPayload,
+            "BattleTerrainGenerator.BuildCellPayload"
+        );
+        cellPayload?.Clear();
+    }
+
+    private static void DisposeGeneratedLayout(GDictionary layout)
+    {
+        if (layout == null || layout.Count == 0)
+            return;
+        if (TryGetDictionary(layout, "cell_columns", out GDictionary cellColumns))
+            BattleState.DisposeCellColumnsPayload(cellColumns);
+        if (TryGetDictionary(layout, "cells", out GDictionary cells))
+            BattleState.DisposeCellDictionaryPayload(cells);
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            layout,
+            "BattleTerrainGenerator.GenerateTyped"
+        );
+        layout.Clear();
+    }
+
+    private static bool TryGetDictionary(GDictionary source, string key, out GDictionary value)
+    {
+        value = null;
+        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
+            return false;
+        Variant rawValue = source[key];
+        if (rawValue.VariantType != Variant.Type.Dictionary)
+            return false;
+        value = rawValue.AsGodotDictionary();
+        return value != null;
     }
 
     private GDictionary GenerateNarrowAssault(
@@ -510,18 +638,25 @@ public class BattleTerrainGenerator : IDisposable
             mapSize,
             cellColumns
         );
-        return new GDictionary
+        try
         {
-            ["map_size"] = mapSize,
-            ["cells"] = cells,
-            ["cell_columns"] = cellColumns,
-            ["terrain_counts"] = CountTerrainCells(cells),
-            ["ally_spawns"] = CollectSpawnRing(cells, mapSize, playerCoord, edgeFaces),
-            ["enemy_spawns"] = CollectSpawnRing(cells, mapSize, enemyCoord, edgeFaces),
-            ["player_coord"] = playerCoord,
-            ["enemy_coord"] = enemyCoord,
-            ["terrain_profile_id"] = terrainProfileId,
-        };
+            return new GDictionary
+            {
+                ["map_size"] = mapSize,
+                ["cells"] = cells,
+                ["cell_columns"] = cellColumns,
+                ["terrain_counts"] = CountTerrainCells(cells),
+                ["ally_spawns"] = CollectSpawnRing(cells, mapSize, playerCoord, edgeFaces),
+                ["enemy_spawns"] = CollectSpawnRing(cells, mapSize, enemyCoord, edgeFaces),
+                ["player_coord"] = playerCoord,
+                ["enemy_coord"] = enemyCoord,
+                ["terrain_profile_id"] = terrainProfileId,
+            };
+        }
+        finally
+        {
+            BattleState.DisposeRuntimeEdgeFacesPayload(edgeFaces);
+        }
     }
 
     private GDictionary BuildCells(
@@ -708,11 +843,15 @@ public class BattleTerrainGenerator : IDisposable
 
     private GDictionary BuildEdgeFaces(GDictionary cells, Vector2I mapSize)
     {
-        return _edgeService.BuildEdgeFacesForCells(
-            cells,
-            mapSize,
-            BattleCellState.BuildColumnsFromSurfaceCells(cells)
-        );
+        GDictionary cellColumns = BattleCellState.BuildColumnsFromSurfaceCells(cells);
+        try
+        {
+            return _edgeService.BuildEdgeFacesForCells(cells, mapSize, cellColumns);
+        }
+        finally
+        {
+            BattleState.DisposeCellColumnsPayload(cellColumns);
+        }
     }
 
     private TerrainQualityResult ScoreCandidate(
@@ -917,14 +1056,7 @@ public class BattleTerrainGenerator : IDisposable
 
     private static BattleCellState CreateCell(Vector2I coord, int height, StringName terrain)
     {
-        var cell = new BattleCellState
-        {
-            prop_ids = new Godot.Collections.Array<StringName>(),
-            terrain_effect_ids = new Godot.Collections.Array<StringName>(),
-            timed_terrain_effects = new Godot.Collections.Array<BattleTerrainEffectState>(),
-            edge_feature_east = BattleEdgeFeatureState.MakeNone(),
-            edge_feature_south = BattleEdgeFeatureState.MakeNone(),
-        };
+        var cell = new BattleCellState();
         cell.SetCoord(coord);
         cell.SetBaseHeight(Mathf.Clamp(height, DefaultMinHeight, DefaultMaxHeight));
         cell.SetTerrain(terrain);
@@ -1031,7 +1163,8 @@ public class BattleTerrainGenerator : IDisposable
             }
             if (cells[new Vector2I(seamX, y)].AsGodotObject() is BattleCellState cell)
             {
-                cell.SetEdgeFeature(Vector2I.Right, BattleEdgeFeatureState.MakeWall());
+                BattleEdgeFeatureState wall = BattleEdgeFeatureState.MakeWall();
+                cell.SetEdgeFeature(Vector2I.Right, wall);
             }
         }
     }

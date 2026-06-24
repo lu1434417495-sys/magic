@@ -16,7 +16,6 @@ public partial class run_quest_content_validator_typed_regression : SceneTree
         TestOfficialQuestValidationTypedBoundary();
         TestMissingReferenceErrorsUseTypedBoundary();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Quest content validator typed regression"));
     }
 

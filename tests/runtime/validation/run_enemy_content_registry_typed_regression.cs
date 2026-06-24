@@ -21,7 +21,6 @@ public partial class run_enemy_content_registry_typed_regression : SceneTree
         TestOfficialTypedCatalogMatchesProjectedCatalog();
         TestRebuildClearsOfficialCatalogBeforeLoadingInvalidSeed();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Enemy content registry typed regression"));
     }
 

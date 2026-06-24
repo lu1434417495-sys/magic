@@ -41,6 +41,8 @@ internal sealed class BattleRepeatAttackResolver
 
     private WeakReference<BattleRuntimeModule> _runtimeRef;
     private WeakReference<BattleSkillMasteryService> _masteryRecorderRef;
+    private readonly GodotTransientResourceScope _transientScope =
+        new("BattleRepeatAttackResolver");
 
     private BattleRuntimeModule _runtime
     {
@@ -64,6 +66,7 @@ internal sealed class BattleRepeatAttackResolver
 
     internal void DisposeRuntime()
     {
+        _transientScope.Drain();
         _runtime = null;
         _masteryRecorder = null;
     }
@@ -283,7 +286,10 @@ internal sealed class BattleRepeatAttackResolver
 
     private GCombatEffectArray CollectRepeatAttackBaseEffects(GCombatEffectArray effect_defs)
     {
-        var stagedEffects = new GCombatEffectArray();
+        var stagedEffects = _transientScope.OwnWrapper(
+            new GCombatEffectArray(),
+            "repeat-attack-stage-effects"
+        );
         BattleSkillResolutionRules resolutionRules =
             (_runtime as BattleRuntimeModule)?._skill_resolution_rules;
         foreach (CombatEffectDef effectDef in effect_defs ?? new GCombatEffectArray())
@@ -913,7 +919,10 @@ internal sealed class BattleRepeatAttackResolver
             {
                 continue;
             }
-            CombatEffectDef stageEffect = effectDef.DuplicateForRuntime();
+            CombatEffectDef stageEffect = effectDef.DuplicateForRuntime(
+                _transientScope,
+                "BattleRepeatAttackResolver.BuildStageEffects"
+            );
             if (stageEffect == null)
             {
                 continue;

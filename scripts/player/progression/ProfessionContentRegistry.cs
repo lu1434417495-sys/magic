@@ -104,33 +104,40 @@ public partial class ProfessionContentRegistry : RefCounted
             return;
         }
 
-        using var directory = DirAccess.Open(directoryPath);
+        DirAccess directory = DirAccess.Open(directoryPath);
         if (directory == null)
         {
             _validation_errors.Add($"ProfessionContentRegistry could not open {directoryPath}.");
             return;
         }
 
-        directory.ListDirBegin();
-        while (true)
+        try
         {
-            string entryName = directory.GetNext();
-            if (string.IsNullOrEmpty(entryName))
-                break;
-            if (entryName == "." || entryName == "..")
-                continue;
-
-            string entryPath = $"{directoryPath}/{entryName}";
-            if (directory.CurrentIsDir())
+            directory.ListDirBegin();
+            while (true)
             {
-                ScanDirectory(entryPath);
-                continue;
+                string entryName = directory.GetNext();
+                if (string.IsNullOrEmpty(entryName))
+                    break;
+                if (entryName == "." || entryName == "..")
+                    continue;
+
+                string entryPath = $"{directoryPath}/{entryName}";
+                if (directory.CurrentIsDir())
+                {
+                    ScanDirectory(entryPath);
+                    continue;
+                }
+                if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
+                    continue;
+                RegisterProfessionResource(entryPath);
             }
-            if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
-                continue;
-            RegisterProfessionResource(entryPath);
+            directory.ListDirEnd();
         }
-        directory.ListDirEnd();
+        finally
+        {
+            GodotObjectLifecycle.DisposeGodotObject(directory);
+        }
     }
 
     private void RegisterProfessionResource(string resourcePath)
@@ -141,6 +148,7 @@ public partial class ProfessionContentRegistry : RefCounted
             _validation_errors.Add($"Failed to load profession config {resourcePath}.");
             return;
         }
+        GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
         if (resource is not ProfessionDef professionDef)
         {
             _validation_errors.Add($"Profession config {resourcePath} is not a ProfessionDef.");

@@ -29,7 +29,6 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Enemy template runtime start regression"));
     }
 
@@ -439,13 +438,16 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
 
     private static CombatEffectDef MakeIllusionSaveEffect()
     {
-        return new CombatEffectDef
-        {
-            save_dc_mode = BattleSaveContentRules.ToStringName(BattleSaveDcMode.Static),
-            save_dc = 12,
-            save_ability = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Willpower),
-            save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Illusion),
-        };
+        return TestResourceOwnership.Own(
+            new CombatEffectDef
+            {
+                save_dc_mode = BattleSaveContentRules.ToStringName(BattleSaveDcMode.Static),
+                save_dc = 12,
+                save_ability = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Willpower),
+                save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Illusion),
+            },
+            "EnemyTemplateRuntimeStart.MakeIllusionSaveEffect"
+        );
     }
 
     private static BattleUnitState GetUnit(BattleState state, StringName unitId)

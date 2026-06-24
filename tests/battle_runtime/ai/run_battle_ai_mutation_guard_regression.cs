@@ -409,7 +409,10 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
                     }
                 );
             }
-            brainMap[brain.brain_id] = brain;
+            brainMap[brain.brain_id] = TestResourceOwnership.Own(
+                brain,
+                "BattleAiMutationGuard.BuildFixture.brain"
+            );
         }
 
         var service = new BattleAiService();

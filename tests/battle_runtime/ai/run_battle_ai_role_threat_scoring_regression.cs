@@ -462,6 +462,7 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
         {
             if (skillDef != null && skillDef.skill_id != "")
             {
+                TestResourceOwnership.Own(skillDef, "BattleAiRoleThreatFixture.AddSkill");
                 _skillDefs[skillDef.skill_id] = skillDef;
             }
         }

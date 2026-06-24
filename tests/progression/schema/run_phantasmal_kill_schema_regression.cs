@@ -26,7 +26,6 @@ public partial class run_phantasmal_kill_schema_regression : SceneTree
             TestPhantasmalKillRequiresNineLevelDescriptionCoverage();
         }
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Phantasmal Kill schema regression"));
     }
 

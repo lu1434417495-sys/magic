@@ -22,7 +22,6 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Battle AI melee charge behavior regression"));
     }
 

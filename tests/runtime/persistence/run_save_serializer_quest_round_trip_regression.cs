@@ -17,7 +17,6 @@ public partial class run_save_serializer_quest_round_trip_regression : SceneTree
         TestSaveSerializerRoundTripPreservesPartyQuestSchema();
         TestDecodePayloadRejectsMissingPartySchemaFields();
         TestExtractSaveMetaRejectsMissingSlotFields();
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Save serializer quest round trip regression"));
     }
 

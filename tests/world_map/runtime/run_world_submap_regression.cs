@@ -21,7 +21,6 @@ public partial class run_world_submap_regression : SceneTree
         TestSubmapReturnBlocksWhileModalOpen();
         TestSubmapEntryReturnAndReload();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("World submap regression"));
     }
 

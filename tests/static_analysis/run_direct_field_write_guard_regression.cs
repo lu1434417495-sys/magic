@@ -144,7 +144,6 @@ public partial class run_direct_field_write_guard_regression : SceneTree
         TestScannerAllowsOwnerInternalWrites();
         TestRepositoryScripts();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         GC.SuppressFinalize(this);
         Quit(_test.Finish("Direct field write guard regression"));
     }

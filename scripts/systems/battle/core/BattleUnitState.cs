@@ -270,6 +270,7 @@ public partial class BattleUnitState : RefCounted
 
     public BattleUnitState()
     {
+        RuntimeStateLifecycle.MarkFinalizerless(this, GetType().Name);
         RefreshFootprint();
     }
 

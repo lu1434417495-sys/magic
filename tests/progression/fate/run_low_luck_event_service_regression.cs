@@ -20,7 +20,6 @@ public partial class run_low_luck_event_service_regression : SceneTree
         TestLampWithoutWitnessTriggersOncePerRun();
         TestBorrowedRoadTriggersOncePerRun();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         return _test.Finish("Low luck event service regression");
     }
 

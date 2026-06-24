@@ -28,7 +28,7 @@ internal enum BattleEdgeInteractionKind
 
 // 战斗边缘 authoring 特征数据。
 // 翻译自 battle_edge_feature_state.gd（2026-05-24，数据层 C# 迁移）。
-public partial class BattleEdgeFeatureState : RefCounted
+public class BattleEdgeFeatureState
 {
     private static readonly StringName _FEATURE_NONE = "none";
     private static readonly StringName _FEATURE_WALL = "wall";

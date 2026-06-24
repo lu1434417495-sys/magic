@@ -497,9 +497,12 @@ public partial class BattleState : RefCounted
     internal void ClearBattleTopology()
     {
         bool changed = _cellsByCoord.Count > 0 || _unitsById.Count > 0;
+        DisposeStoredCellColumns();
+        DisposeStoredRuntimeEdgeFaces();
         _cellsByCoord.Clear();
         _unitsById.Clear();
         _cellColumns.Clear();
+        _runtimeEdgeFaces.Clear();
         if (changed)
             MarkMovementGeometryChanged();
     }
@@ -617,22 +620,50 @@ public partial class BattleState : RefCounted
 
     internal Godot.Collections.Dictionary ProjectCellColumns() => _cellColumns.ProjectPayload();
 
-    internal void ReplaceCellColumnsPayload(Godot.Collections.Dictionary payload) =>
+    internal void ReplaceCellColumnsPayload(Godot.Collections.Dictionary payload)
+    {
+        DisposeStoredCellColumns();
         _cellColumns.ReplaceWithPayload(payload ?? new Godot.Collections.Dictionary());
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            payload,
+            "BattleState.ReplaceCellColumnsPayload"
+        );
+    }
 
-    internal void PutCellColumnPayload(Vector2I coord, Variant columnPayload) =>
+    internal void PutCellColumnPayload(Vector2I coord, Variant columnPayload)
+    {
+        DisposeStoredCellColumn(coord);
         _cellColumns.PutPayloadValue(coord, columnPayload);
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            columnPayload,
+            "BattleState.PutCellColumnPayload"
+        );
+    }
 
-    internal void RemoveCellColumnPayload(Vector2I coord) =>
+    internal void RemoveCellColumnPayload(Vector2I coord)
+    {
+        DisposeStoredCellColumn(coord);
         _cellColumns.RemovePayloadValue(coord);
+    }
 
     internal Godot.Collections.Dictionary ProjectRuntimeEdgeFaces() =>
         _runtimeEdgeFaces.ProjectPayload();
 
-    internal void ReplaceRuntimeEdgeFacesPayload(Godot.Collections.Dictionary payload) =>
+    internal void ReplaceRuntimeEdgeFacesPayload(Godot.Collections.Dictionary payload)
+    {
+        DisposeStoredRuntimeEdgeFaces();
         _runtimeEdgeFaces.ReplaceWithPayload(payload ?? new Godot.Collections.Dictionary());
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            payload,
+            "BattleState.ReplaceRuntimeEdgeFacesPayload"
+        );
+    }
 
-    internal void ClearRuntimeEdgeFaces() => _runtimeEdgeFaces.Clear();
+    internal void ClearRuntimeEdgeFaces()
+    {
+        DisposeStoredRuntimeEdgeFaces();
+        _runtimeEdgeFaces.Clear();
+    }
 
     internal Godot.Collections.Dictionary ProjectLayeredBarrierFields() =>
         _layeredBarrierStore.ProjectPayload();
@@ -727,6 +758,145 @@ public partial class BattleState : RefCounted
     {
         unitState = GetUnit(unitId);
         return unitState != null;
+    }
+
+    internal static void DisposeCellDictionaryPayload(Godot.Collections.Dictionary cells)
+    {
+        if (cells == null)
+            return;
+        var disposedCells = new HashSet<BattleCellState>();
+        foreach (Variant key in cells.Keys)
+        {
+            if (TryAsGodotObject(cells[key], out BattleCellState cell) && disposedCells.Add(cell))
+                BattleCellState.DisposeRuntimeGraph(cell);
+        }
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            cells,
+            "BattleState.SetCellsFromDictionary"
+        );
+        cells.Clear();
+    }
+
+    internal static void DisposeCellColumnsPayload(Godot.Collections.Dictionary columns)
+    {
+        if (columns == null)
+            return;
+        var disposedCells = new HashSet<BattleCellState>();
+        foreach (Variant key in columns.Keys)
+            DisposeCellColumnValue(columns[key], disposedCells);
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            columns,
+            "BattleState.SetCellsFromDictionary.columns"
+        );
+        columns.Clear();
+    }
+
+    internal static void DisposeRuntimeEdgeFacesPayload(Godot.Collections.Dictionary edgeFaces)
+    {
+        if (edgeFaces == null)
+            return;
+        var disposedFaces = new HashSet<BattleEdgeFaceState>();
+        foreach (Variant key in edgeFaces.Keys)
+        {
+            if (
+                TryAsGodotObject(edgeFaces[key], out BattleEdgeFaceState edgeFace)
+                && disposedFaces.Add(edgeFace)
+            )
+            {
+                BattleEdgeFaceState.DisposeRuntimeGraph(edgeFace);
+            }
+        }
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            edgeFaces,
+            "BattleState.SetRuntimeEdgeFacesFromDictionary"
+        );
+        edgeFaces.Clear();
+    }
+
+    private void DisposeStoredCellColumns()
+    {
+        if (_cellColumns.Count == 0)
+            return;
+        Godot.Collections.Dictionary payload = _cellColumns.ProjectPayload();
+        DisposeCellColumnsPayload(payload);
+    }
+
+    private void DisposeStoredCellColumn(Vector2I coord)
+    {
+        if (!_cellColumns.TryGetPayloadValue(Variant.From(coord), out Variant columnPayload))
+            return;
+        var disposedCells = new HashSet<BattleCellState>();
+        DisposeCellColumnValue(columnPayload, disposedCells);
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            columnPayload,
+            "BattleState.SetCellColumnPayload"
+        );
+    }
+
+    private void DisposeStoredRuntimeEdgeFaces()
+    {
+        if (_runtimeEdgeFaces.Count == 0)
+            return;
+        Godot.Collections.Dictionary payload = _runtimeEdgeFaces.ProjectPayload();
+        DisposeRuntimeEdgeFacesPayload(payload);
+    }
+
+    private static void DisposeCellColumnValue(
+        object rawColumn,
+        HashSet<BattleCellState> disposedCells
+    )
+    {
+        if (disposedCells == null)
+            return;
+        if (rawColumn is Variant columnVariant)
+        {
+            if (columnVariant.VariantType != Variant.Type.Array)
+                return;
+            DisposeCellColumnArray(columnVariant.AsGodotArray(), disposedCells);
+            return;
+        }
+        if (rawColumn is Godot.Collections.Array columnArray)
+        {
+            DisposeCellColumnArray(columnArray, disposedCells);
+        }
+    }
+
+    private static void DisposeCellColumnArray(
+        Godot.Collections.Array column,
+        HashSet<BattleCellState> disposedCells
+    )
+    {
+        if (column == null)
+            return;
+        foreach (object rawCell in column)
+        {
+            if (TryAsGodotObject(rawCell, out BattleCellState cell) && disposedCells.Add(cell))
+                BattleCellState.DisposeRuntimeGraph(cell);
+        }
+        column.Clear();
+        GodotWrapperOwnershipRegistry.SuppressWrapper(column);
+    }
+
+    private static bool TryAsGodotObject<T>(object rawValue, out T value)
+        where T : GodotObject
+    {
+        if (rawValue is Variant variantValue)
+        {
+            if (variantValue.VariantType == Variant.Type.Object)
+            {
+                value = variantValue.AsGodotObject() as T;
+                return value != null;
+            }
+            value = null;
+            return false;
+        }
+        if (rawValue is T typedValue)
+        {
+            value = typedValue;
+            return true;
+        }
+        value = null;
+        return false;
     }
 
     private void _trim_log_entries()

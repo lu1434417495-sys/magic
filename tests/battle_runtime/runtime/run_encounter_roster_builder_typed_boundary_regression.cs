@@ -17,7 +17,6 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
         TestTypedEnemyUnitBuildMatchesPublicBoundary();
         TestEncounterBuilderUnlocksCasterMpResources();
         TestTypedLootPreviewMatchesPublicBoundary();
-        GodotSharpCleanup.CollectPendingFinalizers();
         Quit(_test.Finish("Encounter roster builder typed boundary regression"));
     }
 

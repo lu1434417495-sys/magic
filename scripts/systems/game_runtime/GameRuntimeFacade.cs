@@ -383,6 +383,8 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
         _party_item_use_service?.Dispose();
         _party_equipment_service?.Dispose();
         _encounter_roster_builder?.Dispose();
+        _equipment_trait_roll_service?.Dispose();
+        _equipment_drop_service?.Dispose();
 
         _game_session = null;
         _game_root = null;
@@ -394,7 +396,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
         _pending_battle_generation_request.Clear();
         _wild_encounter_roster_defs.Clear();
         _party_state = null;
-        _battle_state = null;
+        ClearRuntimeBattleStateReference();
         _pending_promotion_prompt.Clear();
         _pending_world_promotion_prompt.Clear();
         _active_character_info_context.Clear();
@@ -1054,7 +1056,9 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
     )
     {
         errorCode = "";
-        if (payloadName != "hp_mirror_self")
+        bool ownerTurnTemplate = payloadName == "owner_turn_mirror_self";
+        bool hpTemplate = payloadName == "hp_mirror_self";
+        if (!hpTemplate && !ownerTurnTemplate)
         {
             errorCode = "unknown_setup_payload";
             return null;
@@ -1073,8 +1077,8 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
 
         GDictionary payload = new()
         {
-            ["setup_id"] = "hp_mirror_self",
-            ["display_name"] = "濒死镜影",
+            ["setup_id"] = payloadName.ToString(),
+            ["display_name"] = ownerTurnTemplate ? "起手镜影" : "濒死镜影",
             ["enabled"] = true,
             ["charged"] = false,
             ["source_skill_id"] = "mage_chain_contingency",
@@ -1082,14 +1086,21 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
             ["matrix_load"] = 3,
             ["reserved_mp_max"] = 0,
             ["material_costs"] = new GArray(),
-            ["trigger"] = new GDictionary
-            {
-                ["type"] = "hp_below_percent",
-                ["subject"] = "owner",
-                ["percent"] = 30,
-                ["crossing_only"] = true,
-                ["timing"] = "after_hp_changed",
-            },
+            ["trigger"] = ownerTurnTemplate
+                ? new GDictionary
+                {
+                    ["type"] = "owner_turn_started",
+                    ["subject"] = "owner",
+                    ["timing"] = "owner_turn_started",
+                }
+                : new GDictionary
+                {
+                    ["type"] = "hp_below_percent",
+                    ["subject"] = "owner",
+                    ["percent"] = 30,
+                    ["crossing_only"] = true,
+                    ["timing"] = "after_hp_changed",
+                },
             ["release_mode"] = "burst_release",
             ["stored_spells"] = new GArray
             {
@@ -1110,8 +1121,14 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
         return setup;
     }
 
-    private static StringName ResolveContingencyTemplateSetupId(StringName payloadName) =>
-        payloadName == "hp_mirror_self" ? new StringName("hp_mirror_self") : new StringName("");
+    private static StringName ResolveContingencyTemplateSetupId(StringName payloadName)
+    {
+        if (payloadName == "hp_mirror_self")
+            return new StringName("hp_mirror_self");
+        if (payloadName == "owner_turn_mirror_self")
+            return new StringName("owner_turn_mirror_self");
+        return new StringName("");
+    }
 
     private static bool TryGetLearnedSkillLevel(
         UnitProgress progress,
@@ -1332,8 +1349,22 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
 
     internal void SetRuntimeBattleState(BattleState state)
     {
+        if (!ReferenceEquals(_battle_state, state))
+            RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+                _battle_state,
+                "GameRuntimeFacade.SetRuntimeBattleState.replace"
+            );
         _battle_state = state;
         _battle_auto_tick_remainder_msec = 0;
+    }
+
+    private void ClearRuntimeBattleStateReference()
+    {
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            _battle_state,
+            "GameRuntimeFacade.ClearRuntimeBattleStateReference"
+        );
+        _battle_state = null;
     }
 
     internal void SetRuntimeBattleSelectedCoord(Vector2I coord) => _battle_selected_coord = coord;
@@ -1519,7 +1550,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
         _pending_battle_start_prompt.Clear();
         _pending_battle_generation_request.Clear();
         _active_modal_kind = RuntimeModalKind.None;
-        _battle_state = null;
+        ClearRuntimeBattleStateReference();
         _battle_auto_tick_remainder_msec = 0;
         _battle_selected_coord = new Vector2I(-1, -1);
         UpdateStatusInternal("遭遇战生成失败。");
@@ -3874,6 +3905,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
     {
         if (_game_session == null)
         {
+            _equipment_trait_roll_service?.Dispose();
             _equipment_trait_roll_service = null;
             _equipment_trait_roll_service_session = null;
             _equipment_trait_roll_service_catalog = null;
@@ -3890,6 +3922,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
             || _equipment_trait_roll_service_catalog_revision != catalogRevision
         )
         {
+            _equipment_trait_roll_service?.Dispose();
             IEnumerable<TraitDef> traitDefs =
                 contentCatalog != null
                     ? contentCatalog.GetTraitDefsTyped().Values
@@ -4039,7 +4072,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
         _pending_battle_generation_request.Clear();
         _pending_promotion_prompt.Clear();
         _battle_selection.ClearBattleSkillSelection(false);
-        _battle_state = null;
+        ClearRuntimeBattleStateReference();
         _battle_auto_tick_remainder_msec = 0;
         _battle_selected_coord = new Vector2I(-1, -1);
         _active_battle_encounter_id = "";

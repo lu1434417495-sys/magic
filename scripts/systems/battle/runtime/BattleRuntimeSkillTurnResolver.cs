@@ -86,6 +86,17 @@ internal sealed class BattleRuntimeSkillTurnResolver
     };
 
     private WeakReference<BattleRuntimeModule> _runtimeRef;
+    private readonly GodotTransientResourceScope _transientScope =
+        new("BattleRuntimeSkillTurnResolver");
+    private readonly RuntimeSkillDefFactory _runtimeSkillFactory;
+
+    internal BattleRuntimeSkillTurnResolver()
+    {
+        _runtimeSkillFactory = new RuntimeSkillDefFactory(
+            _transientScope,
+            "BattleRuntimeSkillTurnResolver"
+        );
+    }
 
     private BattleRuntimeModule _runtime
     {
@@ -100,6 +111,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
 
     internal void DisposeRuntime()
     {
+        _transientScope.Drain();
         _runtime = null;
     }
 
@@ -2018,21 +2030,23 @@ internal sealed class BattleRuntimeSkillTurnResolver
         StringName fallback_tag
     )
     {
-        CombatEffectDef effect = new CombatEffectDef();
-        effect.effect_type = StatusEffectType;
-        effect.save_dc = Math.Max(
-            status_entry?.self_save_dc ?? 16,
-            1
+        CombatEffectDef effect = _runtimeSkillFactory.NewEffect(
+            runtimeEffect =>
+            {
+                runtimeEffect.effect_type = StatusEffectType;
+                runtimeEffect.save_dc = Math.Max(status_entry?.self_save_dc ?? 16, 1);
+                runtimeEffect.SaveDcModeKind = BattleSaveDcMode.Static;
+                runtimeEffect.save_ability =
+                    status_entry != null && status_entry.self_save_ability != Empty
+                        ? status_entry.self_save_ability
+                        : fallback_ability;
+                runtimeEffect.save_tag =
+                    status_entry != null && status_entry.self_save_tag != Empty
+                        ? status_entry.self_save_tag
+                        : fallback_tag;
+            },
+            $"status_self_save:{status_entry?.status_id}"
         );
-        effect.SaveDcModeKind = BattleSaveDcMode.Static;
-        effect.save_ability =
-            status_entry != null && status_entry.self_save_ability != Empty
-                ? status_entry.self_save_ability
-                : fallback_ability;
-        effect.save_tag =
-            status_entry != null && status_entry.self_save_tag != Empty
-                ? status_entry.self_save_tag
-                : fallback_tag;
         BattleSaveContext context = BattleSaveContext.Empty;
         if (status_entry?.self_save_roll_override is int selfSaveRollOverride)
         {
