@@ -7,7 +7,7 @@ using Variant = Godot.Variant;
 // 战斗状态效果数据 bag。
 // 翻译自 battle_status_effect_state.gd（2026-05-24，数据层 C# 迁移）。
 // 契约：docs/design/battle_csharp_migration.md
-public partial class BattleStatusEffectState : RefCounted
+public class BattleStatusEffectState
 {
     private static readonly string[] RequiredSchemaFields =
     {

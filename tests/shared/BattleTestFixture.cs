@@ -281,8 +281,6 @@ internal sealed class BattleTestFixture : IDisposable
             return;
         }
 
-        foreach (BattleStatusEffectState statusEffect in unit.GetStatusEffectsTyped())
-            GodotSharpCleanup.DisposeGodotObject(statusEffect);
         DisposeEquipmentState(unit.equipment_view);
         GodotSharpCleanup.DisposeGodotObject(unit);
     }

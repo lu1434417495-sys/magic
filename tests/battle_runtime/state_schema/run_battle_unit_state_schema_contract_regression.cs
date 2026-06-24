@@ -477,7 +477,7 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
             source_unit_id = "malformed",
             power = 1,
             stacks = 1,
-        };
+        }.ToDictionary();
 
         _test.True(
             unit.GetStatusEffect("burning") == null,

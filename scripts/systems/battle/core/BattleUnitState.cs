@@ -1840,41 +1840,6 @@ public partial class BattleUnitState : RefCounted
         return value.VariantType.ToString() == "Bool" && value.AsBool();
     }
 
-    private static GDictionary StatusEffectsFromDictionary(GDictionary values)
-    {
-        GDictionary results = new();
-        if (values == null)
-            return null;
-        foreach (var statusKey in values.Keys)
-        {
-            if (
-                !IsStringNamePayloadType(statusKey.VariantType.ToString())
-                || IsEmpty(ToStringName(statusKey))
-            )
-            {
-                return null;
-            }
-            var effectValue = values[statusKey];
-            if (effectValue.VariantType.ToString() != "Dictionary")
-            {
-                return null;
-            }
-            BattleStatusEffectState effectState = BattleStatusEffectState.FromDictionary(
-                effectValue.AsGodotDictionary()
-            );
-            if (effectState == null || effectState.IsEmpty())
-            {
-                return null;
-            }
-            if (ToStringName(statusKey) != effectState.status_id)
-            {
-                return null;
-            }
-            results[effectState.status_id] = effectState;
-        }
-        return results;
-    }
-
     private static GVector2IArray BuildOccupiedCoords(Vector2I anchor_coord, Vector2I footprint)
     {
         GVector2IArray results = new();
@@ -2476,33 +2441,6 @@ public partial class BattleUnitState : RefCounted
         foreach (StringName value in source)
         {
             result.Add(value);
-        }
-        return result;
-    }
-
-    private static GDictionary DuplicateStatusEffects(GDictionary source)
-    {
-        GDictionary result = new();
-        if (source == null)
-        {
-            return result;
-        }
-        foreach (StringName normalizedStatusId in SortedStatusEffectIds(source))
-        {
-            Variant value = source[normalizedStatusId];
-            BattleStatusEffectState effectState = null;
-            if (value.VariantType.ToString() == "Object")
-            {
-                effectState = value.As<BattleStatusEffectState>();
-            }
-            else if (value.VariantType.ToString() == "Dictionary")
-            {
-                effectState = BattleStatusEffectState.FromDictionary(value.AsGodotDictionary());
-            }
-            if (effectState != null && !effectState.IsEmpty())
-            {
-                result[effectState.status_id] = effectState.DuplicateState();
-            }
         }
         return result;
     }
