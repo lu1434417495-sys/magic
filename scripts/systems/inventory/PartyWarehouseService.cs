@@ -338,6 +338,11 @@ public sealed class PartyWarehouseService : IDisposable
             true
         );
 
+    internal WarehouseBatchSwapResult CommitBatchSwapEntriesTyped(
+        IReadOnlyList<WarehouseBatchItemEntry> itemsToWithdraw,
+        IReadOnlyList<WarehouseBatchItemEntry> itemsToDeposit) =>
+        _run_batch_swap_transaction_typed(itemsToWithdraw, itemsToDeposit, true);
+
     internal WarehouseBatchSwapResult PreviewBatchQuantitySwapTyped(
         IReadOnlyList<WarehouseBatchQuantityEntry> itemsToWithdraw,
         IReadOnlyList<WarehouseBatchQuantityEntry> itemsToDeposit) =>
@@ -866,7 +871,7 @@ public sealed class PartyWarehouseService : IDisposable
         string key)
     {
         object value = ReadValue(data, key);
-        if (TryAsEquipmentInstance(value, out var equipmentInstance))
+        if (value is EquipmentInstanceState equipmentInstance)
             return equipmentInstance.DuplicateState();
         if (TryRawDictionary(value, out var equipmentData))
             return EquipmentInstanceState.FromDictionary(equipmentData);
@@ -1262,30 +1267,6 @@ public sealed class PartyWarehouseService : IDisposable
         {
             dynamic dynamicValue = rawValue;
             value = dynamicValue.As<ItemDef>();
-            return value != null;
-        }
-        catch
-        {
-        }
-
-        value = null;
-        return false;
-    }
-
-    private static bool TryAsEquipmentInstance(
-        object rawValue,
-        out EquipmentInstanceState value)
-    {
-        if (rawValue is EquipmentInstanceState equipmentInstance)
-        {
-            value = equipmentInstance;
-            return true;
-        }
-
-        try
-        {
-            dynamic dynamicValue = rawValue;
-            value = dynamicValue.As<EquipmentInstanceState>();
             return value != null;
         }
         catch

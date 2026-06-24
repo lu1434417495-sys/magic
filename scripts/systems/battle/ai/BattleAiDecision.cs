@@ -47,7 +47,6 @@ public sealed class BattleAiDecision
     {
         if (command == null)
             return;
-        DisposeGodotObject(command.equipment_instance, disposed);
         command.equipment_instance = null;
     }
 

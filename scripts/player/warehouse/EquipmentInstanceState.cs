@@ -1,7 +1,7 @@
 using Godot;
 using System;
 
-public partial class EquipmentInstanceState : RefCounted
+public class EquipmentInstanceState
 {
     public enum RarityTier
     {

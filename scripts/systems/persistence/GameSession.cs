@@ -419,7 +419,7 @@ public partial class GameSession : Node
         if (equipmentState == null)
             return;
         foreach (StringName entrySlotId in equipmentState.GetEntrySlotIdsTyped())
-            DisposeIfValid(equipmentState.GetEntry(entrySlotId)?.GetEquipmentInstance(), disposed);
+            equipmentState.ClearEntrySlot(entrySlotId);
     }
 
     private static void DisposeWarehouseStateGraph(
@@ -429,8 +429,6 @@ public partial class GameSession : Node
     {
         if (warehouseState == null)
             return;
-        foreach (EquipmentInstanceState instance in warehouseState.GetEquipmentInstancesTyped())
-            DisposeIfValid(instance, disposed);
         warehouseState.stacks.Clear();
         warehouseState.equipment_instances.Clear();
     }

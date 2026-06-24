@@ -1,13 +1,5 @@
 using System;
 
-public partial class EquipmentInstanceState
-{
-    public EquipmentInstanceState()
-    {
-        RuntimeStateLifecycle.MarkFinalizerless(this, GetType().Name);
-    }
-}
-
 public partial class PartyState
 {
     public PartyState()

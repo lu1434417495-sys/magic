@@ -20,7 +20,6 @@ public static class GodotSharpCleanup
     {
         if (command == null)
             return;
-        DisposeGodotObject(command.equipment_instance);
         command.equipment_instance = null;
     }
 

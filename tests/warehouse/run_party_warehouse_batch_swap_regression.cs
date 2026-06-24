@@ -15,7 +15,7 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
     private void Run()
     {
         TestCommitBatchSwapRollsBackOnCapacityFailure();
-        TestBatchSwapEntriesClonesEquipmentInstancePayload();
+        TestBatchSwapEntriesClonesTypedEquipmentInstance();
         TestBatchSwapEntriesAcceptsEquipmentInstanceDictionaryPayload();
         TestRemoveEquipmentInstanceTypedContracts();
 
@@ -43,7 +43,7 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
         _test.Eq(service.GetUsedSlots(), 1, "失败 commit 后占用格应回滚。");
     }
 
-    private void TestBatchSwapEntriesClonesEquipmentInstancePayload()
+    private void TestBatchSwapEntriesClonesTypedEquipmentInstance()
     {
         PartyState partyState = BuildPartyState(capacity: 2);
         PartyWarehouseService service = BuildService(partyState);
@@ -55,24 +55,24 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
 
         GDictionary result = PartyInventoryProjection.Project(
             service.CommitBatchSwapEntriesTyped(
-                new Godot.Collections.Array(),
-                new Godot.Collections.Array
+                new List<PartyWarehouseService.WarehouseBatchItemEntry>(),
+                new List<PartyWarehouseService.WarehouseBatchItemEntry>
                 {
-                    new GDictionary
+                    new()
                     {
-                        ["item_id"] = "iron_sword",
-                        ["instance_id"] = "eq_000001",
-                        ["equipment_instance"] = sourceInstance,
+                        ItemId = "iron_sword",
+                        InstanceId = "eq_000001",
+                        EquipmentInstance = sourceInstance,
                     },
                 }
             )
         );
 
-        _test.True(DictBool(result, "allowed", false), "装备实例 batch swap entry 应提交成功。");
+        _test.True(DictBool(result, "allowed", false), "typed 装备实例 batch swap entry 应提交成功。");
         _test.Eq(
             partyState.warehouse_state.GetNonEmptyEquipmentInstancesTyped().Count,
             1,
-            "装备实例 entry 应写入共享仓库。"
+            "typed 装备实例 entry 应写入共享仓库。"
         );
         EquipmentInstanceState storedInstance = partyState
             .warehouse_state

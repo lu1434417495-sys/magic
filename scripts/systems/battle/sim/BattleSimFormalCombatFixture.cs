@@ -501,18 +501,13 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         if (equipmentState == null)
             return;
         foreach (StringName entrySlotId in equipmentState.GetEntrySlotIdsTyped())
-        {
-            EquipmentInstanceState instance = equipmentState.GetEntry(entrySlotId)?.GetEquipmentInstance();
-            DisposeIfValid(instance);
-        }
+            equipmentState.ClearEntrySlot(entrySlotId);
     }
 
     private static void DisposeWarehouseState(WarehouseState warehouseState)
     {
         if (warehouseState == null)
             return;
-        foreach (EquipmentInstanceState instance in warehouseState.GetEquipmentInstancesTyped())
-            DisposeIfValid(instance);
         warehouseState.stacks.Clear();
         warehouseState.equipment_instances.Clear();
     }

@@ -297,8 +297,6 @@ internal sealed class BattleTestFixture : IDisposable
     {
         if (warehouseState == null)
             return;
-        foreach (EquipmentInstanceState instance in warehouseState.GetEquipmentInstancesTyped())
-            GodotSharpCleanup.DisposeGodotObject(instance);
         warehouseState.stacks.Clear();
         warehouseState.equipment_instances.Clear();
     }
@@ -307,7 +305,6 @@ internal sealed class BattleTestFixture : IDisposable
     {
         if (command == null)
             return;
-        GodotSharpCleanup.DisposeGodotObject(command.equipment_instance);
         command.equipment_instance = null;
     }
 
@@ -316,9 +313,7 @@ internal sealed class BattleTestFixture : IDisposable
         if (equipmentState == null)
             return;
         foreach (StringName entrySlotId in equipmentState.GetEntrySlotIdsTyped())
-            GodotSharpCleanup.DisposeGodotObject(
-                equipmentState.GetEntry(entrySlotId)?.GetEquipmentInstance()
-            );
+            equipmentState.ClearEntrySlot(entrySlotId);
     }
 
     public static void DisposeSkill(SkillDef skill)
