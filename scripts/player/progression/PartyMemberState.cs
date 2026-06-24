@@ -48,7 +48,7 @@ public partial class PartyMemberState : RefCounted
     public StringName portrait_id = "";
     public UnitProgress progression;
     public EquipmentState equipment_state = new EquipmentState();
-    public Godot.Collections.Array<TraitInstanceState> trait_instances = new();
+    public List<TraitInstanceState> trait_instances = new();
     public StringName control_mode = "manual";
     internal BattleUnitControlMode ControlModeKind
     {

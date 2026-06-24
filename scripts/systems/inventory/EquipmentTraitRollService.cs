@@ -69,7 +69,7 @@ public class EquipmentTraitRollService : IDisposable
         if (rollGroups.Count == 0)
             return;
 
-        Godot.Collections.Array<TraitInstanceState> nextTraits = new();
+        List<TraitInstanceState> nextTraits = new();
         foreach (TraitRollGroupDef group in rollGroups)
         {
             foreach (TraitRollGroupEntryDef entry in RollGroup(group))

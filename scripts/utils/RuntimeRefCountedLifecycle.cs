@@ -15,11 +15,3 @@ public partial class QuestState
         RuntimeStateLifecycle.MarkFinalizerless(this, GetType().Name);
     }
 }
-
-public partial class TraitInstanceState
-{
-    public TraitInstanceState()
-    {
-        RuntimeStateLifecycle.MarkFinalizerless(this, GetType().Name);
-    }
-}

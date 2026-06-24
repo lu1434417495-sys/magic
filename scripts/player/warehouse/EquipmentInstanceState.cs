@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Collections.Generic;
 
 public class EquipmentInstanceState
 {
@@ -26,7 +27,7 @@ public class EquipmentInstanceState
         (int)RarityTier.COMMON
     );
 
-    public Godot.Collections.Array<TraitInstanceState> trait_instances = new();
+    public List<TraitInstanceState> trait_instances = new();
 
     public static EquipmentInstanceState CreateInstance(StringName pItemId, StringName pInstanceId)
     {

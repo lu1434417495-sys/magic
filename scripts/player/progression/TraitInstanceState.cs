@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class TraitInstanceState : RefCounted
+public class TraitInstanceState
 {
     private const string SavePayloadLabel = "trait instance payload";
 

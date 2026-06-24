@@ -360,8 +360,6 @@ public partial class GameSession : Node
             return;
         DisposeUnitProgressGraph(memberState.progression, disposed);
         DisposeEquipmentStateGraph(memberState.equipment_state, disposed);
-        foreach (TraitInstanceState trait in memberState.trait_instances)
-            DisposeIfValid(trait, disposed);
         foreach (
             ContingencyMatrixSetupState setup in memberState.ReleaseContingencySetupsForDispose()
         )

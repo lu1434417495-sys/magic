@@ -1,9 +1,10 @@
 using Godot;
+using System.Collections.Generic;
 
 internal static class TraitInstanceCollection
 {
     internal static Godot.Collections.Array ToPayloadArray(
-        Godot.Collections.Array<TraitInstanceState> instances)
+        IEnumerable<TraitInstanceState> instances)
     {
         var payload = new Godot.Collections.Array();
         if (instances == null)
@@ -14,13 +15,13 @@ internal static class TraitInstanceCollection
         return payload;
     }
 
-    internal static Godot.Collections.Array<TraitInstanceState> FromPayloadArray(
+    internal static List<TraitInstanceState> FromPayloadArray(
         Variant payload,
         TraitSourceKind expectedKind)
     {
         if (payload.VariantType != Variant.Type.Array)
             return null;
-        var result = new Godot.Collections.Array<TraitInstanceState>();
+        List<TraitInstanceState> result = new();
         foreach (Variant entry in payload.AsGodotArray())
         {
             if (entry.VariantType != Variant.Type.Dictionary)
@@ -35,10 +36,10 @@ internal static class TraitInstanceCollection
         return result;
     }
 
-    internal static Godot.Collections.Array<TraitInstanceState> Duplicate(
-        Godot.Collections.Array<TraitInstanceState> instances)
+    internal static List<TraitInstanceState> Duplicate(
+        IEnumerable<TraitInstanceState> instances)
     {
-        var result = new Godot.Collections.Array<TraitInstanceState>();
+        List<TraitInstanceState> result = new();
         if (instances == null)
             return result;
         foreach (TraitInstanceState instance in instances)
