@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-internal partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRegistry
+internal class BattleSpecialProfileRegistry : IValidatableRegistry, System.IDisposable
 {
     private const string ManifestDirectory = "res://data/configs/skill_special_profiles/manifests";
 
@@ -12,28 +12,14 @@ internal partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRe
     private readonly BattleSpecialProfileManifestValidator _validator = new();
     private bool _disposed;
 
-    public BattleSpecialProfileRegistry()
-    {
-        System.GC.SuppressFinalize(this);
-    }
-
-    public new void Dispose()
+    public void Dispose()
     {
         if (_disposed)
         {
             return;
         }
-        Dispose(true);
         System.GC.SuppressFinalize(this);
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            DisposeManagedRegistry();
-        }
-        base.Dispose(disposing);
+        DisposeManagedRegistry();
     }
 
     private void DisposeManagedRegistry()
@@ -43,7 +29,6 @@ internal partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRe
             return;
         }
         _disposed = true;
-        System.GC.SuppressFinalize(this);
         _manifestsByProfileId.Clear();
         _profileIdBySkillId.Clear();
         _validationErrors.Clear();

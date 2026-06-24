@@ -287,7 +287,8 @@ public partial class GameSession : Node
         _recipe_content_registry = null;
         _enemy_content_registry?.Dispose();
         _enemy_content_registry = null;
-        DisposeOwned(_battle_special_profile_registry, registry => registry.Dispose());
+        _battle_special_profile_registry?.Dispose();
+        _battle_special_profile_registry = null;
     }
 
     public int EnsureWorldReady(string generation_config_path)
