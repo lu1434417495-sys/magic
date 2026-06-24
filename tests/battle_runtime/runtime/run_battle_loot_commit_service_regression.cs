@@ -606,7 +606,10 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
     {
         foreach (Variant encounterValue in DictArray(worldData, "encounter_anchors"))
         {
-            EncounterAnchorData encounterAnchor = encounterValue.AsGodotObject() as EncounterAnchorData;
+            EncounterAnchorData encounterAnchor =
+                encounterValue.VariantType == Variant.Type.Dictionary
+                    ? EncounterAnchorData.FromDictionary(encounterValue.AsGodotDictionary())
+                    : null;
             if (encounterAnchor == null)
                 continue;
             if (encounterAnchor.encounter_kind == encounterKind)

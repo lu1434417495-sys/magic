@@ -139,9 +139,7 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
             bool foundSouthMistHollow = false;
             foreach (Variant encounterValue in ArrayValue(worldData, "encounter_anchors"))
             {
-                EncounterAnchorData encounterAnchor = AsObject<EncounterAnchorData>(
-                    encounterValue
-                );
+                EncounterAnchorData encounterAnchor = ReadEncounterAnchor(encounterValue);
                 if (encounterAnchor == null)
                 {
                     continue;
@@ -322,7 +320,7 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         bool misplacedSouth = false;
         foreach (Variant encounterValue in ArrayValue(worldData, "encounter_anchors"))
         {
-            EncounterAnchorData encounterAnchor = AsObject<EncounterAnchorData>(encounterValue);
+            EncounterAnchorData encounterAnchor = ReadEncounterAnchor(encounterValue);
             if (encounterAnchor == null)
             {
                 continue;
@@ -387,7 +385,7 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         int singleEncounterCount = 0;
         foreach (Variant encounterValue in ArrayValue(worldData, "encounter_anchors"))
         {
-            EncounterAnchorData encounterAnchor = AsObject<EncounterAnchorData>(encounterValue);
+            EncounterAnchorData encounterAnchor = ReadEncounterAnchor(encounterValue);
             if (
                 encounterAnchor != null
                 && encounterAnchor.encounter_kind == EncounterAnchorData.ToStringName(EncounterAnchorKind.Single)
@@ -716,6 +714,13 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         where T : GodotObject
     {
         return value.VariantType == Variant.Type.Object ? value.AsGodotObject() as T : null;
+    }
+
+    private static EncounterAnchorData ReadEncounterAnchor(Variant value)
+    {
+        return value.VariantType == Variant.Type.Dictionary
+            ? EncounterAnchorData.FromDictionary(value.AsGodotDictionary())
+            : null;
     }
 
     private static string DictString(GDictionary dictionary, string key, string fallback)

@@ -1747,9 +1747,13 @@ public class BattleTerrainGenerator : IDisposable
         {
             return encounterAnchor;
         }
-        if (rawValue is Variant value && value.VariantType == Variant.Type.Object)
+        if (rawValue is GDictionary dictionary)
         {
-            return value.AsGodotObject() as EncounterAnchorData;
+            return EncounterAnchorData.FromDictionary(dictionary);
+        }
+        if (rawValue is Variant value && value.VariantType == Variant.Type.Dictionary)
+        {
+            return EncounterAnchorData.FromDictionary(value.AsGodotDictionary());
         }
         return null;
     }

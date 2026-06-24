@@ -8,8 +8,7 @@ internal enum EncounterAnchorKind
     Settlement,
 }
 
-[GlobalClass]
-public partial class EncounterAnchorData : RefCounted
+public class EncounterAnchorData
 {
     private static readonly StringName EncounterKindSingle = "single";
     private static readonly StringName EncounterKindSettlement = "settlement";

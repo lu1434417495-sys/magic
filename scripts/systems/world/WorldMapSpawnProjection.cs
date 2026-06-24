@@ -61,7 +61,7 @@ internal static class WorldMapSpawnProjection
             return result;
         foreach (EncounterAnchorData encounterAnchor in encounterAnchors)
             if (encounterAnchor != null)
-                result.Add(encounterAnchor);
+                result.Add(WorldMapDataProjection.Project(encounterAnchor));
         return result;
     }
 

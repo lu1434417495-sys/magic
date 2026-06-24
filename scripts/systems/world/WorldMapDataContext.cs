@@ -61,6 +61,12 @@ public sealed class WorldMapDataContext
     public int GetWorldStep() =>
         active_world_data.ContainsKey("world_step") ? active_world_data["world_step"].AsInt32() : 0;
 
+    internal void SetWorldStep(int worldStep)
+    {
+        _activeRuntimeData.SetWorldStep(worldStep);
+        active_world_data["world_step"] = worldStep;
+    }
+
     internal string GetPlayerStartSettlementName() =>
         GetString(active_world_data, "player_start_settlement_name");
 
@@ -222,9 +228,7 @@ public sealed class WorldMapDataContext
     internal List<EncounterAnchorData> GetActiveEncounterAnchors(bool includeCleared = true)
     {
         var anchors = new List<EncounterAnchorData>();
-        foreach (EncounterAnchorData encounterAnchor in Objects<EncounterAnchorData>(
-            GetArray(active_world_data, "encounter_anchors")
-        ))
+        foreach (EncounterAnchorData encounterAnchor in _activeRuntimeData.EncounterAnchors)
         {
             if (!includeCleared && encounterAnchor.is_cleared)
                 continue;
@@ -315,17 +319,14 @@ public sealed class WorldMapDataContext
 
     public void RemoveEncounterAnchorById(StringName encounterId)
     {
-        if (encounterId == "")
+        if (!_activeRuntimeData.RemoveEncounterAnchorById(encounterId))
             return;
-        var remaining = new Godot.Collections.Array();
-        foreach (EncounterAnchorData ea in GetActiveEncounterAnchors())
-        {
-            if (ea.entity_id != encounterId)
-                remaining.Add(ea);
-        }
-        active_world_data["encounter_anchors"] = remaining;
-        _activeRuntimeData =
-            WorldRuntimeData.FromDictionary(active_world_data) ?? WorldRuntimeData.Empty();
+        _sync_active_world_payload_from_typed();
+        _rebuild_world_coord_lookups();
+    }
+
+    internal void SyncActiveWorldPayloadFromTypedState()
+    {
         _sync_active_world_payload_from_typed();
         _rebuild_world_coord_lookups();
     }
@@ -712,16 +713,6 @@ public sealed class WorldMapDataContext
         return false;
     }
 
-    private static T AsObject<T>(object rawValue)
-        where T : RefCounted
-    {
-        if (rawValue is T typed)
-            return typed;
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Object)
-            return variant.AsGodotObject() as T;
-        return null;
-    }
-
     private static System.Collections.Generic.IEnumerable<GDictionary> Dictionaries(GArray values)
     {
         if (values == null)
@@ -729,19 +720,6 @@ public sealed class WorldMapDataContext
         foreach (object rawValue in values)
         {
             if (TryAsDictionary(rawValue, out var value))
-                yield return value;
-        }
-    }
-
-    private static System.Collections.Generic.IEnumerable<T> Objects<T>(GArray values)
-        where T : RefCounted
-    {
-        if (values == null)
-            yield break;
-        foreach (object rawValue in values)
-        {
-            T value = AsObject<T>(rawValue);
-            if (value != null)
                 yield return value;
         }
     }

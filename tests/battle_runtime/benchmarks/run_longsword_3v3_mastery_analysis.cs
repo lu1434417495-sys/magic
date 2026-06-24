@@ -215,7 +215,6 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
         {
             runtime.dispose();
             state?.Dispose();
-            encounterAnchor?.Dispose();
         }
     }
 

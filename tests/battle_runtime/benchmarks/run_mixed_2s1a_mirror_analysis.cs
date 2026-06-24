@@ -331,7 +331,6 @@ public partial class run_mixed_2s1a_mirror_analysis : SceneTree
         {
             runtime.dispose();
             state?.Dispose();
-            encounterAnchor?.Dispose();
         }
     }
 

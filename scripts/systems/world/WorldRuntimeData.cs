@@ -31,6 +31,7 @@ internal sealed class WorldRuntimeData
     public bool HasWorldNpcs { get; private set; }
 
     public IReadOnlyList<WorldMapSettlementRecordData> Settlements => _settlements;
+    public IReadOnlyList<EncounterAnchorData> EncounterAnchors => _encounterAnchors;
 
     private WorldRuntimeData() { }
 
@@ -150,6 +151,30 @@ internal sealed class WorldRuntimeData
         );
     }
 
+    internal bool RemoveEncounterAnchorById(StringName encounterId)
+    {
+        if (encounterId == "")
+        {
+            return false;
+        }
+        for (int index = 0; index < _encounterAnchors.Count; index++)
+        {
+            EncounterAnchorData encounterAnchor = _encounterAnchors[index];
+            if (encounterAnchor == null || encounterAnchor.entity_id != encounterId)
+            {
+                continue;
+            }
+            _encounterAnchors.RemoveAt(index);
+            return true;
+        }
+        return false;
+    }
+
+    internal void SetWorldStep(int worldStep)
+    {
+        WorldStep = worldStep;
+    }
+
     internal WorldMapSettlementStateData GetSettlementStateData(string settlementId)
     {
         if (string.IsNullOrEmpty(settlementId))
@@ -205,7 +230,7 @@ internal sealed class WorldRuntimeData
         {
             if (encounterAnchor != null)
             {
-                result.Add(EncounterAnchorData.FromDictionary(WorldMapDataProjection.Project(encounterAnchor)));
+                result.Add(WorldMapDataProjection.Project(encounterAnchor));
             }
         }
         return result;
@@ -302,22 +327,14 @@ internal sealed class WorldRuntimeData
     {
         foreach (Variant value in values)
         {
-            EncounterAnchorData encounterAnchor = null;
-            if (value.VariantType == Variant.Type.Object)
-            {
-                encounterAnchor = value.AsGodotObject() as EncounterAnchorData;
-            }
-            else if (value.VariantType == Variant.Type.Dictionary)
-            {
-                encounterAnchor = EncounterAnchorData.FromDictionary(value.AsGodotDictionary());
-            }
-            else
-            {
+            if (value.VariantType != Variant.Type.Dictionary)
                 return false;
-            }
+            EncounterAnchorData encounterAnchor = EncounterAnchorData.FromDictionary(
+                value.AsGodotDictionary()
+            );
             if (encounterAnchor != null)
             {
-                target.Add(EncounterAnchorData.FromDictionary(WorldMapDataProjection.Project(encounterAnchor)));
+                target.Add(encounterAnchor);
             }
         }
         return true;

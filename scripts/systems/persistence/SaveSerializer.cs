@@ -1041,16 +1041,11 @@ public sealed class SaveSerializer
             return result;
         foreach (var anchorValue in anchorValues)
         {
-            if (anchorValue.AsGodotObject() is EncounterAnchorData anchorObject)
-            {
-                result.Add(anchorObject);
-                continue;
-            }
             EncounterAnchorData parsedAnchor = anchorValue.VariantType == Variant.Type.Dictionary
                 ? EncounterAnchorData.FromDictionary(anchorValue.AsGodotDictionary())
                 : null;
             if (parsedAnchor != null)
-                result.Add(parsedAnchor);
+                result.Add(WorldMapDataProjection.Project(parsedAnchor));
         }
         return result;
     }
@@ -1066,10 +1061,6 @@ public sealed class SaveSerializer
             {
                 result.Add(itemValue.AsGodotDictionary().Duplicate(true));
                 continue;
-            }
-            if (itemValue.AsGodotObject() is EncounterAnchorData anchorData)
-            {
-                result.Add(WorldMapDataProjection.Project(anchorData).Duplicate(true));
             }
         }
         return result;

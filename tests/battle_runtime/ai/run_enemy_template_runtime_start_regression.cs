@@ -290,7 +290,6 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         }
         finally
         {
-            GodotSharpCleanup.DisposeGodotObject(anchor);
             if (enemyUnits != null)
             {
                 foreach (Variant enemyUnitValue in enemyUnits)
@@ -397,23 +396,16 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
     )
     {
         EncounterAnchorData anchor = BuildEncounterAnchor(encounterId, templateId, displayName);
-        try
-        {
-            return runtime.StartBattle(
-                anchor,
-                seed,
-                new GDictionary
-                {
-                    ["ally_member_ids"] = new GStringNameArray { "ally_a", "ally_b" },
-                    ["default_active_skill_ids"] = new GStringNameArray { "warrior_heavy_strike" },
-                    ["validate_spawn_reachability"] = false,
-                }
-            );
-        }
-        finally
-        {
-            GodotSharpCleanup.DisposeGodotObject(anchor);
-        }
+        return runtime.StartBattle(
+            anchor,
+            seed,
+            new GDictionary
+            {
+                ["ally_member_ids"] = new GStringNameArray { "ally_a", "ally_b" },
+                ["default_active_skill_ids"] = new GStringNameArray { "warrior_heavy_strike" },
+                ["validate_spawn_reachability"] = false,
+            }
+        );
     }
 
     private static EncounterAnchorData BuildEncounterAnchor(

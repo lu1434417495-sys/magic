@@ -3145,14 +3145,16 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
         );
         if (advanceResult.IsValid)
         {
-            _world_map_data_context.active_world_data["world_step"] = advanceResult.new_step;
+            _world_map_data_context.SetWorldStep(advanceResult.new_step);
         }
-        _wild_encounter_growth_system.ApplyStepAdvance(
+        bool encounterGrowthChanged = _wild_encounter_growth_system.ApplyStepAdvance(
             _world_map_data_context.GetActiveEncounterAnchors(),
             advanceResult.old_step,
             advanceResult.new_step,
             _wild_encounter_roster_defs
         );
+        if (encounterGrowthChanged)
+            _world_map_data_context.SyncActiveWorldPayloadFromTypedState();
         int daysElapsed = advanceResult.days_elapsed;
         if (daysElapsed > 0 && _character_management != null)
         {
@@ -3176,11 +3178,12 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
             return;
         if (encounterAnchor.encounter_kind == EncounterKindSettlement)
         {
-            _wild_encounter_growth_system.ApplyBattleVictory(
+            if (_wild_encounter_growth_system.ApplyBattleVictory(
                 encounterAnchor,
                 _world_map_data_context.GetWorldStep(),
                 _wild_encounter_roster_defs
-            );
+            ))
+                _world_map_data_context.SyncActiveWorldPayloadFromTypedState();
             return;
         }
         _remove_active_battle_encounter_anchor();

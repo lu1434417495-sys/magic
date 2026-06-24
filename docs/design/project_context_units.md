@@ -143,7 +143,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/world/WildEncounterGrowthSystem.cs`
   - `scripts/utils/WorldEventConfig.cs`
   - `scripts/utils/MountedSubmapConfig.cs`
-- 负责：世界生成、据点注入、挂载子地图事件、遭遇锚点和世界初始状态。
+- 负责：世界生成、据点注入、挂载子地图事件、遭遇锚点和世界初始状态；`EncounterAnchorData` 是 plain C# world runtime DTO，由 `WorldRuntimeData` typed owner 持有，`encounter_anchors` public/save 边界只投影 dictionary payload，不要恢复 `RefCounted` / `GlobalClass` 或把 live anchor object 放进 Godot array。
 - 适合：世界生成规则、起始遭遇、据点生成、submap 入口。
 - 邻接单元：CU-02、CU-03、CU-05、CU-06、CU-20。
 

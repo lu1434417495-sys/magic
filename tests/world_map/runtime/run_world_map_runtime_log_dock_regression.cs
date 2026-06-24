@@ -180,11 +180,18 @@ public partial class run_world_map_runtime_log_dock_regression : SceneTree
             return null;
         foreach (Variant value in worldData["encounter_anchors"].AsGodotArray())
         {
-            EncounterAnchorData anchor = value.As<EncounterAnchorData>();
+            EncounterAnchorData anchor = ReadEncounterAnchor(value);
             if (anchor != null && anchor.encounter_kind == kind)
                 return anchor;
         }
         return null;
+    }
+
+    private static EncounterAnchorData ReadEncounterAnchor(Variant value)
+    {
+        return value.VariantType == Variant.Type.Dictionary
+            ? EncounterAnchorData.FromDictionary(value.AsGodotDictionary())
+            : null;
     }
 
     private static bool IsVector2Close(Vector2 actual, Vector2 expected, float tolerance)

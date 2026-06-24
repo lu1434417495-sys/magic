@@ -427,7 +427,6 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
                 aiProfiler.EndRun(aiProfileRecorder, 0);
             runtime.dispose();
             state?.Dispose();
-            encounterAnchor?.Dispose();
         }
     }
 

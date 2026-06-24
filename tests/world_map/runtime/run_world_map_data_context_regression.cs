@@ -109,17 +109,17 @@ public partial class run_world_map_data_context_regression : SceneTree
     {
         WorldMapDataContext context = new();
         WorldMapGridSystem grid = new();
-        using EncounterAnchorData farAnchor = BuildEncounterAnchor("far_anchor", "Far Anchor", new Vector2I(3, 0));
-        using EncounterAnchorData nearAnchor = BuildEncounterAnchor("near_anchor", "Near Anchor", new Vector2I(1, 0));
-        using EncounterAnchorData clearedAnchor = BuildEncounterAnchor("cleared_anchor", "Cleared Anchor", new Vector2I(2, 0), true);
+        EncounterAnchorData farAnchor = BuildEncounterAnchor("far_anchor", "Far Anchor", new Vector2I(3, 0));
+        EncounterAnchorData nearAnchor = BuildEncounterAnchor("near_anchor", "Near Anchor", new Vector2I(1, 0));
+        EncounterAnchorData clearedAnchor = BuildEncounterAnchor("cleared_anchor", "Cleared Anchor", new Vector2I(2, 0), true);
         try
         {
             GDictionary rootWorldData = BuildRootWorldData();
             rootWorldData["encounter_anchors"] = new GArray
             {
-                farAnchor,
-                nearAnchor,
-                clearedAnchor,
+                WorldMapDataProjection.Project(farAnchor),
+                WorldMapDataProjection.Project(nearAnchor),
+                WorldMapDataProjection.Project(clearedAnchor),
             };
             context.BindRootWorldData(rootWorldData);
             context.SyncActiveWorldContext(BuildConfig(), grid, Vector2I.Zero, Vector2I.Zero);
@@ -146,6 +146,19 @@ public partial class run_world_map_data_context_regression : SceneTree
                 "Removing an encounter anchor should refresh the typed coord index."
             );
             _test.Eq(context.GetActiveEncounterAnchors().Count, 2, "Removed encounter anchor should leave active world data.");
+
+            EncounterAnchorData far = context.GetEncounterAnchorById("far_anchor");
+            far.growth_stage = 4;
+            context.SyncActiveWorldPayloadFromTypedState();
+            GDictionary projectedFar = FindEncounterAnchorPayload(
+                context.active_world_data["encounter_anchors"].AsGodotArray(),
+                "far_anchor"
+            );
+            _test.Eq(
+                DictInt(projectedFar, "growth_stage", -1),
+                4,
+                "Mutating typed encounter anchor state should sync back to public world_data payload."
+            );
         }
         finally
         {
@@ -573,4 +586,28 @@ public partial class run_world_map_data_context_regression : SceneTree
             growth_stage = isCleared ? 1 : 0,
             suppressed_until_step = 0,
         };
+
+    private static int DictInt(GDictionary dictionary, string key, int fallback)
+    {
+        return dictionary.ContainsKey(key) && dictionary[key].VariantType == Variant.Type.Int
+            ? dictionary[key].AsInt32()
+            : fallback;
+    }
+
+    private static GDictionary FindEncounterAnchorPayload(GArray values, string entityId)
+    {
+        foreach (Variant value in values)
+        {
+            if (value.VariantType != Variant.Type.Dictionary)
+                continue;
+            GDictionary payload = value.AsGodotDictionary();
+            if (
+                payload.ContainsKey("entity_id")
+                && payload["entity_id"].VariantType == Variant.Type.String
+                && payload["entity_id"].AsString() == entityId
+            )
+                return payload;
+        }
+        return new GDictionary();
+    }
 }

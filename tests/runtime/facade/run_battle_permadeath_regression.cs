@@ -243,7 +243,7 @@ public partial class run_battle_permadeath_regression : SceneTree
             battleState.ally_unit_ids.Add(allyUnit.unit_id);
             battleState.SetUnit(allyUnit);
         }
-        using EncounterAnchorData encounterAnchor = new()
+        EncounterAnchorData encounterAnchor = new()
         {
             entity_id = "test_encounter",
             display_name = "真实死亡测试",

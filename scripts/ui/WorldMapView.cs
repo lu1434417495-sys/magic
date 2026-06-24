@@ -346,7 +346,9 @@ public partial class WorldMapView : Control
         foreach (var encounterValue in DictArray(_worldData, "encounter_anchors"))
         {
             EncounterAnchorData encounterAnchor =
-                encounterValue.AsGodotObject() as EncounterAnchorData;
+                encounterValue.VariantType == Variant.Type.Dictionary
+                    ? EncounterAnchorData.FromDictionary(encounterValue.AsGodotDictionary())
+                    : null;
             if (encounterAnchor == null)
                 continue;
             Vector2I coord = encounterAnchor.world_coord;

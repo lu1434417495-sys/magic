@@ -1571,16 +1571,10 @@ public sealed class HeadlessGameTestSession : IDisposable
         var anchors = new List<EncounterAnchorData>(rawAnchors.Count);
         foreach (object encounterValue in rawAnchors)
         {
-            if (encounterValue is EncounterAnchorData typedAnchor)
-            {
-                anchors.Add(typedAnchor);
-                continue;
-            }
-
-            if (encounterValue is Variant variantValue)
+            if (encounterValue is Variant variantValue && variantValue.VariantType == Variant.Type.Dictionary)
             {
                 EncounterAnchorData variantAnchor =
-                    variantValue.AsGodotObject() as EncounterAnchorData;
+                    EncounterAnchorData.FromDictionary(variantValue.AsGodotDictionary());
                 if (variantAnchor != null)
                 {
                     anchors.Add(variantAnchor);

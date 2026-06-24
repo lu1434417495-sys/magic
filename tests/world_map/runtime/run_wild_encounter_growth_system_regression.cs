@@ -21,7 +21,7 @@ public partial class run_wild_encounter_growth_system_regression : SceneTree
     private void TestStepAdvanceUsesTypedRosterFields()
     {
         WildEncounterGrowthSystem growthSystem = new();
-        using EncounterAnchorData encounterAnchor = BuildSettlementAnchor(growthStage: 0);
+        EncounterAnchorData encounterAnchor = BuildSettlementAnchor(growthStage: 0);
         using WildEncounterRosterDef roster = BuildRoster();
         var encounterAnchors = new List<EncounterAnchorData> { encounterAnchor };
         var rosters = new Dictionary<StringName, WildEncounterRosterDef>
@@ -42,7 +42,7 @@ public partial class run_wild_encounter_growth_system_regression : SceneTree
     private void TestBattleVictoryUsesTypedRosterFields()
     {
         WildEncounterGrowthSystem growthSystem = new();
-        using EncounterAnchorData encounterAnchor = BuildSettlementAnchor(growthStage: 2);
+        EncounterAnchorData encounterAnchor = BuildSettlementAnchor(growthStage: 2);
         using WildEncounterRosterDef roster = BuildRoster();
         var rosters = new Dictionary<StringName, WildEncounterRosterDef>
         {
@@ -63,7 +63,7 @@ public partial class run_wild_encounter_growth_system_regression : SceneTree
     private void TestMissingRosterIsRejected()
     {
         WildEncounterGrowthSystem growthSystem = new();
-        using EncounterAnchorData encounterAnchor = BuildSettlementAnchor(growthStage: 0);
+        EncounterAnchorData encounterAnchor = BuildSettlementAnchor(growthStage: 0);
         var encounterAnchors = new List<EncounterAnchorData> { encounterAnchor };
         var rosters = new Dictionary<StringName, WildEncounterRosterDef>();
 
