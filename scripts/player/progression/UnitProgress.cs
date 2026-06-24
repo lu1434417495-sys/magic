@@ -75,7 +75,7 @@ public class UnitProgress
         get => BuildAchievementProgressDictionary();
         set => SetAchievementProgressStates(value);
     }
-    public Godot.Collections.Array<PendingProfessionChoice> pending_profession_choices
+    public Godot.Collections.Array pending_profession_choices
     {
         get => BuildPendingProfessionChoicesArray();
         set => SetPendingProfessionChoices(value);
@@ -358,7 +358,12 @@ public class UnitProgress
         foreach (var value in values)
         {
             if (value is PendingProfessionChoice choice)
+            {
                 AddPendingProfessionChoice(choice);
+                continue;
+            }
+            if (TryParsePendingProfessionChoicePayload(value, out PendingProfessionChoice payloadChoice))
+                AddPendingProfessionChoice(payloadChoice);
         }
     }
 
@@ -1025,13 +1030,25 @@ public class UnitProgress
         return result;
     }
 
-    private Godot.Collections.Array<PendingProfessionChoice> BuildPendingProfessionChoicesArray()
+    private Godot.Collections.Array BuildPendingProfessionChoicesArray()
     {
-        var result = new Godot.Collections.Array<PendingProfessionChoice>();
+        var result = new Godot.Collections.Array();
         foreach (PendingProfessionChoice choice in _pendingProfessionChoices)
             if (choice != null)
-                result.Add(choice.DuplicateState());
+                result.Add(choice.ToDictionary());
         return result;
+    }
+
+    private static bool TryParsePendingProfessionChoicePayload(
+        object value,
+        out PendingProfessionChoice choice
+    )
+    {
+        choice = null;
+        if (!TryAsDictionary(value, out Godot.Collections.Dictionary payload))
+            return false;
+        choice = PendingProfessionChoice.FromDictionary(payload);
+        return choice != null;
     }
 
     internal List<StringName> GetSortedSkillIdsTyped()

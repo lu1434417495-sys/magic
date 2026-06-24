@@ -8,14 +8,6 @@ public partial class PartyState
     }
 }
 
-public partial class PendingProfessionChoice
-{
-    public PendingProfessionChoice()
-    {
-        RuntimeStateLifecycle.MarkFinalizerless(this, GetType().Name);
-    }
-}
-
 public partial class QuestState
 {
     public QuestState()

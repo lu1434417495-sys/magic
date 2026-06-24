@@ -391,8 +391,7 @@ public partial class GameSession : Node
             return;
         foreach (UnitProfessionProgress professionProgress in progress.ProfessionsTyped.Values)
             DisposeProfessionProgressGraph(professionProgress, disposed);
-        foreach (PendingProfessionChoice choice in progress.PendingProfessionChoicesTyped)
-            DisposeIfValid(choice, disposed);
+        progress.SetPendingProfessionChoices(null);
     }
 
     private static void DisposeProfessionProgressGraph(

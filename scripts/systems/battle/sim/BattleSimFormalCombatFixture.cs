@@ -489,8 +489,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
             return;
         foreach (UnitProfessionProgress professionProgress in progress.ProfessionsTyped.Values)
             professionProgress.promotion_history.Clear();
-        foreach (PendingProfessionChoice choice in progress.PendingProfessionChoicesTyped)
-            DisposeIfValid(choice);
+        progress.SetPendingProfessionChoices(null);
     }
 
     private static void DisposeEquipmentState(EquipmentState equipmentState)

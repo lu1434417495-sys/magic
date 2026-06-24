@@ -4,8 +4,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-[GlobalClass]
-public partial class PendingProfessionChoice : RefCounted
+public class PendingProfessionChoice
 {
     private readonly List<StringName> _triggerSkillIds = new();
     private readonly List<StringName> _candidateProfessionIds = new();

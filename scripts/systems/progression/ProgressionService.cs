@@ -407,11 +407,12 @@ public sealed class ProgressionService
         return AttributeSnapshot.CalculateScoreModifier(constitutionValue);
     }
 
-    public Godot.Collections.Array<PendingProfessionChoice> GetProfessionUpgradeCandidates()
+    public IReadOnlyList<PendingProfessionChoice> GetProfessionUpgradeCandidates()
     {
-        var projected = new Godot.Collections.Array<PendingProfessionChoice>();
+        var projected = new List<PendingProfessionChoice>();
         foreach (PendingProfessionChoice choice in BuildPendingProfessionChoices())
-            projected.Add(choice?.DuplicateState());
+            if (choice != null)
+                projected.Add(choice.DuplicateState());
         return projected;
     }
 

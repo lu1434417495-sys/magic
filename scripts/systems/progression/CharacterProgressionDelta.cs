@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
+using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class CharacterProgressionDelta : RefCounted
@@ -110,6 +111,11 @@ public partial class CharacterProgressionDelta : RefCounted
             if (value is PendingProfessionChoice choice)
             {
                 AddPendingProfessionChoice(choice);
+                continue;
+            }
+            if (TryParsePendingProfessionChoicePayload(value, out PendingProfessionChoice payloadChoice))
+            {
+                AddPendingProfessionChoice(payloadChoice);
             }
         }
     }
@@ -328,9 +334,28 @@ public partial class CharacterProgressionDelta : RefCounted
         var result = new GArray();
         foreach (PendingProfessionChoice choice in _pendingProfessionChoices)
         {
-            result.Add(choice?.DuplicateState());
+            result.Add(choice?.ToDictionary() ?? new GDictionary());
         }
         return result;
+    }
+
+    private static bool TryParsePendingProfessionChoicePayload(
+        object value,
+        out PendingProfessionChoice choice
+    )
+    {
+        choice = null;
+        if (value is GDictionary dictionary)
+        {
+            choice = PendingProfessionChoice.FromDictionary(dictionary);
+            return choice != null;
+        }
+        if (value is Variant variant && variant.VariantType == Variant.Type.Dictionary)
+        {
+            choice = PendingProfessionChoice.FromDictionary(variant.AsGodotDictionary());
+            return choice != null;
+        }
+        return false;
     }
 
 }

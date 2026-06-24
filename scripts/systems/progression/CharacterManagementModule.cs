@@ -4519,14 +4519,6 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         return result;
     }
 
-    private static GArray ToUntyped(Godot.Collections.Array<PendingProfessionChoice> values)
-    {
-        var result = new GArray();
-        foreach (var value in values)
-            result.Add(value);
-        return result;
-    }
-
     private static GArray ToUntyped(Godot.Collections.Array<GDictionary> values)
     {
         var result = new GArray();
