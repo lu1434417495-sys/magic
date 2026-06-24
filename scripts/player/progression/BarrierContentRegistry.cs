@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class BarrierContentRegistry : RefCounted
+public class BarrierContentRegistry : System.IDisposable
 {
     private const string BARRIER_CONFIG_DIRECTORY = "res://data/configs/barriers";
 
@@ -14,27 +13,17 @@ public partial class BarrierContentRegistry : RefCounted
 
     public BarrierContentRegistry()
     {
-        System.GC.SuppressFinalize(this);
         Rebuild();
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         if (_disposed)
         {
             return;
         }
-        Dispose(true);
         System.GC.SuppressFinalize(this);
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            DisposeManagedRegistry();
-        }
-        base.Dispose(disposing);
+        DisposeManagedRegistry();
     }
 
     private void DisposeManagedRegistry()
@@ -44,7 +33,6 @@ public partial class BarrierContentRegistry : RefCounted
             return;
         }
         _disposed = true;
-        System.GC.SuppressFinalize(this);
         _profile_defs.Clear();
         _validation_errors.Clear();
     }
