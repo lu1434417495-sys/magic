@@ -1,8 +1,6 @@
-using System;
 using Godot;
 
-[GlobalClass]
-public partial class GodotSharpCleanup : RefCounted
+public static class GodotSharpCleanup
 {
     // Headless tests that exercise many C# Variant boundaries can leave
     // Godot.Variant finalizers queued until after Godot native shutdown.
