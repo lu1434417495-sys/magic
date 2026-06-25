@@ -102,7 +102,7 @@ public partial class run_battle_ai_skill_affordance_classifier_regression : Scen
     private static BattleAiSkillAffordanceRecord Classify(SkillDef skillDef)
     {
         var classifier = new BattleAiSkillAffordanceClassifier();
-        return classifier.ClassifySkill(skillDef, 1);
+        return classifier.ClassifySkill(SkillDefinition.FromResource(skillDef), 1);
     }
 
     private static SkillDef BuildSkill(

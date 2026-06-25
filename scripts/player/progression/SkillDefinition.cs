@@ -110,6 +110,7 @@ public sealed class SkillDefinition
     public string LevelDescriptionTemplate { get; }
     public IReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>> LevelDescriptionConfigs { get; }
     public CombatSkillDefinition CombatProfile { get; }
+    internal SkillTypeKind SkillTypeKind => SkillDef.ToSkillType(SkillType);
 
     public bool CanUseInCombat() => CombatProfile != null;
 
@@ -318,6 +319,8 @@ public sealed class CombatSkillDefinition
 {
     private static readonly IReadOnlyList<StringName> EmptyStringNames =
         System.Array.Empty<StringName>();
+    private static readonly IReadOnlyList<CombatEffectDefinition> EmptyEffectDefinitions =
+        System.Array.Empty<CombatEffectDefinition>();
     private static readonly IReadOnlyList<CombatCastVariantDefinition> EmptyCastVariants =
         System.Array.Empty<CombatCastVariantDefinition>();
     private static readonly IReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>> EmptyLevelOverrides =
@@ -366,6 +369,8 @@ public sealed class CombatSkillDefinition
         bool allowRepeatTarget,
         int maxHitsPerTarget,
         StringName selectionOrderMode,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        IReadOnlyList<CombatEffectDefinition> passiveEffectDefinitions,
         IReadOnlyList<CombatCastVariantDefinition> castVariants,
         IReadOnlyList<StringName> requiredWeaponFamilies,
         IReadOnlyList<StringName> excludedWeaponFamilies,
@@ -415,6 +420,8 @@ public sealed class CombatSkillDefinition
         AllowRepeatTarget = allowRepeatTarget;
         MaxHitsPerTarget = maxHitsPerTarget;
         SelectionOrderMode = selectionOrderMode;
+        EffectDefinitions = effectDefinitions ?? EmptyEffectDefinitions;
+        PassiveEffectDefinitions = passiveEffectDefinitions ?? EmptyEffectDefinitions;
         CastVariants = castVariants ?? EmptyCastVariants;
         RequiredWeaponFamilies = requiredWeaponFamilies ?? EmptyStringNames;
         ExcludedWeaponFamilies = excludedWeaponFamilies ?? EmptyStringNames;
@@ -464,6 +471,8 @@ public sealed class CombatSkillDefinition
     public bool AllowRepeatTarget { get; }
     public int MaxHitsPerTarget { get; }
     public StringName SelectionOrderMode { get; }
+    public IReadOnlyList<CombatEffectDefinition> EffectDefinitions { get; }
+    public IReadOnlyList<CombatEffectDefinition> PassiveEffectDefinitions { get; }
     public IReadOnlyList<CombatCastVariantDefinition> CastVariants { get; }
     public IReadOnlyList<StringName> RequiredWeaponFamilies { get; }
     public IReadOnlyList<StringName> ExcludedWeaponFamilies { get; }
@@ -471,6 +480,12 @@ public sealed class CombatSkillDefinition
     public bool RequiresEquippedShield { get; }
     public int MasteryLowHpBonusMultiplier { get; }
     public int MasteryLowHpThresholdPercent { get; }
+    internal BattleTargetMode TargetModeKind => BattleTypedNames.ToTargetMode(TargetMode);
+    internal BattleTargetFilter TargetFilterKind => BattleTypedNames.ToTargetFilter(TargetTeamFilter);
+    internal BattleTargetSelectionMode TargetSelectionModeKind =>
+        BattleTypedNames.ToTargetSelectionMode(TargetSelectionMode);
+    internal BattleTargetSelectionOrderMode SelectionOrderModeKind =>
+        BattleTypedNames.ToTargetSelectionOrderMode(SelectionOrderMode);
 
     public CombatSkillResourceCosts GetEffectiveResourceCostValues(int skillLevel)
     {
@@ -574,6 +589,8 @@ public sealed class CombatSkillDefinition
             source.allow_repeat_target,
             source.max_hits_per_target,
             source.selection_order_mode,
+            ProjectEffectDefinitions(source.effect_defs),
+            ProjectEffectDefinitions(source.passive_effect_defs),
             ProjectCastVariants(source.cast_variants),
             CopyStringNameArray(source.required_weapon_families),
             CopyStringNameArray(source.excluded_weapon_families),
@@ -745,6 +762,24 @@ public sealed class CombatSkillDefinition
             ? new ReadOnlyCollection<CombatCastVariantDefinition>(result)
             : EmptyCastVariants;
     }
+
+    private static IReadOnlyList<CombatEffectDefinition> ProjectEffectDefinitions(
+        Godot.Collections.Array<CombatEffectDef> values
+    )
+    {
+        if (values == null || values.Count == 0)
+            return EmptyEffectDefinitions;
+        var result = new List<CombatEffectDefinition>(values.Count);
+        foreach (CombatEffectDef effect in values)
+        {
+            CombatEffectDefinition definition = CombatEffectDefinition.FromResource(effect);
+            if (definition != null)
+                result.Add(definition);
+        }
+        return result.Count > 0
+            ? new ReadOnlyCollection<CombatEffectDefinition>(result)
+            : EmptyEffectDefinitions;
+    }
 }
 
 public sealed class CombatCastVariantDefinition
@@ -758,6 +793,7 @@ public sealed class CombatCastVariantDefinition
         StringName footprintPattern,
         int requiredCoordCount,
         IReadOnlyList<StringName> allowedBaseTerrains,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         IReadOnlyDictionary<string, Variant> parameters
     )
     {
@@ -769,6 +805,8 @@ public sealed class CombatCastVariantDefinition
         FootprintPattern = footprintPattern;
         RequiredCoordCount = requiredCoordCount;
         AllowedBaseTerrains = allowedBaseTerrains ?? System.Array.Empty<StringName>();
+        EffectDefinitions =
+            effectDefinitions ?? System.Array.Empty<CombatEffectDefinition>();
         Parameters =
             parameters
             ?? new ReadOnlyDictionary<string, Variant>(new Dictionary<string, Variant>());
@@ -782,6 +820,7 @@ public sealed class CombatCastVariantDefinition
     public StringName FootprintPattern { get; }
     public int RequiredCoordCount { get; }
     public IReadOnlyList<StringName> AllowedBaseTerrains { get; }
+    public IReadOnlyList<CombatEffectDefinition> EffectDefinitions { get; }
     public IReadOnlyDictionary<string, Variant> Parameters { get; }
 
     internal static CombatCastVariantDefinition FromResource(CombatCastVariantDef source)
@@ -797,8 +836,27 @@ public sealed class CombatCastVariantDefinition
             source.footprint_pattern,
             source.required_coord_count,
             CopyStringNameArray(source.allowed_base_terrains),
+            CopyEffectDefinitions(source.effect_defs),
             CopyVariantDictionary(source.@params)
         );
+    }
+
+    private static IReadOnlyList<CombatEffectDefinition> CopyEffectDefinitions(
+        Godot.Collections.Array<CombatEffectDef> values
+    )
+    {
+        if (values == null || values.Count == 0)
+            return System.Array.Empty<CombatEffectDefinition>();
+        var result = new List<CombatEffectDefinition>(values.Count);
+        foreach (CombatEffectDef effect in values)
+        {
+            CombatEffectDefinition definition = CombatEffectDefinition.FromResource(effect);
+            if (definition != null)
+                result.Add(definition);
+        }
+        return result.Count > 0
+            ? new ReadOnlyCollection<CombatEffectDefinition>(result)
+            : System.Array.Empty<CombatEffectDefinition>();
     }
 
     private static IReadOnlyList<StringName> CopyStringNameArray(
@@ -832,5 +890,55 @@ public sealed class CombatCastVariantDefinition
                 result[key] = source[rawKey];
         }
         return new ReadOnlyDictionary<string, Variant>(result);
+    }
+}
+
+public sealed class CombatEffectDefinition
+{
+    public CombatEffectDefinition(
+        StringName effectType,
+        StringName effectTargetTeamFilter,
+        StringName statusId,
+        StringName saveFailureStatusId,
+        StringName terrainEffectId,
+        int heightDelta,
+        int minSkillLevel,
+        int maxSkillLevel
+    )
+    {
+        EffectType = effectType;
+        EffectTargetTeamFilter = effectTargetTeamFilter;
+        StatusId = statusId;
+        SaveFailureStatusId = saveFailureStatusId;
+        TerrainEffectId = terrainEffectId;
+        HeightDelta = heightDelta;
+        MinSkillLevel = minSkillLevel;
+        MaxSkillLevel = maxSkillLevel;
+    }
+
+    public StringName EffectType { get; }
+    public StringName EffectTargetTeamFilter { get; }
+    public StringName StatusId { get; }
+    public StringName SaveFailureStatusId { get; }
+    public StringName TerrainEffectId { get; }
+    public int HeightDelta { get; }
+    public int MinSkillLevel { get; }
+    public int MaxSkillLevel { get; }
+    internal BattleEffectKind EffectKind => BattleTypedNames.ToEffectKind(EffectType);
+
+    internal static CombatEffectDefinition FromResource(CombatEffectDef source)
+    {
+        return source == null
+            ? null
+            : new CombatEffectDefinition(
+                source.effect_type,
+                source.effect_target_team_filter,
+                source.status_id,
+                source.save_failure_status_id,
+                source.terrain_effect_id,
+                source.height_delta,
+                source.min_skill_level,
+                source.max_skill_level
+            );
     }
 }
