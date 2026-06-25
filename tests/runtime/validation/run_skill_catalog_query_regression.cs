@@ -211,9 +211,15 @@ public partial class run_skill_catalog_query_regression : SceneTree
             {
                 SkillEffectiveCombatProfile effectiveProfile =
                     skillCatalog.GetEffectiveCombatProfile(skillId, level);
+                SkillEffectiveCombatDefinition effectiveDefinition =
+                    skillCatalog.GetEffectiveCombatDefinition(skillId, level);
                 _test.True(
                     effectiveProfile != null,
                     $"{skillId}@L{level} 的聚合 effective profile 不应为 null。"
+                );
+                _test.True(
+                    effectiveDefinition != null,
+                    $"{skillId}@L{level} 的聚合 runtime effective definition 不应为 null。"
                 );
                 _test.True(
                     ReferenceEquals(
@@ -223,6 +229,13 @@ public partial class run_skill_catalog_query_regression : SceneTree
                     $"{skillId}@L{level} 的聚合 effective profile 应被缓存复用。"
                 );
                 _test.True(
+                    ReferenceEquals(
+                        effectiveDefinition,
+                        skillCatalog.GetEffectiveCombatDefinition(skillId, level)
+                    ),
+                    $"{skillId}@L{level} 的聚合 runtime effective definition 应被缓存复用。"
+                );
+                _test.True(
                     ReferenceEquals(effectiveProfile.SkillDef, skillDef),
                     $"{skillId}@L{level} 的 effective profile 应引用同一 SkillDef。"
                 );
@@ -230,15 +243,32 @@ public partial class run_skill_catalog_query_regression : SceneTree
                     ReferenceEquals(effectiveProfile.CombatProfile, profile),
                     $"{skillId}@L{level} 的 effective profile 应引用同一 CombatSkillDef。"
                 );
+                _test.True(
+                    ReferenceEquals(
+                        effectiveDefinition.SkillDefinition,
+                        skillCatalog.GetSkillDefinitionsTyped()[skillId]
+                    ),
+                    $"{skillId}@L{level} 的 runtime effective definition 应引用 catalog SkillDefinition。"
+                );
                 _test.Eq(
                     effectiveProfile.SkillLevel,
                     level,
                     $"{skillId}@L{level} 的 effective profile 应保留请求等级。"
                 );
+                _test.Eq(
+                    effectiveDefinition.SkillLevel,
+                    level,
+                    $"{skillId}@L{level} 的 runtime effective definition 应保留请求等级。"
+                );
                 AssertCostsEq(
                     effectiveProfile.ResourceCosts,
                     profile.GetEffectiveResourceCostValues(level),
                     $"{skillId}@L{level} 的聚合有效消耗应与 combat profile 对拍一致。"
+                );
+                AssertCostsEq(
+                    effectiveDefinition.ResourceCosts,
+                    profile.GetEffectiveResourceCostValues(level),
+                    $"{skillId}@L{level} 的 runtime 聚合有效消耗应与 combat profile 对拍一致。"
                 );
                 _test.Eq(
                     effectiveProfile.AttackRollBonus,
@@ -275,6 +305,11 @@ public partial class run_skill_catalog_query_regression : SceneTree
                     effectiveProfile.UnlockedCastVariants,
                     profile.GetUnlockedCastVariants(level),
                     $"{skillId}@L{level} 的已解锁施法变体应对拍一致。"
+                );
+                AssertRuntimeVariantsMatch(
+                    effectiveDefinition.UnlockedCastVariants,
+                    profile.GetUnlockedCastVariants(level),
+                    $"{skillId}@L{level} 的 runtime 已解锁施法变体应对拍一致。"
                 );
             }
         }
@@ -327,7 +362,13 @@ public partial class run_skill_catalog_query_regression : SceneTree
         );
         SkillEffectiveCombatProfile missingProfile =
             skillCatalog.GetEffectiveCombatProfile(missingId, 1);
+        SkillEffectiveCombatDefinition missingDefinition =
+            skillCatalog.GetEffectiveCombatDefinition(missingId, 1);
         _test.True(missingProfile != null, "不存在技能的聚合 effective profile 不应返回 null。");
+        _test.True(
+            missingDefinition != null,
+            "不存在技能的聚合 runtime effective definition 不应返回 null。"
+        );
         _test.True(
             ReferenceEquals(missingProfile, skillCatalog.GetEffectiveCombatProfile(missingId, 1)),
             "不存在技能的聚合 effective profile 也应按 key 缓存。"
@@ -336,10 +377,19 @@ public partial class run_skill_catalog_query_regression : SceneTree
             !missingProfile.HasCombatProfile,
             "不存在技能的聚合 effective profile 不应带 combat profile。"
         );
+        _test.True(
+            !missingDefinition.HasCombatProfile,
+            "不存在技能的聚合 runtime effective definition 不应带 combat profile。"
+        );
         AssertCostsEq(
             missingProfile.ResourceCosts,
             CombatSkillResourceCosts.Zero,
             "不存在技能的聚合 effective profile 消耗应为 Zero。"
+        );
+        AssertCostsEq(
+            missingDefinition.ResourceCosts,
+            CombatSkillResourceCosts.Zero,
+            "不存在技能的聚合 runtime effective definition 消耗应为 Zero。"
         );
     }
 
@@ -350,6 +400,8 @@ public partial class run_skill_catalog_query_regression : SceneTree
     {
         SkillEffectiveCombatProfile before =
             skillCatalog.GetEffectiveCombatProfile("basic_attack", 1);
+        SkillEffectiveCombatDefinition beforeDefinition =
+            skillCatalog.GetEffectiveCombatDefinition("basic_attack", 1);
         long beforeRevision = skillCatalog.GetRevision();
 
         contentCatalog.ClearSessionBinding();
@@ -360,13 +412,23 @@ public partial class run_skill_catalog_query_regression : SceneTree
         );
         SkillEffectiveCombatProfile after =
             skillCatalog.GetEffectiveCombatProfile("basic_attack", 1);
+        SkillEffectiveCombatDefinition afterDefinition =
+            skillCatalog.GetEffectiveCombatDefinition("basic_attack", 1);
         _test.True(
             !ReferenceEquals(before, after),
             "catalog revision 变化后 effective profile cache 应失效并重建。"
         );
         _test.True(
+            !ReferenceEquals(beforeDefinition, afterDefinition),
+            "catalog revision 变化后 runtime effective definition cache 应失效并重建。"
+        );
+        _test.True(
             !after.HasCombatProfile,
             "catalog clear 后 effective profile 不应返回旧 SkillDef/combat profile。"
+        );
+        _test.True(
+            !afterDefinition.HasCombatProfile,
+            "catalog clear 后 runtime effective definition 不应返回旧 SkillDefinition/combat profile。"
         );
         AssertCostsEq(
             after.ResourceCosts,

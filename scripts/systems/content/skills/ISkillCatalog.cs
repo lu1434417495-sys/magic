@@ -35,6 +35,12 @@ public interface ISkillCatalog
     /// </summary>
     SkillEffectiveCombatProfile GetEffectiveCombatProfile(StringName skillId, int skillLevel);
 
+    /// <summary>
+    /// 技能在指定等级下的 plain C# 有效战斗配置。结果按 catalog revision + skill id + level 缓存；
+    /// 技能不存在或无 combat profile 时返回安全默认快照。
+    /// </summary>
+    SkillEffectiveCombatDefinition GetEffectiveCombatDefinition(StringName skillId, int skillLevel);
+
     CombatSkillResourceCosts GetEffectiveResourceCostValues(StringName skillId, int skillLevel);
 
     int GetEffectiveAttackRollBonus(StringName skillId, int skillLevel);

@@ -45,7 +45,9 @@ public sealed class SkillCatalog : ISkillCatalog
     private readonly GameContentCatalog _contentCatalog;
     private readonly Dictionary<EffectiveCombatProfileCacheKey, SkillEffectiveCombatProfile> _effectiveCombatProfileCache =
         new();
-    private long _effectiveCombatProfileCacheRevision = long.MinValue;
+    private readonly Dictionary<EffectiveCombatProfileCacheKey, SkillEffectiveCombatDefinition> _effectiveCombatDefinitionCache =
+        new();
+    private long _effectiveCombatCacheRevision = long.MinValue;
 
     internal SkillCatalog(GameContentCatalog contentCatalog)
     {
@@ -86,7 +88,7 @@ public sealed class SkillCatalog : ISkillCatalog
         int skillLevel
     )
     {
-        EnsureEffectiveCombatProfileCacheRevision();
+        EnsureEffectiveCombatCacheRevision();
         var key = new EffectiveCombatProfileCacheKey(skillId, skillLevel);
         if (_effectiveCombatProfileCache.TryGetValue(key, out SkillEffectiveCombatProfile cached))
         {
@@ -98,37 +100,62 @@ public sealed class SkillCatalog : ISkillCatalog
         return resolved;
     }
 
+    public SkillEffectiveCombatDefinition GetEffectiveCombatDefinition(
+        StringName skillId,
+        int skillLevel
+    )
+    {
+        EnsureEffectiveCombatCacheRevision();
+        var key = new EffectiveCombatProfileCacheKey(skillId, skillLevel);
+        if (
+            _effectiveCombatDefinitionCache.TryGetValue(
+                key,
+                out SkillEffectiveCombatDefinition cached
+            )
+        )
+        {
+            return cached;
+        }
+
+        SkillEffectiveCombatDefinition resolved = BuildEffectiveCombatDefinition(
+            skillId,
+            skillLevel
+        );
+        _effectiveCombatDefinitionCache[key] = resolved;
+        return resolved;
+    }
+
     public CombatSkillResourceCosts GetEffectiveResourceCostValues(
         StringName skillId,
         int skillLevel
     )
     {
-        return GetEffectiveCombatProfile(skillId, skillLevel).ResourceCosts;
+        return GetEffectiveCombatDefinition(skillId, skillLevel).ResourceCosts;
     }
 
     public int GetEffectiveAttackRollBonus(StringName skillId, int skillLevel)
     {
-        return GetEffectiveCombatProfile(skillId, skillLevel).AttackRollBonus;
+        return GetEffectiveCombatDefinition(skillId, skillLevel).AttackRollBonus;
     }
 
     public StringName GetEffectiveAreaPattern(StringName skillId, int skillLevel)
     {
-        return GetEffectiveCombatProfile(skillId, skillLevel).AreaPattern;
+        return GetEffectiveCombatDefinition(skillId, skillLevel).AreaPattern;
     }
 
     public int GetEffectiveAreaValue(StringName skillId, int skillLevel)
     {
-        return GetEffectiveCombatProfile(skillId, skillLevel).AreaValue;
+        return GetEffectiveCombatDefinition(skillId, skillLevel).AreaValue;
     }
 
     public int GetEffectiveRangeValue(StringName skillId, int skillLevel)
     {
-        return GetEffectiveCombatProfile(skillId, skillLevel).RangeValue;
+        return GetEffectiveCombatDefinition(skillId, skillLevel).RangeValue;
     }
 
     public int GetEffectiveMaxTargetCount(StringName skillId, int skillLevel)
     {
-        return GetEffectiveCombatProfile(skillId, skillLevel).MaxTargetCount;
+        return GetEffectiveCombatDefinition(skillId, skillLevel).MaxTargetCount;
     }
 
     public IReadOnlyList<CombatCastVariantDef> GetUnlockedCastVariants(
@@ -139,15 +166,16 @@ public sealed class SkillCatalog : ISkillCatalog
         return GetEffectiveCombatProfile(skillId, skillLevel).UnlockedCastVariants;
     }
 
-    private void EnsureEffectiveCombatProfileCacheRevision()
+    private void EnsureEffectiveCombatCacheRevision()
     {
         long currentRevision = GetRevision();
-        if (_effectiveCombatProfileCacheRevision == currentRevision)
+        if (_effectiveCombatCacheRevision == currentRevision)
         {
             return;
         }
         _effectiveCombatProfileCache.Clear();
-        _effectiveCombatProfileCacheRevision = currentRevision;
+        _effectiveCombatDefinitionCache.Clear();
+        _effectiveCombatCacheRevision = currentRevision;
     }
 
     private SkillEffectiveCombatProfile BuildEffectiveCombatProfile(
@@ -161,5 +189,18 @@ public sealed class SkillCatalog : ISkillCatalog
         }
 
         return SkillEffectiveCombatProfileResolver.BuildUncached(skillDef, skillLevel);
+    }
+
+    private SkillEffectiveCombatDefinition BuildEffectiveCombatDefinition(
+        StringName skillId,
+        int skillLevel
+    )
+    {
+        if (!TryGetSkillDefinition(skillId, out SkillDefinition skillDefinition))
+        {
+            return SkillEffectiveCombatDefinition.BuildMissing(skillLevel);
+        }
+
+        return SkillEffectiveCombatDefinition.BuildUncached(skillDefinition, skillLevel);
     }
 }
