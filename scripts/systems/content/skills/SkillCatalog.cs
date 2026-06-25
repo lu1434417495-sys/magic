@@ -37,6 +37,10 @@ public sealed class SkillCatalog : ISkillCatalog
 
     private static readonly IReadOnlyDictionary<StringName, SkillDef> EmptySkillDefs =
         new ReadOnlyDictionary<StringName, SkillDef>(new Dictionary<StringName, SkillDef>());
+    private static readonly IReadOnlyDictionary<StringName, SkillDefinition> EmptySkillDefinitions =
+        new ReadOnlyDictionary<StringName, SkillDefinition>(
+            new Dictionary<StringName, SkillDefinition>()
+        );
 
     private readonly GameContentCatalog _contentCatalog;
     private readonly Dictionary<EffectiveCombatProfileCacheKey, SkillEffectiveCombatProfile> _effectiveCombatProfileCache =
@@ -53,6 +57,9 @@ public sealed class SkillCatalog : ISkillCatalog
     public IReadOnlyDictionary<StringName, SkillDef> GetSkillDefsTyped() =>
         _contentCatalog?.GetSkillDefsTyped() ?? EmptySkillDefs;
 
+    public IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionsTyped() =>
+        _contentCatalog?.GetSkillDefinitionsTyped() ?? EmptySkillDefinitions;
+
     public bool HasSkill(StringName skillId) =>
         skillId != "" && GetSkillDefsTyped().ContainsKey(skillId);
 
@@ -60,6 +67,13 @@ public sealed class SkillCatalog : ISkillCatalog
     {
         skillDef = null;
         return skillId != "" && GetSkillDefsTyped().TryGetValue(skillId, out skillDef);
+    }
+
+    public bool TryGetSkillDefinition(StringName skillId, out SkillDefinition skillDefinition)
+    {
+        skillDefinition = null;
+        return skillId != ""
+            && GetSkillDefinitionsTyped().TryGetValue(skillId, out skillDefinition);
     }
 
     public CombatSkillDef GetCombatProfileTyped(StringName skillId)

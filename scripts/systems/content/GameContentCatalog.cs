@@ -26,6 +26,7 @@ public sealed class GameContentCatalog
     private ProgressionContentRegistry _progressionContentRegistry;
     private ProgressionIdentityCatalogData _progressionIdentityCatalog;
     private IReadOnlyDictionary<StringName, SkillDef> _skillDefs;
+    private IReadOnlyDictionary<StringName, SkillDefinition> _skillDefinitions;
     private IReadOnlyDictionary<StringName, TraitDef> _traitDefs;
     private IReadOnlyDictionary<StringName, ProfessionDef> _professionDefs;
     private IReadOnlyDictionary<StringName, AchievementDef> _achievementDefs;
@@ -77,6 +78,7 @@ public sealed class GameContentCatalog
         _progressionIdentityCatalog =
             session.GetProgressionIdentityCatalogTyped() ?? new ProgressionIdentityCatalogData();
         _skillDefs = SnapshotTyped(session.GetSkillDefsTyped());
+        _skillDefinitions = SkillDefinition.ProjectIndex(_skillDefs);
         _traitDefs = SnapshotTyped(session.GetTraitDefsTyped());
         _professionDefs = SnapshotTyped(session.GetProfessionDefsTyped());
         _achievementDefs = SnapshotTyped(session.GetAchievementDefsTyped());
@@ -98,6 +100,7 @@ public sealed class GameContentCatalog
         _progressionContentRegistry = null;
         _progressionIdentityCatalog = new ProgressionIdentityCatalogData();
         _skillDefs = EmptyTyped<SkillDef>();
+        _skillDefinitions = EmptyTyped<SkillDefinition>();
         _traitDefs = EmptyTyped<TraitDef>();
         _professionDefs = EmptyTyped<ProfessionDef>();
         _achievementDefs = EmptyTyped<AchievementDef>();
@@ -138,6 +141,9 @@ public sealed class GameContentCatalog
         _progressionIdentityCatalog;
 
     public IReadOnlyDictionary<StringName, SkillDef> GetSkillDefsTyped() => _skillDefs;
+
+    public IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionsTyped() =>
+        _skillDefinitions;
 
     public IReadOnlyDictionary<StringName, TraitDef> GetTraitDefsTyped() => _traitDefs;
 

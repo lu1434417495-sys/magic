@@ -42,6 +42,7 @@ public partial class run_skill_catalog_query_regression : SceneTree
 
             TestSkillCatalogIsStableFacade(contentCatalog, skillCatalog);
             TestHasSkillAndTryGet(skillCatalog);
+            TestRuntimeDefinitionsProjectSkillResource(contentCatalog, skillCatalog);
             TestEffectiveGettersMatchCombatProfile(skillCatalog);
             TestMissingSkillReturnsSafeDefaults(skillCatalog);
             TestEffectiveCacheInvalidatesWithCatalogRevision(contentCatalog, skillCatalog);
@@ -93,6 +94,91 @@ public partial class run_skill_catalog_query_regression : SceneTree
         _test.True(
             !skillCatalog.TryGetSkillDef(missingId, out SkillDef missingDef) && missingDef == null,
             "TryGetSkillDef 对不存在的技能 id 应返回 false 且 out 为 null。"
+        );
+    }
+
+    private void TestRuntimeDefinitionsProjectSkillResource(
+        GameContentCatalog contentCatalog,
+        ISkillCatalog skillCatalog
+    )
+    {
+        IReadOnlyDictionary<StringName, SkillDefinition> runtimeDefinitions =
+            skillCatalog.GetSkillDefinitionsTyped();
+        _test.True(
+            runtimeDefinitions != null,
+            "skill catalog 应暴露 plain C# SkillDefinition 运行时定义快照。"
+        );
+        _test.Eq(
+            runtimeDefinitions?.Count ?? -1,
+            contentCatalog.GetSkillDefsTyped().Count,
+            "SkillDefinition 快照数量应与底层 SkillDef content 快照一致。"
+        );
+
+        const string sampleSkillId = "mage_meteor_swarm";
+        _test.True(
+            skillCatalog.TryGetSkillDef(sampleSkillId, out SkillDef resourceSkill)
+                && resourceSkill != null,
+            $"{sampleSkillId} 应存在于 Resource skill 快照。"
+        );
+        _test.True(
+            skillCatalog.TryGetSkillDefinition(sampleSkillId, out SkillDefinition runtimeSkill)
+                && runtimeSkill != null,
+            $"{sampleSkillId} 应存在于 SkillDefinition runtime 快照。"
+        );
+        if (resourceSkill == null || runtimeSkill == null)
+            return;
+
+        _test.Eq(runtimeSkill.SkillId, resourceSkill.skill_id, "SkillDefinition 应保留 skill id。");
+        _test.Eq(
+            runtimeSkill.DisplayName,
+            resourceSkill.display_name,
+            "SkillDefinition 应保留显示名。"
+        );
+        _test.Eq(
+            runtimeSkill.Tags.Count,
+            resourceSkill.TagsTyped.Count,
+            "SkillDefinition 应保留 tags 数量。"
+        );
+        _test.True(
+            runtimeSkill.CombatProfile != null,
+            "带 combat_profile 的技能应投影 CombatSkillDefinition。"
+        );
+        if (runtimeSkill.CombatProfile == null || resourceSkill.combat_profile == null)
+            return;
+
+        CombatSkillDefinition runtimeCombat = runtimeSkill.CombatProfile;
+        CombatSkillDef resourceCombat = resourceSkill.combat_profile;
+        const int sampleLevel = 3;
+
+        AssertCostsEq(
+            runtimeCombat.GetEffectiveResourceCostValues(sampleLevel),
+            resourceCombat.GetEffectiveResourceCostValues(sampleLevel),
+            "CombatSkillDefinition 的有效消耗应与 Resource combat_profile 对拍一致。"
+        );
+        _test.Eq(
+            runtimeCombat.GetEffectiveAttackRollBonus(sampleLevel),
+            resourceCombat.GetEffectiveAttackRollBonus(sampleLevel),
+            "CombatSkillDefinition 的有效命中加值应与 Resource combat_profile 对拍一致。"
+        );
+        _test.Eq(
+            runtimeCombat.GetEffectiveRangeValue(sampleLevel),
+            resourceCombat.GetEffectiveRangeValue(sampleLevel),
+            "CombatSkillDefinition 的有效射程应与 Resource combat_profile 对拍一致。"
+        );
+        _test.Eq(
+            runtimeCombat.GetEffectiveAreaValue(sampleLevel),
+            resourceCombat.GetEffectiveAreaValue(sampleLevel),
+            "CombatSkillDefinition 的有效范围值应与 Resource combat_profile 对拍一致。"
+        );
+        _test.Eq(
+            runtimeCombat.GetEffectiveAreaPattern(sampleLevel),
+            resourceCombat.GetEffectiveAreaPattern(sampleLevel),
+            "CombatSkillDefinition 的有效范围模式应与 Resource combat_profile 对拍一致。"
+        );
+        AssertRuntimeVariantsMatch(
+            runtimeCombat.GetUnlockedCastVariants(sampleLevel),
+            resourceCombat.GetUnlockedCastVariants(sampleLevel),
+            "CombatSkillDefinition 的已解锁施法变体应与 Resource combat_profile 对拍一致。"
         );
     }
 
@@ -356,6 +442,33 @@ public partial class run_skill_catalog_query_regression : SceneTree
             );
             _test.Eq(
                 actual[i]?.min_skill_level ?? -1,
+                expected[i]?.min_skill_level ?? -1,
+                $"{message} index={i} min_skill_level"
+            );
+        }
+    }
+
+    private void AssertRuntimeVariantsMatch(
+        IReadOnlyList<CombatCastVariantDefinition> actual,
+        Godot.Collections.Array<CombatCastVariantDef> expected,
+        string message
+    )
+    {
+        _test.True(actual != null, message);
+        _test.True(expected != null, message);
+        if (actual == null || expected == null)
+            return;
+        _test.Eq(actual.Count, expected.Count, message);
+        int count = System.Math.Min(actual.Count, expected.Count);
+        for (int i = 0; i < count; i++)
+        {
+            _test.Eq(
+                actual[i]?.VariantId ?? "",
+                expected[i]?.variant_id ?? "",
+                $"{message} index={i} variant_id"
+            );
+            _test.Eq(
+                actual[i]?.MinSkillLevel ?? -1,
                 expected[i]?.min_skill_level ?? -1,
                 $"{message} index={i} min_skill_level"
             );

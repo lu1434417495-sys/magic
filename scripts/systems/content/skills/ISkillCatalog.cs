@@ -17,9 +17,14 @@ public interface ISkillCatalog
     /// <summary>当前 typed skill 快照只读视图（与 catalog 共享同一份防御性只读包装）。</summary>
     IReadOnlyDictionary<StringName, SkillDef> GetSkillDefsTyped();
 
+    /// <summary>当前 plain C# runtime skill definition 快照。</summary>
+    IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionsTyped();
+
     bool HasSkill(StringName skillId);
 
     bool TryGetSkillDef(StringName skillId, out SkillDef skillDef);
+
+    bool TryGetSkillDefinition(StringName skillId, out SkillDefinition skillDefinition);
 
     /// <summary>技能的战斗剖面；技能不存在或无 combat profile 时返回 <c>null</c>。</summary>
     CombatSkillDef GetCombatProfileTyped(StringName skillId);
