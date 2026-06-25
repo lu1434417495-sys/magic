@@ -528,7 +528,7 @@ public sealed class BattleSimTraceSummaryBuilder
                 ? score.command.skill_id.ToString()
                 : !string.IsNullOrEmpty(score.runtime_action_metadata?.skill_id.ToString())
                     ? score.runtime_action_metadata.skill_id.ToString()
-                    : score.skill_def?.skill_id.ToString() ?? "",
+                    : score.skill_id.ToString(),
             TargetCount = score.target_count,
             EffectiveTargetCount = score.effective_target_count,
             EnemyTargetCount = score.enemy_target_count,

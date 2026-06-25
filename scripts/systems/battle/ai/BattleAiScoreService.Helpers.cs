@@ -302,6 +302,17 @@ public partial class BattleAiScoreService
         return skillDefs.TryGetValue(skillId, out SkillDef skillDef) ? skillDef : null;
     }
 
+    private static SkillDef ResolveScoreInputSkillDef(
+        BattleAiScoreInput scoreInput,
+        IBattleAiScoreContext context
+    )
+    {
+        return GetSkillDef(
+            ContextSkillDefs(context),
+            ProgressionDataUtils.to_string_name(scoreInput?.skill_id ?? new StringName(""))
+        );
+    }
+
     private static List<StringName> DuplicateStringNameArray(IEnumerable<StringName> values)
     {
         var result = new List<StringName>();

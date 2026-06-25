@@ -401,6 +401,7 @@ public partial class BattleAiScoreService
     private void PopulatePathStepAoeMetrics(
         BattleAiScoreInput scoreInput,
         IBattleAiScoreContext context,
+        SkillDef skillDef,
         IReadOnlyList<CombatEffectDef> effectDefs,
         ScorePathStepAoeMetadata metadata
     )
@@ -458,7 +459,7 @@ public partial class BattleAiScoreService
                 actor,
                 RepeatEffects(new[] { damageEffect }, hitCount),
                 targetUnit,
-                ResolveSkillId(scoreInput.skill_def as SkillDef)
+                ResolveSkillId(skillDef)
             );
             int estimatedDamage = estimateResult.Damage;
             int estimatedShieldAbsorbed = estimateResult.ShieldAbsorbed;
@@ -493,7 +494,7 @@ public partial class BattleAiScoreService
             if (
                 PathStepRepeatStatusApplies(
                     context,
-                    scoreInput.skill_def as SkillDef,
+                    skillDef,
                     pathStepEffect,
                     hitCount
                 )

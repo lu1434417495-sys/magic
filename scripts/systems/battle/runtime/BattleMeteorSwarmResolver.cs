@@ -198,8 +198,7 @@ internal sealed class BattleMeteorSwarmResolver
         {
             active_unit = active_unit,
             command = command,
-            skill_def = skill_def,
-            cast_variant = cast_variant,
+            skill_id = skill_def != null ? skill_def.skill_id : DEFAULT_SKILL_ID,
             profile = ResolveProfile(),
             nominal_anchor_coord = nominal_anchor_coord,
             final_anchor_coord = final_anchor_coord,
@@ -296,7 +295,6 @@ internal sealed class BattleMeteorSwarmResolver
         {
             profile = profile,
             source_unit_id = sourceUnit.IsValid ? sourceUnit.UnitId : new StringName(""),
-            skill_def = skillDef,
             skill_id = skillDef != null ? skillDef.skill_id : DEFAULT_SKILL_ID,
             nominal_anchor_coord = nominalAnchorCoord,
             final_anchor_coord = finalAnchorCoord,
@@ -370,9 +368,10 @@ internal sealed class BattleMeteorSwarmResolver
         plan.source_unit = context != null ? context.active_unit : null;
         plan.source_unit_id =
             plan.source_unit != null ? plan.source_unit.unit_id : new StringName("");
-        plan.skill_def = context != null ? context.skill_def : null;
         plan.skill_id =
-            plan.skill_def != null ? plan.skill_def.skill_id : DEFAULT_SKILL_ID;
+            context != null && !StringNameIsEmpty(context.skill_id)
+                ? context.skill_id
+                : DEFAULT_SKILL_ID;
         plan.nominal_anchor_coord =
             context != null ? context.nominal_anchor_coord : new Vector2I(-1, -1);
         plan.final_anchor_coord =
@@ -601,7 +600,7 @@ internal sealed class BattleMeteorSwarmResolver
                     !terrainSystem.UpsertTimedTerrainEffect(
                         coord,
                         plan.source_unit,
-                        plan.skill_def,
+                        ResolveSkillDefForPlan(plan),
                         effectDef,
                         fieldInstanceId
                     )
@@ -627,6 +626,15 @@ internal sealed class BattleMeteorSwarmResolver
             }
         }
         return effects;
+    }
+
+    private SkillDef ResolveSkillDefForPlan(MeteorSwarmTargetPlan plan)
+    {
+        if (_runtime == null || plan == null || StringNameIsEmpty(plan.skill_id))
+        {
+            return null;
+        }
+        return _runtime.GetSkillDefTyped(plan.skill_id);
     }
 
     internal CombatEffectDef _build_damage_effect_def(

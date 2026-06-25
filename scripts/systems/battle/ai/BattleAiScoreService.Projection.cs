@@ -53,7 +53,8 @@ public partial class BattleAiScoreService
         {
             return true;
         }
-        if (scoreInput.skill_def is SkillDef skillDef)
+        SkillDef skillDef = ResolveScoreInputSkillDef(scoreInput, context);
+        if (skillDef != null)
         {
             if (skillDef.skill_id.ToString().StartsWith("mage_", StringComparison.Ordinal))
             {

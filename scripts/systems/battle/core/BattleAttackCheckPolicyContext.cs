@@ -8,7 +8,6 @@ public class BattleAttackCheckPolicyContext
     internal BattleUnitReadView attacker_view { get; set; }
     internal BattleUnitReadView target_view { get; set; }
     public SkillDef skill_def { get; set; }
-    public CombatCastVariantDef cast_variant { get; set; }
     public StringName roll_kind { get; set; } = "";
     public StringName check_route { get; set; } = "";
     public StringName trace_source { get; set; } = "";

@@ -548,9 +548,10 @@ public partial class BattleAiScoreService
         {
             return;
         }
+        SkillDef skillDef = ResolveScoreInputSkillDef(scoreInput, context);
         TargetEffectMetrics targetMetrics = BuildTargetEffectMetrics(
             context,
-            scoreInput.skill_def as SkillDef,
+            skillDef,
             actor,
             targetUnit,
             effectDefs,
@@ -1471,7 +1472,7 @@ public partial class BattleAiScoreService
                     BattleUnitState chainTarget in CollectChainDamageTargets(
                         context,
                         primaryTarget,
-                        scoreInput.skill_def as SkillDef,
+                        ResolveScoreInputSkillDef(scoreInput, context),
                         chainEffect
                     )
                 )

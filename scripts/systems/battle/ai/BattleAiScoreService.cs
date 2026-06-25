@@ -371,7 +371,7 @@ public sealed partial class BattleAiScoreService : IDisposable
         var scoreInput = new BattleAiScoreInput
         {
             command = command,
-            skill_def = skillDef,
+            skill_id = skillDef?.skill_id ?? new StringName(""),
             preview = preview,
             action_kind = scoreMetadata.ActionKind,
             action_label = scoreMetadata.ActionLabel,
@@ -398,9 +398,21 @@ public sealed partial class BattleAiScoreService : IDisposable
         AiTraceRecorder.Enter("score_input:ground_control");
         PopulateGroundControlMetrics(scoreInput, effectiveEffectDefs);
         AiTraceRecorder.Exit("score_input:ground_control");
-        PopulateRandomChainMetrics(scoreInput, context, effectiveEffectDefs, scoreMetadata.RandomChain);
+        PopulateRandomChainMetrics(
+            scoreInput,
+            context,
+            skillDef,
+            effectiveEffectDefs,
+            scoreMetadata.RandomChain
+        );
         PopulateSpecialProfileMetrics(scoreInput, context);
-        PopulatePathStepAoeMetrics(scoreInput, context, effectiveEffectDefs, scoreMetadata.PathStepAoe);
+        PopulatePathStepAoeMetrics(
+            scoreInput,
+            context,
+            skillDef,
+            effectiveEffectDefs,
+            scoreMetadata.PathStepAoe
+        );
         AiTraceRecorder.Enter("score_input:resource_cost");
         PopulateResourceCostMetrics(scoreInput, skillDef, context);
         AiTraceRecorder.Exit("score_input:resource_cost");
@@ -921,13 +933,14 @@ public sealed partial class BattleAiScoreService : IDisposable
     private void PopulateRandomChainMetrics(
         BattleAiScoreInput scoreInput,
         IBattleAiScoreContext context,
+        SkillDef skillDef,
         IReadOnlyList<CombatEffectDef> effectDefs,
         ScoreRandomChainMetadata metadata
     )
     {
         if (
             scoreInput == null
-            || scoreInput.skill_def is not SkillDef skillDef
+            || skillDef == null
             || skillDef.combat_profile == null
         )
         {

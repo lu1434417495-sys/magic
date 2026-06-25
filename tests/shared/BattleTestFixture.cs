@@ -234,7 +234,6 @@ internal sealed class BattleTestFixture : IDisposable
         DisposeBattleCommand(scoreInput.command);
         scoreInput.preview = null;
         scoreInput.command = null;
-        scoreInput.skill_def = null;
     }
 
     public static void DisposeBattlePreview(BattlePreview preview)

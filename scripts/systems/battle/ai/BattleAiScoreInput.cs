@@ -7,7 +7,7 @@ using GArray = Godot.Collections.Array;
 public sealed class BattleAiScoreInput
 {
     public BattleCommand command { get; set; }
-    public SkillDef skill_def { get; set; }
+    public StringName skill_id { get; set; } = "";
     public BattlePreview preview { get; set; }
     public StringName action_kind { get; set; } = "skill";
     public string action_label { get; set; } = "";
@@ -212,9 +212,9 @@ public sealed class BattleAiScoreInput
         {
             resolvedSkillId = runtime_action_metadata.skill_id.ToString();
         }
-        else if (skill_def != null)
+        else if (skill_id != "")
         {
-            resolvedSkillId = skill_def.skill_id.ToString();
+            resolvedSkillId = skill_id.ToString();
         }
 
         string resolvedCommandUnitId = "";
@@ -364,9 +364,9 @@ public sealed class BattleAiScoreInput
         {
             resolvedSkillId = runtime_action_metadata.skill_id.ToString();
         }
-        else if (skill_def != null)
+        else if (skill_id != "")
         {
-            resolvedSkillId = skill_def.skill_id.ToString();
+            resolvedSkillId = skill_id.ToString();
         }
 
         var builder = new System.Text.StringBuilder();

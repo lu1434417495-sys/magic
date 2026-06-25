@@ -769,7 +769,6 @@ internal class BattleAttackCheckPolicyService
         context.attacker_view = sourceContext.attacker_view;
         context.target_view = sourceContext.target_view;
         context.skill_def = sourceContext.skill_def;
-        context.cast_variant = sourceContext.cast_variant;
         context.roll_kind = ROLL_KIND_REPEAT_WEAPON_STAGE;
         context.check_route = !IsEmpty(checkRoute) ? checkRoute : sourceContext.check_route;
         context.trace_source = sourceContext.trace_source;

@@ -75,7 +75,11 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
             return;
         }
 
-        _test.True(scoreInput.skill_def == null, "score input 离开适配器前必须移除 SkillDef live resource。");
+        _test.Eq(
+            scoreInput.skill_id,
+            fixture.Skill.skill_id,
+            "score input 离开适配器前只保留 skill_id，不持有 SkillDef live resource。"
+        );
         _test.Eq(scoreInput.command, command, "score input 应保留 command value object。");
         _test.Eq(scoreInput.preview, preview, "score input 应保留 preview value object。");
         _test.Eq(scoreInput.action_kind, new StringName("skill"), "默认 action_kind 应为 skill。");

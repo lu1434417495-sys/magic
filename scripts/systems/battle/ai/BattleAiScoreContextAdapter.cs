@@ -250,7 +250,7 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
             scoreInput.runtime_action_metadata?.Clone() ?? new BattleAiScoreRuntimeMetadata();
         metadata.skill_id = ProgressionDataUtils.to_string_name(skillId);
         scoreInput.runtime_action_metadata = metadata;
-        scoreInput.skill_def = null;
+        scoreInput.skill_id = metadata.skill_id;
     }
 
     private SkillDef ResolveSkillDef(StringName skillId)

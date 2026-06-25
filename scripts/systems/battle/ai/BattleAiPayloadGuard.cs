@@ -271,14 +271,6 @@ internal static class BattleAiPayloadGuard
             return false;
         if (scoreInput.preview != null && !PreviewHasNoLiveState(scoreInput.preview))
             return false;
-        if (scoreInput.skill_def != null)
-        {
-            return FailLoud(
-                "BattleAiScoreInput.skill_def must be stripped before leaving score assembly.",
-                FailureContext("score_input.skill_def")
-            );
-        }
-
         return ValidateNoForbiddenObject(
                 scoreInput.runtime_action_metadata,
                 "score_input.runtime_action_metadata"

@@ -35,7 +35,6 @@ public sealed class BattleAiDecision
         DisposePreview(scoreInput.preview);
         scoreInput.command = null;
         scoreInput.preview = null;
-        scoreInput.skill_def = null;
     }
 
     private static void DisposeCommand(BattleCommand command)
