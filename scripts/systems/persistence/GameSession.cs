@@ -3318,9 +3318,11 @@ public partial class GameSession : Node
         if (_item_content_registry == null)
             return;
         Dictionary<StringName, SkillDef> skillDefs = BuildSkillDefIndex(_skill_defs);
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            SkillDefinition.ProjectIndex(skillDefs);
         Dictionary<StringName, ItemDef> itemDefs = new(_item_content_registry.GetItemDefsTyped());
         foreach (
-            var entry in SkillBookItemFactory.BuildGeneratedItemDefs(skillDefs, itemDefs)
+            var entry in SkillBookItemFactory.BuildGeneratedItemDefs(skillDefinitions, itemDefs)
         )
         {
             itemDefs[entry.Key] = entry.Value;
@@ -3419,7 +3421,9 @@ public partial class GameSession : Node
         {
             Dictionary<StringName, ItemDef> itemDefs = BuildItemDefIndex(_item_defs);
             Dictionary<StringName, SkillDef> skillDefs = BuildSkillDefIndex(_skill_defs);
-            AppendErrors(errors, SkillBookItemContentValidator.Validate(itemDefs, skillDefs));
+            IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+                SkillDefinition.ProjectIndex(skillDefs);
+            AppendErrors(errors, SkillBookItemContentValidator.Validate(itemDefs, skillDefinitions));
         }
         return BuildContentValidationDomainSnapshotFromErrors(errors);
     }

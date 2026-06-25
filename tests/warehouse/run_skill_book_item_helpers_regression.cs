@@ -20,7 +20,7 @@ public partial class run_skill_book_item_helpers_regression : SceneTree
 
     private void TestSkillBookFactoryGeneratesTypedItemDefs()
     {
-        Dictionary<StringName, SkillDef> skillDefs = new()
+        Dictionary<StringName, SkillDefinition> skillDefs = new()
         {
             ["archer_aimed_shot"] = BuildSkill("archer_aimed_shot", "精准射击", "book"),
             ["blank_display"] = BuildSkill("blank_display", "", "book"),
@@ -68,7 +68,7 @@ public partial class run_skill_book_item_helpers_regression : SceneTree
 
     private void TestSkillBookValidatorReportsCrossTableErrors()
     {
-        Dictionary<StringName, SkillDef> skillDefs = new()
+        Dictionary<StringName, SkillDefinition> skillDefs = new()
         {
             ["book_skill"] = BuildSkill("book_skill", "书本技能", "book"),
             ["teacher_skill"] = BuildSkill("teacher_skill", "导师技能", "teacher"),
@@ -95,16 +95,22 @@ public partial class run_skill_book_item_helpers_regression : SceneTree
         _test.True(errors.Count >= 4, "非法技能书 fixture 应保持非法。");
     }
 
-    private static SkillDef BuildSkill(string skillId, string displayName, string learnSource) =>
-        new()
-        {
-            skill_id = new StringName(skillId),
-            display_name = displayName,
-            description = $"{displayName} description",
-            learn_source = new StringName(learnSource),
-            skill_type = "passive",
-            max_level = 1,
-        };
+    private static SkillDefinition BuildSkill(
+        string skillId,
+        string displayName,
+        string learnSource
+    ) =>
+        SkillDefinition.FromResource(
+            new SkillDef
+            {
+                skill_id = new StringName(skillId),
+                display_name = displayName,
+                description = $"{displayName} description",
+                learn_source = new StringName(learnSource),
+                skill_type = "passive",
+                max_level = 1,
+            }
+        );
 
     private static ItemDef BuildSkillBookItem(string itemId, string grantedSkillId) =>
         new()

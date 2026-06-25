@@ -10,7 +10,7 @@ public static class SkillBookItemFactory
         ProgressionDataUtils.to_string_name($"skill_book_{skillId}");
 
     public static Dictionary<StringName, ItemDef> BuildGeneratedItemDefs(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefs,
         IReadOnlyDictionary<StringName, ItemDef> existingItemDefs = null
     )
     {
@@ -18,19 +18,19 @@ public static class SkillBookItemFactory
         if (skillDefs == null)
             return generatedDefs;
 
-        foreach (SkillDef skillDef in skillDefs.Values)
+        foreach (SkillDefinition skillDef in skillDefs.Values)
         {
             if (skillDef == null)
                 continue;
             if (
-                skillDef.skill_id == ""
-                || skillDef.LearnSourceKind != SkillLearnSourceKind.Book
+                skillDef.SkillId == ""
+                || skillDef.LearnSource != "book"
             )
                 continue;
-            if (skillDef.display_name.StripEdges().Length == 0)
+            if (skillDef.DisplayName.StripEdges().Length == 0)
                 continue;
 
-            var itemId = BuildItemIdForSkill(skillDef.skill_id);
+            var itemId = BuildItemIdForSkill(skillDef.SkillId);
             if (existingItemDefs != null && existingItemDefs.ContainsKey(itemId))
                 continue;
 
@@ -43,7 +43,7 @@ public static class SkillBookItemFactory
                 is_stackable = true,
                 max_stack = DEFAULT_MAX_STACK,
                 CategoryKind = ItemCategoryKind.SkillBook,
-                granted_skill_id = skillDef.skill_id,
+                granted_skill_id = skillDef.SkillId,
             };
             GodotContentOwnership.RegisterDerivedContent(
                 itemDef,
@@ -56,15 +56,15 @@ public static class SkillBookItemFactory
         return generatedDefs;
     }
 
-    private static string _build_display_name(SkillDef skillDef) =>
-        $"{skillDef.display_name.StripEdges()} 技能书";
+    private static string _build_display_name(SkillDefinition skillDef) =>
+        $"{skillDef.DisplayName.StripEdges()} 技能书";
 
-    private static string _build_description(SkillDef skillDef)
+    private static string _build_description(SkillDefinition skillDef)
     {
-        var skillName = skillDef.display_name.StripEdges();
+        var skillName = skillDef.DisplayName.StripEdges();
         var result = $"阅读后使一名队员学会技能：{skillName}。";
-        if (skillDef.description.Length > 0)
-            result += $"\n{skillDef.description}";
+        if (skillDef.Description.Length > 0)
+            result += $"\n{skillDef.Description}";
         return result;
     }
 }
