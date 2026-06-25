@@ -615,7 +615,12 @@ internal sealed class MisfortuneService : IDisposable
             ["cap"] = calamityCap,
             ["reverse_fortune_granted"] = reverseFortuneGranted,
             ["metadata"] =
-                metadata != null ? (GDictionary)metadata.Duplicate(true) : new GDictionary(),
+                metadata != null
+                    ? RuntimePayloadCopy.Dictionary(
+                        metadata,
+                        "MisfortuneService.TriggerCalamity.metadata"
+                    )
+                    : new GDictionary(),
         };
     }
 

@@ -132,7 +132,10 @@ public partial class run_enemy_ai_generation_slots_schema_regression : SceneTree
             action_id = "template_move",
         };
         state.actions = new GEnemyAiActionArray { attack, move };
-        return state;
+        return TestResourceOwnership.Own(
+            state,
+            "enemy_ai_generation_slots_schema.state"
+        );
     }
 
     private static EnemyAiGenerationSlotDef Slot(

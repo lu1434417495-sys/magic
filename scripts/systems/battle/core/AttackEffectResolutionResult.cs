@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public enum AttackResolutionKind
 {
@@ -112,10 +111,10 @@ public struct AttackEffectResolutionResult
     public string ResolutionText;
 
     public StringName SkillId;
-    public GStringNameArray StatusEffectIds;
-    public GStringNameArray RemovedStatusEffectIds;
-    public GStringNameArray SourceStatusEffectIds;
-    public GStringNameArray TerrainEffectIds;
+    public StringNameList StatusEffectIds;
+    public StringNameList RemovedStatusEffectIds;
+    public StringNameList SourceStatusEffectIds;
+    public StringNameList TerrainEffectIds;
     public int HeightDelta;
 
     public int ExecuteStage;
@@ -250,7 +249,7 @@ public struct DispelEventResult
     public StringName TargetUnitId;
     public string Mode;
     public int MaxStatusRemoved;
-    public GStringNameArray RemovedStatusIds;
+    public StringNameList RemovedStatusIds;
 }
 
 public struct SaveResolutionResult
@@ -297,7 +296,7 @@ public struct BattleReportEntry
     public ReportEntryKind EntryKind;
     public StringName ReasonId;
     public string Text;
-    public GStringNameArray EventTags;
+    public StringNameList EventTags;
 
     public StringName AttackerId;
     public StringName AttackerMemberId;
@@ -369,6 +368,18 @@ internal static class PayloadReader
 
 internal static class AttackEffectResolutionResultReader
 {
+    private static GArray RuntimeArray(GArray payload, string reason)
+    {
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(payload, reason);
+        return payload;
+    }
+
+    private static GDictionary RuntimeDictionary(GDictionary payload, string reason)
+    {
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(payload, reason);
+        return payload;
+    }
+
     internal static AttackEffectResolutionResult ReadResolverResult(
         GDictionary source,
         AttackCheckInput attackCheck
@@ -445,10 +456,10 @@ internal static class AttackEffectResolutionResultReader
         GDictionary source = null
     )
     {
-        result.StatusEffectIds ??= new GStringNameArray();
-        result.RemovedStatusEffectIds ??= new GStringNameArray();
-        result.SourceStatusEffectIds ??= new GStringNameArray();
-        result.TerrainEffectIds ??= new GStringNameArray();
+        result.StatusEffectIds ??= new StringNameList();
+        result.RemovedStatusEffectIds ??= new StringNameList();
+        result.SourceStatusEffectIds ??= new StringNameList();
+        result.TerrainEffectIds ??= new StringNameList();
         result.DamageEvents ??= Array.Empty<DamageEventResult>();
         result.EquipmentDurabilityEvents ??= Array.Empty<EquipmentDurabilityEventResult>();
         result.DispelEvents ??= Array.Empty<DispelEventResult>();
@@ -524,7 +535,7 @@ internal static class AttackEffectResolutionResultReader
         {
             payload["report_entry"] = BattleReportEntryPayload.BuildGodotPayload(result.ReportEntry);
         }
-        return payload;
+        return RuntimeDictionary(payload, "AttackEffectResolutionResultReader.BuildGodotPayload");
     }
 
     internal static AttackResolutionKind ParseAttackResolution(StringName value)
@@ -690,9 +701,9 @@ internal static class AttackEffectResolutionResultReader
         };
     }
 
-    private static GStringNameArray ReadStringNameArray(GDictionary source, string key)
+    private static StringNameList ReadStringNameArray(GDictionary source, string key)
     {
-        var result = new GStringNameArray();
+        var result = new StringNameList();
         foreach (var value in PayloadReader.ReadArray(source, key))
         {
             StringName normalized = ProgressionDataUtils.to_string_name(value);
@@ -777,14 +788,14 @@ internal static class AttackEffectResolutionResultReader
         return results.ToArray();
     }
 
-    private static GArray BuildStringNameArrayPayload(GStringNameArray values)
+    private static GArray BuildStringNameArrayPayload(IEnumerable<StringName> values)
     {
         var result = new GArray();
-        foreach (StringName value in values ?? new GStringNameArray())
+        foreach (StringName value in values ?? Array.Empty<StringName>())
         {
             result.Add(value.ToString());
         }
-        return result;
+        return RuntimeArray(result, "AttackEffectResolutionResultReader.BuildStringNameArrayPayload");
     }
 
     private static GArray BuildDamageEventsPayload(DamageEventResult[] values)
@@ -794,7 +805,7 @@ internal static class AttackEffectResolutionResultReader
         {
             result.Add(BuildDamageEventPayload(value));
         }
-        return result;
+        return RuntimeArray(result, "AttackEffectResolutionResultReader.BuildDamageEventsPayload");
     }
 
     internal static GDictionary BuildDamageEventPayload(DamageEventResult value)
@@ -936,7 +947,7 @@ internal static class AttackEffectResolutionResultReader
         {
             result.Add(value);
         }
-        return result;
+        return RuntimeArray(result, "AttackEffectResolutionResultReader.BuildIntArrayPayload");
     }
 
     private static GArray BuildEquipmentDurabilityEventsPayload(
@@ -969,7 +980,10 @@ internal static class AttackEffectResolutionResultReader
             };
             result.Add(payload);
         }
-        return result;
+        return RuntimeArray(
+            result,
+            "AttackEffectResolutionResultReader.BuildEquipmentDurabilityEventsPayload"
+        );
     }
 
     private static GArray BuildDispelEventsPayload(DispelEventResult[] values)
@@ -988,7 +1002,7 @@ internal static class AttackEffectResolutionResultReader
                 }
             );
         }
-        return result;
+        return RuntimeArray(result, "AttackEffectResolutionResultReader.BuildDispelEventsPayload");
     }
 
     private static GArray BuildSaveResultsPayload(SaveResolutionResult[] values)
@@ -998,47 +1012,50 @@ internal static class AttackEffectResolutionResultReader
         {
             result.Add(BuildSaveResolutionPayload(value));
         }
-        return result;
+        return RuntimeArray(result, "AttackEffectResolutionResultReader.BuildSaveResultsPayload");
     }
 
     private static GDictionary BuildSaveResolutionPayload(SaveResolutionResult value)
     {
-        return new GDictionary
-        {
-            ["has_save"] = value.HasSave,
-            ["success"] = value.Success,
-            ["immune"] = value.Immune,
-            ["roll"] = value.Roll > 0 ? value.Roll : value.NaturalRoll,
-            ["total"] = value.Total > 0 ? value.Total : value.RollTotal,
-            ["natural_roll"] = value.NaturalRoll > 0 ? value.NaturalRoll : value.Roll,
-            ["roll_total"] = value.RollTotal > 0 ? value.RollTotal : value.Total,
-            ["dc"] = value.Dc,
-            ["save_kind"] =
-                (value.SaveKind != "" ? value.SaveKind : value.SaveTag).ToString(),
-            ["ability"] = (value.Ability ?? new StringName("")).ToString(),
-            ["save_tag"] =
-                (value.SaveTag != "" ? value.SaveTag : value.SaveKind).ToString(),
-            ["advantage_state"] = (value.AdvantageState ?? new StringName("")).ToString(),
-            ["ability_value"] = value.AbilityValue,
-            ["ability_modifier"] = value.AbilityModifier,
-            ["bonus"] = value.Bonus,
-            ["degree"] = value.Degree ?? "",
-            ["sources"] = BuildSaveSourcePayload(value.Sources),
-            ["damage_before_save"] = value.DamageBeforeSave,
-            ["damage_after_save"] = value.DamageAfterSave,
-            ["damage_after_save_estimate"] = value.DamageAfterSaveEstimate,
-            ["damage_after_save_worst"] = value.DamageAfterSaveWorst,
-            ["damage_on_save_failure"] = value.DamageOnSaveFailure,
-            ["damage_on_save_success"] = value.DamageOnSaveSuccess,
-            ["save_partial_on_success"] = value.SavePartialOnSuccess,
-            ["save_success_probability_basis_points"] =
-                value.SaveSuccessProbabilityBasisPoints,
-            ["save_success_rate_percent"] = value.SaveSuccessRatePercent,
-            ["save_failure_probability_basis_points"] =
-                value.SaveFailureProbabilityBasisPoints,
-            ["equipment_rarity_bonus"] = value.EquipmentRarityBonus,
-            ["status_save_bonus"] = value.StatusSaveBonus,
-        };
+        return RuntimeDictionary(
+            new GDictionary
+            {
+                ["has_save"] = value.HasSave,
+                ["success"] = value.Success,
+                ["immune"] = value.Immune,
+                ["roll"] = value.Roll > 0 ? value.Roll : value.NaturalRoll,
+                ["total"] = value.Total > 0 ? value.Total : value.RollTotal,
+                ["natural_roll"] = value.NaturalRoll > 0 ? value.NaturalRoll : value.Roll,
+                ["roll_total"] = value.RollTotal > 0 ? value.RollTotal : value.Total,
+                ["dc"] = value.Dc,
+                ["save_kind"] =
+                    (value.SaveKind != "" ? value.SaveKind : value.SaveTag).ToString(),
+                ["ability"] = (value.Ability ?? new StringName("")).ToString(),
+                ["save_tag"] =
+                    (value.SaveTag != "" ? value.SaveTag : value.SaveKind).ToString(),
+                ["advantage_state"] = (value.AdvantageState ?? new StringName("")).ToString(),
+                ["ability_value"] = value.AbilityValue,
+                ["ability_modifier"] = value.AbilityModifier,
+                ["bonus"] = value.Bonus,
+                ["degree"] = value.Degree ?? "",
+                ["sources"] = BuildSaveSourcePayload(value.Sources),
+                ["damage_before_save"] = value.DamageBeforeSave,
+                ["damage_after_save"] = value.DamageAfterSave,
+                ["damage_after_save_estimate"] = value.DamageAfterSaveEstimate,
+                ["damage_after_save_worst"] = value.DamageAfterSaveWorst,
+                ["damage_on_save_failure"] = value.DamageOnSaveFailure,
+                ["damage_on_save_success"] = value.DamageOnSaveSuccess,
+                ["save_partial_on_success"] = value.SavePartialOnSuccess,
+                ["save_success_probability_basis_points"] =
+                    value.SaveSuccessProbabilityBasisPoints,
+                ["save_success_rate_percent"] = value.SaveSuccessRatePercent,
+                ["save_failure_probability_basis_points"] =
+                    value.SaveFailureProbabilityBasisPoints,
+                ["equipment_rarity_bonus"] = value.EquipmentRarityBonus,
+                ["status_save_bonus"] = value.StatusSaveBonus,
+            },
+            "AttackEffectResolutionResultReader.BuildSaveResolutionPayload"
+        );
     }
 
     private static GArray BuildSaveSourcePayload(BattleSaveSource[] sources)
@@ -1048,7 +1065,7 @@ internal static class AttackEffectResolutionResultReader
         {
             result.Add(BattleSaveResultProjection.Project(source));
         }
-        return result;
+        return RuntimeArray(result, "AttackEffectResolutionResultReader.BuildSaveSourcePayload");
     }
 
     internal static GArray BuildTraitTriggerResultsPayload(TraitTriggerEventResult[] values)
@@ -1081,7 +1098,10 @@ internal static class AttackEffectResolutionResultReader
                 }
             );
         }
-        return result;
+        return RuntimeArray(
+            result,
+            "AttackEffectResolutionResultReader.BuildTraitTriggerResultsPayload"
+        );
     }
 
     private static GArray BuildDiagnosticsPayload(ResolutionDiagnostic[] values)
@@ -1097,7 +1117,7 @@ internal static class AttackEffectResolutionResultReader
                 }
             );
         }
-        return result;
+        return RuntimeArray(result, "AttackEffectResolutionResultReader.BuildDiagnosticsPayload");
     }
 
     internal static GArray BuildMitigationSourcesPayload(
@@ -1110,7 +1130,10 @@ internal static class AttackEffectResolutionResultReader
         AppendMitigationSourcePayloads(result, halfSourceLabels, MitigationTierKind.Half);
         AppendMitigationSourcePayloads(result, doubleSourceLabels, MitigationTierKind.Double);
         AppendMitigationSourcePayloads(result, immuneSourceLabels, MitigationTierKind.Immune);
-        return result;
+        return RuntimeArray(
+            result,
+            "AttackEffectResolutionResultReader.BuildMitigationSourcesPayload.labels"
+        );
     }
 
     internal static GArray BuildMitigationSourcesPayload(MitigationSourceResult[] sources)
@@ -1132,7 +1155,10 @@ internal static class AttackEffectResolutionResultReader
                 }
             );
         }
-        return result;
+        return RuntimeArray(
+            result,
+            "AttackEffectResolutionResultReader.BuildMitigationSourcesPayload.results"
+        );
     }
 
     private static void AppendMitigationSourcePayloads(
@@ -1167,7 +1193,10 @@ internal static class AttackEffectResolutionResultReader
                 result.Add(new GDictionary { ["status_id"] = label });
             }
         }
-        return result;
+        return RuntimeArray(
+            result,
+            "AttackEffectResolutionResultReader.BuildFixedMitigationSourcesPayload"
+        );
     }
 
     private static DamageEventResult[] ReadDamageEvents(GDictionary source)
@@ -1792,7 +1821,7 @@ internal static class BattleReportEntryPayload
             ["reason_id"] = (entry.ReasonId ?? new StringName("")).ToString(),
             ["text"] = entry.Text ?? "",
             ["event_tags"] = ProgressionDataUtils.string_name_array_to_string_array(
-                entry.EventTags ?? new GStringNameArray()
+                entry.EventTags ?? new StringNameList()
             ),
             ["attacker_id"] = (entry.AttackerId ?? new StringName("")).ToString(),
             ["attacker_member_id"] = (entry.AttackerMemberId ?? new StringName("")).ToString(),
@@ -1854,9 +1883,9 @@ internal static class BattleReportEntryPayload
         };
     }
 
-    private static GStringNameArray ReadStringNameArray(GDictionary source, string key)
+    private static StringNameList ReadStringNameArray(GDictionary source, string key)
     {
-        var result = new GStringNameArray();
+        var result = new StringNameList();
         foreach (var value in PayloadReader.ReadArray(source, key))
         {
             StringName normalized = ProgressionDataUtils.to_string_name(value);

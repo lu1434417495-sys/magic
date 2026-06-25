@@ -351,7 +351,6 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
                 }
                 else
                 {
-                    GC.SuppressFinalize(child);
                     child.QueueFree();
                 }
             }

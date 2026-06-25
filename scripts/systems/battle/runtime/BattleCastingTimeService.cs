@@ -453,15 +453,14 @@ internal sealed class BattleCastingTimeService
         {
             return BattleSpellControlMetadata.Empty();
         }
-        var controlContext = new GDictionary
-        {
-            ["battle_state"] = runtime._state,
-            ["skill_id"] = skillDef.skill_id,
-            ["dispatch_events"] = false,
-        };
         return runtime
             .GetDamageResolver()
-            .ResolveSpellControlCheckTyped(activeUnit, controlContext);
+            .ResolveSpellControlCheckTyped(
+                activeUnit,
+                runtime._state,
+                skillDef.skill_id,
+                dispatchEvents: false
+            );
     }
 
     internal static BattleSpellControlMetadata ApplyCastingSpellControlDc(

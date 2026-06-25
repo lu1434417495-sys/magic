@@ -360,9 +360,8 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
             }
         }
         state.active_unit_id = caster.unit_id;
-        foreach (Variant unitValue in state.Units())
+        foreach (BattleUnitState unitState in state.Units())
         {
-            BattleUnitState unitState = unitValue.AsGodotObject() as BattleUnitState;
             _test.True(
                 runtime._grid_service.PlaceUnit(state, unitState, unitState.coord, true),
                 $"单位应能放入陨星雨测试棋盘：{unitState?.unit_id}"
@@ -604,8 +603,6 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
 
         public void Dispose()
         {
-            SuppressSkillDefFinalizers(SkillDefIndex);
-            SuppressMeteorProfileFinalizers(MeteorProfile);
             SkillDefs?.Clear();
             if (SkillDefIndex is Dictionary<StringName, SkillDef> skillDefIndex)
             {
@@ -618,65 +615,6 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
             MeteorProfile = null;
             SkillDefIndex = null;
             SkillDefs = null;
-        }
-
-        private static void SuppressSkillDefFinalizers(
-            IReadOnlyDictionary<StringName, SkillDef> skillDefs
-        )
-        {
-            if (skillDefs == null)
-            {
-                return;
-            }
-            foreach (SkillDef skillDef in skillDefs.Values)
-            {
-                if (skillDef == null)
-                {
-                    continue;
-                }
-                GC.SuppressFinalize(skillDef);
-                if (skillDef.combat_profile != null)
-                {
-                    GC.SuppressFinalize(skillDef.combat_profile);
-                    foreach (CombatEffectDef effectDef in skillDef.combat_profile.effect_defs)
-                    {
-                        if (effectDef != null)
-                        {
-                            GC.SuppressFinalize(effectDef);
-                        }
-                    }
-                    foreach (CombatCastVariantDef castVariant in skillDef.combat_profile.cast_variants)
-                    {
-                        if (castVariant != null)
-                        {
-                            GC.SuppressFinalize(castVariant);
-                            foreach (CombatEffectDef effectDef in castVariant.effect_defs)
-                            {
-                                if (effectDef != null)
-                                {
-                                    GC.SuppressFinalize(effectDef);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        private static void SuppressMeteorProfileFinalizers(MeteorSwarmProfile meteorProfile)
-        {
-            if (meteorProfile == null)
-            {
-                return;
-            }
-            GC.SuppressFinalize(meteorProfile);
-            foreach (MeteorSwarmImpactComponent component in meteorProfile.impact_components)
-            {
-                if (component != null)
-                {
-                    GC.SuppressFinalize(component);
-                }
-            }
         }
     }
 }

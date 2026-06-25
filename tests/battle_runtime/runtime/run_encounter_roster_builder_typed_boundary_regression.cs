@@ -149,8 +149,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
         List<string> values = new();
         foreach (Variant unitValue in units ?? new GArray())
         {
-            BattleUnitState unit = unitValue.AsGodotObject() as BattleUnitState;
-            if (unit == null)
+            if (!BattleUnitState.TryReadUnitPayload(unitValue, out BattleUnitState unit) || unit == null)
             {
                 values.Add("null");
                 continue;
@@ -208,7 +207,10 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
             gameSession.GetEnemyAiBrainsTyped(),
             gameSession.GetItemDefsTyped()
         );
-        return enemyUnits.Count > 0 ? enemyUnits[0].AsGodotObject() as BattleUnitState : null;
+        return enemyUnits.Count > 0
+            && BattleUnitState.TryReadUnitPayload(enemyUnits[0], out BattleUnitState unit)
+                ? unit
+                : null;
     }
 
     private static GDictionary ProjectEnemyTemplates(

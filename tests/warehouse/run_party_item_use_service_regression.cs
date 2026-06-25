@@ -149,30 +149,42 @@ public partial class run_party_item_use_service_regression : SceneTree
 
     private static GDictionary BuildItemDefs()
     {
-        GDictionary result = new();
-        result[new StringName("skill_book_focus")] = new ItemDef
-        {
-            item_id = "skill_book_focus",
-            display_name = "Focus Manual",
-            CategoryKind = ItemCategoryKind.SkillBook,
-            is_stackable = true,
-            max_stack = 20,
-            granted_skill_id = "focus",
-        };
+        GDictionary result = TestResourceOwnership.OwnWrapper(
+            new GDictionary(),
+            "party_item_use_service.item_defs"
+        );
+        result[new StringName("skill_book_focus")] = TestResourceOwnership.Own(
+            new ItemDef
+            {
+                item_id = "skill_book_focus",
+                display_name = "Focus Manual",
+                CategoryKind = ItemCategoryKind.SkillBook,
+                is_stackable = true,
+                max_stack = 20,
+                granted_skill_id = "focus",
+            },
+            "party_item_use_service.skill_book_focus"
+        );
         return result;
     }
 
     private static GDictionary BuildSkillDefs()
     {
-        GDictionary result = new();
-        result[new StringName("focus")] = new SkillDef
-        {
-            skill_id = "focus",
-            display_name = "Focus",
-            learn_source = "book",
-            skill_type = "passive",
-            max_level = 1,
-        };
+        GDictionary result = TestResourceOwnership.OwnWrapper(
+            new GDictionary(),
+            "party_item_use_service.skill_defs"
+        );
+        result[new StringName("focus")] = TestResourceOwnership.Own(
+            new SkillDef
+            {
+                skill_id = "focus",
+                display_name = "Focus",
+                learn_source = "book",
+                skill_type = "passive",
+                max_level = 1,
+            },
+            "party_item_use_service.focus_skill"
+        );
         return result;
     }
 

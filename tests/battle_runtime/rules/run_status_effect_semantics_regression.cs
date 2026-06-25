@@ -1112,9 +1112,8 @@ public partial class run_status_effect_semantics_regression : SceneTree
         state.active_unit_id = "";
         state.timeline.ready_unit_ids.Clear();
         state.timeline.tu_per_tick = 5;
-        foreach (Variant unitOption in state.Units())
+        foreach (BattleUnitState unitState in state.Units())
         {
-            BattleUnitState unitState = unitOption.AsGodotObject() as BattleUnitState;
             if (unitState != null)
                 unitState.action_threshold = 1000000;
         }

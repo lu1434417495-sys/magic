@@ -6,13 +6,15 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public sealed class BattleEffectiveTraitProjection
 {
+    private readonly StringNameList _effectiveTraitIds;
+
     public BattleEffectiveTraitProjection(
         IEnumerable<BattleEffectiveTraitInstanceState> effective_trait_instances = null)
     {
         EffectiveTraitInstances = BattleUnitState.DuplicateEffectiveTraitInstances(
             effective_trait_instances ?? System.Array.Empty<BattleEffectiveTraitInstanceState>()
         );
-        EffectiveTraitIds = BattleUnitState.DeriveEffectiveTraitIdsFromInstances(
+        _effectiveTraitIds = BattleUnitState.DeriveEffectiveTraitIdsFromInstances(
             EffectiveTraitInstances
         );
     }
@@ -20,7 +22,7 @@ public sealed class BattleEffectiveTraitProjection
     public static BattleEffectiveTraitProjection Empty => new();
 
     public IReadOnlyList<BattleEffectiveTraitInstanceState> EffectiveTraitInstances { get; }
-    public GStringNameArray EffectiveTraitIds { get; }
+    public GStringNameArray EffectiveTraitIds => _effectiveTraitIds.ToGodotArray();
 }
 
 public sealed class BattleResourceCommitResult

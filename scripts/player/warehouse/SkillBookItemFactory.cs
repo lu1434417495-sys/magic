@@ -34,7 +34,7 @@ public static class SkillBookItemFactory
             if (existingItemDefs != null && existingItemDefs.ContainsKey(itemId))
                 continue;
 
-            generatedDefs[itemId] = new ItemDef
+            var itemDef = new ItemDef
             {
                 item_id = itemId,
                 display_name = _build_display_name(skillDef),
@@ -45,6 +45,12 @@ public static class SkillBookItemFactory
                 CategoryKind = ItemCategoryKind.SkillBook,
                 granted_skill_id = skillDef.skill_id,
             };
+            GodotContentOwnership.RegisterDerivedContent(
+                itemDef,
+                $"skill_book_item:{itemId}",
+                "SkillBookItemFactory.BuildGeneratedItemDefs"
+            );
+            generatedDefs[itemId] = itemDef;
         }
 
         return generatedDefs;

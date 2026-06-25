@@ -4,53 +4,36 @@ using Godot;
 
 public class EquipmentDropService : IDisposable
 {
-    private GodotTransientResourceScope _ownedRngScope;
-    private RandomNumberGenerator _rng;
+    private RuntimeRandom _runtimeRng;
     private Func<int, int, int> _rollRange;
 
     public EquipmentDropService()
-        : this(null) { }
-
-    public EquipmentDropService(RandomNumberGenerator rng)
     {
-        ConfigureRng(rng);
+        ConfigureRng();
     }
 
-    private void ConfigureRng(RandomNumberGenerator rng)
+    private void ConfigureRng()
     {
-        _ownedRngScope?.Dispose();
-        _ownedRngScope = null;
-        if (rng != null)
-        {
-            _rng = rng;
-        }
-        else
-        {
-            _ownedRngScope = new GodotTransientResourceScope("EquipmentDropService");
-            var fallbackRng = _ownedRngScope.OwnWrapper(new RandomNumberGenerator(), "rng");
-            fallbackRng.Randomize();
-            _rng = fallbackRng;
-        }
-
-        _rollRange = _rng.RandiRange;
+        _runtimeRng = new RuntimeRandom(TrueRandomSeedService.GenerateSeed());
+        _rollRange = _runtimeRng.RandiRange;
     }
 
     public void Dispose()
     {
-        _ownedRngScope?.Dispose();
-        _ownedRngScope = null;
-        _rng = null;
+        _runtimeRng = null;
         _rollRange = null;
-    }
-
-    public void SetRngForTesting(RandomNumberGenerator rng)
-    {
-        ConfigureRng(rng);
     }
 
     internal void SetRollRangeForTesting(Func<int, int, int> rollRange)
     {
-        _rollRange = rollRange ?? _rng.RandiRange;
+        _rollRange = rollRange ?? ResolveDefaultRollRange();
+    }
+
+    private Func<int, int, int> ResolveDefaultRollRange()
+    {
+        if (_runtimeRng == null)
+            _runtimeRng = new RuntimeRandom(TrueRandomSeedService.GenerateSeed());
+        return _runtimeRng.RandiRange;
     }
 
     public List<object> RollDrops(StringName dropTableId, int dropLuck)

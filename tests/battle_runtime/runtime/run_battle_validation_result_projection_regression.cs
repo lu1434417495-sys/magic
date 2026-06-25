@@ -23,12 +23,15 @@ public partial class run_battle_validation_result_projection_regression : SceneT
     private void TestSkillExecutionOrchestratorUsesTypedSkillLevelAccessor()
     {
         var runtime = new BattleRuntimeModule();
-        SkillDef lockedZeroSkill = new()
-        {
-            skill_id = "locked_zero_skill",
-            max_level = 0,
-            dynamic_max_level_stat_id = "",
-        };
+        SkillDef lockedZeroSkill = TestResourceOwnership.Own(
+            new SkillDef
+            {
+                skill_id = "locked_zero_skill",
+                max_level = 0,
+                dynamic_max_level_stat_id = "",
+            },
+            "BattleValidationResultProjection.lockedZeroSkill"
+        );
         runtime.setup(
             null,
             new Dictionary<StringName, SkillDef>
@@ -81,7 +84,6 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             BattleTestFixture.DisposeBattleUnit(activeOnlyUnit);
             BattleTestFixture.DisposeBattleUnit(lockedZeroUnit);
             BattleTestFixture.DisposeRuntime(runtime);
-            GodotSharpCleanup.DisposeGodotObject(lockedZeroSkill);
         }
     }
 
@@ -108,9 +110,11 @@ public partial class run_battle_validation_result_projection_regression : SceneT
                 new StringName("target_1"),
                 "单位技能 validation 应投影目标 id。"
             );
+            Godot.Collections.Dictionary projectedTargetUnit =
+                payload["target_units"].AsGodotArray()[0].AsGodotDictionary();
             _test.Eq(
-                payload["target_units"].AsGodotArray()[0].As<BattleUnitState>(),
-                targetUnit,
+                projectedTargetUnit["unit_id"].AsString(),
+                targetUnit.unit_id.ToString(),
                 "单位技能 validation 应投影目标 unit。"
             );
             _test.Eq(
@@ -374,7 +378,10 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             effectDefs = new GCombatEffectArray
             {
                 BuildChainDamagePayloadEffect(),
-                new CombatEffectDef { effect_type = "chain_damage" },
+                TestResourceOwnership.Own(
+                    new CombatEffectDef { effect_type = "chain_damage" },
+                    "BattleValidationResultProjection.chainDamageEffect"
+                ),
             };
             batch = new BattleEventBatch();
 
@@ -400,8 +407,7 @@ public partial class run_battle_validation_result_projection_regression : SceneT
         }
         finally
         {
-            BattleTestFixture.DisposeBattleFixture(runtime, state, skill);
-            BattleTestFixture.DisposeEffectDefs(effectDefs);
+            BattleTestFixture.DisposeBattleFixture(runtime, state);
             GodotSharpCleanup.DisposeGodotObject(batch);
         }
     }
@@ -474,16 +480,19 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             range_pattern = "fixed",
             range_value = 4,
         };
-        return skill;
+        return TestResourceOwnership.Own(skill, "BattleValidationResultProjection.chainTestSkill");
     }
 
     private static CombatEffectDef BuildChainDamagePayloadEffect()
     {
-        return new CombatEffectDef
-        {
-            effect_type = "damage",
-            damage_tag = "physical_slash",
-            power = 1,
-        };
+        return TestResourceOwnership.Own(
+            new CombatEffectDef
+            {
+                effect_type = "damage",
+                damage_tag = "physical_slash",
+                power = 1,
+            },
+            "BattleValidationResultProjection.chainDamagePayloadEffect"
+        );
     }
 }

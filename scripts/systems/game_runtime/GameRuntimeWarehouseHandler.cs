@@ -8,9 +8,19 @@ public sealed class GameRuntimeWarehouseHandler
 
     private sealed class WarehouseTransactionSnapshot
     {
-        internal Dictionary RuntimeState { get; set; } = new();
+        private readonly RuntimePayloadStore _runtimeState = new();
+        private readonly RuntimePayloadStore _worldData = new();
+        internal Dictionary RuntimeState
+        {
+            get => _runtimeState.ProjectPayload();
+            set => _runtimeState.ReplaceWithPayload(value);
+        }
         public PartyState PartyState { get; set; }
-        internal Dictionary WorldData { get; set; } = new();
+        internal Dictionary WorldData
+        {
+            get => _worldData.ProjectPayload();
+            set => _worldData.ReplaceWithPayload(value);
+        }
         public StringName SelectedMemberId { get; set; } = "";
     }
 
@@ -693,7 +703,10 @@ public sealed class GameRuntimeWarehouseHandler
         {
             var runtimeState = gameSession.CaptureRuntimeState();
             if (runtimeState != null)
-                snapshot.RuntimeState = runtimeState.Duplicate(true);
+                snapshot.RuntimeState = RuntimePayloadCopy.Dictionary(
+                    runtimeState,
+                    "GameRuntimeWarehouseHandler.CaptureRuntimeState"
+                );
         }
 
         var partyState = GetPartyState();
@@ -704,7 +717,10 @@ public sealed class GameRuntimeWarehouseHandler
         {
             var worldData = gameSession.GetWorldData();
             if (worldData != null)
-                snapshot.WorldData = worldData.Duplicate(true);
+                snapshot.WorldData = RuntimePayloadCopy.Dictionary(
+                    worldData,
+                    "GameRuntimeWarehouseHandler.CaptureWorldData"
+                );
         }
 
         return snapshot;
@@ -719,14 +735,25 @@ public sealed class GameRuntimeWarehouseHandler
         if (restoredPartyState == null)
             return false;
 
+        Dictionary snapshotWorldData = snapshot.WorldData;
         var restoredWorldData =
-            snapshot.WorldData.Count > 0 ? snapshot.WorldData.Duplicate(true) : new Dictionary();
+            snapshotWorldData.Count > 0
+                ? RuntimePayloadCopy.Dictionary(
+                    snapshotWorldData,
+                    "GameRuntimeWarehouseHandler.RestoreWorldData"
+                )
+                : new Dictionary();
         var gameSession = GetGameSession();
 
-        if (gameSession != null && snapshot.RuntimeState.Count > 0)
+        Dictionary snapshotRuntimeState = snapshot.RuntimeState;
+        if (gameSession != null && snapshotRuntimeState.Count > 0)
         {
-            var restoredRuntimeState = snapshot.RuntimeState.Duplicate(true);
-            restoredRuntimeState["party_state"] = restoredPartyState;
+            var restoredRuntimeState = RuntimePayloadCopy.Dictionary(
+                snapshotRuntimeState,
+                "GameRuntimeWarehouseHandler.RestoreRuntimeState"
+            );
+            restoredRuntimeState["party_state"] =
+                restoredPartyState?.ToDictionary() ?? new Dictionary();
             if (restoredWorldData.Count > 0)
                 restoredRuntimeState["world_data"] = restoredWorldData;
             gameSession.RestoreRuntimeState(restoredRuntimeState);

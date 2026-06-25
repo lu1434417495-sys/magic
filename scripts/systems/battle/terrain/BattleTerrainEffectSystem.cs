@@ -336,16 +336,26 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
                 effect.status_id = effectState.applied_status_id;
                 effect.applied_status_duration_tu = effectState.applied_status_duration_tu;
                 effect.duration_tu = effectState.applied_status_duration_tu;
-                effect.@params = BattleTerrainEffectState.CopyResidualParams(effectState.@params);
+                effect.@params = BattleTerrainEffectState.CopyResidualParamsForOwnedTransient(
+                    effectState.@params
+                );
             },
             $"tick_effect:{effectState.effect_id}"
         );
 
+        GArray effectDefs = _transientScope.OwnWrapper(
+            new GArray { tempEffect },
+            $"tick_effect:{effectState.effect_id}:effects"
+        );
+        GDictionary damageContext = _transientScope.OwnWrapper(
+            new GDictionary { ["skill_id"] = effectState.source_skill_id },
+            $"tick_effect:{effectState.effect_id}:damage_context"
+        );
         AttackEffectResolutionResult damageResult = damageResolver.ResolveEffects(
             sourceUnit,
             targetUnit,
-            new GArray { tempEffect },
-            new GDictionary { ["skill_id"] = effectState.source_skill_id }
+            effectDefs,
+            damageContext
         );
         if (!damageResult.Applied)
             return;

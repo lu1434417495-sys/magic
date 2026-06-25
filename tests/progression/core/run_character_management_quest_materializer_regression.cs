@@ -35,12 +35,15 @@ public partial class run_character_management_quest_materializer_regression : Sc
     {
         PartyState party = BuildPartyWithMember("hero", 1);
         PartyMemberState member = party.GetMemberState("hero");
-        SkillDef triggerSkill = new()
-        {
-            skill_id = "test_level_trigger_catalog_boundary",
-            display_name = "Test level trigger catalog boundary",
-            max_level = 1,
-        };
+        SkillDef triggerSkill = TestResourceOwnership.Own(
+            new SkillDef
+            {
+                skill_id = "test_level_trigger_catalog_boundary",
+                display_name = "Test level trigger catalog boundary",
+                max_level = 1,
+            },
+            "character_management_quest_materializer.level_trigger_catalog_boundary"
+        );
         member.progression.SetSkillProgress(
             new UnitSkillProgress
             {
@@ -740,22 +743,34 @@ public partial class run_character_management_quest_materializer_regression : Sc
             new
             {
                 Label = "StringName key",
-                Growth = new GDictionary { [new StringName("agility")] = 60 },
+                Growth = OwnedDictionary(
+                    new GDictionary { [new StringName("agility")] = 60 },
+                    "character_management_quest_materializer.invalid_growth.string_name_key"
+                ),
             },
             new
             {
                 Label = "unknown attribute key",
-                Growth = new GDictionary { ["unknown_attribute"] = 60 },
+                Growth = OwnedDictionary(
+                    new GDictionary { ["unknown_attribute"] = 60 },
+                    "character_management_quest_materializer.invalid_growth.unknown_attribute"
+                ),
             },
             new
             {
                 Label = "non-int amount",
-                Growth = new GDictionary { ["agility"] = "60" },
+                Growth = OwnedDictionary(
+                    new GDictionary { ["agility"] = "60" },
+                    "character_management_quest_materializer.invalid_growth.non_int_amount"
+                ),
             },
             new
             {
                 Label = "non-positive amount",
-                Growth = new GDictionary { ["agility"] = 0 },
+                Growth = OwnedDictionary(
+                    new GDictionary { ["agility"] = 0 },
+                    "character_management_quest_materializer.invalid_growth.non_positive_amount"
+                ),
             },
         };
 
@@ -765,14 +780,22 @@ public partial class run_character_management_quest_materializer_regression : Sc
             PartyMemberState member = party.GetMemberState("hero");
             member.progression.unit_base_attributes.SetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility), 2);
 
-            SkillDef triggerSkill = new()
-            {
-                skill_id = new StringName($"test_invalid_growth_{testCase.Label.Replace(" ", "_")}"),
-                display_name = testCase.Label,
-                max_level = 1,
-                growth_tier = "basic",
-            };
-            triggerSkill.attribute_growth_progress = testCase.Growth.Duplicate(true);
+            SkillDef triggerSkill = TestResourceOwnership.Own(
+                new SkillDef
+                {
+                    skill_id = new StringName(
+                        $"test_invalid_growth_{testCase.Label.Replace(" ", "_")}"
+                    ),
+                    display_name = testCase.Label,
+                    max_level = 1,
+                    growth_tier = "basic",
+                },
+                $"character_management_quest_materializer.invalid_growth.skill.{testCase.Label}"
+            );
+            triggerSkill.attribute_growth_progress = OwnedDictionary(
+                (GDictionary)testCase.Growth.Duplicate(true),
+                $"character_management_quest_materializer.invalid_growth.payload.{testCase.Label}"
+            );
             member.progression.SetSkillProgress(
                 new UnitSkillProgress
                 {
@@ -784,23 +807,35 @@ public partial class run_character_management_quest_materializer_regression : Sc
             );
             member.progression.active_level_trigger_core_skill_id = triggerSkill.skill_id;
 
-            ProfessionDef profession = new()
-            {
-                profession_id = new StringName(
-                    $"test_invalid_growth_profession_{testCase.Label.Replace(" ", "_")}"
-                ),
-                display_name = "Invalid growth profession",
-                is_initial_profession = true,
-                max_rank = 1,
-                hit_die_sides = 1,
-            };
+            ProfessionDef profession = TestResourceOwnership.Own(
+                new ProfessionDef
+                {
+                    profession_id = new StringName(
+                        $"test_invalid_growth_profession_{testCase.Label.Replace(" ", "_")}"
+                    ),
+                    display_name = "Invalid growth profession",
+                    is_initial_profession = true,
+                    max_rank = 1,
+                    hit_die_sides = 1,
+                },
+                $"character_management_quest_materializer.invalid_growth.profession.{testCase.Label}"
+            );
 
             CharacterManagementModule manager = new();
             manager.setup(
                 party,
-                new GDictionary { [triggerSkill.skill_id] = triggerSkill },
-                new GDictionary { [profession.profession_id] = profession },
-                new GDictionary()
+                OwnedDictionary(
+                    new GDictionary { [triggerSkill.skill_id] = triggerSkill },
+                    $"character_management_quest_materializer.invalid_growth.skill_defs.{testCase.Label}"
+                ),
+                OwnedDictionary(
+                    new GDictionary { [profession.profession_id] = profession },
+                    $"character_management_quest_materializer.invalid_growth.profession_defs.{testCase.Label}"
+                ),
+                OwnedDictionary(
+                    new GDictionary(),
+                    $"character_management_quest_materializer.invalid_growth.empty_defs.{testCase.Label}"
+                )
             );
 
             CharacterProgressionDelta delta = manager.PromoteProfession(
@@ -1101,5 +1136,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
             : 0;
     }
 
+    private static GDictionary OwnedDictionary(GDictionary dictionary, string reason) =>
+        TestResourceOwnership.OwnWrapper(dictionary, reason);
 
 }

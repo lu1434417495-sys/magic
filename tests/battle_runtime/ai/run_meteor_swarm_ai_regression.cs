@@ -94,11 +94,14 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
             _test.True(!string.IsNullOrEmpty(scoreInput.friendly_fire_reject_reason), "AI 应标记友伤 hard reject reason。");
             _test.Eq(scoreInput.meteor_use_case, new StringName("unsafe_friendly_fire"), "友伤 hard reject 时 meteor_use_case 应进入 unsafe。");
 
-            var action = new UseGroundSkillAction
+            var action = TestResourceOwnership.Own(
+                new UseGroundSkillAction
             {
                 maximum_friendly_fire_target_count = 99,
                 allow_friendly_lethal = true,
-            };
+                },
+                "meteor_swarm_ai.friendly_fire_action"
+            );
             _test.True(
                 !action.PassesFriendlyFireLimits(scoreInput),
                 "UseGroundSkillAction 应优先遵守 meteor hard reject，而不是粗略友伤数量。"
@@ -197,7 +200,10 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
             {
                 _test.Eq(softScore.estimated_friendly_fire_target_count, 1, "soft 友伤前置：应识别一个友军波及目标。");
                 _test.Eq(softScore.friendly_fire_reject_reason, "", "低比例友伤应进入 soft penalty 而非 hard reject。");
-                var defaultAction = new UseGroundSkillAction();
+                var defaultAction = TestResourceOwnership.Own(
+                    new UseGroundSkillAction(),
+                    "meteor_swarm_ai.default_ground_action"
+                );
                 _test.True(
                     defaultAction.PassesFriendlyFireLimits(softScore),
                     "Meteor soft 友伤不应被默认 friendly_fire_target_count=0 的通用上限挡掉。"

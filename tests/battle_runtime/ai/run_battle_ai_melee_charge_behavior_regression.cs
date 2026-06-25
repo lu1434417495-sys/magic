@@ -254,13 +254,16 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         AddUnitToState(runtime, state, player, isEnemy: false);
         runtime.SetupStateForTests(state);
 
-        var action = new UseChargeAction
+        var action = TestResourceOwnership.Own(
+            new UseChargeAction
         {
             action_id = "charge_resolved_stop_anchor",
             skill_id = "charge",
             target_selector = "nearest_enemy",
             minimum_charge_move_distance = 1,
-        };
+            },
+            "battle_ai_melee_charge.action"
+        );
         BattleAiDecision decision = action.Decide(BuildAiContext(runtime, wolf));
         _test.True(decision?.command != null, "charge 评分回归应能产出合法冲锋指令。");
         _test.True(

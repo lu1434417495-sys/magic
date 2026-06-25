@@ -245,7 +245,9 @@ public partial class run_progression_content_registry_typed_regression : SceneTr
             {
                 RewardKind = PendingCharacterRewardEntryKind.SkillUnlock,
                 target_id = "missing_skill",
+                target_label = "Missing Skill",
                 amount = 1,
+                reason_text = "Validation probe.",
             }
         );
 
@@ -275,7 +277,7 @@ public partial class run_progression_content_registry_typed_regression : SceneTr
             ["profession_defs"] = new GDictionary(),
             ["achievement_defs"] = new GDictionary
             {
-                [new StringName("broken_achievement")] = brokenAchievement,
+                [new StringName("broken_achievement")] = brokenAchievement.ToDictionary(),
             },
             ["quest_defs"] = new GDictionary(),
             ["race_defs"] = new GDictionary { [new StringName("human")] = race },

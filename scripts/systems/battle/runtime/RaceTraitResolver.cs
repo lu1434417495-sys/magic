@@ -109,7 +109,7 @@ public static class RaceTraitResolver
     }
 
     private static void _append_unique_string_names(
-        Godot.Collections.Array<StringName> target,
+        StringNameList target,
         Godot.Collections.Array<StringName> values
     )
     {

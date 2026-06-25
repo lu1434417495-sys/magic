@@ -29,14 +29,16 @@ public enum ContingencyTimingKind
 
 public class ContingencyTriggerState
 {
+    private readonly RuntimePayloadStore _payload = new();
+
     public ContingencyTriggerKind TriggerKind { get; private set; } =
         ContingencyTriggerKind.Unknown;
     public StringName Type { get; private set; } = "";
-    public GDictionary Payload { get; private set; } = new();
+    public GDictionary Payload => _payload.ProjectPayload();
 
     public ContingencyTriggerState DuplicateState() => FromDictionary(ToDictionary());
 
-    public GDictionary ToDictionary() => Payload.Duplicate(true);
+    public GDictionary ToDictionary() => Payload;
 
     public static ContingencyTriggerState FromDictionary(GDictionary payload)
     {
@@ -49,12 +51,13 @@ public class ContingencyTriggerState
         if (!ValidatePayload(type, payload))
             return null;
 
-        return new ContingencyTriggerState
+        var state = new ContingencyTriggerState
         {
             TriggerKind = ToTriggerKind(type),
             Type = type,
-            Payload = payload.Duplicate(true),
         };
+        state._payload.ReplaceWithPayload(payload);
+        return state;
     }
 
     internal static StringName ToStringName(ContingencyTriggerKind kind)

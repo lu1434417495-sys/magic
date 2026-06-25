@@ -27,7 +27,10 @@ public class DerivedAttributeRule
     {
         target_attribute_id = p_target_attribute_id;
         base_value = p_base_value;
-        coefficients = p_coefficients?.Duplicate(true) ?? new Godot.Collections.Dictionary();
+        coefficients = RuntimePayloadCopy.Dictionary(
+            p_coefficients,
+            "DerivedAttributeRule.coefficients"
+        );
         divisor = p_divisor > 0 ? p_divisor : 1;
         min_value = p_min_value;
         max_value = p_max_value;

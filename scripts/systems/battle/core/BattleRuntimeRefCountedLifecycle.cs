@@ -1,17 +1,9 @@
 using System;
 
-public partial class BattleCellState
-{
-    public BattleCellState()
-    {
-        RuntimeStateLifecycle.MarkFinalizerless(this, GetType().Name);
-    }
-}
-
 public partial class BattleState
 {
     public BattleState()
     {
-        RuntimeStateLifecycle.MarkFinalizerless(this, GetType().Name);
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(this, GetType().Name);
     }
 }

@@ -195,14 +195,19 @@ public partial class run_character_info_identity_regression : SceneTree
     private static GDictionary BuildSkillDefs()
     {
         // 内容索引只接受 StringName key，String key 会被 typed 索引构建丢弃。
-        return new GDictionary
-        {
-            [new StringName("dragon_breath")] = new SkillDef
+        GDictionary result = TestResourceOwnership.OwnWrapper(
+            new GDictionary(),
+            "character_info_identity.skill_defs"
+        );
+        result[new StringName("dragon_breath")] = TestResourceOwnership.Own(
+            new SkillDef
             {
                 skill_id = "dragon_breath",
                 display_name = "Dragon Breath",
             },
-        };
+            "character_info_identity.dragon_breath"
+        );
+        return result;
     }
 
     private static ProgressionIdentityCatalogData BuildProgressionIdentityCatalog()

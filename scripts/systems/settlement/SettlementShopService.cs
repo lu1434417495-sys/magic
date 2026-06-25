@@ -169,14 +169,11 @@ public sealed class SettlementShopService : IDisposable
         ),
     };
 
-    private readonly RandomNumberGenerator _rng = new();
+    private readonly RuntimeRandom _rng = new();
 
     public void Dispose()
     {
         System.GC.SuppressFinalize(this);
-        System.GC.SuppressFinalize(_rng);
-        if (GodotObject.IsInstanceValid(_rng))
-            _rng.Dispose();
     }
 
     public GDictionary BuildWindowDataTyped(
@@ -504,8 +501,8 @@ public sealed class SettlementShopService : IDisposable
         int currentWorldStep
     )
     {
-        ulong seed = (ulong)TrueRandomSeedService.GenerateSeed();
-        _rng.Seed = seed;
+        long seed = TrueRandomSeedService.GenerateSeed();
+        _rng.Reseed(seed);
         var inventory = new GDictionaryArray();
         foreach (ShopItemSeed source in shopDef.GuaranteedItems)
         {
@@ -536,7 +533,7 @@ public sealed class SettlementShopService : IDisposable
         {
             { "shop_id", shopDef.ShopId },
             { "current_inventory", inventory },
-            { "seed", (long)seed },
+            { "seed", seed },
             { "last_refresh_step", currentWorldStep },
         };
     }
@@ -589,7 +586,7 @@ public sealed class SettlementShopService : IDisposable
         inventory.Add(builtEntry);
     }
 
-    private static ShopItemSeed? PickWeightedRandomEntry(List<ShopItemSeed> pool, RandomNumberGenerator rng)
+    private static ShopItemSeed? PickWeightedRandomEntry(List<ShopItemSeed> pool, RuntimeRandom rng)
     {
         int totalWeight = 0;
         foreach (ShopItemSeed entry in pool)

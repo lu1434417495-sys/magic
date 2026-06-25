@@ -1,7 +1,6 @@
 using System;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 internal sealed class RuntimeStateSource
 {
@@ -62,24 +61,22 @@ internal sealed class RuntimeTransactionRollbackState
         private readonly bool _battleSaveLockEnabled;
         private readonly bool _battleSaveDirty;
         private readonly bool _runtimeSaveDirty;
-        private readonly GStringNameArray _runtimeSaveDirtyScopes;
+        private readonly StringNameList _runtimeSaveDirtyScopes;
         private readonly int _lastSaveError;
         private readonly StringName _lastSaveErrorReason;
         private readonly bool _postDecodeSavePending;
-        private readonly GStringNameArray _postDecodeSaveReasons;
+        private readonly StringNameList _postDecodeSaveReasons;
 
         internal SessionRollbackSnapshot(GameSession session)
         {
             _battleSaveLockEnabled = session?._battle_save_lock_enabled ?? false;
             _battleSaveDirty = session?._battle_save_dirty ?? false;
             _runtimeSaveDirty = session?._runtime_save_dirty ?? false;
-            _runtimeSaveDirtyScopes = session?._runtime_save_dirty_scopes?.Duplicate()
-                ?? new GStringNameArray();
+            _runtimeSaveDirtyScopes = new StringNameList(session?._runtime_save_dirty_scopes);
             _lastSaveError = session?._last_save_error ?? (int)Error.Ok;
             _lastSaveErrorReason = session?._last_save_error_reason ?? "";
             _postDecodeSavePending = session?._post_decode_save_pending ?? false;
-            _postDecodeSaveReasons = session?._post_decode_save_reasons?.Duplicate()
-                ?? new GStringNameArray();
+            _postDecodeSaveReasons = new StringNameList(session?._post_decode_save_reasons);
         }
 
         internal void Restore(GameSession session)
@@ -144,7 +141,9 @@ internal sealed class RuntimeTransactionRollbackState
             if (transaction.PersistPartyState)
                 session._party_state = _partyState?.DuplicateState() ?? new PartyState();
             if (transaction.PersistWorldData)
-                session._world_data = WorldMapDataProjection.Project(_worldData);
+                session.ReplaceWorldDataPayloadForRuntimeRestore(
+                    WorldMapDataProjection.Project(_worldData)
+                );
             if (transaction.PersistPlayerCoord)
                 session._player_coord = _playerCoord;
             _sessionSnapshot?.Restore(session);

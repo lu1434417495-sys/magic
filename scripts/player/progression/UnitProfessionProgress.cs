@@ -23,9 +23,9 @@ public class UnitProfessionProgress
 
     public bool is_hidden;
 
-    public Godot.Collections.Array<StringName> core_skill_ids = new();
+    public StringNameList core_skill_ids = new();
 
-    public Godot.Collections.Array<StringName> granted_skill_ids = new();
+    public StringNameList granted_skill_ids = new();
 
     public List<ProfessionPromotionRecord> promotion_history = new();
 
@@ -59,8 +59,8 @@ public class UnitProfessionProgress
             rank = rank,
             is_active = is_active,
             is_hidden = is_hidden,
-            core_skill_ids = new Godot.Collections.Array<StringName>(core_skill_ids),
-            granted_skill_ids = new Godot.Collections.Array<StringName>(granted_skill_ids),
+            core_skill_ids = core_skill_ids?.Duplicate() ?? new StringNameList(),
+            granted_skill_ids = granted_skill_ids?.Duplicate() ?? new StringNameList(),
             inactive_reason = inactive_reason,
         };
         foreach (var record in promotion_history)
@@ -206,18 +206,17 @@ public class UnitProfessionProgress
         return parsed;
     }
 
-    private static Godot.Collections.Array<StringName> _parse_unique_string_name_array(
+    private static StringNameList _parse_unique_string_name_array(
         Godot.Collections.Array values
     )
     {
-        var result = new Godot.Collections.Array<StringName>();
-        var seen = new Godot.Collections.Dictionary();
+        var result = new StringNameList();
+        var seen = new HashSet<StringName>();
         foreach (var raw in values)
         {
             var parsed = _parse_string_name_field(raw, false, out bool ok);
-            if (!ok || seen.ContainsKey(parsed))
+            if (!ok || !seen.Add(parsed))
                 return null;
-            seen[parsed] = true;
             result.Add(parsed);
         }
         return result;

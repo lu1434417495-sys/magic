@@ -11,11 +11,6 @@ public static class GodotSharpCleanup
         GodotObjectLifecycle.CollectPendingFinalizers();
     }
 
-    public static void DisposeGodotObject(GodotObject owned)
-    {
-        GodotObjectLifecycle.DisposeGodotObject(owned);
-    }
-
     public static void DisposeGodotObject(BattleCommand command)
     {
         if (command == null)

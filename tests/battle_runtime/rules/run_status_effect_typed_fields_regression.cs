@@ -314,7 +314,7 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
         }
         finally
         {
-            GodotSharpCleanup.DisposeGodotObject(unit);
+            BattleTestFixture.DisposeBattleUnit(unit);
             runtime.Dispose();
         }
     }
@@ -618,7 +618,7 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
         }
         finally
         {
-            GodotSharpCleanup.DisposeGodotObject(unit);
+            BattleTestFixture.DisposeBattleUnit(unit);
             runtime.Dispose();
         }
     }
@@ -652,7 +652,7 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
         }
         finally
         {
-            GodotSharpCleanup.DisposeGodotObject(unit);
+            BattleTestFixture.DisposeBattleUnit(unit);
             runtime.Dispose();
         }
     }
@@ -681,7 +681,7 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
             2,
             "runtime debuff wrapper should preserve power."
         );
-        GodotSharpCleanup.DisposeGodotObject(unit);
+        BattleTestFixture.DisposeBattleUnit(unit);
         runtime.Dispose();
     }
 
@@ -713,7 +713,7 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
             BodySizeContentRules.ToStringName(BodySizeCategoryKind.Large),
             "runtime body-size wrapper should forward typed previous_body_size_category field."
         );
-        GodotSharpCleanup.DisposeGodotObject(unit);
+        BattleTestFixture.DisposeBattleUnit(unit);
         runtime.Dispose();
     }
 
@@ -742,7 +742,7 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
             3,
             "runtime source wrapper should preserve power."
         );
-        GodotSharpCleanup.DisposeGodotObject(unit);
+        BattleTestFixture.DisposeBattleUnit(unit);
         runtime.Dispose();
     }
 
@@ -839,7 +839,7 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
     {
         foreach (BattleUnitState unit in units)
         {
-            GodotSharpCleanup.DisposeGodotObject(unit);
+            BattleTestFixture.DisposeBattleUnit(unit);
         }
     }
 

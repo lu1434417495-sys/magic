@@ -20,11 +20,18 @@ public partial class BattleDamageResolver
     {
         if (targetUnit == null)
         {
-            return new GDictionary { ["tier"] = MitigationTierNormal, ["sources"] = new GArray() };
+            return MitigationPayload(
+                new GDictionary
+                {
+                    ["tier"] = MitigationTierNormal,
+                    ["sources"] = MitigationArray("mitigation.null_target.sources"),
+                },
+                "mitigation.null_target"
+            );
         }
-        var halfSources = new GArray();
-        var doubleSources = new GArray();
-        var immuneSources = new GArray();
+        var halfSources = MitigationArray("mitigation.half_sources");
+        var doubleSources = MitigationArray("mitigation.double_sources");
+        var immuneSources = MitigationArray("mitigation.immune_sources");
         foreach (StringName statusId in targetUnit.GetSortedStatusEffectIdsTyped())
         {
             BattleStatusEffectState statusEntry = targetUnit.GetStatusEffect(statusId);
@@ -64,19 +71,51 @@ public partial class BattleDamageResolver
             immuneSources
         );
         if (immuneSources.Count > 0)
-            return new GDictionary { ["tier"] = MitigationTierImmune, ["sources"] = immuneSources };
+            return MitigationPayload(
+                new GDictionary { ["tier"] = MitigationTierImmune, ["sources"] = immuneSources },
+                "mitigation.immune"
+            );
         if (halfSources.Count > 0 && doubleSources.Count > 0)
         {
-            var cancelled = new GArray();
+            var cancelled = MitigationArray("mitigation.cancelled_sources");
             cancelled.AddRange(halfSources);
             cancelled.AddRange(doubleSources);
-            return new GDictionary { ["tier"] = MitigationTierNormal, ["sources"] = cancelled };
+            return MitigationPayload(
+                new GDictionary { ["tier"] = MitigationTierNormal, ["sources"] = cancelled },
+                "mitigation.cancelled"
+            );
         }
         if (halfSources.Count > 0)
-            return new GDictionary { ["tier"] = MitigationTierHalf, ["sources"] = halfSources };
+            return MitigationPayload(
+                new GDictionary { ["tier"] = MitigationTierHalf, ["sources"] = halfSources },
+                "mitigation.half"
+            );
         if (doubleSources.Count > 0)
-            return new GDictionary { ["tier"] = MitigationTierDouble, ["sources"] = doubleSources };
-        return new GDictionary { ["tier"] = MitigationTierNormal, ["sources"] = new GArray() };
+            return MitigationPayload(
+                new GDictionary { ["tier"] = MitigationTierDouble, ["sources"] = doubleSources },
+                "mitigation.double"
+            );
+        return MitigationPayload(
+            new GDictionary
+            {
+                ["tier"] = MitigationTierNormal,
+                ["sources"] = MitigationArray("mitigation.normal.sources"),
+            },
+            "mitigation.normal"
+        );
+    }
+
+    private static GArray MitigationArray(string reason)
+    {
+        var result = new GArray();
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, reason);
+        return result;
+    }
+
+    private static GDictionary MitigationPayload(GDictionary payload, string reason)
+    {
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(payload, reason);
+        return payload;
     }
 
     private static void AppendDamageResistanceSources(
@@ -364,13 +403,16 @@ public partial class BattleDamageResolver
         StringName tier = default
     )
     {
-        return new GDictionary
-        {
-            ["status_id"] = statusId.ToString(),
-            ["type"] = sourceType,
-            ["value"] = value,
-            ["tier"] = (tier == default ? new StringName("") : tier).ToString(),
-        };
+        return MitigationPayload(
+            new GDictionary
+            {
+                ["status_id"] = statusId.ToString(),
+                ["type"] = sourceType,
+                ["value"] = value,
+                ["tier"] = (tier == default ? new StringName("") : tier).ToString(),
+            },
+            "mitigation.source"
+        );
     }
 
     private void ApplyBlackStarBrandGuardIgnore(

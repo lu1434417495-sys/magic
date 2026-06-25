@@ -188,15 +188,11 @@ public sealed class BattleSimRunner
             TimelineSteps = loopResult.timeline_steps,
             AllyAlive = _CountLivingUnits(
                 state,
-                state != null
-                    ? (Godot.Collections.Array)state.ally_unit_ids
-                    : new Godot.Collections.Array()
+                state?.ally_unit_ids
             ),
             EnemyAlive = _CountLivingUnits(
                 state,
-                state != null
-                    ? (Godot.Collections.Array)state.enemy_unit_ids
-                    : new Godot.Collections.Array()
+                state?.enemy_unit_ids
             ),
             Metrics = BattleMetricsProjection.Project(runtime.GetBattleMetricsTyped()),
             AiTurnTraces = CloneAiTurnTraces(runtime.GetAiTurnTracesTyped()),
@@ -224,14 +220,13 @@ public sealed class BattleSimRunner
         return encounterAnchor;
     }
 
-    private int _CountLivingUnits(BattleState state, Godot.Collections.Array unitIds)
+    private int _CountLivingUnits(BattleState state, IEnumerable<StringName> unitIds)
     {
-        if (state == null)
+        if (state == null || unitIds == null)
             return 0;
         int count = 0;
-        foreach (Variant unitIdValue in unitIds)
+        foreach (StringName unitId in unitIds)
         {
-            StringName unitId = unitIdValue.AsStringName();
             BattleUnitState unitState = state.GetUnit(unitId);
             if (unitState != null && unitState.is_alive)
                 count++;
@@ -429,8 +424,6 @@ public sealed class BattleSimRunner
                 return _NormalizeValue(BattleSimReportProjection.Project(scenarioDef));
             if (obj is BattleSimProfileDef profileDef)
                 return _NormalizeValue(BattleSimReportProjection.Project(profileDef));
-            if (obj is BattleUnitState unitState)
-                return _NormalizeValue(BattleSimReportProjection.Project(unitState));
             return obj?.ToString() ?? "";
         }
         return value;

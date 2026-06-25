@@ -617,6 +617,10 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         {
             return null;
         }
+        GodotContentOwnership.RegisterBorrowedContent(
+            baseConfig,
+            $"world_map_shared_content_injection:{TestWorldConfig}"
+        );
         WorldMapSettlementBundle settlementBundle = ResourceLoader.Load<WorldMapSettlementBundle>(
             SharedSettlementBundlePath
         );
@@ -625,8 +629,15 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         {
             return null;
         }
+        GodotContentOwnership.RegisterBorrowedContent(
+            settlementBundle,
+            $"world_map_shared_content_injection:{SharedSettlementBundlePath}"
+        );
 
-        WorldMapGenerationConfig config = baseConfig.Duplicate(true) as WorldMapGenerationConfig;
+        WorldMapGenerationConfig config = TestResourceOwnership.Own(
+            baseConfig.Duplicate(true) as WorldMapGenerationConfig,
+            "world_map_shared_content_injection.wild_spawn_density_config"
+        );
         _test.True(config != null, "测试世界配置应支持 duplicate(true)。");
         if (config == null)
         {
@@ -634,8 +645,14 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         }
 
         config.inject_default_main_world_content = false;
-        config.settlement_library = settlementBundle.settlement_library.Duplicate(true);
-        config.facility_library = settlementBundle.facility_library.Duplicate(true);
+        config.settlement_library = TestResourceOwnership.OwnWrapper(
+            settlementBundle.settlement_library.Duplicate(true),
+            "world_map_shared_content_injection.settlement_library"
+        );
+        config.facility_library = TestResourceOwnership.OwnWrapper(
+            settlementBundle.facility_library.Duplicate(true),
+            "world_map_shared_content_injection.facility_library"
+        );
         config.guarantee_starting_wild_encounter = false;
         config.procedural_wild_spawn_chunk_chance_denominator = 1;
         ok = true;

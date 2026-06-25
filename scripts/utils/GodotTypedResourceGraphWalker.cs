@@ -71,7 +71,7 @@ internal static class GodotTypedResourceGraphWalker
             case SkillDef skill:
                 VisitValue(skill.combat_profile, visitor, visited, depth);
                 VisitValue(skill.contingency_automation_profile, visitor, visited, depth);
-                VisitValue(skill.attribute_modifiers, visitor, visited, depth);
+                VisitValue(skill.AttributeModifiersTyped, visitor, visited, depth);
                 break;
             case CombatSkillDef combat:
                 VisitValue(combat.level_overrides, visitor, visited, depth);
@@ -157,6 +157,36 @@ internal static class GodotTypedResourceGraphWalker
                 break;
             case BarrierLayerDef layer:
                 VisitValue(layer.passage_outcomes, visitor, visited, depth);
+                break;
+            case WorldMapGenerationConfig worldConfig:
+                VisitValue(worldConfig.settlement_library, visitor, visited, depth);
+                VisitValue(worldConfig.facility_library, visitor, visited, depth);
+                VisitValue(worldConfig.settlement_distribution, visitor, visited, depth);
+                VisitValue(worldConfig.wild_monster_distribution, visitor, visited, depth);
+                VisitValue(worldConfig.mounted_submaps, visitor, visited, depth);
+                VisitValue(worldConfig.world_events, visitor, visited, depth);
+                break;
+            case WorldMapSettlementBundle settlementBundle:
+                VisitValue(settlementBundle.settlement_library, visitor, visited, depth);
+                VisitValue(settlementBundle.facility_library, visitor, visited, depth);
+                break;
+            case WorldMapWildSpawnBundle wildSpawnBundle:
+                VisitValue(wildSpawnBundle.wild_monster_distribution, visitor, visited, depth);
+                break;
+            case SettlementConfig settlement:
+                VisitValue(settlement.facility_slots, visitor, visited, depth);
+                VisitValue(settlement.guaranteed_facility_ids, visitor, visited, depth);
+                VisitValue(settlement.optional_facility_pool, visitor, visited, depth);
+                break;
+            case FacilityConfig facility:
+                VisitValue(facility.allowed_slot_tags, visitor, visited, depth);
+                VisitValue(facility.bound_service_npcs, visitor, visited, depth);
+                break;
+            case WildSpawnRule wildSpawnRule:
+                VisitValue(wildSpawnRule.chunk_coords, visitor, visited, depth);
+                break;
+            case WorldMapSettlementNamePool namePool:
+                VisitValue(namePool.settlement_display_names, visitor, visited, depth);
                 break;
         }
     }

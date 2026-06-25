@@ -559,8 +559,10 @@ internal sealed class BattleChargeResolver
             return;
         }
 
-        GDictionary extraStatusParams = GetDict(parameters, "repeat_hit_status_params")
-            .Duplicate(true);
+        GDictionary extraStatusParams = RuntimePayloadCopy.Dictionary(
+            GetDict(parameters, "repeat_hit_status_params"),
+            "BattleChargeResolver.repeat_hit_status_params"
+        );
 
         foreach ((StringName unitId, int hitCount) in totalUnitHitCounts)
         {
@@ -846,7 +848,10 @@ internal sealed class BattleChargeResolver
         clonedState.active_unit_id = state.active_unit_id;
         clonedState.winner_faction_id = state.winner_faction_id;
         clonedState.log_entries = new Godot.Collections.Array<string>(state.log_entries);
-        clonedState.promotion_queue = state.promotion_queue.Duplicate(true);
+        clonedState.promotion_queue = RuntimePayloadCopy.Array(
+            state.promotion_queue,
+            "BattleChargeResolver.CloneStateForPreview.promotion_queue"
+        );
         clonedState.modal_state = state.modal_state;
         clonedState.ClearRuntimeEdgeFaces();
         clonedState.runtime_edges_dirty = true;
@@ -908,7 +913,10 @@ internal sealed class BattleChargeResolver
 
             AttackEffectResolutionResult stageResult;
             AttackCheckInput attackCheck = new(skillId: skillDef?.skill_id ?? new StringName(""));
-            var stageEffects = new GArray { stageEffect };
+            var stageEffects = _transientScope.OwnWrapper(
+                new GArray { stageEffect },
+                $"path_step_aoe:{pathStepResultLabel}:effects"
+            );
             if (pathStepParameters.ResolveAsWeaponAttack)
             {
                 BattleAttackCheckPolicyService attackPolicy =
@@ -945,7 +953,10 @@ internal sealed class BattleChargeResolver
                     activeUnit,
                     targetUnit,
                     stageEffects,
-                    new GDictionary { ["skill_id"] = skillDef?.skill_id ?? new StringName("") }
+                    _transientScope.OwnWrapper(
+                        new GDictionary { ["skill_id"] = skillDef?.skill_id ?? new StringName("") },
+                        $"path_step_aoe:{pathStepResultLabel}:damage_context"
+                    )
                 );
             }
             if (pathStepParameters.ResolveAsWeaponAttack)
@@ -1686,7 +1697,7 @@ internal sealed class BattleChargeResolver
             {
                 continue;
             }
-            var removedIds = new Godot.Collections.Array<StringName>();
+            bool removedAny = false;
             foreach (
                 StringName terrainEffectId in new Godot.Collections.Array<StringName>(
                     cell.terrain_effect_ids
@@ -1700,12 +1711,12 @@ internal sealed class BattleChargeResolver
                 )
                 {
                     cell.terrain_effect_ids.Remove(terrainEffectId);
-                    removedIds.Add(terrainEffectId);
+                    removedAny = true;
                 }
             }
-            if (removedIds.Count > 0)
+            if (removedAny)
             {
-                return new TrapResult(true, occupiedCoord, removedIds);
+                return new TrapResult(true, occupiedCoord);
             }
         }
         return TrapResult.NotTriggered;
@@ -2276,25 +2287,18 @@ internal sealed class BattleChargeResolver
 
     private readonly struct TrapResult
     {
-        public static readonly TrapResult NotTriggered = new(
-            false,
-            Vector2I.Zero,
-            new Godot.Collections.Array<StringName>()
-        );
+        public static readonly TrapResult NotTriggered = new(false, Vector2I.Zero);
 
         public readonly bool Triggered;
         public readonly Vector2I Coord;
-        public readonly Godot.Collections.Array<StringName> TerrainEffectIds;
 
         public TrapResult(
             bool triggered,
-            Vector2I coord,
-            Godot.Collections.Array<StringName> terrainEffectIds
+            Vector2I coord
         )
         {
             Triggered = triggered;
             Coord = coord;
-            TerrainEffectIds = terrainEffectIds;
         }
     }
 

@@ -46,7 +46,7 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
                     display_name = "Baseline",
                 }
             );
-            var rng = new RandomNumberGenerator { Seed = (ulong)Math.Max(startSeed, 1) };
+            var rng = new RuntimeRandom(Math.Max(startSeed, 1));
 
             int totalChargeAttempts = 0;
             int totalChargeSuccesses = 0;
@@ -214,7 +214,7 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
         finally
         {
             runtime.dispose();
-            state?.Dispose();
+            BattleTestFixture.DisposeBattleState(state);
         }
     }
 

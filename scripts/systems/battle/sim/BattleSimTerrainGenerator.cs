@@ -24,13 +24,17 @@ public sealed class BattleSimTerrainGenerator
 
         var map_size = _resolve_map_size(cells, context ?? new GDictionary());
 
+        var cellColumns = BattleCellState.BuildColumnsFromSurfaceCells(cells);
         return new GDictionary
         {
             ["map_size"] = map_size,
 
-            ["cells"] = cells.Duplicate(true),
+            ["cells"] = RuntimePayloadCopy.Dictionary(
+                cells,
+                "BattleSimTerrainGenerator.GenerateTyped.cells"
+            ),
 
-            ["cell_columns"] = BattleCellState.BuildColumnsFromSurfaceCells(cells),
+            ["cell_columns"] = BattleCellState.ProjectColumnsToPayload(cellColumns),
 
             ["terrain_profile_id"] = ProgressionDataUtils.to_string_name(
                 context != null

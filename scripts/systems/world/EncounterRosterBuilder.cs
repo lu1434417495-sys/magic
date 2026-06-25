@@ -485,9 +485,9 @@ public sealed class EncounterRosterBuilder : IDisposable
                 true
             );
             nextUnitIndex += builtUnits.Count;
-            foreach (BattleUnitState unit in Objects<BattleUnitState>(builtUnits))
+            foreach (BattleUnitState unit in BattleUnits(builtUnits))
             {
-                enemyUnits.Add(unit);
+                enemyUnits.Add(unit.ToDictionary());
             }
         }
         if (enemyUnits.Count != 0)
@@ -625,9 +625,24 @@ public sealed class EncounterRosterBuilder : IDisposable
                 unitState.SetKnownSkillLevelTyped(normalizedSkillId, Mathf.Max(configuredLevel, 1));
             }
             SyncEnemyUnlockedResources(unitState, buildContext.SkillDefs);
-            enemyUnits.Add(unitState);
+            enemyUnits.Add(unitState.ToDictionary());
         }
         return enemyUnits;
+    }
+
+    private static IEnumerable<BattleUnitState> BattleUnits(GArray values)
+    {
+        if (values == null)
+        {
+            yield break;
+        }
+        foreach (object rawValue in values)
+        {
+            if (BattleUnitState.TryReadUnitPayload(rawValue, out BattleUnitState value))
+            {
+                yield return value;
+            }
+        }
     }
 
     private static GStringNameArray CopyTemplateSaveAdvantageTags(EnemyTemplateDef template)

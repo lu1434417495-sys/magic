@@ -27,7 +27,7 @@ public sealed class PartyMemberStateCollection
         {
             var result = new Godot.Collections.Array();
             foreach (StringName memberId in GetSortedIds())
-                result.Add(_members[memberId]);
+                result.Add(_members[memberId]?.ToDictionary() ?? new GDictionary());
             return result;
         }
     }
@@ -96,7 +96,7 @@ public sealed class PartyMemberStateCollection
     {
         var payload = new GDictionary();
         foreach (StringName memberId in GetSortedIds())
-            payload[memberId.ToString()] = _members[memberId];
+            payload[memberId.ToString()] = _members[memberId]?.ToDictionary() ?? new GDictionary();
         return payload;
     }
 
@@ -126,11 +126,8 @@ public sealed class PartyMemberStateCollection
             if (result.ContainsKey(memberId))
                 throw new ArgumentException($"member_states contains duplicate member id {memberId}");
 
-            Variant rawValue = payload[rawKey];
-            if (rawValue.VariantType != Variant.Type.Object)
-                throw new ArgumentException($"member_states[{memberId}] is not a PartyMemberState object");
-
-            var member = rawValue.AsGodotObject() as PartyMemberState;
+            if (!PartyMemberState.TryReadMemberPayload(payload[rawKey], out PartyMemberState member))
+                throw new ArgumentException($"member_states[{memberId}] is not a PartyMemberState payload");
             if (member == null || member.member_id != memberId)
                 throw new ArgumentException($"member_states[{memberId}] has mismatched member state");
             result.Set(member);

@@ -340,13 +340,16 @@ public partial class run_battle_ai_score_ordering_regression : SceneTree
 
     private void TestGroundControlMinimumPolicyMigratedFromGdRunner()
     {
-        var action = new UseGroundSkillAction
+        var action = TestResourceOwnership.Own(
+            new UseGroundSkillAction
         {
             action_id = "partial_hit_ground_control_probe",
             minimum_hit_count = 2,
             allow_empty_ground_control = true,
             minimum_ground_control_score = 1,
-        };
+            },
+            "battle_ai_score_ordering.ground_action"
+        );
         var scoreInput = new BattleAiScoreInput
         {
             effective_target_count = 1,

@@ -54,7 +54,7 @@ public partial class run_fate_typed_event_regression : SceneTree
         finally
         {
             fateRuntime.DisposeRuntime();
-            GodotSharpCleanup.DisposeGodotObject(hero);
+            BattleTestFixture.DisposeBattleUnit(hero);
         }
     }
 
@@ -84,7 +84,7 @@ public partial class run_fate_typed_event_regression : SceneTree
         finally
         {
             fateRuntime.DisposeRuntime();
-            GodotSharpCleanup.DisposeGodotObject(hero);
+            BattleTestFixture.DisposeBattleUnit(hero);
         }
     }
 

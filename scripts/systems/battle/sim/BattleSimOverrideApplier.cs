@@ -14,8 +14,16 @@ public sealed class BattleSimOverrideApplier
         var clonedSkillDefs = DuplicateResourceIndex(skillDefs);
         var clonedEnemyAiBrains = DuplicateResourceIndex(enemyAiBrains);
         BattleAiScoreProfile aiScoreProfile =
-            profile?.ai_score_profile?.Duplicate(true) as BattleAiScoreProfile
-            ?? new BattleAiScoreProfile();
+            DuplicateDerivedResource(
+                profile?.ai_score_profile,
+                "baseline_ai_score_profile",
+                "BattleSimOverrideApplier.ApplyProfileTyped"
+            ) ?? new BattleAiScoreProfile();
+        GodotContentOwnership.RegisterDerivedContent(
+            aiScoreProfile,
+            "battle_sim_override:baseline_ai_score_profile",
+            "BattleSimOverrideApplier.ApplyProfileTyped.default_profile"
+        );
         GDictionary clonedSkillDefsProjection = ProjectResourceIndex(clonedSkillDefs);
         GDictionary clonedEnemyAiBrainsProjection = ProjectResourceIndex(clonedEnemyAiBrains);
         var factionProfiles = new Dictionary<StringName, BattleAiScoreProfile>();
@@ -71,7 +79,12 @@ public sealed class BattleSimOverrideApplier
         {
             if (id == "" || resource == null)
                 continue;
-            duplicated[id] = resource.Duplicate(true) as TResource ?? resource;
+            duplicated[id] =
+                DuplicateDerivedResource(
+                    resource,
+                    $"{typeof(TResource).Name}:{id}",
+                    "BattleSimOverrideApplier.DuplicateResourceIndex"
+                ) ?? resource;
         }
         return duplicated;
     }
@@ -91,6 +104,24 @@ public sealed class BattleSimOverrideApplier
             projected[id] = resource;
         }
         return projected;
+    }
+
+    private static TResource DuplicateDerivedResource<TResource>(
+        TResource resource,
+        string derivedKey,
+        string reason
+    )
+        where TResource : Resource
+    {
+        TResource clone = resource?.Duplicate(true) as TResource;
+        if (clone == null)
+            return null;
+        GodotContentOwnership.RegisterDerivedContent(
+            clone,
+            $"battle_sim_override:{derivedKey}",
+            reason
+        );
+        return clone;
     }
 
     private List<string> ApplyPatchEntryTyped(
@@ -215,8 +246,16 @@ public sealed class BattleSimOverrideApplier
                 )
                 {
                     faction_profile =
-                        ai_score_profile?.Duplicate(true) as BattleAiScoreProfile
-                        ?? new BattleAiScoreProfile();
+                        DuplicateDerivedResource(
+                            ai_score_profile,
+                            $"faction_ai_score_profile:{faction_id}",
+                            "BattleSimOverrideApplier.faction_ai_score_profile"
+                        ) ?? new BattleAiScoreProfile();
+                    GodotContentOwnership.RegisterDerivedContent(
+                        faction_profile,
+                        $"battle_sim_override:faction_ai_score_profile:{faction_id}",
+                        "BattleSimOverrideApplier.faction_ai_score_profile.default_profile"
+                    );
                     faction_profiles[faction_id] = faction_profile;
                 }
 

@@ -47,8 +47,12 @@ public sealed class BattleSimRunReport
 
     public Godot.Collections.Array FinalUnits
     {
-        get => (Godot.Collections.Array)_finalUnits.Duplicate(true);
-        set => _finalUnits = value?.Duplicate(true) ?? new Godot.Collections.Array();
+        get => RuntimePayloadCopy.Array(_finalUnits, "BattleSimRunReport.FinalUnits.get");
+        set =>
+            _finalUnits = RuntimePayloadCopy.Array(
+                value,
+                "BattleSimRunReport.FinalUnits.set"
+            );
     }
 
 }

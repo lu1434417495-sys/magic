@@ -514,7 +514,7 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
                 duration_tu = 30,
             }
         );
-        return skill;
+        return TestResourceOwnership.Own(skill, "contingency_autocast_origin.stored_bolt_skill");
     }
 
     private void RunInvalidTargetResolutionScenario(

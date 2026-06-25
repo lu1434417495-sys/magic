@@ -92,7 +92,7 @@ public class BattleTerrainGenerator : IDisposable
         new(21, 13),
     };
 
-    private readonly RandomNumberGenerator _rng = new();
+    private readonly RuntimeRandom _rng = new();
     private readonly BattleEdgeService _edgeService = new();
 
     private readonly struct TerrainQualityResult
@@ -158,7 +158,7 @@ public class BattleTerrainGenerator : IDisposable
         }
 
         long battleSeed = BuildBattleSeed(encounterContext);
-        _rng.Seed = unchecked((ulong)battleSeed);
+        _rng.Reseed(battleSeed);
 
         BattleTerrainProfileKind terrainProfileKind = ToProfileKind(terrainProfileId);
         if (terrainProfileKind == BattleTerrainProfileKind.Canyon)
@@ -385,7 +385,7 @@ public class BattleTerrainGenerator : IDisposable
             try
             {
                 long attemptSeed = battleSeed + attempt * 1777L;
-                _rng.Seed = unchecked((ulong)attemptSeed);
+                _rng.Reseed(attemptSeed);
                 cells = BuildHeightfieldCells(
                     mapSize,
                     attemptSeed,
@@ -630,18 +630,20 @@ public class BattleTerrainGenerator : IDisposable
         StringName terrainProfileId
     )
     {
-        GDictionary cellColumns = BattleCellState.BuildColumnsFromSurfaceCells(cells);
+        Dictionary<Vector2I, BattleCellState> typedCells = ParseCellDictionary(cells);
+        Dictionary<Vector2I, List<BattleCellState>> cellColumns =
+            BattleCellState.BuildColumnsFromSurfaceCells(typedCells);
         Dictionary<Vector3I, BattleEdgeFaceState> edgeFaces = _edgeService.BuildEdgeFacesForCells(
-            cells,
+            typedCells,
             mapSize,
             cellColumns
         );
         return new GDictionary
         {
             ["map_size"] = mapSize,
-            ["cells"] = cells,
-            ["cell_columns"] = cellColumns,
-            ["terrain_counts"] = CountTerrainCells(cells),
+            ["cells"] = BattleCellState.ProjectCellsToPayload(typedCells),
+            ["cell_columns"] = BattleCellState.ProjectColumnsToPayload(cellColumns),
+            ["terrain_counts"] = CountTerrainCells(typedCells),
             ["ally_spawns"] = CollectSpawnRing(cells, mapSize, playerCoord, edgeFaces),
             ["enemy_spawns"] = CollectSpawnRing(cells, mapSize, enemyCoord, edgeFaces),
             ["player_coord"] = playerCoord,
@@ -662,7 +664,7 @@ public class BattleTerrainGenerator : IDisposable
             {
                 Vector2I coord = new(x, y);
                 (int height, StringName terrain) = resolver(coord);
-                cells[coord] = CreateCell(coord, height, terrain);
+                cells[coord] = CreateCell(coord, height, terrain).ToDictionary();
             }
         }
         return cells;
@@ -716,9 +718,47 @@ public class BattleTerrainGenerator : IDisposable
         var payload = new GDictionary();
         foreach (KeyValuePair<Vector2I, BattleCellState> entry in cells)
         {
-            payload[entry.Key] = entry.Value;
+            payload[entry.Key] = entry.Value?.ToDictionary() ?? new GDictionary();
         }
         return payload;
+    }
+
+    private static Dictionary<Vector2I, BattleCellState> ParseCellDictionary(GDictionary cells)
+    {
+        var result = new Dictionary<Vector2I, BattleCellState>();
+        if (cells == null)
+            return result;
+        foreach (Variant rawKey in cells.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.Vector2I)
+                continue;
+            Vector2I coord = rawKey.AsVector2I();
+            if (!TryReadCell(cells, coord, out BattleCellState cell))
+                continue;
+            cell.SetCoord(coord);
+            result[coord] = cell;
+        }
+        return result;
+    }
+
+    private static bool TryReadCell(
+        GDictionary cells,
+        Vector2I coord,
+        out BattleCellState cell
+    )
+    {
+        cell = null;
+        return cells != null
+            && cells.ContainsKey(coord)
+            && BattleCellState.TryReadCellPayload(cells[coord], out cell)
+            && cell != null;
+    }
+
+    private static void StoreCell(GDictionary cells, BattleCellState cell)
+    {
+        if (cells == null || cell == null)
+            return;
+        cells[cell.coord] = cell.ToDictionary();
     }
 
     private static double ResolveDefaultMacroHeight(Vector2I coord, Vector2I mapSize)
@@ -834,15 +874,10 @@ public class BattleTerrainGenerator : IDisposable
 
     private Dictionary<Vector3I, BattleEdgeFaceState> BuildEdgeFaces(GDictionary cells, Vector2I mapSize)
     {
-        GDictionary cellColumns = BattleCellState.BuildColumnsFromSurfaceCells(cells);
-        try
-        {
-            return _edgeService.BuildEdgeFacesForCells(cells, mapSize, cellColumns);
-        }
-        finally
-        {
-            BattleState.DisposeCellColumnsPayload(cellColumns);
-        }
+        Dictionary<Vector2I, BattleCellState> typedCells = ParseCellDictionary(cells);
+        Dictionary<Vector2I, List<BattleCellState>> cellColumns =
+            BattleCellState.BuildColumnsFromSurfaceCells(typedCells);
+        return _edgeService.BuildEdgeFacesForCells(typedCells, mapSize, cellColumns);
     }
 
     private TerrainQualityResult ScoreCandidate(
@@ -1062,13 +1097,14 @@ public class BattleTerrainGenerator : IDisposable
         int height
     )
     {
-        if (cells[coord].AsGodotObject() is not BattleCellState cell)
+        if (!TryReadCell(cells, coord, out BattleCellState cell))
         {
             return;
         }
         cell.base_terrain = terrain;
         cell.base_height = height;
         cell.RecalculateRuntimeValues();
+        StoreCell(cells, cell);
     }
 
     private static void SetTerrain(
@@ -1152,10 +1188,12 @@ public class BattleTerrainGenerator : IDisposable
             {
                 continue;
             }
-            if (cells[new Vector2I(seamX, y)].AsGodotObject() is BattleCellState cell)
+            Vector2I coord = new(seamX, y);
+            if (TryReadCell(cells, coord, out BattleCellState cell))
             {
                 BattleEdgeFeatureState wall = BattleEdgeFeatureState.MakeWall();
                 cell.SetEdgeFeature(Vector2I.Right, wall);
+                StoreCell(cells, cell);
             }
         }
     }
@@ -1231,7 +1269,7 @@ public class BattleTerrainGenerator : IDisposable
                         continue;
                     }
                     if (
-                        cells[coord].AsGodotObject() is BattleCellState cell
+                        TryReadCell(cells, coord, out BattleCellState cell)
                         && cell.passable
                         && !BattleTerrainRules.IsWaterTerrain(cell.base_terrain)
                     )
@@ -1251,7 +1289,7 @@ public class BattleTerrainGenerator : IDisposable
         HashSet<Vector2I> occupied
     )
     {
-        if (cells[coord].AsGodotObject() is not BattleCellState cell)
+        if (!TryReadCell(cells, coord, out BattleCellState cell))
         {
             return;
         }
@@ -1259,6 +1297,7 @@ public class BattleTerrainGenerator : IDisposable
         {
             cell.prop_ids.Add(propId);
         }
+        StoreCell(cells, cell);
         occupied.Add(coord);
     }
 
@@ -1387,7 +1426,7 @@ public class BattleTerrainGenerator : IDisposable
                 continue;
             if (!IsDrySpawnCell(cells, coord))
                 continue;
-            var cell = cells[coord].AsGodotObject() as BattleCellState;
+            TryReadCell(cells, coord, out BattleCellState cell);
             bool isSafeTerrain =
                 cell != null
                 && (cell.base_terrain == TerrainLand || cell.base_terrain == TerrainForest);
@@ -1486,8 +1525,7 @@ public class BattleTerrainGenerator : IDisposable
 
     private static bool IsDrySpawnCell(GDictionary cells, Vector2I coord)
     {
-        return cells.ContainsKey(coord)
-            && cells[coord].AsGodotObject() is BattleCellState cell
+        return TryReadCell(cells, coord, out BattleCellState cell)
             && cell.passable
             && !BattleTerrainRules.IsWaterTerrain(cell.base_terrain);
     }
@@ -1510,6 +1548,13 @@ public class BattleTerrainGenerator : IDisposable
 
     private static GDictionary CountTerrainCells(GDictionary cells)
     {
+        return CountTerrainCells(ParseCellDictionary(cells));
+    }
+
+    private static GDictionary CountTerrainCells(
+        IReadOnlyDictionary<Vector2I, BattleCellState> cells
+    )
+    {
         var counts = new GDictionary
         {
             [TerrainLand] = 0,
@@ -1520,9 +1565,9 @@ public class BattleTerrainGenerator : IDisposable
             [TerrainMud] = 0,
             [TerrainSpike] = 0,
         };
-        foreach (var value in cells.Values)
+        foreach (BattleCellState cell in cells.Values)
         {
-            if (value.AsGodotObject() is not BattleCellState cell)
+            if (cell == null)
             {
                 continue;
             }
@@ -1545,7 +1590,10 @@ public class BattleTerrainGenerator : IDisposable
             && (context == null || context.Count == 0)
         )
         {
-            return rawEncounterContext.Duplicate(true);
+            return RuntimePayloadCopy.Dictionary(
+                rawEncounterContext,
+                "BattleTerrainGenerator.BuildEncounterContext.raw"
+            );
         }
 
         EncounterAnchorData encounterAnchor = ContextObject(encounterAnchorOrContext);

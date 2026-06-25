@@ -20,6 +20,10 @@ internal sealed class RuntimePayloadStore
         Clear();
         if (payload == null)
             return;
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            payload,
+            "RuntimePayloadStore.ReplaceWithPayload.input"
+        );
         foreach (Variant key in payload.Keys)
             _entries.Add(new GameRuntimePayloadEntry(key, payload[key]));
     }
@@ -70,6 +74,7 @@ internal sealed class RuntimePayloadStore
         var result = new GDictionary();
         foreach (GameRuntimePayloadEntry entry in _entries)
             result[entry.Key] = entry.Value;
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, "RuntimePayloadStore.ProjectPayload");
         return result;
     }
 

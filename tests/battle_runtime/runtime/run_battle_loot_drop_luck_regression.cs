@@ -468,10 +468,8 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             return;
 
         bool firstMemberAssigned = false;
-        foreach (object memberOption in partyState.member_states.Values)
+        foreach (PartyMemberState memberState in partyState.GetMemberStates())
         {
-            if (!TryAsPartyMemberState(memberOption, out PartyMemberState memberState))
-                continue;
             UnitBaseAttributes attributes = memberState
                 .progression
                 ?.unit_base_attributes;
@@ -619,28 +617,6 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             totalQuantity += stack.quantity;
         }
         return totalQuantity;
-    }
-
-    private static bool TryAsPartyMemberState(object rawValue, out PartyMemberState value)
-    {
-        if (rawValue is PartyMemberState typedValue)
-        {
-            value = typedValue;
-            return true;
-        }
-
-        try
-        {
-            dynamic dynamicValue = rawValue;
-            value = dynamicValue.As<PartyMemberState>();
-            return value != null;
-        }
-        catch
-        {
-        }
-
-        value = null;
-        return false;
     }
 
     private readonly record struct DropCall(StringName ItemId, int Quantity, int DropLuck);

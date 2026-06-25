@@ -49,8 +49,15 @@ public partial class MeteorSwarmProfile : Resource
                 0
             );
             if (ring >= ring_min && ring <= ring_max)
-                result.Add(terrain_profile.Duplicate(true));
+                result.Add(RuntimePayloadCopy.Dictionary(
+                    terrain_profile,
+                    "MeteorSwarmProfile.GetTerrainProfilesForRing"
+                ));
         }
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            result,
+            "MeteorSwarmProfile.GetTerrainProfilesForRing.result"
+        );
         return result;
     }
 

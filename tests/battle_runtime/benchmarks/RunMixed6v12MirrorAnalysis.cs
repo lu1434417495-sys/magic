@@ -118,7 +118,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         );
         BattleSimFormalRosterOptionsData rosterOptions = BuildRosterOptionsFromEnvironment();
 
-        var rng = new RandomNumberGenerator { Seed = (ulong)Math.Max(startSeed, 1L) };
+        var rng = new RuntimeRandom(Math.Max(startSeed, 1L));
         var accum = new BatchAccumulator();
         var perUnitSummary = new GDictionary();
         var runDetails = new GArray();
@@ -426,7 +426,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             if (aiProfileRecorder != null && aiProfiler != null && !aiProfileRecorderEnded)
                 aiProfiler.EndRun(aiProfileRecorder, 0);
             runtime.dispose();
-            state?.Dispose();
+            BattleTestFixture.DisposeBattleState(state);
         }
     }
 
@@ -862,8 +862,6 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             return NormalizeValue(BattleSimReportProjection.Project(scenarioDef));
         if (obj is BattleSimProfileDef profileDef)
             return NormalizeValue(BattleSimReportProjection.Project(profileDef));
-        if (obj is BattleUnitState unitState)
-            return NormalizeValue(BattleSimReportProjection.Project(unitState));
         return obj?.ToString() ?? "";
     }
 

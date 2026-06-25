@@ -27,9 +27,8 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         public void Dispose()
         {
             Runtime?.Dispose();
-            DisposeOwned(GenerationConfig);
-            DisposeDictionaryObjects(ItemDefs);
-            DisposeDictionaryObjects(SkillDefs);
+            ItemDefs?.Clear();
+            SkillDefs?.Clear();
         }
     }
 
@@ -384,16 +383,22 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
 
     private static GDictionary BuildItemDefs()
     {
-        GDictionary result = new();
-        result[new StringName("skill_book_focus")] = new ItemDef
-        {
-            item_id = "skill_book_focus",
-            display_name = "Focus Manual",
-            CategoryKind = ItemCategoryKind.SkillBook,
-            is_stackable = true,
-            max_stack = 20,
-            granted_skill_id = "focus",
-        };
+        GDictionary result = TestResourceOwnership.OwnWrapper(
+            new GDictionary(),
+            "world_map_runtime_proxy.item_defs"
+        );
+        result[new StringName("skill_book_focus")] = TestResourceOwnership.Own(
+            new ItemDef
+            {
+                item_id = "skill_book_focus",
+                display_name = "Focus Manual",
+                CategoryKind = ItemCategoryKind.SkillBook,
+                is_stackable = true,
+                max_stack = 20,
+                granted_skill_id = "focus",
+            },
+            "world_map_runtime_proxy.skill_book_focus"
+        );
         return result;
     }
 
@@ -415,15 +420,21 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
 
     private static GDictionary BuildSkillDefs()
     {
-        GDictionary result = new();
-        result[new StringName("focus")] = new SkillDef
-        {
-            skill_id = "focus",
-            display_name = "Focus",
-            learn_source = "book",
-            skill_type = "passive",
-            max_level = 1,
-        };
+        GDictionary result = TestResourceOwnership.OwnWrapper(
+            new GDictionary(),
+            "world_map_runtime_proxy.skill_defs"
+        );
+        result[new StringName("focus")] = TestResourceOwnership.Own(
+            new SkillDef
+            {
+                skill_id = "focus",
+                display_name = "Focus",
+                learn_source = "book",
+                skill_type = "passive",
+                max_level = 1,
+            },
+            "world_map_runtime_proxy.focus_skill"
+        );
         return result;
     }
 
@@ -478,27 +489,6 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         return dictionary != null && dictionary.ContainsKey(key)
             ? dictionary[key].AsString()
             : fallback;
-    }
-
-    private static void DisposeDictionaryObjects(GDictionary dictionary)
-    {
-        if (dictionary == null)
-            return;
-        foreach (Variant value in dictionary.Values)
-        {
-            if (value.VariantType != Variant.Type.Object)
-                continue;
-            DisposeOwned(value.AsGodotObject());
-        }
-        dictionary.Clear();
-    }
-
-    private static void DisposeOwned(GodotObject owned)
-    {
-        if (owned == null || !GodotObject.IsInstanceValid(owned))
-            return;
-        GC.SuppressFinalize(owned);
-        owned.Dispose();
     }
 
     private void AssertSequence(GStringNameArray actual, string[] expected, string message)

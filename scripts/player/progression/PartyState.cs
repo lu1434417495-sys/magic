@@ -2,10 +2,9 @@ using Godot;
 using System;
 using System.Collections.Generic;
 
-[GlobalClass]
-public partial class PartyState : RefCounted
+public partial class PartyState
 {
-    private static readonly Godot.Collections.Array<string> TO_DICT_FIELDS = new()
+    private static readonly string[] TO_DICT_FIELDS =
     {
         "version",
         "gold",
@@ -29,13 +28,13 @@ public partial class PartyState : RefCounted
         main_character_member_id = "";
     public Dictionary<StringName, bool> fate_run_flags { get; private set; } = new();
     public Dictionary<StringName, bool> meta_flags { get; private set; } = new();
-    public Godot.Collections.Array<StringName> active_member_ids = new(),
+    public StringNameList active_member_ids = new(),
         reserve_member_ids = new();
     public PartyMemberStateCollection member_states = new();
     public List<PendingCharacterReward> pending_character_rewards = new();
     public List<QuestState> active_quests = new(),
         claimable_quests = new();
-    public Godot.Collections.Array<StringName> completed_quest_ids = new();
+    public StringNameList completed_quest_ids = new();
     public WarehouseState warehouse_state = new WarehouseState();
 
     public PartyMemberState GetMemberState(StringName id)
@@ -130,12 +129,6 @@ public partial class PartyState : RefCounted
     {
         if (id == "")
             return;
-        active_member_ids = ProgressionDataUtils.to_string_name_array(
-            Variant.From(active_member_ids)
-        );
-        reserve_member_ids = ProgressionDataUtils.to_string_name_array(
-            Variant.From(reserve_member_ids)
-        );
         active_member_ids.Remove(id);
         reserve_member_ids.Remove(id);
         if (leader_member_id == id)
@@ -161,13 +154,13 @@ public partial class PartyState : RefCounted
             main_character_member_id = main_character_member_id,
             fate_run_flags = DuplicateBoolMap(fate_run_flags),
             meta_flags = DuplicateBoolMap(meta_flags),
-            active_member_ids = DuplicateStringNameArray(active_member_ids),
-            reserve_member_ids = DuplicateStringNameArray(reserve_member_ids),
+            active_member_ids = active_member_ids?.Duplicate() ?? new StringNameList(),
+            reserve_member_ids = reserve_member_ids?.Duplicate() ?? new StringNameList(),
             member_states = member_states?.DuplicateState() ?? new PartyMemberStateCollection(),
             pending_character_rewards = DuplicatePendingCharacterRewards(pending_character_rewards),
             active_quests = DuplicateQuestStates(active_quests),
             claimable_quests = DuplicateQuestStates(claimable_quests),
-            completed_quest_ids = DuplicateStringNameArray(completed_quest_ids),
+            completed_quest_ids = completed_quest_ids?.Duplicate() ?? new StringNameList(),
             warehouse_state = warehouse_state?.DuplicateState() ?? new WarehouseState(),
         };
     }
@@ -410,15 +403,11 @@ public partial class PartyState : RefCounted
             { "meta_flags", _serialize_flags(meta_flags) },
             {
                 "active_member_ids",
-                ProgressionDataUtils.string_name_array_to_string_array(
-                    ProgressionDataUtils.to_string_name_array(Variant.From(active_member_ids))
-                )
+                ProgressionDataUtils.string_name_array_to_string_array(active_member_ids)
             },
             {
                 "reserve_member_ids",
-                ProgressionDataUtils.string_name_array_to_string_array(
-                    ProgressionDataUtils.to_string_name_array(Variant.From(reserve_member_ids))
-                )
+                ProgressionDataUtils.string_name_array_to_string_array(reserve_member_ids)
             },
             { "member_states", msd },
             { "pending_character_rewards", prd },
@@ -433,6 +422,27 @@ public partial class PartyState : RefCounted
                 warehouse_state?.ToDictionary() ?? new Godot.Collections.Dictionary()
             },
         };
+    }
+
+    internal static bool TryReadPartyPayload(object rawValue, out PartyState value)
+    {
+        value = null;
+        switch (rawValue)
+        {
+            case null:
+                return false;
+            case PartyState party:
+                value = party;
+                return value != null;
+            case Variant variantValue when variantValue.VariantType == Variant.Type.Dictionary:
+                value = FromDictionary(variantValue.AsGodotDictionary());
+                return value != null;
+            case Godot.Collections.Dictionary payload:
+                value = FromDictionary(payload);
+                return value != null;
+            default:
+                return false;
+        }
     }
 
     public static PartyState FromDictionary(Godot.Collections.Dictionary data)
@@ -538,18 +548,17 @@ public partial class PartyState : RefCounted
         )
             return null;
 
-        var rosterSeenIds = new Godot.Collections.Dictionary();
+        var rosterSeenIds = new HashSet<StringName>();
         foreach (var memberId in partyState.active_member_ids)
         {
             if (!partyState.HasMemberState(memberId))
                 return null;
-            rosterSeenIds[memberId] = true;
+            rosterSeenIds.Add(memberId);
         }
         foreach (var memberId in partyState.reserve_member_ids)
         {
-            if (rosterSeenIds.ContainsKey(memberId) || !partyState.HasMemberState(memberId))
+            if (!rosterSeenIds.Add(memberId) || !partyState.HasMemberState(memberId))
                 return null;
-            rosterSeenIds[memberId] = true;
         }
 
         foreach (var rewardValue in data["pending_character_rewards"].AsGodotArray())
@@ -641,7 +650,7 @@ public partial class PartyState : RefCounted
         e.Sort((a, b) => string.CompareOrdinal(a.Item1, b.Item1));
         var r = new Godot.Collections.Array<Godot.Collections.Dictionary>();
         foreach (var (_, d) in e)
-            r.Add(d.Duplicate(true));
+            r.Add(RuntimePayloadCopy.Dictionary(d, "PartyState.ProjectQuestStates"));
         return r;
     }
 
@@ -650,15 +659,6 @@ public partial class PartyState : RefCounted
     )
     {
         return values != null ? new Dictionary<StringName, bool>(values) : new Dictionary<StringName, bool>();
-    }
-
-    private static Godot.Collections.Array<StringName> DuplicateStringNameArray(
-        Godot.Collections.Array<StringName> values
-    )
-    {
-        return values != null
-            ? new Godot.Collections.Array<StringName>(values)
-            : new Godot.Collections.Array<StringName>();
     }
 
     private static Godot.Collections.Dictionary DuplicateMemberStates(
@@ -674,10 +674,10 @@ public partial class PartyState : RefCounted
             var memberId = ProgressionDataUtils.to_string_name(rawKey);
             if (memberId == "")
                 continue;
-            var memberState = values[rawKey].AsGodotObject() as PartyMemberState;
+            PartyMemberState.TryReadMemberPayload(values[rawKey], out PartyMemberState memberState);
             var duplicate = memberState?.DuplicateState();
             if (duplicate != null)
-                result[memberId] = duplicate;
+                result[memberId] = duplicate.ToDictionary();
         }
         return result;
     }
@@ -706,15 +706,16 @@ public partial class PartyState : RefCounted
         return result;
     }
 
-    private static Godot.Collections.Array<StringName> _nusna(Godot.Collections.Array<StringName> v)
+    private static StringNameList _nusna(IEnumerable<StringName> v)
     {
-        var r = new Godot.Collections.Array<StringName>();
-        var s = new Godot.Collections.Dictionary();
+        var r = new StringNameList();
+        var s = new HashSet<StringName>();
+        if (v == null)
+            return r;
         foreach (var n in v)
         {
-            if (n != "" && !s.ContainsKey(n))
+            if (n != "" && s.Add(n))
             {
-                s[n] = true;
                 r.Add(n);
             }
         }
@@ -723,7 +724,7 @@ public partial class PartyState : RefCounted
 
     private static bool _has_exact_fields(
         Godot.Collections.Dictionary data,
-        Godot.Collections.Array<string> expectedFields
+        IReadOnlyCollection<string> expectedFields
     )
     {
         if (data.Count != expectedFields.Count)
@@ -760,24 +761,23 @@ public partial class PartyState : RefCounted
         return parsed;
     }
 
-    private static Godot.Collections.Array<StringName> _parse_unique_string_name_array(
+    private static StringNameList _parse_unique_string_name_array(
         Godot.Collections.Array values
     )
     {
-        var parsedValues = new Godot.Collections.Array<StringName>();
-        var seenValues = new Godot.Collections.Dictionary();
+        var parsedValues = new StringNameList();
+        var seenValues = new HashSet<StringName>();
         foreach (var rawValue in values)
         {
             var parsedValue = ProgressionDataUtils.to_string_name(rawValue);
-            if (parsedValue == "" || seenValues.ContainsKey(parsedValue))
+            if (parsedValue == "" || !seenValues.Add(parsedValue))
                 return null;
-            seenValues[parsedValue] = true;
             parsedValues.Add(parsedValue);
         }
         return parsedValues;
     }
 
-    private static Godot.Collections.Array<StringName> _parse_completed_quest_ids(
+    private static StringNameList _parse_completed_quest_ids(
         Godot.Collections.Array values
     ) => _parse_unique_string_name_array(values);
 
@@ -819,7 +819,7 @@ public partial class PartyState : RefCounted
         if (partyState == null)
             return false;
 
-        var seenInstanceIds = new Godot.Collections.Dictionary();
+        var seenInstanceIds = new HashSet<StringName>();
         if (partyState.warehouse_state != null)
         {
             foreach (var instance in partyState.warehouse_state.GetNonEmptyEquipmentInstancesTyped())
@@ -829,9 +829,8 @@ public partial class PartyState : RefCounted
                 var instanceId = ProgressionDataUtils.to_string_name(instance.instance_id);
                 if (instanceId == "")
                     continue;
-                if (seenInstanceIds.ContainsKey(instanceId))
+                if (!seenInstanceIds.Add(instanceId))
                     return false;
-                seenInstanceIds[instanceId] = true;
             }
         }
 
@@ -848,9 +847,8 @@ public partial class PartyState : RefCounted
                 );
                 if (instanceId == "")
                     continue;
-                if (seenInstanceIds.ContainsKey(instanceId))
+                if (!seenInstanceIds.Add(instanceId))
                     return false;
-                seenInstanceIds[instanceId] = true;
             }
         }
         return true;

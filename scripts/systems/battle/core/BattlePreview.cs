@@ -10,7 +10,7 @@ public class BattlePreview
     private readonly List<StringName> _targetUnitIds = new();
     private readonly List<Vector2I> _targetCoords = new();
     private readonly List<StringName> _randomChainCandidateUnitIds = new();
-    private GDictionary _saveBranchPreview = new();
+    private readonly RuntimePayloadStore _saveBranchPreview = new();
     private BattleDamagePreviewRangeService.SkillDamagePreview? _damagePreview;
     private BattleFatePreviewData _fatePreview;
 
@@ -25,19 +25,19 @@ public class BattlePreview
         get => BuildLogLinesArray();
         set => SetLogLines(value);
     }
-    public Godot.Collections.Array<StringName> target_unit_ids
+    public StringNameList target_unit_ids
     {
-        get => new Godot.Collections.Array<StringName>(_targetUnitIds);
+        get => new(_targetUnitIds);
         set => SetTargetUnitIds(value);
     }
-    public Godot.Collections.Array<Vector2I> target_coords
+    public Vector2IList target_coords
     {
-        get => new Godot.Collections.Array<Vector2I>(_targetCoords);
+        get => new(_targetCoords);
         set => SetTargetCoords(value);
     }
-    public Godot.Collections.Array<StringName> random_chain_candidate_unit_ids
+    public StringNameList random_chain_candidate_unit_ids
     {
-        get => new Godot.Collections.Array<StringName>(_randomChainCandidateUnitIds);
+        get => new(_randomChainCandidateUnitIds);
         set => SetRandomChainCandidateUnitIds(value);
     }
     public Vector2I resolved_anchor_coord { get; set; } = new Vector2I(-1, -1);
@@ -55,7 +55,7 @@ public class BattlePreview
     }
     public GDictionary save_branch_preview
     {
-        get => _saveBranchPreview.Duplicate(true);
+        get => _saveBranchPreview.ProjectPayload();
         set => SetSaveBranchPreview(value);
     }
     public BattleSpecialProfileGateResult special_profile_gate_result { get; set; }
@@ -69,7 +69,7 @@ public class BattlePreview
     internal BattleDamagePreviewRangeService.SkillDamagePreview? DamagePreviewTyped =>
         _damagePreview;
     internal BattleFatePreviewData FatePreviewTyped => _fatePreview ?? hit_preview?.FatePreview;
-    internal GDictionary SaveBranchPreviewTyped => _saveBranchPreview;
+    internal GDictionary SaveBranchPreviewTyped => _saveBranchPreview.ProjectPayload();
 
     internal void SetTargetUnitIds(IEnumerable<StringName> values)
     {
@@ -210,8 +210,7 @@ public class BattlePreview
 
     internal void SetSaveBranchPreview(GDictionary value)
     {
-        _saveBranchPreview = value?.Duplicate(true) ?? new GDictionary();
-        RegisterRuntimeWrappers("BattlePreview.save_branch_preview");
+        _saveBranchPreview.ReplaceWithPayload(value);
     }
 
     internal void ClearSaveBranchPreview()
@@ -219,10 +218,7 @@ public class BattlePreview
         _saveBranchPreview.Clear();
     }
 
-    private void RegisterRuntimeWrappers(string reason)
-    {
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(_saveBranchPreview, reason);
-    }
+    private void RegisterRuntimeWrappers(string reason) { }
 
     private static BattleDamagePreviewRangeService.SkillDamagePreview? DecodeDamagePreview(
         GDictionary value

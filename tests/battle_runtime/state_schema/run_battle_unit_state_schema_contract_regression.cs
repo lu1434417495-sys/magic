@@ -704,6 +704,8 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
             return StableArrayText(array);
         if (value is GStringNameArray stringNameArray)
             return StableStringNameArrayText(stringNameArray);
+        if (value is IEnumerable<StringName> stringNameValues)
+            return StableStringNameEnumerableText(stringNameValues);
         if (value is StringName stringName)
             return stringName.ToString();
         if (value is Vector2I vector)
@@ -749,6 +751,14 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
     {
         var parts = new List<string>();
         foreach (StringName value in array)
+            parts.Add(value.ToString());
+        return "[" + string.Join(",", parts) + "]";
+    }
+
+    private static string StableStringNameEnumerableText(IEnumerable<StringName> values)
+    {
+        var parts = new List<string>();
+        foreach (StringName value in values ?? Array.Empty<StringName>())
             parts.Add(value.ToString());
         return "[" + string.Join(",", parts) + "]";
     }

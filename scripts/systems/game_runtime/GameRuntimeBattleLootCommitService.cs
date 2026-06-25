@@ -49,7 +49,8 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
         internal string ErrorCode { get; private set; } = "";
         internal string BlockedItemId { get; private set; } = "";
         internal int CommittedItemCount { get; private set; }
-        internal GArray OverflowEntries { get; private set; } = new();
+        private readonly List<BattleLootEntry> _overflowEntries = new();
+        internal IReadOnlyList<BattleLootEntry> OverflowEntries => _overflowEntries;
         internal int OverflowEntryCount { get; private set; }
 
         internal static BattleLootCommitResult Create(
@@ -61,22 +62,30 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
             int overflowEntryCount
         )
         {
-            var normalizedOverflowEntries = BattleLootEntryPayload.ProjectEntries(
-                overflowEntries
-            );
-            return new BattleLootCommitResult
+            var result = new BattleLootCommitResult
             {
                 Ok = ok,
                 ErrorCode = errorCode ?? "",
                 BlockedItemId = blockedItemId ?? "",
                 CommittedItemCount = Mathf.Max(committedItemCount, 0),
-                OverflowEntries = normalizedOverflowEntries,
-                OverflowEntryCount = Mathf.Max(overflowEntryCount, normalizedOverflowEntries.Count),
+                OverflowEntryCount = Mathf.Max(overflowEntryCount, 0),
             };
+            foreach (BattleLootEntry entry in overflowEntries ?? System.Array.Empty<BattleLootEntry>())
+            {
+                BattleLootEntry duplicate = entry?.Duplicate();
+                if (duplicate == null || duplicate.IsEmpty)
+                    continue;
+                result._overflowEntries.Add(duplicate);
+            }
+            result.OverflowEntryCount = Mathf.Max(result.OverflowEntryCount, result._overflowEntries.Count);
+            return result;
         }
 
         internal static BattleLootCommitResult Success() =>
             Create(true, "", "", 0, System.Array.Empty<BattleLootEntry>(), 0);
+
+        internal GArray ProjectOverflowEntries() =>
+            BattleLootEntryPayload.ProjectEntries(_overflowEntries);
 
     }
 
@@ -185,7 +194,10 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
 
         var fateRunFlagsBefore = new Dictionary();
         if (partyState != null)
-            fateRunFlagsBefore = partyState.CaptureFateRunFlags().Duplicate(true);
+            fateRunFlagsBefore = RuntimePayloadCopy.Dictionary(
+                partyState.CaptureFateRunFlags(),
+                "GameRuntimeBattleLootCommitService.fateRunFlagsBefore"
+            );
 
         var overflowEntries = new List<BattleLootEntry>();
         var committedItemCount = 0;
@@ -200,7 +212,10 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
                 continue;
 
             WarehouseState entryWarehouseStateBefore = partyState.warehouse_state?.DuplicateState();
-            var entryFateRunFlagsBefore = partyState.CaptureFateRunFlags().Duplicate(true);
+            var entryFateRunFlagsBefore = RuntimePayloadCopy.Dictionary(
+                partyState.CaptureFateRunFlags(),
+                "GameRuntimeBattleLootCommitService.entryFateRunFlagsBefore"
+            );
 
             if (lootEntry.DropKind == BattleLootDropKind.EquipmentInstance)
             {
@@ -536,7 +551,14 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
         if (partyState == null)
             return;
         partyState.warehouse_state = warehouseStateBefore?.DuplicateState();
-        partyState.ApplyFateRunFlags(fateRunFlagsBefore?.Duplicate(true) ?? new Dictionary());
+        partyState.ApplyFateRunFlags(
+            fateRunFlagsBefore != null
+                ? RuntimePayloadCopy.Dictionary(
+                    fateRunFlagsBefore,
+                    "GameRuntimeBattleLootCommitService.RestoreFateRunFlags"
+                )
+                : new Dictionary()
+        );
         _runtime.SetupPartyWarehouseService(partyWarehouseService, partyState, itemDefs);
     }
 

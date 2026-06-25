@@ -95,12 +95,15 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
         AddUnitToState(runtime, state, largeTarget, isEnemy: false);
         runtime.SetupStateForTests(state);
 
-        var action = new UseChargePathAoeAction
+        var action = TestResourceOwnership.Own(
+            new UseChargePathAoeAction
         {
             action_id = "whirlwind_path_aoe_probe",
             target_selector = "nearest_enemy",
             minimum_hit_count = 2,
-        };
+            },
+            "battle_ai_charge_path_aoe.action"
+        );
         action.skill_ids.Add("warrior_whirlwind_slash");
 
         BattleAiDecision decision = action.Decide(BuildAiContext(runtime, spinner));

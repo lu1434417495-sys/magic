@@ -182,8 +182,7 @@ public partial class run_battlesim_formal_fixture_regression : SceneTree
         UnitBaseAttributes attrs = mage.progression.unit_base_attributes;
         int constitution = attrs.GetAttributeValue("constitution");
         int expectedHp = CharacterCreationService.CalculateInitialHpMax(constitution);
-        RandomNumberGenerator hpRng = new();
-        hpRng.Seed = (ulong)(seed + BattleSimFormalCombatFixture.HP_ROLL_SEED_OFFSET);
+        RuntimeRandom hpRng = new(seed + BattleSimFormalCombatFixture.HP_ROLL_SEED_OFFSET);
         for (int swordRank = 0; swordRank < 4 * 2; swordRank++)
             hpRng.RandiRange(1, 10);
         for (int archerRank = 0; archerRank < 2; archerRank++)

@@ -180,9 +180,8 @@ public partial class capture_canyon_battle_board : SceneTree
         {
             if (coordValue.VariantType != Variant.Type.Vector2I)
                 continue;
-            BattleCellState cell = cells[coordValue].AsGodotObject() as BattleCellState;
-            if (cell != null)
-                cloned[coordValue.AsVector2I()] = cell.DuplicateCell();
+            if (BattleCellState.TryReadCellPayload(cells[coordValue], out BattleCellState cell) && cell != null)
+                cloned[coordValue.AsVector2I()] = cell.DuplicateCell().ToDictionary();
         }
         return cloned;
     }

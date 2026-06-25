@@ -469,7 +469,13 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
                 EquipmentRules.ToStringName(EquipmentSlotKind.MainHand).ToString(),
             },
         };
-        return new GDictionary { [new StringName("iron_sword")] = sword };
+        GDictionary itemDefs = new() { [new StringName("iron_sword")] = sword };
+        GodotContentOwnership.RegisterDerivedWrapper(
+            itemDefs,
+            "BattleLootCommitService.BuildItemDefs",
+            "BattleLootCommitService.BuildItemDefs"
+        );
+        return itemDefs;
     }
 
     private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
@@ -653,9 +659,8 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
             return;
         int resolvedCapacity = Mathf.Max(capacity, 0);
         bool firstMemberAssigned = false;
-        foreach (Variant memberValue in partyState.member_states.Values)
+        foreach (PartyMemberState memberState in partyState.GetMemberStates())
         {
-            PartyMemberState memberState = memberValue.AsGodotObject() as PartyMemberState;
             if (memberState?.progression?.unit_base_attributes == null)
                 continue;
             memberState.progression.unit_base_attributes.custom_stats[

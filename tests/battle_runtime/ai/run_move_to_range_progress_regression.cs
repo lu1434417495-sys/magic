@@ -53,34 +53,30 @@ public partial class run_move_to_range_progress_regression : SceneTree
 
     private void TestCandidateProbeActionBuildsTypedSections()
     {
-        var action = new BattleAiCandidateProbeTestAction();
-        try
-        {
-            BattleAiCandidateRequest request = action.BuildCandidateRequest(null);
-            request.ActorUnitId = "probe_actor";
+        var action = TestResourceOwnership.Own(
+            new BattleAiCandidateProbeTestAction(),
+            "MoveToRangeProgress.CandidateProbeAction"
+        );
+        BattleAiCandidateRequest request = action.BuildCandidateRequest(null);
+        request.ActorUnitId = "probe_actor";
 
-            _test.True(
-                request.TryValidateMoveToRange(out string error),
-                $"probe test action should build a valid typed request after actor injection: {error}"
-            );
-            _test.True(
-                request.TryGetMoveToRangeSections(
-                    out MoveToRangePathSearchBudget budget,
-                    out MoveToRangeTacticalParams tactical,
-                    out MoveToRangeRuntimeMetadata runtime,
-                    out error
-                ),
-                $"probe request should expose typed section snapshots: {error}"
-            );
-            _test.Eq(budget.MaxCost, 2, "probe path budget max cost should stay typed.");
-            _test.Eq(budget.MaxDestinations, 4, "probe path budget max destinations should stay typed.");
-            _test.Eq(tactical.TargetSelector, new StringName("nearest_enemy"), "probe tactical selector should stay typed.");
-            _test.Eq(runtime.EffectiveAttackRange, -1, "probe runtime metadata should stay typed.");
-        }
-        finally
-        {
-            GodotSharpCleanup.DisposeGodotObject(action);
-        }
+        _test.True(
+            request.TryValidateMoveToRange(out string error),
+            $"probe test action should build a valid typed request after actor injection: {error}"
+        );
+        _test.True(
+            request.TryGetMoveToRangeSections(
+                out MoveToRangePathSearchBudget budget,
+                out MoveToRangeTacticalParams tactical,
+                out MoveToRangeRuntimeMetadata runtime,
+                out error
+            ),
+            $"probe request should expose typed section snapshots: {error}"
+        );
+        _test.Eq(budget.MaxCost, 2, "probe path budget max cost should stay typed.");
+        _test.Eq(budget.MaxDestinations, 4, "probe path budget max destinations should stay typed.");
+        _test.Eq(tactical.TargetSelector, new StringName("nearest_enemy"), "probe tactical selector should stay typed.");
+        _test.Eq(runtime.EffectiveAttackRange, -1, "probe runtime metadata should stay typed.");
     }
 
     private void TestMoveToRangePrefersProgressOverWaitWhenFarFromBand()
@@ -107,7 +103,6 @@ public partial class run_move_to_range_progress_regression : SceneTree
                 },
                 new WaitAction { action_id = "far_gap_wait" }
             );
-            runtimeScope.TrackBrain(brain);
             runtime.ReplaceEnemyAiBrainsTyped(
                 new Dictionary<StringName, EnemyAiBrainDef> { [brain.brain_id] = brain }
             );
@@ -174,7 +169,6 @@ public partial class run_move_to_range_progress_regression : SceneTree
                 },
                 new WaitAction { action_id = "detour_wait" }
             );
-            runtimeScope.TrackBrain(brain);
             runtime.ReplaceEnemyAiBrainsTyped(
                 new Dictionary<StringName, EnemyAiBrainDef> { [brain.brain_id] = brain }
             );
@@ -255,7 +249,6 @@ public partial class run_move_to_range_progress_regression : SceneTree
                 moveAction,
                 new WaitAction { action_id = "screening_detour_wait" }
             );
-            runtimeScope.TrackBrain(brain);
             runtime.ReplaceEnemyAiBrainsTyped(
                 new Dictionary<StringName, EnemyAiBrainDef> { [brain.brain_id] = brain }
             );
@@ -325,17 +318,19 @@ public partial class run_move_to_range_progress_regression : SceneTree
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         try
         {
-            MoveToAdvantagePositionAction action = new()
-            {
-                action_id = "high_ground_progress_gate",
-                score_bucket_id = "archer_positioning",
-                target_selector = "nearest_enemy",
-                desired_min_distance = 3,
-                desired_max_distance = 5,
-                positioning_mode = "high_ground",
-                min_distance_progress_when_beyond_band = 1,
-            };
-            runtimeScope.TrackAction(action);
+            MoveToAdvantagePositionAction action = TestResourceOwnership.Own(
+                new MoveToAdvantagePositionAction
+                {
+                    action_id = "high_ground_progress_gate",
+                    score_bucket_id = "archer_positioning",
+                    target_selector = "nearest_enemy",
+                    desired_min_distance = 3,
+                    desired_max_distance = 5,
+                    positioning_mode = "high_ground",
+                    min_distance_progress_when_beyond_band = 1,
+                },
+                "MoveToRangeProgress.HighGroundAction"
+            );
 
             stalledDecision = DecideHighGroundProgressCase(
                 runtime,
@@ -401,7 +396,6 @@ public partial class run_move_to_range_progress_regression : SceneTree
         finally
         {
             runtime?.SetupStateForTests(null);
-            BattleTestFixture.DisposeBattleState(state);
         }
     }
 
@@ -650,16 +644,12 @@ public partial class run_move_to_range_progress_regression : SceneTree
 
     private static void DisposeDecision(BattleAiDecision decision)
     {
-        GodotSharpCleanup.DisposeGodotObject(decision?.command);
-        BattleTestFixture.DisposeBattleAiScoreInput(decision?.score_input);
-        BattleTestFixture.DisposeBattleAiScoreInput(decision?.skill_score_input);
+        decision?.DisposeOwnedGodotObjects();
     }
 
     private sealed class BattleRuntimeScope : IDisposable
     {
         private readonly GameSession _gameSession;
-        private readonly List<EnemyAiAction> _ownedActions = new();
-        private readonly List<EnemyAiBrainDef> _ownedBrains = new();
 
         internal BattleRuntimeScope(BattleRuntimeModule runtime, GameSession gameSession)
         {
@@ -669,82 +659,11 @@ public partial class run_move_to_range_progress_regression : SceneTree
 
         internal BattleRuntimeModule Runtime { get; }
 
-        internal void TrackAction(EnemyAiAction action)
-        {
-            if (action != null)
-            {
-                _ownedActions.Add(action);
-            }
-        }
-
-        internal void TrackBrain(EnemyAiBrainDef brain)
-        {
-            if (brain != null)
-            {
-                _ownedBrains.Add(brain);
-            }
-        }
-
         public void Dispose()
         {
-            BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?._state);
-            foreach (EnemyAiBrainDef brain in _ownedBrains)
-            {
-                DisposeEnemyAiBrain(brain);
-            }
-            foreach (EnemyAiAction action in _ownedActions)
-            {
-                GodotSharpCleanup.DisposeGodotObject(action);
-            }
-            if (_gameSession != null)
-            {
-                GC.SuppressFinalize(_gameSession);
-                if (GodotObject.IsInstanceValid(_gameSession))
-                {
-                    _gameSession.Free();
-                }
-            }
-        }
-
-        private static void DisposeEnemyAiBrain(EnemyAiBrainDef brain)
-        {
-            if (brain == null)
-            {
-                return;
-            }
-            if (GodotObject.IsInstanceValid(brain))
-            {
-                foreach (EnemyAiStateDef state in brain.states ?? new Godot.Collections.Array<EnemyAiStateDef>())
-                {
-                    DisposeEnemyAiState(state);
-                }
-                foreach (EnemyAiTransitionRuleDef transition in brain.transition_rules ?? new Godot.Collections.Array<EnemyAiTransitionRuleDef>())
-                {
-                    GodotSharpCleanup.DisposeGodotObject(transition);
-                }
-                GodotSharpCleanup.DisposeGodotObject(brain.score_profile);
-            }
-            GodotSharpCleanup.DisposeGodotObject(brain);
-        }
-
-        private static void DisposeEnemyAiState(EnemyAiStateDef state)
-        {
-            if (state == null)
-            {
-                return;
-            }
-            if (GodotObject.IsInstanceValid(state))
-            {
-                foreach (EnemyAiAction action in state.actions ?? new Godot.Collections.Array<EnemyAiAction>())
-                {
-                    GodotSharpCleanup.DisposeGodotObject(action);
-                }
-                foreach (EnemyAiGenerationSlotDef slot in state.generation_slots ?? new Godot.Collections.Array<EnemyAiGenerationSlotDef>())
-                {
-                    GodotSharpCleanup.DisposeGodotObject(slot);
-                }
-            }
-            GodotSharpCleanup.DisposeGodotObject(state);
+            Runtime?.SetupStateForTests(null);
+            Runtime?.Dispose();
+            _gameSession?.Dispose();
         }
     }
 

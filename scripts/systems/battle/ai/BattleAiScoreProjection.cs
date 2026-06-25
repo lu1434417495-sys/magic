@@ -193,10 +193,15 @@ internal static class BattleAiScoreProjection
             GDictionary summary in MeteorSwarmProjection.ProjectNumericSummaryArray(
                 summaries ?? Array.Empty<MeteorSwarmNumericSummary>()
             )
-        )
+            )
         {
             if (summary != null)
-                result.Add(summary.Duplicate(true));
+                result.Add(
+                    RuntimePayloadCopy.Dictionary(
+                        summary,
+                        "BattleAiScoreProjection.ProjectNumericSummaryArray"
+                    )
+                );
         }
         return result;
     }

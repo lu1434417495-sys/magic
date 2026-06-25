@@ -232,13 +232,18 @@ internal sealed class BattleAiActionAssembler
 
     private static EnemyAiAction CloneAction(BattleAiRuntimeActionPlan plan, EnemyAiAction action)
     {
+        if (plan == null)
+        {
+            LifecycleViolation.Report(
+                "BattleAiActionAssembler.CloneAction requires a runtime action plan owner."
+            );
+            return action;
+        }
         if (action is Resource resource)
         {
             if (resource.Duplicate(true) is EnemyAiAction clone)
             {
-                return plan != null
-                    ? plan.OwnRuntimeAction(clone, $"clone_action:{action.action_id}")
-                    : clone;
+                return plan.OwnRuntimeAction(clone, $"clone_action:{action.action_id}");
             }
         }
         return action;

@@ -4,7 +4,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 internal static class PendingCharacterRewardPayload
 {
-    private static readonly Godot.Collections.Array<string> RewardFields = new()
+    private static readonly string[] RewardFields =
     {
         "reward_id",
         "member_id",
@@ -16,7 +16,7 @@ internal static class PendingCharacterRewardPayload
         "entries",
     };
 
-    private static readonly Godot.Collections.Array<string> EntryFields = new()
+    private static readonly string[] EntryFields =
     {
         "entry_type",
         "target_id",
@@ -181,7 +181,7 @@ internal static class PendingCharacterRewardPayload
 
     private static bool HasExactFields(
         GDictionary data,
-        Godot.Collections.Array<string> expectedFields
+        IReadOnlyCollection<string> expectedFields
     )
     {
         if (data.Count != expectedFields.Count)

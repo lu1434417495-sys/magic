@@ -60,7 +60,7 @@ public partial class run_battle_status_effect_typed_state_regression : SceneTree
 
     private void TestBattleUnitStatusProjectionIsNotLiveOwner()
     {
-        using var unit = new BattleUnitState { unit_id = "projection_unit" };
+        var unit = new BattleUnitState { unit_id = "projection_unit" };
 
         GDictionary projectedStatusEffects = StatusProjection(unit);
         projectedStatusEffects["burning"] = ValidStatusPayload("burning");

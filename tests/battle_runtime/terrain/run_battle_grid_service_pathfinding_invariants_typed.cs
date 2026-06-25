@@ -238,8 +238,7 @@ public partial class run_battle_grid_service_pathfinding_invariants_typed : Scen
 
     private void TestAStarMatchesReferenceRandomized()
     {
-        var rng = new RandomNumberGenerator();
-        rng.Seed = 0xA11C0DE;
+        var rng = new RuntimeRandom(0xA11C0DE);
         int trialsRun = 0;
 
         for (int trial = 0; trial < 12; trial++)

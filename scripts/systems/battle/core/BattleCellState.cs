@@ -1,3 +1,4 @@
+using System;
 using Godot;
 using System.Collections.Generic;
 using GArray = Godot.Collections.Array;
@@ -5,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 // 战斗格子状态数据。
 // 翻译自 battle_cell_state.gd（2026-05-24，数据层 C# 迁移）。
-public partial class BattleCellState : RefCounted
+public partial class BattleCellState
 {
     private const int MinRuntimeHeight = -5;
     private const int MaxRuntimeHeight = 8;
@@ -38,8 +39,8 @@ public partial class BattleCellState : RefCounted
     public bool passable { get; internal set; } = true;
     public int move_cost { get; internal set; } = 1;
     public StringName occupant_unit_id { get; internal set; } = "";
-    public Godot.Collections.Array<StringName> prop_ids = new();
-    public Godot.Collections.Array<StringName> terrain_effect_ids = new();
+    public List<StringName> prop_ids = new();
+    public List<StringName> terrain_effect_ids = new();
     public List<BattleTerrainEffectState> timed_terrain_effects = new();
     public Vector2I flow_direction = Vector2I.Zero;
     public BattleEdgeFeatureState edge_feature_east;
@@ -158,8 +159,8 @@ public partial class BattleCellState : RefCounted
             passable = passable,
             move_cost = move_cost,
             occupant_unit_id = occupant_unit_id,
-            prop_ids = DuplicateStringNameArray(prop_ids),
-            terrain_effect_ids = DuplicateStringNameArray(terrain_effect_ids),
+            prop_ids = DuplicateStringNameList(prop_ids),
+            terrain_effect_ids = DuplicateStringNameList(terrain_effect_ids),
             timed_terrain_effects = BattleTerrainEffectState.DuplicateList(timed_terrain_effects),
             flow_direction = flow_direction,
             edge_feature_east = NormalizeEdgeFeature(edge_feature_east),
@@ -180,8 +181,8 @@ public partial class BattleCellState : RefCounted
             ["passable"] = passable,
             ["move_cost"] = move_cost,
             ["occupant_unit_id"] = occupant_unit_id.ToString(),
-            ["prop_ids"] = StringNameArrayToStrings(prop_ids),
-            ["terrain_effect_ids"] = StringNameArrayToStrings(terrain_effect_ids),
+            ["prop_ids"] = StringNameListToStrings(prop_ids),
+            ["terrain_effect_ids"] = StringNameListToStrings(terrain_effect_ids),
             ["timed_terrain_effects"] = BattleTerrainEffectState.ToDictionaryArray(
                 timed_terrain_effects
             ),
@@ -257,14 +258,14 @@ public partial class BattleCellState : RefCounted
             return null;
         }
 
-        Godot.Collections.Array<StringName> parsedPropIds = StringsToStringNameArray(
+        List<StringName> parsedPropIds = StringsToStringNameList(
             GetExactValueOrNull(payload, "prop_ids")
         );
         if (parsedPropIds == null)
         {
             return null;
         }
-        Godot.Collections.Array<StringName> parsedTerrainEffectIds = StringsToStringNameArray(
+        List<StringName> parsedTerrainEffectIds = StringsToStringNameList(
             GetExactValueOrNull(payload, "terrain_effect_ids")
         );
         if (parsedTerrainEffectIds == null)
@@ -324,9 +325,11 @@ public partial class BattleCellState : RefCounted
         return cellState;
     }
 
-    internal static GDictionary BuildColumnsFromSurfaceCells(GDictionary surface_cells)
+    internal static Dictionary<Vector2I, List<BattleCellState>> BuildColumnsFromSurfaceCells(
+        GDictionary surface_cells
+    )
     {
-        GDictionary columns = new();
+        Dictionary<Vector2I, List<BattleCellState>> columns = new();
         if (surface_cells == null)
         {
             return columns;
@@ -347,11 +350,11 @@ public partial class BattleCellState : RefCounted
         return columns;
     }
 
-    internal static GDictionary BuildColumnsFromSurfaceCells(
+    internal static Dictionary<Vector2I, List<BattleCellState>> BuildColumnsFromSurfaceCells(
         IReadOnlyDictionary<Vector2I, BattleCellState> surfaceCells
     )
     {
-        GDictionary columns = new();
+        Dictionary<Vector2I, List<BattleCellState>> columns = new();
         if (surfaceCells == null)
         {
             return columns;
@@ -367,38 +370,27 @@ public partial class BattleCellState : RefCounted
         return columns;
     }
 
-    internal static GDictionary CloneColumns(GDictionary columns)
+    internal static Dictionary<Vector2I, List<BattleCellState>> CloneColumns(
+        IReadOnlyDictionary<Vector2I, List<BattleCellState>> columns
+    )
     {
-        GDictionary cloned = new();
-        foreach (object coordValue in columns?.Keys ?? new GArray())
+        Dictionary<Vector2I, List<BattleCellState>> cloned = new();
+        if (columns == null)
         {
-            if (!TryAsVector2I(coordValue, out Vector2I coord))
-            {
-                continue;
-            }
-            var clonedColumn = new Godot.Collections.Array<BattleCellState>();
-            if (TryGetExactValue(columns, coordValue, out object columnValue)
-                && TryRawArray(columnValue, out GArray rawColumn))
-            {
-                foreach (object layerValue in rawColumn)
-                {
-                    if (!TryAsCellState(layerValue, out BattleCellState layerCell))
-                    {
-                        continue;
-                    }
-                    clonedColumn.Add(layerCell.DuplicateCell());
-                }
-            }
-            cloned[coord] = clonedColumn;
+            return cloned;
+        }
+        foreach ((Vector2I coord, List<BattleCellState> column) in columns)
+        {
+            cloned[coord] = DuplicateCellList(column);
         }
         return cloned;
     }
 
-    internal static Godot.Collections.Array<BattleCellState> BuildStackedCellsFromSurfaceCell(
+    internal static List<BattleCellState> BuildStackedCellsFromSurfaceCell(
         BattleCellState surface_cell
     )
     {
-        var column = new Godot.Collections.Array<BattleCellState>();
+        var column = new List<BattleCellState>();
         if (surface_cell == null)
         {
             return column;
@@ -432,21 +424,85 @@ public partial class BattleCellState : RefCounted
         return column;
     }
 
-    private static Godot.Collections.Array<string> StringNameArrayToStrings(
-        Godot.Collections.Array<StringName> values
+    internal static GDictionary ProjectCellsToPayload(
+        IReadOnlyDictionary<Vector2I, BattleCellState> cells
+    )
+    {
+        GDictionary payload = new();
+        if (cells == null)
+        {
+            return payload;
+        }
+        foreach ((Vector2I coord, BattleCellState cell) in cells)
+        {
+            if (cell != null)
+            {
+                payload[coord] = cell.ToDictionary();
+            }
+        }
+        return payload;
+    }
+
+    internal static GDictionary ProjectColumnsToPayload(
+        IReadOnlyDictionary<Vector2I, List<BattleCellState>> columns
+    )
+    {
+        GDictionary payload = new();
+        if (columns == null)
+        {
+            return payload;
+        }
+        foreach ((Vector2I coord, List<BattleCellState> column) in columns)
+        {
+            GArray columnPayload = new();
+            foreach (BattleCellState cell in column ?? new List<BattleCellState>())
+            {
+                if (cell != null)
+                {
+                    columnPayload.Add(cell.ToDictionary());
+                }
+            }
+            payload[coord] = columnPayload;
+        }
+        return payload;
+    }
+
+    internal static List<BattleCellState> ParseColumnPayload(object rawColumn)
+    {
+        if (!TryRawArray(rawColumn, out GArray rawValues))
+        {
+            return null;
+        }
+        List<BattleCellState> column = new();
+        foreach (object rawValue in rawValues)
+        {
+            if (!TryAsCellState(rawValue, out BattleCellState cell))
+            {
+                return null;
+            }
+            column.Add(cell);
+        }
+        return column;
+    }
+
+    internal static bool TryReadCellPayload(object rawValue, out BattleCellState value) =>
+        TryAsCellState(rawValue, out value);
+
+    private static Godot.Collections.Array<string> StringNameListToStrings(
+        IEnumerable<StringName> values
     )
     {
         var results = new Godot.Collections.Array<string>();
-        foreach (StringName value in values ?? new Godot.Collections.Array<StringName>())
+        foreach (StringName value in values ?? Array.Empty<StringName>())
         {
             results.Add(value.ToString());
         }
         return results;
     }
 
-    private static Godot.Collections.Array<StringName> StringsToStringNameArray(object values)
+    private static List<StringName> StringsToStringNameList(object values)
     {
-        var results = new Godot.Collections.Array<StringName>();
+        var results = new List<StringName>();
         if (!TryRawArray(values, out GArray rawValues))
         {
             return null;
@@ -617,19 +673,25 @@ public partial class BattleCellState : RefCounted
 
     private static bool TryAsCellState(object rawValue, out BattleCellState value)
     {
-        try
-        {
-            dynamic dynamicValue = rawValue;
-            value = dynamicValue.As<BattleCellState>();
-            return value != null;
-        }
-        catch
-        {
-        }
         if (rawValue is BattleCellState typedValue)
         {
             value = typedValue;
             return true;
+        }
+        if (rawValue is Variant variantValue)
+        {
+            if (variantValue.VariantType == Variant.Type.Dictionary)
+            {
+                value = FromDictionary(variantValue.AsGodotDictionary());
+                return value != null;
+            }
+            value = null;
+            return false;
+        }
+        if (rawValue is GDictionary payload)
+        {
+            value = FromDictionary(payload);
+            return value != null;
         }
         value = null;
         return false;
@@ -643,7 +705,7 @@ public partial class BattleCellState : RefCounted
                 || variantValue.VariantType == Variant.Type.StringName)
             {
                 value = variantValue.ToString();
-                return !string.IsNullOrEmpty(value);
+                return true;
             }
             value = "";
             return false;
@@ -651,12 +713,12 @@ public partial class BattleCellState : RefCounted
         if (rawValue is string stringValue)
         {
             value = stringValue;
-            return !string.IsNullOrEmpty(value);
+            return true;
         }
         if (rawValue is StringName stringNameValue)
         {
             value = stringNameValue.ToString();
-            return !string.IsNullOrEmpty(value);
+            return true;
         }
         value = "";
         return false;
@@ -704,11 +766,6 @@ public partial class BattleCellState : RefCounted
     {
         if (cell == null)
             return;
-        if (!GodotObject.IsInstanceValid(cell))
-        {
-            GodotObjectLifecycle.DisposeGodotObject(cell);
-            return;
-        }
 
         if (cell.timed_terrain_effects != null)
         {
@@ -716,23 +773,30 @@ public partial class BattleCellState : RefCounted
         }
         cell.prop_ids?.Clear();
         cell.terrain_effect_ids?.Clear();
-        GodotWrapperOwnershipRegistry.SuppressWrapper(cell.prop_ids);
-        GodotWrapperOwnershipRegistry.SuppressWrapper(cell.terrain_effect_ids);
 
         cell.edge_feature_east = null;
         cell.edge_feature_south = null;
-
-        GodotObjectLifecycle.DisposeGodotObject(cell);
     }
 
-    private static Godot.Collections.Array<StringName> DuplicateStringNameArray(
-        Godot.Collections.Array<StringName> values
-    )
+    private static List<StringName> DuplicateStringNameList(IEnumerable<StringName> values)
     {
-        var duplicated = new Godot.Collections.Array<StringName>();
-        foreach (StringName value in values ?? new Godot.Collections.Array<StringName>())
+        var duplicated = new List<StringName>();
+        foreach (StringName value in values ?? Array.Empty<StringName>())
         {
             duplicated.Add(new StringName(value.ToString()));
+        }
+        return duplicated;
+    }
+
+    private static List<BattleCellState> DuplicateCellList(IEnumerable<BattleCellState> values)
+    {
+        var duplicated = new List<BattleCellState>();
+        foreach (BattleCellState value in values ?? Array.Empty<BattleCellState>())
+        {
+            if (value != null)
+            {
+                duplicated.Add(value.DuplicateCell());
+            }
         }
         return duplicated;
     }

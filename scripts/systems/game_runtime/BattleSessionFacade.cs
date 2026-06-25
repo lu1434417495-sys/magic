@@ -1138,7 +1138,9 @@ public sealed class BattleSessionFacade : IDisposable
         if (dictionary == null || key == null || !dictionary.ContainsKey(key))
             return null;
         var value = dictionary[key];
-        return value.VariantType == Variant.Type.Object ? value.AsGodotObject() as BattleUnitState : null;
+        return BattleUnitState.TryReadUnitPayload(value, out BattleUnitState unitState)
+            ? unitState
+            : null;
     }
 
     private static GVector2IArray DuplicateVector2IArray(

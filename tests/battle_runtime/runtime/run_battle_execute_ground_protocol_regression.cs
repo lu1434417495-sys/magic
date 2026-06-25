@@ -128,7 +128,7 @@ public partial class run_battle_execute_ground_protocol_regression : SceneTree
             heal_multiplier_percent = 50,
             shield_gain_multiplier_percent = 50,
         });
-        return skill;
+        return TestResourceOwnership.Own(skill, "battle_execute_ground_protocol.ground_execute_skill");
     }
 
     private static BattleUnitState MakeUnit(

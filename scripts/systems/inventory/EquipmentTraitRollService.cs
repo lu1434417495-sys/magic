@@ -5,15 +5,11 @@ using Godot;
 public class EquipmentTraitRollService : IDisposable
 {
     private readonly List<TraitDef> _traitDefs;
-    private GodotTransientResourceScope _ownedRngScope;
-    private RandomNumberGenerator _rng;
+    private RuntimeRandom _runtimeRng;
     private Func<int, int, int> _rollRange;
     private Func<float> _rollUnit;
 
-    public EquipmentTraitRollService(
-        IEnumerable<TraitDef> traitDefs,
-        RandomNumberGenerator rng = null
-    )
+    public EquipmentTraitRollService(IEnumerable<TraitDef> traitDefs)
     {
         _traitDefs = new List<TraitDef>();
         if (traitDefs != null)
@@ -22,32 +18,19 @@ public class EquipmentTraitRollService : IDisposable
                 if (traitDef != null)
                     _traitDefs.Add(traitDef);
         }
-        ConfigureRng(rng);
+        ConfigureRng();
     }
 
-    public void ConfigureRng(RandomNumberGenerator rng = null)
+    public void ConfigureRng()
     {
-        _ownedRngScope?.Dispose();
-        _ownedRngScope = null;
-        if (rng != null)
-        {
-            _rng = rng;
-        }
-        else
-        {
-            _ownedRngScope = new GodotTransientResourceScope("EquipmentTraitRollService");
-            _rng = _ownedRngScope.OwnWrapper(new RandomNumberGenerator(), "rng");
-            _rng.Randomize();
-        }
-        _rollRange = _rng.RandiRange;
-        _rollUnit = _rng.Randf;
+        _runtimeRng = new RuntimeRandom(TrueRandomSeedService.GenerateSeed());
+        _rollRange = _runtimeRng.RandiRange;
+        _rollUnit = _runtimeRng.Randf;
     }
 
     public void Dispose()
     {
-        _ownedRngScope?.Dispose();
-        _ownedRngScope = null;
-        _rng = null;
+        _runtimeRng = null;
         _rollRange = null;
         _rollUnit = null;
     }

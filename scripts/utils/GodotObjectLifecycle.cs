@@ -23,15 +23,14 @@ internal static class GodotObjectLifecycle
         SuppressGameSessionContentForFinalizerDrain();
     }
 
-    internal static void DisposeGodotObject(GodotObject owned)
+    internal static void DisposeGodotObject(FileAccess owned) => DisposeNativeIoWrapper(owned);
+
+    internal static void DisposeGodotObject(DirAccess owned) => DisposeNativeIoWrapper(owned);
+
+    private static void DisposeNativeIoWrapper(GodotObject owned)
     {
         if (owned == null)
             return;
-        if (ShouldRetainKnownLifecycleWrapper(owned))
-        {
-            GodotWrapperOwnershipRegistry.SuppressWrapper(owned);
-            return;
-        }
         GC.SuppressFinalize(owned);
         try
         {
@@ -41,15 +40,6 @@ internal static class GodotObjectLifecycle
         catch (ObjectDisposedException)
         {
         }
-    }
-
-    private static bool ShouldRetainKnownLifecycleWrapper(GodotObject owned)
-    {
-        if (owned == null)
-            return false;
-        return GodotWrapperOwnershipRegistry.IsBorrowedOrDerivedStaticContent(owned)
-            || GodotWrapperOwnershipRegistry.IsOwnedTransient(owned)
-            || GodotWrapperOwnershipRegistry.IsRuntimeState(owned);
     }
 
     internal static void SuppressFinalizerGraph(GodotObject root)

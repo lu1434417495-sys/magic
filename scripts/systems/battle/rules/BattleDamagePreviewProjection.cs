@@ -94,9 +94,9 @@ internal static class BattleDamagePreviewProjection
         if (!string.IsNullOrEmpty(preview.ErrorCode))
             result["error_code"] = preview.ErrorCode;
         if (preview.SourcePreviewAfter != null)
-            result["source_preview_after"] = preview.SourcePreviewAfter;
+            result["source_preview_after"] = preview.SourcePreviewAfter.ToDictionary();
         if (preview.TargetPreviewAfter != null)
-            result["target_preview_after"] = preview.TargetPreviewAfter;
+            result["target_preview_after"] = preview.TargetPreviewAfter.ToDictionary();
         return result;
     }
 

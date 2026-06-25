@@ -706,9 +706,6 @@ internal sealed class GodotTransientResourceScope : IDisposable
 
     internal void Drain()
     {
-        foreach (object root in _rootGraphs)
-            RegisterOwnedValueGraph(root, $"{Name}:drain-refresh");
-
         foreach (object wrapper in _strongWrappers)
             GodotWrapperOwnershipRegistry.SuppressWrapper(wrapper);
 

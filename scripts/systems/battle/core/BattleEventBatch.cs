@@ -10,7 +10,7 @@ public class BattleEventBatch : IDisposable
     private readonly List<StringName> _changedUnitIds = new();
     private readonly List<Vector2I> _changedCoords = new();
     private readonly List<string> _logLines = new();
-    private readonly List<GDictionary> _reportEntries = new();
+    private readonly RuntimePayloadList _reportEntries = new();
     private readonly List<CharacterProgressionDelta> _progressionDeltas = new();
 
     public bool phase_changed { get; set; }
@@ -45,7 +45,7 @@ public class BattleEventBatch : IDisposable
     internal IReadOnlyList<StringName> ChangedUnitIdsTyped => _changedUnitIds;
     internal IReadOnlyList<Vector2I> ChangedCoordsTyped => _changedCoords;
     internal IReadOnlyList<string> LogLinesTyped => _logLines;
-    internal IReadOnlyList<GDictionary> ReportEntriesTyped => _reportEntries;
+    internal IReadOnlyList<GDictionary> ReportEntriesTyped => _reportEntries.ToList();
     internal IReadOnlyList<CharacterProgressionDelta> ProgressionDeltasTyped => _progressionDeltas;
 
     public void Dispose() { }
@@ -156,18 +156,7 @@ public class BattleEventBatch : IDisposable
 
     internal void SetReportEntries(IEnumerable values)
     {
-        _reportEntries.Clear();
-        if (values == null)
-        {
-            return;
-        }
-        foreach (object value in values)
-        {
-            if (value is GDictionary reportEntry)
-            {
-                AddReportEntry(reportEntry);
-            }
-        }
+        _reportEntries.SetFrom(values);
     }
 
     internal void ClearReportEntries()
@@ -181,9 +170,7 @@ public class BattleEventBatch : IDisposable
         {
             return;
         }
-        var copy = (GDictionary)reportEntry.Duplicate(true);
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(copy, "BattleEventBatch.report_entry");
-        _reportEntries.Add(copy);
+        _reportEntries.Add(reportEntry);
     }
 
     internal void SetProgressionDeltas(IEnumerable values)
@@ -251,12 +238,7 @@ public class BattleEventBatch : IDisposable
 
     internal GArray BuildReportEntriesArray()
     {
-        var result = new GArray();
-        foreach (GDictionary reportEntry in _reportEntries)
-        {
-            result.Add((GDictionary)reportEntry.Duplicate(true));
-        }
-        return result;
+        return _reportEntries.ToUntypedGodotArray();
     }
 
     internal GArray BuildProgressionDeltasArray()

@@ -4,7 +4,7 @@ using Godot;
 
 public class UnitProgress
 {
-    private static readonly Godot.Collections.Array<string> TO_DICT_FIELDS = new()
+    private static readonly string[] TO_DICT_FIELDS =
     {
         "version",
         "unit_id",
@@ -55,14 +55,14 @@ public class UnitProgress
         get => BuildProfessionDictionary();
         set => SetProfessionProgressStates(value);
     }
-    public Godot.Collections.Array<StringName> known_knowledge_ids
+    public StringNameList known_knowledge_ids
     {
-        get => BuildStringNameArray(_knownKnowledgeIds);
+        get => new(_knownKnowledgeIds);
         set => SetKnownKnowledgeIds(value);
     }
-    public Godot.Collections.Array<StringName> active_core_skill_ids
+    public StringNameList active_core_skill_ids
     {
-        get => BuildStringNameArray(_activeCoreSkillIds);
+        get => new(_activeCoreSkillIds);
         set => SetActiveCoreSkillIds(value);
     }
     public Godot.Collections.Dictionary attribute_growth_progress
@@ -80,9 +80,9 @@ public class UnitProgress
         get => BuildPendingProfessionChoicesArray();
         set => SetPendingProfessionChoices(value);
     }
-    public Godot.Collections.Array<StringName> blocked_relearn_skill_ids
+    public StringNameList blocked_relearn_skill_ids
     {
-        get => BuildStringNameArray(_blockedRelearnSkillIds);
+        get => new(_blockedRelearnSkillIds);
         set => SetBlockedRelearnSkillIds(value);
     }
     public Godot.Collections.Dictionary merged_skill_source_map
@@ -90,15 +90,15 @@ public class UnitProgress
         get => BuildMergedSkillSourceMapDictionary();
         set => SetMergedSkillSourceMap(value);
     }
-    public Godot.Collections.Array<StringName> unlocked_combat_resource_ids
+    public StringNameList unlocked_combat_resource_ids
     {
-        get => BuildStringNameArray(_unlockedCombatResourceIds);
+        get => new(_unlockedCombatResourceIds);
         set => SetUnlockedCombatResourceIds(value);
     }
     public StringName active_level_trigger_core_skill_id = "";
-    public Godot.Collections.Array<StringName> locked_level_trigger_skill_ids
+    public StringNameList locked_level_trigger_skill_ids
     {
-        get => BuildStringNameArray(_lockedLevelTriggerSkillIds);
+        get => new(_lockedLevelTriggerSkillIds);
         set => SetLockedLevelTriggerSkillIds(value);
     }
     internal IReadOnlyList<StringName> KnownKnowledgeIdsTyped => _knownKnowledgeIds;
@@ -194,7 +194,7 @@ public class UnitProgress
 
     public void RememberMergeSources(
         StringName sid,
-        Godot.Collections.Array<StringName> sourceIds
+        IEnumerable<StringName> sourceIds
     )
     {
         var deduped = new List<StringName>();
@@ -209,7 +209,7 @@ public class UnitProgress
             _mergedSkillSourceMap[sid] = new List<StringName>(deduped);
         var sp = GetSkillProgress(sid);
         if (sp != null)
-            sp.merged_from_skill_ids = BuildStringNameArray(deduped);
+            sp.merged_from_skill_ids = new StringNameList(deduped);
     }
 
     internal List<StringName> GetMergedSourceSkillIdsTyped(StringName sid)
@@ -558,20 +558,11 @@ public class UnitProgress
         return copy;
     }
 
-    private static Godot.Collections.Array<StringName> DuplicateStringNameArray(
-        Godot.Collections.Array<StringName> values
-    )
-    {
-        return values != null
-            ? new Godot.Collections.Array<StringName>(values)
-            : new Godot.Collections.Array<StringName>();
-    }
-
     private static Godot.Collections.Dictionary DuplicateDictionary(
         Godot.Collections.Dictionary values
     )
     {
-        return values?.Duplicate(true) ?? new Godot.Collections.Dictionary();
+        return RuntimePayloadCopy.Dictionary(values, "UnitProgress.DuplicateDictionary");
     }
 
     public Godot.Collections.Dictionary ToDictionary()
@@ -932,7 +923,7 @@ public class UnitProgress
         return progress;
     }
 
-    private static bool _hef(Godot.Collections.Dictionary d, Godot.Collections.Array<string> e)
+    private static bool _hef(Godot.Collections.Dictionary d, IReadOnlyCollection<string> e)
     {
         if (d.Count != e.Count)
             return false;
@@ -975,20 +966,19 @@ public class UnitProgress
         return new StringName(rawText);
     }
 
-    private static Godot.Collections.Array<StringName> _parse_unique_string_name_array(
+    private static StringNameList _parse_unique_string_name_array(
         Godot.Collections.Array values
     )
     {
-        var parsed = new Godot.Collections.Array<StringName>();
-        var seen = new Godot.Collections.Dictionary();
+        var parsed = new StringNameList();
+        var seen = new HashSet<StringName>();
         foreach (var raw in values)
         {
             if (!TryAsStringLike(raw, out string rawText))
                 return null;
             var value = new StringName(rawText);
-            if (value == "" || seen.ContainsKey(value))
+            if (value == "" || !seen.Add(value))
                 return null;
-            seen[value] = true;
             parsed.Add(value);
         }
         return parsed;
@@ -1018,16 +1008,6 @@ public class UnitProgress
             if (value == target)
                 return true;
         return false;
-    }
-
-    private static Godot.Collections.Array<StringName> BuildStringNameArray(
-        IEnumerable<StringName> values
-    )
-    {
-        var result = new Godot.Collections.Array<StringName>();
-        foreach (StringName value in values)
-            result.Add(value);
-        return result;
     }
 
     private Godot.Collections.Array BuildPendingProfessionChoicesArray()
@@ -1176,7 +1156,7 @@ public class UnitProgress
         var activeSkillId = progress.active_level_trigger_core_skill_id;
         int activeFlagCount = 0;
         var activeFlagSkillId = new StringName("");
-        var lockedFlagLookup = new Godot.Collections.Dictionary();
+        var lockedFlagLookup = new HashSet<StringName>();
 
         foreach (var skillId in progress.GetSortedSkillIdsTyped())
         {
@@ -1192,7 +1172,7 @@ public class UnitProgress
             }
             if (skillProgress.is_level_trigger_locked)
             {
-                lockedFlagLookup[skillId] = true;
+                lockedFlagLookup.Add(skillId);
                 if (skillProgress.is_level_trigger_active)
                     return false;
                 if (!skillProgress.is_learned || !skillProgress.is_core)
@@ -1222,10 +1202,10 @@ public class UnitProgress
                 return false;
         }
 
-        var lockedListLookup = new Godot.Collections.Dictionary();
+        var lockedListLookup = new HashSet<StringName>();
         foreach (var lockedSkillId in progress.LockedLevelTriggerSkillIdsTyped)
         {
-            if (lockedSkillId == "" || lockedListLookup.ContainsKey(lockedSkillId))
+            if (lockedSkillId == "" || !lockedListLookup.Add(lockedSkillId))
                 return false;
             var lockedSkillProgress = progress.GetSkillProgress(lockedSkillId);
             if (lockedSkillProgress == null)
@@ -1236,13 +1216,12 @@ public class UnitProgress
                 return false;
             if (!lockedSkillProgress.is_level_trigger_locked)
                 return false;
-            lockedListLookup[lockedSkillId] = true;
         }
 
         if (lockedListLookup.Count != lockedFlagLookup.Count)
             return false;
-        foreach (var lockedSkillId in lockedFlagLookup.Keys)
-            if (!lockedListLookup.ContainsKey(lockedSkillId))
+        foreach (var lockedSkillId in lockedFlagLookup)
+            if (!lockedListLookup.Contains(lockedSkillId))
                 return false;
         return true;
     }

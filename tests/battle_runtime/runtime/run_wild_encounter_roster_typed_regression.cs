@@ -292,24 +292,7 @@ public partial class run_wild_encounter_roster_typed_regression : SceneTree
 
     private static bool TryAsBattleUnitState(object rawValue, out BattleUnitState value)
     {
-        if (rawValue is BattleUnitState typedValue)
-        {
-            value = typedValue;
-            return true;
-        }
-
-        try
-        {
-            dynamic dynamicValue = rawValue;
-            value = dynamicValue.As<BattleUnitState>();
-            return value != null;
-        }
-        catch
-        {
-        }
-
-        value = null;
-        return false;
+        return BattleUnitState.TryReadUnitPayload(rawValue, out value);
     }
 
 }

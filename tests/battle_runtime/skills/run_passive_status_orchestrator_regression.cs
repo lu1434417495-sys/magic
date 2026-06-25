@@ -44,6 +44,7 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
             new Dictionary<StringName, AchievementDef>(),
             new Dictionary<StringName, ItemDef>(),
             new Dictionary<StringName, QuestDef>(),
+            registry.GetTraitDefsTyped(),
             null,
             registry.GetIdentityCatalogTyped()
         );

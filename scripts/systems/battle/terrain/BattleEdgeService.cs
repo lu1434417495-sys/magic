@@ -37,9 +37,9 @@ public sealed class BattleEdgeService
         }
         state.ReplaceRuntimeEdgeFaces(
             BuildEdgeFacesForCells(
-                state.ProjectCells(),
+                state.CellIndex,
                 state.map_size,
-                state.ProjectCellColumns()
+                state.ProjectCellColumnsTyped()
             )
         );
         state.runtime_edges_dirty = false;
@@ -54,16 +54,18 @@ public sealed class BattleEdgeService
     }
 
     internal Dictionary<Vector3I, BattleEdgeFaceState> BuildEdgeFacesForCells(
-        GDictionary cells,
+        IReadOnlyDictionary<Vector2I, BattleCellState> cells,
         Vector2I map_size,
-        GDictionary cell_columns
+        IReadOnlyDictionary<Vector2I, List<BattleCellState>> cell_columns
     )
     {
         var edgeFaces = new Dictionary<Vector3I, BattleEdgeFaceState>();
-        GDictionary resolvedColumns =
+        IReadOnlyDictionary<Vector2I, List<BattleCellState>> resolvedColumns =
             cell_columns != null && cell_columns.Count > 0
                 ? cell_columns
-                : BattleCellState.BuildColumnsFromSurfaceCells(cells ?? new GDictionary());
+                : BattleCellState.BuildColumnsFromSurfaceCells(
+                    cells ?? new Dictionary<Vector2I, BattleCellState>()
+                );
         int maxY = Math.Max(map_size.Y, 0);
         int maxX = Math.Max(map_size.X, 0);
         for (int y = 0; y < maxY; y++)
@@ -209,8 +211,8 @@ public sealed class BattleEdgeService
     }
 
     private static BattleEdgeFaceState BuildEdgeFace(
-        GDictionary cells,
-        GDictionary cellColumns,
+        IReadOnlyDictionary<Vector2I, BattleCellState> cells,
+        IReadOnlyDictionary<Vector2I, List<BattleCellState>> cellColumns,
         Vector2I originCoord,
         BattleCellState originCell,
         Vector2I direction
@@ -314,38 +316,28 @@ public sealed class BattleEdgeService
     }
 
     private static int GetColumnTopHeight(
-        object rawColumnValue,
+        IReadOnlyList<BattleCellState> column,
         BattleCellState fallbackSurfaceCell = null
     )
     {
-        if (
-            rawColumnValue is Variant columnValue
-            && columnValue.VariantType == Variant.Type.Array
-        )
-        {
-            GArray column = columnValue.AsGodotArray();
-            return GetColumnTopHeightFromArray(column, fallbackSurfaceCell);
-        }
-        if (rawColumnValue is GArray rawColumn)
-        {
-            return GetColumnTopHeightFromArray(rawColumn, fallbackSurfaceCell);
-        }
-        return fallbackSurfaceCell != null
-            ? fallbackSurfaceCell.current_height
-            : BoundaryRenderHeight;
+        if (column != null)
+            return GetColumnTopHeightFromList(column, fallbackSurfaceCell);
+        return fallbackSurfaceCell != null ? fallbackSurfaceCell.current_height : BoundaryRenderHeight;
     }
 
-    private static object ReadValue(GDictionary source, Vector2I key, object fallback = null)
+    private static IReadOnlyList<BattleCellState> ReadValue(
+        IReadOnlyDictionary<Vector2I, List<BattleCellState>> source,
+        Vector2I key,
+        IReadOnlyList<BattleCellState> fallback = null
+    )
     {
-        if (source != null && source.ContainsKey(key))
-        {
-            return source[key];
-        }
-        return fallback;
+        return source != null && source.TryGetValue(key, out List<BattleCellState> value)
+            ? value
+            : fallback;
     }
 
-    private static int GetColumnTopHeightFromArray(
-        GArray column,
+    private static int GetColumnTopHeightFromList(
+        IReadOnlyList<BattleCellState> column,
         BattleCellState fallbackSurfaceCell
     )
     {
@@ -353,14 +345,9 @@ public sealed class BattleEdgeService
         {
             for (int index = column.Count - 1; index >= 0; index--)
             {
-                var cellValue = column[index];
-                if (
-                    cellValue.VariantType == Variant.Type.Object
-                    && cellValue.AsGodotObject() is BattleCellState layerCell
-                )
-                {
+                BattleCellState layerCell = column[index];
+                if (layerCell != null)
                     return layerCell.stack_layer;
-                }
             }
         }
         return fallbackSurfaceCell != null
@@ -386,16 +373,12 @@ public sealed class BattleEdgeService
         return exposedLayers;
     }
 
-    private static BattleCellState GetCell(GDictionary cells, Vector2I coord)
+    private static BattleCellState GetCell(
+        IReadOnlyDictionary<Vector2I, BattleCellState> cells,
+        Vector2I coord
+    )
     {
-        if (cells == null || !cells.ContainsKey(coord))
-        {
-            return null;
-        }
-        var value = cells[coord];
-        return value.VariantType == Variant.Type.Object
-            ? value.AsGodotObject() as BattleCellState
-            : null;
+        return cells != null && cells.TryGetValue(coord, out BattleCellState cell) ? cell : null;
     }
 
     private static BattleEdgeFaceState GetEdgeFaceFromDictionary(

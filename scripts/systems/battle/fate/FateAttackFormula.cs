@@ -1,5 +1,4 @@
 using System;
-using Godot;
 
 public static class FateAttackFormula
 {
@@ -47,64 +46,27 @@ public static class FateAttackFormula
     public static int RollDieWithDisadvantageRule(
         int dieSize,
         bool isDisadvantage,
-        RandomNumberGenerator rng
-    )
-    {
-        return RollDieWithDisadvantageRule(
-            dieSize,
-            isDisadvantage,
-            new GodotRandomRollSource(rng)
-        );
-    }
-
-    public static int RollDieWithDisadvantageRule(
-        int dieSize,
-        bool isDisadvantage,
         IRollSource rng
     )
     {
         int normalizedDieSize = Math.Max(dieSize, 1);
-        GodotRandomRollSource ownedRng = rng == null ? new GodotRandomRollSource(null) : null;
+        RuntimeRollSource ownedRng = rng == null ? new RuntimeRollSource() : null;
         IRollSource resolvedRng = rng ?? ownedRng;
-        try
-        {
-            int firstRoll = resolvedRng.RandiRange(1, normalizedDieSize);
-            if (!isDisadvantage)
-                return firstRoll;
-            int secondRoll = resolvedRng.RandiRange(1, normalizedDieSize);
-            return Math.Min(firstRoll, secondRoll);
-        }
-        finally
-        {
-            ownedRng?.Dispose();
-        }
+        int firstRoll = resolvedRng.RandiRange(1, normalizedDieSize);
+        if (!isDisadvantage)
+            return firstRoll;
+        int secondRoll = resolvedRng.RandiRange(1, normalizedDieSize);
+        return Math.Min(firstRoll, secondRoll);
     }
 
-    private sealed class GodotRandomRollSource : IRollSource, IDisposable
+    private sealed class RuntimeRollSource : IRollSource
     {
-        private readonly GodotTransientResourceScope _scope;
-        private readonly RandomNumberGenerator _rng;
-
-        public GodotRandomRollSource(RandomNumberGenerator rng)
-        {
-            if (rng != null)
-            {
-                _rng = rng;
-                return;
-            }
-            _scope = new GodotTransientResourceScope("FateAttackFormula.GodotRandomRollSource");
-            _rng = _scope.OwnWrapper(new RandomNumberGenerator(), "rng");
-            _rng.Randomize();
-        }
+        private readonly RuntimeRandom _rng = new(TrueRandomSeedService.GenerateSeed());
 
         public int RandiRange(int minValue, int maxValue)
         {
             return _rng.RandiRange(minValue, maxValue);
         }
-
-        public void Dispose()
-        {
-            _scope?.Dispose();
-        }
     }
+
 }

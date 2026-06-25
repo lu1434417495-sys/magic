@@ -14,12 +14,11 @@ internal class BattleCommonSkillOutcome
     public StringName skill_id { get; set; } = "";
     public int total_damage { get; set; }
     public int total_healing { get; set; }
-    public Godot.Collections.Array<StringName> defeated_unit_ids { get; set; } = new();
-    public Godot.Collections.Array<StringName> changed_unit_ids { get; set; } = new();
-    public Godot.Collections.Array<Vector2I> changed_coords { get; set; } = new();
-    public Godot.Collections.Array<string> log_lines { get; set; } = new();
-    public Godot.Collections.Array<Godot.Collections.Dictionary> report_entries { get; set; } =
-        new();
+    public StringNameList defeated_unit_ids { get; set; } = new();
+    public StringNameList changed_unit_ids { get; set; } = new();
+    public Vector2IList changed_coords { get; set; } = new();
+    public StringList log_lines { get; set; } = new();
+    public RuntimePayloadList report_entries { get; set; } = new();
     public List<BattleCommonSkillTargetResult> target_results { get; } = new();
     public Dictionary<StringName, List<StringName>> status_effect_ids_by_unit_id { get; } = new();
 

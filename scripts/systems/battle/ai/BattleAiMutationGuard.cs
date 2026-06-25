@@ -378,7 +378,7 @@ internal sealed class BattleAiMutationGuard
                 BattleUnitState unit = entry.Value.Restore();
                 if (unit != null)
                 {
-                    restoredUnits[entry.Key] = unit;
+                    restoredUnits[entry.Key] = unit.ToDictionary();
                 }
             }
             return restoredUnits;
@@ -591,7 +591,7 @@ internal sealed class BattleAiMutationGuard
         hash = MixHash(hash, column?.Count ?? 0);
         foreach (Variant rawCell in column ?? new GArray())
         {
-            BattleCellState cell = rawCell.As<BattleCellState>();
+            BattleCellState.TryReadCellPayload(rawCell, out BattleCellState cell);
             hash = MixHash(hash, StableBattleCellSignature(cell));
         }
         return hash;
@@ -1093,11 +1093,11 @@ internal sealed class BattleAiMutationGuard
             snapshot._winnerFactionId = state.winner_faction_id;
             snapshot._logEntries = StringArrayToList(state.log_entries);
             snapshot._reportEntries = FieldArrayToSnapshots(
-                state.report_entries,
+                state.report_entries.ToGodotArray(),
                 ReportEntrySnapshotKeys
             );
             snapshot._promotionQueue = FieldArrayToSnapshots(
-                state.promotion_queue,
+                state.promotion_queue.ToGodotArray(),
                 PromotionQueueSnapshotKeys
             );
             snapshot._modalState = state.modal_state;
@@ -1127,8 +1127,8 @@ internal sealed class BattleAiMutationGuard
             state.active_unit_id = _activeUnitId;
             state.winner_faction_id = _winnerFactionId;
             state.log_entries = BuildStringArray(_logEntries);
-            state.report_entries = BuildDictionaryArray(_reportEntries);
-            state.promotion_queue = BuildDictionaryArray(_promotionQueue);
+            state.report_entries = new RuntimePayloadList(BuildDictionaryArray(_reportEntries));
+            state.promotion_queue = new RuntimePayloadList(BuildDictionaryArray(_promotionQueue));
             state.modal_state = _modalState;
             state.ReplaceLayeredBarrierFieldsTyped(_layeredBarrierFields.ToBarrierEntries());
         }

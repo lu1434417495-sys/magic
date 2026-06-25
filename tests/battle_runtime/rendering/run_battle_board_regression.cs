@@ -228,9 +228,8 @@ public partial class run_battle_board_regression : SceneTree
         {
             if (coordValue.VariantType != Variant.Type.Vector2I)
                 continue;
-            BattleCellState cell = cells[coordValue].AsGodotObject() as BattleCellState;
-            if (cell != null)
-                cloned[coordValue.AsVector2I()] = cell.DuplicateCell();
+            if (BattleCellState.TryReadCellPayload(cells[coordValue], out BattleCellState cell) && cell != null)
+                cloned[coordValue.AsVector2I()] = cell.DuplicateCell().ToDictionary();
         }
         return cloned;
     }
@@ -287,8 +286,8 @@ public partial class run_battle_board_regression : SceneTree
         bool foundStackedColumn = false;
         foreach (Variant coordValue in cells.Keys)
         {
-            BattleCellState surfaceCell = cells[coordValue].AsGodotObject() as BattleCellState;
-            if (surfaceCell == null)
+            if (!BattleCellState.TryReadCellPayload(cells[coordValue], out BattleCellState surfaceCell)
+                || surfaceCell == null)
                 continue;
             _test.True(columns.ContainsKey(coordValue), $"cell_columns 应包含 surface cell 坐标：{coordValue}");
             if (!columns.ContainsKey(coordValue) || columns[coordValue].VariantType != Variant.Type.Array)
@@ -305,7 +304,7 @@ public partial class run_battle_board_regression : SceneTree
     {
         foreach (Vector2I coord in CollectSpawnCoords(layout))
         {
-            BattleCellState cell = DictDict(layout, "cells")[coord].AsGodotObject() as BattleCellState;
+            BattleCellState.TryReadCellPayload(DictDict(layout, "cells")[coord], out BattleCellState cell);
             _test.True(cell != null, $"{label} spawn 应指向有效 battle cell：{coord}");
             if (cell != null)
                 _test.False(BattleTerrainRules.IsWaterTerrain(cell.base_terrain), $"{label} spawn 不应落在水域：{coord}");
@@ -334,8 +333,7 @@ public partial class run_battle_board_regression : SceneTree
     {
         foreach (Variant cellValue in DictDict(layout, "cells").Values)
         {
-            BattleCellState cell = cellValue.AsGodotObject() as BattleCellState;
-            if (cell == null)
+            if (!BattleCellState.TryReadCellPayload(cellValue, out BattleCellState cell) || cell == null)
                 continue;
             foreach (StringName propId in cell.prop_ids)
                 _test.True(BattleBoardPropCatalog.IsSupported(propId), $"显式 prop_id 必须来自正式 prop catalog：{propId}");
@@ -347,8 +345,7 @@ public partial class run_battle_board_regression : SceneTree
         int count = 0;
         foreach (Variant cellValue in DictDict(layout, "cells").Values)
         {
-            BattleCellState cell = cellValue.AsGodotObject() as BattleCellState;
-            if (cell == null)
+            if (!BattleCellState.TryReadCellPayload(cellValue, out BattleCellState cell) || cell == null)
                 continue;
             foreach (StringName cellPropId in cell.prop_ids)
             {
@@ -372,8 +369,7 @@ public partial class run_battle_board_regression : SceneTree
         coords.Sort((left, right) => left.Y == right.Y ? left.X.CompareTo(right.X) : left.Y.CompareTo(right.Y));
         foreach (Vector2I coord in coords)
         {
-            BattleCellState cell = cells[coord].AsGodotObject() as BattleCellState;
-            if (cell == null)
+            if (!BattleCellState.TryReadCellPayload(cells[coord], out BattleCellState cell) || cell == null)
                 continue;
             lines.Add(
                 $"{coord.X},{coord.Y}|{cell.base_terrain}|{cell.current_height}|{string.Join(",", StringifyProps(cell.prop_ids))}"
@@ -382,7 +378,7 @@ public partial class run_battle_board_regression : SceneTree
         return lines;
     }
 
-    private static List<string> StringifyProps(GStringNameArray propIds)
+    private static List<string> StringifyProps(IEnumerable<StringName> propIds)
     {
         var values = new List<string>();
         foreach (StringName propId in propIds)

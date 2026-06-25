@@ -217,9 +217,8 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
                 state.enemy_unit_ids.Add(unit.unit_id);
         }
         state.active_unit_id = caster.unit_id;
-        foreach (Variant unitValue in state.Units())
+        foreach (BattleUnitState unitState in state.Units())
         {
-            BattleUnitState unitState = unitValue.AsGodotObject() as BattleUnitState;
             _test.True(
                 runtime._grid_service.PlaceUnit(state, unitState, unitState.coord, true),
                 $"单位应能放入 preview surface 棋盘：{unitState?.unit_id}"

@@ -73,7 +73,7 @@ public partial class run_enemy_template_attribute_projection_regression : SceneT
             return;
         }
 
-        BattleUnitState unit = enemyUnits[0].AsGodotObject() as BattleUnitState;
+        BattleUnitState.TryReadUnitPayload(enemyUnits[0], out BattleUnitState unit);
         _test.True(unit != null, "EncounterRosterBuilder 应返回 BattleUnitState。");
         if (unit == null || unit.attribute_snapshot == null)
         {

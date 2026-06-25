@@ -70,14 +70,21 @@ public partial class run_typed_party_quest_state_regression : SceneTree
     private void TestValidTypedPayloadsRoundTrip()
     {
         PartyMemberState member = new() { member_id = "hero", display_name = "Hero" };
+        member.progression.unit_id = "hero";
+        member.progression.display_name = "Hero";
         PartyMemberStateCollection members = PartyMemberStateCollection.FromDictionary(
-            new GDictionary { ["hero"] = member }
+            new GDictionary { ["hero"] = member.ToDictionary() }
         );
-        _test.True(ReferenceEquals(members.Get("hero"), member), "typed member collection 应保留成员对象引用。");
+        _test.Eq(members.Get("hero")?.display_name, "Hero", "typed member collection 应恢复成员 payload。");
         GDictionary memberProjection = members.ToDictionary();
+        _test.True(memberProjection["hero"].VariantType == Variant.Type.Dictionary, "typed member collection 投影应输出成员存档字典。");
         _test.True(
-            ReferenceEquals(memberProjection["hero"].AsGodotObject() as PartyMemberState, member),
-            "typed member collection 投影应能按成员 ID 取回对象。"
+            PartyMemberState.TryReadMemberPayload(memberProjection["hero"], out PartyMemberState projectedMember),
+            "typed member collection 投影应能按成员 ID 读回成员 payload。"
+        );
+        _test.True(
+            projectedMember?.member_id == (StringName)"hero",
+            "typed member collection 投影应保留成员 ID。"
         );
 
         QuestObjectiveProgressState questProgress = QuestObjectiveProgressState.FromDictionary(

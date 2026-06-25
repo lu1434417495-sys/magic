@@ -376,8 +376,14 @@ public partial class run_misfortune_black_omen_regression : SceneTree
         {
             Service.Dispose();
             Manager.Dispose();
-            PartyState.Dispose();
-            MemberState.Dispose();
+            RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+                PartyState,
+                "run_misfortune_black_omen_regression.Context"
+            );
+            RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+                MemberState,
+                "run_misfortune_black_omen_regression.Context"
+            );
         }
     }
 }

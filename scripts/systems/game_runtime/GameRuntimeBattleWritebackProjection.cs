@@ -28,7 +28,13 @@ internal static class GameRuntimeBattleWritebackProjection
         {
             ["ok"] = false,
             ["error_code"] = errorCode ?? "",
-            ["details"] = details != null ? details.Duplicate(true) : new Dictionary(),
+            ["details"] =
+                details != null
+                    ? RuntimePayloadCopy.Dictionary(
+                        details,
+                        "GameRuntimeBattleWritebackProjection.ProjectFailure.details"
+                    )
+                    : new Dictionary(),
         };
     }
 }

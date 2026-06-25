@@ -1,7 +1,7 @@
+using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class AchievementDef : RefCounted
+public sealed class AchievementDef
 {
     public StringName achievement_id = "";
     public string display_name = "";
@@ -9,7 +9,7 @@ public partial class AchievementDef : RefCounted
     public StringName event_type = "";
     public StringName subject_id = "";
     public int threshold;
-    public Godot.Collections.Array<AchievementRewardDef> rewards = new();
+    public List<AchievementRewardDef> rewards = new();
 
     public bool MatchesEvent(StringName target_event_type, StringName target_subject_id = default)
     {

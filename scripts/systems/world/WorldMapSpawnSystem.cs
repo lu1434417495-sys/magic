@@ -59,7 +59,7 @@ public sealed class WorldMapSpawnSystem
         ["service_hire_expert"] = "service:hire_expert",
     };
 
-    private readonly RandomNumberGenerator _rng = new();
+    private readonly RuntimeRandom _rng = new();
     private long _mapSeed;
     private WorldMapGenerationConfig _generationConfig;
     private WorldMapGridSystem _gridSystem;
@@ -345,7 +345,7 @@ public sealed class WorldMapSpawnSystem
             return new WorldBuildData();
 
         _mapSeed = TrueRandomSeedService.GenerateSeed();
-        _rng.Seed = (ulong)Math.Max(_mapSeed, 1L);
+        _rng.Reseed(_mapSeed);
         BuildLibraries();
 
         List<SettlementInstanceData> settlements = GenerateSettlements();
@@ -1349,6 +1349,11 @@ public sealed class WorldMapSpawnSystem
         var settlementBundle = GD.Load<WorldMapSettlementBundle>(
             DefaultMainWorldSettlementBundlePath
         );
+        if (settlementBundle != null)
+            GodotContentOwnership.RegisterBorrowedContent(
+                settlementBundle,
+                DefaultMainWorldSettlementBundlePath
+            );
         if (settlementBundle == null)
             GameLog.Warning(
                 $"Unable to load default main-world settlement bundle from {DefaultMainWorldSettlementBundlePath}.",
@@ -1363,6 +1368,11 @@ public sealed class WorldMapSpawnSystem
         if (_generationConfig == null || !_generationConfig.inject_default_main_world_content)
             return null;
         var wildSpawnBundle = GD.Load<WorldMapWildSpawnBundle>(DefaultMainWorldWildSpawnBundlePath);
+        if (wildSpawnBundle != null)
+            GodotContentOwnership.RegisterBorrowedContent(
+                wildSpawnBundle,
+                DefaultMainWorldWildSpawnBundlePath
+            );
         if (wildSpawnBundle == null)
             GameLog.Warning(
                 $"Unable to load default main-world wild spawn bundle from {DefaultMainWorldWildSpawnBundlePath}.",
@@ -1423,10 +1433,7 @@ public sealed class WorldMapSpawnSystem
         var uniqueNames = new List<string>(namePool.BuildUniqueDisplayNames());
         if (uniqueNames.Count == 0)
             return uniqueNames;
-        var nameRng = new RandomNumberGenerator
-        {
-            Seed = (ulong)Math.Max(TrueRandomSeedService.GenerateSeed(), 1L),
-        };
+        var nameRng = new RuntimeRandom(TrueRandomSeedService.GenerateSeed());
         for (int index = uniqueNames.Count - 1; index > 0; index--)
         {
             int swapIndex = nameRng.RandiRange(0, index);
@@ -1446,6 +1453,8 @@ public sealed class WorldMapSpawnSystem
         if (_generationConfig == null || !_generationConfig.inject_default_main_world_content)
             return null;
         var namePool = GD.Load<WorldMapSettlementNamePool>(resourcePath);
+        if (namePool != null)
+            GodotContentOwnership.RegisterBorrowedContent(namePool, resourcePath);
         if (namePool == null)
             GameLog.Warning($"Unable to load {warningLabel} name pool from {resourcePath}.", "world.spawn.name_pool_load_failed", "world");
         return namePool;

@@ -22,49 +22,28 @@ public partial class run_battle_ai_skill_affordance_classifier_regression : Scen
     private void TestUnitDamageSkillMapsToHostileUnitAffordance()
     {
         SkillDef skill = BuildSkill("bolt", "unit", "enemy", Effect("damage"));
-        try
-        {
-            BattleAiSkillAffordanceRecord record = Classify(skill);
-            _test.True(record.is_generatable, "敌方单体伤害技能应可生成。");
-            AssertListHas(record.affordances, "unit_hostile.damage", "敌方单体伤害技能应标为 unit_hostile.damage。");
-            AssertListHas(record.action_families, "use_unit_skill", "敌方单体伤害技能应生成 use_unit_skill family。");
-        }
-        finally
-        {
-            DisposeSkill(skill);
-        }
+        BattleAiSkillAffordanceRecord record = Classify(skill);
+        _test.True(record.is_generatable, "敌方单体伤害技能应可生成。");
+        AssertListHas(record.affordances, "unit_hostile.damage", "敌方单体伤害技能应标为 unit_hostile.damage。");
+        AssertListHas(record.action_families, "use_unit_skill", "敌方单体伤害技能应生成 use_unit_skill family。");
     }
 
     private void TestAllyHealSkillMapsToSupportAffordance()
     {
         SkillDef skill = BuildSkill("mend", "unit", "ally", Effect("heal", "ally"));
-        try
-        {
-            BattleAiSkillAffordanceRecord record = Classify(skill);
-            _test.True(record.is_generatable, "友方治疗技能应可生成。");
-            AssertListHas(record.affordances, "ally_heal", "友方治疗技能应标为 ally_heal。");
-            AssertListHas(record.action_families, "use_unit_skill", "友方治疗技能仍应使用 unit skill action family。");
-        }
-        finally
-        {
-            DisposeSkill(skill);
-        }
+        BattleAiSkillAffordanceRecord record = Classify(skill);
+        _test.True(record.is_generatable, "友方治疗技能应可生成。");
+        AssertListHas(record.affordances, "ally_heal", "友方治疗技能应标为 ally_heal。");
+        AssertListHas(record.action_families, "use_unit_skill", "友方治疗技能仍应使用 unit skill action family。");
     }
 
     private void TestGroundControlSkillMapsToGroundFamily()
     {
         SkillDef skill = BuildSkill("mud_patch", "ground", "enemy", Effect("terrain", "enemy"));
-        try
-        {
-            BattleAiSkillAffordanceRecord record = Classify(skill);
-            _test.True(record.is_generatable, "地面控制技能应可生成。");
-            AssertListHas(record.affordances, "ground_control", "地面控制技能应标为 ground_control。");
-            AssertListHas(record.action_families, "use_ground_skill", "地面控制技能应生成 use_ground_skill family。");
-        }
-        finally
-        {
-            DisposeSkill(skill);
-        }
+        BattleAiSkillAffordanceRecord record = Classify(skill);
+        _test.True(record.is_generatable, "地面控制技能应可生成。");
+        AssertListHas(record.affordances, "ground_control", "地面控制技能应标为 ground_control。");
+        AssertListHas(record.action_families, "use_ground_skill", "地面控制技能应生成 use_ground_skill family。");
     }
 
     private void TestRandomChainSkillEmitsChainAndPositioningFamilies()
@@ -74,17 +53,10 @@ public partial class run_battle_ai_skill_affordance_classifier_regression : Scen
         combatProfile.target_selection_mode = "random_chain";
         combatProfile.max_hits_per_target = 2;
 
-        try
-        {
-            BattleAiSkillAffordanceRecord record = Classify(skill);
-            AssertListHas(record.affordances, "random_chain", "随机链技能应标为 random_chain。");
-            AssertListHas(record.action_families, "use_random_chain_skill", "随机链技能应生成 chain action family。");
-            AssertListHas(record.action_families, "move_to_range", "随机链技能应可生成 companion range move。");
-        }
-        finally
-        {
-            DisposeSkill(skill);
-        }
+        BattleAiSkillAffordanceRecord record = Classify(skill);
+        AssertListHas(record.affordances, "random_chain", "随机链技能应标为 random_chain。");
+        AssertListHas(record.action_families, "use_random_chain_skill", "随机链技能应生成 chain action family。");
+        AssertListHas(record.action_families, "move_to_range", "随机链技能应可生成 companion range move。");
     }
 
     private void TestMultiUnitSkillEmitsSkillAndPositioningFamilies()
@@ -94,17 +66,10 @@ public partial class run_battle_ai_skill_affordance_classifier_regression : Scen
         combatProfile.target_selection_mode = "multi_unit";
         combatProfile.min_target_count = 2;
 
-        try
-        {
-            BattleAiSkillAffordanceRecord record = Classify(skill);
-            AssertListHas(record.affordances, "multi_unit", "多目标技能应标为 multi_unit。");
-            AssertListHas(record.action_families, "use_multi_unit_skill", "多目标技能应生成 multi-unit action family。");
-            AssertListHas(record.action_families, "move_to_multi_unit_skill_position", "多目标技能应可生成 companion multi-unit move。");
-        }
-        finally
-        {
-            DisposeSkill(skill);
-        }
+        BattleAiSkillAffordanceRecord record = Classify(skill);
+        AssertListHas(record.affordances, "multi_unit", "多目标技能应标为 multi_unit。");
+        AssertListHas(record.action_families, "use_multi_unit_skill", "多目标技能应生成 multi-unit action family。");
+        AssertListHas(record.action_families, "move_to_multi_unit_skill_position", "多目标技能应可生成 companion multi-unit move。");
     }
 
     private void TestChargePathVariantEmitsChargePathFamily()
@@ -119,16 +84,9 @@ public partial class run_battle_ai_skill_affordance_classifier_regression : Scen
         option.effect_defs.Add(Effect("path_step_aoe"));
         ((CombatSkillDef)skill.combat_profile).cast_variants.Add(option);
 
-        try
-        {
-            BattleAiSkillAffordanceRecord record = Classify(skill);
-            AssertListHas(record.affordances, "charge_path_aoe", "带 path_step_aoe 的冲锋变体应标为 charge_path_aoe。");
-            AssertListHas(record.action_families, "use_charge_path_aoe", "带 path_step_aoe 的冲锋变体应生成 charge path action family。");
-        }
-        finally
-        {
-            DisposeSkill(skill);
-        }
+        BattleAiSkillAffordanceRecord record = Classify(skill);
+        AssertListHas(record.affordances, "charge_path_aoe", "带 path_step_aoe 的冲锋变体应标为 charge_path_aoe。");
+        AssertListHas(record.action_families, "use_charge_path_aoe", "带 path_step_aoe 的冲锋变体应生成 charge path action family。");
     }
 
     private void TestPassiveSkillIsNotGeneratable()
@@ -136,16 +94,9 @@ public partial class run_battle_ai_skill_affordance_classifier_regression : Scen
         SkillDef skill = BuildSkill("passive_aura", "unit", "ally", Effect("status", "ally"));
         skill.skill_type = "passive";
 
-        try
-        {
-            BattleAiSkillAffordanceRecord record = Classify(skill);
-            _test.True(!record.is_generatable, "被动技能不应进入 AI action 生成。");
-            _test.Eq(record.skip_reason, "passive_or_no_combat", "被动技能应给出稳定 skip reason。");
-        }
-        finally
-        {
-            DisposeSkill(skill);
-        }
+        BattleAiSkillAffordanceRecord record = Classify(skill);
+        _test.True(!record.is_generatable, "被动技能不应进入 AI action 生成。");
+        _test.Eq(record.skip_reason, "passive_or_no_combat", "被动技能应给出稳定 skip reason。");
     }
 
     private static BattleAiSkillAffordanceRecord Classify(SkillDef skillDef)
@@ -214,38 +165,6 @@ public partial class run_battle_ai_skill_affordance_classifier_regression : Scen
             }
         }
         _test.Fail(message);
-    }
-
-    private static void DisposeSkill(SkillDef skill)
-    {
-        if (skill == null)
-        {
-            return;
-        }
-        if (GodotObject.IsInstanceValid(skill) && skill.combat_profile is CombatSkillDef combat)
-        {
-            foreach (CombatEffectDef effectDef in combat.effect_defs)
-            {
-                GodotSharpCleanup.DisposeGodotObject(effectDef);
-            }
-            foreach (CombatEffectDef effectDef in combat.passive_effect_defs)
-            {
-                GodotSharpCleanup.DisposeGodotObject(effectDef);
-            }
-            foreach (CombatCastVariantDef castVariant in combat.cast_variants)
-            {
-                if (castVariant != null && GodotObject.IsInstanceValid(castVariant))
-                {
-                    foreach (CombatEffectDef effectDef in castVariant.effect_defs)
-                    {
-                        GodotSharpCleanup.DisposeGodotObject(effectDef);
-                    }
-                }
-                GodotSharpCleanup.DisposeGodotObject(castVariant);
-            }
-            GodotSharpCleanup.DisposeGodotObject(combat);
-        }
-        GodotSharpCleanup.DisposeGodotObject(skill);
     }
 
 }

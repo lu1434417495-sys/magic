@@ -139,7 +139,7 @@ public partial class EnemyAiAction : Resource
             return r;
         var seen = new HashSet<StringName>();
         BattleUnitState us = context.unit_state;
-        var srcIds =
+        IEnumerable<StringName> srcIds =
             preferredSkillIds != null && preferredSkillIds.Count > 0
                 ? preferredSkillIds
                 : us.known_active_skill_ids;
@@ -970,7 +970,7 @@ public partial class EnemyAiAction : Resource
             return result;
         foreach (BattleUnitState unit in units)
             if (unit != null)
-                result.Add(unit);
+                result.Add(unit.ToDictionary());
         return result;
     }
 
@@ -1383,14 +1383,60 @@ public partial class EnemyAiAction : Resource
             effect_defs = effects,
         };
         string derivedKey = skillId == "" ? "anonymous_ground_skill" : skillId.ToString();
-        GodotContentOwnership.RegisterDerivedContent(
-            cv,
-            $"enemy_ai_action:{action_id}:implicit_ground_option:{derivedKey}",
-            "EnemyAiAction._build_implicit_ground_option"
-        );
+        RegisterImplicitGroundOptionOwnership(cv, effects, derivedKey);
         if (skillId != "")
             _implicitGroundOptionsBySkillId[skillId] = cv;
         return cv;
+    }
+
+    private void RegisterImplicitGroundOptionOwnership(
+        CombatCastVariantDef castVariant,
+        Godot.Collections.Array<CombatEffectDef> effects,
+        string derivedKey
+    )
+    {
+        string key = $"enemy_ai_action:{action_id}:implicit_ground_option:{derivedKey}";
+        if (GodotContentOwnership.IsStaticContent(this))
+        {
+            GodotContentOwnership.RegisterDerivedContent(
+                castVariant,
+                key,
+                "EnemyAiAction._build_implicit_ground_option"
+            );
+            return;
+        }
+
+        if (GodotWrapperOwnershipRegistry.IsOwnedTransient(this))
+        {
+            RegisterRuntimeOwnedImplicitGroundWrapper(
+                effects,
+                $"{key}:effects"
+            );
+            RegisterRuntimeOwnedImplicitGroundWrapper(
+                castVariant,
+                key
+            );
+            return;
+        }
+
+        LifecycleViolation.Report(
+            $"EnemyAiAction implicit ground option requires known action ownership. action_id={action_id}, skill={derivedKey}"
+        );
+    }
+
+    private void RegisterRuntimeOwnedImplicitGroundWrapper(object wrapper, string reason)
+    {
+        if (wrapper == null)
+            return;
+        if (
+            GodotWrapperOwnershipRegistry.Register(
+                wrapper,
+                GodotWrapperOwnershipKind.OwnedTransientRuntime,
+                this,
+                $"EnemyAiAction._build_implicit_ground_option:{reason}"
+            )
+        )
+            GodotWrapperOwnershipRegistry.SuppressWrapper(wrapper);
     }
 
     protected static bool _is_charge_option(CombatCastVariantDef cv)

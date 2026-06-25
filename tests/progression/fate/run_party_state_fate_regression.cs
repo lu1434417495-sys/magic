@@ -199,11 +199,10 @@ public partial class run_party_state_fate_regression : SceneTree
             return;
         }
 
-        foreach (Variant memberValue in partyState.member_states.Values)
-        {
-            (memberValue.AsGodotObject() as PartyMemberState)?.Dispose();
-        }
-        partyState.Dispose();
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            partyState,
+            "run_party_state_fate_regression.DisposePartyState"
+        );
     }
 
 }

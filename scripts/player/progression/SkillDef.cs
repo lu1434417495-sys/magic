@@ -134,7 +134,7 @@ public partial class SkillDef : Resource
     [Export]
     public Godot.Collections.Array<StringName> tags
     {
-        get => BuildStringNameArray(_tagsProjection);
+        get => BuildStringNameReadProjection(_tagsProjection, "SkillDef.tags.get");
         set => SetTags(value);
     }
 
@@ -149,7 +149,7 @@ public partial class SkillDef : Resource
     [Export]
     public Godot.Collections.Array<StringName> learn_requirements
     {
-        get => BuildStringNameArray(_learnRequirements);
+        get => BuildStringNameReadProjection(_learnRequirements, "SkillDef.learn_requirements.get");
         set => SetUniqueStringNames(_learnRequirements, value);
     }
 
@@ -165,35 +165,50 @@ public partial class SkillDef : Resource
     [Export]
     public Godot.Collections.Array<StringName> knowledge_requirements
     {
-        get => BuildStringNameArray(_knowledgeRequirements);
+        get => BuildStringNameReadProjection(
+            _knowledgeRequirements,
+            "SkillDef.knowledge_requirements.get"
+        );
         set => SetUniqueStringNames(_knowledgeRequirements, value);
     }
 
     [Export]
     public Godot.Collections.Dictionary skill_level_requirements
     {
-        get => _skillLevelRequirementsProjection?.Duplicate(true) ?? new Godot.Collections.Dictionary();
+        get => CopyReadProjectionDictionary(
+            _skillLevelRequirementsProjection,
+            "SkillDef.skill_level_requirements.get"
+        );
         set => SetSkillLevelRequirements(value);
     }
 
     [Export]
     public Godot.Collections.Dictionary attribute_requirements
     {
-        get => _attributeRequirementsProjection?.Duplicate(true) ?? new Godot.Collections.Dictionary();
+        get => CopyReadProjectionDictionary(
+            _attributeRequirementsProjection,
+            "SkillDef.attribute_requirements.get"
+        );
         set => SetAttributeRequirements(value);
     }
 
     [Export]
     public Godot.Collections.Array<StringName> achievement_requirements
     {
-        get => BuildStringNameArray(_achievementRequirements);
+        get => BuildStringNameReadProjection(
+            _achievementRequirements,
+            "SkillDef.achievement_requirements.get"
+        );
         set => SetUniqueStringNames(_achievementRequirements, value);
     }
 
     [Export]
     public Godot.Collections.Array<StringName> upgrade_source_skill_ids
     {
-        get => BuildStringNameArray(_upgradeSourceSkillIds);
+        get => BuildStringNameReadProjection(
+            _upgradeSourceSkillIds,
+            "SkillDef.upgrade_source_skill_ids.get"
+        );
         set => SetUniqueStringNames(_upgradeSourceSkillIds, value);
     }
 
@@ -212,7 +227,7 @@ public partial class SkillDef : Resource
     [Export]
     public Godot.Collections.Array<StringName> mastery_sources
     {
-        get => BuildStringNameArray(_masterySources);
+        get => BuildStringNameReadProjection(_masterySources, "SkillDef.mastery_sources.get");
         set => SetUniqueStringNames(_masterySources, value);
     }
 
@@ -222,7 +237,10 @@ public partial class SkillDef : Resource
     [Export]
     public Godot.Collections.Dictionary attribute_growth_progress
     {
-        get => _attributeGrowthProgressProjection?.Duplicate(true) ?? new Godot.Collections.Dictionary();
+        get => CopyReadProjectionDictionary(
+            _attributeGrowthProgressProjection,
+            "SkillDef.attribute_growth_progress.get"
+        );
         set => SetAttributeGrowthProgress(value);
     }
 
@@ -237,7 +255,10 @@ public partial class SkillDef : Resource
     [Export]
     public Godot.Collections.Array<Resource> attribute_modifiers
     {
-        get => BuildResourceProjection(_attributeModifiersProjection);
+        get => BuildResourceReadProjection(
+            _attributeModifiersProjection,
+            "SkillDef.attribute_modifiers.get"
+        );
         set => SetAttributeModifiers(value);
     }
 
@@ -247,7 +268,10 @@ public partial class SkillDef : Resource
     [Export]
     public Godot.Collections.Dictionary level_description_configs
     {
-        get => _levelDescriptionConfigsProjection?.Duplicate(true) ?? new Godot.Collections.Dictionary();
+        get => CopyReadProjectionDictionary(
+            _levelDescriptionConfigsProjection,
+            "SkillDef.level_description_configs.get"
+        );
         set => SetLevelDescriptionConfigs(value);
     }
 
@@ -835,6 +859,16 @@ public partial class SkillDef : Resource
         IEnumerable<StringName> values
     ) => values != null ? new Godot.Collections.Array<StringName>(values) : new();
 
+    private static Godot.Collections.Array<StringName> BuildStringNameReadProjection(
+        IEnumerable<StringName> values,
+        string reason
+    )
+    {
+        Godot.Collections.Array<StringName> result = BuildStringNameArray(values);
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, reason);
+        return result;
+    }
+
     private static Godot.Collections.Array<Resource> BuildResourceProjection(
         IEnumerable<Resource> values
     )
@@ -846,6 +880,19 @@ public partial class SkillDef : Resource
             result.Add(value);
         return result;
     }
+
+    private static Godot.Collections.Array<Resource> BuildResourceReadProjection(
+        IEnumerable<Resource> values,
+        string reason
+    )
+    {
+        Godot.Collections.Array<Resource> result = BuildResourceProjection(values);
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, reason);
+        return result;
+    }
+
+    private static GdDictionary CopyReadProjectionDictionary(GdDictionary source, string reason) =>
+        RuntimePayloadCopy.Dictionary(source, reason);
 
     private static GdDictionary BuildVariantProjection(IReadOnlyDictionary<string, Variant> values)
     {

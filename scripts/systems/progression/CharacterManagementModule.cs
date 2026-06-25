@@ -108,19 +108,20 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
 
     public sealed class DailyPracticeGrowthResult
     {
+        private readonly List<StringName> _changedMemberIds;
         public bool Applied { get; }
         public int DaysElapsed { get; }
-        public GStringNameArray ChangedMemberIds { get; }
+        public GStringNameArray ChangedMemberIds => ToStringNameArray(_changedMemberIds);
 
         public DailyPracticeGrowthResult(
             bool applied,
             int daysElapsed,
-            GStringNameArray changedMemberIds
+            IEnumerable<StringName> changedMemberIds
         )
         {
             Applied = applied;
             DaysElapsed = Mathf.Max(daysElapsed, 0);
-            ChangedMemberIds = changedMemberIds?.Duplicate() ?? new GStringNameArray();
+            _changedMemberIds = CloneStringNameList(changedMemberIds);
         }
 
     }
@@ -341,10 +342,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
             party_state,
             IndexContentDefs<SkillDef>(skill_defs, skillDef => skillDef.skill_id),
             IndexContentDefs<ProfessionDef>(profession_defs, professionDef => professionDef.profession_id),
-            IndexContentDefs<AchievementDef>(
-                achievement_defs,
-                achievementDef => achievementDef.achievement_id
-            ),
+            IndexAchievementDefs(achievement_defs),
             IndexContentDefs<ItemDef>(item_defs, itemDef => itemDef.item_id),
             quest_defs,
             has_quest_def_catalog,
@@ -1369,7 +1367,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         if (_party_state == null || days_elapsed <= 0)
             return new DailyPracticeGrowthResult(false, days_elapsed, new GStringNameArray());
         var practice_service = _build_practice_growth_service();
-        var changed_member_ids = new GStringNameArray();
+        var changed_member_ids = new List<StringName>();
         foreach (
             string member_key in _party_state.member_states.GetSortedIdStrings()
         )
@@ -3175,7 +3173,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         return item_ids;
     }
 
-    private static List<StringName> CloneStringNameList(IReadOnlyList<StringName> source)
+    private static List<StringName> CloneStringNameList(IEnumerable<StringName> source)
     {
         var result = new List<StringName>();
         if (source == null)
@@ -3683,10 +3681,10 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         public readonly bool Ok;
         public readonly string ErrorCode;
         public readonly int GoldDelta;
-        private readonly GArray _itemRewards;
+        private readonly RuntimePayloadList _itemRewards;
         private readonly List<StringName> _warehouseDepositItemIds;
         private readonly List<PendingCharacterReward> _pendingCharacterRewards;
-        private readonly GStringNameArray _unsupportedRewardTypes;
+        private readonly List<StringName> _unsupportedRewardTypes;
 
         private QuestRewardPreviewData(
             bool ok,
@@ -3701,7 +3699,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
             Ok = ok;
             ErrorCode = errorCode ?? "";
             GoldDelta = Mathf.Max(goldDelta, 0);
-            _itemRewards = itemRewards != null ? itemRewards.Duplicate(true) : new GArray();
+            _itemRewards = new RuntimePayloadList(itemRewards);
             _warehouseDepositItemIds =
                 warehouseDepositItemIds != null
                     ? CloneStringNameList(warehouseDepositItemIds)
@@ -3709,11 +3707,11 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
             _pendingCharacterRewards = DuplicatePendingCharacterRewards(pendingCharacterRewards);
             _unsupportedRewardTypes =
                 unsupportedRewardTypes != null
-                    ? CloneStringNameArray(unsupportedRewardTypes)
-                    : new GStringNameArray();
+                    ? CloneStringNameList(unsupportedRewardTypes)
+                    : new List<StringName>();
         }
 
-        internal GArray CloneItemRewards() => _itemRewards.Duplicate(true);
+        internal GArray CloneItemRewards() => _itemRewards.ToUntypedGodotArray();
 
         public List<StringName> CloneWarehouseDepositItemIds() =>
             CloneStringNameList(_warehouseDepositItemIds);
@@ -3722,7 +3720,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
             DuplicatePendingCharacterRewards(_pendingCharacterRewards);
 
         public GStringNameArray CloneUnsupportedRewardTypes() =>
-            CloneStringNameArray(_unsupportedRewardTypes);
+            ToStringNameArray(_unsupportedRewardTypes);
 
         public static QuestRewardPreviewData Success(
             int goldDelta,
@@ -4125,9 +4123,8 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         var entries = new List<PendingCharacterRewardEntry>();
         if (achievement_def == null)
             return entries;
-        foreach (var reward_def_object in achievement_def.rewards)
+        foreach (AchievementRewardDef reward_def in achievement_def.rewards)
         {
-            var reward_def = reward_def_object as AchievementRewardDef;
             if (reward_def == null || reward_def.IsEmpty())
                 continue;
             if (!PendingCharacterRewardContentRules.IsSupportedEntryType(reward_def.reward_type))
@@ -4159,12 +4156,12 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         return entries;
     }
 
-    private Godot.Collections.Array<AchievementDef> _get_matching_achievement_defs(
+    private List<AchievementDef> _get_matching_achievement_defs(
         StringName event_type,
         StringName subject_id
     )
     {
-        var matches = new Godot.Collections.Array<AchievementDef>();
+        var matches = new List<AchievementDef>();
         foreach (StringName achievement_id in SortedContentKeys(_achievement_def_index))
         {
             var achievement_def = GetAchievementDef(achievement_id);
@@ -4172,6 +4169,28 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
                 matches.Add(achievement_def);
         }
         return matches;
+    }
+
+    private static Dictionary<StringName, AchievementDef> IndexAchievementDefs(
+        GDictionary source
+    )
+    {
+        var result = new Dictionary<StringName, AchievementDef>();
+        if (source == null)
+            return result;
+        foreach (Variant rawKey in source.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+                continue;
+            Variant rawValue = source[rawKey];
+            if (rawValue.VariantType != Variant.Type.Dictionary)
+                continue;
+            AchievementDef entry = AchievementDef.FromDictionary(rawValue.AsGodotDictionary());
+            if (entry == null || entry.achievement_id == "")
+                continue;
+            result[rawKey.AsStringName()] = entry;
+        }
+        return result;
     }
 
     private static List<PendingCharacterRewardEntry> _sort_pending_reward_entries(

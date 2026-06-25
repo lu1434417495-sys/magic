@@ -50,8 +50,8 @@ public partial class run_damage_context_typed_regression : SceneTree
         }
         finally
         {
-            GodotSharpCleanup.DisposeGodotObject(source);
-            GodotSharpCleanup.DisposeGodotObject(target);
+            BattleTestFixture.DisposeBattleUnit(source);
+            BattleTestFixture.DisposeBattleUnit(target);
         }
     }
 
@@ -84,8 +84,8 @@ public partial class run_damage_context_typed_regression : SceneTree
         }
         finally
         {
-            GodotSharpCleanup.DisposeGodotObject(source);
-            GodotSharpCleanup.DisposeGodotObject(target);
+            BattleTestFixture.DisposeBattleUnit(source);
+            BattleTestFixture.DisposeBattleUnit(target);
         }
     }
 
@@ -137,8 +137,8 @@ public partial class run_damage_context_typed_regression : SceneTree
         }
         finally
         {
-            GodotSharpCleanup.DisposeGodotObject(source);
-            GodotSharpCleanup.DisposeGodotObject(target);
+            BattleTestFixture.DisposeBattleUnit(source);
+            BattleTestFixture.DisposeBattleUnit(target);
         }
     }
 

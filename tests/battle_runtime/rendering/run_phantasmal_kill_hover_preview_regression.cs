@@ -150,7 +150,10 @@ public partial class run_phantasmal_kill_hover_preview_regression : SceneTree
             },
         };
         skill.combat_profile.effect_defs.Add(MakePhantasmalKillEffect());
-        return skill;
+        return TestResourceOwnership.Own(
+            skill,
+            "phantasmal_kill_hover_preview.ground_skill"
+        );
     }
 
     private static CombatEffectDef MakePhantasmalKillEffect() => new()

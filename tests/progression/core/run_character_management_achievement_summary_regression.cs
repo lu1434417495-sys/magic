@@ -117,7 +117,7 @@ public partial class run_character_management_achievement_summary_regression : S
         params AchievementDef[] achievementDefs
     )
     {
-        GDictionary indexedAchievementDefs = new();
+        Dictionary<StringName, AchievementDef> indexedAchievementDefs = new();
         foreach (AchievementDef achievementDef in achievementDefs)
         {
             if (achievementDef != null)
@@ -125,7 +125,16 @@ public partial class run_character_management_achievement_summary_regression : S
         }
 
         CharacterManagementModule manager = new();
-        manager.setup(party, new GDictionary(), new GDictionary(), indexedAchievementDefs);
+        manager.setup(
+            party,
+            new Dictionary<StringName, SkillDef>(),
+            new Dictionary<StringName, ProfessionDef>(),
+            indexedAchievementDefs,
+            new Dictionary<StringName, ItemDef>(),
+            new Dictionary<StringName, QuestDef>(),
+            null,
+            new ProgressionIdentityCatalogData()
+        );
         return manager;
     }
 

@@ -296,12 +296,16 @@ public partial class BattleDamageResolver : IDisposable
         bool IsDisadvantage
     )
     {
-        public static SpellControlCheckContext ForSkill(BattleState battleState, StringName skillId)
+        public static SpellControlCheckContext ForSkill(
+            BattleState battleState,
+            StringName skillId,
+            bool dispatchEvents = true
+        )
         {
             return new SpellControlCheckContext(
                 battleState,
                 skillId,
-                true,
+                dispatchEvents,
                 false,
                 false
             );
@@ -318,7 +322,7 @@ public partial class BattleDamageResolver : IDisposable
                 isDisadvantage = ToBool(disadvantageValue, false);
             }
             return new SpellControlCheckContext(
-                DictObject<BattleState>(normalized, "battle_state"),
+                null,
                 DictStringNameLocal(normalized, "skill_id"),
                 ReadDispatchEvents(normalized),
                 hasDisadvantage,
@@ -490,6 +494,20 @@ public partial class BattleDamageResolver : IDisposable
         );
     }
 
+    private static GArray MarkRuntimeArray(GArray array, string reason)
+    {
+        GArray result = array ?? new GArray();
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, reason);
+        return result;
+    }
+
+    private static GDictionary MarkRuntimeDictionary(GDictionary dictionary, string reason)
+    {
+        GDictionary result = dictionary ?? new GDictionary();
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, reason);
+        return result;
+    }
+
     internal static BattleDamagePreviewRollMode ToDamagePreviewRollMode(StringName value)
     {
         if (value == DamagePreviewRollModeRandom)
@@ -590,8 +608,14 @@ public partial class BattleDamageResolver : IDisposable
         return ResolveEffects(
             sourceUnit,
             targetUnit,
-            ToValueArray(skillDef.combat_profile.effect_defs),
-            new GDictionary { ["skill_id"] = skillDef.skill_id }
+            MarkRuntimeArray(
+                ToValueArray(skillDef.combat_profile.effect_defs),
+                "ResolveSkillResult.effects"
+            ),
+            MarkRuntimeDictionary(
+                new GDictionary { ["skill_id"] = skillDef.skill_id },
+                "ResolveSkillResult.damage_context"
+            )
         );
     }
 
@@ -735,7 +759,10 @@ public partial class BattleDamageResolver : IDisposable
         return ResolveAttackEffects(
             source_unit,
             target_unit,
-            ToValueArray(effect_defs),
+            MarkRuntimeArray(
+                ToValueArray(effect_defs),
+                "ResolveAttackEffects.enumerable.effects"
+            ),
             attack_check,
             attack_context
         );
@@ -772,12 +799,13 @@ public partial class BattleDamageResolver : IDisposable
     internal BattleSpellControlMetadata ResolveSpellControlCheckTyped(
         BattleUnitState source_unit,
         BattleState battle_state,
-        StringName skill_id
+        StringName skill_id,
+        bool dispatchEvents = true
     )
     {
         return ResolveSpellControlCheck(
             source_unit,
-            SpellControlCheckContext.ForSkill(battle_state, skill_id)
+            SpellControlCheckContext.ForSkill(battle_state, skill_id, dispatchEvents)
         );
     }
 
@@ -1206,7 +1234,10 @@ public partial class BattleDamageResolver : IDisposable
         return ResolveEffects(
             source_unit,
             target_unit,
-            ToValueArray(effect_defs),
+            MarkRuntimeArray(
+                ToValueArray(effect_defs),
+                "ResolveEffects.enumerable.effects"
+            ),
             DamageResolutionContext.Empty()
         );
     }
@@ -1654,7 +1685,10 @@ public partial class BattleDamageResolver : IDisposable
         return ResolveEffects(
             source_unit,
             target_unit,
-            ToValueArray(effect_defs),
+            MarkRuntimeArray(
+                ToValueArray(effect_defs),
+                "ResolveEffects.context.enumerable.effects"
+            ),
             damage_context ?? DamageResolutionContext.Empty()
         );
     }

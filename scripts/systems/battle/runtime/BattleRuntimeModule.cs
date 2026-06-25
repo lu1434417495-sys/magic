@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GBattleUnitArray = Godot.Collections.Array<BattleUnitState>;
+using GBattleUnitArray = System.Collections.Generic.List<BattleUnitState>;
 using GCombatEffectArray = Godot.Collections.Array<CombatEffectDef>;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
@@ -537,10 +537,14 @@ public sealed class BattleRuntimeModule : IDisposable
                 contextScope
             );
             if (terrainData.Count == 0)
+            {
                 continue;
+            }
             StringName terrainProfileId = _resolve_formal_terrain_profile_id(terrainData);
             if (IsEmpty(terrainProfileId))
+            {
                 continue;
+            }
 
             StringName encounterAnchorId =
                 encounter_anchor != null
@@ -1382,7 +1386,12 @@ public sealed class BattleRuntimeModule : IDisposable
         {
             GDictionary reportEntry = batch.ReportEntriesTyped[i];
             if (reportEntry.Count > 0)
-                _state.report_entries.Add(reportEntry.Duplicate(true));
+                _state.report_entries.Add(
+                    RuntimePayloadCopy.Dictionary(
+                        reportEntry,
+                        "BattleRuntimeModule.AppendResultBatch.report_entry"
+                    )
+                );
         }
     }
 
@@ -2964,22 +2973,6 @@ public sealed class BattleRuntimeModule : IDisposable
             _state.timeline?.ready_unit_ids.Clear();
         }
         _state = null;
-    }
-
-    private static void DisposeOwned<T>(T owned, Action<T> cleanup)
-        where T : GodotObject
-    {
-        if (owned == null || !GodotObject.IsInstanceValid(owned))
-        {
-            return;
-        }
-
-        GC.SuppressFinalize(owned);
-        cleanup?.Invoke(owned);
-        if (GodotObject.IsInstanceValid(owned))
-        {
-            owned.Dispose();
-        }
     }
 
     private static void DisposeBattlePreview(BattlePreview preview)
@@ -5490,8 +5483,8 @@ public sealed class BattleRuntimeModule : IDisposable
             return result;
         foreach (var value in values)
         {
-            BattleUnitState unitState = value.As<BattleUnitState>();
-            if (unitState != null)
+            if (BattleUnitState.TryReadUnitPayload(value, out BattleUnitState unitState)
+                && unitState != null)
                 result.Add(unitState);
         }
         return result;
@@ -5620,7 +5613,7 @@ public sealed class BattleRuntimeModule : IDisposable
         if (values == null)
             return result;
         foreach (BattleUnitState value in values)
-            result.Add(value);
+            result.Add(value?.ToDictionary() ?? new GDictionary());
         return result;
     }
 }

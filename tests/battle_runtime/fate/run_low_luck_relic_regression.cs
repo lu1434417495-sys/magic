@@ -665,7 +665,10 @@ public partial class run_low_luck_relic_regression : SceneTree
         {
             Service?.Dispose();
             Manager?.Dispose();
-            PartyState?.Dispose();
+            RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+                PartyState,
+                "run_low_luck_relic_regression.LowLuckContext"
+            );
         }
     }
 }

@@ -9,7 +9,9 @@ public static class PartyMemberOptionUtils
     {
         if (window_data == null || !window_data.ContainsKey("party_state"))
             return null;
-        return window_data["party_state"].AsGodotObject() as PartyState;
+        return PartyState.TryReadPartyPayload(window_data["party_state"], out PartyState partyState)
+            ? partyState
+            : null;
     }
 
     public static GDictionaryArray BuildMemberOptions(GDictionary window_data)

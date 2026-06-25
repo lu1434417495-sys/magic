@@ -25,6 +25,7 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
         TestRejectsBadTimedTerrainEffectEntry();
         TestRejectsBadEdgeFeatureEntry();
         TestNullEdgeFeatureSerializesAsCurrentNonePayload();
+        TestAllowsEmptyOccupantUnitId();
         TestOwnerMutationApiNormalizesCellFields();
 
         Quit(_test.Finish("Battle cell state schema regression"));
@@ -86,14 +87,15 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
             );
         }
 
-        GDictionary columns = BattleCellState.BuildColumnsFromSurfaceCells(
-            new GDictionary { [restored.coord] = restored }
-        );
+        Dictionary<Vector2I, List<BattleCellState>> columns =
+            BattleCellState.BuildColumnsFromSurfaceCells(
+                new GDictionary { [restored.coord] = restored.ToDictionary() }
+            );
         _test.True(columns.ContainsKey(restored.coord), "build_columns_from_surface_cells 应继续为合法 cell 生成列。");
         if (columns.ContainsKey(restored.coord))
         {
             _test.True(
-                columns[restored.coord].AsGodotArray().Count > 0,
+                columns[restored.coord].Count > 0,
                 "build_columns_from_surface_cells 生成的列不应为空。"
             );
         }
@@ -216,6 +218,23 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
         }
     }
 
+    private void TestAllowsEmptyOccupantUnitId()
+    {
+        GDictionary payload = ValidPayload();
+        payload["occupant_unit_id"] = "";
+
+        BattleCellState restored = BattleCellState.FromDictionary(payload);
+        _test.True(restored != null, "from_dict 应接受空 occupant_unit_id 表示未占用格子。");
+        if (restored != null)
+        {
+            _test.Eq(
+                restored.occupant_unit_id,
+                new StringName(""),
+                "空 occupant_unit_id roundtrip 后应保持为空。"
+            );
+        }
+    }
+
     private void TestOwnerMutationApiNormalizesCellFields()
     {
         BattleCellState cell = new();
@@ -255,8 +274,8 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
         };
         cell.RecalculateRuntimeValues();
         cell.occupant_unit_id = "unit_001";
-        cell.prop_ids = new GStringNameArray { new StringName("stone_pillar"), new StringName("torch") };
-        cell.terrain_effect_ids = new GStringNameArray { new StringName("rapid_current") };
+        cell.prop_ids = new List<StringName> { new("stone_pillar"), new("torch") };
+        cell.terrain_effect_ids = new List<StringName> { new("rapid_current") };
         cell.timed_terrain_effects = new List<BattleTerrainEffectState>
         {
             BuildTimedEffect(),
@@ -292,7 +311,7 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
         return (GDictionary)BuildValidCell().ToDictionary().Duplicate(true);
     }
 
-    private void AssertStringNameArrayEq(GStringNameArray actual, IReadOnlyList<string> expected, string message)
+    private void AssertStringNameArrayEq(IReadOnlyList<StringName> actual, IReadOnlyList<string> expected, string message)
     {
         if (actual == null || actual.Count != expected.Count)
         {
@@ -309,7 +328,7 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
         }
     }
 
-    private static string FormatStringNameArray(GStringNameArray values)
+    private static string FormatStringNameArray(IEnumerable<StringName> values)
     {
         if (values == null)
         {

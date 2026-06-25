@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -145,10 +146,10 @@ public partial class GameSession : Node
 
     internal string _active_save_id = "";
     internal string _active_save_path = "";
-    internal GDictionary _active_save_meta = new();
+    private readonly RuntimePayloadStore _activeSaveMeta = new();
     internal string _generation_config_path = "";
     internal WorldMapGenerationConfig _generation_config;
-    internal GDictionary _world_data = new();
+    private readonly RuntimePayloadStore _worldData = new();
     internal Vector2I _player_coord = Vector2I.Zero;
     internal string _player_faction_id = "player";
     internal PartyState _party_state = new();
@@ -156,12 +157,12 @@ public partial class GameSession : Node
     internal bool _battle_save_lock_enabled;
     internal bool _battle_save_dirty;
     internal bool _runtime_save_dirty;
-    internal GStringNameArray _runtime_save_dirty_scopes = new();
+    internal StringNameList _runtime_save_dirty_scopes = new();
     internal int _last_save_error = (int)Error.Ok;
     internal StringName _last_save_error_reason = "";
     private StringName _pending_load_error_reason = "";
     internal bool _post_decode_save_pending;
-    internal GStringNameArray _post_decode_save_reasons = new();
+    internal StringNameList _post_decode_save_reasons = new();
 
     public ProgressionContentRegistry _progression_content_registry = new();
     public ItemContentRegistry _item_content_registry = new();
@@ -181,6 +182,7 @@ public partial class GameSession : Node
     public GDictionary _wild_encounter_rosters = new();
     public GDictionary _content_validation_snapshot = new();
     private ContentValidationSnapshotData _contentValidationSnapshotData = new();
+    private Dictionary<StringName, AchievementDef> _achievementDefIndex = new();
     private Dictionary<StringName, QuestDef> _questDefIndex = new();
 
     public SaveSerializer _save_serializer = new();
@@ -304,22 +306,12 @@ public partial class GameSession : Node
         return StartNewGame(generation_config_path);
     }
 
-    private static void DisposeOwned<T>(T owned, Action<T> cleanup)
-        where T : GodotObject
-    {
-        if (owned == null || !GodotObject.IsInstanceValid(owned))
-            return;
-        GC.SuppressFinalize(owned);
-        cleanup?.Invoke(owned);
-        if (GodotObject.IsInstanceValid(owned))
-            owned.Dispose();
-    }
-
     private static void DisposeCapturedPartyState(GDictionary runtimeState)
     {
         if (runtimeState == null || !runtimeState.ContainsKey("party_state"))
             return;
-        DisposePartyStateGraph(runtimeState["party_state"].AsGodotObject() as PartyState);
+        if (PartyState.TryReadPartyPayload(runtimeState["party_state"], out PartyState partyState))
+            DisposePartyStateGraph(partyState);
         runtimeState["party_state"] = default(Variant);
     }
 
@@ -342,7 +334,7 @@ public partial class GameSession : Node
         state.active_quests.Clear();
         state.claimable_quests.Clear();
         state.completed_quest_ids.Clear();
-        DisposeIfValid(state, disposed);
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(state, "GameSession.DisposePartyStateGraph");
     }
 
     private static void DisposePartyMemberStateGraph(
@@ -362,7 +354,10 @@ public partial class GameSession : Node
         }
         memberState.trait_instances.Clear();
         memberState.active_stage_advancement_modifier_ids.Clear();
-        DisposeIfValid(memberState, disposed);
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            memberState,
+            "GameSession.DisposePartyMemberStateGraph"
+        );
     }
 
     private static void DisposeContingencySetupGraph(
@@ -420,42 +415,23 @@ public partial class GameSession : Node
         warehouseState.equipment_instances.Clear();
     }
 
-    private static void DisposeIfValid<T>(T owned, HashSet<GodotObject> disposed)
-        where T : GodotObject
+    private static void RegisterStaticContentOwnership(Resource resource)
     {
-        if (owned == null || !disposed.Add(owned))
+        if (resource == null)
             return;
-        GC.SuppressFinalize(owned);
-        if (GodotObject.IsInstanceValid(owned))
-            owned.Dispose();
-    }
-
-    private static void SuppressBorrowedGodotFinalizer(GodotObject borrowed)
-    {
-        if (borrowed == null)
-            return;
-        if (borrowed is Resource resource)
+        if (!string.IsNullOrEmpty(resource.ResourcePath))
         {
-            if (!string.IsNullOrEmpty(resource.ResourcePath))
-            {
-                GodotContentOwnership.RegisterBorrowedContent(
-                    resource,
-                    $"GameSession.static-content:{resource.ResourcePath}"
-                );
-                return;
-            }
-
-            GodotContentOwnership.RegisterDerivedContent(
+            GodotContentOwnership.RegisterBorrowedContent(
                 resource,
-                $"GameSession.pathless-static:{resource.GetType().Name}:{resource.GetInstanceId()}",
-                "GameSession.SuppressBorrowedGodotFinalizer"
+                $"GameSession.static-content:{resource.ResourcePath}"
             );
             return;
         }
 
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-            borrowed,
-            "GameSession.SuppressBorrowedGodotFinalizer"
+        GodotContentOwnership.RegisterDerivedContent(
+            resource,
+            $"GameSession.pathless-static:{resource.GetType().Name}:{resource.GetInstanceId()}",
+            "GameSession.RegisterStaticContentOwnership"
         );
     }
 
@@ -558,6 +534,7 @@ public partial class GameSession : Node
         _content_validation_snapshot.Clear();
         _content_validation_snapshot = new GDictionary();
         _contentValidationSnapshotData = new ContentValidationSnapshotData();
+        _achievementDefIndex.Clear();
         _questDefIndex.Clear();
     }
 
@@ -580,7 +557,13 @@ public partial class GameSession : Node
         HashSet<GodotObject> finalizerSuppressionVisited
     )
     {
-        if (projection == null || finalizerSuppressionVisited == null)
+        if (projection == null)
+            return;
+        RegisterContentProjectionWrapper(
+            projection,
+            "GameSession.SuppressResourceDictionaryProjectionFinalizers"
+        );
+        if (finalizerSuppressionVisited == null)
             return;
         foreach (Variant key in projection.Keys)
             SuppressGodotObjectFinalizersInValue(
@@ -588,6 +571,18 @@ public partial class GameSession : Node
                 finalizerSuppressionVisited,
                 0
             );
+    }
+
+    private static GDictionary RegisterContentProjectionWrapper(GDictionary projection, string reason)
+    {
+        if (projection == null)
+            return new GDictionary();
+        GodotContentOwnership.RegisterDerivedWrapper(
+            projection,
+            $"GameSession.content_projection:{RuntimeHelpers.GetHashCode(projection)}",
+            reason
+        );
+        return projection;
     }
 
     private static void SuppressGodotObjectFinalizerGraph(
@@ -808,7 +803,7 @@ public partial class GameSession : Node
         string resolvedPresetName = string.IsNullOrEmpty(preset_name)
             ? WorldPresetRegistry.GetFallbackPresetName(generation_config_path)
             : preset_name;
-        _active_save_meta = BuildSaveMeta(
+        ReplaceActiveSaveMetaPayload(BuildSaveMeta(
             saveId,
             saveId,
             generation_config_path,
@@ -817,7 +812,7 @@ public partial class GameSession : Node
             generationConfig.GetWorldSizeCells(),
             timestamp,
             timestamp
-        );
+        ));
         RotateLogSession();
 
         int persistError = PersistGameState();
@@ -939,7 +934,7 @@ public partial class GameSession : Node
 
     public string GetActiveSavePath() => _active_save_path;
 
-    public GDictionary GetActiveSaveMeta() => _active_save_meta.Duplicate(true);
+    public GDictionary GetActiveSaveMeta() => ActiveSaveMetaPayload().Duplicate(true);
 
     internal GameLogService GetLogService() => _log_service;
 
@@ -962,7 +957,10 @@ public partial class GameSession : Node
         GenerateUniqueSaveId((int)Time.GetUnixTimeFromSystem(), prefix);
 
     public GDictionary GetContentValidationSnapshot() =>
-        _content_validation_snapshot.Duplicate(true);
+        RuntimePayloadCopy.Dictionary(
+            _content_validation_snapshot,
+            "GameSession.GetContentValidationSnapshot"
+        );
 
     public GDictionary RefreshContentValidationSnapshot()
     {
@@ -971,11 +969,19 @@ public partial class GameSession : Node
     }
 
     internal GDictionary GetQuestDefsSnapshotForTests() =>
-        _quest_defs != null ? _quest_defs.Duplicate(true) : new GDictionary();
+        RegisterContentProjectionWrapper(
+            _quest_defs != null
+                ? (GDictionary)_quest_defs.Duplicate(true)
+                : new GDictionary(),
+            "GameSession.GetQuestDefsSnapshotForTests"
+        );
 
     internal void ReplaceQuestDefsForTests(GDictionary questDefs)
     {
-        _quest_defs = questDefs != null ? questDefs.Duplicate(true) : new GDictionary();
+        _quest_defs = RegisterContentProjectionWrapper(
+            questDefs != null ? (GDictionary)questDefs.Duplicate(true) : new GDictionary(),
+            "GameSession.ReplaceQuestDefsForTests"
+        );
         _questDefIndex = BuildQuestDefIndex(_quest_defs);
         RefreshContentCatalog();
     }
@@ -1012,8 +1018,8 @@ public partial class GameSession : Node
         _active_save_path = BuildSaveFilePath(_active_save_id);
         _generation_config_path = generationConfigPath ?? "";
         _generation_config = ResourceLoader.Load<WorldMapGenerationConfig>(_generation_config_path);
-        SuppressBorrowedGodotFinalizer(_generation_config);
-        _world_data = worldData ?? new GDictionary();
+        RegisterStaticContentOwnership(_generation_config);
+        ReplaceWorldDataPayload(worldData ?? new GDictionary());
         _player_coord = Vector2I.Zero;
         _player_faction_id = "player";
         PartyState previousPartyState = _party_state;
@@ -1026,7 +1032,7 @@ public partial class GameSession : Node
         }
         _has_active_world = true;
         _battle_save_lock_enabled = false;
-        _active_save_meta = BuildSaveMeta(
+        ReplaceActiveSaveMetaPayload(BuildSaveMeta(
             _active_save_id,
             _active_save_id,
             _generation_config_path,
@@ -1035,7 +1041,7 @@ public partial class GameSession : Node
             mapSize ?? new Vector2I(8, 8),
             now,
             now
-        );
+        ));
         DiscardPendingSave();
         RefreshContentCatalog();
     }
@@ -1070,23 +1076,48 @@ public partial class GameSession : Node
 
     public string GetGenerationConfigPath() => _generation_config_path;
 
-    public GDictionary GetWorldData() => _world_data;
+    internal void ReplaceWorldDataPayloadForRuntimeRestore(GDictionary worldData)
+    {
+        ReplaceWorldDataPayload(worldData ?? new GDictionary());
+    }
+
+    private GDictionary ActiveSaveMetaPayload() => _activeSaveMeta.ProjectPayload();
+
+    private void ReplaceActiveSaveMetaPayload(GDictionary payload)
+    {
+        _activeSaveMeta.ReplaceWithPayload(payload ?? new GDictionary());
+    }
+
+    private void ClearActiveSaveMetaPayload() => _activeSaveMeta.Clear();
+
+    private GDictionary WorldDataPayload() => _worldData.ProjectPayload();
+
+    private void ReplaceWorldDataPayload(GDictionary payload)
+    {
+        _worldData.ReplaceWithPayload(payload ?? new GDictionary());
+    }
+
+    private void ClearWorldDataPayload() => _worldData.Clear();
+
+    public GDictionary GetWorldData() => WorldDataPayload();
 
     public StringName AllocateEquipmentInstanceId()
     {
-        if (_world_data == null || !_world_data.ContainsKey(WorldEquipmentInstanceSerialKey))
+        GDictionary worldData = WorldDataPayload();
+        if (worldData == null || !worldData.ContainsKey(WorldEquipmentInstanceSerialKey))
             return "";
         GDictionary usedIds = CollectPersistentEquipmentInstanceIds();
-        int serial = GetInt(_world_data, WorldEquipmentInstanceSerialKey, 0);
+        int serial = GetInt(worldData, WorldEquipmentInstanceSerialKey, 0);
         if (serial < 1)
             return "";
         while (true)
         {
             StringName candidate = EquipmentInstanceState.FormatInstanceId(serial);
             serial += 1;
-            _world_data[WorldEquipmentInstanceSerialKey] = serial;
+            worldData[WorldEquipmentInstanceSerialKey] = serial;
             if (!usedIds.ContainsKey(candidate.ToString()))
             {
+                ReplaceWorldDataPayload(worldData);
                 MarkRuntimeStateDirty(SaveDirtyScopeWorldData);
                 return candidate;
             }
@@ -1098,7 +1129,7 @@ public partial class GameSession : Node
         GDictionary normalizedWorldData = NormalizeWorldData(world_data ?? new GDictionary());
         if (normalizedWorldData.Count == 0)
             return (int)Error.InvalidData;
-        _world_data = normalizedWorldData;
+        ReplaceWorldDataPayload(normalizedWorldData);
         MarkRuntimeStateDirty(SaveDirtyScopeWorldData);
         return (int)Error.Ok;
     }
@@ -1160,12 +1191,12 @@ public partial class GameSession : Node
         return new GDictionary
         {
             ["has_pending_save"] = HasPendingSave(),
-            ["dirty_scopes"] = _runtime_save_dirty_scopes.Duplicate(),
+            ["dirty_scopes"] = _runtime_save_dirty_scopes.ToGodotArray(),
             ["battle_save_locked"] = _battle_save_lock_enabled,
             ["last_error"] = _last_save_error,
             ["last_error_reason"] = _last_save_error_reason,
             ["post_decode_save_pending"] = _post_decode_save_pending,
-            ["post_decode_save_reasons"] = _post_decode_save_reasons.Duplicate(),
+            ["post_decode_save_reasons"] = _post_decode_save_reasons.ToGodotArray(),
         };
     }
 
@@ -1223,9 +1254,8 @@ public partial class GameSession : Node
         if (_party_state == null)
             return usedIds;
         CollectWarehouseEquipmentInstanceIds(_party_state.warehouse_state, usedIds);
-        foreach (var memberValue in _party_state.member_states.Values)
+        foreach (PartyMemberState memberState in _party_state.GetMemberStates())
         {
-            PartyMemberState memberState = memberValue.AsGodotObject() as PartyMemberState;
             EquipmentState equipmentState = memberState?.equipment_state;
             if (equipmentState == null)
                 continue;
@@ -1297,7 +1327,9 @@ public partial class GameSession : Node
 
     public IReadOnlyDictionary<StringName, AchievementDef> GetAchievementDefsTyped()
     {
-        return BuildAchievementDefIndex(_achievement_defs);
+        if (_achievementDefIndex.Count == 0 && _achievement_defs != null && _achievement_defs.Count > 0)
+            _achievementDefIndex = BuildAchievementDefIndex(_achievement_defs);
+        return new Dictionary<StringName, AchievementDef>(_achievementDefIndex);
     }
 
     public QuestDef GetQuestDef(StringName quest_id)
@@ -1351,7 +1383,7 @@ public partial class GameSession : Node
         if (!TryGetTestContentRegistry(domain_id, out var registry, out var refreshBattleSpecialProfiles))
             return (int)Error.InvalidParameter;
 
-        SuppressBorrowedGodotFinalizer(content_def);
+        RegisterStaticContentOwnership(content_def);
         registry[content_key] = content_def;
         if (domain_id == "quest")
             _questDefIndex = BuildQuestDefIndex(_quest_defs);
@@ -1374,7 +1406,7 @@ public partial class GameSession : Node
         if (!TryGetTestContentRegistry(domain_id, out var registry, out var refreshBattleSpecialProfiles))
             return (int)Error.InvalidParameter;
 
-        SuppressBorrowedGodotFinalizer(content_def);
+        RegisterStaticContentOwnership(content_def);
         registry[content_key] = content_def;
         if (domain_id == "quest")
             _questDefIndex = BuildQuestDefIndex(_quest_defs);
@@ -1576,8 +1608,8 @@ public partial class GameSession : Node
 
         _generation_config_path = generation_config_path;
         _generation_config = generation_config;
-        SuppressBorrowedGodotFinalizer(_generation_config);
-        _world_data = NormalizeWorldData(worldData);
+        RegisterStaticContentOwnership(_generation_config);
+        ReplaceWorldDataPayload(NormalizeWorldData(worldData));
         _player_coord = worldBuild.PlayerStartCoord;
         _player_faction_id = "player";
         _party_state = CreateDefaultPartyState();
@@ -1606,17 +1638,18 @@ public partial class GameSession : Node
             return ensureDirError;
 
         int now = (int)Time.GetUnixTimeFromSystem();
-        string displayName = GetString(_active_save_meta, "display_name", _active_save_id);
-        _active_save_meta = BuildSaveMeta(
+        GDictionary activeSaveMeta = ActiveSaveMetaPayload();
+        string displayName = GetString(activeSaveMeta, "display_name", _active_save_id);
+        ReplaceActiveSaveMetaPayload(BuildSaveMeta(
             _active_save_id,
             displayName,
             _generation_config_path,
-            new StringName(GetString(_active_save_meta, "world_preset_id")),
-            GetString(_active_save_meta, "world_preset_name"),
+            new StringName(GetString(activeSaveMeta, "world_preset_id")),
+            GetString(activeSaveMeta, "world_preset_name"),
             _generation_config != null ? _generation_config.GetWorldSizeCells() : Vector2I.Zero,
-            GetInt(_active_save_meta, "created_at_unix_time", now),
+            GetInt(activeSaveMeta, "created_at_unix_time", now),
             now
-        );
+        ));
 
         int payloadWriteError = WriteSavePayloadAtomically(
             _active_save_path,
@@ -1626,7 +1659,7 @@ public partial class GameSession : Node
             return payloadWriteError;
 
         int indexError = WriteSaveIndex(
-            UpsertSaveMeta(LoadSaveIndexEntries(), _active_save_meta)
+            UpsertSaveMeta(LoadSaveIndexEntries(), ActiveSaveMetaPayload())
         );
         if (indexError != (int)Error.Ok)
             return indexError;
@@ -1653,8 +1686,9 @@ public partial class GameSession : Node
             return decodeError;
 
         PartyState decodedPartyState =
-            (ReadGodotObject(decodeResult, "party_state") ?? new PartyState()) as PartyState
-            ?? new PartyState();
+            PartyState.TryReadPartyPayload(decodeResult["party_state"], out PartyState parsedPartyState)
+                ? parsedPartyState
+                : new PartyState();
         int identityError = ValidateDecodedPartyIdentityForSave(
             decodedPartyState,
             GetString(decodeResult, "active_save_id"),
@@ -1685,7 +1719,7 @@ public partial class GameSession : Node
         ResetRuntimeState();
         _active_save_id = GetString(decodeResult, "active_save_id");
         _active_save_path = BuildSaveFilePath(_active_save_id);
-        _active_save_meta = GetDictionary(decodeResult, "active_save_meta").Duplicate(true);
+        ReplaceActiveSaveMetaPayload(GetDictionary(decodeResult, "active_save_meta").Duplicate(true));
         _generation_config_path = GetString(
             decodeResult,
             "generation_config_path",
@@ -1695,8 +1729,8 @@ public partial class GameSession : Node
             (ReadGodotObject(decodeResult, "generation_config") ?? generation_config)
                 as WorldMapGenerationConfig
             ?? generation_config;
-        SuppressBorrowedGodotFinalizer(_generation_config);
-        _world_data = GetDictionary(decodeResult, "world_data").Duplicate(true);
+        RegisterStaticContentOwnership(_generation_config);
+        ReplaceWorldDataPayload(GetDictionary(decodeResult, "world_data").Duplicate(true));
         _player_coord = GetVector2I(decodeResult, "player_coord", Vector2I.Zero);
         _player_faction_id = GetString(decodeResult, "player_faction_id", "player");
         _party_state = decodedPartyState;
@@ -1725,12 +1759,10 @@ public partial class GameSession : Node
         if (party_state == null)
             return false;
         bool changed = false;
-        foreach (var memberValue in party_state.member_states.Values)
+        foreach (PartyMemberState memberState in party_state.GetMemberStates())
         {
             changed =
-                RefreshMemberBodySizeFromIdentity(
-                    memberValue.AsGodotObject() as PartyMemberState
-                ) || changed;
+                RefreshMemberBodySizeFromIdentity(memberState) || changed;
         }
         return changed;
     }
@@ -1760,8 +1792,8 @@ public partial class GameSession : Node
         return _save_serializer.BuildSavePayload(
             _active_save_id,
             _generation_config_path,
-            _active_save_meta,
-            _world_data,
+            ActiveSaveMetaPayload(),
+            WorldDataPayload(),
             _player_coord,
             _player_faction_id,
             _party_state,
@@ -1772,7 +1804,7 @@ public partial class GameSession : Node
     private GDictionary BuildWorldStatePayload()
     {
         return _save_serializer.BuildWorldStatePayload(
-            _world_data,
+            WorldDataPayload(),
             _player_coord,
             _player_faction_id
         );
@@ -1808,9 +1840,6 @@ public partial class GameSession : Node
 
     private string GenerateUniqueSaveId(int timestamp, string prefix = "save")
     {
-        using var rngScope = new GodotTransientResourceScope("GameSession.GenerateUniqueSaveId");
-        var rng = rngScope.OwnWrapper(new RandomNumberGenerator(), "rng");
-        rng.Randomize();
         GDictionary existingSaveIds = new();
         foreach (GDictionary entry in LoadSaveIndexEntries())
         {
@@ -1834,7 +1863,7 @@ public partial class GameSession : Node
 
         for (int attempt = 0; attempt < 128; attempt++)
         {
-            string saveId = $"{idPrefix}_{rng.RandiRange(0, 999999):D6}";
+            string saveId = $"{idPrefix}_{TrueRandomSeedService.RandiRange(0, 999999):D6}";
             if (
                 !existingSaveIds.ContainsKey(saveId)
                 && !FileAccess.FileExists(BuildSaveFilePath(saveId))
@@ -2100,26 +2129,48 @@ public partial class GameSession : Node
         _save_index_entries_cache = DuplicateSaveIndexEntries(entries);
         _save_index_cache_valid = true;
         _save_index_cache_signature = GetSaveIndexFileSignature();
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            _save_index_entries_cache,
+            "GameSession.SetSaveIndexCache.entries"
+        );
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            _save_index_cache_signature,
+            "GameSession.SetSaveIndexCache.signature"
+        );
     }
 
     private void InvalidateSaveIndexCache()
     {
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            _save_index_entries_cache,
+            "GameSession.InvalidateSaveIndexCache.entries"
+        );
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            _save_index_cache_signature,
+            "GameSession.InvalidateSaveIndexCache.signature"
+        );
         _save_index_entries_cache.Clear();
         _save_index_cache_valid = false;
-        _save_index_cache_signature = new GDictionary();
+        _save_index_cache_signature = MarkRuntimePayload(
+            new GDictionary(),
+            "GameSession.InvalidateSaveIndexCache.new_signature"
+        );
     }
 
     private GDictionary GetSaveIndexFileSignature()
     {
         if (!FileAccess.FileExists(SaveIndexPath))
         {
-            return new GDictionary
+            return MarkRuntimePayload(
+                new GDictionary
             {
                 ["exists"] = false,
                 ["modified_time"] = -1,
                 ["size"] = -1,
                 ["fingerprint"] = "",
-            };
+                },
+                "GameSession.GetSaveIndexFileSignature.missing"
+            );
         }
 
         int size = -1;
@@ -2140,13 +2191,16 @@ public partial class GameSession : Node
                 GodotObjectLifecycle.DisposeGodotObject(indexFile);
             }
         }
-        return new GDictionary
+        return MarkRuntimePayload(
+            new GDictionary
         {
             ["exists"] = true,
             ["modified_time"] = (int)FileAccess.GetModifiedTime(SaveIndexPath),
             ["size"] = size,
             ["fingerprint"] = fingerprint,
-        };
+            },
+            "GameSession.GetSaveIndexFileSignature.current"
+        );
     }
 
     private static string BuildFileFingerprint(byte[] bytes)
@@ -2165,13 +2219,35 @@ public partial class GameSession : Node
         }
     }
 
+    private static T MarkRuntimePayload<T>(T payload, string reason)
+        where T : class
+    {
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(payload, reason);
+        return payload;
+    }
+
     private GDictionaryArray DuplicateSaveIndexEntries(GDictionaryArray entries)
     {
         GDictionaryArray duplicatedEntries = new();
         if (entries == null)
+        {
+            RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+                duplicatedEntries,
+                "GameSession.DuplicateSaveIndexEntries.empty"
+            );
             return duplicatedEntries;
+        }
         foreach (GDictionary entry in entries)
-            duplicatedEntries.Add(entry?.Duplicate(true) ?? new GDictionary());
+            duplicatedEntries.Add(
+                RuntimePayloadCopy.Dictionary(
+                    entry,
+                    "GameSession.DuplicateSaveIndexEntries.entry"
+                )
+            );
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            duplicatedEntries,
+            "GameSession.DuplicateSaveIndexEntries"
+        );
         return duplicatedEntries;
     }
 
@@ -2319,7 +2395,12 @@ public partial class GameSession : Node
                 {
                     if (
                         ValidateDecodedPartyIdentityForSave(
-                            ReadGodotObject(decodeResult, "party_state") as PartyState,
+                            PartyState.TryReadPartyPayload(
+                                decodeResult["party_state"],
+                                out PartyState decodedPartyStateForMeta
+                            )
+                                ? decodedPartyStateForMeta
+                                : null,
                             GetString(saveMeta, "save_id"),
                             "index_rebuild"
                         ) != (int)Error.Ok
@@ -2838,11 +2919,8 @@ public partial class GameSession : Node
         if (eligibleSkillIds.Count == 0)
             return null;
 
-        using var rngScope = new GodotTransientResourceScope("GameSession.GrantRandomStartBookSkill");
-        var rng = rngScope.OwnWrapper(new RandomNumberGenerator(), "rng");
-        rng.Randomize();
         StringName selectedSkillId = eligibleSkillIds[
-            (int)rng.RandiRange(0, eligibleSkillIds.Count - 1)
+            TrueRandomSeedService.RandiRange(0, eligibleSkillIds.Count - 1)
         ];
         SkillDef selectedSkillDef = GetObject<SkillDef>(_skill_defs, selectedSkillId);
         if (selectedSkillDef == null)
@@ -3132,21 +3210,21 @@ public partial class GameSession : Node
         {
             ["active_save_id"] = _active_save_id,
             ["active_save_path"] = _active_save_path,
-            ["active_save_meta"] = _active_save_meta.Duplicate(true),
+            ["active_save_meta"] = ActiveSaveMetaPayload().Duplicate(true),
             ["generation_config_path"] = _generation_config_path,
-            ["world_data"] = _world_data.Duplicate(true),
+            ["world_data"] = WorldDataPayload().Duplicate(true),
             ["player_coord"] = _player_coord,
             ["player_faction_id"] = _player_faction_id,
-            ["party_state"] = _party_state,
+            ["party_state"] = _party_state?.ToDictionary() ?? new GDictionary(),
             ["has_active_world"] = _has_active_world,
             ["battle_save_lock_enabled"] = _battle_save_lock_enabled,
             ["battle_save_dirty"] = _battle_save_dirty,
             ["runtime_save_dirty"] = _runtime_save_dirty,
-            ["runtime_save_dirty_scopes"] = _runtime_save_dirty_scopes.Duplicate(),
+            ["runtime_save_dirty_scopes"] = _runtime_save_dirty_scopes.ToGodotArray(),
             ["last_save_error"] = _last_save_error,
             ["last_save_error_reason"] = _last_save_error_reason,
             ["post_decode_save_pending"] = _post_decode_save_pending,
-            ["post_decode_save_reasons"] = _post_decode_save_reasons.Duplicate(),
+            ["post_decode_save_reasons"] = _post_decode_save_reasons.ToGodotArray(),
         };
     }
 
@@ -3155,32 +3233,37 @@ public partial class GameSession : Node
         PartyState previousPartyState = _party_state;
         _active_save_id = GetString(state, "active_save_id");
         _active_save_path = GetString(state, "active_save_path");
-        _active_save_meta = GetDictionary(state, "active_save_meta").Duplicate(true);
+        ReplaceActiveSaveMetaPayload(GetDictionary(state, "active_save_meta").Duplicate(true));
         _generation_config_path = GetString(state, "generation_config_path");
         _generation_config = string.IsNullOrEmpty(_generation_config_path)
             ? null
             : LoadGenerationConfig(_generation_config_path);
-        _world_data = GetDictionary(state, "world_data").Duplicate(true);
+        ReplaceWorldDataPayload(GetDictionary(state, "world_data").Duplicate(true));
         _player_coord = GetVector2I(state, "player_coord", Vector2I.Zero);
         _player_faction_id = GetString(state, "player_faction_id", "player");
         _party_state =
-            (ReadGodotObject(state, "party_state") ?? new PartyState()) as PartyState
-            ?? new PartyState();
+            PartyState.TryReadPartyPayload(state["party_state"], out PartyState restoredPartyState)
+                ? restoredPartyState
+                : new PartyState();
         DisposePartyStateGraph(previousPartyState, _party_state);
         _has_active_world = ReadExactBool(state, "has_active_world", false);
         _battle_save_lock_enabled = ReadExactBool(state, "battle_save_lock_enabled", false);
         _battle_save_dirty = ReadExactBool(state, "battle_save_dirty", false);
         _runtime_save_dirty = ReadExactBool(state, "runtime_save_dirty", false);
-        _runtime_save_dirty_scopes = ProgressionDataUtils.to_string_name_array(
+        _runtime_save_dirty_scopes = new StringNameList(
+            ProgressionDataUtils.to_string_name_array(
             GetArray(state, "runtime_save_dirty_scopes")
+            )
         );
         _last_save_error = GetInt(state, "last_save_error", (int)Error.Ok);
         _last_save_error_reason = ProgressionDataUtils.to_string_name(
             GetString(state, "last_save_error_reason")
         );
         _post_decode_save_pending = ReadExactBool(state, "post_decode_save_pending", false);
-        _post_decode_save_reasons = ProgressionDataUtils.to_string_name_array(
+        _post_decode_save_reasons = new StringNameList(
+            ProgressionDataUtils.to_string_name_array(
             GetArray(state, "post_decode_save_reasons")
+            )
         );
     }
 
@@ -3189,10 +3272,10 @@ public partial class GameSession : Node
         PartyState previousPartyState = _party_state;
         _active_save_id = "";
         _active_save_path = "";
-        _active_save_meta = new GDictionary();
+        ClearActiveSaveMetaPayload();
         _generation_config_path = "";
         _generation_config = null;
-        _world_data = new GDictionary();
+        ClearWorldDataPayload();
         _player_coord = Vector2I.Zero;
         _player_faction_id = "player";
         _party_state = new PartyState();
@@ -3215,7 +3298,10 @@ public partial class GameSession : Node
             return;
         _skill_defs = ProjectResourceDictionary(_progression_content_registry.GetSkillDefsTyped());
         _profession_defs = ProjectResourceDictionary(_progression_content_registry.GetProfessionDefsTyped());
-        _achievement_defs = ProjectResourceDictionary(_progression_content_registry.GetAchievementDefsTyped());
+        _achievementDefIndex = new Dictionary<StringName, AchievementDef>(
+            _progression_content_registry.GetAchievementDefsTyped()
+        );
+        _achievement_defs = ProjectAchievementDefPayloadDictionary(_achievementDefIndex);
         _quest_defs = ProjectResourceDictionary(_progression_content_registry.GetQuestDefsTyped());
         _questDefIndex = BuildQuestDefIndex(_quest_defs);
     }
@@ -3295,7 +3381,10 @@ public partial class GameSession : Node
         snapshot.Domains["world"] = BuildWorldContentValidationDomainSnapshot();
         snapshot.Domains["quest"] = BuildQuestContentValidationDomainSnapshot();
         _contentValidationSnapshotData = snapshot;
-        _content_validation_snapshot = snapshot.ToDictionary();
+        _content_validation_snapshot = MarkRuntimePayload(
+            snapshot.ToDictionary(),
+            "GameSession.RefreshContentValidationSnapshotState"
+        );
         // 验证刷新会重建 battle special profile registry，需要把新的 snapshot 推进 catalog，
         // 否则运行期再次走验证门时 catalog 的 battle special profile 视图会落后。
         RefreshContentCatalog();
@@ -3493,16 +3582,20 @@ public partial class GameSession : Node
     {
         var result = new GDictionary();
         if (values == null)
-            return result;
-        var visited = new HashSet<GodotObject>();
+            return RegisterContentProjectionWrapper(
+                result,
+                $"GameSession.ProjectResourceDictionary:{typeof(T).Name}:empty"
+            );
         foreach ((StringName id, T value) in values)
         {
             if (id == default || id == (StringName)"" || value == null)
                 continue;
-            SuppressGodotObjectFinalizerGraph(value, visited);
             result[id] = value;
         }
-        return result;
+        return RegisterContentProjectionWrapper(
+            result,
+            $"GameSession.ProjectResourceDictionary:{typeof(T).Name}"
+        );
     }
 
     private static Dictionary<StringName, ProfessionDef> BuildProfessionDefIndex(
@@ -3535,13 +3628,37 @@ public partial class GameSession : Node
         {
             if (key.VariantType != Variant.Type.StringName)
                 continue;
-            AchievementDef achievementDef = achievementDefs[key].AsGodotObject()
-                as AchievementDef;
+            Variant value = achievementDefs[key];
+            if (value.VariantType != Variant.Type.Dictionary)
+                continue;
+            AchievementDef achievementDef = AchievementDef.FromDictionary(value.AsGodotDictionary());
             if (achievementDef == null || achievementDef.achievement_id == "")
                 continue;
             result[key.AsStringName()] = achievementDef;
         }
         return result;
+    }
+
+    private static GDictionary ProjectAchievementDefPayloadDictionary(
+        IReadOnlyDictionary<StringName, AchievementDef> values
+    )
+    {
+        var result = new GDictionary();
+        if (values == null)
+            return RegisterContentProjectionWrapper(
+                result,
+                "GameSession.ProjectAchievementDefPayloadDictionary:empty"
+            );
+        foreach ((StringName id, AchievementDef value) in values)
+        {
+            if (id == "" || value == null)
+                continue;
+            result[id] = value.ToDictionary();
+        }
+        return RegisterContentProjectionWrapper(
+            result,
+            "GameSession.ProjectAchievementDefPayloadDictionary"
+        );
     }
 
     private static ContentValidationDomainSnapshotData BuildContentValidationDomainSnapshotFromErrors(

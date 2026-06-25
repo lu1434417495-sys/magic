@@ -21,11 +21,13 @@ public class ContingencyStoredSpellEntryState
         "fallback_policy",
     };
 
+    private readonly RuntimePayloadStore _parameterBindings = new();
+
     public StringName StoredSkillId { get; private set; } = "";
     public int CastLevel { get; private set; }
     public int Order { get; private set; }
     public ContingencyTargetResolverState TargetResolver { get; private set; }
-    public GDictionary ParameterBindings { get; private set; } = new();
+    public GDictionary ParameterBindings => _parameterBindings.ProjectPayload();
     public ContingencyFallbackPolicyKind FallbackPolicyKind { get; private set; } =
         ContingencyFallbackPolicyKind.Unknown;
     public StringName FallbackPolicy { get; private set; } = "";
@@ -86,16 +88,17 @@ public class ContingencyStoredSpellEntryState
         if (fallbackKind == ContingencyFallbackPolicyKind.Unknown)
             return null;
 
-        return new ContingencyStoredSpellEntryState
+        var state = new ContingencyStoredSpellEntryState
         {
             StoredSkillId = storedSkillId,
             CastLevel = castLevel,
             Order = order,
             TargetResolver = resolver,
-            ParameterBindings = bindings,
             FallbackPolicyKind = fallbackKind,
             FallbackPolicy = fallbackPolicy,
         };
+        state._parameterBindings.ReplaceWithPayload(bindings);
+        return state;
     }
 
     internal static StringName ToStringName(ContingencyFallbackPolicyKind kind)
@@ -171,6 +174,9 @@ public class ContingencyStoredSpellEntryState
     private static GDictionary DuplicateParameterBindings(GDictionary payload)
     {
         GDictionary parsed = ParseParameterBindings(payload ?? new GDictionary());
-        return parsed?.Duplicate(true) ?? new GDictionary();
+        return RuntimePayloadCopy.Dictionary(
+            parsed,
+            "ContingencyStoredSpellEntryState.DuplicateParameterBindings"
+        );
     }
 }

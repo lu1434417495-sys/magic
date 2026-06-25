@@ -65,9 +65,11 @@ public partial class run_save_serializer_quest_round_trip_regression : SceneTree
         );
         _test.Eq(DictInt(decodeResult, "error", (int)Error.InvalidData), (int)Error.Ok, "SaveSerializer 应能成功解码带 quest schema 的 payload。");
 
-        PartyState restoredPartyState = decodeResult.ContainsKey("party_state")
-            ? decodeResult["party_state"].As<PartyState>()
-            : null;
+        PartyState restoredPartyState =
+            decodeResult.ContainsKey("party_state")
+            && PartyState.TryReadPartyPayload(decodeResult["party_state"], out PartyState decodedPartyState)
+                ? decodedPartyState
+                : null;
         _test.True(restoredPartyState != null, "解码后的 payload 应返回 PartyState。");
         if (restoredPartyState != null)
         {

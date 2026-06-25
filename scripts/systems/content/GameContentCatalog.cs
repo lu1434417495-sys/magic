@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Runtime.CompilerServices;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -85,8 +86,10 @@ public sealed class GameContentCatalog
         _enemyTemplates = SnapshotTyped(session.GetEnemyTemplatesTyped());
         _enemyAiBrains = SnapshotTyped(session.GetEnemyAiBrainsTyped());
         _wildEncounterRosters = SnapshotTyped(session.GetWildEncounterRostersTyped());
-        _battleSpecialProfileSnapshot =
-            session.GetBattleSpecialProfileRegistrySnapshot() ?? new GDictionary();
+        _battleSpecialProfileSnapshot = RegisterBattleSpecialProfileSnapshot(
+            session.GetBattleSpecialProfileRegistrySnapshot() ?? new GDictionary(),
+            "GameContentCatalog.Rebuild"
+        );
         _revision++;
     }
 
@@ -104,7 +107,10 @@ public sealed class GameContentCatalog
         _enemyTemplates = EmptyTyped<EnemyTemplateDef>();
         _enemyAiBrains = EmptyTyped<EnemyAiBrainDef>();
         _wildEncounterRosters = EmptyTyped<WildEncounterRosterDef>();
-        _battleSpecialProfileSnapshot = new GDictionary();
+        _battleSpecialProfileSnapshot = RegisterBattleSpecialProfileSnapshot(
+            new GDictionary(),
+            "GameContentCatalog.ResetSnapshot"
+        );
     }
 
     /// <summary>catalog 快照版本号；每次 <see cref="Rebuild"/> 或 <see cref="ClearSessionBinding"/>
@@ -172,7 +178,25 @@ public sealed class GameContentCatalog
         _wildEncounterRosters;
 
     public GDictionary GetBattleSpecialProfileRegistrySnapshot() =>
-        _battleSpecialProfileSnapshot.Duplicate(true);
+        RegisterBattleSpecialProfileSnapshot(
+            _battleSpecialProfileSnapshot.Duplicate(true),
+            "GameContentCatalog.GetBattleSpecialProfileRegistrySnapshot"
+        );
+
+    private static GDictionary RegisterBattleSpecialProfileSnapshot(
+        GDictionary snapshot,
+        string reason
+    )
+    {
+        if (snapshot == null)
+            return new GDictionary();
+        GodotContentOwnership.RegisterDerivedWrapper(
+            snapshot,
+            $"battle_special_profile_snapshot:{RuntimeHelpers.GetHashCode(snapshot)}",
+            reason
+        );
+        return snapshot;
+    }
 
     private static IReadOnlyDictionary<StringName, T> SnapshotTyped<T>(
         IReadOnlyDictionary<StringName, T> source

@@ -144,7 +144,6 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
     internal StringName _active_battle_encounter_id = "";
     internal string _active_battle_encounter_name = "";
     internal readonly RuntimePayloadStore _pending_promotion_prompt = new();
-    internal GArray _held_world_move_keys = new();
     internal PendingCharacterReward _active_reward;
     internal readonly RuntimePayloadStore _pending_world_promotion_prompt = new();
     internal RuntimeModalKind _active_modal_kind = RuntimeModalKind.None;
@@ -158,7 +157,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
     internal string _current_status_message = "";
     internal BattleRefreshMode _last_advance_battle_refresh_mode = BattleRefreshMode.None;
     internal readonly RuntimePayloadStore _last_battle_loot_snapshot = new();
-    internal GArray _pending_command_battle_batches = new();
+    internal RuntimePayloadList _pending_command_battle_batches = new();
     internal readonly RuntimePayloadStore _active_character_info_context = new();
     internal readonly RuntimePayloadStore _active_game_over_context = new();
     internal StringName _party_selected_member_id = "";
@@ -408,7 +407,6 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
         _last_advance_battle_refresh_mode = BattleRefreshMode.None;
         _last_battle_loot_snapshot.Clear();
         _battle_selection_state.ResetForBattleEnd();
-        _held_world_move_keys.Clear();
         _active_reward = null;
         _ClearSettlementEntryContext();
     }
@@ -471,13 +469,17 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
     public GDictionary GetSelectedSettlement()
     {
         var settlement = _get_settlement_at(_selected_coord);
-        return settlement.Count > 0 ? settlement.Duplicate(true) : new GDictionary();
+        return settlement.Count > 0
+            ? RuntimePayloadCopy.Dictionary(settlement, "GameRuntimeFacade.GetSelectedSettlement")
+            : new GDictionary();
     }
 
     public GDictionary GetSelectedWorldNpc()
     {
         var npc = _get_world_npc_at(_selected_coord);
-        return npc.Count > 0 ? npc.Duplicate(true) : new GDictionary();
+        return npc.Count > 0
+            ? RuntimePayloadCopy.Dictionary(npc, "GameRuntimeFacade.GetSelectedWorldNpc")
+            : new GDictionary();
     }
 
     public EncounterAnchorData GetSelectedEncounterAnchor() =>
@@ -486,7 +488,9 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
     public GDictionary GetSelectedWorldEvent()
     {
         var worldEvent = _get_world_event_at(_selected_coord);
-        return worldEvent.Count > 0 ? worldEvent.Duplicate(true) : new GDictionary();
+        return worldEvent.Count > 0
+            ? RuntimePayloadCopy.Dictionary(worldEvent, "GameRuntimeFacade.GetSelectedWorldEvent")
+            : new GDictionary();
     }
 
     public GArray GetNearbyEncounterEntries() => GetNearbyEncounterEntries(8);
@@ -3734,7 +3738,13 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
     {
         var context = new GDictionary
         {
-            ["battle"] = battleSummary?.Duplicate(true) ?? new GDictionary(),
+            ["battle"] =
+                battleSummary != null
+                    ? RuntimePayloadCopy.Dictionary(
+                        battleSummary,
+                        "GameRuntimeFacade.BuildInvalidBattleRewardLogContext.battle"
+                    )
+                    : new GDictionary(),
             ["winner_faction_id"] = winnerFactionId ?? "",
             ["error_code"] = errorCode ?? "",
             ["reward_id"] = reward?.reward_id.ToString() ?? "",
@@ -4579,22 +4589,6 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
             values.Resize(maxCount);
     }
 
-    private static void DisposeOwned<T>(T owned, Action<T> cleanup)
-        where T : GodotObject
-    {
-        if (owned == null || !GodotObject.IsInstanceValid(owned))
-        {
-            return;
-        }
-
-        GC.SuppressFinalize(owned);
-        cleanup?.Invoke(owned);
-        if (GodotObject.IsInstanceValid(owned))
-        {
-            owned.Dispose();
-        }
-    }
-
     private static void SortDictionaryArray(GArray values, string numericKey, string stringTieKey)
     {
         var list = new System.Collections.Generic.List<GDictionary>();
@@ -4708,7 +4702,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
             ["loot_commit_error_code"] = lootCommitResult?.ErrorCode ?? "",
             ["loot_commit_blocked_item_id"] = lootCommitResult?.BlockedItemId ?? "",
             ["loot_committed_item_count"] = lootCommitResult?.CommittedItemCount ?? 0,
-            ["loot_overflow_entries"] = lootCommitResult?.OverflowEntries.Duplicate(true)
+            ["loot_overflow_entries"] = lootCommitResult?.ProjectOverflowEntries()
                 ?? new GArray(),
             ["quest_progress_summary"] = _quest_progress_summary_to_string_dict(questSummary),
             ["save_skipped"] = saveSkipped,

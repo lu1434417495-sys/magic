@@ -31,15 +31,16 @@ public partial class PendingBattleTerrainGenerator : BattleTerrainGenerator
                     height_offset = 0,
                 };
                 cell.RecalculateRuntimeValues();
-                cells[cell.coord] = cell;
+                cells[cell.coord] = cell.ToDictionary();
             }
         }
+        var cellColumns = BattleCellState.BuildColumnsFromSurfaceCells(cells);
 
         return new GDictionary
         {
             ["map_size"] = mapSize,
             ["cells"] = cells,
-            ["cell_columns"] = BattleCellState.BuildColumnsFromSurfaceCells(cells),
+            ["cell_columns"] = BattleCellState.ProjectColumnsToPayload(cellColumns),
             ["ally_spawns"] = new Godot.Collections.Array<Vector2I> { new(0, 0) },
             ["enemy_spawns"] = new Godot.Collections.Array<Vector2I> { new(2, 1) },
             ["terrain_profile_id"] = new StringName("default"),

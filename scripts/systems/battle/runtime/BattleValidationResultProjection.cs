@@ -80,7 +80,7 @@ internal static class BattleValidationResultProjection
         {
             if (unit != null)
             {
-                result.Add(unit);
+                result.Add(unit.ToDictionary());
             }
         }
         return result;

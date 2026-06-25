@@ -524,18 +524,24 @@ internal sealed class BattleMeteorSwarmResolver
                 component,
                 outcome.distance_from_anchor
             );
-            var damageContext = new GDictionary
-            {
-                ["skill_id"] = plan.skill_id,
-                ["meteor_component_id"] = component.component_id,
-                ["meteor_role_label"] = component.role_label,
-                ["dispatch_events"] = false,
-            };
+            var damageContext = _transientScope.OwnWrapper(
+                new GDictionary
+                {
+                    ["skill_id"] = plan.skill_id,
+                    ["meteor_component_id"] = component.component_id,
+                    ["meteor_role_label"] = component.role_label,
+                    ["dispatch_events"] = false,
+                },
+                $"meteor_swarm:{component.component_id}:damage_context"
+            );
             AttackEffectResolutionResult damageResolution = DamageResolver()
                 .ResolveEffects(
                     plan.source_unit,
                     target_unit,
-                    new GArray { effectDef },
+                    _transientScope.OwnWrapper(
+                        new GArray { effectDef },
+                        $"meteor_swarm:{component.component_id}:effects"
+                    ),
                     damageContext
                 );
             outcome.AddComponent(component);
@@ -715,12 +721,18 @@ internal sealed class BattleMeteorSwarmResolver
             .ResolveEffects(
                 plan.source_unit,
                 target_unit,
-                new GArray { effect },
-                new GDictionary
-                {
-                    ["skill_id"] = plan.skill_id,
-                    ["meteor_component_id"] = STATUS_METEOR_CONCUSSED,
-                }
+                _transientScope.OwnWrapper(
+                    new GArray { effect },
+                    "meteor_swarm:concussed_status:effects"
+                ),
+                _transientScope.OwnWrapper(
+                    new GDictionary
+                    {
+                        ["skill_id"] = plan.skill_id,
+                        ["meteor_component_id"] = STATUS_METEOR_CONCUSSED,
+                    },
+                    "meteor_swarm:concussed_status:damage_context"
+                )
             );
     }
 
@@ -1659,11 +1671,7 @@ internal sealed class BattleMeteorSwarmResolver
             source_preview,
             target_preview,
             effect_def,
-            new GDictionary
-            {
-                ["battle_state"] = State(),
-                ["skill_id"] = plan != null ? plan.skill_id : DEFAULT_SKILL_ID,
-            },
+            DamageResolutionContext.ForSkill(plan != null ? plan.skill_id : DEFAULT_SKILL_ID),
             roll_mode,
             save_mode
         );

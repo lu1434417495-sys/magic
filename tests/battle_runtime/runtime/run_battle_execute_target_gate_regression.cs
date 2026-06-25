@@ -169,7 +169,7 @@ public partial class run_battle_execute_target_gate_regression : SceneTree
             heal_multiplier_percent = 50,
             shield_gain_multiplier_percent = 50,
         });
-        return skill;
+        return TestResourceOwnership.Own(skill, "battle_execute_target_gate.execute_skill");
     }
 
     private static BattleUnitState MakeUnit(

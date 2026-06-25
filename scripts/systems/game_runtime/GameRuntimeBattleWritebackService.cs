@@ -27,7 +27,13 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
         {
             Ok = ok;
             ErrorCode = errorCode ?? "";
-            Details = details?.Duplicate(true) ?? new Dictionary();
+            Details =
+                details != null
+                    ? RuntimePayloadCopy.Dictionary(
+                        details,
+                        "GameRuntimeBattleWritebackService.Result.details"
+                    )
+                    : new Dictionary();
             CommittedMemberCount = Mathf.Max(committedMemberCount, 0);
             UsedSlots = Mathf.Max(usedSlots, 0);
             Capacity = Mathf.Max(capacity, 0);
@@ -465,7 +471,13 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
         {
             ["ok"] = false,
             ["error_code"] = errorCode,
-            ["details"] = details != null ? details.Duplicate(true) : new Dictionary(),
+            ["details"] =
+                details != null
+                    ? RuntimePayloadCopy.Dictionary(
+                        details,
+                        "GameRuntimeBattleWritebackService.BuildFailure.details"
+                    )
+                    : new Dictionary(),
         };
     }
 
@@ -480,7 +492,10 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
             "error_code",
             "battle_local_writeback_inoption_failed"
         );
-        var details = DictionaryDictionary(writebackResult, "details").Duplicate(true);
+        var details = RuntimePayloadCopy.Dictionary(
+            DictionaryDictionary(writebackResult, "details"),
+            "GameRuntimeBattleWritebackService.ReportFailure.details"
+        );
         var message = string.Format(
             "Battle-local party writeback inoption failed: {0} {1}",
             errorCode,

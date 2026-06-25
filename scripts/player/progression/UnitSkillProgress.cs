@@ -56,7 +56,7 @@ public class UnitSkillProgress
 
     public StringName assigned_profession_id = "";
 
-    public Godot.Collections.Array<StringName> merged_from_skill_ids = new();
+    public StringNameList merged_from_skill_ids = new();
 
     public int mastery_from_training;
 
@@ -96,7 +96,7 @@ public class UnitSkillProgress
             total_mastery_earned = total_mastery_earned,
             is_core = is_core,
             assigned_profession_id = assigned_profession_id,
-            merged_from_skill_ids = new Godot.Collections.Array<StringName>(merged_from_skill_ids),
+            merged_from_skill_ids = merged_from_skill_ids?.Duplicate() ?? new StringNameList(),
             mastery_from_training = mastery_from_training,
             mastery_from_battle = mastery_from_battle,
             profession_granted_by = profession_granted_by,
@@ -353,18 +353,17 @@ public class UnitSkillProgress
         return p;
     }
 
-    private static Godot.Collections.Array<StringName> _parse_unique_string_name_array(
+    private static StringNameList _parse_unique_string_name_array(
         Godot.Collections.Array values
     )
     {
-        var r = new Godot.Collections.Array<StringName>();
-        var s = new Godot.Collections.Dictionary();
+        var r = new StringNameList();
+        var s = new HashSet<StringName>();
         foreach (var raw in values)
         {
             var p = _parse_string_name_field(raw, false, out bool o);
-            if (!o || s.ContainsKey(p))
+            if (!o || !s.Add(p))
                 return null;
-            s[p] = true;
             r.Add(p);
         }
         return r;

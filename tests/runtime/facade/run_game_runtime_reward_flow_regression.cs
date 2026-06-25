@@ -199,18 +199,32 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
 
     private static GDictionary BuildSkillDefs()
     {
-        return new GDictionary
-        {
-            ["field_manual"] = new SkillDef
+        GDictionary result = TestResourceOwnership.OwnWrapper(
+            new GDictionary(),
+            "game_runtime_reward_flow.skill_defs"
+        );
+        result["field_manual"] = TestResourceOwnership.Own(
+            new SkillDef
             {
                 skill_id = "field_manual",
                 display_name = "野外手册",
                 skill_type = "knowledge",
             },
-            ["skill_reward_a"] = new SkillDef { skill_id = "skill_reward_a", display_name = "A" },
-            ["skill_reward_b"] = new SkillDef { skill_id = "skill_reward_b", display_name = "B" },
-            ["skill_reward_c"] = new SkillDef { skill_id = "skill_reward_c", display_name = "C" },
-        };
+            "game_runtime_reward_flow.field_manual"
+        );
+        result["skill_reward_a"] = TestResourceOwnership.Own(
+            new SkillDef { skill_id = "skill_reward_a", display_name = "A" },
+            "game_runtime_reward_flow.skill_reward_a"
+        );
+        result["skill_reward_b"] = TestResourceOwnership.Own(
+            new SkillDef { skill_id = "skill_reward_b", display_name = "B" },
+            "game_runtime_reward_flow.skill_reward_b"
+        );
+        result["skill_reward_c"] = TestResourceOwnership.Own(
+            new SkillDef { skill_id = "skill_reward_c", display_name = "C" },
+            "game_runtime_reward_flow.skill_reward_c"
+        );
+        return result;
     }
 
     private static PendingCharacterReward BuildReward(string rewardId)

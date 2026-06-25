@@ -7,8 +7,9 @@ using GDictionary = Godot.Collections.Dictionary;
 internal sealed class DamageResolutionContext
 {
     private static readonly StringName DefaultDamageRollMode = "random";
+    private readonly RuntimePayloadStore _rawContext = new();
 
-    public GDictionary RawContext { get; }
+    public GDictionary RawContext => _rawContext.ProjectPayload();
     public StringName DamageRollMode { get; }
     public bool CriticalHit { get; }
     public bool AttackSuccess { get; }
@@ -34,7 +35,7 @@ internal sealed class DamageResolutionContext
         BattleEffectOrigin damageApplicationHookOrigin = null
     )
     {
-        RawContext = rawContext?.Duplicate(false) ?? new GDictionary();
+        _rawContext.ReplaceWithPayload(rawContext);
         DamageRollMode = damageRollMode == "" ? DefaultDamageRollMode : damageRollMode;
         CriticalHit = criticalHit;
         AttackSuccess = attackSuccess;

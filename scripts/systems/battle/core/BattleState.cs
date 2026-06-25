@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class BattleState : RefCounted
+public partial class BattleState
 {
     private const int MIN_ADJACENT_ENEMIES_FOR_ATTACK_DISADVANTAGE = 2;
 
@@ -88,13 +88,13 @@ public partial class BattleState : RefCounted
 
     public StringName terrain_profile_id = "default";
 
-    public Godot.Collections.Array<StringName> attack_disadvantage_tags = new();
+    public StringNameList attack_disadvantage_tags = new();
 
-    private readonly RuntimePayloadStore _cellColumns = new();
+    private readonly Dictionary<Vector2I, List<BattleCellState>> _cellColumns = new();
 
-    public Godot.Collections.Array<StringName> ally_unit_ids = new();
+    public StringNameList ally_unit_ids = new();
 
-    public Godot.Collections.Array<StringName> enemy_unit_ids = new();
+    public StringNameList enemy_unit_ids = new();
 
     public BattleTimelineState timeline = new BattleTimelineState();
 
@@ -102,13 +102,13 @@ public partial class BattleState : RefCounted
 
     public StringName winner_faction_id = "";
 
-    public Godot.Collections.Array<string> log_entries = new();
+    public StringList log_entries = new();
 
-    public Godot.Collections.Array<Godot.Collections.Dictionary> report_entries = new();
+    public RuntimePayloadList report_entries = new();
 
     public WarehouseState party_backpack_view = new WarehouseState();
 
-    public Godot.Collections.Array<Godot.Collections.Dictionary> promotion_queue = new();
+    public RuntimePayloadList promotion_queue = new();
 
     public StringName modal_state = "";
 
@@ -154,7 +154,7 @@ public partial class BattleState : RefCounted
         set => modal_state = BattleTypedNames.ToStringName(value);
     }
 
-    public void ResetLogEntries(Godot.Collections.Array<string> entries)
+    public void ResetLogEntries(IEnumerable<string> entries)
     {
         log_entries.Clear();
         _log_text_byte_size = 0;
@@ -330,13 +330,7 @@ public partial class BattleState : RefCounted
 
     internal Godot.Collections.Dictionary ProjectCells()
     {
-        var result = new Godot.Collections.Dictionary();
-        foreach ((Vector2I coord, BattleCellState cell) in _cellsByCoord)
-        {
-            if (cell != null)
-                result[coord] = cell;
-        }
-        return result;
+        return BattleCellState.ProjectCellsToPayload(_cellsByCoord);
     }
 
     internal Godot.Collections.Dictionary ProjectUnits()
@@ -345,7 +339,7 @@ public partial class BattleState : RefCounted
         foreach ((StringName unitId, BattleUnitState unit) in _unitsById)
         {
             if (unitId != "" && unit != null)
-                result[unitId] = unit;
+                result[unitId] = unit.ToDictionary();
         }
         return result;
     }
@@ -555,7 +549,8 @@ public partial class BattleState : RefCounted
                 if (rawKey.VariantType != Variant.Type.Vector2I)
                     continue;
                 Vector2I coord = rawKey.AsVector2I();
-                BattleCellState cellState = cellStates[rawKey].As<BattleCellState>();
+                if (!BattleCellState.TryReadCellPayload(cellStates[rawKey], out BattleCellState cellState))
+                    continue;
                 if (cellState == null)
                     continue;
                 BattleCellState ownedCell = duplicateCells ? cellState.DuplicateCell() : cellState;
@@ -581,8 +576,8 @@ public partial class BattleState : RefCounted
                 StringName unitId = NormalizeUnitId(rawKey);
                 if (unitId == "")
                     continue;
-                BattleUnitState unitState = unitStates[rawKey].As<BattleUnitState>();
-                if (unitState == null)
+                if (!BattleUnitState.TryReadUnitPayload(unitStates[rawKey], out BattleUnitState unitState)
+                    || unitState == null)
                     continue;
                 BattleUnitState ownedUnit = duplicateUnits ? unitState.clone() : unitState;
                 ownedUnit.unit_id = NormalizeUnitId(ownedUnit.unit_id) != ""
@@ -618,32 +613,57 @@ public partial class BattleState : RefCounted
         ReplaceCellColumnsPayload(BattleCellState.BuildColumnsFromSurfaceCells(_cellsByCoord));
     }
 
-    internal Godot.Collections.Dictionary ProjectCellColumns() => _cellColumns.ProjectPayload();
+    internal IReadOnlyDictionary<Vector2I, List<BattleCellState>> ProjectCellColumnsTyped() =>
+        _cellColumns;
+
+    internal Godot.Collections.Dictionary ProjectCellColumns() =>
+        BattleCellState.ProjectColumnsToPayload(_cellColumns);
+
+    internal void ReplaceCellColumnsPayload(
+        IReadOnlyDictionary<Vector2I, List<BattleCellState>> columns
+    )
+    {
+        DisposeStoredCellColumns();
+        if (columns == null)
+            return;
+        foreach ((Vector2I coord, List<BattleCellState> column) in columns)
+            _cellColumns[coord] = DuplicateCellColumn(column);
+    }
 
     internal void ReplaceCellColumnsPayload(Godot.Collections.Dictionary payload)
     {
         DisposeStoredCellColumns();
-        _cellColumns.ReplaceWithPayload(payload ?? new Godot.Collections.Dictionary());
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-            payload,
-            "BattleState.ReplaceCellColumnsPayload"
-        );
+        if (payload == null)
+            return;
+        foreach (Variant key in payload.Keys)
+        {
+            if (key.VariantType != Variant.Type.Vector2I)
+                continue;
+            List<BattleCellState> column = BattleCellState.ParseColumnPayload(payload[key]);
+            if (column != null)
+                _cellColumns[key.AsVector2I()] = column;
+        }
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(payload, "BattleState.ReplaceCellColumnsPayload");
     }
 
-    internal void PutCellColumnPayload(Vector2I coord, Variant columnPayload)
+    internal void PutCellColumnPayload(Vector2I coord, object columnPayload)
     {
         DisposeStoredCellColumn(coord);
-        _cellColumns.PutPayloadValue(coord, columnPayload);
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-            columnPayload,
-            "BattleState.PutCellColumnPayload"
-        );
+        if (columnPayload is List<BattleCellState> typedColumn)
+        {
+            _cellColumns[coord] = DuplicateCellColumn(typedColumn);
+            return;
+        }
+        List<BattleCellState> parsedColumn = BattleCellState.ParseColumnPayload(columnPayload);
+        if (parsedColumn != null)
+            _cellColumns[coord] = parsedColumn;
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(columnPayload, "BattleState.PutCellColumnPayload");
     }
 
     internal void RemoveCellColumnPayload(Vector2I coord)
     {
         DisposeStoredCellColumn(coord);
-        _cellColumns.RemovePayloadValue(coord);
+        _cellColumns.Remove(coord);
     }
 
     internal IReadOnlyDictionary<Vector3I, BattleEdgeFaceState> ProjectRuntimeEdgeFaces() =>
@@ -771,12 +791,6 @@ public partial class BattleState : RefCounted
     {
         if (cells == null)
             return;
-        var disposedCells = new HashSet<BattleCellState>();
-        foreach (Variant key in cells.Keys)
-        {
-            if (TryAsGodotObject(cells[key], out BattleCellState cell) && disposedCells.Add(cell))
-                BattleCellState.DisposeRuntimeGraph(cell);
-        }
         RuntimeStateLifecycle.MarkValueGraphFinalizerless(
             cells,
             "BattleState.SetCellsFromDictionary"
@@ -788,9 +802,6 @@ public partial class BattleState : RefCounted
     {
         if (columns == null)
             return;
-        var disposedCells = new HashSet<BattleCellState>();
-        foreach (Variant key in columns.Keys)
-            DisposeCellColumnValue(columns[key], disposedCells);
         RuntimeStateLifecycle.MarkValueGraphFinalizerless(
             columns,
             "BattleState.SetCellsFromDictionary.columns"
@@ -802,20 +813,16 @@ public partial class BattleState : RefCounted
     {
         if (_cellColumns.Count == 0)
             return;
-        Godot.Collections.Dictionary payload = _cellColumns.ProjectPayload();
-        DisposeCellColumnsPayload(payload);
+        foreach (List<BattleCellState> column in _cellColumns.Values)
+            DisposeCellColumn(column);
+        _cellColumns.Clear();
     }
 
     private void DisposeStoredCellColumn(Vector2I coord)
     {
-        if (!_cellColumns.TryGetPayloadValue(Variant.From(coord), out Variant columnPayload))
+        if (!_cellColumns.TryGetValue(coord, out List<BattleCellState> column))
             return;
-        var disposedCells = new HashSet<BattleCellState>();
-        DisposeCellColumnValue(columnPayload, disposedCells);
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-            columnPayload,
-            "BattleState.SetCellColumnPayload"
-        );
+        DisposeCellColumn(column);
     }
 
     private void DisposeStoredRuntimeEdgeFaces()
@@ -823,40 +830,24 @@ public partial class BattleState : RefCounted
         _runtimeEdgeFaces.Clear();
     }
 
-    private static void DisposeCellColumnValue(
-        object rawColumn,
-        HashSet<BattleCellState> disposedCells
-    )
-    {
-        if (disposedCells == null)
-            return;
-        if (rawColumn is Variant columnVariant)
-        {
-            if (columnVariant.VariantType != Variant.Type.Array)
-                return;
-            DisposeCellColumnArray(columnVariant.AsGodotArray(), disposedCells);
-            return;
-        }
-        if (rawColumn is Godot.Collections.Array columnArray)
-        {
-            DisposeCellColumnArray(columnArray, disposedCells);
-        }
-    }
-
-    private static void DisposeCellColumnArray(
-        Godot.Collections.Array column,
-        HashSet<BattleCellState> disposedCells
-    )
+    private static void DisposeCellColumn(List<BattleCellState> column)
     {
         if (column == null)
             return;
-        foreach (object rawCell in column)
-        {
-            if (TryAsGodotObject(rawCell, out BattleCellState cell) && disposedCells.Add(cell))
-                BattleCellState.DisposeRuntimeGraph(cell);
-        }
+        foreach (BattleCellState cell in column)
+            BattleCellState.DisposeRuntimeGraph(cell);
         column.Clear();
-        GodotWrapperOwnershipRegistry.SuppressWrapper(column);
+    }
+
+    private static List<BattleCellState> DuplicateCellColumn(IEnumerable<BattleCellState> column)
+    {
+        List<BattleCellState> result = new();
+        if (column == null)
+            return result;
+        foreach (BattleCellState cell in column)
+            if (cell != null)
+                result.Add(cell.DuplicateCell());
+        return result;
     }
 
     private static bool TryAsGodotObject<T>(object rawValue, out T value)
@@ -902,11 +893,12 @@ public partial class BattleState : RefCounted
     private static int _estimate_log_text_bytes(string entry) =>
         System.Text.Encoding.UTF8.GetByteCount(entry) + 1;
 
-    private static Godot.Collections.Array<StringName> _normalize_string_name_array(
-        Godot.Collections.Array<StringName> values
-    )
+    private static StringNameList _normalize_string_name_array(IEnumerable<StringName> values)
     {
-        var results = new Godot.Collections.Array<StringName>();
+        var results = new StringNameList();
+
+        if (values == null)
+            return results;
 
         foreach (StringName value in values)
         {

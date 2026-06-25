@@ -40,7 +40,6 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
             TestDoomShiftMarksSelfAndSwapsWithNearbyAlly();
             TestBlackCrownSealIsBossOnlyOncePerBattleAndAppliesBothLockOptions();
 
-            SuppressSkillDefFinalizers(_skillDefs);
             exitCode = _test.Finish("FATE_25 regression");
         }
         finally
@@ -460,56 +459,9 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
 
     private void DisposeContentRegistry()
     {
-        SuppressSkillDefFinalizers(_skillDefs);
         _progressionContentRegistry?.Dispose();
         _skillDefs = null;
         _progressionContentRegistry = null;
-    }
-
-    private static void SuppressSkillDefFinalizers(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
-    )
-    {
-        if (skillDefs == null)
-            return;
-        foreach (SkillDef skillDef in skillDefs.Values)
-            SuppressSkillDefFinalizer(skillDef);
-    }
-
-    private static void SuppressSkillDefFinalizer(SkillDef skillDef)
-    {
-        if (skillDef == null)
-            return;
-        SuppressGodotObjectFinalizer(skillDef);
-        CombatSkillDef combatProfile = skillDef.combat_profile;
-        if (combatProfile == null)
-            return;
-        SuppressGodotObjectFinalizer(combatProfile);
-        SuppressEffectDefFinalizers(combatProfile.effect_defs);
-        SuppressEffectDefFinalizers(combatProfile.passive_effect_defs);
-        foreach (CombatCastVariantDef castVariant in combatProfile.cast_variants)
-        {
-            if (castVariant == null)
-                continue;
-            SuppressGodotObjectFinalizer(castVariant);
-            SuppressEffectDefFinalizers(castVariant.effect_defs);
-        }
-    }
-
-    private static void SuppressEffectDefFinalizers(
-        Godot.Collections.Array<CombatEffectDef> effectDefs
-    )
-    {
-        if (effectDefs == null)
-            return;
-        foreach (CombatEffectDef effectDef in effectDefs)
-            SuppressGodotObjectFinalizer(effectDef);
-    }
-
-    private static void SuppressGodotObjectFinalizer(GodotObject value)
-    {
-        if (value != null && GodotObject.IsInstanceValid(value))
-            System.GC.SuppressFinalize(value);
     }
 
     private void BeginRuntimeBattle(BattleRuntimeModule runtime)
@@ -741,11 +693,9 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
 
     private static BattleUnitState ReadBattleUnitState(object unitValue)
     {
-        if (unitValue is BattleUnitState unit)
-            return unit;
-        if (unitValue is Variant variant && variant.VariantType == Variant.Type.Object)
-            return variant.AsGodotObject() as BattleUnitState;
-        return null;
+        return BattleUnitState.TryReadUnitPayload(unitValue, out BattleUnitState unit)
+            ? unit
+            : null;
     }
 
     private static bool ContainsStringName(IEnumerable<StringName> values, StringName target)
@@ -797,7 +747,10 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         {
             Service?.Dispose();
             Manager?.Dispose();
-            GodotSharpCleanup.DisposeGodotObject(PartyState);
+            RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+                PartyState,
+                "run_fate_low_luck_tactical_skills_regression.LowLuckContext"
+            );
             Service = null;
             Manager = null;
             PartyState = null;

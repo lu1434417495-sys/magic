@@ -901,7 +901,9 @@ public partial class ShopWindow : Control
     {
         if (!TryRead(data, "party_state", out Variant value))
             return null;
-        return value.AsGodotObject() as PartyState;
+        return PartyState.TryReadPartyPayload(value, out PartyState partyState)
+            ? partyState
+            : null;
     }
 
     private static bool HasString(GDictionary data, string key)

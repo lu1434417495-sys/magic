@@ -225,7 +225,7 @@ public partial class run_battle_spawn_side_regression : SceneTree
     {
         var stateOwnedUnits = new List<BattleUnitState>();
         BattleState state = fixture?.State;
-        if (state != null && GodotObject.IsInstanceValid(state))
+        if (state != null)
         {
             foreach (BattleUnitState unit in state.GetUnitsTyped())
             {

@@ -264,8 +264,10 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
                 itemDefs
             );
             _test.Eq(enemyUnits.Count, 1, "自定义敌方模板应生成一个敌方单位。");
-            BattleUnitState enemyUnit =
-                enemyUnits.Count > 0 ? enemyUnits[0].AsGodotObject() as BattleUnitState : null;
+            BattleUnitState enemyUnit = enemyUnits.Count > 0
+                && BattleUnitState.TryReadUnitPayload(enemyUnits[0], out BattleUnitState parsedEnemyUnit)
+                    ? parsedEnemyUnit
+                    : null;
             _test.True(enemyUnit != null, "自定义敌方模板生成的单位应可读取。");
             if (enemyUnit == null)
             {
@@ -294,14 +296,11 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
             {
                 foreach (Variant enemyUnitValue in enemyUnits)
                 {
-                    GodotSharpCleanup.DisposeGodotObject(
-                        enemyUnitValue.AsGodotObject() as BattleUnitState
-                    );
+                    if (BattleUnitState.TryReadUnitPayload(enemyUnitValue, out BattleUnitState unit))
+                        BattleTestFixture.DisposeBattleUnit(unit);
                 }
                 enemyUnits.Clear();
             }
-            GodotSharpCleanup.DisposeGodotObject(template);
-            GodotSharpCleanup.DisposeGodotObject(customWeapon);
         }
     }
 
@@ -454,27 +453,30 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         StringName attackEquipmentItemId
     )
     {
-        return new EnemyTemplateDef
-        {
-            template_id = templateId,
-            display_name = "自定义敌方长戟兵",
-            brain_id = "melee_aggressor",
-            enemy_count = 1,
-            body_size = BattleUnitState.BodySizeMedium,
-            action_threshold = BattleUnitState.DefaultActionThreshold,
-            attack_equipment_item_id = attackEquipmentItemId,
-            tags = new GStringNameArray(),
-            skill_ids = new GStringNameArray { "basic_attack" },
-            base_attribute_overrides = new GDictionary
+        return TestResourceOwnership.Own(
+            new EnemyTemplateDef
             {
-                ["strength"] = 10,
-                ["agility"] = 10,
-                ["constitution"] = 10,
-                ["perception"] = 10,
-                ["intelligence"] = 10,
-                ["willpower"] = 10,
+                template_id = templateId,
+                display_name = "自定义敌方长戟兵",
+                brain_id = "melee_aggressor",
+                enemy_count = 1,
+                body_size = BattleUnitState.BodySizeMedium,
+                action_threshold = BattleUnitState.DefaultActionThreshold,
+                attack_equipment_item_id = attackEquipmentItemId,
+                tags = new GStringNameArray(),
+                skill_ids = new GStringNameArray { "basic_attack" },
+                base_attribute_overrides = new GDictionary
+                {
+                    ["strength"] = 10,
+                    ["agility"] = 10,
+                    ["constitution"] = 10,
+                    ["perception"] = 10,
+                    ["intelligence"] = 10,
+                    ["willpower"] = 10,
+                },
             },
-        };
+            "EnemyTemplateRuntimeStart.BuildCustomEnemyTemplate"
+        );
     }
 
     private static void SetSaveAdvantageTags(
@@ -531,7 +533,7 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
             }
         }
         itemDef.weapon_profile = profile;
-        return itemDef;
+        return TestResourceOwnership.Own(itemDef, "EnemyTemplateRuntimeStart.MakeWeapon");
     }
 
     private static WeaponDamageDiceDef MakeWeaponDice(int count, int sides, int bonus)

@@ -160,10 +160,13 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
         Fixture fixture = BuildGroundEffectCoordsFixture();
         try
         {
-            var castVariant = new CombatCastVariantDef
+            var castVariant = TestResourceOwnership.Own(
+                new CombatCastVariantDef
             {
                 @params = new Godot.Collections.Dictionary { ["square2_corner"] = "top_left" }
-            };
+                },
+                "battle_ground_effect_typed_sets.cast_variant"
+            );
             IReadOnlyList<Vector2I> typedCoords = fixture.Runtime._ground_effect_service
                 .BuildGroundEffectCoords(
                     null,
@@ -233,18 +236,24 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
             Source = source,
             Front = front,
             Back = back,
-            Skill = new SkillDef
+            Skill = TestResourceOwnership.Own(
+                new SkillDef
             {
                 skill_id = "typed_wind_push_skill",
                 combat_profile = new CombatSkillDef { target_team_filter = "enemy" },
-            },
-            WindPushEffect = new CombatEffectDef
+                },
+                "battle_ground_effect_typed_sets.wind_push_skill"
+            ),
+            WindPushEffect = TestResourceOwnership.Own(
+                new CombatEffectDef
             {
                 effect_type = "forced_move",
                 effect_target_team_filter = "enemy",
                 forced_move_mode = "wind_push",
                 forced_move_distance = 1,
-            },
+                },
+                "battle_ground_effect_typed_sets.wind_push_effect"
+            ),
         };
     }
 
@@ -274,18 +283,24 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
             State = state,
             Source = source,
             Front = front,
-            Skill = new SkillDef
+            Skill = TestResourceOwnership.Own(
+                new SkillDef
             {
                 skill_id = "typed_forced_context_skill",
                 combat_profile = new CombatSkillDef { target_team_filter = "enemy" },
-            },
-            WindPushEffect = new CombatEffectDef
+                },
+                "battle_ground_effect_typed_sets.forced_context_skill"
+            ),
+            WindPushEffect = TestResourceOwnership.Own(
+                new CombatEffectDef
             {
                 effect_type = "forced_move",
                 effect_target_team_filter = "enemy",
                 forced_move_mode = "wind_push",
                 forced_move_distance = 1,
-            },
+                },
+                "battle_ground_effect_typed_sets.forced_context_effect"
+            ),
         };
     }
 

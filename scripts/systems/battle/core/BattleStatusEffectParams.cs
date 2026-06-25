@@ -5,7 +5,9 @@ using GDictionary = Godot.Collections.Dictionary;
 
 internal sealed class BattleStatusEffectParams
 {
-    public GDictionary ResidualSavePayload { get; private init; } = new();
+    private readonly RuntimePayloadStore _residualSavePayload = new();
+
+    public GDictionary ResidualSavePayload => _residualSavePayload.ProjectPayload();
     public double? IncomingDamageMultiplier { get; private init; }
     public double? OutgoingDamageMultiplier { get; private init; }
     public StringName SourceProfileId { get; private init; } = "";
@@ -48,9 +50,8 @@ internal sealed class BattleStatusEffectParams
     public static BattleStatusEffectParams FromDictionary(GDictionary parameters)
     {
         parameters ??= new GDictionary();
-        return new BattleStatusEffectParams
+        var result = new BattleStatusEffectParams
         {
-            ResidualSavePayload = BattleStatusEffectState.CopyResidualParams(parameters),
             IncomingDamageMultiplier = ReadOptionalDoubleParam(parameters, "incoming_damage_multiplier"),
             OutgoingDamageMultiplier = ReadOptionalDoubleParam(parameters, "outgoing_damage_multiplier"),
             SourceProfileId = ReadOptionalStringNameParam(parameters, "source"),
@@ -102,6 +103,8 @@ internal sealed class BattleStatusEffectParams
             StatusTags = ReadStringNameListParam(parameters, "status_tags"),
             SaveBonusByTag = ReadStringNameIntMapParam(parameters, "save_bonus_by_tag"),
         };
+        result._residualSavePayload.ReplaceWithPayload(BattleStatusEffectState.CopyResidualParams(parameters));
+        return result;
     }
 
     public void ApplyTo(BattleStatusEffectState status, bool overwriteExisting = false)

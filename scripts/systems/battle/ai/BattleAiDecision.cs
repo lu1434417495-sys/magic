@@ -1,5 +1,4 @@
 using Godot;
-using System.Collections.Generic;
 
 public sealed class BattleAiDecision
 {
@@ -18,49 +17,38 @@ public sealed class BattleAiDecision
 
     internal void DisposeOwnedGodotObjects()
     {
-        var disposed = new HashSet<GodotObject>();
-        DisposeScoreInput(score_input, disposed);
+        DisposeScoreInput(score_input);
         if (!ReferenceEquals(skill_score_input, score_input))
-            DisposeScoreInput(skill_score_input, disposed);
-        DisposeCommand(command, disposed);
+            DisposeScoreInput(skill_score_input);
+        DisposeCommand(command);
         command = null;
         score_input = null;
         skill_score_input = null;
         StatePatch = null;
     }
 
-    private static void DisposeScoreInput(
-        BattleAiScoreInput scoreInput,
-        HashSet<GodotObject> disposed
-    )
+    private static void DisposeScoreInput(BattleAiScoreInput scoreInput)
     {
         if (scoreInput == null)
             return;
-        DisposeCommand(scoreInput.command, disposed);
-        DisposePreview(scoreInput.preview, disposed);
+        DisposeCommand(scoreInput.command);
+        DisposePreview(scoreInput.preview);
         scoreInput.command = null;
         scoreInput.preview = null;
         scoreInput.skill_def = null;
     }
 
-    private static void DisposeCommand(BattleCommand command, HashSet<GodotObject> disposed)
+    private static void DisposeCommand(BattleCommand command)
     {
         if (command == null)
             return;
         command.equipment_instance = null;
     }
 
-    private static void DisposePreview(BattlePreview preview, HashSet<GodotObject> disposed)
+    private static void DisposePreview(BattlePreview preview)
     {
         if (preview == null)
             return;
         preview.hit_preview = null;
-    }
-
-    private static void DisposeGodotObject(GodotObject owned, HashSet<GodotObject> disposed)
-    {
-        if (owned == null || disposed == null || !disposed.Add(owned))
-            return;
-        GodotObjectLifecycle.DisposeGodotObject(owned);
     }
 }

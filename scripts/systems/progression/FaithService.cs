@@ -252,6 +252,7 @@ public class FaithService
             return;
         }
 
+        GodotContentOwnership.RegisterBorrowedContent(deityDef, resourcePath);
         _faithDeityDefs[deityDef.deity_id] = deityDef;
     }
 

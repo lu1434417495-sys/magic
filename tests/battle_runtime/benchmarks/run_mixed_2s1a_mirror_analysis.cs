@@ -56,7 +56,7 @@ public partial class run_mixed_2s1a_mirror_analysis : SceneTree
                 }
             );
             BattleSimFormalRosterOptionsData rosterOptions = BuildRosterOptionsFromEnvironment();
-            var rng = new RandomNumberGenerator { Seed = (ulong)Math.Max(startSeed, 1L) };
+            var rng = new RuntimeRandom(Math.Max(startSeed, 1L));
 
             int totalChargeAttempts = 0;
             int totalChargeSuccesses = 0;
@@ -330,7 +330,7 @@ public partial class run_mixed_2s1a_mirror_analysis : SceneTree
         finally
         {
             runtime.dispose();
-            state?.Dispose();
+            BattleTestFixture.DisposeBattleState(state);
         }
     }
 

@@ -1,8 +1,9 @@
+using System.Collections.Generic;
 using Godot;
 
 public class IdentityContentRegistryBase : System.IDisposable
 {
-    private static readonly Godot.Collections.Array<StringName> ResourceAttributeIds = new()
+    private static readonly StringName[] ResourceAttributeIds =
     {
         "hp_max",
         "character_hp_max_percent_bonus",
@@ -14,7 +15,7 @@ public class IdentityContentRegistryBase : System.IDisposable
         "action_threshold",
     };
 
-    private static readonly Godot.Collections.Array<StringName> CombatAttributeIds = new()
+    private static readonly StringName[] CombatAttributeIds =
     {
         "armor_class",
         "armor_ac_bonus",
@@ -24,23 +25,23 @@ public class IdentityContentRegistryBase : System.IDisposable
         "armor_max_dex_bonus",
     };
 
-    private static Godot.Collections.Dictionary _allowed_attribute_id_cache = new();
+    private static HashSet<StringName> _allowed_attribute_id_cache = new();
 
-    private static Godot.Collections.Dictionary _allowed_attribute_id_set()
+    private static HashSet<StringName> _allowed_attribute_id_set()
     {
         if (_allowed_attribute_id_cache.Count > 0)
             return _allowed_attribute_id_cache;
 
-        var allowed = new Godot.Collections.Dictionary();
+        var allowed = new HashSet<StringName>();
 
         foreach (var attributeId in UnitBaseAttributes.GetBaseAttributeIdsTyped())
-            allowed[attributeId] = true;
+            allowed.Add(attributeId);
 
         foreach (var attributeId in ResourceAttributeIds)
-            allowed[attributeId] = true;
+            allowed.Add(attributeId);
 
         foreach (var attributeId in CombatAttributeIds)
-            allowed[attributeId] = true;
+            allowed.Add(attributeId);
 
         _allowed_attribute_id_cache = allowed;
 
@@ -331,7 +332,7 @@ public class IdentityContentRegistryBase : System.IDisposable
 
             if (
                 attrId != ""
-                && !_allowed_attribute_id_set().ContainsKey(attrId)
+                && !_allowed_attribute_id_set().Contains(attrId)
             )
             {
                 errors.Add(

@@ -440,16 +440,10 @@ internal sealed class BattleUnitFactory
         var r = new List<BattleUnitState>();
         foreach (var v in pl)
         {
-            BattleUnitState bs = v.As<BattleUnitState>();
-            if (bs != null)
+            if (BattleUnitState.TryReadUnitPayload(v, out BattleUnitState bs) && bs != null)
             {
                 r.Add(bs.clone());
                 continue;
-            }
-            Godot.Collections.Dictionary payload = v.AsGodotDictionary();
-            if (payload.Count > 0)
-            {
-                r.Add(BattleUnitState.FromDictionary(payload));
             }
         }
         return r;
@@ -469,14 +463,15 @@ internal sealed class BattleUnitFactory
         tc.Remove("map_size");
         BattleTerrainGenerator terrainGenerator = GetTerrainGenerator();
         if (terrainGenerator != null)
-            return _atgo(
-                owner.OwnWrapper(
-                    terrainGenerator.GenerateTyped(enc, seed, tc),
-                    "terrain-generator-output"
-                ),
-                tc,
-                owner
+        {
+            Godot.Collections.Dictionary generatedTerrain = terrainGenerator.GenerateTyped(enc, seed, tc);
+            Godot.Collections.Dictionary ownedTerrain = owner.OwnWrapper(
+                generatedTerrain,
+                "terrain-generator-output"
             );
+            Godot.Collections.Dictionary result = _atgo(ownedTerrain, tc, owner);
+            return result;
+        }
         return _atgo(owner.NewDictionary("empty-terrain-generator-output"), tc, owner);
     }
 
@@ -488,13 +483,19 @@ internal sealed class BattleUnitFactory
     {
         if (td == null || td.Count == 0)
             return owner.NewDictionary("terrain-output-empty");
-        var tr = td.Duplicate(true);
+        var tr = RuntimePayloadCopy.Dictionary(td, "BattleUnitFactory._atgo.terrain");
         Godot.Collections.Array allySpawns = ReadArray(ctx, "ally_spawns");
         if (allySpawns.Count > 0)
-            tr["ally_spawns"] = allySpawns.Duplicate(true);
+            tr["ally_spawns"] = RuntimePayloadCopy.Array(
+                allySpawns,
+                "BattleUnitFactory._atgo.ally_spawns"
+            );
         Godot.Collections.Array enemySpawns = ReadArray(ctx, "enemy_spawns");
         if (enemySpawns.Count > 0)
-            tr["enemy_spawns"] = enemySpawns.Duplicate(true);
+            tr["enemy_spawns"] = RuntimePayloadCopy.Array(
+                enemySpawns,
+                "BattleUnitFactory._atgo.enemy_spawns"
+            );
         return owner.OwnWrapper(tr, "terrain-output");
     }
 
@@ -529,8 +530,14 @@ internal sealed class BattleUnitFactory
     {
         return value.VariantType switch
         {
-            Variant.Type.Dictionary => Variant.From(value.AsGodotDictionary().Duplicate(true)),
-            Variant.Type.Array => Variant.From(value.AsGodotArray().Duplicate(true)),
+            Variant.Type.Dictionary => RuntimePayloadCopy.CopyVariant(
+                value,
+                "BattleUnitFactory.CopyTerrainContextValue.dictionary"
+            ),
+            Variant.Type.Array => RuntimePayloadCopy.CopyVariant(
+                value,
+                "BattleUnitFactory.CopyTerrainContextValue.array"
+            ),
             _ => value,
         };
     }

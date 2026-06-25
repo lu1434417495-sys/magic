@@ -18,21 +18,21 @@ public class BattleCommand
     public EquipmentInstanceState equipment_instance;
     private readonly List<StringName> _equipmentOccupiedSlotIds = new();
 
-    public Godot.Collections.Array<Vector2I> target_coords
+    public Vector2IList target_coords
     {
-        get => new Godot.Collections.Array<Vector2I>(_targetCoords);
+        get => new(_targetCoords);
         set => SetTargetCoords(value);
     }
 
-    public Godot.Collections.Array<StringName> target_unit_ids
+    public StringNameList target_unit_ids
     {
-        get => new Godot.Collections.Array<StringName>(_targetUnitIds);
+        get => new(_targetUnitIds);
         set => SetTargetUnitIds(value);
     }
 
-    public Godot.Collections.Array<StringName> equipment_occupied_slot_ids
+    public StringNameList equipment_occupied_slot_ids
     {
-        get => new Godot.Collections.Array<StringName>(_equipmentOccupiedSlotIds);
+        get => new(_equipmentOccupiedSlotIds);
         set => SetEquipmentOccupiedSlotIds(value);
     }
 

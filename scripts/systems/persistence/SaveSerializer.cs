@@ -226,7 +226,8 @@ public sealed class SaveSerializer
                 Vector2I.Zero
             ),
             ["player_faction_id"] = playerFactionId,
-            ["party_state"] = NormalizePartyState(partyState),
+            ["party_state"] =
+                NormalizePartyState(partyState)?.ToDictionary() ?? new GDictionary(),
         };
     }
 

@@ -1704,7 +1704,10 @@ internal class BattleGroundEffectService
                     source_unit,
                     target_unit,
                     ToUntypedEffectArray(effectDefs),
-                    new GDictionary { ["skill_id"] = skillId }
+                    MarkRuntimeDictionary(
+                        new GDictionary { ["skill_id"] = skillId },
+                        $"ground_effect:{skillId}:damage_context"
+                    )
                 )
         );
     }
@@ -1879,8 +1882,7 @@ internal class BattleGroundEffectService
                         {
                             continue;
                         }
-                        Godot.Collections.Array<StringName> terrainEffectIds =
-                            cell.terrain_effect_ids;
+                        List<StringName> terrainEffectIds = cell.terrain_effect_ids;
                         StringName terrainEffectId = combatEffectDef.terrain_effect_id;
                         if (terrainEffectIds.Contains(terrainEffectId))
                         {
@@ -2946,12 +2948,12 @@ internal class BattleGroundEffectService
         return typedValues;
     }
 
-    private static GArray ToUntypedEffectArray(IEnumerable<CombatEffectDef> values)
+    private GArray ToUntypedEffectArray(IEnumerable<CombatEffectDef> values)
     {
         var result = new GArray();
         if (values == null)
         {
-            return result;
+            return MarkRuntimeArray(result, "ground_effect.empty_effects");
         }
         foreach (CombatEffectDef effectDef in values)
         {
@@ -2960,6 +2962,20 @@ internal class BattleGroundEffectService
                 result.Add(effectDef);
             }
         }
+        return MarkRuntimeArray(result, "ground_effect.effects");
+    }
+
+    private static GArray MarkRuntimeArray(GArray array, string reason)
+    {
+        GArray result = array ?? new GArray();
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, reason);
+        return result;
+    }
+
+    private static GDictionary MarkRuntimeDictionary(GDictionary dictionary, string reason)
+    {
+        GDictionary result = dictionary ?? new GDictionary();
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, reason);
         return result;
     }
 
@@ -3027,7 +3043,7 @@ internal class BattleGroundEffectService
         return result;
     }
 
-    private static GArray ToUntypedBattleUnitArray(Godot.Collections.Array<BattleUnitState> values)
+    private static GArray ToUntypedBattleUnitArray(IEnumerable<BattleUnitState> values)
     {
         var result = new GArray();
         if (values == null)
@@ -3038,7 +3054,7 @@ internal class BattleGroundEffectService
         {
             if (unitState != null)
             {
-                result.Add(unitState);
+                result.Add(unitState.ToDictionary());
             }
         }
         return result;

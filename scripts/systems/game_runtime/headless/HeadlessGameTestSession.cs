@@ -646,7 +646,6 @@ public sealed class HeadlessGameTestSession : IDisposable
         _gameSession = sceneTree.Root.GetNodeOrNull<GameSession>("GameSession");
         if (_gameSession != null)
         {
-            GC.SuppressFinalize(_gameSession);
             GC.KeepAlive(_gameSession);
             _ownsGameSession = false;
             return;

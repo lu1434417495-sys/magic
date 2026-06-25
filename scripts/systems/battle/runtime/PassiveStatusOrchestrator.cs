@@ -25,9 +25,9 @@ public static class PassiveStatusOrchestrator
 
     private static void _clear_identity_projection(BattleUnitState unitState)
     {
-        unitState.vision_tags = new Godot.Collections.Array<StringName>();
-        unitState.proficiency_tags = new Godot.Collections.Array<StringName>();
-        unitState.save_advantage_tags = new Godot.Collections.Array<StringName>();
+        unitState.vision_tags = new StringNameList();
+        unitState.proficiency_tags = new StringNameList();
+        unitState.save_advantage_tags = new StringNameList();
         unitState.damage_resistances = new BattleStringNameMap();
     }
 

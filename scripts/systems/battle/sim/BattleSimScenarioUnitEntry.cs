@@ -31,6 +31,12 @@ public sealed class BattleSimScenarioUnitEntry
         {
             return null;
         }
+        if (value.VariantType == Variant.Type.Dictionary)
+        {
+            BattleUnitState unitState = BattleUnitState.FromDictionary(value.AsGodotDictionary());
+            if (unitState != null)
+                return new BattleSimScenarioUnitEntry(null, unitState, unitState.coord);
+        }
         if (value.VariantType != Variant.Type.Object)
         {
             throw new InvalidOperationException(
@@ -45,10 +51,6 @@ public sealed class BattleSimScenarioUnitEntry
                 spec.ToBattleUnitState(defaultFaction, defaultControlMode),
                 spec.coord
             );
-        }
-        if (rawObject is BattleUnitState unitState)
-        {
-            return new BattleSimScenarioUnitEntry(null, unitState, unitState.coord);
         }
         throw new InvalidOperationException(
             $"{sourceLabel} 必须是 BattleSimUnitSpec 或 BattleUnitState。"

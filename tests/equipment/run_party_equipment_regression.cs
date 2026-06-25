@@ -1154,7 +1154,7 @@ public partial class run_party_equipment_regression : SceneTree
         {
             if (achievementId == "" || achievementDef == null)
                 continue;
-            result[achievementId] = achievementDef;
+            result[achievementId] = achievementDef.ToDictionary();
         }
         return result;
     }

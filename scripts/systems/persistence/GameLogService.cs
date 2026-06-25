@@ -133,11 +133,8 @@ internal class GameLogService
 
     private static string BuildSessionLogVirtualPath()
     {
-        using var rngScope = new GodotTransientResourceScope("GameLogService.BuildSessionLogVirtualPath");
-        var rng = rngScope.OwnWrapper(new RandomNumberGenerator(), "rng");
-        rng.Randomize();
         long timestampMs = (long)(Time.GetUnixTimeFromSystem() * 1000.0);
-        int suffix = rng.RandiRange(0, 999999);
+        int suffix = TrueRandomSeedService.RandiRange(0, 999999);
         return $"{LogDirectory}/session_{timestampMs}_{suffix:D6}.jsonl";
     }
 

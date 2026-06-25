@@ -140,8 +140,8 @@ internal sealed class QuestClaimResultData
     public readonly bool Ok;
     public readonly string ErrorCode;
     public readonly int GoldDelta;
-    private readonly GArray _itemRewards;
-    private readonly GArray _pendingCharacterRewards;
+    private readonly RuntimePayloadList _itemRewards;
+    private readonly RuntimePayloadList _pendingCharacterRewards;
     private readonly List<StringName> _unsupportedRewardTypes;
 
     private QuestClaimResultData(
@@ -156,15 +156,15 @@ internal sealed class QuestClaimResultData
         Ok = ok;
         ErrorCode = errorCode ?? "";
         GoldDelta = Mathf.Max(goldDelta, 0);
-        _itemRewards = itemRewards != null ? itemRewards.Duplicate(true) : new GArray();
-        _pendingCharacterRewards =
-            pendingCharacterRewards != null ? pendingCharacterRewards.Duplicate(true) : new GArray();
+        _itemRewards = new RuntimePayloadList(itemRewards);
+        _pendingCharacterRewards = new RuntimePayloadList(pendingCharacterRewards);
         _unsupportedRewardTypes = CloneStringNameList(unsupportedRewardTypes);
     }
 
-    internal GArray CloneItemRewards() => _itemRewards.Duplicate(true);
+    internal GArray CloneItemRewards() => _itemRewards.ToUntypedGodotArray();
 
-    internal GArray ClonePendingCharacterRewards() => _pendingCharacterRewards.Duplicate(true);
+    internal GArray ClonePendingCharacterRewards() =>
+        _pendingCharacterRewards.ToUntypedGodotArray();
 
     public GStringNameArray CloneUnsupportedRewardTypes() =>
         CloneStringNameArray(_unsupportedRewardTypes);
@@ -174,7 +174,7 @@ internal sealed class QuestClaimResultData
         var rewardParts = new List<string>();
         if (GoldDelta > 0)
             rewardParts.Add($"{GoldDelta} 金");
-        foreach (GDictionary rewardData in ReadDictionaryItems(_itemRewards))
+        foreach (GDictionary rewardData in _itemRewards)
         {
             int quantity = ReadInt(rewardData, "quantity");
             string label = ReadTrimmedString(rewardData, "display_name");
@@ -182,7 +182,7 @@ internal sealed class QuestClaimResultData
                 continue;
             rewardParts.Add($"{label} x{quantity}");
         }
-        foreach (GDictionary rewardData in ReadDictionaryItems(_pendingCharacterRewards))
+        foreach (GDictionary rewardData in _pendingCharacterRewards)
         {
             string memberName = ReadTrimmedString(rewardData, "member_name");
             rewardParts.Add(memberName.Length > 0 ? $"{memberName}的角色奖励" : "角色奖励");
@@ -235,17 +235,6 @@ internal sealed class QuestClaimResultData
         foreach (var value in values)
             result.Add(value);
         return result;
-    }
-
-    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
-    {
-        if (values == null)
-            yield break;
-        foreach (Variant value in values)
-        {
-            if (value.VariantType == Variant.Type.Dictionary)
-                yield return value.AsGodotDictionary();
-        }
     }
 
     private static int ReadInt(GDictionary data, string key)

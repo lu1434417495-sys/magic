@@ -136,17 +136,24 @@ public sealed class BattleHudAdapter : IDisposable
             ["selected_skill_hit_preview_text"] = hitPreview?.SummaryText ?? "",
             ["selected_skill_hit_preview_payload"] = ProjectHitPreview(hitPreview),
             ["selected_skill_hit_badge_text"] = BuildSelectedSkillHitBadgeText(hitPreview),
-            ["selected_skill_hit_stage_rates"] = hitPreview?.StageSuccessRates?.Duplicate(true)
-                ?? new GIntArray(),
+            ["selected_skill_hit_stage_rates"] = CopyIntArray(
+                hitPreview?.StageSuccessRates,
+                "BattleHudAdapter.snapshot.hit_stage_rates"
+            ),
             ["selected_skill_damage_preview_text"] = DictString(damagePreview, "summary_text"),
             ["selected_skill_damage_min"] = DictInt(damagePreview, "min_damage"),
             ["selected_skill_damage_max"] = DictInt(damagePreview, "max_damage"),
-            ["selected_skill_save_branch_preview_payload"] =
-                saveBranchPreview.Duplicate(true),
+            ["selected_skill_save_branch_preview_payload"] = CopyDictionary(
+                saveBranchPreview,
+                "BattleHudAdapter.snapshot.save_branch_preview"
+            ),
             ["selected_skill_save_branch_preview_text"] =
                 DictString(saveBranchPreview, "summary_text"),
             ["selected_skill_fate_preview_text"] = DictString(fatePreview, "summary_text"),
-            ["selected_skill_fate_badges"] = DictArray(fatePreview, "badges").Duplicate(true),
+            ["selected_skill_fate_badges"] = CopyArray(
+                DictArray(fatePreview, "badges"),
+                "BattleHudAdapter.snapshot.fate_badges"
+            ),
             ["selected_skill_preview_tooltip_text"] = tooltipText,
             ["selected_skill_target_selection_mode"] = DictStringName(
                     selectionInfo,
@@ -227,10 +234,19 @@ public sealed class BattleHudAdapter : IDisposable
         );
 
         result["hit_preview"] = ProjectHitPreview(hitPreview);
-        result["hit_stage_rates"] = hitPreview?.StageSuccessRates?.Duplicate(true) ?? new GIntArray();
+        result["hit_stage_rates"] = CopyIntArray(
+            hitPreview?.StageSuccessRates,
+            "BattleHudAdapter.hover.hit_stage_rates"
+        );
         result["hit_badge_text"] = BuildSelectedSkillHitBadgeText(hitPreview);
-        result["fate_badges"] = DictArray(fatePreview, "badges").Duplicate(true);
-        result["save_branch_preview"] = saveBranchPreview.Duplicate(true);
+        result["fate_badges"] = CopyArray(
+            DictArray(fatePreview, "badges"),
+            "BattleHudAdapter.hover.fate_badges"
+        );
+        result["save_branch_preview"] = CopyDictionary(
+            saveBranchPreview,
+            "BattleHudAdapter.hover.save_branch_preview"
+        );
         result["save_branch_preview_text"] = DictString(saveBranchPreview, "summary_text");
         result["damage_min"] = DictInt(damagePreview, "min_damage");
         result["damage_max"] = DictInt(damagePreview, "max_damage");
@@ -246,6 +262,19 @@ public sealed class BattleHudAdapter : IDisposable
     private static GDictionary ProjectHitPreview(AttackPreviewData hitPreview)
     {
         return hitPreview?.ToDictionary() ?? new GDictionary();
+    }
+
+    private static GDictionary CopyDictionary(GDictionary source, string reason) =>
+        RuntimePayloadCopy.Dictionary(source, reason);
+
+    private static GArray CopyArray(GArray source, string reason) =>
+        RuntimePayloadCopy.Array(source, reason);
+
+    private static GIntArray CopyIntArray(GIntArray source, string reason)
+    {
+        GIntArray result = source != null ? source.Duplicate(true) : new GIntArray();
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, reason);
+        return result;
     }
 
     private GDictionary BuildHoverTargetUnitSnapshot(
@@ -1480,7 +1509,10 @@ public sealed class BattleHudAdapter : IDisposable
     {
         GDictionary runtimeDamagePreview = selectedSkillPreview?.damage_preview;
         if (runtimeDamagePreview != null && runtimeDamagePreview.Count > 0)
-            return runtimeDamagePreview.Duplicate(true);
+            return CopyDictionary(
+                runtimeDamagePreview,
+                "BattleHudAdapter.BuildSelectedSkillDamagePreview"
+            );
         return new GDictionary();
     }
 
@@ -1488,7 +1520,10 @@ public sealed class BattleHudAdapter : IDisposable
     {
         GDictionary runtimeSaveBranchPreview = selectedSkillPreview?.save_branch_preview;
         if (runtimeSaveBranchPreview != null && runtimeSaveBranchPreview.Count > 0)
-            return runtimeSaveBranchPreview.Duplicate(true);
+            return CopyDictionary(
+                runtimeSaveBranchPreview,
+                "BattleHudAdapter.BuildSelectedSkillSaveBranchPreview"
+            );
         return new GDictionary();
     }
 

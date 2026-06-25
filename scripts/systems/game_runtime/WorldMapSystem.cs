@@ -3,6 +3,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 using System;
+using System.Collections.Generic;
 
 [GlobalClass]
 public partial class WorldMapSystem : Control
@@ -64,7 +65,7 @@ public partial class WorldMapSystem : Control
     public GameSession _game_session;
     public GameRuntimeFacade _runtime;
     internal WorldMapRuntimeProxy _runtime_proxy = new WorldMapRuntimeProxy();
-    public Godot.Collections.Array<Key> _held_world_move_keys = new();
+    public List<Key> _held_world_move_keys = new();
     public float _world_move_repeat_timer;
 
     public override void _Ready()

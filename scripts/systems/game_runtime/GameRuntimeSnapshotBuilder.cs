@@ -124,7 +124,10 @@ public sealed class GameRuntimeSnapshotBuilder
             ["return_hint_text"] = _runtime.GetSubmapReturnHintText(),
             ["confirm_visible"] =
                 _runtime.GetActiveModalKind() == RuntimeModalKind.SubmapConfirm,
-            ["prompt"] = prompt.Duplicate(true),
+            ["prompt"] = RuntimePayloadCopy.Dictionary(
+                prompt,
+                "GameRuntimeSnapshotBuilder.BuildSubmapSnapshot.prompt"
+            ),
         };
     }
 
@@ -133,7 +136,10 @@ public sealed class GameRuntimeSnapshotBuilder
         var context = _runtime.GetGameOverContext();
         if (context.Count == 0)
             return new Dictionary();
-        return context.Duplicate(true);
+        return RuntimePayloadCopy.Dictionary(
+            context,
+            "GameRuntimeSnapshotBuilder.BuildGameOverSnapshot"
+        );
     }
 
     private Dictionary BuildPartySnapshot()
@@ -360,7 +366,13 @@ public sealed class GameRuntimeSnapshotBuilder
 
     private Dictionary NormalizeQuestEntry(QuestState questState, string stageId)
     {
-        Dictionary questData = questState != null ? questState.ToDictionary().Duplicate(true) : null;
+        Dictionary questData =
+            questState != null
+                ? RuntimePayloadCopy.Dictionary(
+                    questState.ToDictionary(),
+                    "GameRuntimeSnapshotBuilder.NormalizeQuestEntry"
+                )
+                : null;
         if (questData == null || questData.Count == 0)
             return new Dictionary();
         if (!HasExactQuestEntryFields(questData))
@@ -385,7 +397,10 @@ public sealed class GameRuntimeSnapshotBuilder
         questData["stage_id"] = stageId;
         questData["status_id"] = statusId;
         questData["objective_progress"] = objectiveProgress;
-        questData["last_progress_context"] = contextValue.AsGodotDictionary().Duplicate(true);
+        questData["last_progress_context"] = RuntimePayloadCopy.Dictionary(
+            contextValue.AsGodotDictionary(),
+            "GameRuntimeSnapshotBuilder.NormalizeQuestEntry.last_progress_context"
+        );
         return questData;
     }
 
@@ -481,7 +496,10 @@ public sealed class GameRuntimeSnapshotBuilder
             ["profession_entries"] = BuildMemberProfessionEntries(memberState),
             ["achievement_summary"] =
                 achievementSummary.Count > 0
-                    ? achievementSummary.Duplicate(true)
+                    ? RuntimePayloadCopy.Dictionary(
+                        achievementSummary,
+                        "GameRuntimeSnapshotBuilder.BuildPartyMemberSnapshot.achievement_summary"
+                    )
                     : new Dictionary(),
             ["attributes"] =
                 attributeSnapshot != null ? attributeSnapshot.ToDictionary() : new Dictionary(),
@@ -672,7 +690,10 @@ public sealed class GameRuntimeSnapshotBuilder
         return new Dictionary
         {
             ["visible"] = _runtime.GetActiveModalKind() == RuntimeModalKind.Shop,
-            ["window_data"] = windowData.Duplicate(true),
+            ["window_data"] = RuntimePayloadCopy.Dictionary(
+                windowData,
+                "GameRuntimeSnapshotBuilder.BuildShopSnapshot.window_data"
+            ),
         };
     }
 
@@ -683,7 +704,10 @@ public sealed class GameRuntimeSnapshotBuilder
         return new Dictionary
         {
             ["visible"] = _runtime.GetActiveModalKind() == RuntimeModalKind.ContractBoard,
-            ["window_data"] = windowData.Duplicate(true),
+            ["window_data"] = RuntimePayloadCopy.Dictionary(
+                windowData,
+                "GameRuntimeSnapshotBuilder.BuildContractBoardSnapshot.window_data"
+            ),
         };
     }
 
@@ -694,7 +718,10 @@ public sealed class GameRuntimeSnapshotBuilder
         return new Dictionary
         {
             ["visible"] = _runtime.GetActiveModalKind() == RuntimeModalKind.Forge,
-            ["window_data"] = windowData.Duplicate(true),
+            ["window_data"] = RuntimePayloadCopy.Dictionary(
+                windowData,
+                "GameRuntimeSnapshotBuilder.BuildForgeSnapshot.window_data"
+            ),
         };
     }
 
@@ -705,7 +732,10 @@ public sealed class GameRuntimeSnapshotBuilder
         return new Dictionary
         {
             ["visible"] = _runtime.GetActiveModalKind() == RuntimeModalKind.Stagecoach,
-            ["window_data"] = windowData.Duplicate(true),
+            ["window_data"] = RuntimePayloadCopy.Dictionary(
+                windowData,
+                "GameRuntimeSnapshotBuilder.BuildStagecoachSnapshot.window_data"
+            ),
         };
     }
 
@@ -835,7 +865,10 @@ public sealed class GameRuntimeSnapshotBuilder
             ["contingency"] = contingencySnapshot,
             ["hud"] = hudSnapshot,
             ["report_entry_count"] = battleState.report_entries.Count,
-            ["report_entries"] = battleState.report_entries.Duplicate(true),
+            ["report_entries"] = RuntimePayloadCopy.Array(
+                battleState.report_entries,
+                "GameRuntimeSnapshotBuilder.BuildBattleSnapshot.report_entries"
+            ),
             ["units"] = units,
         };
     }
@@ -880,7 +913,10 @@ public sealed class GameRuntimeSnapshotBuilder
     {
         if (_runtime == null)
             return new Dictionary();
-        var lootSnapshot = _runtime.GetLastBattleLootSnapshot().Duplicate(true);
+        var lootSnapshot = RuntimePayloadCopy.Dictionary(
+            _runtime.GetLastBattleLootSnapshot(),
+            "GameRuntimeSnapshotBuilder.BuildLootSnapshot"
+        );
         if (lootSnapshot.Count == 0)
             return new Dictionary();
         if (
@@ -897,7 +933,10 @@ public sealed class GameRuntimeSnapshotBuilder
         return new Dictionary
         {
             ["visible"] = _runtime.GetActiveModalKind() == RuntimeModalKind.Promotion,
-            ["prompt"] = prompt.Duplicate(true),
+            ["prompt"] = RuntimePayloadCopy.Dictionary(
+                prompt,
+                "GameRuntimeSnapshotBuilder.BuildPromotionSnapshot.prompt"
+            ),
         };
     }
 
@@ -936,15 +975,26 @@ public sealed class GameRuntimeSnapshotBuilder
             return new Dictionary();
         return methodName switch
         {
-            "GetContractBoardWindowData" => _runtime
-                .GetContractBoardWindowData()
-                .Duplicate(true),
-            "GetActiveContractBoardContext" => _runtime
-                .GetActiveContractBoardContext()
-                .Duplicate(true),
-            "GetForgeWindowData" => _runtime.GetForgeWindowData().Duplicate(true),
-            "GetActiveShopContext" => _runtime.GetActiveShopContext().Duplicate(true),
-            "GetShopWindowData" => _runtime.GetShopWindowData().Duplicate(true),
+            "GetContractBoardWindowData" => RuntimePayloadCopy.Dictionary(
+                _runtime.GetContractBoardWindowData(),
+                "GameRuntimeSnapshotBuilder.GetContractBoardWindowData"
+            ),
+            "GetActiveContractBoardContext" => RuntimePayloadCopy.Dictionary(
+                _runtime.GetActiveContractBoardContext(),
+                "GameRuntimeSnapshotBuilder.GetActiveContractBoardContext"
+            ),
+            "GetForgeWindowData" => RuntimePayloadCopy.Dictionary(
+                _runtime.GetForgeWindowData(),
+                "GameRuntimeSnapshotBuilder.GetForgeWindowData"
+            ),
+            "GetActiveShopContext" => RuntimePayloadCopy.Dictionary(
+                _runtime.GetActiveShopContext(),
+                "GameRuntimeSnapshotBuilder.GetActiveShopContext"
+            ),
+            "GetShopWindowData" => RuntimePayloadCopy.Dictionary(
+                _runtime.GetShopWindowData(),
+                "GameRuntimeSnapshotBuilder.GetShopWindowData"
+            ),
             _ => new Dictionary(),
         };
     }

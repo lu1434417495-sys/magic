@@ -1500,7 +1500,14 @@ public partial class BattleDamageResolver
                 continue;
             }
             runtimeEffectDef.skill_level = skillLevel;
-            ResolveEffects(targetUnit, targetUnit, new GArray { runtimeEffectDef });
+            ResolveEffects(
+                targetUnit,
+                targetUnit,
+                MarkRuntimeArray(
+                    new GArray { runtimeEffectDef },
+                    "TryTriggerLastStand.effects"
+                )
+            );
         }
         bool triggered = targetUnit.current_hp > 0;
         if (triggered)

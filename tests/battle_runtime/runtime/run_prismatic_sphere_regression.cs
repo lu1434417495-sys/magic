@@ -209,13 +209,22 @@ public partial class run_prismatic_sphere_regression : SceneTree
         target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 8);
         SetStatus(target, "death_ward", new GDictionary { ["damage_tag"] = "negative_energy" });
 
-        CombatEffectDef damageEffect = new()
-        {
-            effect_type = "damage",
-            power = 99,
-            damage_tag = "physical_slash",
-        };
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { damageEffect }));
+        CombatEffectDef damageEffect = OwnedEffect(
+            new CombatEffectDef
+            {
+                effect_type = "damage",
+                power = 99,
+                damage_tag = "physical_slash",
+            },
+            "prismatic_sphere.plain_fatal_damage"
+        );
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(
+            resolver.ResolveEffects(
+                source,
+                target,
+                EffectArray("plain_fatal_damage", damageEffect)
+            )
+        );
         _test.Eq(
             result != null && result.ContainsKey("damage") ? result["damage"].AsInt32() : -1,
             8,
@@ -233,6 +242,10 @@ public partial class run_prismatic_sphere_regression : SceneTree
         BattleUnitState enemy = fixture.Enemy;
         SkillDef lastStandSkill = ResourceLoader.Load<SkillDef>(
             "res://data/configs/skills/warrior_last_stand.tres"
+        );
+        GodotContentOwnership.RegisterBorrowedContent(
+            lastStandSkill,
+            "prismatic_sphere:res://data/configs/skills/warrior_last_stand.tres"
         );
         _test.True(
             lastStandSkill != null && lastStandSkill.combat_profile != null,
@@ -354,9 +367,12 @@ public partial class run_prismatic_sphere_regression : SceneTree
         BattleUnitState target = BuildUnit("target", "目标", "player", new Vector2I(1, 0));
         SetStatus(target, "madness");
         SetStatus(target, "petrified");
-        var cleanse = new CombatEffectDef { effect_type = "cleanse_harmful" };
+        var cleanse = OwnedEffect(
+            new CombatEffectDef { effect_type = "cleanse_harmful" },
+            "prismatic_sphere.cleanse_harmful"
+        );
         var resolver = new BattleDamageResolver();
-        resolver.ResolveEffects(source, target, new GArray { cleanse });
+        resolver.ResolveEffects(source, target, EffectArray("cleanse_harmful", cleanse));
         _test.False(target.HasStatusEffect("madness"), "cleanse_harmful 应解除 madness。");
         _test.True(target.HasStatusEffect("petrified"), "cleanse_harmful 不应解除 petrified。");
     }
@@ -366,19 +382,24 @@ public partial class run_prismatic_sphere_regression : SceneTree
         BattleUnitState source = BuildUnit("source", "施法者", "player", Vector2I.Zero);
         BattleUnitState ally = BuildUnit("ally", "友方", "player", new Vector2I(1, 0));
         BattleUnitState enemy = BuildUnit("enemy", "敌方", "enemy", new Vector2I(2, 0));
-        var dispel = new CombatEffectDef
-        {
-            effect_type = "dispel_magic",
-            power = 1,
-            remove_beneficial_from_enemies = true,
-            remove_harmful_from_allies = true,
-            max_status_removed = 1,
-        };
+        var dispel = OwnedEffect(
+            new CombatEffectDef
+            {
+                effect_type = "dispel_magic",
+                power = 1,
+                remove_beneficial_from_enemies = true,
+                remove_harmful_from_allies = true,
+                max_status_removed = 1,
+            },
+            "prismatic_sphere.dispel_magic"
+        );
         var resolver = new BattleDamageResolver();
 
         SetStatus(ally, "blind");
         SetStatus(ally, "petrified");
-        GDictionary allyResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, ally, new GArray { dispel }));
+        GDictionary allyResult = AttackEffectResolutionResultReader.BuildGodotPayload(
+            resolver.ResolveEffects(source, ally, EffectArray("dispel_magic.ally", dispel))
+        );
         _test.True(DictBool(allyResult, "applied"), "解除魔法命中友方时应能移除可驱散减益。");
         _test.False(ally.HasStatusEffect("blind"), "解除魔法应移除友方 blind。");
         _test.True(ally.HasStatusEffect("petrified"), "解除魔法不应移除 petrified。");
@@ -390,7 +411,9 @@ public partial class run_prismatic_sphere_regression : SceneTree
         SetStatus(enemy, "magic_shield");
         SetStatus(enemy, "attack_up");
         SetStatus(enemy, "marked");
-        GDictionary enemyResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, enemy, new GArray { dispel }));
+        GDictionary enemyResult = AttackEffectResolutionResultReader.BuildGodotPayload(
+            resolver.ResolveEffects(source, enemy, EffectArray("dispel_magic.enemy", dispel))
+        );
         _test.True(DictBool(enemyResult, "applied"), "解除魔法命中敌方时应能移除可驱散增益。");
         _test.False(enemy.HasStatusEffect("magic_shield"), "解除魔法应优先移除敌方高优先级魔法增益。");
         _test.True(enemy.HasStatusEffect("attack_up"), "单次解除魔法只应移除配置数量内的敌方增益。");
@@ -412,21 +435,24 @@ public partial class run_prismatic_sphere_regression : SceneTree
         AddUnit(runtime, state, caster, false);
         AddUnit(runtime, state, enemy, true);
         SkillDef skill = BuildSkill("mage_prismatic_sphere", "虹光法球", "mage", "magic");
-        var effect = new CombatEffectDef
-        {
-            effect_type = "layered_barrier",
-            duration_tu = 120,
-            save_dc = 15,
-            save_dc_mode = "static",
-            save_ability = "willpower",
-            save_tag = "magic",
-            @params = new GDictionary
+        var effect = OwnedEffect(
+            new CombatEffectDef
             {
-                ["area_pattern"] = "diamond",
-                ["profile_id"] = "prismatic_sphere",
-                ["radius_cells"] = 2,
+                effect_type = "layered_barrier",
+                duration_tu = 120,
+                save_dc = 15,
+                save_dc_mode = "static",
+                save_ability = "willpower",
+                save_tag = "magic",
+                @params = new GDictionary
+                {
+                    ["area_pattern"] = "diamond",
+                    ["profile_id"] = "prismatic_sphere",
+                    ["radius_cells"] = 2,
+                },
             },
-        };
+            "prismatic_sphere.layered_barrier_effect"
+        );
         runtime._layered_barrier_service.ApplyLayeredBarrierEffectResult(
             caster,
             caster,
@@ -506,7 +532,23 @@ public partial class run_prismatic_sphere_regression : SceneTree
             icon_id = skillId,
         };
         skill.SetTags(tags);
-        return skill;
+        return TestResourceOwnership.Own(skill, $"prismatic_sphere.skill.{skillId}");
+    }
+
+    private static CombatEffectDef OwnedEffect(CombatEffectDef effect, string reason) =>
+        TestResourceOwnership.Own(effect, reason);
+
+    private static GArray EffectArray(string reason, params CombatEffectDef[] effects)
+    {
+        GArray result = TestResourceOwnership.OwnWrapper(
+            new GArray(),
+            $"prismatic_sphere.{reason}.effects"
+        );
+        if (effects == null)
+            return result;
+        foreach (CombatEffectDef effect in effects)
+            result.Add(effect);
+        return result;
     }
 
     private static void AddUnit(
@@ -547,12 +589,18 @@ public partial class run_prismatic_sphere_regression : SceneTree
             power = 1,
             stacks = 1,
             duration = -1,
-            @params = parameters?.Duplicate(true) ?? new GDictionary(),
+            @params = OwnedDictionary(
+                parameters?.Duplicate(true) as GDictionary ?? new GDictionary(),
+                $"prismatic_sphere.status_params.{statusId}"
+            ),
             source_skill_id = sourceSkillId,
             source_skill_level = sourceSkillLevel,
         };
         unitState.SetStatusEffect(status);
     }
+
+    private static GDictionary OwnedDictionary(GDictionary dictionary, string reason) =>
+        TestResourceOwnership.OwnWrapper(dictionary, reason);
 
     private static BattleBarrierInstanceState FirstBarrier(BattleState state)
     {
@@ -735,9 +783,9 @@ public partial class run_prismatic_sphere_regression : SceneTree
         public void Dispose()
         {
             Runtime?.Dispose();
-            GodotSharpCleanup.DisposeGodotObject(Caster);
-            GodotSharpCleanup.DisposeGodotObject(Enemy);
-            GodotSharpCleanup.DisposeGodotObject(State);
+            BattleTestFixture.DisposeBattleUnit(Caster);
+            BattleTestFixture.DisposeBattleUnit(Enemy);
+            BattleTestFixture.DisposeBattleState(State);
         }
     }
 }

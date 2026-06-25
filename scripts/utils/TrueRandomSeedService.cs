@@ -1,5 +1,5 @@
 using System;
-using Godot;
+using CryptoRandomNumberGenerator = System.Security.Cryptography.RandomNumberGenerator;
 
 public static class TrueRandomSeedService
 {
@@ -39,13 +39,8 @@ public static class TrueRandomSeedService
     }
     private static long SeedFromCryptoBytes()
     {
-        using var cryptoScope = new GodotTransientResourceScope("TrueRandomSeedService.SeedFromCryptoBytes");
-        var crypto = cryptoScope.OwnWrapper(new Crypto(), "crypto");
-        byte[] bytes = crypto.GenerateRandomBytes(SeedByteCount);
-        if (bytes.Length < SeedByteCount)
-        {
-            return -1;
-        }
+        byte[] bytes = new byte[SeedByteCount];
+        CryptoRandomNumberGenerator.Fill(bytes);
 
         long seed = 0;
         foreach (byte byteValue in bytes)
@@ -57,19 +52,11 @@ public static class TrueRandomSeedService
 
     private static long SeedFromFallbackRng()
     {
-        using var rngScope = new GodotTransientResourceScope("TrueRandomSeedService.SeedFromFallbackRng");
-        var rng = rngScope.OwnWrapper(new RandomNumberGenerator(), "rng");
-        rng.Randomize();
-        long seed = Math.Max((long)rng.Randi(), 1L);
-        return seed;
+        return Math.Max((long)Random.Shared.Next(), 1L);
     }
 
     private static int FallbackRngRange(int minValue, int maxValue)
     {
-        using var rngScope = new GodotTransientResourceScope("TrueRandomSeedService.FallbackRngRange");
-        var rng = rngScope.OwnWrapper(new RandomNumberGenerator(), "rng");
-        rng.Randomize();
-        int value = rng.RandiRange(minValue, maxValue);
-        return value;
+        return (int)Random.Shared.NextInt64(minValue, (long)maxValue + 1L);
     }
 }

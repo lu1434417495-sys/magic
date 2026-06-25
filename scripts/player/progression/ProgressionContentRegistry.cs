@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -61,19 +62,19 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     public GDictionary _skill_defs
     {
         get => _skillDefs;
-        set => _skillDefs = value ?? new GDictionary();
+        set => _skillDefs = RegisterDefinitionBucket(value, "_skill_defs.set");
     }
     public GDictionary _profession_defs
     {
         get => _professionDefs;
-        set => _professionDefs = value ?? new GDictionary();
+        set => _professionDefs = RegisterDefinitionBucket(value, "_profession_defs.set");
     }
     public GDictionary _achievement_defs
     {
         get => _achievementDefs;
         set
         {
-            _achievementDefs = value ?? new GDictionary();
+            _achievementDefs = RegisterDefinitionBucket(value, "_achievement_defs.set");
             SyncTypedDefinitionIndexes();
         }
     }
@@ -82,7 +83,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         get => _questDefs;
         set
         {
-            _questDefs = value ?? new GDictionary();
+            _questDefs = RegisterDefinitionBucket(value, "_quest_defs.set");
             SyncTypedDefinitionIndexes();
         }
     }
@@ -91,7 +92,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         get => _raceDefs;
         set
         {
-            _raceDefs = value ?? new GDictionary();
+            _raceDefs = RegisterDefinitionBucket(value, "_race_defs.set");
             SyncTypedDefinitionIndexes();
         }
     }
@@ -100,7 +101,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         get => _subraceDefs;
         set
         {
-            _subraceDefs = value ?? new GDictionary();
+            _subraceDefs = RegisterDefinitionBucket(value, "_subrace_defs.set");
             SyncTypedDefinitionIndexes();
         }
     }
@@ -109,7 +110,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         get => _traitDefs;
         set
         {
-            _traitDefs = value ?? new GDictionary();
+            _traitDefs = RegisterDefinitionBucket(value, "_trait_defs.set");
             SyncTypedDefinitionIndexes();
         }
     }
@@ -118,7 +119,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         get => _ageProfileDefs;
         set
         {
-            _ageProfileDefs = value ?? new GDictionary();
+            _ageProfileDefs = RegisterDefinitionBucket(value, "_age_profile_defs.set");
             SyncTypedDefinitionIndexes();
         }
     }
@@ -127,7 +128,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         get => _bloodlineDefs;
         set
         {
-            _bloodlineDefs = value ?? new GDictionary();
+            _bloodlineDefs = RegisterDefinitionBucket(value, "_bloodline_defs.set");
             SyncTypedDefinitionIndexes();
         }
     }
@@ -136,7 +137,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         get => _bloodlineStageDefs;
         set
         {
-            _bloodlineStageDefs = value ?? new GDictionary();
+            _bloodlineStageDefs = RegisterDefinitionBucket(value, "_bloodline_stage_defs.set");
             SyncTypedDefinitionIndexes();
         }
     }
@@ -145,7 +146,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         get => _ascensionDefs;
         set
         {
-            _ascensionDefs = value ?? new GDictionary();
+            _ascensionDefs = RegisterDefinitionBucket(value, "_ascension_defs.set");
             SyncTypedDefinitionIndexes();
         }
     }
@@ -154,7 +155,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         get => _ascensionStageDefs;
         set
         {
-            _ascensionStageDefs = value ?? new GDictionary();
+            _ascensionStageDefs = RegisterDefinitionBucket(value, "_ascension_stage_defs.set");
             SyncTypedDefinitionIndexes();
         }
     }
@@ -163,7 +164,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         get => _stageAdvancementDefs;
         set
         {
-            _stageAdvancementDefs = value ?? new GDictionary();
+            _stageAdvancementDefs = RegisterDefinitionBucket(value, "_stage_advancement_defs.set");
             SyncTypedDefinitionIndexes();
         }
     }
@@ -397,20 +398,27 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
 
     public void ReplaceDefinitionBuckets(GDictionary sources)
     {
-        _skillDefs = DuplicateDictionary(GetDictionary(sources, "skill_defs"));
-        _professionDefs = DuplicateDictionary(GetDictionary(sources, "profession_defs"));
-        _achievementDefs = DuplicateDictionary(GetDictionary(sources, "achievement_defs"));
-        _questDefs = DuplicateDictionary(GetDictionary(sources, "quest_defs"));
-        _raceDefs = DuplicateDictionary(GetDictionary(sources, "race_defs"));
-        _subraceDefs = DuplicateDictionary(GetDictionary(sources, "subrace_defs"));
-        _traitDefs = DuplicateDictionary(GetDictionary(sources, "trait_defs"));
-        _ageProfileDefs = DuplicateDictionary(GetDictionary(sources, "age_profile_defs"));
-        _bloodlineDefs = DuplicateDictionary(GetDictionary(sources, "bloodline_defs"));
-        _bloodlineStageDefs = DuplicateDictionary(GetDictionary(sources, "bloodline_stage_defs"));
-        _ascensionDefs = DuplicateDictionary(GetDictionary(sources, "ascension_defs"));
-        _ascensionStageDefs = DuplicateDictionary(GetDictionary(sources, "ascension_stage_defs"));
+        _skillDefs = DuplicateDictionary(GetDictionary(sources, "skill_defs"), "skill_defs");
+        _professionDefs = DuplicateDictionary(GetDictionary(sources, "profession_defs"), "profession_defs");
+        _achievementDefs = DuplicateDictionary(GetDictionary(sources, "achievement_defs"), "achievement_defs");
+        _questDefs = DuplicateDictionary(GetDictionary(sources, "quest_defs"), "quest_defs");
+        _raceDefs = DuplicateDictionary(GetDictionary(sources, "race_defs"), "race_defs");
+        _subraceDefs = DuplicateDictionary(GetDictionary(sources, "subrace_defs"), "subrace_defs");
+        _traitDefs = DuplicateDictionary(GetDictionary(sources, "trait_defs"), "trait_defs");
+        _ageProfileDefs = DuplicateDictionary(GetDictionary(sources, "age_profile_defs"), "age_profile_defs");
+        _bloodlineDefs = DuplicateDictionary(GetDictionary(sources, "bloodline_defs"), "bloodline_defs");
+        _bloodlineStageDefs = DuplicateDictionary(
+            GetDictionary(sources, "bloodline_stage_defs"),
+            "bloodline_stage_defs"
+        );
+        _ascensionDefs = DuplicateDictionary(GetDictionary(sources, "ascension_defs"), "ascension_defs");
+        _ascensionStageDefs = DuplicateDictionary(
+            GetDictionary(sources, "ascension_stage_defs"),
+            "ascension_stage_defs"
+        );
         _stageAdvancementDefs = DuplicateDictionary(
-            GetDictionary(sources, "stage_advancement_defs")
+            GetDictionary(sources, "stage_advancement_defs"),
+            "stage_advancement_defs"
         );
         SyncTypedDefinitionIndexes();
     }
@@ -586,16 +594,13 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 "battle_won",
                 "",
                 1,
-                new GArray
-                {
-                    _build_achievement_reward(
-                        PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.AttributeDelta),
-                        HpMax,
-                        "生命上限",
-                        8,
-                        "首战后的胆气与耐力提升。"
-                    ),
-                }
+                _build_achievement_reward(
+                    PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.AttributeDelta),
+                    HpMax,
+                    "生命上限",
+                    8,
+                    "首战后的胆气与耐力提升。"
+                )
             )
         );
     }
@@ -703,16 +708,13 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 "settlement_action_completed",
                 "",
                 1,
-                new GArray
-                {
-                    _build_achievement_reward(
-                        PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.KnowledgeUnlock),
-                        "wayfarer_notes",
-                        "旅途见闻",
-                        1,
-                        "据点经历转化成了可保留的见闻。"
-                    ),
-                }
+                _build_achievement_reward(
+                    PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.KnowledgeUnlock),
+                    "wayfarer_notes",
+                    "旅途见闻",
+                    1,
+                    "据点经历转化成了可保留的见闻。"
+                )
             )
         );
 
@@ -724,16 +726,13 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 "enemy_defeated",
                 "",
                 3,
-                new GArray
-                {
-                    _build_achievement_reward(
-                        PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.SkillUnlock),
-                        "charge",
-                        "冲锋",
-                        1,
-                        "连战后的脚步更敢向前。"
-                    ),
-                }
+                _build_achievement_reward(
+                    PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.SkillUnlock),
+                    "charge",
+                    "冲锋",
+                    1,
+                    "连战后的脚步更敢向前。"
+                )
             )
         );
 
@@ -744,8 +743,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 "在生命低于三分之一时承受重击仍存活，证明自身已经能在生死边缘守住形神。",
                 "near_death_unbroken_manual",
                 "",
-                1,
-                new GArray()
+                1
             )
         );
         _register_achievement(
@@ -756,16 +754,13 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 "skill_used",
                 "warrior_heavy_strike",
                 5,
-                new GArray
-                {
-                    _build_achievement_reward(
-                        PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.SkillMastery),
-                        "warrior_heavy_strike",
-                        "重击",
-                        10,
-                        "熟能生巧。"
-                    ),
-                }
+                _build_achievement_reward(
+                    PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.SkillMastery),
+                    "warrior_heavy_strike",
+                    "重击",
+                    10,
+                    "熟能生巧。"
+                )
             )
         );
 
@@ -777,23 +772,20 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 "profession_promoted",
                 "",
                 1,
-                new GArray
-                {
-                    _build_achievement_reward(
-                        PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.AttributeDelta),
-                        UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength),
-                        "力量",
-                        1,
-                        "正式晋升让动作更加扎实。"
-                    ),
-                    _build_achievement_reward(
-                        PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.AttributeDelta),
-                        HpMax,
-                        "生命上限",
-                        5,
-                        "长期训练开始反映到体魄上。"
-                    ),
-                }
+                _build_achievement_reward(
+                    PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.AttributeDelta),
+                    UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength),
+                    "力量",
+                    1,
+                    "正式晋升让动作更加扎实。"
+                ),
+                _build_achievement_reward(
+                    PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.AttributeDelta),
+                    HpMax,
+                    "生命上限",
+                    5,
+                    "长期训练开始反映到体魄上。"
+                )
             )
         );
 
@@ -805,16 +797,13 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 "skill_learned",
                 "warrior_guard_break",
                 1,
-                new GArray
-                {
-                    _build_achievement_reward(
-                        PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.AttributeDelta),
-                        UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Perception),
-                        "感知",
-                        1,
-                        "换用不同兵器后，对出手距离和节奏的判断更敏锐。"
-                    ),
-                }
+                _build_achievement_reward(
+                    PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.AttributeDelta),
+                    UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Perception),
+                    "感知",
+                    1,
+                    "换用不同兵器后，对出手距离和节奏的判断更敏锐。"
+                )
             )
         );
 
@@ -826,16 +815,13 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 "knowledge_learned",
                 "field_manual",
                 1,
-                new GArray
-                {
-                    _build_achievement_reward(
-                        PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.AttributeDelta),
-                        UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower),
-                        "意志",
-                        1,
-                        "把经验写成规则后，行动会更有把握。"
-                    ),
-                }
+                _build_achievement_reward(
+                    PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.AttributeDelta),
+                    UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower),
+                    "意志",
+                    1,
+                    "把经验写成规则后，行动会更有把握。"
+                )
             )
         );
 
@@ -847,16 +833,13 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 "skill_mastery_gained",
                 "charge",
                 20,
-                new GArray
-                {
-                    _build_achievement_reward(
-                        PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.AttributeDelta),
-                        UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility),
-                        "敏捷",
-                        1,
-                        "反复练习冲锋后，脚步转换更利落。"
-                    ),
-                }
+                _build_achievement_reward(
+                    PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.AttributeDelta),
+                    UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility),
+                    "敏捷",
+                    1,
+                    "反复练习冲锋后，脚步转换更利落。"
+                )
             )
         );
 
@@ -867,8 +850,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 "已被 Fortuna 标记后，再次对 elite 或 boss 触发一次劣势大成功。",
                 "fortuna_guidance_true_manual",
                 "",
-                1,
-                new GArray()
+                1
             )
         );
         _register_achievement(
@@ -878,8 +860,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 "已信 Fortuna 的角色在低血且承受强 debuff 的逆境中活下来并赢下战斗。",
                 "fortuna_guidance_devout_manual",
                 "",
-                1,
-                new GArray()
+                1
             )
         );
         _register_achievement(
@@ -889,8 +870,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 "已信 Fortuna 的角色用高位威胁区间而非门骰，对 elite 或 boss 打出一次大成功。",
                 "fortuna_guidance_exalted_manual",
                 "",
-                1,
-                new GArray()
+                1
             )
         );
         _register_achievement(
@@ -900,8 +880,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 "完成一个章节且无人永久死亡，并且该角色在本章内至少经历过一次 Fortuna 相关战斗事件。",
                 "fortuna_guidance_blessed_manual",
                 "",
-                1,
-                new GArray()
+                1
             )
         );
         _register_achievement(
@@ -911,8 +890,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 "已被黑冕标记后，成功用 Misfortune 的封印链终结一次 elite 或 boss。",
                 "misfortune_guidance_true_manual",
                 "",
-                1,
-                new GArray()
+                1
             )
         );
         _register_achievement(
@@ -922,8 +900,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 "同一战斗内曾遭遇大失败或强 debuff，随后再用封印链赢下 elite 或 boss。",
                 "misfortune_guidance_devout_manual",
                 "",
-                1,
-                new GArray()
+                1
             )
         );
         _register_achievement(
@@ -933,8 +910,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 "把同一战斗中未用完的 calamity 结算成 shard，并用固定黑冕材料打造第一件黑暗装备。",
                 "misfortune_guidance_exalted_manual",
                 "",
-                1,
-                new GArray()
+                1
             )
         );
         _register_achievement(
@@ -944,8 +920,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 "用 doom_sentence 的宣判击杀完成一次 boss 终结。",
                 "misfortune_guidance_blessed_manual",
                 "",
-                1,
-                new GArray()
+                1
             )
         );
     }
@@ -957,7 +932,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         StringName eventType,
         StringName subjectId,
         int threshold,
-        GArray rewards
+        params AchievementRewardDef[] rewards
     )
     {
         var achievement = new AchievementDef
@@ -969,9 +944,14 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             subject_id = subjectId,
             threshold = threshold,
         };
-        foreach (AchievementRewardDef reward in ReadObjectItems<AchievementRewardDef>(rewards))
+        if (rewards == null)
         {
-            achievement.rewards.Add(reward);
+            return achievement;
+        }
+        foreach (AchievementRewardDef reward in rewards)
+        {
+            if (reward != null)
+                achievement.rewards.Add(reward);
         }
         return achievement;
     }
@@ -1039,12 +1019,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             );
             return;
         }
-        GodotContentOwnership.RegisterDerivedWrapper(
-            achievementDef,
-            $"achievement:{(string)achievementDef.achievement_id}",
-            "ProgressionContentRegistry._register_achievement"
-        );
-        _achievementDefs[achievementDef.achievement_id] = achievementDef;
+        _achievementDefs[achievementDef.achievement_id] = achievementDef.ToDictionary();
         _achievementDefIndex[achievementDef.achievement_id] = achievementDef;
     }
 
@@ -2145,16 +2120,19 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         }
     }
 
-    private static GDictionary DuplicateDictionary(GDictionary source)
+    private static GDictionary DuplicateDictionary(GDictionary source, string reason)
     {
-        return source != null ? source.Duplicate() : new GDictionary();
+        return RegisterDefinitionBucket(
+            source != null ? source.Duplicate() : new GDictionary(),
+            $"DuplicateDictionary:{reason}"
+        );
     }
 
     private void SyncTypedDefinitionIndexes()
     {
         ReplaceTypedIndex(_skillDefIndex, _skillDefs);
         ReplaceTypedIndex(_professionDefIndex, _professionDefs);
-        ReplaceTypedIndex(_achievementDefIndex, _achievementDefs);
+        ReplaceAchievementTypedIndex(_achievementDefIndex, _achievementDefs);
         ReplaceTypedIndex(_questDefIndex, _questDefs);
         ReplaceTypedIndex(_raceDefIndex, _raceDefs);
         ReplaceTypedIndex(_subraceDefIndex, _subraceDefs);
@@ -2181,7 +2159,10 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         var result = new GDictionary();
         if (source == null)
         {
-            return result;
+            return RegisterDefinitionBucket(
+                result,
+                $"ProjectTypedDictionary:{typeof(T).Name}:empty"
+            );
         }
         foreach ((StringName key, T value) in source)
         {
@@ -2191,21 +2172,32 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             }
             result[key] = value;
         }
-        return result;
+        return RegisterDefinitionBucket(result, $"ProjectTypedDictionary:{typeof(T).Name}");
     }
 
     private static GDictionary ProjectTraitDefs(IReadOnlyList<TraitDef> source)
     {
         var result = new GDictionary();
         if (source == null)
-            return result;
+            return RegisterDefinitionBucket(result, "ProjectTraitDefs:empty");
         foreach (TraitDef traitDef in source)
         {
             if (traitDef == null || traitDef.trait_id == "")
                 continue;
             result[traitDef.trait_id] = traitDef;
         }
-        return result;
+        return RegisterDefinitionBucket(result, "ProjectTraitDefs");
+    }
+
+    private static GDictionary RegisterDefinitionBucket(GDictionary bucket, string reason)
+    {
+        bucket ??= new GDictionary();
+        GodotContentOwnership.RegisterDerivedWrapper(
+            bucket,
+            $"ProgressionContentRegistry.definition_bucket:{reason}:{RuntimeHelpers.GetHashCode(bucket)}",
+            "ProgressionContentRegistry.RegisterDefinitionBucket"
+        );
+        return bucket;
     }
 
     private static void ReplaceTypedIndex<T>(Dictionary<StringName, T> target, GDictionary source)
@@ -2232,6 +2224,41 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             {
                 target[key] = typedValue;
             }
+        }
+    }
+
+    private static void ReplaceAchievementTypedIndex(
+        Dictionary<StringName, AchievementDef> target,
+        GDictionary source
+    )
+    {
+        target.Clear();
+        if (source == null)
+        {
+            return;
+        }
+        foreach (Variant rawKey in source.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+            {
+                continue;
+            }
+            StringName key = rawKey.AsStringName();
+            if (key == "")
+            {
+                continue;
+            }
+            Variant value = source[rawKey];
+            if (value.VariantType != Variant.Type.Dictionary)
+            {
+                continue;
+            }
+            AchievementDef achievementDef = AchievementDef.FromDictionary(value.AsGodotDictionary());
+            if (achievementDef == null || achievementDef.achievement_id == "")
+            {
+                continue;
+            }
+            target[key] = achievementDef;
         }
     }
 

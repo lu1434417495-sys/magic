@@ -982,10 +982,10 @@ public sealed class QuestProgressService
 
 internal sealed class QuestProgressApplyResultData
 {
-    private readonly GStringNameArray _acceptedQuestIds = new();
-    private readonly GStringNameArray _progressedQuestIds = new();
-    private readonly GStringNameArray _claimableQuestIds = new();
-    private readonly GStringNameArray _completedQuestIds = new();
+    private readonly List<StringName> _acceptedQuestIds = new();
+    private readonly List<StringName> _progressedQuestIds = new();
+    private readonly List<StringName> _claimableQuestIds = new();
+    private readonly List<StringName> _completedQuestIds = new();
 
     public bool ContainsProgressedQuest(StringName questId) =>
         questId != "" && _progressedQuestIds.Contains(questId);
@@ -1001,19 +1001,29 @@ internal sealed class QuestProgressApplyResultData
     public void AppendCompletedQuestId(StringName questId) =>
         AppendUnique(_completedQuestIds, questId);
 
-    public GStringNameArray CloneAcceptedQuestIds() => _acceptedQuestIds.Duplicate();
+    public GStringNameArray CloneAcceptedQuestIds() => ToStringNameArray(_acceptedQuestIds);
 
-    public GStringNameArray CloneProgressedQuestIds() => _progressedQuestIds.Duplicate();
+    public GStringNameArray CloneProgressedQuestIds() => ToStringNameArray(_progressedQuestIds);
 
-    public GStringNameArray CloneClaimableQuestIds() => _claimableQuestIds.Duplicate();
+    public GStringNameArray CloneClaimableQuestIds() => ToStringNameArray(_claimableQuestIds);
 
-    public GStringNameArray CloneCompletedQuestIds() => _completedQuestIds.Duplicate();
+    public GStringNameArray CloneCompletedQuestIds() => ToStringNameArray(_completedQuestIds);
 
-    private static void AppendUnique(GStringNameArray target, StringName questId)
+    private static void AppendUnique(List<StringName> target, StringName questId)
     {
         if (target == null || questId == "" || target.Contains(questId))
             return;
         target.Add(questId);
+    }
+
+    private static GStringNameArray ToStringNameArray(IEnumerable<StringName> values)
+    {
+        GStringNameArray result = new();
+        if (values == null)
+            return result;
+        foreach (StringName value in values)
+            result.Add(value);
+        return result;
     }
 }
 

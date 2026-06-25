@@ -234,9 +234,9 @@ public partial class run_party_equipment_service_regression : SceneTree
         );
     }
 
-    private static GDictionary BuildItemDefs() =>
-        TestResourceOwnership.OwnWrapper(
-            new GDictionary
+    private static GDictionary BuildItemDefs()
+    {
+        GDictionary itemDefs = new()
         {
             [new StringName("bronze_sword")] = new ItemDef
             {
@@ -273,9 +273,14 @@ public partial class run_party_equipment_service_regression : SceneTree
                 EquipmentTypeKind = ItemEquipmentTypeKind.Weapon,
                 equipment_slot_ids = new Godot.Collections.Array<string> { "main_hand" },
             },
-        },
+        };
+        GodotContentOwnership.RegisterDerivedWrapper(
+            itemDefs,
+            "PartyEquipmentService.BuildItemDefs",
             "PartyEquipmentService.BuildItemDefs"
         );
+        return itemDefs;
+    }
 
     private static GDictionary BuildEquipmentInstancePayload(
         StringName itemId,

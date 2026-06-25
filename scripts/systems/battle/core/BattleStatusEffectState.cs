@@ -84,7 +84,12 @@ public class BattleStatusEffectState
     public StringName stack_behavior { get; set; } = "";
     public int stack_limit { get; set; }
     public int power { get; set; }
-    internal GDictionary @params { get; set; } = new();
+    private readonly RuntimePayloadStore _params = new();
+    internal GDictionary @params
+    {
+        get => _params.ProjectPayload();
+        set => _params.ReplaceWithPayload(value ?? new GDictionary());
+    }
     public double? incoming_damage_multiplier { get; set; }
     public double? outgoing_damage_multiplier { get; set; }
     public int? heal_multiplier_percent { get; set; }
@@ -542,7 +547,10 @@ public class BattleStatusEffectState
 
     private GDictionary BuildParamsProjection()
     {
-        GDictionary projected = @params?.Duplicate(true) ?? new GDictionary();
+        GDictionary projected = RuntimePayloadCopy.Dictionary(
+            @params,
+            "BattleStatusEffectState.BuildParamsProjection"
+        );
         if (incoming_damage_multiplier.HasValue)
         {
             projected["incoming_damage_multiplier"] = incoming_damage_multiplier.Value;
@@ -720,7 +728,10 @@ public class BattleStatusEffectState
             return new GDictionary();
         }
 
-        GDictionary residual = parameters.Duplicate(true);
+        GDictionary residual = RuntimePayloadCopy.Dictionary(
+            parameters,
+            "BattleStatusEffectState.CopyResidualParams"
+        );
         var keysToRemove = new List<Variant>();
         foreach (Variant key in parameters.Keys)
         {

@@ -5247,7 +5247,7 @@ internal sealed class BattleSkillExecutionOrchestrator
         {
             if (unit != null)
             {
-                result.Add(unit);
+                result.Add(unit.ToDictionary());
             }
         }
         return result;
@@ -5353,8 +5353,7 @@ internal sealed class BattleSkillExecutionOrchestrator
         }
         foreach (var value in src)
         {
-            BattleUnitState unit = value.As<BattleUnitState>();
-            if (unit != null)
+            if (BattleUnitState.TryReadUnitPayload(value, out BattleUnitState unit) && unit != null)
             {
                 result.Add(unit);
             }

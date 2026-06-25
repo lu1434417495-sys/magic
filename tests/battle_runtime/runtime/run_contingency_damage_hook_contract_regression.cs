@@ -49,7 +49,7 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
         runtime.GetDamageResolver().ResolveEffects(
             enemy,
             hero,
-            new GArray { DamageEffect(12) },
+            EffectArray("incoming_damage_percent", DamageEffect(12)),
             DamageResolutionContext
                 .ForSkill("enemy_bolt")
                 .WithDamageApplicationHookContext(batch, BattleEffectOrigin.PlayerCommand())
@@ -92,7 +92,7 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
         runtime.GetDamageResolver().ResolveEffects(
             enemy,
             hero,
-            new GArray { DamageEffect(25) },
+            EffectArray("fatal_damage_incoming", DamageEffect(25)),
             DamageResolutionContext
                 .ForSkill("enemy_finisher")
                 .WithDamageApplicationHookContext(batch, BattleEffectOrigin.PlayerCommand())
@@ -125,7 +125,7 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
         runtime.GetDamageResolver().ResolveEffects(
             enemy,
             hero,
-            new GArray { DamageEffect(25) },
+            EffectArray("fatal_blink", DamageEffect(25)),
             DamageResolutionContext
                 .ForSkill("enemy_blink_finisher")
                 .WithDamageApplicationHookContext(batch, BattleEffectOrigin.PlayerCommand())
@@ -154,18 +154,21 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
         resolver.ResolveEffects(
             source,
             target,
-            new GArray
-            {
+            EffectArray(
+                "cancel_then_status",
                 DamageEffect(10),
-                new CombatEffectDef
-                {
-                    effect_type = "status",
-                    effect_target_team_filter = "enemy",
-                    status_id = "burning",
-                    power = 1,
-                    duration_tu = 30,
-                },
-            },
+                OwnedEffect(
+                    new CombatEffectDef
+                    {
+                        effect_type = "status",
+                        effect_target_team_filter = "enemy",
+                        status_id = "burning",
+                        power = 1,
+                        duration_tu = 30,
+                    },
+                    "contingency_damage_hook.cancel_then_status.status"
+                )
+            ),
             DamageResolutionContext.ForSkill("cancel_then_status")
         );
 
@@ -186,7 +189,7 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
         resolver.ResolveEffects(
             source,
             target,
-            new GArray { ExecuteEffect() },
+            EffectArray("execute_context_probe", ExecuteEffect()),
             DamageResolutionContext
                 .ForSkill("execute_context_probe")
                 .WithDamageApplicationHookContext(batch, BattleEffectOrigin.AutoCast(request))
@@ -221,7 +224,7 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
         resolver.ResolveEffects(
             source,
             target,
-            new GArray { GradedSaveExecuteEffect() },
+            EffectArray("graded_execute_context_probe", GradedSaveExecuteEffect()),
             DamageResolutionContext
                 .Create(
                     false,
@@ -261,7 +264,7 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
         runtime.GetDamageResolver().ResolveEffects(
             enemy,
             hero,
-            new GArray { DamageEffect(12) },
+            EffectArray("report_guard", DamageEffect(12)),
             DamageResolutionContext
                 .ForSkill("enemy_report_bolt")
                 .WithDamageApplicationHookContext(batch, BattleEffectOrigin.PlayerCommand())
@@ -290,8 +293,8 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
         runtime.GetDamageResolver().ResolveEffects(
             enemy,
             hero,
-            new GArray
-            {
+            EffectArray(
+                "zero_damage_probe",
                 DamageEffect(
                     0,
                     new GDictionary
@@ -299,8 +302,8 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
                         ["grant_status_id"] = "on_hit_focus",
                         ["grant_status_power"] = 1,
                     }
-                ),
-            },
+                )
+            ),
             DamageResolutionContext
                 .ForSkill("zero_damage_probe")
                 .WithDamageApplicationHookContext(batch, BattleEffectOrigin.PlayerCommand())
@@ -376,7 +379,7 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
                 duration_tu = 30,
             }
         );
-        return skill;
+        return TestResourceOwnership.Own(skill, "contingency_damage_hook.guard_skill");
     }
 
     private static SkillDef BlinkSkill()
@@ -407,60 +410,85 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
                 forced_move_distance = 5,
             }
         );
-        return skill;
+        return TestResourceOwnership.Own(skill, "contingency_damage_hook.blink_skill");
     }
 
     private static CombatEffectDef DamageEffect(int power, GDictionary parameters = null) =>
-        new()
-        {
-            effect_type = "damage",
-            effect_target_team_filter = "enemy",
-            damage_tag = "physical_slash",
-            power = power,
-            @params = parameters ?? new GDictionary(),
-        };
+        OwnedEffect(
+            new CombatEffectDef
+            {
+                effect_type = "damage",
+                effect_target_team_filter = "enemy",
+                damage_tag = "physical_slash",
+                power = power,
+                @params = parameters ?? new GDictionary(),
+            },
+            "contingency_damage_hook.damage_effect"
+        );
 
     private static CombatEffectDef ExecuteEffect() =>
-        new()
-        {
-            effect_type = "execute",
-            effect_target_team_filter = "enemy",
-            damage_tag = "physical_slash",
-            threshold_base_value = 999,
-            threshold_max_hp_ratio_percent = 100,
-            threshold_cap_max_hp_ratio_percent = 100,
-            save_dc_mode = "none",
-        };
+        OwnedEffect(
+            new CombatEffectDef
+            {
+                effect_type = "execute",
+                effect_target_team_filter = "enemy",
+                damage_tag = "physical_slash",
+                threshold_base_value = 999,
+                threshold_max_hp_ratio_percent = 100,
+                threshold_cap_max_hp_ratio_percent = 100,
+                save_dc_mode = "none",
+            },
+            "contingency_damage_hook.execute_effect"
+        );
 
     private static CombatEffectDef GradedSaveExecuteEffect() =>
-        new()
-        {
-            effect_type = "graded_save_execute",
-            effect_target_team_filter = "enemy",
-            damage_tag = "psychic",
-            save_dc_mode = "static",
-            save_dc = 10,
-            save_dc_source_ability = "intelligence",
-            save_ability = "willpower",
-            save_tag = "illusion",
-            save_partial_on_success = false,
-            @params = new GDictionary
+        OwnedEffect(
+            new CombatEffectDef
             {
-                ["profile_id"] = "phantasmal_kill",
-                ["failure_execute_threshold_fixed"] = 50,
-                ["failure_execute_threshold_max_hp_percent"] = 25,
-                ["failure_damage_dice_count"] = 6,
-                ["failure_damage_dice_sides"] = 6,
-                ["failure_frightened_duration_tu"] = 60,
-                ["failure_reaction_lock_duration_tu"] = 30,
-                ["critical_failure_execute_threshold_max_hp_percent"] = 35,
-                ["critical_failure_damage_dice_count"] = 10,
-                ["critical_failure_damage_dice_sides"] = 6,
-                ["critical_failure_frightened_duration_tu"] = 90,
-                ["critical_failure_stunned_duration_tu"] = 30,
-                ["success_aftershock_duration_tu"] = 30,
+                effect_type = "graded_save_execute",
+                effect_target_team_filter = "enemy",
+                damage_tag = "psychic",
+                save_dc_mode = "static",
+                save_dc = 10,
+                save_dc_source_ability = "intelligence",
+                save_ability = "willpower",
+                save_tag = "illusion",
+                save_partial_on_success = false,
+                @params = new GDictionary
+                {
+                    ["profile_id"] = "phantasmal_kill",
+                    ["failure_execute_threshold_fixed"] = 50,
+                    ["failure_execute_threshold_max_hp_percent"] = 25,
+                    ["failure_damage_dice_count"] = 6,
+                    ["failure_damage_dice_sides"] = 6,
+                    ["failure_frightened_duration_tu"] = 60,
+                    ["failure_reaction_lock_duration_tu"] = 30,
+                    ["critical_failure_execute_threshold_max_hp_percent"] = 35,
+                    ["critical_failure_damage_dice_count"] = 10,
+                    ["critical_failure_damage_dice_sides"] = 6,
+                    ["critical_failure_frightened_duration_tu"] = 90,
+                    ["critical_failure_stunned_duration_tu"] = 30,
+                    ["success_aftershock_duration_tu"] = 30,
+                },
             },
-        };
+            "contingency_damage_hook.graded_save_execute_effect"
+        );
+
+    private static CombatEffectDef OwnedEffect(CombatEffectDef effect, string reason) =>
+        TestResourceOwnership.Own(effect, reason);
+
+    private static GArray EffectArray(string reason, params CombatEffectDef[] effects)
+    {
+        GArray result = TestResourceOwnership.OwnWrapper(
+            new GArray(),
+            $"contingency_damage_hook.{reason}.effects"
+        );
+        if (effects == null)
+            return result;
+        foreach (CombatEffectDef effect in effects)
+            result.Add(effect);
+        return result;
+    }
 
     private static ContingencyMatrixSetupState ChargedSetup(
         string setupId,

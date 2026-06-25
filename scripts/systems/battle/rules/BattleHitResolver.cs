@@ -1326,7 +1326,10 @@ public class BattleHitResolver : IDisposable
         {
             return;
         }
-        GArray results = (GArray)GetArray(target, "trait_trigger_results").Duplicate(true);
+        GArray results = RuntimePayloadCopy.Array(
+            GetArray(target, "trait_trigger_results"),
+            "BattleHitResolver.AppendTraitTriggerResult"
+        );
         results.Add(new GDictionary
         {
             ["triggered"] = trigger_result.Triggered,

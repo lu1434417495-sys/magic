@@ -102,7 +102,7 @@ public partial class CharacterCreationWindow : Control
     public Button options_back_button;
     public Button final_confirm_button;
 
-    private readonly RandomNumberGenerator _rng = new();
+    private readonly RuntimeRandom _rng = new(TrueRandomSeedService.GenerateSeed());
     private readonly Dictionary<StringName, Label> _attributeValueLabels = new();
     private readonly Dictionary<StringName, SpinBox> _attributeThresholdSpinboxes = new();
     private readonly Dictionary<StringName, PanelContainer> _attributeRowPanels = new();
@@ -119,7 +119,7 @@ public partial class CharacterCreationWindow : Control
 
     public override void _Ready()
     {
-        _rng.Randomize();
+        _rng.Reseed(TrueRandomSeedService.GenerateSeed());
         _build_row_styles();
         _cache_attribute_rows();
         _build_identity_phase_nodes();

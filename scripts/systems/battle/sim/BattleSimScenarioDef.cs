@@ -170,7 +170,7 @@ public partial class BattleSimScenarioDef : Resource
             cs.SetTerrain("land");
             cs.SetBaseHeight(4);
             cs.SetHeightOffset(0);
-            cells[cs.coord] = cs;
+            cells[cs.coord] = cs.ToDictionary();
         }
 
         foreach (var oe in cell_overrides)
@@ -178,13 +178,14 @@ public partial class BattleSimScenarioDef : Resource
             var coord = _resolve_override_coord(oe);
             if (coord == new Vector2I(-1, -1))
                 continue;
-            var cs = cells.ContainsKey(coord)
-                ? cells[coord].AsGodotObject() as BattleCellState
-                : new BattleCellState();
+            BattleCellState cs = null;
+            if (cells.ContainsKey(coord))
+                BattleCellState.TryReadCellPayload(cells[coord], out cs);
+            cs ??= new BattleCellState();
             cs.SetCoord(coord);
             _apply_cell_override(cs, oe);
             cs.RecalculateRuntimeValues();
-            cells[coord] = cs;
+            cells[coord] = cs.ToDictionary();
         }
 
         return cells;

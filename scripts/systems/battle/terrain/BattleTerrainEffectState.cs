@@ -102,7 +102,12 @@ public class BattleTerrainEffectState
     public int tick_interval_tu { get; set; }
     public int next_tick_at_tu { get; set; }
     public StringName stack_behavior { get; set; } = "refresh";
-    public GDictionary @params { get; set; } = new();
+    private readonly RuntimePayloadStore _params = new();
+    public GDictionary @params
+    {
+        get => _params.ProjectPayload();
+        set => _params.ReplaceWithPayload(value ?? new GDictionary());
+    }
 
     internal Dictionary<string, object> GetParamsTyped()
     {
@@ -111,15 +116,30 @@ public class BattleTerrainEffectState
 
     internal static GDictionary CopyResidualParams(GDictionary parameters)
     {
-        GDictionary residual = parameters?.Duplicate(true) ?? new GDictionary();
+        GDictionary residual = RuntimePayloadCopy.Dictionary(
+            parameters,
+            "BattleTerrainEffectState.CopyResidualParams"
+        );
+        RemoveFormalParamKeys(residual);
+        return residual;
+    }
+
+    internal static GDictionary CopyResidualParamsForOwnedTransient(GDictionary parameters)
+    {
+        GDictionary residual = parameters != null ? (GDictionary)parameters.Duplicate(true) : new GDictionary();
+        RemoveFormalParamKeys(residual);
+        return residual;
+    }
+
+    private static void RemoveFormalParamKeys(GDictionary residual)
+    {
+        if (residual == null)
+            return;
         foreach (string key in FormalParamKeys)
         {
             if (residual.ContainsKey(key))
-            {
                 residual.Remove(key);
-            }
         }
-        return residual;
     }
 
     internal GDictionary ToDictionary()
@@ -291,7 +311,10 @@ public class BattleTerrainEffectState
 
     private GDictionary BuildParamsProjection()
     {
-        GDictionary projected = @params?.Duplicate(true) ?? new GDictionary();
+        GDictionary projected = RuntimePayloadCopy.Dictionary(
+            @params,
+            "BattleTerrainEffectState.BuildParamsProjection"
+        );
         projected["lifetime_policy"] = lifetime_policy.ToString();
         projected["move_cost_delta"] = move_cost_delta;
         if (render_overlay_id != "")

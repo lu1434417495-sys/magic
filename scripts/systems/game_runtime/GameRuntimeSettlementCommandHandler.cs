@@ -64,9 +64,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     private sealed class SettlementActionValidationResult
     {
+        private readonly RuntimePayloadStore _serviceEntry = new();
         public bool Ok { get; }
         public string Message { get; }
-        internal GDictionary ServiceEntry { get; }
+        internal GDictionary ServiceEntry => _serviceEntry.ProjectPayload();
 
         private SettlementActionValidationResult(
             bool ok,
@@ -76,7 +77,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             Ok = ok;
             Message = message ?? "";
-            ServiceEntry = serviceEntry?.Duplicate(true) ?? new GDictionary();
+            _serviceEntry.ReplaceWithPayload(serviceEntry);
         }
 
         internal static SettlementActionValidationResult Success(GDictionary serviceEntry = null) =>
@@ -120,10 +121,11 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     private sealed class SettlementServiceEntryResolution
     {
-        internal GDictionary ServiceEntry { get; }
+        private readonly RuntimePayloadStore _serviceEntry = new();
+        internal GDictionary ServiceEntry => _serviceEntry.ProjectPayload();
         public bool IsEnabled { get; }
         public string DisabledReason { get; }
-        public bool Found => ServiceEntry.Count != 0;
+        public bool Found => _serviceEntry.Count != 0;
 
         private SettlementServiceEntryResolution(
             GDictionary serviceEntry,
@@ -131,7 +133,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             string disabledReason
         )
         {
-            ServiceEntry = serviceEntry?.Duplicate(true) ?? new GDictionary();
+            _serviceEntry.ReplaceWithPayload(serviceEntry);
             IsEnabled = isEnabled;
             DisabledReason = disabledReason ?? "";
         }
@@ -205,6 +207,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     private sealed class SettlementCommandRollbackSnapshot
     {
+        private readonly RuntimePayloadStore _activeShopContext = new();
+        private readonly RuntimePayloadStore _activeContractBoardContext = new();
+        private readonly RuntimePayloadStore _activeForgeContext = new();
+        private readonly RuntimePayloadStore _activeStagecoachContext = new();
         public RuntimeTransactionRollbackState RuntimeState { get; }
         public RuntimeModalKind ActiveModalKind { get; }
         public string ActiveSettlementId { get; }
@@ -213,10 +219,11 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         public bool SettlementEntryActive { get; }
         public Vector2I SettlementEntrySourceCoord { get; }
         public Vector2I SettlementEntryTargetCoord { get; }
-        internal GDictionary ActiveShopContext { get; }
-        internal GDictionary ActiveContractBoardContext { get; }
-        internal GDictionary ActiveForgeContext { get; }
-        internal GDictionary ActiveStagecoachContext { get; }
+        internal GDictionary ActiveShopContext => _activeShopContext.ProjectPayload();
+        internal GDictionary ActiveContractBoardContext =>
+            _activeContractBoardContext.ProjectPayload();
+        internal GDictionary ActiveForgeContext => _activeForgeContext.ProjectPayload();
+        internal GDictionary ActiveStagecoachContext => _activeStagecoachContext.ProjectPayload();
 
         internal SettlementCommandRollbackSnapshot(
             RuntimeTransactionRollbackState runtimeState,
@@ -241,11 +248,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             SettlementEntryActive = settlementEntryActive;
             SettlementEntrySourceCoord = settlementEntrySourceCoord;
             SettlementEntryTargetCoord = settlementEntryTargetCoord;
-            ActiveShopContext = activeShopContext?.Duplicate(true) ?? new GDictionary();
-            ActiveContractBoardContext =
-                activeContractBoardContext?.Duplicate(true) ?? new GDictionary();
-            ActiveForgeContext = activeForgeContext?.Duplicate(true) ?? new GDictionary();
-            ActiveStagecoachContext = activeStagecoachContext?.Duplicate(true) ?? new GDictionary();
+            _activeShopContext.ReplaceWithPayload(activeShopContext);
+            _activeContractBoardContext.ReplaceWithPayload(activeContractBoardContext);
+            _activeForgeContext.ReplaceWithPayload(activeForgeContext);
+            _activeStagecoachContext.ReplaceWithPayload(activeStagecoachContext);
         }
     }
 
@@ -309,7 +315,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         var entries = new GDictArray();
         foreach (GDictionary entryData in Dictionaries(ReadArray(context, "buy_entries")))
         {
-            GDictionary entry = (GDictionary)entryData.Duplicate(true);
+            GDictionary entry = RuntimePayloadCopy.Dictionary(
+                entryData,
+                "GameRuntimeSettlementCommandHandler.GetShopWindowData.buy_entry"
+            );
             if (!entry.ContainsKey("is_enabled"))
             {
                 entry["is_enabled"] = false;
@@ -318,7 +327,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         }
         foreach (GDictionary entryData in Dictionaries(ReadArray(context, "sell_entries")))
         {
-            GDictionary entry = (GDictionary)entryData.Duplicate(true);
+            GDictionary entry = RuntimePayloadCopy.Dictionary(
+                entryData,
+                "GameRuntimeSettlementCommandHandler.GetShopWindowData.sell_entry"
+            );
             if (!entry.ContainsKey("is_enabled"))
             {
                 entry["is_enabled"] = false;
@@ -331,7 +343,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         context["action_id"] = "shop:trade";
         context["panel_kind"] = SettlementPanelKinds.ToPayloadValue(SettlementPanelKind.Shop);
         context["show_member_selector"] = true;
-        context["party_state"] = GetPartyState();
+        context["party_state"] = GetPartyState()?.ToDictionary() ?? new GDictionary();
         context["member_options"] = _build_member_options();
         context["default_member_id"] = ResolveDefaultSettlementMemberId().ToString();
         return context;
@@ -344,7 +356,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             return new GDictionary();
         }
-        return (GDictionary)context.Duplicate(true);
+        return RuntimePayloadCopy.Dictionary(
+            context,
+            "GameRuntimeSettlementCommandHandler.GetContractBoardWindowData"
+        );
     }
 
     internal GDictionary GetForgeWindowData()
@@ -354,7 +369,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             return new GDictionary();
         }
-        return (GDictionary)context.Duplicate(true);
+        return RuntimePayloadCopy.Dictionary(
+            context,
+            "GameRuntimeSettlementCommandHandler.GetForgeWindowData"
+        );
     }
 
     internal GDictionary GetStagecoachWindowData()
@@ -367,7 +385,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         var entries = new GDictArray();
         foreach (GDictionary entryData in Dictionaries(ReadArray(context, "destinations")))
         {
-            GDictionary entry = (GDictionary)entryData.Duplicate(true);
+            GDictionary entry = RuntimePayloadCopy.Dictionary(
+                entryData,
+                "GameRuntimeSettlementCommandHandler.GetStagecoachWindowData.entry"
+            );
             if (!entry.ContainsKey("is_enabled"))
             {
                 entry["is_enabled"] = false;
@@ -393,7 +414,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         context["empty_state_label"] = "状态：暂无路线";
         context["empty_cost_label"] = "费用：暂无路线";
         context["empty_details_text"] = "当前没有可用路线。";
-        context["party_state"] = GetPartyState();
+        context["party_state"] = GetPartyState()?.ToDictionary() ?? new GDictionary();
         context["member_options"] = _build_member_options();
         context["default_member_id"] = ResolveDefaultSettlementMemberId().ToString();
         return context;
@@ -1277,7 +1298,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         }
         foreach (GDictionary sourceServiceData in Dictionaries(serviceOptions))
         {
-            GDictionary serviceData = (GDictionary)sourceServiceData.Duplicate(true);
+            GDictionary serviceData = RuntimePayloadCopy.Dictionary(
+                sourceServiceData,
+                "GameRuntimeSettlementCommandHandler.ResolveSettlementServiceEntry"
+            );
             if (ReadString(serviceData, "action_id").Trim() != action_id)
             {
                 continue;
@@ -1506,7 +1530,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                     ["facility_name"] = facility_name,
                     ["interaction_script_id"] = ReadString(payload, "interaction_script_id"),
                     ["npc_name"] = npc_name,
-                    ["payload"] = payload.Duplicate(true),
+                    ["payload"] = RuntimePayloadCopy.Dictionary(
+                        payload,
+                        "GameRuntimeSettlementCommandHandler.LowLuckEvent.payload"
+                    ),
                     ["service_type"] = service_type,
                 }
             );
@@ -1825,7 +1852,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             )
         )
         {
-            GDictionary serviceData = (GDictionary)sourceService.Duplicate(true);
+            GDictionary serviceData = RuntimePayloadCopy.Dictionary(
+                sourceService,
+                "GameRuntimeSettlementCommandHandler.BuildServiceEntries"
+            );
             SettlementServiceMetadata metadata = BuildServiceMetadataTyped(
                 settlement,
                 serviceData,
@@ -2464,7 +2494,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         );
         windowData["settlement_id"] = settlement_id;
         windowData["interaction_script_id"] = ReadString(payload, "interaction_script_id");
-        windowData["service_payload"] = payload.Duplicate(true);
+        windowData["service_payload"] = RuntimePayloadCopy.Dictionary(
+            payload,
+            "GameRuntimeSettlementCommandHandler.OpenForgeModal.service_payload"
+        );
         windowData["member_options"] = _build_member_options();
         StringName selectedMemberId = ReadStringName(payload, "member_id");
         if (selectedMemberId == "")
@@ -2534,7 +2567,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             return;
         }
         string settlementId = ReadString(context, "settlement_id");
-        GDictionary nextPayload = (GDictionary)context.Duplicate(true);
+        GDictionary nextPayload = RuntimePayloadCopy.Dictionary(
+            context,
+            "GameRuntimeSettlementCommandHandler.RefreshContractBoard"
+        );
         if (!string.IsNullOrEmpty(feedback_text))
         {
             nextPayload["feedback_text"] = feedback_text;
@@ -2551,7 +2587,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             return;
         }
         string settlementId = ReadString(context, "settlement_id");
-        GDictionary servicePayload = (GDictionary)ReadDictionary(context, "service_payload").Duplicate(true);
+        GDictionary servicePayload = RuntimePayloadCopy.Dictionary(
+            ReadDictionary(context, "service_payload"),
+            "GameRuntimeSettlementCommandHandler.RefreshForge.service_payload"
+        );
         string interactionScriptId = ReadString(context, "interaction_script_id");
         if (string.IsNullOrEmpty(interactionScriptId))
         {
@@ -2909,7 +2948,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         int worldStep = GetWorldStep();
         foreach (GDictionary sourceEventData in Dictionaries(ReadArray(payload, "quest_progress_events")))
         {
-            var eventData = (GDictionary)sourceEventData.Duplicate(true);
+            var eventData = RuntimePayloadCopy.Dictionary(
+                sourceEventData,
+                "GameRuntimeSettlementCommandHandler.ExtractQuestProgressEvents"
+            );
             if (!eventData.ContainsKey("world_step"))
             {
                 eventData["world_step"] = worldStep;

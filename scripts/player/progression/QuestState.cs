@@ -23,7 +23,7 @@ public class QuestState
 
     private static readonly StringName StatusFailed = "failed";
 
-    private static readonly Godot.Collections.Array REQUIRED_SERIALIZED_FIELDS = new()
+    private static readonly string[] REQUIRED_SERIALIZED_FIELDS =
     {
         "quest_id",
         "status_id",
@@ -308,9 +308,9 @@ public class QuestState
 
     private static bool _has_exact_serialized_fields(Godot.Collections.Dictionary payload)
     {
-        if (payload.Count != REQUIRED_SERIALIZED_FIELDS.Count)
+        if (payload.Count != REQUIRED_SERIALIZED_FIELDS.Length)
             return false;
-        foreach (var fn in REQUIRED_SERIALIZED_FIELDS)
+        foreach (string fn in REQUIRED_SERIALIZED_FIELDS)
         {
             if (!payload.ContainsKey(fn))
                 return false;

@@ -340,9 +340,8 @@ internal class BattleRuntimeLootResolver
     private List<BattleLootEntry> _BuildStatusRewardLootEntries()
     {
         var lootEntries = new List<BattleLootEntry>();
-        foreach (var defeatedUnitValue in _GetDefeatedEnemyUnits())
+        foreach (BattleUnitState defeatedUnit in _GetDefeatedEnemyUnits())
         {
-            var defeatedUnit = defeatedUnitValue.As<BattleUnitState>();
             if (_ShouldGrantStatusCalamityShard(defeatedUnit))
             {
                 lootEntries.Add(
@@ -428,18 +427,17 @@ internal class BattleRuntimeLootResolver
     private int _GetDoomSentenceRefundCalamityTotal()
     {
         var refundTotal = 0;
-        foreach (var defeatedUnitValue in _GetDefeatedEnemyUnits())
+        foreach (BattleUnitState defeatedUnit in _GetDefeatedEnemyUnits())
         {
-            var defeatedUnit = defeatedUnitValue.As<BattleUnitState>();
             if (_ShouldGrantBlackCrownCore(defeatedUnit))
                 refundTotal += DoomSentenceRefundCalamity;
         }
         return refundTotal;
     }
 
-    private Godot.Collections.Array _GetDefeatedEnemyUnits()
+    private List<BattleUnitState> _GetDefeatedEnemyUnits()
     {
-        var defeatedUnits = new Godot.Collections.Array();
+        var defeatedUnits = new List<BattleUnitState>();
         if (_runtime == null)
             return defeatedUnits;
         var state = _runtime._state;

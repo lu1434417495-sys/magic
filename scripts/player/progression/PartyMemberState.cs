@@ -1,10 +1,9 @@
 using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class PartyMemberState : RefCounted
+public partial class PartyMemberState
 {
-    private static readonly Godot.Collections.Array<string> TO_DICT_FIELDS = new()
+    private static readonly string[] TO_DICT_FIELDS =
     {
         "member_id",
         "display_name",
@@ -71,7 +70,7 @@ public partial class PartyMemberState : RefCounted
     public int body_size { get; internal set; } = 2;
     public StringName body_size_category { get; internal set; } = "medium";
     public StringName versatility_pick { get; internal set; } = "";
-    public Godot.Collections.Array<StringName> active_stage_advancement_modifier_ids { get; internal set; } = new();
+    public StringNameList active_stage_advancement_modifier_ids { get; internal set; } = new();
     public StringName bloodline_id { get; internal set; } = "";
     public StringName bloodline_stage_id { get; internal set; } = "";
     public StringName ascension_id { get; internal set; } = "";
@@ -84,7 +83,7 @@ public partial class PartyMemberState : RefCounted
 
     public PartyMemberState()
     {
-        RuntimeStateLifecycle.MarkFinalizerless(this, GetType().Name);
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(this, GetType().Name);
         progression = new UnitProgress();
     }
 
@@ -170,7 +169,7 @@ public partial class PartyMemberState : RefCounted
             body_size_category = body_size_category,
             versatility_pick = versatility_pick,
             active_stage_advancement_modifier_ids =
-                new Godot.Collections.Array<StringName>(active_stage_advancement_modifier_ids),
+                active_stage_advancement_modifier_ids?.Duplicate() ?? new StringNameList(),
             bloodline_id = bloodline_id,
             bloodline_stage_id = bloodline_stage_id,
             ascension_id = ascension_id,
@@ -337,7 +336,7 @@ public partial class PartyMemberState : RefCounted
 
     public void SetActiveStageAdvancementModifierIds(IEnumerable<StringName> modifierIds)
     {
-        active_stage_advancement_modifier_ids = new Godot.Collections.Array<StringName>();
+        active_stage_advancement_modifier_ids = new StringNameList();
         if (modifierIds == null)
             return;
 
@@ -446,6 +445,27 @@ public partial class PartyMemberState : RefCounted
             { "trait_instances", TraitInstanceCollection.ToPayloadArray(trait_instances) },
             { "contingency_matrix_setups", ContingencySetupsToPayloadArray() },
         };
+    }
+
+    internal static bool TryReadMemberPayload(object rawValue, out PartyMemberState value)
+    {
+        value = null;
+        switch (rawValue)
+        {
+            case null:
+                return false;
+            case PartyMemberState member:
+                value = member;
+                return value != null;
+            case Variant variantValue when variantValue.VariantType == Variant.Type.Dictionary:
+                value = FromDictionary(variantValue.AsGodotDictionary());
+                return value != null;
+            case Godot.Collections.Dictionary payload:
+                value = FromDictionary(payload);
+                return value != null;
+            default:
+                return false;
+        }
     }
 
     public static PartyMemberState FromDictionary(Godot.Collections.Dictionary data)
@@ -717,11 +737,11 @@ public partial class PartyMemberState : RefCounted
         return p;
     }
 
-    private static Godot.Collections.Array<StringName> _parse_unique_string_name_array(
+    private static StringNameList _parse_unique_string_name_array(
         Godot.Collections.Array a
     )
     {
-        var r = new Godot.Collections.Array<StringName>();
+        var r = new StringNameList();
         var s = new Godot.Collections.Dictionary();
         foreach (var raw in a)
         {
@@ -736,7 +756,7 @@ public partial class PartyMemberState : RefCounted
 
     private static bool _has_exact_fields(
         Godot.Collections.Dictionary d,
-        Godot.Collections.Array<string> e
+        IReadOnlyCollection<string> e
     )
     {
         if (d.Count != e.Count)

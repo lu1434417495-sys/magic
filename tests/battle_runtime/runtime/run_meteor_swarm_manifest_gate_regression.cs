@@ -271,7 +271,10 @@ public partial class run_meteor_swarm_manifest_gate_regression : SceneTree
 
     private MeteorSwarmProfile DuplicateProfile(Resource profileResource, string preconditionLabel)
     {
-        var profile = (profileResource as MeteorSwarmProfile)?.Duplicate(true) as MeteorSwarmProfile;
+        var profile = TestResourceOwnership.Own(
+            (profileResource as MeteorSwarmProfile)?.Duplicate(true) as MeteorSwarmProfile,
+            $"meteor_swarm_manifest_gate.duplicate_profile.{preconditionLabel}"
+        );
         _test.True(profile != null, $"{preconditionLabel}：profile 应能 duplicate。");
         return profile;
     }
