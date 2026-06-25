@@ -902,6 +902,8 @@ public sealed class CombatEffectDefinition
         StringName saveFailureStatusId,
         StringName terrainEffectId,
         int heightDelta,
+        bool requiresWeapon,
+        StringName forcedMoveMode,
         int minSkillLevel,
         int maxSkillLevel
     )
@@ -912,6 +914,8 @@ public sealed class CombatEffectDefinition
         SaveFailureStatusId = saveFailureStatusId;
         TerrainEffectId = terrainEffectId;
         HeightDelta = heightDelta;
+        RequiresWeapon = requiresWeapon;
+        ForcedMoveMode = forcedMoveMode;
         MinSkillLevel = minSkillLevel;
         MaxSkillLevel = maxSkillLevel;
     }
@@ -922,9 +926,13 @@ public sealed class CombatEffectDefinition
     public StringName SaveFailureStatusId { get; }
     public StringName TerrainEffectId { get; }
     public int HeightDelta { get; }
+    public bool RequiresWeapon { get; }
+    public StringName ForcedMoveMode { get; }
     public int MinSkillLevel { get; }
     public int MaxSkillLevel { get; }
     internal BattleEffectKind EffectKind => BattleTypedNames.ToEffectKind(EffectType);
+    internal BattleForcedMoveMode ForcedMoveModeKind =>
+        BattleTypedNames.ToForcedMoveMode(ForcedMoveMode);
 
     internal static CombatEffectDefinition FromResource(CombatEffectDef source)
     {
@@ -937,6 +945,8 @@ public sealed class CombatEffectDefinition
                 source.save_failure_status_id,
                 source.terrain_effect_id,
                 source.height_delta,
+                source.requires_weapon,
+                source.forced_move_mode,
                 source.min_skill_level,
                 source.max_skill_level
             );

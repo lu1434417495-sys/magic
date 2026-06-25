@@ -33,7 +33,7 @@ public partial class run_battle_range_service_contract_regression : SceneTree
         skill.combat_profile = null;
 
         _test.Eq(
-            BattleRangeService.ResolveBaseSkillRange(unit, null),
+            BattleRangeService.ResolveBaseSkillRange(unit, (SkillDef)null),
             0,
             "ResolveBaseSkillRange 直接收到 null skillDef 时应返回 0。"
         );
@@ -49,6 +49,7 @@ public partial class run_battle_range_service_contract_regression : SceneTree
         SkillDef skill = BuildDirectDamageSkill("range_layer_contract", 1);
         skill.tags = new GStringNameArray { "archer", "bow" };
         skill.combat_profile.range_value = 99;
+        SkillDefinition skillDefinition = SkillDefinition.FromResource(skill);
 
         BattleUnitState archer = BuildUnit("range_layer_archer");
         archer.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.WeaponAttackRange), 8);
@@ -64,6 +65,11 @@ public partial class run_battle_range_service_contract_regression : SceneTree
             BattleRangeService.GetEffectiveSkillRange(archer, skill),
             2,
             "有效射程应读取 BattleUnitState.weapon_attack_range，而不是 attribute_snapshot 或技能 range_value。"
+        );
+        _test.Eq(
+            BattleRangeService.GetEffectiveSkillRange(archer, skillDefinition),
+            2,
+            "DTO 有效射程应读取 BattleUnitState.weapon_attack_range，而不是 attribute_snapshot 或技能 range_value。"
         );
 
         archer.SetStatusEffect(
@@ -81,6 +87,11 @@ public partial class run_battle_range_service_contract_regression : SceneTree
             BattleRangeService.GetEffectiveSkillRange(archer, skill),
             3,
             "状态提供的射程修正应只在有效射程读取层叠加。"
+        );
+        _test.Eq(
+            BattleRangeService.GetEffectiveSkillRange(archer, skillDefinition),
+            3,
+            "DTO 状态提供的射程修正应只在有效射程读取层叠加。"
         );
         _test.Eq(
             archer.weapon_attack_range,
@@ -103,6 +114,7 @@ public partial class run_battle_range_service_contract_regression : SceneTree
         BattleUnitState caster = BuildUnit("ground_outer_reach_caster");
         caster.known_active_skill_ids = new GStringNameArray { skill.skill_id };
         caster.known_skill_level_map[skill.skill_id] = 7;
+        SkillDefinition skillDefinition = SkillDefinition.FromResource(skill);
 
         _test.Eq(
             BattleRangeService.GetEffectiveSkillRange(caster, skill),
@@ -110,9 +122,19 @@ public partial class run_battle_range_service_contract_regression : SceneTree
             "合法施法锚点距离仍应保持配置射程。"
         );
         _test.Eq(
+            BattleRangeService.GetEffectiveSkillRange(caster, skillDefinition),
+            1,
+            "DTO 合法施法锚点距离仍应保持配置射程。"
+        );
+        _test.Eq(
             BattleRangeService.GetEffectiveSkillThreatRange(caster, skill),
             7,
             "AI 战术威胁距离应计入地面范围技能的外缘覆盖。"
+        );
+        _test.Eq(
+            BattleRangeService.GetEffectiveSkillThreatRange(caster, skillDefinition),
+            7,
+            "DTO AI 战术威胁距离应计入地面范围技能的外缘覆盖。"
         );
 
         AssertGroundRanges(
@@ -182,15 +204,26 @@ public partial class run_battle_range_service_contract_regression : SceneTree
     )
     {
         SkillDef skill = BuildGroundSkill(skillId, areaPattern, areaValue);
+        SkillDefinition skillDefinition = SkillDefinition.FromResource(skill);
         _test.Eq(
             BattleRangeService.GetEffectiveSkillThreatRange(caster, skill),
             expectedThreatRange,
             $"{label} 威胁距离应按实际外缘覆盖计算。"
         );
         _test.Eq(
+            BattleRangeService.GetEffectiveSkillThreatRange(caster, skillDefinition),
+            expectedThreatRange,
+            $"{label} DTO 威胁距离应按实际外缘覆盖计算。"
+        );
+        _test.Eq(
             BattleRangeService.GetEffectiveSkillDistanceContractRange(caster, skill),
             expectedDistanceContractRange,
             $"{label} 距离合同应按 AI 站位外缘合同计算。"
+        );
+        _test.Eq(
+            BattleRangeService.GetEffectiveSkillDistanceContractRange(caster, skillDefinition),
+            expectedDistanceContractRange,
+            $"{label} DTO 距离合同应按 AI 站位外缘合同计算。"
         );
     }
 
