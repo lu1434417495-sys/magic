@@ -184,7 +184,7 @@ public partial class BattleUnitState
     public StringName source_member_id = "";
     public StringName enemy_template_id = "";
     public string display_name = "";
-    public Texture2D battle_sprite_texture;
+    public string battle_sprite_texture_path = "";
     public StringName faction_id = "";
     public StringName control_mode = "manual";
     public StringName ai_brain_id = "";
@@ -269,7 +269,6 @@ public partial class BattleUnitState
 
     public BattleUnitState()
     {
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(this, GetType().Name);
         RefreshFootprint();
     }
 

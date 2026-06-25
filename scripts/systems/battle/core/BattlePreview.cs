@@ -14,11 +14,6 @@ public class BattlePreview
     private BattleDamagePreviewRangeService.SkillDamagePreview? _damagePreview;
     private BattleFatePreviewData _fatePreview;
 
-    public BattlePreview()
-    {
-        RegisterRuntimeWrappers("BattlePreview");
-    }
-
     public bool allowed { get; set; } = false;
     public GArray log_lines
     {
@@ -217,8 +212,6 @@ public class BattlePreview
     {
         _saveBranchPreview.Clear();
     }
-
-    private void RegisterRuntimeWrappers(string reason) { }
 
     private static BattleDamagePreviewRangeService.SkillDamagePreview? DecodeDamagePreview(
         GDictionary value

@@ -83,7 +83,6 @@ public partial class PartyMemberState
 
     public PartyMemberState()
     {
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(this, GetType().Name);
         progression = new UnitProgress();
     }
 
@@ -742,13 +741,12 @@ public partial class PartyMemberState
     )
     {
         var r = new StringNameList();
-        var s = new Godot.Collections.Dictionary();
+        var s = new HashSet<StringName>();
         foreach (var raw in a)
         {
             var p = _parse_string_name_field(raw, false, out bool o);
-            if (!o || s.ContainsKey(p))
+            if (!o || !s.Add(p))
                 return null;
-            s[p] = true;
             r.Add(p);
         }
         return r;
@@ -761,23 +759,15 @@ public partial class PartyMemberState
     {
         if (d.Count != e.Count)
             return false;
-        var el = new Godot.Collections.Dictionary();
-        foreach (string fn in e)
-            el[fn] = true;
+        HashSet<string> remainingFields = new(e);
         foreach (var k in d.Keys)
         {
             if (!TryAsStringLike(k, out string ks))
                 return false;
-            if (!el.ContainsKey(ks))
-                return false;
-            if ((bool)el[ks])
-            {
-                el[ks] = false;
-            }
-            else
+            if (!remainingFields.Remove(ks))
                 return false;
         }
-        return true;
+        return remainingFields.Count == 0;
     }
 
     private static bool TryGetStrictString(

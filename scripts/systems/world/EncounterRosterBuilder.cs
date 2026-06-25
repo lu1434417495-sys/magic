@@ -576,7 +576,7 @@ public sealed class EncounterRosterBuilder : IDisposable
                     resolvedUnitCount,
                     useNumericSuffix
                 ),
-                battle_sprite_texture = template != null ? template.battle_sprite_texture : null,
+                battle_sprite_texture_path = GetTextureResourcePath(template?.battle_sprite_texture),
                 faction_id =
                     encounterAnchor != null && encounterAnchor.faction_id != ""
                         ? encounterAnchor.faction_id
@@ -1227,6 +1227,12 @@ public sealed class EncounterRosterBuilder : IDisposable
             return fallback;
         }
         return value.ToString();
+    }
+
+    private static string GetTextureResourcePath(Texture2D texture)
+    {
+        string path = texture?.ResourcePath ?? "";
+        return string.IsNullOrEmpty(path) ? "" : path;
     }
 
     private static IEnumerable<T> Objects<T>(GArray values)

@@ -467,9 +467,10 @@ public class BattleBoardController
         token.SetMeta("sort_anchor_y", anchor.Y);
         token.SetMeta("sort_depth", renderDepth);
         token.SetMeta("board_coord", unit_state.coord);
-        if (unit_state.battle_sprite_texture != null)
+        Texture2D spriteTexture = _resolve_unit_sprite_texture(unit_state);
+        if (spriteTexture != null)
         {
-            _attach_unit_sprite_visuals(token, unit_state);
+            _attach_unit_sprite_visuals(token, unit_state, spriteTexture);
         }
         else
         {
@@ -503,7 +504,7 @@ public class BattleBoardController
             token.AddChild(outline);
         }
         if (
-            unit_state.battle_sprite_texture == null
+            spriteTexture == null
             && _battle_state != null
             && unit_state.unit_id == _battle_state.active_unit_id
         )
@@ -549,9 +550,13 @@ public class BattleBoardController
         return token;
     }
 
-    private void _attach_unit_sprite_visuals(Node2D token, BattleUnitState unit_state)
+    private void _attach_unit_sprite_visuals(
+        Node2D token,
+        BattleUnitState unit_state,
+        Texture2D spriteTexture
+    )
     {
-        if (token == null || unit_state == null || unit_state.battle_sprite_texture == null)
+        if (token == null || unit_state == null || spriteTexture == null)
             return;
         float groundY = -_get_unit_anchor_bias().Y;
         var shadow = new Polygon2D
@@ -577,7 +582,7 @@ public class BattleBoardController
             };
             token.AddChild(highlight);
         }
-        Vector2 textureSize = unit_state.battle_sprite_texture.GetSize();
+        Vector2 textureSize = spriteTexture.GetSize();
         if (textureSize.X <= 0.0f || textureSize.Y <= 0.0f)
             return;
         Vector2I tileSize = _get_board_tile_size();
@@ -586,7 +591,7 @@ public class BattleBoardController
         var sprite = new Sprite2D
         {
             Name = "UnitSprite",
-            Texture = unit_state.battle_sprite_texture,
+            Texture = spriteTexture,
             Centered = true,
             Scale = Vector2.One * spriteScale,
             Position = new Vector2(
@@ -596,6 +601,12 @@ public class BattleBoardController
             ZIndex = 0,
         };
         token.AddChild(sprite);
+    }
+
+    private Texture2D _resolve_unit_sprite_texture(BattleUnitState unitState)
+    {
+        string path = unitState?.battle_sprite_texture_path ?? "";
+        return string.IsNullOrEmpty(path) ? null : _load_texture_from_png(path);
     }
 
     private Vector2[] _build_unit_ellipse_polygon(Vector2 half_size)

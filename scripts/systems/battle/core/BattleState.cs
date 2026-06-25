@@ -918,7 +918,7 @@ public partial class BattleState
 
         attacker.RefreshFootprint();
 
-        var adjacentEnemyIds = new Godot.Collections.Dictionary();
+        var adjacentEnemyIds = new HashSet<StringName>();
 
         foreach (BattleUnitState c in GetUnitsTyped())
         {
@@ -926,7 +926,7 @@ public partial class BattleState
                 continue;
             c.RefreshFootprint();
             if (_are_units_adjacent(attacker, c))
-                adjacentEnemyIds[c.unit_id] = true;
+                adjacentEnemyIds.Add(c.unit_id);
         }
 
         return adjacentEnemyIds.Count;
@@ -937,7 +937,7 @@ public partial class BattleState
         if (!attacker.IsValid)
             return 0;
 
-        var adjacentEnemyIds = new Godot.Collections.Dictionary();
+        var adjacentEnemyIds = new HashSet<StringName>();
 
         foreach (BattleUnitState candidateState in GetUnitsTyped())
         {
@@ -945,7 +945,7 @@ public partial class BattleState
             if (!_is_enemy_unit(attacker, candidate))
                 continue;
             if (_are_units_adjacent(attacker, candidate))
-                adjacentEnemyIds[candidate.UnitId] = true;
+                adjacentEnemyIds.Add(candidate.UnitId);
         }
 
         return adjacentEnemyIds.Count;
