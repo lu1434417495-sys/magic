@@ -31,7 +31,7 @@ public partial class run_battle_ai_query_service_regression : SceneTree
             fixture.State,
             fixture.GridService,
             fixture.Actor.unit_id,
-            fixture.SkillDefs,
+            fixture.SkillDefinitions,
             (service, actionKind, actionLabel, scoreBucketId, command, preview, metadata) =>
             {
                 callbackCalled = service == query;
@@ -123,6 +123,7 @@ public partial class run_battle_ai_query_service_regression : SceneTree
 
         SkillDef skill = BuildSkill();
         var skillDefs = new Dictionary<StringName, SkillDef> { [skill.skill_id] = skill };
+        var skillDefinitions = SkillDefinition.ProjectIndex(skillDefs);
 
         return new Fixture
         {
@@ -132,6 +133,7 @@ public partial class run_battle_ai_query_service_regression : SceneTree
             Target = target,
             Skill = skill,
             SkillDefs = skillDefs,
+            SkillDefinitions = new Dictionary<StringName, SkillDefinition>(skillDefinitions),
         };
     }
 
@@ -248,5 +250,6 @@ public partial class run_battle_ai_query_service_regression : SceneTree
         public BattleUnitState Target;
         public SkillDef Skill;
         public Dictionary<StringName, SkillDef> SkillDefs;
+        public Dictionary<StringName, SkillDefinition> SkillDefinitions;
     }
 }

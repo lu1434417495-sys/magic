@@ -22,7 +22,7 @@ internal sealed class BattleAiQueryService
     private readonly Dictionary<StringName, BattleAiUnitSnapshot> _snapshotCache = new();
     private readonly Dictionary<StringName, List<BattleAiUnitSnapshot>> _livingSnapshotCache = new();
     private Dictionary<StringName, SkillRecord> _skillRecords = new();
-    private IReadOnlyDictionary<StringName, SkillDef> _cachedSkillDefs;
+    private IReadOnlyDictionary<StringName, SkillDefinition> _cachedSkillDefinitions;
     private ISkillCatalog _skillCatalog;
     private ISkillCatalog _cachedSkillCatalog;
     private long _cachedSkillCatalogRevision = long.MinValue;
@@ -59,6 +59,40 @@ internal sealed class BattleAiQueryService
         ISkillCatalog skillCatalog = null
     )
     {
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            ResolveSkillDefinitions(skillDefs, skillCatalog);
+        Setup(
+            state,
+            gridService,
+            actorUnitId,
+            skillDefinitions,
+            actionScoreInputCallback,
+            movementQueryService,
+            movementBlockedCallback,
+            skillCatalog
+        );
+    }
+
+    internal void Setup(
+        BattleState state,
+        BattleGridService gridService,
+        StringName actorUnitId,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        Func<
+            BattleAiQueryService,
+            StringName,
+            string,
+            StringName,
+            BattleCommand,
+            BattlePreview,
+            IReadOnlyDictionary<string, object>,
+            BattleAiScoreInput
+        > actionScoreInputCallback,
+        BattleMovementQueryService movementQueryService,
+        Func<StringName, bool> movementBlockedCallback = null,
+        ISkillCatalog skillCatalog = null
+    )
+    {
         _state = state;
         _gridService = gridService;
         _actorUnitId = ProgressionDataUtils.to_string_name(actorUnitId);
@@ -73,9 +107,9 @@ internal sealed class BattleAiQueryService
         _livingSnapshotCache.Clear();
         _distanceFromAnchorToTargetCache.Clear();
         AiTraceRecorder.Exit("query_setup:clear_decision_caches");
-        if (!ReferenceEquals(_cachedSkillDefs, skillDefs))
+        if (!ReferenceEquals(_cachedSkillDefinitions, skillDefinitions))
         {
-            _cachedSkillDefs = skillDefs;
+            _cachedSkillDefinitions = skillDefinitions;
             _skillRecordCache.Clear();
         }
         long skillCatalogRevision = skillCatalog?.GetRevision() ?? long.MinValue;
@@ -89,7 +123,7 @@ internal sealed class BattleAiQueryService
             _skillRecordCache.Clear();
         }
         AiTraceRecorder.Enter("query_setup:skill_records");
-        _skillRecords = GetCachedSkillRecords(skillDefs);
+        _skillRecords = GetCachedSkillRecords(skillDefinitions);
         AiTraceRecorder.Exit("query_setup:skill_records");
     }
 
@@ -113,6 +147,26 @@ internal sealed class BattleAiQueryService
         );
     }
 
+    internal void SetupReadOnly(
+        BattleState state,
+        BattleGridService gridService,
+        StringName actorUnitId,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        ISkillCatalog skillCatalog = null
+    )
+    {
+        Setup(
+            state,
+            gridService,
+            actorUnitId,
+            skillDefinitions,
+            null,
+            null,
+            null,
+            skillCatalog
+        );
+    }
+
     internal void ClearRuntimeBindings()
     {
         _state = null;
@@ -124,7 +178,7 @@ internal sealed class BattleAiQueryService
         _snapshotCache.Clear();
         _livingSnapshotCache.Clear();
         _skillRecords = new Dictionary<StringName, SkillRecord>();
-        _cachedSkillDefs = null;
+        _cachedSkillDefinitions = null;
         _skillCatalog = null;
         _cachedSkillCatalog = null;
         _cachedSkillCatalogRevision = long.MinValue;
@@ -244,18 +298,24 @@ internal sealed class BattleAiQueryService
         {
             return record != null;
         }
-        if (_cachedSkillDefs == null || !_cachedSkillDefs.TryGetValue(normalized, out SkillDef skillDef))
+        if (
+            _cachedSkillDefinitions == null
+            || !_cachedSkillDefinitions.TryGetValue(
+                normalized,
+                out SkillDefinition skillDefinition
+            )
+        )
         {
             record = null;
             return false;
         }
-        if (skillDef == null)
+        if (skillDefinition == null)
         {
-            FailLoud($"BattleAiQueryService received invalid SkillDef for {normalized}.");
+            FailLoud($"BattleAiQueryService received invalid SkillDefinition for {normalized}.");
             record = null;
             return false;
         }
-        record = ExtractSkillRecord(skillDef);
+        record = ExtractSkillRecord(skillDefinition);
         _skillRecords[normalized] = record;
         return record != null;
     }
@@ -362,11 +422,11 @@ internal sealed class BattleAiQueryService
     }
 
     private Dictionary<StringName, SkillRecord> GetCachedSkillRecords(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
         AiTraceRecorder.Enter("query_setup:skill_record_key");
-        SkillRecordCacheKey cacheKey = BuildSkillRecordCacheKey(skillDefs);
+        SkillRecordCacheKey cacheKey = BuildSkillRecordCacheKey(skillDefinitions);
         AiTraceRecorder.Exit("query_setup:skill_record_key");
         if (_skillRecordCache.TryGetValue(cacheKey, out Dictionary<StringName, SkillRecord> cached))
         {
@@ -382,12 +442,14 @@ internal sealed class BattleAiQueryService
         return records;
     }
 
-    private SkillRecordCacheKey BuildSkillRecordCacheKey(IReadOnlyDictionary<StringName, SkillDef> skillDefs)
+    private SkillRecordCacheKey BuildSkillRecordCacheKey(
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
+    )
     {
         BattleUnitState actor = GetLiveUnit(_actorUnitId);
         if (actor == null)
         {
-            return new SkillRecordCacheKey(0, skillDefs?.Count ?? 0);
+            return new SkillRecordCacheKey(0, skillDefinitions?.Count ?? 0);
         }
 
         unchecked
@@ -449,7 +511,7 @@ internal sealed class BattleAiQueryService
                 hash = Mix(hash, rangeBonus);
             }
 
-            return new SkillRecordCacheKey(hash, skillDefs?.Count ?? 0);
+            return new SkillRecordCacheKey(hash, skillDefinitions?.Count ?? 0);
         }
     }
 
@@ -467,53 +529,87 @@ internal sealed class BattleAiQueryService
         return IsEmpty(normalized) ? 0 : normalized.GetHashCode();
     }
 
-    private SkillRecord ExtractSkillRecord(SkillDef skillDef)
+    private static IReadOnlyDictionary<StringName, SkillDefinition> ResolveSkillDefinitions(
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        ISkillCatalog skillCatalog
+    )
     {
-        var combat = skillDef.combat_profile as CombatSkillDef;
+        IReadOnlyDictionary<StringName, SkillDefinition> catalogDefinitions =
+            skillCatalog?.GetSkillDefinitionsTyped();
+        if (catalogDefinitions != null && catalogDefinitions.Count > 0)
+        {
+            return catalogDefinitions;
+        }
+        return SkillDefinition.ProjectIndex(skillDefs);
+    }
+
+    private SkillEffectiveCombatDefinition ResolveEffectiveDefinition(
+        SkillDefinition skillDefinition,
+        int skillLevel
+    )
+    {
+        if (
+            _skillCatalog != null
+            && skillDefinition != null
+            && !IsEmpty(skillDefinition.SkillId)
+        )
+        {
+            return _skillCatalog.GetEffectiveCombatDefinition(skillDefinition.SkillId, skillLevel);
+        }
+        return SkillEffectiveCombatDefinition.BuildUncached(skillDefinition, skillLevel);
+    }
+
+    private SkillRecord ExtractSkillRecord(SkillDefinition skillDefinition)
+    {
+        CombatSkillDefinition combat = skillDefinition.CombatProfile;
         BattleUnitState actor = GetLiveUnit(_actorUnitId);
-        int skillLevel = actor != null ? GetUnitSkillLevel(actor, skillDef.skill_id) : 0;
-        SkillEffectiveCombatProfile effectiveProfile =
-            SkillEffectiveCombatProfileResolver.Resolve(_skillCatalog, skillDef, skillLevel);
+        int skillLevel = actor != null ? GetUnitSkillLevel(actor, skillDefinition.SkillId) : 0;
+        SkillEffectiveCombatDefinition effectiveDefinition =
+            ResolveEffectiveDefinition(skillDefinition, skillLevel);
         var record = new SkillRecord
         {
-            skill_id = ProgressionDataUtils.to_string_name(skillDef.skill_id),
-            display_name = skillDef.display_name,
-            skill_type = ProgressionDataUtils.to_string_name(skillDef.skill_type),
-            icon_id = ProgressionDataUtils.to_string_name(skillDef.icon_id),
+            skill_id = ProgressionDataUtils.to_string_name(skillDefinition.SkillId),
+            display_name = skillDefinition.DisplayName,
+            skill_type = ProgressionDataUtils.to_string_name(skillDefinition.SkillType),
+            icon_id = ProgressionDataUtils.to_string_name(skillDefinition.IconId),
             target_mode = combat != null ? combat.TargetModeKind : BattleTargetMode.Unknown,
             target_team_filter =
                 combat != null ? combat.TargetFilterKind : BattleTargetFilter.Unknown,
             range_pattern = ProgressionDataUtils.to_string_name(
-                combat != null ? combat.range_pattern : new StringName("")
+                combat != null ? combat.RangePattern : new StringName("")
             ),
-            range_value = effectiveProfile.RangeValue,
+            range_value = effectiveDefinition.RangeValue,
             actor_effective_cast_range =
                 actor != null
-                    ? BattleRangeService.GetEffectiveSkillRange(actor, skillDef, _skillCatalog)
+                    ? BattleRangeService.GetEffectiveSkillRange(
+                        actor,
+                        skillDefinition,
+                        _skillCatalog
+                    )
                     : 0,
             actor_effective_range =
                 actor != null
                     ? BattleRangeService.GetEffectiveSkillThreatRange(
                         actor,
-                        skillDef,
+                        skillDefinition,
                         _skillCatalog
                     )
                     : 0,
             area_pattern = BattleTypedNames.ToAreaPattern(
-                effectiveProfile.AreaPattern
+                effectiveDefinition.AreaPattern
             ),
-            area_value = effectiveProfile.AreaValue,
+            area_value = effectiveDefinition.AreaValue,
             target_selection_mode =
                 combat != null
                     ? combat.TargetSelectionModeKind
                     : BattleTargetSelectionMode.Unknown,
-            min_target_count = combat != null ? combat.min_target_count : 0,
-            max_target_count = effectiveProfile.MaxTargetCount,
-            ai_tags = CopyStringNameList(combat?.ai_tags),
-            delivery_categories = CopyStringNameList(combat?.delivery_categories),
-            required_weapon_families = CopyStringNameList(combat?.required_weapon_families),
-            excluded_weapon_families = CopyStringNameList(combat?.excluded_weapon_families),
-            excluded_weapon_type_ids = CopyStringNameList(combat?.excluded_weapon_type_ids),
+            min_target_count = combat != null ? combat.MinTargetCount : 0,
+            max_target_count = effectiveDefinition.MaxTargetCount,
+            ai_tags = CopyStringNameList(combat?.AiTags),
+            delivery_categories = CopyStringNameList(combat?.DeliveryCategories),
+            required_weapon_families = CopyStringNameList(combat?.RequiredWeaponFamilies),
+            excluded_weapon_families = CopyStringNameList(combat?.ExcludedWeaponFamilies),
+            excluded_weapon_type_ids = CopyStringNameList(combat?.ExcludedWeaponTypeIds),
         };
         return record;
     }
@@ -552,9 +648,7 @@ internal sealed class BattleAiQueryService
         return state.TryGetUnitTyped(normalized, out unitState);
     }
 
-    private static List<StringName> CopyStringNameList(
-        Godot.Collections.Array<StringName> source
-    )
+    private static List<StringName> CopyStringNameList(IEnumerable<StringName> source)
     {
         var result = new List<StringName>();
         if (source == null)
