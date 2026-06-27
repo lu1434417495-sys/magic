@@ -5,9 +5,14 @@ using GDictionary = Godot.Collections.Dictionary;
 
 internal sealed class BattleStatusEffectParams
 {
-    private readonly RuntimePayloadStore _residualSavePayload = new();
+    private readonly Dictionary<string, object> _residualSavePayload =
+        new(System.StringComparer.Ordinal);
 
-    public GDictionary ResidualSavePayload => _residualSavePayload.ProjectPayload();
+    public GDictionary ResidualSavePayload =>
+        RuntimePlainPayload.ProjectDictionary(
+            _residualSavePayload,
+            "BattleStatusEffectParams.ResidualSavePayload"
+        );
     public double? IncomingDamageMultiplier { get; private init; }
     public double? OutgoingDamageMultiplier { get; private init; }
     public StringName SourceProfileId { get; private init; } = "";
@@ -103,7 +108,16 @@ internal sealed class BattleStatusEffectParams
             StatusTags = ReadStringNameListParam(parameters, "status_tags"),
             SaveBonusByTag = ReadStringNameIntMapParam(parameters, "save_bonus_by_tag"),
         };
-        result._residualSavePayload.ReplaceWithPayload(BattleStatusEffectState.CopyResidualParams(parameters));
+        foreach (
+            KeyValuePair<string, object> entry in RuntimePlainPayload.NormalizeDictionary(
+                BattleStatusEffectState.CopyResidualParams(parameters),
+                "BattleStatusEffectParams.ResidualSavePayload"
+            )
+        )
+        {
+            if (!string.IsNullOrEmpty(entry.Key))
+                result._residualSavePayload[entry.Key] = entry.Value;
+        }
         return result;
     }
 

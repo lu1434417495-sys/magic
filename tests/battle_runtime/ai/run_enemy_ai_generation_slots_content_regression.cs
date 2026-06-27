@@ -1,8 +1,8 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_enemy_ai_generation_slots_content_regression : SceneTree
@@ -56,7 +56,7 @@ public partial class run_enemy_ai_generation_slots_content_regression : SceneTre
 
                 GStringArray stateErrors = stateDef.ValidateSchema(
                     brain.brain_id,
-                    CollectDeclaredSkillDefs(stateDef)
+                    CollectDeclaredSkillDefinitions(stateDef)
                 );
                 _test.True(
                     stateErrors.Count == 0,
@@ -106,7 +106,7 @@ public partial class run_enemy_ai_generation_slots_content_regression : SceneTre
                 brain.transition_rules != null && brain.transition_rules.Count > 0,
                 $"{brainPath} 应声明 transition_rules。"
             );
-            GStringArray brainErrors = brain.ValidateSchema(CollectDeclaredSkillDefsForBrain(brain));
+            GStringArray brainErrors = brain.ValidateSchema(CollectDeclaredSkillDefinitionsForBrain(brain));
             _test.True(
                 brainErrors.Count == 0,
                 $"{brainPath} transition/full schema 应合法: {FormatErrors(brainErrors)}"
@@ -114,12 +114,14 @@ public partial class run_enemy_ai_generation_slots_content_regression : SceneTre
         }
     }
 
-    private static GDictionary CollectDeclaredSkillDefs(EnemyAiStateDef stateDef)
+    private static Dictionary<StringName, SkillDefinition> CollectDeclaredSkillDefinitions(
+        EnemyAiStateDef stateDef
+    )
     {
-        var skillDefs = new GDictionary();
+        var skillDefinitions = new Dictionary<StringName, SkillDefinition>();
         if (stateDef == null)
         {
-            return skillDefs;
+            return skillDefinitions;
         }
         foreach (EnemyAiAction action in stateDef.GetTypedActions())
         {
@@ -129,27 +131,29 @@ public partial class run_enemy_ai_generation_slots_content_regression : SceneTre
             }
             foreach (StringName skillId in action.GetDeclaredSkillIds())
             {
-                skillDefs[skillId] = true;
+                skillDefinitions[skillId] = null;
             }
         }
-        return skillDefs;
+        return skillDefinitions;
     }
 
-    private static GDictionary CollectDeclaredSkillDefsForBrain(EnemyAiBrainDef brain)
+    private static Dictionary<StringName, SkillDefinition> CollectDeclaredSkillDefinitionsForBrain(
+        EnemyAiBrainDef brain
+    )
     {
-        var skillDefs = new GDictionary();
+        var skillDefinitions = new Dictionary<StringName, SkillDefinition>();
         if (brain == null)
         {
-            return skillDefs;
+            return skillDefinitions;
         }
         foreach (EnemyAiStateDef stateDef in brain.GetResolvedStates())
         {
-            foreach (Variant key in CollectDeclaredSkillDefs(stateDef).Keys)
+            foreach (StringName key in CollectDeclaredSkillDefinitions(stateDef).Keys)
             {
-                skillDefs[key] = true;
+                skillDefinitions[key] = null;
             }
         }
-        return skillDefs;
+        return skillDefinitions;
     }
 
     private static string FormatErrors(IEnumerable errors)

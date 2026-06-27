@@ -56,16 +56,5 @@ internal static class BattleMagicBacklashProjection
 
     private static Godot.Collections.Array<Vector2I> ToVector2IArray(
         System.Collections.Generic.IReadOnlyList<Vector2I> coords
-    )
-    {
-        var result = new Godot.Collections.Array<Vector2I>();
-        if (coords == null)
-            return result;
-
-        foreach (Vector2I coord in coords)
-        {
-            result.Add(coord);
-        }
-        return result;
-    }
+    ) => new Vector2IList(coords).ToGodotArray();
 }

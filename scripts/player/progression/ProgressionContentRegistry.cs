@@ -30,7 +30,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private GDictionary _ascensionDefs = new();
     private GDictionary _ascensionStageDefs = new();
     private GDictionary _stageAdvancementDefs = new();
-    private readonly Dictionary<StringName, SkillDef> _skillDefIndex = new();
+    private readonly Dictionary<StringName, SkillDefinition> _skillDefinitionIndex = new();
     private readonly Dictionary<StringName, ProfessionDef> _professionDefIndex = new();
     private readonly Dictionary<StringName, AchievementDef> _achievementDefIndex = new();
     private readonly Dictionary<StringName, QuestDef> _questDefIndex = new();
@@ -225,10 +225,13 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         ClearRuntimeCaches();
 
         _skillContentRegistry.Rebuild();
-        _skillDefs = ProjectTypedDictionary(_skillContentRegistry.GetSkillDefsTyped());
+        _skillDefs = RegisterDefinitionBucket(
+            _skillContentRegistry.DuplicateSkillResourceBucketForProgressionRegistry(),
+            "SkillContentRegistry.skill_defs"
+        );
         AppendArray(_validationErrors, _skillContentRegistry.Validate());
 
-        _professionContentRegistry.Setup(_skillDefs);
+        _professionContentRegistry.Setup(_skillContentRegistry.GetSkillDefinitionsTyped());
         _professionDefs = ProjectTypedDictionary(_professionContentRegistry.GetProfessionDefsTyped());
 
         _raceContentRegistry.Rebuild();
@@ -269,10 +272,41 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         AppendArray(_validationErrors, CollectValidationErrors());
     }
 
-    public IReadOnlyDictionary<StringName, SkillDef> GetSkillDefsTyped()
+    public IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionsTyped()
     {
         SyncTypedDefinitionIndexes();
-        return CloneTypedDictionary(_skillDefIndex);
+        return CloneTypedDictionary(_skillDefinitionIndex);
+    }
+
+    internal GDictionary DuplicateSkillResourceBucketForValidation()
+    {
+        SyncTypedDefinitionIndexes();
+        return DuplicateDictionary(_skillDefs, "skill_defs.validation_snapshot");
+    }
+
+    internal IReadOnlyList<Resource> GetLoadedSkillResourcesForFinalizerDrain()
+    {
+        SyncTypedDefinitionIndexes();
+        var result = new List<Resource>();
+        foreach (Variant rawKey in _skillDefs.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+            {
+                continue;
+            }
+
+            StringName skillId = rawKey.AsStringName();
+            if (skillId == "")
+            {
+                continue;
+            }
+
+            if (_skillDefs[rawKey].AsGodotObject() is Resource resource)
+            {
+                result.Add(resource);
+            }
+        }
+        return result;
     }
 
     public IReadOnlyDictionary<StringName, ProfessionDef> GetProfessionDefsTyped()
@@ -446,15 +480,32 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     {
         var errors = new List<string>();
 
-        foreach (string skillKey in ProgressionDataUtils.sorted_string_keys(_skillDefs))
+        foreach (StringName skillId in SortedKeys(_skillDefinitionIndex))
         {
-            var skillId = new StringName(skillKey);
             var skillErrors = new GStringArray();
+            _skillDefinitionIndex.TryGetValue(skillId, out SkillDefinition skillDefinition);
             _append_invalid_skill_errors(
                 skillErrors,
                 skillId,
-                GetObject<SkillDef>(_skillDefs, skillId)
+                skillDefinition
             );
+            if (TryGetSkillDef(skillId, out SkillDef skillDef))
+            {
+                _append_raw_int_requirement_entry_errors(
+                    skillErrors,
+                    skillId,
+                    skillDef.SkillLevelRequirementEntriesTyped,
+                    "skill_level_requirements",
+                    "skill_id"
+                );
+                _append_raw_int_requirement_entry_errors(
+                    skillErrors,
+                    skillId,
+                    skillDef.AttributeRequirementEntriesTyped,
+                    "attribute_requirements",
+                    "attribute_id"
+                );
+            }
             AppendUniqueErrors(errors, skillErrors);
         }
 
@@ -568,7 +619,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         _ascensionDefs.Clear();
         _ascensionStageDefs.Clear();
         _stageAdvancementDefs.Clear();
-        _skillDefIndex.Clear();
+        _skillDefinitionIndex.Clear();
         _professionDefIndex.Clear();
         _achievementDefIndex.Clear();
         _questDefIndex.Clear();
@@ -1562,8 +1613,13 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 index++;
                 continue;
             }
-            var skillDef = GetObject<SkillDef>(_skillDefs, grantedSkill.skill_id);
-            if (skillDef == null)
+            if (
+                !_skillDefinitionIndex.TryGetValue(
+                    grantedSkill.skill_id,
+                    out SkillDefinition skillDefinition
+                )
+                || skillDefinition == null
+            )
             {
                 errors.Add(
                     $"{ownerLabel} racial_granted_skills[{index}] references missing skill {grantedSkill.skill_id}."
@@ -1571,16 +1627,16 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 index++;
                 continue;
             }
-            if (skillDef.LearnSourceKind != SkillDef.ToLearnSource(expectedLearnSource))
+            if (skillDefinition.LearnSourceKind != SkillDefinition.ToLearnSource(expectedLearnSource))
             {
                 errors.Add(
-                    $"{ownerLabel} racial_granted_skills[{index}] skill {grantedSkill.skill_id} learn_source must be {expectedLearnSource}, got {skillDef.learn_source}."
+                    $"{ownerLabel} racial_granted_skills[{index}] skill {grantedSkill.skill_id} learn_source must be {expectedLearnSource}, got {skillDefinition.LearnSource}."
                 );
             }
-            if (grantedSkill.minimum_skill_level > skillDef.max_level)
+            if (grantedSkill.minimum_skill_level > skillDefinition.MaxLevel)
             {
                 errors.Add(
-                    $"{ownerLabel} racial_granted_skills[{index}] skill {grantedSkill.skill_id} minimum_skill_level must be <= max_level {skillDef.max_level}."
+                    $"{ownerLabel} racial_granted_skills[{index}] skill {grantedSkill.skill_id} minimum_skill_level must be <= max_level {skillDefinition.MaxLevel}."
                 );
             }
             index++;
@@ -1747,81 +1803,81 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private void _append_invalid_skill_errors(
         GStringArray errors,
         StringName skillId,
-        SkillDef skillDef
+        SkillDefinition skillDefinition
     )
     {
-        if (skillDef == null)
+        if (skillDefinition == null)
         {
             return;
         }
-        if (skillDef.SkillTypeKind == SkillTypeKind.Unknown)
+        if (skillDefinition.SkillTypeKind == SkillTypeKind.Unknown)
         {
-            errors.Add($"Skill {skillId} uses unsupported skill_type {skillDef.skill_type}.");
+            errors.Add($"Skill {skillId} uses unsupported skill_type {skillDefinition.SkillType}.");
         }
-        if (skillDef.LearnSourceKind == SkillLearnSourceKind.Unknown)
+        if (skillDefinition.LearnSourceKind == SkillLearnSourceKind.Unknown)
         {
-            errors.Add($"Skill {skillId} uses unsupported learn_source {skillDef.learn_source}.");
+            errors.Add($"Skill {skillId} uses unsupported learn_source {skillDefinition.LearnSource}.");
         }
-        if (skillDef.UnlockModeKind == SkillUnlockMode.Unknown)
+        if (skillDefinition.UnlockModeKind == SkillUnlockMode.Unknown)
         {
-            errors.Add($"Skill {skillId} uses unsupported unlock_mode {skillDef.unlock_mode}.");
+            errors.Add($"Skill {skillId} uses unsupported unlock_mode {skillDefinition.UnlockMode}.");
         }
-        if (skillDef.CoreSkillTransitionModeKind == CoreSkillTransitionMode.Unknown)
+        if (skillDefinition.CoreSkillTransitionModeKind == CoreSkillTransitionMode.Unknown)
         {
             errors.Add(
-                $"Skill {skillId} uses unsupported core_skill_transition_mode {skillDef.core_skill_transition_mode}."
+                $"Skill {skillId} uses unsupported core_skill_transition_mode {skillDefinition.CoreSkillTransitionMode}."
             );
         }
-        if (skillDef.max_level < 0 && skillDef.dynamic_max_level_stat_id == "")
+        if (skillDefinition.MaxLevel < 0 && skillDefinition.DynamicMaxLevelStatId == "")
         {
             errors.Add($"Skill {skillId} must have max_level >= 0.");
         }
-        if (skillDef.non_core_max_level < 0)
+        if (skillDefinition.NonCoreMaxLevel < 0)
         {
             errors.Add($"Skill {skillId} non_core_max_level must be >= 0.");
         }
         if (
-            skillDef.non_core_max_level > skillDef.max_level
-            && skillDef.max_level >= 0
-            && skillDef.dynamic_max_level_stat_id == ""
+            skillDefinition.NonCoreMaxLevel > skillDefinition.MaxLevel
+            && skillDefinition.MaxLevel >= 0
+            && skillDefinition.DynamicMaxLevelStatId == ""
         )
         {
             errors.Add($"Skill {skillId} non_core_max_level must be <= max_level.");
         }
         if (
-            skillDef.mastery_curve.Length != skillDef.max_level
-            && skillDef.max_level >= 0
-            && skillDef.dynamic_max_level_stat_id == ""
+            skillDefinition.MasteryCurve.Count != skillDefinition.MaxLevel
+            && skillDefinition.MaxLevel >= 0
+            && skillDefinition.DynamicMaxLevelStatId == ""
         )
         {
             errors.Add($"Skill {skillId} mastery_curve size must match max_level.");
         }
-        _append_dynamic_max_level_errors(errors, skillId, skillDef);
-        _append_practice_skill_errors(errors, skillId, skillDef);
-        _append_skill_attribute_growth_errors(errors, skillId, skillDef);
+        _append_dynamic_max_level_errors(errors, skillId, skillDefinition);
+        _append_practice_skill_errors(errors, skillId, skillDefinition);
+        _append_skill_attribute_growth_errors(errors, skillId, skillDefinition);
         _append_skill_requirement_errors(
             errors,
             skillId,
-            skillDef.LearnRequirementsTyped,
+            skillDefinition.LearnRequirements,
             "learn_requirements"
         );
         _append_skill_level_requirement_errors(
             errors,
             skillId,
-            skillDef.SkillLevelRequirementEntriesTyped
+            skillDefinition.SkillLevelRequirements
         );
         _append_attribute_requirement_errors(
             errors,
             skillId,
-            skillDef.AttributeRequirementEntriesTyped
+            skillDefinition.AttributeRequirements
         );
         _append_skill_requirement_errors(
             errors,
             skillId,
-            skillDef.UpgradeSourceSkillIdsTyped,
+            skillDefinition.UpgradeSourceSkillIds,
             "upgrade_source_skill_ids"
         );
-        foreach (StringName achievementId in skillDef.AchievementRequirementsTyped)
+        foreach (StringName achievementId in skillDefinition.AchievementRequirements)
         {
             if (achievementId == "")
             {
@@ -1829,8 +1885,8 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             }
         }
         if (
-            skillDef.UnlockModeKind == SkillUnlockMode.CompositeUpgrade
-            && skillDef.UpgradeSourceSkillIdsTyped.Count == 0
+            skillDefinition.UnlockModeKind == SkillUnlockMode.CompositeUpgrade
+            && skillDefinition.UpgradeSourceSkillIds.Count == 0
         )
         {
             errors.Add(
@@ -1842,20 +1898,20 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private static void _append_practice_skill_errors(
         GStringArray errors,
         StringName skillId,
-        SkillDef skillDef
+        SkillDefinition skillDefinition
     )
     {
         int trackCount = 0;
         foreach (StringName trackTag in PracticeTrackTags)
         {
-            if (skillDef.HasTag(trackTag))
+            if (skillDefinition.HasTag(trackTag))
             {
                 trackCount++;
             }
         }
         if (trackCount == 0)
         {
-            if (skillDef.PracticeTierKind != SkillPracticeTierKind.None)
+            if (skillDefinition.PracticeTierKind != SkillPracticeTierKind.None)
             {
                 errors.Add(
                     $"Skill {skillId} practice_tier requires meditation or cultivation tag."
@@ -1867,14 +1923,14 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         {
             errors.Add($"Skill {skillId} must use exactly one practice track tag.");
         }
-        if (skillDef.TagsTyped.Count != 1)
+        if (skillDefinition.Tags.Count != 1)
         {
             errors.Add(
                 $"Skill {skillId} practice tags must be exclusive; tags must contain only meditation or cultivation."
             );
         }
         if (
-            skillDef.PracticeTierKind
+            skillDefinition.PracticeTierKind
             is SkillPracticeTierKind.None
                 or SkillPracticeTierKind.Unknown
         )
@@ -1888,19 +1944,19 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private static void _append_dynamic_max_level_errors(
         GStringArray errors,
         StringName skillId,
-        SkillDef skillDef
+        SkillDefinition skillDefinition
     )
     {
-        bool hasDynamicStat = skillDef.dynamic_max_level_stat_id != "";
+        bool hasDynamicStat = skillDefinition.DynamicMaxLevelStatId != "";
         if (!hasDynamicStat)
         {
-            if (skillDef.dynamic_max_level_base != 0)
+            if (skillDefinition.DynamicMaxLevelBase != 0)
             {
                 errors.Add(
                     $"Skill {skillId} dynamic_max_level_base requires dynamic_max_level_stat_id."
                 );
             }
-            if (skillDef.dynamic_max_level_per_stat != 0)
+            if (skillDefinition.DynamicMaxLevelPerStat != 0)
             {
                 errors.Add(
                     $"Skill {skillId} dynamic_max_level_per_stat requires dynamic_max_level_stat_id."
@@ -1908,11 +1964,11 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             }
             return;
         }
-        if (skillDef.dynamic_max_level_base <= 0)
+        if (skillDefinition.DynamicMaxLevelBase <= 0)
         {
             errors.Add($"Skill {skillId} dynamic_max_level_base must be >= 1.");
         }
-        if (skillDef.dynamic_max_level_per_stat == 0)
+        if (skillDefinition.DynamicMaxLevelPerStat == 0)
         {
             errors.Add(
                 $"Skill {skillId} dynamic_max_level_per_stat must not be 0 when dynamic_max_level_stat_id is set."
@@ -1923,20 +1979,20 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private static void _append_skill_attribute_growth_errors(
         GStringArray errors,
         StringName skillId,
-        SkillDef skillDef
+        SkillDefinition skillDefinition
     )
     {
-        if (skillDef.AttributeGrowthProgressTyped.Count == 0 && skillDef.growth_tier == "")
+        if (skillDefinition.AttributeGrowthProgress.Count == 0 && skillDefinition.GrowthTier == "")
         {
             return;
         }
-        if (!AttributeGrowthContentRules.IsValidGrowthTier(skillDef.growth_tier))
+        if (!AttributeGrowthContentRules.IsValidGrowthTier(skillDefinition.GrowthTier))
         {
-            errors.Add($"Skill {skillId} uses unsupported growth_tier {skillDef.growth_tier}.");
+            errors.Add($"Skill {skillId} uses unsupported growth_tier {skillDefinition.GrowthTier}.");
             return;
         }
         int progressTotal = 0;
-        foreach (KeyValuePair<StringName, int> entry in skillDef.AttributeGrowthProgressTyped)
+        foreach (KeyValuePair<StringName, int> entry in skillDefinition.AttributeGrowthProgress)
         {
             StringName attributeId = entry.Key;
             int amount = entry.Value;
@@ -1954,11 +2010,11 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             }
             progressTotal += amount;
         }
-        int expectedTotal = AttributeGrowthContentRules.GetTierBudget(skillDef.growth_tier);
+        int expectedTotal = AttributeGrowthContentRules.GetTierBudget(skillDefinition.GrowthTier);
         if (progressTotal != expectedTotal)
         {
             errors.Add(
-                $"Skill {skillId} attribute_growth_progress total must equal {expectedTotal} for growth_tier {skillDef.growth_tier}."
+                $"Skill {skillId} attribute_growth_progress total must equal {expectedTotal} for growth_tier {skillDefinition.GrowthTier}."
             );
         }
     }
@@ -1989,12 +2045,12 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private void _append_skill_level_requirement_errors(
         GStringArray errors,
         StringName skillId,
-        IReadOnlyList<SkillDef.IntRequirementEntryData> skillLevelRequirements
+        IReadOnlyDictionary<StringName, int> skillLevelRequirements
     )
     {
-        foreach (SkillDef.IntRequirementEntryData entry in skillLevelRequirements)
+        foreach (KeyValuePair<StringName, int> entry in skillLevelRequirements)
         {
-            StringName requiredSkillId = entry.RequirementId;
+            StringName requiredSkillId = entry.Key;
             if (requiredSkillId == "")
             {
                 errors.Add($"Skill {skillId} has an empty skill_id in skill_level_requirements.");
@@ -2006,7 +2062,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                     $"Skill {skillId} references missing skill {requiredSkillId} in skill_level_requirements."
                 );
             }
-            int requiredLevel = entry.Amount;
+            int requiredLevel = entry.Value;
             if (requiredLevel <= 0)
             {
                 errors.Add(
@@ -2019,12 +2075,12 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private static void _append_attribute_requirement_errors(
         GStringArray errors,
         StringName skillId,
-        IReadOnlyList<SkillDef.IntRequirementEntryData> attributeRequirements
+        IReadOnlyDictionary<StringName, int> attributeRequirements
     )
     {
-        foreach (SkillDef.IntRequirementEntryData entry in attributeRequirements)
+        foreach (KeyValuePair<StringName, int> entry in attributeRequirements)
         {
-            StringName attributeId = entry.RequirementId;
+            StringName attributeId = entry.Key;
             if (attributeId == "")
             {
                 errors.Add($"Skill {skillId} has an empty attribute_id in attribute_requirements.");
@@ -2036,11 +2092,42 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                     $"Skill {skillId} references unsupported attribute {attributeId} in attribute_requirements."
                 );
             }
-            int requiredValue = entry.Amount;
+            int requiredValue = entry.Value;
             if (requiredValue <= 0)
             {
                 errors.Add(
                     $"Skill {skillId} requires non-positive value {requiredValue} for {attributeId} in attribute_requirements."
+                );
+            }
+        }
+    }
+
+    private static void _append_raw_int_requirement_entry_errors(
+        GStringArray errors,
+        StringName skillId,
+        IReadOnlyList<SkillDef.IntRequirementEntryData> entries,
+        string contextLabel,
+        string idLabel
+    )
+    {
+        foreach (SkillDef.IntRequirementEntryData entry in entries ?? System.Array.Empty<SkillDef.IntRequirementEntryData>())
+        {
+            if (!entry.HasStringLikeKey)
+            {
+                errors.Add(
+                    $"Skill {skillId} has a non-string {idLabel} key {entry.RawKeyLabel} in {contextLabel}."
+                );
+                continue;
+            }
+            if (!entry.HasNonEmptyKey)
+            {
+                errors.Add($"Skill {skillId} has an empty {idLabel} in {contextLabel}.");
+                continue;
+            }
+            if (!entry.HasStrictIntAmount)
+            {
+                errors.Add(
+                    $"Skill {skillId} requires integer value for {entry.RequirementId} in {contextLabel}."
                 );
             }
         }
@@ -2130,7 +2217,15 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
 
     private void SyncTypedDefinitionIndexes()
     {
-        ReplaceTypedIndex(_skillDefIndex, _skillDefs);
+        _skillDefinitionIndex.Clear();
+        foreach (
+            (StringName skillId, SkillDefinition skillDefinition) in SkillDefinition.ProjectIndex(
+                BuildSkillDefIndex()
+            )
+        )
+        {
+            _skillDefinitionIndex[skillId] = skillDefinition;
+        }
         ReplaceTypedIndex(_professionDefIndex, _professionDefs);
         ReplaceAchievementTypedIndex(_achievementDefIndex, _achievementDefs);
         ReplaceTypedIndex(_questDefIndex, _questDefs);
@@ -2143,6 +2238,42 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         ReplaceTypedIndex(_ascensionDefIndex, _ascensionDefs);
         ReplaceTypedIndex(_ascensionStageDefIndex, _ascensionStageDefs);
         ReplaceTypedIndex(_stageAdvancementDefIndex, _stageAdvancementDefs);
+    }
+
+    private Dictionary<StringName, SkillDef> BuildSkillDefIndex()
+    {
+        var result = new Dictionary<StringName, SkillDef>();
+        foreach (Variant rawKey in _skillDefs.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+            {
+                continue;
+            }
+
+            StringName skillId = rawKey.AsStringName();
+            if (skillId == "")
+            {
+                continue;
+            }
+
+            if (_skillDefs[rawKey].AsGodotObject() is SkillDef skillDef)
+            {
+                result[skillId] = skillDef;
+            }
+        }
+        return result;
+    }
+
+    private bool TryGetSkillDef(StringName skillId, out SkillDef skillDef)
+    {
+        skillDef = null;
+        if (skillId == "" || !_skillDefs.ContainsKey(skillId))
+        {
+            return false;
+        }
+
+        skillDef = _skillDefs[skillId].AsGodotObject() as SkillDef;
+        return skillDef != null;
     }
 
     private static Dictionary<StringName, T> CloneTypedDictionary<T>(

@@ -6,7 +6,7 @@ public static class QuestContentValidator
     public static List<string> ValidateTyped(
         IReadOnlyDictionary<StringName, QuestDef> questDefs,
         IReadOnlyDictionary<StringName, ItemDef> itemDefs,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
         IEnumerable<string> registrationErrors = null
     )
@@ -19,7 +19,7 @@ public static class QuestContentValidator
             errors.Add(
                 $"{label} validation requires non-empty item_defs (pass allow_missing_reference_tables=true to skip)."
             );
-        if (skillDefs == null || skillDefs.Count == 0)
+        if (skillDefinitions == null || skillDefinitions.Count == 0)
             errors.Add(
                 $"{label} validation requires non-empty skill_defs (pass allow_missing_reference_tables=true to skip)."
             );
@@ -56,7 +56,7 @@ public static class QuestContentValidator
 
             AppendProviderReferenceErrors(errors, questDef, supportedProviderIds);
             AppendObjectiveReferenceErrors(errors, questDef, itemDefs, enemyTemplates);
-            AppendRewardReferenceErrors(errors, questDef, itemDefs, skillDefs);
+            AppendRewardReferenceErrors(errors, questDef, itemDefs, skillDefinitions);
         }
 
         return errors;
@@ -118,7 +118,7 @@ public static class QuestContentValidator
         ICollection<string> errors,
         QuestDef questDef,
         IReadOnlyDictionary<StringName, ItemDef> itemDefs,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
         foreach (QuestDef.RewardEntryData reward in questDef.GetRewardEntriesTyped())
@@ -138,7 +138,7 @@ public static class QuestContentValidator
                     errors,
                     questDef,
                     reward,
-                    skillDefs
+                    skillDefinitions
                 );
             }
         }
@@ -148,7 +148,7 @@ public static class QuestContentValidator
         ICollection<string> errors,
         QuestDef questDef,
         QuestDef.RewardEntryData reward,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
         foreach (QuestDef.PendingRewardEntryData entry in reward.PendingRewardEntries)
@@ -166,7 +166,12 @@ public static class QuestContentValidator
 
             if (PendingCharacterRewardContentRules.RequiresSkillTarget(entryType))
             {
-                if (targetId != "" && skillDefs.Count > 0 && !skillDefs.ContainsKey(targetId))
+                if (
+                    targetId != ""
+                    && skillDefinitions != null
+                    && skillDefinitions.Count > 0
+                    && !skillDefinitions.ContainsKey(targetId)
+                )
                     errors.Add(
                         $"Quest {questDef.quest_id} pending_character_reward references missing skill {targetId}."
                     );

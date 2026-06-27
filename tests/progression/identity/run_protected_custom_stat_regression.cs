@@ -126,7 +126,7 @@ public partial class run_protected_custom_stat_regression : SceneTree
         partyState.SetMemberState(memberState);
 
         var manager = new CharacterManagementModule();
-        manager.setup(partyState, new GDictionary(), new GDictionary(), new GDictionary());
+        manager.setup(partyState);
 
         PendingCharacterReward reward = manager.BuildPendingCharacterReward(
             "hero",

@@ -119,7 +119,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
         {
             runtime.setup(
                 null,
-                gameSession.Session.GetSkillDefsTyped(),
+                gameSession.Session.GetSkillDefinitionsTyped(),
                 new Dictionary<StringName, EnemyTemplateDef>(),
                 new Dictionary<StringName, EnemyAiBrainDef>(),
                 null
@@ -381,14 +381,14 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetSkillDefinitionsTyped(),
             gameSession.GetEnemyTemplatesTyped(),
             gameSession.GetEnemyAiBrainsTyped(),
             null
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         var damageResolver = new FixedSuccessOneDamageResolver();
-        damageResolver.SetSkillDefs(runtime.GetSkillDefIndexTyped());
+        damageResolver.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime.ConfigureDamageResolverForTests(damageResolver);
         return new BattleRuntimeScope(runtime, gameSession);
     }
@@ -505,13 +505,16 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
     {
         if (
             runtime == null
-            || !runtime.GetSkillDefIndexTyped().TryGetValue("basic_attack", out SkillDef skillDef)
-            || skillDef.combat_profile == null
+            || !runtime
+                .GetSkillDefinitionIndexTyped()
+                .TryGetValue("basic_attack", out SkillDefinition skillDefinition)
+            || skillDefinition.CombatProfile == null
         )
         {
             return 5;
         }
-        CombatSkillResourceCosts costs = skillDef.combat_profile.GetEffectiveResourceCostValues(1);
+        CombatSkillResourceCosts costs =
+            skillDefinition.CombatProfile.GetEffectiveResourceCostValues(1);
         return Math.Max(costs.StaminaCost, 0);
     }
 
@@ -559,7 +562,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
                 runtime._get_ai_move_query_cost(unit.unit_id, unit.coord, targetCoord),
             runtime_action_plan = actionPlan,
         };
-        context.SetSkillDefs(runtime.GetSkillDefIndexTyped());
+        context.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime._bind_ai_helper_services_for_decision(unitState, context);
         return context;
     }
@@ -665,7 +668,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
 
     private static void DisposeDecision(BattleAiDecision decision)
     {
-        GodotSharpCleanup.DisposeGodotObject(decision?.command);
+        GodotSharpCleanup.ClearRuntimeReferences(decision?.command);
         BattleTestFixture.DisposeBattleAiScoreInput(decision?.score_input);
         BattleTestFixture.DisposeBattleAiScoreInput(decision?.skill_score_input);
     }

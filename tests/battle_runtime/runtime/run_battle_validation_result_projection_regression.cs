@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GCombatEffectArray = Godot.Collections.Array<CombatEffectDef>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_battle_validation_result_projection_regression : SceneTree
@@ -23,20 +22,15 @@ public partial class run_battle_validation_result_projection_regression : SceneT
     private void TestSkillExecutionOrchestratorUsesTypedSkillLevelAccessor()
     {
         var runtime = new BattleRuntimeModule();
-        SkillDef lockedZeroSkill = TestResourceOwnership.Own(
-            new SkillDef
-            {
-                skill_id = "locked_zero_skill",
-                max_level = 0,
-                dynamic_max_level_stat_id = "",
-            },
-            "BattleValidationResultProjection.lockedZeroSkill"
+        SkillDefinition lockedZeroSkill = TestSkillDefinitionProjection.BuildSkill(
+            "locked_zero_skill",
+            maxLevel: 0
         );
         runtime.setup(
             null,
-            new Dictionary<StringName, SkillDef>
+            new Dictionary<StringName, SkillDefinition>
             {
-                [new StringName("locked_zero_skill")] = lockedZeroSkill,
+                [lockedZeroSkill.SkillId] = lockedZeroSkill,
             }
         );
 
@@ -241,10 +235,11 @@ public partial class run_battle_validation_result_projection_regression : SceneT
     {
         var runtime = new BattleRuntimeModule();
         ProgressionContentRegistry progressionContent = new();
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = progressionContent.GetSkillDefsTyped();
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            progressionContent.GetSkillDefinitionsTyped();
         runtime.setup(
             null,
-            skillDefs,
+            skillDefinitions,
             new Dictionary<StringName, EnemyTemplateDef>(),
             new Dictionary<StringName, EnemyAiBrainDef>(),
             null,
@@ -258,9 +253,9 @@ public partial class run_battle_validation_result_projection_regression : SceneT
         BattleState state = null;
         BattleUnitState source = null;
         BattleUnitState target = null;
-        SkillDef skill = null;
-        CombatCastVariantDef castVariant = null;
-        List<CombatEffectDef> effects = null;
+        SkillDefinition skillDefinition = null;
+        CombatCastVariantDefinition castVariant = null;
+        List<CombatEffectDefinition> effects = null;
         Godot.Collections.Dictionary projected = null;
         try
         {
@@ -288,11 +283,16 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             };
             target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 40);
             target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 999);
-            skill = skillDefs["black_contract_push"];
-            castVariant = skill.combat_profile.GetCastVariant("action_tithe");
-            effects = runtime._skill_resolution_rules.CollectUnitSkillEffectDefs(
-                skill,
-                castVariant
+            skillDefinition = skillDefinitions["black_contract_push"];
+            castVariant = runtime._skill_resolution_rules.ResolveUnitCastVariantDefinition(
+                skillDefinition,
+                source,
+                "action_tithe"
+            );
+            effects = runtime._skill_resolution_rules.CollectUnitSkillEffectDefinitions(
+                skillDefinition,
+                castVariant,
+                source
             );
             state.SetUnit(source);
             state.SetUnit(target);
@@ -303,7 +303,12 @@ public partial class run_battle_validation_result_projection_regression : SceneT
 
             BattleSkillExecutionOrchestrator.UnitSkillEffectResolution typed = runtime
                 ._skill_orchestrator
-                .ResolveUnitSkillEffectResult(source, target, skill, effects);
+                .ResolveUnitSkillEffectResult(
+                    source,
+                    target,
+                    skillDefinition,
+                    effects
+                );
             projected = AttackEffectResolutionResultReader.BuildGodotPayload(
                 typed.Result
             );
@@ -337,8 +342,8 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             projected = null;
             effects = null;
             castVariant = null;
-            skill = null;
-            skillDefs = null;
+            skillDefinition = null;
+            skillDefinitions = null;
             BattleTestFixture.DisposeBattleFixture(runtime, state);
             progressionContent.Dispose();
         }
@@ -354,8 +359,8 @@ public partial class run_battle_validation_result_projection_regression : SceneT
         BattleUnitState source = null;
         BattleUnitState primary = null;
         BattleUnitState chained = null;
-        SkillDef skill = null;
-        GCombatEffectArray effectDefs = null;
+        SkillDefinition skill = null;
+        List<CombatEffectDefinition> effectDefs = null;
         BattleEventBatch batch = null;
         try
         {
@@ -375,13 +380,10 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             runtime.SetupStateForTests(state);
 
             skill = BuildChainTestSkill();
-            effectDefs = new GCombatEffectArray
+            effectDefs = new List<CombatEffectDefinition>
             {
                 BuildChainDamagePayloadEffect(),
-                TestResourceOwnership.Own(
-                    new CombatEffectDef { effect_type = "chain_damage" },
-                    "BattleValidationResultProjection.chainDamageEffect"
-                ),
+                TestSkillDefinitionProjection.BuildEffect("chain_damage"),
             };
             batch = new BattleEventBatch();
 
@@ -390,7 +392,7 @@ public partial class run_battle_validation_result_projection_regression : SceneT
                 primary,
                 skill,
                 effectDefs,
-                new AttackEffectResolutionResult { Applied = true, SkillId = skill.skill_id },
+                new AttackEffectResolutionResult { Applied = true, SkillId = skill.SkillId },
                 batch,
                 "连锁测试"
             );
@@ -408,7 +410,7 @@ public partial class run_battle_validation_result_projection_regression : SceneT
         finally
         {
             BattleTestFixture.DisposeBattleFixture(runtime, state);
-            GodotSharpCleanup.DisposeGodotObject(batch);
+            GodotSharpCleanup.DisposeBatch(batch);
         }
     }
 
@@ -465,34 +467,27 @@ public partial class run_battle_validation_result_projection_regression : SceneT
         return unit;
     }
 
-    private static SkillDef BuildChainTestSkill()
+    private static SkillDefinition BuildChainTestSkill()
     {
-        SkillDef skill = new()
-        {
-            skill_id = "chain_arc_projection",
-            display_name = "Chain Arc Projection",
-            skill_type = "active",
-        };
-        skill.combat_profile = new CombatSkillDef
-        {
-            target_mode = "unit",
-            target_team_filter = "enemy",
-            range_pattern = "fixed",
-            range_value = 4,
-        };
-        return TestResourceOwnership.Own(skill, "BattleValidationResultProjection.chainTestSkill");
+        return TestSkillDefinitionProjection.BuildSkill(
+            "chain_arc_projection",
+            displayName: "Chain Arc Projection",
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                "chain_arc_projection",
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                rangePattern: "fixed",
+                rangeValue: 4
+            )
+        );
     }
 
-    private static CombatEffectDef BuildChainDamagePayloadEffect()
+    private static CombatEffectDefinition BuildChainDamagePayloadEffect()
     {
-        return TestResourceOwnership.Own(
-            new CombatEffectDef
-            {
-                effect_type = "damage",
-                damage_tag = "physical_slash",
-                power = 1,
-            },
-            "BattleValidationResultProjection.chainDamagePayloadEffect"
+        return TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            damageTag: "physical_slash",
+            power: 1
         );
     }
 }

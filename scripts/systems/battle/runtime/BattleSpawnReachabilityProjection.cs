@@ -94,17 +94,7 @@ internal static class BattleSpawnReachabilityProjection
 
     private static Godot.Collections.Array<StringName> ToStringNameArray(
         IEnumerable<StringName> values
-    )
-    {
-        var result = new Godot.Collections.Array<StringName>();
-        if (values == null)
-            return result;
-        foreach (StringName value in values)
-        {
-            result.Add(value);
-        }
-        return result;
-    }
+    ) => new StringNameList(values).ToGodotArray();
 
     private static IReadOnlyList<BattleSpawnReachabilityUnitResult> ReadUnitResultList(
         GDictionary payload,

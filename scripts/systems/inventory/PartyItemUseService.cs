@@ -5,7 +5,7 @@ public class PartyItemUseService
 {
     private PartyState _party_state = new();
     private Dictionary<StringName, ItemDef> _item_defs = new();
-    private Dictionary<StringName, SkillDef> _skill_defs = new();
+    private Dictionary<StringName, SkillDefinition> _skill_definitions = new();
     private PartyWarehouseService _warehouse_service;
     private CharacterManagementModule _character_management;
 
@@ -80,7 +80,7 @@ public class PartyItemUseService
     public void Setup(
         PartyState partyState,
         IReadOnlyDictionary<StringName, ItemDef> itemDefs,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         PartyWarehouseService warehouseService,
         CharacterManagementModule characterManagement
     )
@@ -89,9 +89,9 @@ public class PartyItemUseService
         _item_defs = itemDefs != null
             ? new Dictionary<StringName, ItemDef>(itemDefs)
             : new Dictionary<StringName, ItemDef>();
-        _skill_defs = skillDefs != null
-            ? new Dictionary<StringName, SkillDef>(skillDefs)
-            : new Dictionary<StringName, SkillDef>();
+        _skill_definitions = skillDefinitions != null
+            ? new Dictionary<StringName, SkillDefinition>(skillDefinitions)
+            : new Dictionary<StringName, SkillDefinition>();
         _warehouse_service = warehouseService;
         _character_management = characterManagement;
     }
@@ -100,7 +100,7 @@ public class PartyItemUseService
     {
         _party_state = null;
         _item_defs.Clear();
-        _skill_defs.Clear();
+        _skill_definitions.Clear();
         _warehouse_service = null;
         _character_management = null;
     }
@@ -133,7 +133,7 @@ public class PartyItemUseService
 
         var skillId = itemDef.granted_skill_id;
         result.WithSkill(skillId);
-        if (!TryGetSkillDef(skillId, out _))
+        if (!TryGetSkillDefinition(skillId, out _))
             return result.WithReason("missing_skill_def");
 
         options ??= new PartyItemUseOptions();
@@ -162,12 +162,12 @@ public class PartyItemUseService
         return false;
     }
 
-    private bool TryGetSkillDef(StringName skillId, out SkillDef skillDef)
+    private bool TryGetSkillDefinition(StringName skillId, out SkillDefinition skillDefinition)
     {
         var normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
         if (normalizedSkillId != "")
-            return _skill_defs.TryGetValue(normalizedSkillId, out skillDef);
-        skillDef = null;
+            return _skill_definitions.TryGetValue(normalizedSkillId, out skillDefinition);
+        skillDefinition = null;
         return false;
     }
 

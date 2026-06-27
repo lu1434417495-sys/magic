@@ -567,7 +567,7 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
         MakeVisible(runtime, Vector2I.Zero);
         runtime._character_management.setup(
             partyState,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             gameSession.GetProfessionDefsTyped(),
             gameSession.GetAchievementDefsTyped(),
             itemDefs,
@@ -579,7 +579,7 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
         runtime._party_item_use_service.Setup(
             partyState,
             itemDefs,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             runtime._party_warehouse_service,
             runtime._character_management
         );

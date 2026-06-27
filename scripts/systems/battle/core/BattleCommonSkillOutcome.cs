@@ -18,9 +18,29 @@ internal class BattleCommonSkillOutcome
     public StringNameList changed_unit_ids { get; set; } = new();
     public Vector2IList changed_coords { get; set; } = new();
     public StringList log_lines { get; set; } = new();
-    public RuntimePayloadList report_entries { get; set; } = new();
     public List<BattleCommonSkillTargetResult> target_results { get; } = new();
     public Dictionary<StringName, List<StringName>> status_effect_ids_by_unit_id { get; } = new();
+    private readonly List<Dictionary<string, object>> _reportEntries = new();
+
+    internal IReadOnlyList<Godot.Collections.Dictionary> ReportEntriesTyped
+    {
+        get
+        {
+            var result = new List<Godot.Collections.Dictionary>();
+            int index = 0;
+            foreach (Dictionary<string, object> entry in _reportEntries)
+            {
+                result.Add(
+                    RuntimePlainPayload.ProjectDictionary(
+                        entry,
+                        $"BattleCommonSkillOutcome.report_entries[{index}]"
+                    )
+                );
+                index++;
+            }
+            return result;
+        }
+    }
 
     internal void AddChangedUnitId(StringName unit_id)
     {
@@ -80,6 +100,20 @@ internal class BattleCommonSkillOutcome
                 existing.Add(statusId);
             }
         }
+    }
+
+    internal void AddReportEntry(Godot.Collections.Dictionary reportEntry)
+    {
+        if (reportEntry == null || reportEntry.Count == 0)
+        {
+            return;
+        }
+        _reportEntries.Add(
+            RuntimePlainPayload.NormalizeDictionary(
+                reportEntry,
+                $"BattleCommonSkillOutcome.report_entries[{_reportEntries.Count}]"
+            )
+        );
     }
 
     private static bool IsEmpty(StringName value)

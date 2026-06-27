@@ -15,7 +15,7 @@ internal sealed class WorldRuntimeData
     private readonly Dictionary<string, WorldMapMountedSubmapData> _mountedSubmaps =
         new(System.StringComparer.Ordinal);
     private readonly List<WorldMapNpcData> _worldNpcs = new();
-    private readonly RuntimePayloadStore _fogStates = new();
+    private readonly Dictionary<string, object> _fogStates = new(System.StringComparer.Ordinal);
 
     public long MapSeed { get; private set; } = 1;
     public int WorldStep { get; private set; }
@@ -62,7 +62,15 @@ internal sealed class WorldRuntimeData
         result.HasFogStates = data.ContainsKey("fog_states");
         if (result.HasFogStates)
         {
-            result._fogStates.ReplaceWithPayload(ReadDictionary(data, "fog_states"));
+            Dictionary<string, object> fogStates =
+                RuntimePlainPayload.NormalizeDictionary(
+                    ReadDictionary(data, "fog_states"),
+                    "WorldRuntimeData.fog_states"
+                );
+            foreach (KeyValuePair<string, object> entry in fogStates)
+            {
+                result._fogStates[entry.Key] = entry.Value;
+            }
         }
 
         if (!ReadReturnStack(result._submapReturnStack, ReadArray(data, "submap_return_stack")))
@@ -112,7 +120,8 @@ internal sealed class WorldRuntimeData
         }
         if (HasFogStates)
         {
-            result["fog_states"] = _fogStates.ProjectPayload();
+            result["fog_states"] =
+                RuntimePlainPayload.ProjectDictionary(_fogStates, "WorldRuntimeData.fog_states");
         }
         return result;
     }

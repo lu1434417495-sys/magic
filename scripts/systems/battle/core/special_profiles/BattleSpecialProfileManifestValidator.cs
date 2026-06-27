@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 
 internal sealed class BattleSpecialProfileManifestValidator
@@ -69,7 +70,7 @@ internal sealed class BattleSpecialProfileManifestValidator
 
     public Godot.Collections.Array<string> ValidateManifest(
         Resource manifest,
-        Godot.Collections.Dictionary skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         string asOfDate = ""
     )
     {
@@ -133,24 +134,27 @@ internal sealed class BattleSpecialProfileManifestValidator
                 errors.Add($"Battle special profile {pid} declares an empty owning_skill_id.");
                 continue;
             }
-            if (!skillDefs.ContainsKey(skId))
+            if (
+                skillDefinitions == null
+                || !skillDefinitions.TryGetValue(skId, out SkillDefinition skillDefinition)
+            )
             {
                 errors.Add($"Battle special profile {pid} references missing owning skill {skId}.");
                 continue;
             }
-            var sd = skillDefs[skId].As<SkillDef>();
-            if (sd == null || sd.combat_profile == null)
+            CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+            if (combatProfile == null)
             {
                 errors.Add(
                     $"Battle special profile {pid} owning skill {skId} is missing combat_profile."
                 );
                 continue;
             }
-            if (sd.combat_profile.special_resolution_profile_id != pid)
+            if (combatProfile.SpecialResolutionProfileId != pid)
                 errors.Add(
                     $"Battle special profile {pid} owning skill {skId} must set matching special_resolution_profile_id."
                 );
-            _append_special_skill_effect_surface_errors(errors, skId, sd);
+            _append_special_skill_effect_surface_errors(errors, skId, skillDefinition);
         }
 
         foreach (var tp in manifestDef.required_regression_tests)
@@ -324,20 +328,20 @@ internal sealed class BattleSpecialProfileManifestValidator
     private static void _append_special_skill_effect_surface_errors(
         Godot.Collections.Array<string> errors,
         StringName skId,
-        SkillDef sd
+        SkillDefinition skillDefinition
     )
     {
-        var cp = sd.combat_profile;
+        CombatSkillDefinition cp = skillDefinition?.CombatProfile;
         if (cp == null)
             return;
-        if (cp.effect_defs.Count > 0)
+        if (cp.EffectDefinitions.Count > 0)
             errors.Add(
                 $"Battle special profile owning skill {skId} must not declare executable combat_profile.effect_defs."
             );
-        for (int i = 0; i < cp.cast_variants.Count; i++)
+        for (int i = 0; i < cp.CastVariants.Count; i++)
         {
-            var cv = cp.cast_variants[i];
-            if (cv != null && cv.effect_defs.Count > 0)
+            CombatCastVariantDefinition cv = cp.CastVariants[i];
+            if (cv != null && cv.EffectDefinitions.Count > 0)
                 errors.Add(
                     $"Battle special profile owning skill {skId} must not declare executable cast_variants[{i}].effect_defs."
                 );
@@ -411,7 +415,7 @@ internal sealed class BattleSpecialProfileManifestValidator
         if (!TryReadInt(pe, "move_cost_delta", out _))
             errors.Add($"MeteorSwarmProfile.terrain_profiles[{idx}].move_cost_delta must be int.");
         var lp = ReadStringName(pe, "lifetime_policy");
-        if (CombatEffectDef.ToLifetimePolicy(lp) == CombatEffectLifetimePolicy.Unknown)
+        if (CombatEffectContentRules.ToLifetimePolicy(lp) == CombatEffectLifetimePolicy.Unknown)
             errors.Add(
                 $"MeteorSwarmProfile.terrain_profiles[{idx}].lifetime_policy must be battle or timed."
             );

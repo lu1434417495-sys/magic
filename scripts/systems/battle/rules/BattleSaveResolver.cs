@@ -182,18 +182,18 @@ public static class BattleSaveResolver
     public static BattleSaveResult ResolveSaveResult(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        CombatEffectDef effect_def,
+        CombatEffectDefinition effect_definition,
         BattleSaveContext context = default
     )
     {
-        int resolvedDc = ResolveSaveDc(source_unit, effect_def, context);
-        if (target_unit == null || effect_def == null || resolvedDc <= 0)
+        int resolvedDc = ResolveSaveDc(source_unit, effect_definition, context);
+        if (target_unit == null || effect_definition == null || resolvedDc <= 0)
         {
             return BattleSaveResult.Empty(AdvantageStateNormal);
         }
 
-        StringName saveTag = ToStringName(effect_def.save_tag);
-        StringName saveAbility = ToStringName(effect_def.save_ability);
+        StringName saveTag = ToStringName(effect_definition.SaveTag);
+        StringName saveAbility = ToStringName(effect_definition.SaveAbility);
         BattleSaveTagState tagState = CollectSaveTagState(target_unit, saveTag);
         if (tagState.Immune)
         {
@@ -274,18 +274,18 @@ public static class BattleSaveResolver
     public static BattleSaveProbabilityResult EstimateSaveSuccessProbabilityResult(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        CombatEffectDef effect_def,
+        CombatEffectDefinition effect_definition,
         BattleSaveContext context = default
     )
     {
-        int resolvedDc = ResolveSaveDc(source_unit, effect_def, context);
-        if (target_unit == null || effect_def == null || resolvedDc <= 0)
+        int resolvedDc = ResolveSaveDc(source_unit, effect_definition, context);
+        if (target_unit == null || effect_definition == null || resolvedDc <= 0)
         {
             return BattleSaveProbabilityResult.Empty(AdvantageStateNormal);
         }
 
-        StringName saveTag = ToStringName(effect_def.save_tag);
-        StringName saveAbility = ToStringName(effect_def.save_ability);
+        StringName saveTag = ToStringName(effect_definition.SaveTag);
+        StringName saveAbility = ToStringName(effect_definition.SaveAbility);
         int abilityValue = GetTargetAbilityValue(target_unit, saveAbility);
         int abilityModifier = GetTargetAbilityModifier(target_unit, saveAbility);
         BattleSaveTagState tagState = CollectSaveTagState(target_unit, saveTag);
@@ -334,22 +334,22 @@ public static class BattleSaveResolver
 
     public static int ResolveSaveDc(
         BattleUnitState source_unit,
-        CombatEffectDef effect_def,
+        CombatEffectDefinition effect_definition,
         BattleSaveContext context = default
     )
     {
-        if (effect_def == null)
+        if (effect_definition == null)
         {
             return 0;
         }
         int lockedSkillHitBonus = GetSkillLockHitBonusFromContext(source_unit, context);
-        if (effect_def.SaveDcModeKind == BattleSaveDcMode.CasterSpell)
+        if (effect_definition.SaveDcModeKind == BattleSaveDcMode.CasterSpell)
         {
-            int casterDc = ResolveCasterSpellSaveDc(source_unit, effect_def);
+            int casterDc = ResolveCasterSpellSaveDc(source_unit, effect_definition);
             return casterDc > 0 ? casterDc + lockedSkillHitBonus : 0;
         }
 
-        int staticDc = Math.Max(effect_def.save_dc, 0);
+        int staticDc = Math.Max(effect_definition.SaveDc, 0);
         return staticDc > 0 ? staticDc + lockedSkillHitBonus : 0;
     }
 
@@ -360,14 +360,14 @@ public static class BattleSaveResolver
 
     private static int ResolveCasterSpellSaveDc(
         BattleUnitState sourceUnit,
-        CombatEffectDef effectDef
+        CombatEffectDefinition effectDefinition
     )
     {
-        if (sourceUnit == null || sourceUnit.attribute_snapshot == null || effectDef == null)
+        if (sourceUnit == null || sourceUnit.attribute_snapshot == null || effectDefinition == null)
         {
             return 0;
         }
-        StringName sourceAbility = ToStringName(effectDef.save_dc_source_ability);
+        StringName sourceAbility = ToStringName(effectDefinition.SaveDcSourceAbility);
         if (IsEmpty(sourceAbility))
         {
             return 0;

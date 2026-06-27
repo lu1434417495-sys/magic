@@ -97,14 +97,14 @@ internal static class EnemyAiActionHelper
         {
             return null;
         }
-        Godot.Collections.Array<Vector2I> sortedCoords = SortCoords(targetCoords);
+        List<Vector2I> sortedCoords = SortCoords(targetCoords);
         var command = new BattleCommand
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = unitState.unit_id,
             skill_id = skillId,
             skill_variant_id = skillVariantId,
-            target_coords = sortedCoords,
+            target_coords = new Vector2IList(sortedCoords),
         };
         if (command.TargetCoordsTyped.Count > 0)
         {
@@ -113,7 +113,7 @@ internal static class EnemyAiActionHelper
         return command;
     }
 
-    internal static Godot.Collections.Array<Vector2I> SortCoords(IEnumerable<Vector2I> coords)
+    internal static List<Vector2I> SortCoords(IEnumerable<Vector2I> coords)
     {
         List<Vector2I> coordList = coords != null ? new List<Vector2I>(coords) : new();
         coordList.Sort(
@@ -123,12 +123,7 @@ internal static class EnemyAiActionHelper
                 return yComparison != 0 ? yComparison : left.X.CompareTo(right.X);
             }
         );
-        var sortedCoords = new Godot.Collections.Array<Vector2I>();
-        foreach (Vector2I coord in coordList)
-        {
-            sortedCoords.Add(coord);
-        }
-        return sortedCoords;
+        return coordList;
     }
 
     internal static string CoordSetKey(IEnumerable<Vector2I> coords)
@@ -211,19 +206,19 @@ internal static class EnemyAiActionHelper
     }
 
     internal static string FormatSkillVariantLabel(
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
     )
     {
-        if (skillDef == null)
+        if (skillDefinition == null)
         {
             return "";
         }
-        if (castVariant == null || castVariant.display_name.Length == 0)
+        if (castVariant == null || castVariant.DisplayName.Length == 0)
         {
-            return skillDef.display_name;
+            return skillDefinition.DisplayName;
         }
-        return $"{skillDef.display_name}·{castVariant.display_name}";
+        return $"{skillDefinition.DisplayName}·{castVariant.DisplayName}";
     }
 
     internal static AiCommandSummary BuildCommandSummary(BattleCommand command) =>

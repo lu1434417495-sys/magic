@@ -411,7 +411,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         facade.GetBattleRuntime()
             ?.setup(
                 facade.GetCharacterManagement(),
-                facade.GetSkillDefsTyped(),
+                catalog?.GetSkillDefinitionsTyped(),
                 catalog?.GetEnemyTemplatesTyped(),
                 catalog?.GetEnemyAiBrainsTyped(),
                 null,
@@ -419,8 +419,9 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
                 facade.GetItemDefsTyped(),
                 null,
                 facade.GetEquipmentInstanceIdAllocator(),
-                catalog?.GetBattleSpecialProfileRegistrySnapshot(),
-                facade.GetSkillCatalogTyped()
+                catalog?.GetBattleSpecialProfileRegistryRuntimeSnapshot(),
+                facade.GetSkillCatalogTyped(),
+                catalog?.GetBattleSpecialProfileView()
             );
     }
 

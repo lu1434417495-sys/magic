@@ -149,10 +149,7 @@ internal sealed class FateRuntimeModule
     {
         if (_misfortuneService == null)
             return new GDictionary();
-        return _misfortuneService.HandleAppliedStatuses(
-            target_unit,
-            status_effect_ids ?? new GArray()
-        );
+        return _misfortuneService.HandleAppliedStatuses(target_unit, status_effect_ids);
     }
 
     internal GDictionary HandleAppliedStatuses(
@@ -162,10 +159,7 @@ internal sealed class FateRuntimeModule
     {
         if (_misfortuneService == null)
             return new GDictionary();
-        return _misfortuneService.HandleAppliedStatuses(
-            target_unit,
-            status_effect_ids ?? new GStringNameArray()
-        );
+        return _misfortuneService.HandleAppliedStatuses(target_unit, status_effect_ids);
     }
 
     internal GDictionary HandleBattleResolution(
@@ -216,10 +210,10 @@ internal sealed class FateRuntimeModule
     internal Godot.Collections.Array<StringName> HandleFortunaChapterCompleted(GDictionary payload)
     {
         if (_fortunaGuidanceService == null)
-            return new Godot.Collections.Array<StringName>();
+            return new StringNameList().ToGodotArray();
         return ToStringNameArray(
             _fortunaGuidanceService.HandleChapterCompleted(
-                BuildFortunaChapterCompletionInput(payload ?? new GDictionary())
+                BuildFortunaChapterCompletionInput(payload)
             )
         );
     }
@@ -231,7 +225,7 @@ internal sealed class FateRuntimeModule
     )
     {
         if (_misfortuneGuidanceService == null)
-            return new Godot.Collections.Array<StringName>();
+            return new StringNameList().ToGodotArray();
         return ToStringNameArray(
             _misfortuneGuidanceService.HandleForgeResult(
                 member_id,
@@ -249,7 +243,7 @@ internal sealed class FateRuntimeModule
             return new GDictionary();
         return LowLuckEventResultToDictionary(
             _lowLuckEventService.HandleSettlementAction(
-                BuildLowLuckSettlementActionInput(context ?? new GDictionary())
+                BuildLowLuckSettlementActionInput(context)
             )
         );
     }
@@ -258,7 +252,7 @@ internal sealed class FateRuntimeModule
     {
         if (_misfortuneGuidanceService != null)
             _misfortuneGuidanceService.ClearExaltedReadyFlags(
-                ReadStringNameList(member_ids ?? new GArray())
+                ReadStringNameList(member_ids)
             );
     }
 
@@ -380,10 +374,12 @@ internal sealed class FateRuntimeModule
         return value == null || value == "";
     }
 
-    private static GArray ReadArray(GDictionary data, string key)
+    private static IEnumerable<Variant> ReadArray(GDictionary data, string key)
     {
         var value = ReadValue(data, key);
-        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+        return value.VariantType == Variant.Type.Array
+            ? value.AsGodotArray()
+            : System.Array.Empty<Variant>();
     }
 
     private static MisfortuneForgeGuidanceInput BuildMisfortuneForgeGuidanceInput(
@@ -585,7 +581,7 @@ internal sealed class FateRuntimeModule
         return result;
     }
 
-    private static List<StringName> ReadStringNameList(GArray values)
+    private static List<StringName> ReadStringNameList(IEnumerable<Variant> values)
     {
         var result = new List<StringName>();
         if (values == null)
@@ -603,16 +599,16 @@ internal sealed class FateRuntimeModule
         IEnumerable<StringName> values
     )
     {
-        var result = new Godot.Collections.Array<StringName>();
+        var result = new StringNameList();
         if (values == null)
-            return result;
+            return result.ToGodotArray();
         foreach (var value in values)
         {
             var stringName = ProgressionDataUtils.to_string_name(value);
             if (stringName != "" && !result.Contains(stringName))
                 result.Add(stringName);
         }
-        return result;
+        return result.ToGodotArray();
     }
 
     private static GDictionary ReadDictionary(GDictionary data, string key)

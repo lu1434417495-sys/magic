@@ -10,7 +10,7 @@ public class BattlePreview
     private readonly List<StringName> _targetUnitIds = new();
     private readonly List<Vector2I> _targetCoords = new();
     private readonly List<StringName> _randomChainCandidateUnitIds = new();
-    private readonly RuntimePayloadStore _saveBranchPreview = new();
+    private BattleSaveBranchPreviewData _saveBranchPreview;
     private BattleDamagePreviewRangeService.SkillDamagePreview? _damagePreview;
     private BattleFatePreviewData _fatePreview;
 
@@ -50,8 +50,8 @@ public class BattlePreview
     }
     public GDictionary save_branch_preview
     {
-        get => _saveBranchPreview.ProjectPayload();
-        set => SetSaveBranchPreview(value);
+        get => _saveBranchPreview?.ToDictionary() ?? new GDictionary();
+        set => SetSaveBranchPreview(BattleSaveBranchPreviewData.FromDictionary(value));
     }
     public BattleSpecialProfileGateResult special_profile_gate_result { get; set; }
     public BattleSpecialProfilePreviewFacts special_profile_preview_facts { get; set; }
@@ -64,7 +64,7 @@ public class BattlePreview
     internal BattleDamagePreviewRangeService.SkillDamagePreview? DamagePreviewTyped =>
         _damagePreview;
     internal BattleFatePreviewData FatePreviewTyped => _fatePreview ?? hit_preview?.FatePreview;
-    internal GDictionary SaveBranchPreviewTyped => _saveBranchPreview.ProjectPayload();
+    internal BattleSaveBranchPreviewData SaveBranchPreviewTyped => _saveBranchPreview;
 
     internal void SetTargetUnitIds(IEnumerable<StringName> values)
     {
@@ -205,12 +205,17 @@ public class BattlePreview
 
     internal void SetSaveBranchPreview(GDictionary value)
     {
-        _saveBranchPreview.ReplaceWithPayload(value);
+        SetSaveBranchPreview(BattleSaveBranchPreviewData.FromDictionary(value));
+    }
+
+    internal void SetSaveBranchPreview(BattleSaveBranchPreviewData value)
+    {
+        _saveBranchPreview = value?.Clone();
     }
 
     internal void ClearSaveBranchPreview()
     {
-        _saveBranchPreview.Clear();
+        _saveBranchPreview = null;
     }
 
     private static BattleDamagePreviewRangeService.SkillDamagePreview? DecodeDamagePreview(

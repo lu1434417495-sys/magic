@@ -461,11 +461,14 @@ internal sealed class MisfortuneService : IDisposable
     )
     {
         var typedStatusIds = new List<StringName>();
-        foreach (StringName statusId in statusEffectIds ?? new GStringNameArray())
+        if (statusEffectIds != null)
         {
-            if (statusId != "")
+            foreach (StringName statusId in statusEffectIds)
             {
-                typedStatusIds.Add(statusId);
+                if (statusId != "")
+                {
+                    typedStatusIds.Add(statusId);
+                }
             }
         }
         return HandleTrigger(MisfortuneTriggerRequest.StrongDebuff(targetUnit, typedStatusIds));
@@ -672,11 +675,11 @@ internal sealed class MisfortuneService : IDisposable
         return BaseCalamityCap + calamityCapacityBonus + (hiddenLuckAtBirth <= -5 ? 1 : 0);
     }
 
-    private Godot.Collections.Array<StringName> _ExtractStrongAttackDebuffIds(
+    private StringNameList _ExtractStrongAttackDebuffIds(
         IEnumerable<StringName> statusEffectIds
     )
     {
-        var strongStatusIds = new Godot.Collections.Array<StringName>();
+        var strongStatusIds = new StringNameList();
         if (statusEffectIds == null)
             return strongStatusIds;
         foreach (StringName statusIdValue in statusEffectIds)

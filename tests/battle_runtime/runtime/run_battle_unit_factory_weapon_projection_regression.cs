@@ -437,13 +437,11 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
     private static BattleRuntimeScope BuildRuntimeWithMemberItems(params ItemDef[] itemDefs)
     {
         PartyState partyState = BuildPartyState("hero");
-        GDictionary indexedItemDefs = new();
         var typedItemDefs = new Dictionary<StringName, ItemDef>();
         foreach (ItemDef itemDef in itemDefs)
         {
             if (itemDef != null)
             {
-                indexedItemDefs[itemDef.item_id] = itemDef;
                 typedItemDefs[itemDef.item_id] = itemDef;
             }
         }
@@ -452,16 +450,15 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
         var characterManagement = new CharacterManagementModule();
         characterManagement.setup(
             partyState,
-            ProjectSkillDefs(progressionRegistry.GetSkillDefsTyped()),
-            ProjectProfessionDefs(progressionRegistry.GetProfessionDefsTyped()),
-            new GDictionary(),
-            indexedItemDefs
+            progressionRegistry.GetSkillDefinitionsTyped(),
+            progressionRegistry.GetProfessionDefsTyped(),
+            item_defs: typedItemDefs
         );
 
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             characterManagement,
-            progressionRegistry.GetSkillDefsTyped(),
+            progressionRegistry.GetSkillDefinitionsTyped(),
             item_defs: typedItemDefs
         );
         return new BattleRuntimeScope(runtime, partyState);
@@ -500,7 +497,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
         var characterManagement = new CharacterManagementModule();
         characterManagement.setup(
             partyState,
-            progressionRegistry.GetSkillDefsTyped(),
+            progressionRegistry.GetSkillDefinitionsTyped(),
             progressionRegistry.GetProfessionDefsTyped(),
             new Dictionary<StringName, AchievementDef>(),
             new Dictionary<StringName, ItemDef>(),
@@ -513,7 +510,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             characterManagement,
-            progressionRegistry.GetSkillDefsTyped(),
+            progressionRegistry.GetSkillDefinitionsTyped(),
             item_defs: new Dictionary<StringName, ItemDef>()
         );
         return new BattleRuntimeScope(runtime, partyState);
@@ -545,7 +542,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
         var characterManagement = new CharacterManagementModule();
         characterManagement.setup(
             partyState,
-            progressionRegistry.GetSkillDefsTyped(),
+            progressionRegistry.GetSkillDefinitionsTyped(),
             progressionRegistry.GetProfessionDefsTyped(),
             new Dictionary<StringName, AchievementDef>(),
             itemDefs,
@@ -558,7 +555,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             characterManagement,
-            progressionRegistry.GetSkillDefsTyped(),
+            progressionRegistry.GetSkillDefinitionsTyped(),
             item_defs: itemDefs
         );
         return new BattleRuntimeScope(runtime, partyState);
@@ -576,20 +573,6 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
             throw new InvalidOperationException($"{label} scenario should build exactly one ally unit.");
         }
         return units[0];
-    }
-
-    private static GDictionary ProjectSkillDefs(IReadOnlyDictionary<StringName, SkillDef> skillDefs)
-    {
-        GDictionary result = new();
-        if (skillDefs == null)
-            return result;
-        foreach ((StringName skillId, SkillDef skillDef) in skillDefs)
-        {
-            if (skillId == "" || skillDef == null)
-                continue;
-            result[skillId] = skillDef;
-        }
-        return result;
     }
 
     private static GDictionary ProjectProfessionDefs(

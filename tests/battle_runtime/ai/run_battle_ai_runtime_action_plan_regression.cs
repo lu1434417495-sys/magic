@@ -31,7 +31,7 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
         unit.SetKnownSkillLevelsTyped(new Dictionary<StringName, int> { ["bolt"] = 1 });
         unit.current_ap = 1;
 
-        var plan = new BattleAiRuntimeActionPlan();
+        using var plan = new BattleAiRuntimeActionPlan();
         plan.SetSource(unit, brain);
         _test.True(!plan.IsStaleFor(unit, brain), "Same unit/brain/skill signature should not be stale.");
 
@@ -50,7 +50,7 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
         brain.states.Add(extraState);
         _test.True(plan.IsStaleFor(unit, brain), "Brain state/action shape changes should make the plan stale.");
 
-        var transitionPlan = new BattleAiRuntimeActionPlan();
+        using var transitionPlan = new BattleAiRuntimeActionPlan();
         transitionPlan.SetSource(unit, brain);
         brain.transition_rules = new Godot.Collections.Array<EnemyAiTransitionRuleDef>
         {
@@ -93,7 +93,7 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
 
     private void TestServiceReportsEmptyRuntimeState()
     {
-        var plan = new BattleAiRuntimeActionPlan();
+        using var plan = new BattleAiRuntimeActionPlan();
         Fixture fixture = BuildServiceFixture(false, plan);
         plan.SetSource(fixture.Actor, fixture.Brain);
         plan.AddStateActions("engage", Array.Empty<EnemyAiAction>());
@@ -141,7 +141,7 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
             runtime_action_plan = plan,
             allow_authored_action_fallback_for_tests = enableTestFallback,
         };
-        context.SetSkillDefs(new Dictionary<StringName, SkillDef>());
+        context.SetSkillDefinitions(new Dictionary<StringName, SkillDefinition>());
 
         return new Fixture
         {

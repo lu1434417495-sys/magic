@@ -49,61 +49,61 @@ public partial class run_prismatic_sphere_regression : SceneTree
         BattleUnitState enemy = fixture.Enemy;
         var batch = new BattleEventBatch();
 
-        SkillDef magicMissile = BuildSkill("mage_arcane_missile", "奥术飞弹", "mage", "magic");
+        SkillDefinition magicMissile = BuildSkill("mage_arcane_missile", "奥术飞弹", "mage", "magic");
         BattleBarrierInteractionResult blockedResult =
             runtime._layered_barrier_service.ResolveSkillBarrierInteractionResult(
                 enemy,
                 caster,
                 magicMissile,
-                Array.Empty<CombatEffectDef>(),
+                Array.Empty<CombatEffectDefinition>(),
                 batch
             );
         _test.True(blockedResult.Blocked, "外层仍在时，蓝色层破解法术应被阻挡。");
         _test.Eq(ActiveLayerId(FirstBarrier(state)), new StringName("red"), "错误顺序的破解不应破坏红色层。");
 
-        SkillDef coneOfCold = BuildSkill("mage_cone_of_cold", "寒冰锥", "mage", "magic", "freeze");
+        SkillDefinition coneOfCold = BuildSkill("mage_cone_of_cold", "寒冰锥", "mage", "magic", "freeze");
         BattleBarrierInteractionResult breakResult =
             runtime._layered_barrier_service.ResolveSkillBarrierInteractionResult(
                 enemy,
                 caster,
                 coneOfCold,
-                Array.Empty<CombatEffectDef>(),
+                Array.Empty<CombatEffectDefinition>(),
                 batch
             );
         _test.True(breakResult.Blocked, "正确破解法术应被法球消耗。");
         _test.Eq(ActiveLayerId(FirstBarrier(state)), new StringName("orange"), "寒冰锥应只破坏最外侧红色层。");
 
-        SkillDef gustOfWind = BuildSkill("mage_gust_of_wind", "强风术", "mage", "magic", "air");
+        SkillDefinition gustOfWind = BuildSkill("mage_gust_of_wind", "强风术", "mage", "magic", "air");
         BattleBarrierInteractionResult orangeBreakResult =
             runtime._layered_barrier_service.ResolveSkillBarrierInteractionResult(
                 enemy,
                 caster,
                 gustOfWind,
-                Array.Empty<CombatEffectDef>(),
+                Array.Empty<CombatEffectDefinition>(),
                 batch
             );
         _test.True(orangeBreakResult.Blocked, "强风术应被虹光法球消耗以破解橙色层。");
         _test.Eq(ActiveLayerId(FirstBarrier(state)), new StringName("yellow"), "强风术应在红层破除后破解橙色层。");
 
-        SkillDef disintegrate = BuildSkill("mage_spell_disjunction", "裂解术", "mage", "magic", "arcane");
+        SkillDefinition disintegrate = BuildSkill("mage_spell_disjunction", "裂解术", "mage", "magic", "arcane");
         BattleBarrierInteractionResult yellowBreakResult =
             runtime._layered_barrier_service.ResolveSkillBarrierInteractionResult(
                 enemy,
                 caster,
                 disintegrate,
-                Array.Empty<CombatEffectDef>(),
+                Array.Empty<CombatEffectDefinition>(),
                 batch
             );
         _test.True(yellowBreakResult.Blocked, "裂解术应被虹光法球消耗以破解黄色层。");
         _test.Eq(ActiveLayerId(FirstBarrier(state)), new StringName("green"), "裂解术应在橙层破除后破解黄色层。");
 
-        SkillDef passwall = BuildSkill("mage_passwall", "穿墙术", "mage", "magic", "earth");
+        SkillDefinition passwall = BuildSkill("mage_passwall", "穿墙术", "mage", "magic", "earth");
         BattleBarrierInteractionResult greenBreakResult =
             runtime._layered_barrier_service.ResolveSkillBarrierInteractionResult(
                 enemy,
                 caster,
                 passwall,
-                Array.Empty<CombatEffectDef>(),
+                Array.Empty<CombatEffectDefinition>(),
                 batch
             );
         _test.True(greenBreakResult.Blocked, "穿墙术应被虹光法球消耗以破解绿色层。");
@@ -114,31 +114,31 @@ public partial class run_prismatic_sphere_regression : SceneTree
                 enemy,
                 caster,
                 magicMissile,
-                Array.Empty<CombatEffectDef>(),
+                Array.Empty<CombatEffectDefinition>(),
                 batch
             );
         _test.True(blueBreakResult.Blocked, "奥术飞弹应被虹光法球消耗以破解蓝色层。");
         _test.Eq(ActiveLayerId(FirstBarrier(state)), new StringName("indigo"), "奥术飞弹应在绿层破除后破解蓝色层。");
 
-        SkillDef continualLight = BuildSkill("mage_continual_light", "恒光术", "mage", "magic", "radiant");
+        SkillDefinition continualLight = BuildSkill("mage_continual_light", "恒光术", "mage", "magic", "radiant");
         BattleBarrierInteractionResult indigoBreakResult =
             runtime._layered_barrier_service.ResolveSkillBarrierInteractionResult(
                 enemy,
                 caster,
                 continualLight,
-                Array.Empty<CombatEffectDef>(),
+                Array.Empty<CombatEffectDefinition>(),
                 batch
             );
         _test.True(indigoBreakResult.Blocked, "恒光术应被虹光法球消耗以破解靛色层。");
         _test.Eq(ActiveLayerId(FirstBarrier(state)), new StringName("violet"), "恒光术应在蓝层破除后破解靛色层。");
 
-        SkillDef dispelMagic = BuildSkill("mage_dispel_magic", "解除魔法", "mage", "magic", "dispel");
+        SkillDefinition dispelMagic = BuildSkill("mage_dispel_magic", "解除魔法", "mage", "magic", "dispel");
         BattleBarrierInteractionResult violetBreakResult =
             runtime._layered_barrier_service.ResolveSkillBarrierInteractionResult(
                 enemy,
                 caster,
                 dispelMagic,
-                Array.Empty<CombatEffectDef>(),
+                Array.Empty<CombatEffectDefinition>(),
                 batch
             );
         _test.True(violetBreakResult.Blocked, "解除魔法应被虹光法球消耗以破解紫色层。");
@@ -209,20 +209,16 @@ public partial class run_prismatic_sphere_regression : SceneTree
         target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 8);
         SetStatus(target, "death_ward", new GDictionary { ["damage_tag"] = "negative_energy" });
 
-        CombatEffectDef damageEffect = OwnedEffect(
-            new CombatEffectDef
-            {
-                effect_type = "damage",
-                power = 99,
-                damage_tag = "physical_slash",
-            },
-            "prismatic_sphere.plain_fatal_damage"
+        CombatEffectDefinition damageEffect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            power: 99,
+            damageTag: "physical_slash"
         );
         GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(
             resolver.ResolveEffects(
                 source,
                 target,
-                EffectArray("plain_fatal_damage", damageEffect)
+                EffectArray(damageEffect)
             )
         );
         _test.Eq(
@@ -240,24 +236,21 @@ public partial class run_prismatic_sphere_regression : SceneTree
         BattleRuntimeModule runtime = fixture.Runtime;
         BattleState state = fixture.State;
         BattleUnitState enemy = fixture.Enemy;
-        SkillDef lastStandSkill = ResourceLoader.Load<SkillDef>(
-            "res://data/configs/skills/warrior_last_stand.tres"
-        );
-        GodotContentOwnership.RegisterBorrowedContent(
-            lastStandSkill,
+        SkillDefinition lastStandSkill = TestSkillDefinitionProjection.LoadSkillDefinition(
+            "res://data/configs/skills/warrior_last_stand.tres",
             "prismatic_sphere:res://data/configs/skills/warrior_last_stand.tres"
         );
         _test.True(
-            lastStandSkill != null && lastStandSkill.combat_profile != null,
+            lastStandSkill != null && lastStandSkill.CombatProfile != null,
             "绿色层即死回归需要 warrior_last_stand 技能资源。"
         );
-        if (lastStandSkill == null || lastStandSkill.combat_profile == null)
+        if (lastStandSkill == null || lastStandSkill.CombatProfile == null)
         {
             return;
         }
 
-        runtime.GetDamageResolver().SetSkillDefs(
-            new Dictionary<StringName, SkillDef>
+        runtime.GetDamageResolver().SetSkillDefinitions(
+            new Dictionary<StringName, SkillDefinition>
             {
                 [(StringName)"warrior_last_stand"] = lastStandSkill
             }
@@ -367,12 +360,9 @@ public partial class run_prismatic_sphere_regression : SceneTree
         BattleUnitState target = BuildUnit("target", "目标", "player", new Vector2I(1, 0));
         SetStatus(target, "madness");
         SetStatus(target, "petrified");
-        var cleanse = OwnedEffect(
-            new CombatEffectDef { effect_type = "cleanse_harmful" },
-            "prismatic_sphere.cleanse_harmful"
-        );
+        var cleanse = TestSkillDefinitionProjection.BuildEffect("cleanse_harmful");
         var resolver = new BattleDamageResolver();
-        resolver.ResolveEffects(source, target, EffectArray("cleanse_harmful", cleanse));
+        resolver.ResolveEffects(source, target, EffectArray(cleanse));
         _test.False(target.HasStatusEffect("madness"), "cleanse_harmful 应解除 madness。");
         _test.True(target.HasStatusEffect("petrified"), "cleanse_harmful 不应解除 petrified。");
     }
@@ -382,23 +372,17 @@ public partial class run_prismatic_sphere_regression : SceneTree
         BattleUnitState source = BuildUnit("source", "施法者", "player", Vector2I.Zero);
         BattleUnitState ally = BuildUnit("ally", "友方", "player", new Vector2I(1, 0));
         BattleUnitState enemy = BuildUnit("enemy", "敌方", "enemy", new Vector2I(2, 0));
-        var dispel = OwnedEffect(
-            new CombatEffectDef
-            {
-                effect_type = "dispel_magic",
-                power = 1,
-                remove_beneficial_from_enemies = true,
-                remove_harmful_from_allies = true,
-                max_status_removed = 1,
-            },
-            "prismatic_sphere.dispel_magic"
+        var dispel = TestSkillDefinitionProjection.BuildEffect(
+            "dispel_magic",
+            power: 1,
+            maxStatusRemoved: 1
         );
         var resolver = new BattleDamageResolver();
 
         SetStatus(ally, "blind");
         SetStatus(ally, "petrified");
         GDictionary allyResult = AttackEffectResolutionResultReader.BuildGodotPayload(
-            resolver.ResolveEffects(source, ally, EffectArray("dispel_magic.ally", dispel))
+            resolver.ResolveEffects(source, ally, EffectArray(dispel))
         );
         _test.True(DictBool(allyResult, "applied"), "解除魔法命中友方时应能移除可驱散减益。");
         _test.False(ally.HasStatusEffect("blind"), "解除魔法应移除友方 blind。");
@@ -412,7 +396,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
         SetStatus(enemy, "attack_up");
         SetStatus(enemy, "marked");
         GDictionary enemyResult = AttackEffectResolutionResultReader.BuildGodotPayload(
-            resolver.ResolveEffects(source, enemy, EffectArray("dispel_magic.enemy", dispel))
+            resolver.ResolveEffects(source, enemy, EffectArray(dispel))
         );
         _test.True(DictBool(enemyResult, "applied"), "解除魔法命中敌方时应能移除可驱散增益。");
         _test.False(enemy.HasStatusEffect("magic_shield"), "解除魔法应优先移除敌方高优先级魔法增益。");
@@ -434,24 +418,20 @@ public partial class run_prismatic_sphere_regression : SceneTree
         BattleUnitState enemy = BuildUnit("enemy", "敌人", "enemy", new Vector2I(5, 2));
         AddUnit(runtime, state, caster, false);
         AddUnit(runtime, state, enemy, true);
-        SkillDef skill = BuildSkill("mage_prismatic_sphere", "虹光法球", "mage", "magic");
-        var effect = OwnedEffect(
-            new CombatEffectDef
+        SkillDefinition skill = BuildSkill("mage_prismatic_sphere", "虹光法球", "mage", "magic");
+        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
+            "layered_barrier",
+            durationTu: 120,
+            saveDc: 15,
+            saveDcMode: "static",
+            saveAbility: "willpower",
+            saveTag: "magic",
+            parameters: new Dictionary<string, Variant>
             {
-                effect_type = "layered_barrier",
-                duration_tu = 120,
-                save_dc = 15,
-                save_dc_mode = "static",
-                save_ability = "willpower",
-                save_tag = "magic",
-                @params = new GDictionary
-                {
-                    ["area_pattern"] = "diamond",
-                    ["profile_id"] = "prismatic_sphere",
-                    ["radius_cells"] = 2,
-                },
-            },
-            "prismatic_sphere.layered_barrier_effect"
+                ["area_pattern"] = "diamond",
+                ["profile_id"] = "prismatic_sphere",
+                ["radius_cells"] = 2,
+            }
         );
         runtime._layered_barrier_service.ApplyLayeredBarrierEffectResult(
             caster,
@@ -523,33 +503,18 @@ public partial class run_prismatic_sphere_regression : SceneTree
         return unit;
     }
 
-    private static SkillDef BuildSkill(StringName skillId, string displayName, params StringName[] tags)
+    private static SkillDefinition BuildSkill(StringName skillId, string displayName, params StringName[] tags)
     {
-        var skill = new SkillDef
-        {
-            skill_id = skillId,
-            display_name = displayName,
-            icon_id = skillId,
-        };
-        skill.SetTags(tags);
-        return TestResourceOwnership.Own(skill, $"prismatic_sphere.skill.{skillId}");
-    }
-
-    private static CombatEffectDef OwnedEffect(CombatEffectDef effect, string reason) =>
-        TestResourceOwnership.Own(effect, reason);
-
-    private static GArray EffectArray(string reason, params CombatEffectDef[] effects)
-    {
-        GArray result = TestResourceOwnership.OwnWrapper(
-            new GArray(),
-            $"prismatic_sphere.{reason}.effects"
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: displayName,
+            tags: tags
         );
-        if (effects == null)
-            return result;
-        foreach (CombatEffectDef effect in effects)
-            result.Add(effect);
-        return result;
     }
+
+    private static IReadOnlyList<CombatEffectDefinition> EffectArray(
+        params CombatEffectDefinition[] effects
+    ) => effects ?? Array.Empty<CombatEffectDefinition>();
 
     private static void AddUnit(
         BattleRuntimeModule runtime,

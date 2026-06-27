@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 internal sealed class BattleUnitFactory
 {
@@ -12,8 +11,6 @@ internal sealed class BattleUnitFactory
 
     private static AttributeSnapshot _snap(BattleUnitState us) =>
         us?.attribute_snapshot as AttributeSnapshot;
-
-    private static CombatSkillDef _csd(Resource r) => r as CombatSkillDef;
 
     private static int _gv(BattleUnitState us, StringName k) => _snap(us)?.GetValue(k) ?? 0;
 
@@ -148,8 +145,8 @@ internal sealed class BattleUnitFactory
     private IBattleRuntimeCharacterGateway GetCharacterGateway() =>
         _runtime?.GetCharacterGatewayTyped();
 
-    private IReadOnlyDictionary<StringName, SkillDef> GetSkillDefIndex() =>
-        _runtime?.GetSkillDefIndexTyped() ?? new Dictionary<StringName, SkillDef>();
+    private IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionIndex() =>
+        _runtime?.GetSkillDefinitionIndexTyped() ?? new Dictionary<StringName, SkillDefinition>();
 
     private BattleTerrainGenerator GetTerrainGenerator() => _runtime?.GetTerrainGenerator();
 
@@ -678,9 +675,9 @@ internal sealed class BattleUnitFactory
         return us;
     }
 
-    private Godot.Collections.Array<StringName> _pick_default_enemy_skill_ids()
+    private StringNameList _pick_default_enemy_skill_ids()
     {
-        var pre = new Godot.Collections.Array<StringName>
+        var pre = new StringNameList
         {
             BASIC_ATTACK_SKILL_ID,
             "warrior_heavy_strike",
@@ -688,51 +685,51 @@ internal sealed class BattleUnitFactory
             "warrior_guard_break",
         };
         foreach (var p in pre)
-            if (_is_valid_enemy_skill(_skill_def_from_runtime(p)))
-                return new Godot.Collections.Array<StringName> { p };
-        var sortedSkillIds = new List<StringName>(GetSkillDefIndex().Keys);
+            if (_is_valid_enemy_skill(_skill_definition_from_runtime(p)))
+                return new StringNameList { p };
+        var sortedSkillIds = new List<StringName>(GetSkillDefinitionIndex().Keys);
         sortedSkillIds.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
         foreach (var sid in sortedSkillIds)
         {
-            if (_is_valid_enemy_skill(_skill_def_from_runtime(sid)))
-                return new Godot.Collections.Array<StringName> { sid };
+            if (_is_valid_enemy_skill(_skill_definition_from_runtime(sid)))
+                return new StringNameList { sid };
         }
-        return new Godot.Collections.Array<StringName>();
+        return new StringNameList();
     }
 
-    private bool _is_valid_enemy_skill(SkillDef sd)
+    private bool _is_valid_enemy_skill(SkillDefinition skillDefinition)
     {
-        var cp = _csd(sd?.combat_profile);
-        return sd != null
-            && sd.SkillTypeKind == SkillTypeKind.Active
-            && sd.CanUseInCombat()
-            && cp != null
-            && cp.TargetModeKind == BattleTargetMode.Unit
-            && BattleTargetTeamRules.IsEnemyFilter(cp.target_team_filter);
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        return skillDefinition != null
+            && skillDefinition.SkillTypeKind == SkillTypeKind.Active
+            && skillDefinition.CanUseInCombat()
+            && combatProfile != null
+            && combatProfile.TargetModeKind == BattleTargetMode.Unit
+            && BattleTargetTeamRules.IsEnemyFilter(combatProfile.TargetTeamFilter);
     }
 
     private void _filter_skills_by_equipment_requirements(BattleUnitState us)
     {
         if (us == null)
             return;
-        var f = new Godot.Collections.Array<StringName>();
+        var f = new StringNameList();
         foreach (var sid in us.known_active_skill_ids)
         {
-            var sd = _skill_def_from_runtime(sid);
-            var cp = _csd(sd?.combat_profile);
-            if (cp == null)
+            SkillDefinition skillDefinition = _skill_definition_from_runtime(sid);
+            CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+            if (combatProfile == null)
                 continue;
-            if (cp.requires_equipped_shield && !_unit_has_equipped_shield(us))
+            if (combatProfile.RequiresEquippedShield && !_unit_has_equipped_shield(us))
                 continue;
             if (
                 !BattleRangeService.UnitMatchesRequiredWeaponFamilies(
                     us,
-                    cp.required_weapon_families ?? new Godot.Collections.Array<StringName>()
+                    combatProfile.RequiredWeaponFamilies
                 )
             )
                 continue;
             if (
-                BattleRangeService.RequiresCurrentMeleeWeapon(sd)
+                BattleRangeService.RequiresCurrentMeleeWeapon(skillDefinition)
                 && !BattleRangeService.UnitHasMeleeWeapon(us)
             )
                 continue;
@@ -757,13 +754,12 @@ internal sealed class BattleUnitFactory
         Godot.Collections.Dictionary ctx
     ) => ReadArray(ctx, "ally_member_ids");
 
-    private SkillDef _skill_def_from_runtime(StringName sid)
+    private SkillDefinition _skill_definition_from_runtime(StringName sid)
     {
-        SkillDef indexedSkillDef = _runtime?.GetSkillDefTyped(sid);
-        if (indexedSkillDef != null)
-            return indexedSkillDef;
-        var skillDefs = GetSkillDefIndex();
-        return skillDefs.TryGetValue(sid, out SkillDef skillDef) ? skillDef : null;
+        var skillDefinitions = GetSkillDefinitionIndex();
+        return skillDefinitions.TryGetValue(sid, out SkillDefinition skillDefinition)
+            ? skillDefinition
+            : null;
     }
 
     private AttributeSnapshot _build_member_attribute_snapshot(
@@ -805,7 +801,9 @@ internal sealed class BattleUnitFactory
                 new AttributeSourceContext
                 {
                     unit_progress = prog,
-                    skill_defs = ProjectSkillDefs(GetSkillDefIndex()),
+                    skill_definitions = new Dictionary<StringName, SkillDefinition>(
+                        GetSkillDefinitionIndex()
+                    ),
                     reserved_mp_max = reservedMpMax,
                 }
             );
@@ -944,7 +942,7 @@ internal sealed class BattleUnitFactory
         if ((string)mid == "" || _runtime == null)
         {
             us.effective_trait_instances = new List<BattleEffectiveTraitInstanceState>();
-            us.effective_trait_ids = new GStringNameArray();
+            us.effective_trait_ids = new StringNameList();
             return;
         }
 
@@ -1031,14 +1029,14 @@ internal sealed class BattleUnitFactory
     {
         if (us == null || !us.known_active_skill_ids.Contains(BASIC_ATTACK_SKILL_ID))
             return;
-        var ba = _skill_def_from_runtime(BASIC_ATTACK_SKILL_ID);
-        var cp = _csd(ba?.combat_profile);
-        if (cp == null)
+        SkillDefinition basicAttack = _skill_definition_from_runtime(BASIC_ATTACK_SKILL_ID);
+        CombatSkillDefinition combatProfile = basicAttack?.CombatProfile;
+        if (combatProfile == null)
             return;
         int sl = us.HasKnownSkillLevelTyped(BASIC_ATTACK_SKILL_ID)
             ? Mathf.Max(us.GetKnownSkillLevelTyped(BASIC_ATTACK_SKILL_ID), 0)
             : 0;
-        CombatSkillResourceCosts costs = cp.GetEffectiveResourceCostValues(sl);
+        CombatSkillResourceCosts costs = combatProfile.GetEffectiveResourceCostValues(sl);
         int sc = Mathf.Max(costs.StaminaCost, 0);
         if (sc <= 0)
             return;
@@ -1060,7 +1058,7 @@ internal sealed class BattleUnitFactory
             return;
         }
         prog.SyncDefaultCombatResourceUnlocks();
-        var rids = new Godot.Collections.Array<StringName>();
+        var rids = new StringNameList();
         foreach (var rv in prog.UnlockedCombatResourceIdsTyped)
             rids.Add(rv);
         us.SetUnlockedCombatResourceIds(rids);
@@ -1080,14 +1078,14 @@ internal sealed class BattleUnitFactory
             us.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura));
         foreach (var sid in us.known_active_skill_ids)
         {
-            var sd = _skill_def_from_runtime(sid);
-            var cp = _csd(sd?.combat_profile);
-            if (cp == null)
+            SkillDefinition skillDefinition = _skill_definition_from_runtime(sid);
+            CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+            if (combatProfile == null)
                 continue;
             int sl = us.HasKnownSkillLevelTyped(sid)
                 ? Mathf.Max(us.GetKnownSkillLevelTyped(sid), 1)
                 : 1;
-            CombatSkillResourceCosts costs = cp.GetEffectiveResourceCostValues(sl);
+            CombatSkillResourceCosts costs = combatProfile.GetEffectiveResourceCostValues(sl);
             if (costs.MpCost > 0)
                 us.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));
             if (costs.AuraCost > 0)
@@ -1099,7 +1097,7 @@ internal sealed class BattleUnitFactory
     {
         if ((string)sid == "")
             return false;
-        return GetSkillDefIndex().ContainsKey(sid);
+        return GetSkillDefinitionIndex().ContainsKey(sid);
     }
 
     private static int _resolve_action_threshold_from_snapshot(AttributeSnapshot snap, int fb = -1)
@@ -1114,9 +1112,9 @@ internal sealed class BattleUnitFactory
         return f;
     }
 
-    private Godot.Collections.Array<StringName> _collect_known_active_skill_ids(UnitProgress prog)
+    private StringNameList _collect_known_active_skill_ids(UnitProgress prog)
     {
-        var r = new Godot.Collections.Array<StringName>();
+        var r = new StringNameList();
         if (prog == null)
             return r;
         foreach (var sid in prog.GetSortedSkillIdsTyped())
@@ -1124,10 +1122,13 @@ internal sealed class BattleUnitFactory
             UnitSkillProgress sp = prog.GetSkillProgress(sid);
             if (sp == null)
                 continue;
-            var sd = _skill_def_from_runtime(sid);
-            if (sd == null || !sp.is_learned)
+            SkillDefinition skillDefinition = _skill_definition_from_runtime(sid);
+            if (skillDefinition == null || !sp.is_learned)
                 continue;
-            if (sd.SkillTypeKind != SkillTypeKind.Active || !sd.CanUseInCombat())
+            if (
+                skillDefinition.SkillTypeKind != SkillTypeKind.Active
+                || !skillDefinition.CanUseInCombat()
+            )
                 continue;
             r.Add(sid);
         }
@@ -1144,10 +1145,10 @@ internal sealed class BattleUnitFactory
             UnitSkillProgress sp = prog.GetSkillProgress(sid);
             if (sp == null)
                 continue;
-            var sd = _skill_def_from_runtime(sid);
-            if (sd == null || !sp.is_learned)
+            SkillDefinition skillDefinition = _skill_definition_from_runtime(sid);
+            if (skillDefinition == null || !sp.is_learned)
                 continue;
-            if (sd.SkillTypeKind != SkillTypeKind.Active)
+            if (skillDefinition.SkillTypeKind != SkillTypeKind.Active)
                 continue;
             r[sid] = sp.skill_level;
         }
@@ -1162,8 +1163,13 @@ internal sealed class BattleUnitFactory
         foreach (var sid in prog.GetSortedSkillIdsTyped())
         {
             UnitSkillProgress sp = prog.GetSkillProgress(sid);
-            var sd = _skill_def_from_runtime(sid);
-            if (sp == null || sd == null || !sp.is_learned || !sp.is_level_trigger_locked)
+            SkillDefinition skillDefinition = _skill_definition_from_runtime(sid);
+            if (
+                sp == null
+                || skillDefinition == null
+                || !sp.is_learned
+                || !sp.is_level_trigger_locked
+            )
                 continue;
             int b = sp.bonus_to_hit_from_lock;
             if (b <= 0)
@@ -1192,14 +1198,14 @@ internal sealed class BattleUnitFactory
                 unit_progress = prog,
             };
         }
-        PassiveStatusOrchestrator.ApplyToUnit(us, ctx, GetSkillDefIndex());
+        PassiveStatusOrchestrator.ApplyToUnit(us, ctx, GetSkillDefinitionIndex());
     }
 
-    private static Godot.Collections.Array<StringName> _extract_movement_tags(
+    private static StringNameList _extract_movement_tags(
         Godot.Collections.Array values
     )
     {
-        var t = new Godot.Collections.Array<StringName>();
+        var t = new StringNameList();
         if (values == null)
             return t;
         foreach (var rv in values)
@@ -1210,18 +1216,6 @@ internal sealed class BattleUnitFactory
             t.Add(n);
         }
         return t;
-    }
-
-    private static Dictionary<StringName, SkillDef> ProjectSkillDefs(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
-    )
-    {
-        var result = new Dictionary<StringName, SkillDef>();
-        if (skillDefs == null || skillDefs.Count == 0)
-            return result;
-        foreach (KeyValuePair<StringName, SkillDef> entry in skillDefs)
-            result[entry.Key] = entry.Value;
-        return result;
     }
 
     private static Godot.Collections.Array ReadArray(

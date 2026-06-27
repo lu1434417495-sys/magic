@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GCombatEffectArray = Godot.Collections.Array<CombatEffectDef>;
 using GDictionary = Godot.Collections.Dictionary;
 using GIntArray = Godot.Collections.Array<int>;
 using GStringArray = Godot.Collections.Array<string>;
@@ -658,19 +657,20 @@ public sealed class BattleHudAdapter : IDisposable
     private GArray BuildSkillSlots(BattleUnitState activeUnit, StringName selectedSkillId)
     {
         var skillSlots = new GArray();
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = GetSkillDefs();
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = GetSkillDefinitions();
         if (activeUnit != null)
         {
             int count = Mathf.Min(activeUnit.known_active_skill_ids.Count, SKILL_GRID_SIZE);
             for (int index = 0; index < count; index++)
             {
                 StringName skillId = activeUnit.known_active_skill_ids[index];
-                SkillDef skillDef = GetSkillDef(skillDefs, skillId);
-                string displayName = GetSkillDisplayName(skillDef, skillId);
-                string iconKey = GetSkillIconKey(skillDef, skillId);
+                SkillDefinition skillDefinition = GetSkillDefinition(skillDefinitions, skillId);
+                string displayName = GetSkillDisplayName(skillDefinition, skillId);
+                string iconKey = GetSkillIconKey(skillDefinition, skillId);
                 Color accentColor = BuildSkillColor(iconKey, displayName);
-                GDictionary slotState = BuildSkillSlotState(activeUnit, skillDef, skillId);
-                string description = skillDef != null ? skillDef.description.StripEdges() : "";
+                GDictionary slotState = BuildSkillSlotState(activeUnit, skillDefinition, skillId);
+                string description =
+                    skillDefinition != null ? skillDefinition.Description.StripEdges() : "";
                 skillSlots.Add(
                     new GDictionary
                     {
@@ -1238,11 +1238,11 @@ public sealed class BattleHudAdapter : IDisposable
 
     private GDictionary BuildSkillSlotState(
         BattleUnitState activeUnit,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         StringName skillId
     )
     {
-        CombatSkillResourceCosts costs = GetEffectiveSkillCosts(activeUnit, skillDef);
+        CombatSkillResourceCosts costs = GetEffectiveSkillCosts(activeUnit, skillDefinition);
         int apCost = costs.ApCost;
         int mpCost = costs.MpCost;
         int staminaCost = costs.StaminaCost;
@@ -1258,9 +1258,9 @@ public sealed class BattleHudAdapter : IDisposable
         // weapon, status locks), so mirror its verdict instead of re-deriving
         // any of it. Target validity is excluded — it can only be known once the
         // player picks a target.
-        if (activeUnit != null && skillDef != null && _runtime != null)
+        if (activeUnit != null && skillDefinition != null && _runtime != null)
         {
-            string castBlockReason = _runtime.GetBattleSkillCastBlockMessage(activeUnit, skillDef);
+            string castBlockReason = _runtime.GetBattleSkillCastBlockMessage(activeUnit, skillId);
             if (!string.IsNullOrEmpty(castBlockReason))
                 return DisabledSkillSlot(
                     cooldown > 0 ? $"CD {cooldown}" : "不可用",
@@ -1452,27 +1452,27 @@ public sealed class BattleHudAdapter : IDisposable
         return displayName.Substring(0, Math.Min(displayName.Length, 2));
     }
 
-    private static string GetSkillDisplayName(SkillDef skillDef, StringName skillId)
+    private static string GetSkillDisplayName(SkillDefinition skillDefinition, StringName skillId)
     {
-        if (skillDef != null && !string.IsNullOrEmpty(skillDef.display_name))
-            return skillDef.display_name;
+        if (skillDefinition != null && !string.IsNullOrEmpty(skillDefinition.DisplayName))
+            return skillDefinition.DisplayName;
         return skillId.ToString();
     }
 
-    private static string GetSkillIconKey(SkillDef skillDef, StringName skillId)
+    private static string GetSkillIconKey(SkillDefinition skillDefinition, StringName skillId)
     {
-        if (skillDef != null && !IsEmpty(skillDef.icon_id))
-            return skillDef.icon_id.ToString();
+        if (skillDefinition != null && !IsEmpty(skillDefinition.IconId))
+            return skillDefinition.IconId.ToString();
         return skillId.ToString();
     }
 
-    private IReadOnlyDictionary<StringName, SkillDef> GetSkillDefs()
+    private IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitions()
     {
         if (_runtime != null)
-            return _runtime.GetSkillDefsTyped();
+            return _runtime.GetSkillDefinitionsTyped();
         return _gameSession != null
-            ? _gameSession.GetSkillDefsTyped()
-            : new Dictionary<StringName, SkillDef>();
+            ? _gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped()
+            : new Dictionary<StringName, SkillDefinition>();
     }
 
     private AttackPreviewData BuildSelectedSkillHitPreview(BattlePreview selectedSkillPreview)
@@ -1518,7 +1518,8 @@ public sealed class BattleHudAdapter : IDisposable
 
     private static GDictionary BuildSelectedSkillSaveBranchPreview(BattlePreview selectedSkillPreview)
     {
-        GDictionary runtimeSaveBranchPreview = selectedSkillPreview?.save_branch_preview;
+        GDictionary runtimeSaveBranchPreview =
+            selectedSkillPreview?.SaveBranchPreviewTyped?.ToDictionary();
         if (runtimeSaveBranchPreview != null && runtimeSaveBranchPreview.Count > 0)
             return CopyDictionary(
                 runtimeSaveBranchPreview,
@@ -1735,24 +1736,23 @@ public sealed class BattleHudAdapter : IDisposable
         };
         if (battleState == null || activeUnit == null || IsEmpty(selectedSkillId))
             return defaultInfo;
-        SkillDef skillDef = GetSkillDef(GetSkillDefs(), selectedSkillId);
-        if (skillDef?.combat_profile == null)
+        SkillDefinition skillDefinition = GetSkillDefinition(
+            GetSkillDefinitions(),
+            selectedSkillId
+        );
+        if (skillDefinition?.CombatProfile == null)
             return defaultInfo;
 
-        CombatSkillDef combatProfile = skillDef.combat_profile;
-        int skillLevel = GetUnitSkillLevel(activeUnit, skillDef.skill_id);
-        StringName selectionMode = combatProfile.target_selection_mode;
+        CombatSkillDefinition combatProfile = skillDefinition.CombatProfile;
+        int skillLevel = GetUnitSkillLevel(activeUnit, skillDefinition.SkillId);
+        StringName selectionMode = combatProfile.TargetSelectionMode;
         if (IsEmpty(selectionMode))
             selectionMode = "single_unit";
-        int minTargetCount = Mathf.Max(combatProfile.min_target_count, 1);
-        SkillEffectiveCombatProfile effectiveProfile =
-            SkillEffectiveCombatProfileResolver.Resolve(
-                GetSkillCatalog(),
-                skillDef,
-                skillLevel
-            );
+        int minTargetCount = Mathf.Max(combatProfile.MinTargetCount, 1);
+        SkillEffectiveCombatDefinition effectiveDefinition =
+            GetEffectiveCombatDefinition(skillDefinition, skillLevel);
         int maxTargetCount = Mathf.Max(
-            effectiveProfile.MaxTargetCount,
+            effectiveDefinition.MaxTargetCount,
             minTargetCount
         );
         bool isMultiUnit = selectionMode == TARGET_SELECTION_MULTI_UNIT;
@@ -1770,14 +1770,15 @@ public sealed class BattleHudAdapter : IDisposable
         };
     }
 
-    private CombatSkillResourceCosts GetEffectiveSkillCosts(BattleUnitState activeUnit, SkillDef skillDef)
+    private CombatSkillResourceCosts GetEffectiveSkillCosts(
+        BattleUnitState activeUnit,
+        SkillDefinition skillDefinition
+    )
     {
-        if (skillDef?.combat_profile == null)
+        if (skillDefinition?.CombatProfile == null)
             return CombatSkillResourceCosts.Zero;
-        int skillLevel = GetUnitSkillLevel(activeUnit, skillDef.skill_id);
-        return SkillEffectiveCombatProfileResolver
-            .Resolve(GetSkillCatalog(), skillDef, skillLevel)
-            .ResourceCosts;
+        int skillLevel = GetUnitSkillLevel(activeUnit, skillDefinition.SkillId);
+        return GetEffectiveCombatDefinition(skillDefinition, skillLevel).ResourceCosts;
     }
 
     private ISkillCatalog GetSkillCatalog()
@@ -1785,6 +1786,22 @@ public sealed class BattleHudAdapter : IDisposable
         if (_runtime != null)
             return _runtime.GetSkillCatalogTyped();
         return _gameSession?.GetContentCatalogTyped()?.GetSkillCatalogTyped();
+    }
+
+    private SkillEffectiveCombatDefinition GetEffectiveCombatDefinition(
+        SkillDefinition skillDefinition,
+        int skillLevel
+    )
+    {
+        if (skillDefinition?.CombatProfile == null)
+            return SkillEffectiveCombatDefinition.BuildMissing(skillLevel);
+        ISkillCatalog skillCatalog = GetSkillCatalog();
+        if (skillCatalog != null && !IsEmpty(skillDefinition.SkillId))
+            return skillCatalog.GetEffectiveCombatDefinition(
+                skillDefinition.SkillId,
+                skillLevel
+            );
+        return SkillEffectiveCombatDefinition.BuildUncached(skillDefinition, skillLevel);
     }
 
     private static int GetUnitSkillLevel(BattleUnitState activeUnit, StringName skillId)
@@ -1796,16 +1813,11 @@ public sealed class BattleHudAdapter : IDisposable
         return activeUnit.known_active_skill_ids.Contains(skillId) ? 1 : 0;
     }
 
-    private bool SkillHasTag(SkillDef skillDef, StringName expectedTag)
+    private bool SkillHasTag(SkillDefinition skillDefinition, StringName expectedTag)
     {
-        if (skillDef == null || IsEmpty(expectedTag))
-            return false;
-        foreach (StringName tag in skillDef.TagsTyped)
-        {
-            if (ProgressionDataUtils.to_string_name(tag) == expectedTag)
-                return true;
-        }
-        return false;
+        return skillDefinition != null
+            && !IsEmpty(expectedTag)
+            && skillDefinition.HasTag(expectedTag);
     }
 
     private PartyMemberState GetPartyMemberState(StringName memberId)
@@ -1909,18 +1921,6 @@ public sealed class BattleHudAdapter : IDisposable
         return BattleTerrainRules.GetDisplayName(cell.base_terrain);
     }
 
-    private static GCombatEffectArray CollectCombatEffectDefs(GArray values)
-    {
-        var result = new GCombatEffectArray();
-        foreach (var value in values)
-        {
-            CombatEffectDef effectDef = value.AsGodotObject() as CombatEffectDef;
-            if (effectDef != null)
-                result.Add(effectDef);
-        }
-        return result;
-    }
-
     private static BattleUnitState GetUnit(BattleState battleState, StringName unitId)
     {
         if (battleState == null || IsEmpty(unitId))
@@ -1933,14 +1933,16 @@ public sealed class BattleHudAdapter : IDisposable
         return battleState?.GetCell(coord);
     }
 
-    private static SkillDef GetSkillDef(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+    private static SkillDefinition GetSkillDefinition(
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         StringName skillId
     )
     {
-        if (skillDefs == null || IsEmpty(skillId))
+        if (skillDefinitions == null || IsEmpty(skillId))
             return null;
-        return skillDefs.TryGetValue(skillId, out SkillDef skillDef) ? skillDef : null;
+        return skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
+            ? skillDefinition
+            : null;
     }
 
     private static ItemDef GetItemDef(
@@ -2056,24 +2058,17 @@ public sealed class BattleHudAdapter : IDisposable
     }
 
     private static GVector2IArray CloneVector2IArray(GVector2IArray source)
-    {
-        var result = new GVector2IArray();
-        if (source == null)
-            return result;
-        foreach (Vector2I coord in source)
-            result.Add(coord);
-        return result;
-    }
+        => new Vector2IList(source).ToGodotArray();
 
     private static GStringNameArray CloneStringNameArray(GStringNameArray source)
     {
-        var result = new GStringNameArray();
+        var result = new StringNameList();
         if (source == null)
-            return result;
+            return result.ToGodotArray();
         foreach (StringName id in source)
             if (!IsEmpty(id))
                 result.Add(id);
-        return result;
+        return result.ToGodotArray();
     }
 
     private static GArray ToUntypedStringNameArray(GStringNameArray source)

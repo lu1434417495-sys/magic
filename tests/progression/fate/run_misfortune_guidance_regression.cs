@@ -262,7 +262,7 @@ public partial class run_misfortune_guidance_regression : SceneTree
         using ProgressionContentRegistry progressionRegistry = new();
         manager.setup(
             partyState,
-            new Dictionary<StringName, SkillDef>(),
+            new Dictionary<StringName, SkillDefinition>(),
             new Dictionary<StringName, ProfessionDef>(),
             progressionRegistry.GetAchievementDefsTyped(),
             itemDefIndex,

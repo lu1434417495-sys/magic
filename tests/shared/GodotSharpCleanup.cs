@@ -11,14 +11,14 @@ public static class GodotSharpCleanup
         GodotObjectLifecycle.CollectPendingFinalizers();
     }
 
-    public static void DisposeGodotObject(BattleCommand command)
+    public static void ClearRuntimeReferences(BattleCommand command)
     {
         if (command == null)
             return;
         command.equipment_instance = null;
     }
 
-    public static void DisposeGodotObject(BattleEventBatch batch)
+    public static void DisposeBatch(BattleEventBatch batch)
     {
         batch?.Dispose();
     }

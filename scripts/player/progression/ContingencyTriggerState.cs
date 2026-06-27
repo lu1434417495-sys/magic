@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -29,12 +30,16 @@ public enum ContingencyTimingKind
 
 public class ContingencyTriggerState
 {
-    private readonly RuntimePayloadStore _payload = new();
+    private readonly Dictionary<string, object> _payload = new(System.StringComparer.Ordinal);
 
     public ContingencyTriggerKind TriggerKind { get; private set; } =
         ContingencyTriggerKind.Unknown;
     public StringName Type { get; private set; } = "";
-    public GDictionary Payload => _payload.ProjectPayload();
+    public GDictionary Payload =>
+        RuntimePlainPayload.ProjectDictionary(
+            _payload,
+            "ContingencyTriggerState.Payload"
+        );
 
     public ContingencyTriggerState DuplicateState() => FromDictionary(ToDictionary());
 
@@ -56,7 +61,16 @@ public class ContingencyTriggerState
             TriggerKind = ToTriggerKind(type),
             Type = type,
         };
-        state._payload.ReplaceWithPayload(payload);
+        foreach (
+            KeyValuePair<string, object> entry in RuntimePlainPayload.NormalizeDictionary(
+                payload,
+                "ContingencyTriggerState.Payload"
+            )
+        )
+        {
+            if (!string.IsNullOrEmpty(entry.Key))
+                state._payload[entry.Key] = entry.Value;
+        }
         return state;
     }
 

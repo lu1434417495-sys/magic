@@ -397,7 +397,7 @@ public partial class run_contingency_battle_lifecycle_regression : SceneTree
         runtime._fog_system.Setup(new Vector2I(8, 8));
         runtime._character_management.setup(
             partyState,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             gameSession.GetProfessionDefsTyped(),
             gameSession.GetAchievementDefsTyped(),
             gameSession.GetItemDefsTyped(),
@@ -413,7 +413,7 @@ public partial class run_contingency_battle_lifecycle_regression : SceneTree
         );
         runtime._battle_runtime.setup(
             runtime._character_management,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetSkillDefinitionsTyped(),
             gameSession.GetEnemyTemplatesTyped(),
             gameSession.GetEnemyAiBrainsTyped(),
             runtime._encounter_roster_builder,
@@ -421,8 +421,9 @@ public partial class run_contingency_battle_lifecycle_regression : SceneTree
             gameSession.GetItemDefsTyped(),
             null,
             gameSession.AllocateEquipmentInstanceId,
-            gameSession.GetBattleSpecialProfileRegistrySnapshot(),
-            gameSession.GetGameRootTyped()?.GetContentCatalogTyped()?.GetSkillCatalogTyped()
+            gameSession.GetBattleSpecialProfileRegistryRuntimeSnapshot(),
+            gameSession.GetGameRootTyped()?.GetContentCatalogTyped()?.GetSkillCatalogTyped(),
+            gameSession.GetBattleSpecialProfileRuntimeView()
         );
 
         BattleUnitState heroUnit = BattleUnit("hero_unit", "hero", alive: true, currentHp: 20, currentMp: 28);
@@ -498,7 +499,7 @@ public partial class run_contingency_battle_lifecycle_regression : SceneTree
         CharacterManagementModule manager = new();
         manager.setup(
             partyState,
-            new Dictionary<StringName, SkillDef>(),
+            new Dictionary<StringName, SkillDefinition>(),
             new Dictionary<StringName, ProfessionDef>(),
             new Dictionary<StringName, AchievementDef>(),
             new Dictionary<StringName, ItemDef>(),

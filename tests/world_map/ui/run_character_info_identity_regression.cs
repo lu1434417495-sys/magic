@@ -145,12 +145,12 @@ public partial class run_character_info_identity_regression : SceneTree
         GameRuntimeFacade runtime = new();
         runtime._character_management.setup(
             BuildPartyState(),
-            BuildSkillDefs(),
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            default,
+            BuildSkillDefinitions(),
+            new Dictionary<StringName, ProfessionDef>(),
+            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ItemDef>(),
+            new Dictionary<StringName, QuestDef>(),
+            null,
             BuildProgressionIdentityCatalog()
         );
         return runtime;
@@ -192,20 +192,41 @@ public partial class run_character_info_identity_regression : SceneTree
         return partyState;
     }
 
-    private static GDictionary BuildSkillDefs()
+    private static Dictionary<StringName, SkillDefinition> BuildSkillDefinitions()
     {
-        // 内容索引只接受 StringName key，String key 会被 typed 索引构建丢弃。
-        GDictionary result = TestResourceOwnership.OwnWrapper(
-            new GDictionary(),
-            "character_info_identity.skill_defs"
-        );
-        result[new StringName("dragon_breath")] = TestResourceOwnership.Own(
-            new SkillDef
-            {
-                skill_id = "dragon_breath",
-                display_name = "Dragon Breath",
-            },
-            "character_info_identity.dragon_breath"
+        Dictionary<StringName, SkillDefinition> result = new();
+        StringName skillId = "dragon_breath";
+        result[skillId] = new SkillDefinition(
+            skillId,
+            "Dragon Breath",
+            "",
+            "",
+            "active",
+            1,
+            1,
+            "",
+            0,
+            0,
+            System.Array.Empty<int>(),
+            System.Array.Empty<StringName>(),
+            "",
+            System.Array.Empty<StringName>(),
+            "",
+            System.Array.Empty<StringName>(),
+            new Dictionary<StringName, int>(),
+            new Dictionary<StringName, int>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            false,
+            "",
+            System.Array.Empty<StringName>(),
+            "",
+            new Dictionary<StringName, int>(),
+            "",
+            System.Array.Empty<AttributeModifierDefinition>(),
+            "",
+            new Dictionary<int, IReadOnlyDictionary<string, Variant>>(),
+            null
         );
         return result;
     }

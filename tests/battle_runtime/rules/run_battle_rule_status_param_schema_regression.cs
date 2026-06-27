@@ -61,8 +61,8 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
         GDictionary legacyPassiveResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             legacyPassiveTarget,
-            new GArray { BuildDamageEffect(10) },
-            new GDictionary()
+            new[] { BuildDamageEffect(10) },
+            DamageResolutionContext.Empty()
         ));
         _test.Eq(
             DictInt(legacyPassiveResult, "damage", -1),
@@ -75,8 +75,8 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
         GDictionary formalPassiveResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             formalPassiveTarget,
-            new GArray { BuildDamageEffect(10) },
-            new GDictionary()
+            new[] { BuildDamageEffect(10) },
+            DamageResolutionContext.Empty()
         ));
         _test.Eq(
             DictInt(formalPassiveResult, "damage", -1),
@@ -358,8 +358,8 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
         GDictionary legacyResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             legacySource,
             legacyTarget,
-            new GArray { BuildDamageEffect(20) },
-            new GDictionary()
+            new[] { BuildDamageEffect(20) },
+            DamageResolutionContext.Empty()
         ));
         _test.Eq(
             DictInt(legacyResult, "damage", -1),
@@ -379,8 +379,8 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
         GDictionary formalResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             formalSource,
             formalTarget,
-            new GArray { BuildDamageEffect(20) },
-            new GDictionary()
+            new[] { BuildDamageEffect(20) },
+            DamageResolutionContext.Empty()
         ));
         _test.Eq(
             DictInt(formalResult, "damage", -1),
@@ -491,8 +491,8 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
         GDictionary legacyResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             legacySource,
             legacyTarget,
-            new GArray { BuildDamageEffect(20) },
-            new GDictionary()
+            new[] { BuildDamageEffect(20) },
+            DamageResolutionContext.Empty()
         ));
         _test.Eq(
             DictInt(legacyResult, "damage", -1),
@@ -516,8 +516,8 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
         GDictionary formalResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             formalSource,
             formalTarget,
-            new GArray { BuildDamageEffect(20) },
-            new GDictionary()
+            new[] { BuildDamageEffect(20) },
+            DamageResolutionContext.Empty()
         ));
         _test.Eq(
             DictInt(formalResult, "damage", -1),
@@ -578,16 +578,12 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.DodgeBonus), dodgeBonus);
     }
 
-    private static CombatEffectDef BuildDamageEffect(int power)
-    {
-        return new CombatEffectDef
-        {
-            effect_type = "damage",
-            power = power,
-            damage_tag = "physical_slash",
-            @params = new GDictionary(),
-        };
-    }
+    private static CombatEffectDefinition BuildDamageEffect(int power) =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            power: power,
+            damageTag: "physical_slash"
+        );
 
     private static GDictionary FirstDamageEvent(GDictionary result)
     {

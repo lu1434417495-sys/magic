@@ -25,12 +25,12 @@ public partial class run_battle_target_collection_service_regression : SceneTree
     {
         BattleState state = BuildFlatState(new Vector2I(5, 5));
         var service = new BattleTargetCollectionService();
-        CombatSkillDef combatProfile = new()
+        CombatSkillDefinition combatProfile = CombatSkillDefinition.FromResource(new CombatSkillDef
         {
             target_mode = "ground",
             area_pattern = "diamond",
             area_value = 1,
-        };
+        });
 
         BattleTargetCollectionResult result = service.CollectCombatProfileTargetCoords(
             state,
@@ -67,11 +67,11 @@ public partial class run_battle_target_collection_service_regression : SceneTree
             state,
             gridService,
             sourceUnit.coord,
-            new CombatSkillDef
+            CombatSkillDefinition.FromResource(new CombatSkillDef
             {
                 target_mode = "unit",
                 target_selection_mode = "self",
-            },
+            }),
             Array.Empty<Vector2I>(),
             sourceUnit,
             Array.Empty<BattleUnitState>()
@@ -87,7 +87,7 @@ public partial class run_battle_target_collection_service_regression : SceneTree
             state,
             gridService,
             sourceUnit.coord,
-            new CombatSkillDef { target_mode = "unit" },
+            CombatSkillDefinition.FromResource(new CombatSkillDef { target_mode = "unit" }),
             Array.Empty<Vector2I>(),
             sourceUnit,
             new[] { targetUnit }

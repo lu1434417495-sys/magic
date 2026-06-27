@@ -5,7 +5,7 @@ internal static class GodotObjectLifecycle
 {
     static GodotObjectLifecycle()
     {
-        AppDomain.CurrentDomain.ProcessExit += (_, _) => PrepareForFinalizerDrain();
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => PrepareForProcessExitFinalizerDrain();
     }
 
     internal static void CollectPendingFinalizers()
@@ -18,9 +18,15 @@ internal static class GodotObjectLifecycle
 
     internal static void PrepareForFinalizerDrain()
     {
-        GodotContentOwnership.SuppressBorrowedContentForFinalizerDrain();
         RuntimeStateLifecycle.SuppressRuntimeStateGraphsForFinalizerDrain();
-        SuppressGameSessionContentForFinalizerDrain();
+        GodotContentOwnership.RetainStaticContentForFinalizerDrain();
+    }
+
+    internal static void PrepareForProcessExitFinalizerDrain()
+    {
+        RuntimeStateLifecycle.SuppressRuntimeStateGraphsForFinalizerDrain();
+        GodotContentOwnership.SuppressBorrowedContentForProcessExit();
+        SuppressGameSessionContentForProcessExit();
     }
 
     internal static void DisposeGodotObject(FileAccess owned) => DisposeNativeIoWrapper(owned);
@@ -42,27 +48,7 @@ internal static class GodotObjectLifecycle
         }
     }
 
-    internal static void SuppressFinalizerGraph(GodotObject root)
-    {
-        SuppressFinalizersInValue(root);
-    }
-
-    internal static void SuppressTransientResourceFinalizerGraph(Resource resource)
-    {
-        if (resource == null)
-            return;
-        GodotRuntimeResourceOwnership.SuppressOwnedTransientGraph(resource);
-    }
-
-    internal static void SuppressFinalizersInValue(object value)
-    {
-        GodotTypedResourceGraphWalker.VisitValueGraph(
-            value,
-            GodotWrapperOwnershipRegistry.SuppressWrapper
-        );
-    }
-
-    private static void SuppressGameSessionContentForFinalizerDrain()
+    private static void SuppressGameSessionContentForProcessExit()
     {
         try
         {

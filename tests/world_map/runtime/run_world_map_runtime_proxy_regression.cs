@@ -22,13 +22,11 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         public GameRuntimeFacade Runtime { get; init; }
         public WorldMapGenerationConfig GenerationConfig { get; init; }
         public GDictionary ItemDefs { get; init; }
-        public GDictionary SkillDefs { get; init; }
 
         public void Dispose()
         {
             Runtime?.Dispose();
             ItemDefs?.Clear();
-            SkillDefs?.Clear();
         }
     }
 
@@ -307,15 +305,19 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         if (memberState?.progression == null)
             return new BookSkillPickData();
 
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = gameSession.GetSkillDefsTyped();
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            gameSession.GetSkillDefinitionsTyped();
         IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
-        var sortedSkillIds = new List<StringName>(skillDefs.Keys);
+        var sortedSkillIds = new List<StringName>(skillDefinitions.Keys);
         sortedSkillIds.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
         foreach (StringName skillId in sortedSkillIds)
         {
-            if (!skillDefs.TryGetValue(skillId, out SkillDef skillDef) || skillDef == null)
+            if (
+                !skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
+                || skillDefinition == null
+            )
                 continue;
-            if (skillDef.learn_source != "book")
+            if (skillDefinition.LearnSource != "book")
                 continue;
             UnitSkillProgress skillProgress = memberState.progression.GetSkillProgress(skillId);
             if (skillProgress != null && skillProgress.is_learned)
@@ -330,7 +332,7 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
 
     private static RuntimeFixture BuildRuntime(PartyState partyState)
     {
-        GDictionary skillDefs = BuildSkillDefs();
+        Dictionary<StringName, SkillDefinition> skillDefinitions = BuildSkillDefinitions();
         GDictionary itemDefs = BuildItemDefs();
         WorldMapGenerationConfig generationConfig = new();
         GameRuntimeFacade runtime = new()
@@ -347,10 +349,10 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         };
         runtime._character_management.setup(
             partyState,
-            skillDefs,
-            new GDictionary(),
-            new GDictionary(),
-            itemDefs
+            skillDefinitions,
+            new Dictionary<StringName, ProfessionDef>(),
+            new Dictionary<StringName, AchievementDef>(),
+            BuildTypedItemDefs(itemDefs)
         );
         runtime._party_warehouse_service.Setup(partyState, BuildTypedItemDefs(itemDefs));
         runtime._party_item_use_service.Setup(
@@ -360,10 +362,7 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
                 ["skill_book_focus"] = (ItemDef)
                     itemDefs[new StringName("skill_book_focus")].AsGodotObject(),
             },
-            new Dictionary<StringName, SkillDef>
-            {
-                ["focus"] = (SkillDef)skillDefs[new StringName("focus")].AsGodotObject(),
-            },
+            skillDefinitions,
             runtime._party_warehouse_service,
             runtime._character_management
         );
@@ -377,7 +376,6 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
             Runtime = runtime,
             GenerationConfig = generationConfig,
             ItemDefs = itemDefs,
-            SkillDefs = skillDefs,
         };
     }
 
@@ -418,22 +416,41 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         return result;
     }
 
-    private static GDictionary BuildSkillDefs()
+    private static Dictionary<StringName, SkillDefinition> BuildSkillDefinitions()
     {
-        GDictionary result = TestResourceOwnership.OwnWrapper(
-            new GDictionary(),
-            "world_map_runtime_proxy.skill_defs"
-        );
-        result[new StringName("focus")] = TestResourceOwnership.Own(
-            new SkillDef
-            {
-                skill_id = "focus",
-                display_name = "Focus",
-                learn_source = "book",
-                skill_type = "passive",
-                max_level = 1,
-            },
-            "world_map_runtime_proxy.focus_skill"
+        Dictionary<StringName, SkillDefinition> result = new();
+        StringName skillId = "focus";
+        result[skillId] = new SkillDefinition(
+            skillId,
+            "Focus",
+            "",
+            "",
+            "passive",
+            1,
+            1,
+            "",
+            0,
+            0,
+            Array.Empty<int>(),
+            Array.Empty<StringName>(),
+            "book",
+            Array.Empty<StringName>(),
+            "",
+            Array.Empty<StringName>(),
+            new Dictionary<StringName, int>(),
+            new Dictionary<StringName, int>(),
+            Array.Empty<StringName>(),
+            Array.Empty<StringName>(),
+            false,
+            "",
+            Array.Empty<StringName>(),
+            "",
+            new Dictionary<StringName, int>(),
+            "",
+            Array.Empty<AttributeModifierDefinition>(),
+            "",
+            new Dictionary<int, IReadOnlyDictionary<string, Variant>>(),
+            null
         );
         return result;
     }

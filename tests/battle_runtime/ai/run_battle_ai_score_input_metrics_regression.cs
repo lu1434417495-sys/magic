@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_battle_ai_score_input_metrics_regression : SceneTree
 {
@@ -29,7 +27,7 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
     private void TestGroundSkillEffectiveTargetsExcludeFriendlyFire()
     {
         Fixture fixture = BuildFixture("score_input_ground_effective_targets", new Vector2I(8, 6));
-        SkillDef skill = BuildSkill(
+        SkillDefinition skill = BuildSkill(
             "friendly_fire_fireball_probe",
             "Friendly Fire Fireball Probe",
             BuildDamageEffect(10, "any")
@@ -46,9 +44,9 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
         BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(caster),
             skill,
-            BuildCommand(caster, skill.skill_id, target.coord),
+            BuildCommand(caster, skill.SkillId, target.coord),
             BuildPreview(target, ally),
-            new[] { skill.combat_profile.effect_defs[0] },
+            new[] { skill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(null, 4, 5)
         );
 
@@ -65,7 +63,7 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
     private void TestEmptyGroundControlCellsStaySeparateFromUnitTargets()
     {
         Fixture fixture = BuildFixture("score_input_empty_ground_control", new Vector2I(6, 5));
-        SkillDef skill = BuildSkill(
+        SkillDefinition skill = BuildSkill(
             "ai_empty_ground_control_score_probe",
             "Empty Ground Control Probe",
             BuildTerrainEffect("mist_pool")
@@ -78,9 +76,9 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
         BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(caster),
             skill,
-            BuildCommand(caster, skill.skill_id, targetCoord),
+            BuildCommand(caster, skill.SkillId, targetCoord),
             BuildGroundPreview(targetCoord),
-            new[] { skill.combat_profile.effect_defs[0] },
+            new[] { skill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(null, 0, 5)
         );
 
@@ -99,14 +97,14 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
     private void TestGroundSkillScoreInputExposesMetrics()
     {
         Fixture fixture = BuildFixture("score_input_ground_metrics", new Vector2I(7, 5));
-        SkillDef skill = BuildSkill(
+        SkillDefinition skill = BuildSkill(
             "archer_suppressive_fire_probe",
             "Suppressive Fire Probe",
-            BuildDamageEffect(8, "enemy")
+            effects: new[] { BuildDamageEffect(8, "enemy") },
+            apCost: 2,
+            staminaCost: 2,
+            cooldownTu: 15
         );
-        skill.combat_profile.ap_cost = 2;
-        skill.combat_profile.stamina_cost = 2;
-        skill.combat_profile.cooldown_tu = 15;
         fixture.AddSkill(skill);
 
         BattleUnitState harrier = BuildUnit("mist_harrier_score", "hostile", new Vector2I(1, 2));
@@ -119,9 +117,9 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
         BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(harrier),
             skill,
-            BuildCommand(harrier, skill.skill_id, playerA.coord),
+            BuildCommand(harrier, skill.SkillId, playerA.coord),
             BuildPreview(playerA, playerB),
-            new[] { skill.combat_profile.effect_defs[0] },
+            new[] { skill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(null, 0, 6)
         );
 
@@ -144,7 +142,7 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
     private void TestRepeatAttackScoreUsesStageSuccessRate()
     {
         Fixture fixture = BuildFixture("score_input_fate_aware_hit_rate", new Vector2I(5, 3));
-        SkillDef skill = BuildSkill(
+        SkillDefinition skill = BuildSkill(
             "ai_fate_preview_combo_probe",
             "Fate Preview Combo Probe",
             BuildDamageEffect(10, "enemy")
@@ -170,9 +168,9 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
         BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(scorer),
             skill,
-            BuildCommand(scorer, skill.skill_id, target.coord, target),
+            BuildCommand(scorer, skill.SkillId, target.coord, target),
             preview,
-            new[] { skill.combat_profile.effect_defs[0] },
+            new[] { skill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(target, 1, 1)
         );
 
@@ -189,7 +187,7 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
     private void TestChainSkillScoresFriendlyBounceRisk()
     {
         Fixture fixture = BuildFixture("score_input_chain_friendly_bounce", new Vector2I(8, 6));
-        SkillDef skill = BuildSkill(
+        SkillDefinition skill = BuildSkill(
             "mage_chain_lightning_probe",
             "Chain Lightning Probe",
             BuildChainDamageEffect(1),
@@ -207,9 +205,9 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
         BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(mage),
             skill,
-            BuildCommand(mage, skill.skill_id, target.coord, target),
+            BuildCommand(mage, skill.SkillId, target.coord, target),
             BuildPreview(target),
-            new[] { skill.combat_profile.effect_defs[0], skill.combat_profile.effect_defs[1] },
+            new[] { skill.CombatProfile.EffectDefinitions[0], skill.CombatProfile.EffectDefinitions[1] },
             BuildPositionMetadata(target, 4, 5)
         );
 
@@ -283,55 +281,63 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
         return unit;
     }
 
-    private static SkillDef BuildSkill(StringName skillId, string displayName, params CombatEffectDef[] effects)
+    private static SkillDefinition BuildSkill(
+        StringName skillId,
+        string displayName,
+        params CombatEffectDefinition[] effects
+    ) =>
+        BuildSkill(
+            skillId,
+            displayName,
+            effects: effects,
+            apCost: 0,
+            staminaCost: 0,
+            cooldownTu: 0
+        );
+
+    private static SkillDefinition BuildSkill(
+        StringName skillId,
+        string displayName,
+        IReadOnlyList<CombatEffectDefinition> effects,
+        int apCost,
+        int staminaCost,
+        int cooldownTu
+    )
     {
-        var combatProfile = new CombatSkillDef
-        {
-            skill_id = skillId,
-            range_value = 5,
-            ap_cost = 0,
-            mp_cost = 0,
-            stamina_cost = 0,
-            cooldown_tu = 0,
-        };
-        foreach (CombatEffectDef effect in effects ?? Array.Empty<CombatEffectDef>())
-        {
-            if (effect != null)
-            {
-                combatProfile.effect_defs.Add(effect);
-            }
-        }
-        return new SkillDef
-        {
-            skill_id = skillId,
-            display_name = displayName,
-            combat_profile = combatProfile,
-        };
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName,
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: effects ?? Array.Empty<CombatEffectDefinition>(),
+                rangeValue: 5,
+                apCost: apCost,
+                staminaCost: staminaCost,
+                cooldownTu: cooldownTu
+            )
+        );
     }
 
-    private static CombatEffectDef BuildDamageEffect(int power, StringName targetFilter) =>
-        new()
-        {
-            effect_type = "damage",
-            effect_target_team_filter = targetFilter,
-            power = power,
-        };
+    private static CombatEffectDefinition BuildDamageEffect(int power, StringName targetFilter) =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            effectTargetTeamFilter: targetFilter,
+            power: power
+        );
 
-    private static CombatEffectDef BuildTerrainEffect(StringName terrainEffectId) =>
-        new()
-        {
-            effect_type = "terrain_effect",
-            terrain_effect_id = terrainEffectId,
-        };
+    private static CombatEffectDefinition BuildTerrainEffect(StringName terrainEffectId) =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "terrain_effect",
+            terrainEffectId: terrainEffectId
+        );
 
-    private static CombatEffectDef BuildChainDamageEffect(int radius) =>
-        new()
-        {
-            effect_type = "chain_damage",
-            effect_target_team_filter = "any",
-            prevent_repeat_target = true,
-            @params = new GDictionary { ["base_chain_radius"] = radius },
-        };
+    private static CombatEffectDefinition BuildChainDamageEffect(int radius) =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "chain_damage",
+            effectTargetTeamFilter: "any",
+            preventRepeatTarget: true,
+            parameters: new Dictionary<string, Variant> { ["base_chain_radius"] = radius }
+        );
 
     private static BattleCommand BuildCommand(
         BattleUnitState actor,
@@ -410,21 +416,20 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
         public readonly BattleState State;
         public readonly BattleGridService GridService = new();
         public readonly BattleAiScoreService ScoreService = new();
-        private readonly Dictionary<StringName, SkillDef> _skillDefs = new();
+        private readonly Dictionary<StringName, SkillDefinition> _skillDefinitions = new();
 
         public Fixture(string battleId, Vector2I mapSize)
         {
             State = BuildFlatState(battleId, mapSize);
         }
 
-        public void AddSkill(SkillDef skillDef)
+        public void AddSkill(SkillDefinition skillDefinition)
         {
-            if (skillDef == null || skillDef.skill_id == "")
+            if (skillDefinition == null || skillDefinition.SkillId == "")
             {
                 return;
             }
-            TestResourceOwnership.Own(skillDef, "BattleAiScoreInputMetricsFixture.AddSkill");
-            _skillDefs[skillDef.skill_id] = skillDef;
+            _skillDefinitions[skillDefinition.SkillId] = skillDefinition;
         }
 
         public void AddUnit(BattleUnitState unit)
@@ -457,7 +462,7 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
                 unit_state = actor,
                 grid_service = GridService,
             };
-            context.SetSkillDefs(_skillDefs);
+            context.SetSkillDefinitions(_skillDefinitions);
             return context;
         }
     }

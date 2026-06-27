@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 internal enum BattleTerrainProfileKind
 {
@@ -644,8 +643,12 @@ public class BattleTerrainGenerator : IDisposable
             ["cells"] = BattleCellState.ProjectCellsToPayload(typedCells),
             ["cell_columns"] = BattleCellState.ProjectColumnsToPayload(cellColumns),
             ["terrain_counts"] = CountTerrainCells(typedCells),
-            ["ally_spawns"] = CollectSpawnRing(cells, mapSize, playerCoord, edgeFaces),
-            ["enemy_spawns"] = CollectSpawnRing(cells, mapSize, enemyCoord, edgeFaces),
+            ["ally_spawns"] = new Vector2IList(
+                CollectSpawnRing(cells, mapSize, playerCoord, edgeFaces)
+            ).ToGodotArray(),
+            ["enemy_spawns"] = new Vector2IList(
+                CollectSpawnRing(cells, mapSize, enemyCoord, edgeFaces)
+            ).ToGodotArray(),
             ["player_coord"] = playerCoord,
             ["enemy_coord"] = enemyCoord,
             ["terrain_profile_id"] = terrainProfileId,
@@ -1471,14 +1474,14 @@ public class BattleTerrainGenerator : IDisposable
             && _edgeService.IsTraversableInCache(edgeFaces, fromCoord, toCoord);
     }
 
-    private GVector2IArray CollectSpawnRing(
+    private List<Vector2I> CollectSpawnRing(
         GDictionary cells,
         Vector2I mapSize,
         Vector2I center,
         IReadOnlyDictionary<Vector3I, BattleEdgeFaceState> edgeFaces
     )
     {
-        var result = new GVector2IArray();
+        var result = new List<Vector2I>();
         if (!IsDrySpawnCell(cells, center))
         {
             return result;

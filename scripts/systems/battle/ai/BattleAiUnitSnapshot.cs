@@ -193,12 +193,10 @@ public sealed class BattleAiUnitSnapshot
         };
     }
 
-    private static List<Vector2I> CopyVector2IArray(
-        Godot.Collections.Array<Vector2I> source
-    )
+    private static List<Vector2I> CopyVector2IArray(IEnumerable<Vector2I> source)
     {
         var result = new List<Vector2I>();
-        foreach (Vector2I value in source ?? new Godot.Collections.Array<Vector2I>())
+        foreach (Vector2I value in source ?? System.Array.Empty<Vector2I>())
         {
             result.Add(value);
         }
@@ -210,7 +208,9 @@ public sealed class BattleAiUnitSnapshot
     )
     {
         var result = new List<StringName>();
-        foreach (StringName value in source ?? new Godot.Collections.Array<StringName>())
+        if (source == null)
+            return result;
+        foreach (StringName value in source)
         {
             var normalized = ProgressionDataUtils.to_string_name(value);
             if (normalized != "")
@@ -235,26 +235,10 @@ public sealed class BattleAiUnitSnapshot
     }
 
     private static Godot.Collections.Array<Vector2I> ToVector2IArray(IEnumerable<Vector2I> values)
-    {
-        var result = new Godot.Collections.Array<Vector2I>();
-        foreach (Vector2I value in values ?? System.Array.Empty<Vector2I>())
-        {
-            result.Add(value);
-        }
-        return result;
-    }
+        => new Vector2IList(values).ToGodotArray();
 
     private static Godot.Collections.Array<StringName> ToStringNameArray(IEnumerable<StringName> values)
-    {
-        var result = new Godot.Collections.Array<StringName>();
-        foreach (StringName value in values ?? System.Array.Empty<StringName>())
-        {
-            StringName normalized = ProgressionDataUtils.to_string_name(value);
-            if (normalized != "")
-                result.Add(normalized);
-        }
-        return result;
-    }
+        => new StringNameList(CopyStringNameList(values)).ToGodotArray();
 
     private static Godot.Collections.Dictionary ToIntDictionary(
         IReadOnlyDictionary<StringName, int> values

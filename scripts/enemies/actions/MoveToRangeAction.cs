@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 
 [GlobalClass]
 public partial class MoveToRangeAction : EnemyAiAction
@@ -785,19 +784,19 @@ public partial class MoveToRangeAction : EnemyAiAction
         return pathProgressCandidate.ProgressAnchors.Contains(candidateCoord);
     }
 
-    private Godot.Collections.Array<Vector2I> CollectReachableMoveCandidates(BattleAiContext context)
+    private List<Vector2I> CollectReachableMoveCandidates(BattleAiContext context)
     {
         AiTraceRecorder.Enter("_collect_reachable_move_candidates");
-        Godot.Collections.Array<Vector2I> result = CollectReachableMoveCandidatesImpl(context);
+        List<Vector2I> result = CollectReachableMoveCandidatesImpl(context);
         AiTraceRecorder.Exit("_collect_reachable_move_candidates");
         return result;
     }
 
-    private Godot.Collections.Array<Vector2I> CollectReachableMoveCandidatesImpl(
+    private List<Vector2I> CollectReachableMoveCandidatesImpl(
         BattleAiContext context
     )
     {
-        var candidates = new Godot.Collections.Array<Vector2I>();
+        var candidates = new List<Vector2I>();
         BattleState state = GetContextState(context);
         BattleUnitState actor = GetContextUnit(context);
         BattleGridService grid = GetContextGrid(context);
@@ -857,12 +856,7 @@ public partial class MoveToRangeAction : EnemyAiAction
             }
         }
 
-        var sorted = new List<Vector2I>();
-        foreach (Vector2I candidate in candidates)
-        {
-            sorted.Add(candidate);
-        }
-        sorted.Sort(
+        candidates.Sort(
             (left, right) =>
             {
                 int leftDistance = grid.GetDistance(origin, left);
@@ -878,11 +872,6 @@ public partial class MoveToRangeAction : EnemyAiAction
                 return rightDistance.CompareTo(leftDistance);
             }
         );
-        candidates.Clear();
-        foreach (Vector2I candidate in sorted)
-        {
-            candidates.Add(candidate);
-        }
         return candidates;
     }
 
@@ -1147,8 +1136,8 @@ public partial class MoveToRangeAction : EnemyAiAction
             {
                 continue;
             }
-            SkillDef skillDef = context.GetSkillDefTyped(skillId);
-            if (skillDef?.combat_profile is not CombatSkillDef combatProfile)
+            SkillDefinition skillDefinition = context.GetSkillDefinitionTyped(skillId);
+            if (skillDefinition?.CombatProfile is not CombatSkillDefinition combatProfile)
             {
                 continue;
             }
@@ -1159,13 +1148,16 @@ public partial class MoveToRangeAction : EnemyAiAction
             {
                 continue;
             }
-            if (!_skill_has_tag(skillDef, "melee") && !_skill_has_tag(skillDef, "weapon"))
+            if (
+                !_skill_has_tag(skillDefinition, "melee")
+                && !_skill_has_tag(skillDefinition, "weapon")
+            )
             {
                 continue;
             }
             int effectiveRange = BattleRangeService.GetEffectiveSkillRange(
                 threatUnit,
-                skillDef,
+                skillDefinition,
                 context.skill_catalog
             );
             if (effectiveRange > Mathf.Max(screening_enemy_max_contact_range, 1))
@@ -1457,10 +1449,10 @@ public partial class MoveToRangeAction : EnemyAiAction
             return ScreeningPathUnreachableCost;
         }
 
-        Godot.Collections.Array<Vector2I> blockerCoords = useBlocker
-            ? grid.GetUnitTargetCoords(actor, blockerAnchor)
-            : new Godot.Collections.Array<Vector2I>();
-        Godot.Collections.Array<Vector2I> restoreCoords = new();
+        List<Vector2I> blockerCoords = useBlocker
+            ? new List<Vector2I>(grid.GetUnitTargetCoords(actor, blockerAnchor))
+            : new List<Vector2I>();
+        List<Vector2I> restoreCoords = new();
         actor.RefreshFootprint();
         foreach (Vector2I coord in actor.occupied_coords)
         {
@@ -1552,45 +1544,31 @@ public partial class MoveToRangeAction : EnemyAiAction
             {
                 return cached;
             }
-            List<Vector2I> resolved = ToVector2IList(
-                CollectScreeningThreatContactDestinations(
-                    context,
-                    threatUnit,
-                    protectedUnit,
-                    contactRange
-                )
-            );
-            screeningContext.ContactDestinationsCache[cacheKey] = resolved;
-            return resolved;
-        }
-        return ToVector2IList(
-            CollectScreeningThreatContactDestinations(
+            List<Vector2I> resolved = CollectScreeningThreatContactDestinations(
                 context,
                 threatUnit,
                 protectedUnit,
                 contactRange
-            )
+            );
+            screeningContext.ContactDestinationsCache[cacheKey] = resolved;
+            return resolved;
+        }
+        return CollectScreeningThreatContactDestinations(
+            context,
+            threatUnit,
+            protectedUnit,
+            contactRange
         );
     }
 
-    private static List<Vector2I> ToVector2IList(Godot.Collections.Array<Vector2I> values)
-    {
-        var result = new List<Vector2I>();
-        foreach (Vector2I value in values ?? new Godot.Collections.Array<Vector2I>())
-        {
-            result.Add(value);
-        }
-        return result;
-    }
-
-    private Godot.Collections.Array<Vector2I> CollectScreeningThreatContactDestinations(
+    private List<Vector2I> CollectScreeningThreatContactDestinations(
         BattleAiContext context,
         BattleUnitState threatUnit,
         BattleUnitState protectedUnit,
         int contactRange
     )
     {
-        var destinations = new Godot.Collections.Array<Vector2I>();
+        var destinations = new List<Vector2I>();
         BattleState state = GetContextState(context);
         BattleGridService grid = GetContextGrid(context);
         if (state == null || grid == null || threatUnit == null || protectedUnit == null)
@@ -1651,12 +1629,7 @@ public partial class MoveToRangeAction : EnemyAiAction
             }
         }
 
-        var sorted = new System.Collections.Generic.List<Vector2I>();
-        foreach (Vector2I destination in destinations)
-        {
-            sorted.Add(destination);
-        }
-        sorted.Sort(
+        destinations.Sort(
             (left, right) =>
             {
                 int leftDistance = grid.GetDistance(threatUnit.coord, left);
@@ -1672,17 +1645,12 @@ public partial class MoveToRangeAction : EnemyAiAction
                 return left.X.CompareTo(right.X);
             }
         );
-        destinations.Clear();
-        foreach (Vector2I destination in sorted)
-        {
-            destinations.Add(destination);
-        }
         return destinations;
     }
 
     private Dictionary<Vector2I, StringName> SnapshotScreeningOccupants(
         BattleAiContext context,
-        Godot.Collections.Array<Vector2I> coords
+        IEnumerable<Vector2I> coords
     )
     {
         var snapshot = new Dictionary<Vector2I, StringName>();
@@ -1789,7 +1757,7 @@ public partial class MoveToRangeAction : EnemyAiAction
         int bestPathLength = MoveToRangeScoreOrdering.InfiniteTieBreaker;
         var progressAnchors = new HashSet<Vector2I>();
         int pathSearchBudget = BuildPathSearchBudget(context);
-        Godot.Collections.Array<Vector2I> destinations = CollectDistanceBandDestinations(
+        List<Vector2I> destinations = CollectDistanceBandDestinations(
             context,
             focusTarget,
             distanceContract
@@ -1969,14 +1937,14 @@ public partial class MoveToRangeAction : EnemyAiAction
         };
     }
 
-    private Godot.Collections.Array<Vector2I> CollectDistanceBandDestinations(
+    private List<Vector2I> CollectDistanceBandDestinations(
         BattleAiContext context,
         BattleUnitState focusTarget,
         MoveDistanceContract distanceContract
     )
     {
         AiTraceRecorder.Enter("_collect_distance_band_destinations");
-        Godot.Collections.Array<Vector2I> result = CollectDistanceBandDestinationsImpl(
+        List<Vector2I> result = CollectDistanceBandDestinationsImpl(
             context,
             focusTarget,
             distanceContract
@@ -1985,13 +1953,13 @@ public partial class MoveToRangeAction : EnemyAiAction
         return result;
     }
 
-    private Godot.Collections.Array<Vector2I> CollectDistanceBandDestinationsImpl(
+    private List<Vector2I> CollectDistanceBandDestinationsImpl(
         BattleAiContext context,
         BattleUnitState focusTarget,
         MoveDistanceContract distanceContract
     )
     {
-        var destinations = new Godot.Collections.Array<Vector2I>();
+        var destinations = new List<Vector2I>();
         BattleState state = GetContextState(context);
         BattleUnitState actor = GetContextUnit(context);
         BattleGridService grid = GetContextGrid(context);
@@ -2035,12 +2003,7 @@ public partial class MoveToRangeAction : EnemyAiAction
             }
         }
 
-        var sorted = new List<Vector2I>();
-        foreach (Vector2I destination in destinations)
-        {
-            sorted.Add(destination);
-        }
-        sorted.Sort(
+        destinations.Sort(
             (left, right) =>
             {
                 int leftDistance = grid.GetDistance(actor.coord, left);
@@ -2056,11 +2019,6 @@ public partial class MoveToRangeAction : EnemyAiAction
                 return left.X.CompareTo(right.X);
             }
         );
-        destinations.Clear();
-        foreach (Vector2I destination in sorted)
-        {
-            destinations.Add(destination);
-        }
         return destinations;
     }
 
@@ -2275,7 +2233,7 @@ public partial class MoveToRangeAction : EnemyAiAction
         IReadOnlyDictionary<string, object> rawDistanceContract =
             _resolve_desired_distance_contract_typed(
             context,
-            null,
+            (SkillDefinition)null,
             range_skill_ids
         );
         MoveDistanceContract distanceContract = MoveDistanceContract.FromMetadata(
@@ -2323,14 +2281,14 @@ public partial class MoveToRangeAction : EnemyAiAction
             {
                 continue;
             }
-            SkillDef skillDef = _get_skill_def(context, skillId);
-            if (skillDef?.combat_profile == null)
+            SkillDefinition skillDefinition = _get_skill_definition(context, skillId);
+            if (skillDefinition?.CombatProfile == null)
             {
                 continue;
             }
             if (
                 BattleSkillCastBlockReasonKinds.IsBlocked(
-                    _get_skill_cast_block_reason(context, skillDef)
+                    _get_skill_cast_block_reason(context, skillDefinition)
                 )
             )
             {
@@ -2338,14 +2296,14 @@ public partial class MoveToRangeAction : EnemyAiAction
             }
             if (
                 enable_aoe_setup_positioning
-                && IsGroundAoeSkill(context.unit_state, skillDef, context.skill_catalog)
+                && IsGroundAoeSkill(context.unit_state, skillDefinition, context.skill_catalog)
             )
             {
                 bestGroundAoeCastRange = Mathf.Max(
                     bestGroundAoeCastRange,
                     BattleRangeService.GetEffectiveSkillRange(
                         context.unit_state,
-                        skillDef,
+                        skillDefinition,
                         context.skill_catalog
                     )
                 );
@@ -2354,7 +2312,7 @@ public partial class MoveToRangeAction : EnemyAiAction
                 bestFallbackRange,
                 BattleRangeService.GetEffectiveSkillDistanceContractRange(
                     context.unit_state,
-                    skillDef,
+                    skillDefinition,
                     context.skill_catalog
                 )
             );
@@ -2413,29 +2371,30 @@ public partial class MoveToRangeAction : EnemyAiAction
 
     private static bool IsGroundAoeSkill(
         BattleUnitState actor,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         ISkillCatalog skillCatalog
     )
     {
-        if (actor == null || skillDef?.combat_profile == null)
+        if (actor == null || skillDefinition?.CombatProfile == null)
         {
             return false;
         }
-        CombatSkillDef combatProfile = skillDef.combat_profile;
+        CombatSkillDefinition combatProfile = skillDefinition.CombatProfile;
         if (combatProfile.TargetModeKind != BattleTargetMode.Ground)
         {
             return false;
         }
-        int knownSkillLevel = actor.GetKnownSkillLevelTyped(skillDef.skill_id);
+        int knownSkillLevel = actor.GetKnownSkillLevelTyped(skillDefinition.SkillId);
         int skillLevel = knownSkillLevel > 0
             ? knownSkillLevel
-            : actor.known_active_skill_ids.Contains(skillDef.skill_id)
+            : actor.known_active_skill_ids.Contains(skillDefinition.SkillId)
                 ? 1
                 : 0;
-        SkillEffectiveCombatProfile effectiveProfile =
-            SkillEffectiveCombatProfileResolver.Resolve(skillCatalog, skillDef, skillLevel);
-        StringName areaPattern = effectiveProfile.AreaPattern;
-        int areaValue = effectiveProfile.AreaValue;
+        SkillEffectiveCombatDefinition effectiveDefinition =
+            skillCatalog?.GetEffectiveCombatDefinition(skillDefinition.SkillId, skillLevel)
+            ?? SkillEffectiveCombatDefinition.BuildUncached(skillDefinition, skillLevel);
+        StringName areaPattern = effectiveDefinition.AreaPattern;
+        int areaValue = effectiveDefinition.AreaValue;
         BattleAreaPattern areaPatternKind = BattleTypedNames.ToAreaPattern(areaPattern);
         return areaValue > 0
             && areaPatternKind != BattleAreaPattern.Unknown

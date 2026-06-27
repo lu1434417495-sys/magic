@@ -10,12 +10,22 @@ internal static class BattleAiTurnTracePayloadProjection
     {
         var result = new Godot.Collections.Array<GDictionary>();
         if (traces == null)
+        {
+            RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+                result,
+                "BattleAiTurnTracePayloadProjection.ProjectArray"
+            );
             return result;
+        }
 
         foreach (BattleAiTurnTraceProjection trace in traces)
         {
             result.Add(Project(trace));
         }
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            result,
+            "BattleAiTurnTracePayloadProjection.ProjectArray"
+        );
         return result;
     }
 

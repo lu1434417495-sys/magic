@@ -6,7 +6,6 @@ using GDictArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 internal static class MeteorSwarmProjection
 {
@@ -338,15 +337,9 @@ internal static class MeteorSwarmProjection
         return result;
     }
 
-    private static GVector2IArray ToVector2IArray(IEnumerable<Vector2I> values)
-    {
-        var result = new GVector2IArray();
-        foreach (Vector2I value in values ?? Array.Empty<Vector2I>())
-        {
-            result.Add(value);
-        }
-        return result;
-    }
+    private static Godot.Collections.Array<Vector2I> ToVector2IArray(
+        IEnumerable<Vector2I> values
+    ) => new Vector2IList(values ?? Array.Empty<Vector2I>()).ToGodotArray();
 
     private static GDictionary ProjectResistanceTiers(
         Dictionary<StringName, StringName> values

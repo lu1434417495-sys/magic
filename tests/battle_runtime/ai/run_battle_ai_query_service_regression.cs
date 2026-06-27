@@ -77,10 +77,10 @@ public partial class run_battle_ai_query_service_regression : SceneTree
         );
 
         _test.True(
-            query.TryGetSkillRecordTyped(fixture.Skill.skill_id, out BattleAiQueryService.SkillRecord record),
+            query.TryGetSkillRecordTyped(fixture.Skill.SkillId, out BattleAiQueryService.SkillRecord record),
             "QueryService 应从 typed skill-def index 生成 SkillRecord。"
         );
-        _test.Eq(record.skill_id, fixture.Skill.skill_id, "SkillRecord.skill_id 应来自 typed SkillDef。");
+        _test.Eq(record.skill_id, fixture.Skill.SkillId, "SkillRecord.skill_id 应来自 typed SkillDefinition。");
         _test.Eq(record.range_value, 5, "SkillRecord.range_value 应读取有效技能范围。");
         _test.Eq(record.ai_tags.Count, 1, "SkillRecord.ai_tags 应使用 typed List<StringName>。");
         _test.Eq(record.ai_tags[0], new StringName("setup"), "SkillRecord.ai_tags 应保留技能 tag。");
@@ -121,9 +121,8 @@ public partial class run_battle_ai_query_service_regression : SceneTree
         AddUnitToState(gridService, state, actor, isEnemy: true);
         AddUnitToState(gridService, state, target, isEnemy: false);
 
-        SkillDef skill = BuildSkill();
-        var skillDefs = new Dictionary<StringName, SkillDef> { [skill.skill_id] = skill };
-        var skillDefinitions = SkillDefinition.ProjectIndex(skillDefs);
+        SkillDefinition skill = BuildSkill();
+        var skillDefinitions = new Dictionary<StringName, SkillDefinition> { [skill.SkillId] = skill };
 
         return new Fixture
         {
@@ -132,8 +131,7 @@ public partial class run_battle_ai_query_service_regression : SceneTree
             Actor = actor,
             Target = target,
             Skill = skill,
-            SkillDefs = skillDefs,
-            SkillDefinitions = new Dictionary<StringName, SkillDefinition>(skillDefinitions),
+            SkillDefinitions = skillDefinitions,
         };
     }
 
@@ -213,28 +211,23 @@ public partial class run_battle_ai_query_service_regression : SceneTree
         _test.True(gridService.PlaceUnit(state, unit, unit.coord, true), $"测试单位 {unit.unit_id} 应能放入测试战场。");
     }
 
-    private static SkillDef BuildSkill()
-    {
-        return TestResourceOwnership.Own(
-            new SkillDef
-            {
-                skill_id = "query_skill",
-                display_name = "Query Skill",
-                combat_profile = new CombatSkillDef
-                {
-                    skill_id = "query_skill",
-                    range_value = 5,
-                    target_mode = "ground",
-                    target_team_filter = "enemy",
-                    area_pattern = "diamond",
-                    area_value = 1,
-                    target_selection_mode = "single_unit",
-                    ai_tags = new Godot.Collections.Array<StringName> { "setup" },
-                },
-            },
-            "BattleAiQueryService.BuildSkill"
+    private static SkillDefinition BuildSkill() =>
+        TestSkillDefinitionProjection.BuildSkill(
+            "query_skill",
+            "Query Skill",
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                "query_skill",
+                targetMode: "ground",
+                targetTeamFilter: "enemy",
+                rangeValue: 5,
+                areaPattern: "diamond",
+                areaValue: 1,
+                aiTags: new[] { new StringName("setup") },
+                targetSelectionMode: BattleTypedNames.ToStringName(
+                    BattleTargetSelectionMode.SingleUnit
+                )
+            )
         );
-    }
 
     private static bool IsGodotDynamicBoundaryType(Type type) =>
         type == typeof(Godot.Collections.Dictionary)
@@ -248,8 +241,7 @@ public partial class run_battle_ai_query_service_regression : SceneTree
         public BattleGridService GridService;
         public BattleUnitState Actor;
         public BattleUnitState Target;
-        public SkillDef Skill;
-        public Dictionary<StringName, SkillDef> SkillDefs;
+        public SkillDefinition Skill;
         public Dictionary<StringName, SkillDefinition> SkillDefinitions;
     }
 }

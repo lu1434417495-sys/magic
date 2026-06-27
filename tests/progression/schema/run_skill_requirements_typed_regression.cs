@@ -61,74 +61,79 @@ public partial class run_skill_requirements_typed_regression : SceneTree
     private void TestOfficialSkillResourcesExposeTypedRequirementsAndSources()
     {
         ProgressionContentRegistry registry = new();
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = registry.GetSkillDefsTyped();
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            registry.GetSkillDefinitionsTyped();
 
         _test.True(
-            skillDefs.TryGetValue("warrior_whirlwind_slash", out SkillDef whirlwind)
+            skillDefinitions.TryGetValue(
+                "warrior_whirlwind_slash",
+                out SkillDefinition whirlwind
+            )
                 && whirlwind != null,
-            "ProgressionContentRegistry 应暴露正式旋风斩升级资源。"
+            "ProgressionContentRegistry 应暴露正式旋风斩升级 DTO。"
         );
         _test.True(
-            skillDefs.TryGetValue("saint_blade_combo", out SkillDef saintBladeCombo)
+            skillDefinitions.TryGetValue("saint_blade_combo", out SkillDefinition saintBladeCombo)
                 && saintBladeCombo != null,
-            "ProgressionContentRegistry 应暴露正式圣刃连段资源。"
+            "ProgressionContentRegistry 应暴露正式圣刃连段 DTO。"
         );
         _test.True(
-            skillDefs.TryGetValue("vajra_body", out SkillDef vajraBody) && vajraBody != null,
-            "ProgressionContentRegistry 应暴露正式金刚不坏资源。"
+            skillDefinitions.TryGetValue("vajra_body", out SkillDefinition vajraBody)
+                && vajraBody != null,
+            "ProgressionContentRegistry 应暴露正式金刚不坏 DTO。"
         );
         if (whirlwind == null || saintBladeCombo == null || vajraBody == null)
             return;
 
         _test.True(
-            HasStringName(whirlwind.LearnRequirementsTyped, "charge")
-                && HasStringName(whirlwind.LearnRequirementsTyped, "warrior_spin_slash"),
-            "旋风斩应通过 typed learn_requirements 暴露前置技能。"
+            HasStringName(whirlwind.LearnRequirements, "charge")
+                && HasStringName(whirlwind.LearnRequirements, "warrior_spin_slash"),
+            "旋风斩应通过 DTO learn_requirements 暴露前置技能。"
         );
         _test.Eq(
-            whirlwind.SkillLevelRequirementsTyped["charge"],
+            whirlwind.SkillLevelRequirements["charge"],
             5,
-            "旋风斩应通过 typed skill_level_requirements 暴露冲锋等级前置。"
+            "旋风斩应通过 DTO skill_level_requirements 暴露冲锋等级前置。"
         );
         _test.Eq(
-            whirlwind.SkillLevelRequirementsTyped["warrior_spin_slash"],
+            whirlwind.SkillLevelRequirements["warrior_spin_slash"],
             5,
-            "旋风斩应通过 typed skill_level_requirements 暴露回旋斩等级前置。"
+            "旋风斩应通过 DTO skill_level_requirements 暴露回旋斩等级前置。"
         );
         _test.True(
-            HasStringName(saintBladeCombo.KnowledgeRequirementsTyped, "compania_family_legacy"),
-            "圣刃连段应通过 typed knowledge_requirements 暴露知识前置。"
+            HasStringName(saintBladeCombo.KnowledgeRequirements, "compania_family_legacy"),
+            "圣刃连段应通过 DTO knowledge_requirements 暴露知识前置。"
         );
         _test.True(
-            HasStringName(saintBladeCombo.AchievementRequirementsTyped, "six_hit_combo"),
-            "圣刃连段应通过 typed achievement_requirements 暴露成就前置。"
+            HasStringName(saintBladeCombo.AchievementRequirements, "six_hit_combo"),
+            "圣刃连段应通过 DTO achievement_requirements 暴露成就前置。"
         );
         _test.True(
-            HasStringName(saintBladeCombo.UpgradeSourceSkillIdsTyped, "warrior_combo_strike")
-                && HasStringName(
-                    saintBladeCombo.UpgradeSourceSkillIdsTyped,
-                    "warrior_aura_slash"
-                ),
-            "圣刃连段应通过 typed upgrade_source_skill_ids 暴露复合来源。"
+            HasStringName(saintBladeCombo.UpgradeSourceSkillIds, "warrior_combo_strike")
+                && HasStringName(saintBladeCombo.UpgradeSourceSkillIds, "warrior_aura_slash"),
+            "圣刃连段应通过 DTO upgrade_source_skill_ids 暴露复合来源。"
         );
         _test.True(
-            HasStringName(vajraBody.MasterySourcesTyped, "heavy_hit_taken")
-                && HasStringName(vajraBody.MasterySourcesTyped, "max_damage_die_taken")
-                && HasStringName(vajraBody.MasterySourcesTyped, "elite_or_boss_damage_taken"),
-            "金刚不坏应通过 typed mastery_sources 暴露正式受击熟练来源。"
+            HasStringName(vajraBody.MasterySources, "heavy_hit_taken")
+                && HasStringName(vajraBody.MasterySources, "max_damage_die_taken")
+                && HasStringName(vajraBody.MasterySources, "elite_or_boss_damage_taken"),
+            "金刚不坏应通过 DTO mastery_sources 暴露正式受击熟练来源。"
         );
     }
 
     private static SkillDef BuildSkill(StringName skillId)
     {
-        return new SkillDef
-        {
-            skill_id = skillId,
-            display_name = skillId.ToString(),
-            learn_source = "book",
-            max_level = 1,
-            mastery_curve = new[] { 10 },
-        };
+        return TestResourceOwnership.Own(
+            new SkillDef
+            {
+                skill_id = skillId,
+                display_name = skillId.ToString(),
+                learn_source = "book",
+                max_level = 1,
+                mastery_curve = new[] { 10 },
+            },
+            "SkillRequirementsTyped.BuildSkill"
+        );
     }
 
     private static GStringArray CollectValidationErrors(params SkillDef[] skillDefs)

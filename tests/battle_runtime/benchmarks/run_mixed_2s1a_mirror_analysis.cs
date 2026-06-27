@@ -40,14 +40,15 @@ public partial class run_mixed_2s1a_mirror_analysis : SceneTree
 
         try
         {
-            IReadOnlyDictionary<StringName, SkillDef> skillDefs = contentProvider.GetSkillDefsTyped();
+            IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+                contentProvider.GetSkillDefinitionsTyped();
             IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
                 contentProvider.GetEnemyTemplatesTyped();
             IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains =
                 contentProvider.GetEnemyAiBrainsTyped();
 
             BattleSimOverrideApplyResult overrides = overrideApplier.ApplyProfileTyped(
-                skillDefs,
+                skillDefinitions,
                 enemyAiBrains,
                 new BattleSimProfileDef
                 {
@@ -259,7 +260,7 @@ public partial class run_mixed_2s1a_mirror_analysis : SceneTree
     )
     {
         var fixture = new BattleSimFormalCombatFixture();
-        fixture.SetupContent(progressionRegistry, itemRegistry, overrides.SkillDefs);
+        fixture.SetupContent(progressionRegistry, itemRegistry, overrides.SkillDefinitions);
         if (
             !fixture.BuildRoster(scenarioDef.scenario_id, rosterOptions)
         )
@@ -284,7 +285,7 @@ public partial class run_mixed_2s1a_mirror_analysis : SceneTree
             bool useFormalTerrain = scenarioDef != null && scenarioDef.use_formal_terrain_generation;
             runtime.setup(
                 fixture,
-                overrides.SkillDefs,
+                overrides.SkillDefinitions,
                 enemyTemplates,
                 overrides.EnemyAiBrains,
                 null,

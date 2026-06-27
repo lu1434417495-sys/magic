@@ -91,6 +91,9 @@ public partial class PartyState
         return result;
     }
 
+    internal Dictionary<StringName, bool> CaptureFateRunFlagsTyped() =>
+        new(fate_run_flags);
+
     public void ApplyFateRunFlags(Godot.Collections.Dictionary flags)
     {
         var next = new Dictionary<StringName, bool>();
@@ -102,6 +105,19 @@ public partial class PartyState
                     continue;
                 if (TryReadBool(flags, key, out bool value))
                     next[flagId] = value;
+            }
+        fate_run_flags = next;
+    }
+
+    internal void ApplyFateRunFlagsTyped(IReadOnlyDictionary<StringName, bool> flags)
+    {
+        var next = new Dictionary<StringName, bool>();
+        if (flags != null)
+            foreach (KeyValuePair<StringName, bool> entry in flags)
+            {
+                StringName flagId = ProgressionDataUtils.to_string_name(entry.Key);
+                if (flagId != "")
+                    next[flagId] = entry.Value;
             }
         fate_run_flags = next;
     }

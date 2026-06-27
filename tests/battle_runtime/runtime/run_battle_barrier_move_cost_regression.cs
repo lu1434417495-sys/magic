@@ -104,22 +104,21 @@ public partial class run_battle_barrier_move_cost_regression : SceneTree
         BattleUnitState enemy = BuildUnit("enemy", "敌人", "enemy", enemyCoord);
         AddUnit(runtime, state, caster, false);
         AddUnit(runtime, state, enemy, true);
-        SkillDef skill = BuildSkill("mage_prismatic_sphere", "虹光法球", "mage", "magic");
-        var effect = new CombatEffectDef
-        {
-            effect_type = "layered_barrier",
-            duration_tu = 120,
-            save_dc = 15,
-            save_dc_mode = "static",
-            save_ability = "willpower",
-            save_tag = "magic",
-            @params = new GDictionary
+        SkillDefinition skill = BuildSkill("mage_prismatic_sphere", "虹光法球", "mage", "magic");
+        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
+            "layered_barrier",
+            saveDc: 15,
+            saveDcMode: "static",
+            saveAbility: "willpower",
+            saveTag: "magic",
+            durationTu: 120,
+            parameters: new Dictionary<string, Variant>
             {
                 ["area_pattern"] = "diamond",
                 ["profile_id"] = "prismatic_sphere",
                 ["radius_cells"] = 2,
-            },
-        };
+            }
+        );
         runtime._layered_barrier_service.ApplyLayeredBarrierEffectResult(
             caster,
             caster,
@@ -189,17 +188,8 @@ public partial class run_battle_barrier_move_cost_regression : SceneTree
         return unit;
     }
 
-    private static SkillDef BuildSkill(StringName skillId, string displayName, params StringName[] tags)
-    {
-        var skill = new SkillDef
-        {
-            skill_id = skillId,
-            display_name = displayName,
-            icon_id = skillId,
-        };
-        skill.SetTags(tags);
-        return skill;
-    }
+    private static SkillDefinition BuildSkill(StringName skillId, string displayName, params StringName[] tags) =>
+        TestSkillDefinitionProjection.BuildSkill(skillId, displayName, tags: tags);
 
     private static void AddUnit(
         BattleRuntimeModule runtime,

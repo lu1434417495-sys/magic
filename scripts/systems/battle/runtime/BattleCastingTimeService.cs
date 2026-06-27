@@ -29,22 +29,28 @@ internal sealed class BattleCastingTimeService
     internal bool TryHandleCastingSkillStart(
         BattleUnitState activeUnit,
         BattleCommand command,
-        SkillDef skillDef,
-        CombatCastVariantDef unitExecutionCastVariant,
-        CombatCastVariantDef groundCastVariant,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition unitExecutionCastVariant,
+        CombatCastVariantDefinition groundCastVariant,
         bool routesToUnitTargeting,
         BattleEventBatch batch
     )
     {
         BattleRuntimeModule runtime = ResolveRuntime();
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
-        if (runtime == null || activeUnit == null || command == null || combatProfile == null)
+        CombatSkillDefinition combatDefinition = skillDefinition?.CombatProfile;
+        if (
+            runtime == null
+            || activeUnit == null
+            || command == null
+            || skillDefinition == null
+            || combatDefinition == null
+        )
         {
             return false;
         }
 
-        int skillLevel = runtime._get_unit_skill_level(activeUnit, skillDef.skill_id);
-        int castingTimeTu = combatProfile.GetEffectiveCastingTimeTu(skillLevel);
+        int skillLevel = runtime._get_unit_skill_level(activeUnit, skillDefinition.SkillId);
+        int castingTimeTu = combatDefinition.GetEffectiveCastingTimeTu(skillLevel);
         if (castingTimeTu <= 0)
         {
             return false;
@@ -66,7 +72,7 @@ internal sealed class BattleCastingTimeService
             runtime,
             activeUnit,
             command,
-            skillDef,
+            skillDefinition,
             unitExecutionCastVariant,
             groundCastVariant,
             routesToUnitTargeting
@@ -78,15 +84,15 @@ internal sealed class BattleCastingTimeService
         }
 
         SkillCostTransaction transaction =
-            runtime._skill_turn_resolver.BuildSkillCostTransaction(activeUnit, skillDef);
+            runtime._skill_turn_resolver.BuildSkillCostTransaction(activeUnit, skillDefinition);
         BattleSpellControlMetadata spellControlMetadata = ResolveCastingSpellControl(
             runtime,
             activeUnit,
-            skillDef,
-            combatProfile,
+            skillDefinition,
+            combatDefinition,
             skillLevel
         );
-        int spellControlDc = combatProfile.GetEffectiveCastingSpellControlDc(skillLevel);
+        int spellControlDc = combatDefinition.GetEffectiveCastingSpellControlDc(skillLevel);
         spellControlMetadata = ApplyCastingSpellControlDc(spellControlMetadata, spellControlDc);
         if (spellControlMetadata.CriticalFail)
         {
@@ -102,27 +108,30 @@ internal sealed class BattleCastingTimeService
                 transaction,
                 batch
             );
-            runtime._record_skill_attempt(activeUnit, skillDef.skill_id);
+            runtime._record_skill_attempt(activeUnit, skillDefinition.SkillId);
             batch?.AddLogLine(
-                $"{DisplayName(activeUnit)} 准备 {SkillLabel(skillDef)} 时法术控制大失败，读条中断。"
+                $"{DisplayName(activeUnit)} 准备 {SkillLabel(skillDefinition)} 时法术控制大失败，读条中断。"
             );
             return true;
         }
         if (spellControlMetadata.OrdinaryMiss)
         {
             runtime._skill_turn_resolver.ConsumeCastingFailureApCost(activeUnit, transaction, batch);
-            runtime._record_skill_attempt(activeUnit, skillDef.skill_id);
+            runtime._record_skill_attempt(activeUnit, skillDefinition.SkillId);
             batch?.AddLogLine(
-                $"{DisplayName(activeUnit)} 准备 {SkillLabel(skillDef)} 时法术控制失败，本次行动只能移动、等待或取消读条。"
+                $"{DisplayName(activeUnit)} 准备 {SkillLabel(skillDefinition)} 时法术控制失败，本次行动只能移动、等待或取消读条。"
             );
             return true;
         }
 
+        CombatCastVariantDefinition payloadCastVariantDefinition =
+            payload.CastVariantDefinition
+            ?? unitExecutionCastVariant;
         if (
             !runtime._skill_turn_resolver.ConsumePendingCastResourceCosts(
                 activeUnit,
-                skillDef,
-                payload.CastVariant,
+                skillDefinition,
+                payloadCastVariantDefinition,
                 batch,
                 out transaction
             )
@@ -134,10 +143,10 @@ internal sealed class BattleCastingTimeService
         BattlePendingCastState pendingCast = new()
         {
             SourceUnitId = activeUnit.unit_id,
-            SkillId = skillDef.skill_id,
-            VariantId = payload.CastVariant?.variant_id ?? "",
+            SkillId = skillDefinition.SkillId,
+            VariantId = payloadCastVariantDefinition?.VariantId ?? "",
             TargetMode = payload.TargetMode,
-            BindingMode = combatProfile.GetEffectivePendingCastBindingMode(skillLevel),
+            BindingMode = combatDefinition.GetEffectivePendingCastBindingMode(skillLevel),
             StartedCoord = activeUnit.coord,
             StartedTu = runtime._state?.timeline?.current_tu ?? 0,
             BaseCastingTimeTu = castingTimeTu,
@@ -151,7 +160,7 @@ internal sealed class BattleCastingTimeService
         pendingCast.SetTargetCoords(payload.TargetCoords);
         activeUnit.SetPendingCast(pendingCast);
         activeUnit.SetCurrentAp(0);
-        runtime._record_skill_attempt(activeUnit, skillDef.skill_id);
+        runtime._record_skill_attempt(activeUnit, skillDefinition.SkillId);
         runtime._record_action_issued(
             activeUnit,
             BattleTypedNames.ToStringName(BattleCommandKind.Skill),
@@ -159,7 +168,7 @@ internal sealed class BattleCastingTimeService
         );
         runtime._append_changed_unit_id(batch, activeUnit.unit_id);
         batch?.AddLogLine(
-            $"{DisplayName(activeUnit)} 开始准备 {SkillLabel(skillDef)}（{castingTimeTu} TU）。"
+            $"{DisplayName(activeUnit)} 开始准备 {SkillLabel(skillDefinition)}（{castingTimeTu} TU）。"
         );
         return true;
     }
@@ -383,9 +392,9 @@ internal sealed class BattleCastingTimeService
         BattleRuntimeModule runtime,
         BattleUnitState activeUnit,
         BattleCommand command,
-        SkillDef skillDef,
-        CombatCastVariantDef unitExecutionCastVariant,
-        CombatCastVariantDef groundCastVariant,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition unitExecutionCastVariant,
+        CombatCastVariantDefinition groundCastVariant,
         bool routesToUnitTargeting
     )
     {
@@ -395,7 +404,7 @@ internal sealed class BattleCastingTimeService
                 runtime._skill_orchestrator._validate_unit_skill_targets_result(
                     activeUnit,
                     command,
-                    skillDef,
+                    skillDefinition,
                     unitExecutionCastVariant
                 );
             if (!validation.Allowed)
@@ -409,9 +418,9 @@ internal sealed class BattleCastingTimeService
         }
 
         BattleGroundSkillValidationResult groundValidation =
-            runtime._skill_orchestrator.ValidateGroundSkillCommandResult(
+            runtime.ValidateGroundSkillCommandResultTyped(
                 activeUnit,
-                skillDef,
+                skillDefinition,
                 groundCastVariant,
                 command
             );
@@ -419,9 +428,9 @@ internal sealed class BattleCastingTimeService
         {
             return PendingCastStartPayload.Denied(groundValidation.Message);
         }
-        string precastValidationMessage = runtime._skill_orchestrator.GetGroundSpecialEffectValidationMessage(
+        string precastValidationMessage = runtime.GetGroundSpecialEffectValidationMessageTyped(
             activeUnit,
-            skillDef,
+            skillDefinition,
             groundCastVariant,
             groundValidation.TargetCoords
         );
@@ -429,21 +438,24 @@ internal sealed class BattleCastingTimeService
         {
             return PendingCastStartPayload.Denied(precastValidationMessage);
         }
-        return PendingCastStartPayload.AllowedGround(groundCastVariant, groundValidation.TargetCoords);
+        return PendingCastStartPayload.AllowedGround(
+            groundCastVariant,
+            groundValidation.TargetCoords
+        );
     }
 
     private BattleSpellControlMetadata ResolveCastingSpellControl(
         BattleRuntimeModule runtime,
         BattleUnitState activeUnit,
-        SkillDef skillDef,
-        CombatSkillDef combatProfile,
+        SkillDefinition skillDefinition,
+        CombatSkillDefinition combatProfile,
         int skillLevel
     )
     {
         if (
             runtime?.GetDamageResolver() == null
             || activeUnit == null
-            || skillDef == null
+            || skillDefinition == null
             || combatProfile == null
             || (
                 !combatProfile.HasSpellFateControl()
@@ -458,7 +470,7 @@ internal sealed class BattleCastingTimeService
             .ResolveSpellControlCheckTyped(
                 activeUnit,
                 runtime._state,
-                skillDef.skill_id,
+                skillDefinition.SkillId,
                 dispatchEvents: false
             );
     }
@@ -498,8 +510,8 @@ internal sealed class BattleCastingTimeService
         {
             return false;
         }
-        SkillDef skillDef = runtime.GetSkillDefTyped(pendingCast.SkillId);
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        SkillDefinition skillDefinition = runtime.GetSkillDefinitionTyped(pendingCast.SkillId);
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         int skillLevel = pendingCast.CostTransaction?.SkillLevel ?? 1;
         int dc = combatProfile?.GetEffectiveCastingMaintenanceDc(skillLevel) ?? 0;
         if (dc <= 0)
@@ -655,26 +667,28 @@ internal sealed class BattleCastingTimeService
         return unitId == "" ? "未知单位" : unitId.ToString();
     }
 
-    private static string SkillLabel(SkillDef skillDef)
+    private static string SkillLabel(SkillDefinition skillDefinition)
     {
-        if (!string.IsNullOrEmpty(skillDef?.display_name))
+        if (!string.IsNullOrEmpty(skillDefinition?.DisplayName))
         {
-            return skillDef.display_name;
+            return skillDefinition.DisplayName;
         }
-        StringName skillId = skillDef?.skill_id ?? "";
+        StringName skillId = skillDefinition?.SkillId ?? "";
         return skillId == "" ? "技能" : skillId.ToString();
     }
 
     private static string SkillLabel(BattleRuntimeModule runtime, BattlePendingCastState pendingCast)
     {
-        SkillDef skillDef = runtime?.GetSkillDefTyped(pendingCast?.SkillId ?? "");
-        return SkillLabel(skillDef);
+        SkillDefinition skillDefinition = runtime?.GetSkillDefinitionTyped(
+            pendingCast?.SkillId ?? ""
+        );
+        return SkillLabel(skillDefinition);
     }
 
     private readonly record struct PendingCastStartPayload(
         bool Allowed,
         string Message,
-        CombatCastVariantDef CastVariant,
+        CombatCastVariantDefinition CastVariantDefinition,
         BattleTargetMode TargetMode,
         IReadOnlyList<StringName> TargetUnitIds,
         IReadOnlyList<Vector2I> TargetCoords
@@ -691,7 +705,7 @@ internal sealed class BattleCastingTimeService
             );
 
         internal static PendingCastStartPayload AllowedUnit(
-            CombatCastVariantDef castVariant,
+            CombatCastVariantDefinition castVariant,
             IReadOnlyList<StringName> targetUnitIds
         ) =>
             new(
@@ -704,7 +718,7 @@ internal sealed class BattleCastingTimeService
             );
 
         internal static PendingCastStartPayload AllowedGround(
-            CombatCastVariantDef castVariant,
+            CombatCastVariantDefinition castVariant,
             IReadOnlyList<Vector2I> targetCoords
         ) =>
             new(

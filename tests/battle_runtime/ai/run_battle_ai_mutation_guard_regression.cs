@@ -393,12 +393,15 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
         Dictionary<StringName, EnemyAiBrainDef> brainMap = new();
         if (includeBrain)
         {
-            var brain = new EnemyAiBrainDef
-            {
-                brain_id = "guard_brain",
-                default_state_id = "engage",
-                states = new Godot.Collections.Array<EnemyAiStateDef>(),
-            };
+            var brain = TestResourceOwnership.Own(
+                new EnemyAiBrainDef
+                {
+                    brain_id = "guard_brain",
+                    default_state_id = "engage",
+                    states = new Godot.Collections.Array<EnemyAiStateDef>(),
+                },
+                "BattleAiMutationGuard.BuildFixture.brain"
+            );
             if (includeState)
             {
                 brain.states.Add(
@@ -424,7 +427,7 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
             grid_service = gridService,
             allow_authored_action_fallback_for_tests = true,
         };
-        context.SetSkillDefs(new Dictionary<StringName, SkillDef>());
+        context.SetSkillDefinitions(new Dictionary<StringName, SkillDefinition>());
 
         return new Fixture
         {

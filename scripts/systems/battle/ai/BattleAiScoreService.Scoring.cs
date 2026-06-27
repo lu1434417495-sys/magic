@@ -401,8 +401,8 @@ public partial class BattleAiScoreService
     private void PopulatePathStepAoeMetrics(
         BattleAiScoreInput scoreInput,
         IBattleAiScoreContext context,
-        SkillDef skillDef,
-        IReadOnlyList<CombatEffectDef> effectDefs,
+        SkillDefinition skillDefinition,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         ScorePathStepAoeMetadata metadata
     )
     {
@@ -418,19 +418,16 @@ public partial class BattleAiScoreService
         {
             return;
         }
-        CombatEffectDef pathStepEffect = FindPathStepAoeEffect(effectDefs);
-        if (pathStepEffect == null)
+        CombatEffectDefinition pathStepEffect = FindPathStepAoeEffect(effectDefinitions);
+        if (pathStepEffect == null && metadata?.Effect != null)
         {
-            pathStepEffect = metadata?.Effect;
+            pathStepEffect = metadata.Effect;
         }
         if (pathStepEffect == null)
         {
             return;
         }
-        CombatEffectDef damageEffect = BuildPathStepDamageEffect(
-            pathStepEffect,
-            _transientScope
-        );
+        CombatEffectDefinition damageEffect = BuildPathStepDamageEffect(pathStepEffect);
         if (damageEffect == null)
         {
             return;
@@ -457,9 +454,9 @@ public partial class BattleAiScoreService
             uniqueTargetCount += 1;
             DamageEstimateResult estimateResult = EstimateDamageForTargetResult(
                 actor,
-                RepeatEffects(new[] { damageEffect }, hitCount),
+                RepeatEffectDefinitions(new[] { damageEffect }, hitCount),
                 targetUnit,
-                ResolveSkillId(skillDef)
+                ResolveSkillId(skillDefinition)
             );
             int estimatedDamage = estimateResult.Damage;
             int estimatedShieldAbsorbed = estimateResult.ShieldAbsorbed;
@@ -494,7 +491,7 @@ public partial class BattleAiScoreService
             if (
                 PathStepRepeatStatusApplies(
                     context,
-                    skillDef,
+                    skillDefinition,
                     pathStepEffect,
                     hitCount
                 )
@@ -571,45 +568,37 @@ public partial class BattleAiScoreService
         return result;
     }
 
-    private static CombatEffectDef FindPathStepAoeEffect(
-        IEnumerable<CombatEffectDef> effectDefs
+    private static CombatEffectDefinition FindPathStepAoeEffect(
+        IEnumerable<CombatEffectDefinition> effectDefinitions
     )
     {
-        foreach (CombatEffectDef effectDef in effectDefs ?? System.Array.Empty<CombatEffectDef>())
+        foreach (
+            CombatEffectDefinition effectDefinition in effectDefinitions
+                ?? System.Array.Empty<CombatEffectDefinition>()
+        )
         {
-            if (effectDef != null && effectDef.EffectKind == BattleEffectKind.PathStepAoe)
+            if (
+                effectDefinition != null
+                && effectDefinition.EffectKind == BattleEffectKind.PathStepAoe
+            )
             {
-                return effectDef;
+                return effectDefinition;
             }
         }
         return null;
     }
 
-    private static CombatEffectDef BuildPathStepDamageEffect(
-        CombatEffectDef pathStepEffect,
-        GodotTransientResourceScope owner
+    private static CombatEffectDefinition BuildPathStepDamageEffect(
+        CombatEffectDefinition pathStepEffect
     )
     {
-        if (pathStepEffect == null)
-        {
-            return null;
-        }
-        CombatEffectDef damageEffect = pathStepEffect.DuplicateForRuntime(
-            owner,
-            "BattleAiScoreService.BuildPathStepDamageEffect"
-        );
-        if (damageEffect == null)
-        {
-            return null;
-        }
-        damageEffect.EffectKind = BattleEffectKind.Damage;
-        return damageEffect;
+        return pathStepEffect?.WithEffectType(BattleTypedNames.ToStringName(BattleEffectKind.Damage));
     }
 
     private static bool PathStepRepeatStatusApplies(
         IBattleAiScoreContext context,
-        SkillDef skillDef,
-        CombatEffectDef pathStepEffect,
+        SkillDefinition skillDefinition,
+        CombatEffectDefinition pathStepEffect,
         int hitCount
     )
     {
@@ -617,63 +606,66 @@ public partial class BattleAiScoreService
         {
             return false;
         }
-        StringName statusId = pathStepEffect.GetStringNameParamTyped("repeat_hit_status_id", "");
+        StringName statusId = ReadStringNameParameter(pathStepEffect, "repeat_hit_status_id");
         if (IsEmpty(statusId))
         {
             return false;
         }
         int threshold = Math.Max(
-            pathStepEffect.GetIntParamTyped("repeat_hit_status_threshold", 1),
+            ReadIntParameter(pathStepEffect, "repeat_hit_status_threshold", 1),
             1
         );
         if (hitCount < threshold)
         {
             return false;
         }
-        int durationTu = pathStepEffect.GetIntParamTyped("repeat_hit_status_duration_tu", 0);
+        int durationTu = ReadIntParameter(pathStepEffect, "repeat_hit_status_duration_tu", 0);
         if (durationTu <= 0)
         {
             return false;
         }
         int minSkillLevel = Math.Max(
-            pathStepEffect.GetIntParamTyped("repeat_hit_status_min_skill_level", 0),
+            ReadIntParameter(pathStepEffect, "repeat_hit_status_min_skill_level", 0),
             0
         );
-        StringName skillId = skillDef != null ? skillDef.skill_id : "";
+        StringName skillId = ResolveSkillId(skillDefinition);
         return GetContextSkillLevel(context, skillId) >= minSkillLevel;
     }
 
-    private static List<CombatEffectDef> FilterEffectDefsForContext(
-        IEnumerable<CombatEffectDef> effectDefs,
+    private static List<CombatEffectDefinition> FilterEffectDefinitionsForContext(
+        IEnumerable<CombatEffectDefinition> effectDefinitions,
         IBattleAiScoreContext context,
-        SkillDef skillDef
+        SkillDefinition skillDefinition
     )
     {
-        var filteredEffectDefs = new List<CombatEffectDef>();
+        var filteredEffectDefinitions = new List<CombatEffectDefinition>();
         bool shouldFilter = ContextUnitState(context) != null;
-        int skillLevel = GetContextSkillLevel(context, skillDef != null ? skillDef.skill_id : "");
-        foreach (CombatEffectDef effectDef in effectDefs ?? System.Array.Empty<CombatEffectDef>())
+        int skillLevel = GetContextSkillLevel(context, ResolveSkillId(skillDefinition));
+        foreach (
+            CombatEffectDefinition effectDefinition in effectDefinitions
+                ?? System.Array.Empty<CombatEffectDefinition>()
+        )
         {
-            if (effectDef == null)
+            if (effectDefinition == null)
             {
                 continue;
             }
-            if (!IsEffectUnlockedForSkillLevel(effectDef, skillLevel, shouldFilter))
+            if (!IsEffectUnlockedForSkillLevel(effectDefinition, skillLevel, shouldFilter))
             {
                 continue;
             }
-            filteredEffectDefs.Add(effectDef);
+            filteredEffectDefinitions.Add(effectDefinition);
         }
-        return filteredEffectDefs;
+        return filteredEffectDefinitions;
     }
 
     private static bool IsEffectUnlockedForSkillLevel(
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         int skillLevel,
         bool shouldFilter
     )
     {
-        if (effectDef == null)
+        if (effectDefinition == null)
         {
             return false;
         }
@@ -681,8 +673,8 @@ public partial class BattleAiScoreService
         {
             return true;
         }
-        int minLevel = Math.Max(effectDef.min_skill_level, 0);
-        int maxLevel = effectDef.max_skill_level;
+        int minLevel = Math.Max(effectDefinition.MinSkillLevel, 0);
+        int maxLevel = effectDefinition.MaxSkillLevel;
         if (skillLevel < minLevel)
         {
             return false;
@@ -690,77 +682,37 @@ public partial class BattleAiScoreService
         return maxLevel < 0 || skillLevel <= maxLevel;
     }
 
-    private int EstimateDamageForTarget(
-        BattleUnitState sourceUnit,
-        IReadOnlyList<CombatEffectDef> effectDefs,
-        BattleUnitState targetUnit,
-        StringName skillId = default
-    )
-    {
-        return EstimateDamageForTargetResult(sourceUnit, effectDefs, targetUnit, skillId).Damage;
-    }
-
-    private DamageEstimateResult EstimateDamageForTargetResult(
-        IBattleAiScoreContext context,
-        BattleUnitState sourceUnit,
-        IReadOnlyList<CombatEffectDef> effectDefs,
-        BattleUnitState targetUnit,
-        StringName skillId = default
-    )
-    {
-        return EstimateDamageForTargetResult(
-            sourceUnit,
-            effectDefs,
-            targetUnit,
-            skillId
-        );
-    }
-
     private DamageEstimateResult EstimateDamageForTargetResult(
         BattleUnitState sourceUnit,
-        IReadOnlyList<CombatEffectDef> effectDefs,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         BattleUnitState targetUnit,
         StringName skillId = default
     )
     {
-        if (_damageResolver != null)
-        {
-            BattleDamagePreviewResult sequence = _damageResolver.preview_damage_sequence_typed(
-                sourceUnit,
-                targetUnit,
-                ToEffectArray(effectDefs),
-                skillId,
-                BattleDamagePreviewRollMode.Average,
-                BattleDamagePreviewSaveMode.Expected
-            );
-            return NormalizeDamageSequenceEstimate(
-                DamagePreviewSnapshot.FromPreviewResult(sequence)
-            );
-        }
-
         int total = 0;
         int postSaveTotal = 0;
         var saveEstimates = new List<DamageSaveEstimate>();
         var damageEstimates = new List<DamageEstimateBreakdown>();
-        foreach (CombatEffectDef effectDef in effectDefs)
+        foreach (
+            CombatEffectDefinition effectDefinition in effectDefinitions
+                ?? System.Array.Empty<CombatEffectDefinition>()
+        )
         {
-            if (effectDef == null || effectDef.EffectKind != BattleEffectKind.Damage)
+            if (effectDefinition == null || effectDefinition.EffectKind != BattleEffectKind.Damage)
             {
                 continue;
             }
-            BattleDamagePreviewRangeService.SkillDamagePreview damagePreview =
-                BattleDamagePreviewRangeService.BuildSkillDamagePreview(
-                    sourceUnit,
-                    new[] { effectDef }
-                );
-            int baseDamage = EstimateDamageFromPreview(damagePreview);
-            int bonusDamage = EstimateConditionalBonusDamage(effectDef, targetUnit);
-            double multiplier = ResolveEffectDamageMultiplier(effectDef, targetUnit);
-            int preSaveDamage = Math.Max(RoundToInt((baseDamage + bonusDamage) * multiplier), 0);
+            int baseDamage = EstimateDamageFromDefinition(effectDefinition, sourceUnit);
+            int bonusDamage = EstimateConditionalBonusDamage(effectDefinition, targetUnit);
+            double multiplier = ResolveEffectDamageMultiplier(effectDefinition, targetUnit);
+            int preSaveDamage = Math.Max(
+                RoundToInt((baseDamage + bonusDamage) * multiplier),
+                0
+            );
             DamageSaveEstimate saveEstimate = BuildDamageSaveEstimate(
                 sourceUnit,
                 targetUnit,
-                effectDef,
+                effectDefinition,
                 preSaveDamage,
                 skillId
             );
@@ -801,81 +753,49 @@ public partial class BattleAiScoreService
         };
     }
 
-    private DamageEstimateResult EstimateDamageForTargetWithPreviewEffect(
-        BattleUnitState sourceUnit,
-        IReadOnlyList<CombatEffectDef> effectDefs,
-        BattleUnitState targetUnit,
-        StringName skillId
+    private static int EstimateDamageFromDefinition(
+        CombatEffectDefinition effectDefinition,
+        BattleUnitState sourceUnit
     )
     {
-        int totalHpDamage = 0;
-        int totalPostSaveDamage = 0;
-        int totalIncomingBudgetDamage = 0;
-        int totalShieldAbsorbed = 0;
-        bool stableLethal = false;
-        int lethalProbabilityBasisPoints = 0;
-        var saveEstimates = new List<DamageSaveEstimate>();
-        var damageEstimates = new List<DamageEstimateBreakdown>();
-        BattleUnitState workingTarget = targetUnit?.clone();
-        if (workingTarget == null)
+        if (effectDefinition == null)
         {
-            workingTarget = targetUnit;
+            return 0;
         }
-        foreach (CombatEffectDef effectDef in effectDefs)
+        int damage = Math.Max(effectDefinition.Power, 0);
+        int diceSides =
+            effectDefinition.DiceCount > 0 && effectDefinition.DiceSidesBase > 0
+                ? EstimateAttributeScaledDiceSides(effectDefinition, sourceUnit)
+                : Math.Max(effectDefinition.DiceSides, 0);
+        damage += EstimateAverageDiceDamage(
+            effectDefinition.DiceCount,
+            diceSides,
+            effectDefinition.DiceBonus
+        );
+        if (effectDefinition.AddWeaponDice)
         {
-            if (effectDef == null || effectDef.EffectKind != BattleEffectKind.Damage)
+            WeaponDice weaponDice = sourceUnit?.GetActiveWeaponDiceTyped();
+            if (weaponDice != null && !weaponDice.IsEmpty())
             {
-                continue;
-            }
-            int targetHpBefore = Math.Max(
-                workingTarget?.current_hp ?? targetUnit?.current_hp ?? 1,
-                1
-            );
-            BattleDamagePreviewResult effectPreview = _damageResolver.PreviewDamageEffectTyped(
-                sourceUnit,
-                workingTarget,
-                effectDef,
-                skillId,
-                BattleDamagePreviewRollMode.Average,
-                BattleDamagePreviewSaveMode.Expected
-            );
-            DamagePreviewSnapshot previewSnapshot = DamagePreviewSnapshot.FromPreviewResult(
-                effectPreview
-            );
-            DamageEstimateResult normalized = NormalizeDamageSequenceEstimate(previewSnapshot);
-            ApplyBranchLethalEstimate(normalized, previewSnapshot, targetHpBefore);
-            int hpDamage = normalized.Damage;
-            int postSaveDamage = normalized.PostSaveDamage;
-            int incomingBudgetDamage = normalized.IncomingBudgetDamage;
-            int shieldAbsorbed = normalized.ShieldAbsorbed;
-            totalHpDamage += hpDamage;
-            totalPostSaveDamage += postSaveDamage;
-            totalIncomingBudgetDamage += incomingBudgetDamage;
-            totalShieldAbsorbed += shieldAbsorbed;
-            stableLethal = stableLethal || normalized.StableLethal;
-            lethalProbabilityBasisPoints = Math.Max(
-                lethalProbabilityBasisPoints,
-                normalized.LethalProbabilityBasisPoints
-            );
-            saveEstimates.AddRange(CloneSaveEstimates(normalized.SaveEstimates));
-            damageEstimates.AddRange(CloneDamageEstimates(normalized.DamageEstimates));
-            if (previewSnapshot.TargetPreviewAfter is BattleUnitState nextTarget)
-            {
-                workingTarget = nextTarget;
+                damage += EstimateAverageDiceDamage(
+                    weaponDice.dice_count,
+                    weaponDice.dice_sides,
+                    weaponDice.flat_bonus
+                );
             }
         }
-        return new DamageEstimateResult
+        return Math.Max(damage, 0);
+    }
+
+    private static int EstimateAverageDiceDamage(int diceCount, int diceSides, int diceBonus)
+    {
+        int normalizedCount = Math.Max(diceCount, 0);
+        int normalizedSides = Math.Max(diceSides, 0);
+        if (normalizedCount <= 0 || normalizedSides <= 0)
         {
-            Damage = totalHpDamage,
-            HpDamage = totalHpDamage,
-            PostSaveDamage = totalPostSaveDamage,
-            IncomingBudgetDamage = totalIncomingBudgetDamage,
-            ShieldAbsorbed = totalShieldAbsorbed,
-            StableLethal = stableLethal,
-            LethalProbabilityBasisPoints = lethalProbabilityBasisPoints,
-            SaveEstimates = saveEstimates,
-            DamageEstimates = damageEstimates,
-        };
+            return 0;
+        }
+        return Math.Max(RoundToInt(normalizedCount * (normalizedSides + 1) / 2.0 + diceBonus), 0);
     }
 
     private static DamageEstimateResult NormalizeDamageSequenceEstimate(
@@ -950,18 +870,18 @@ public partial class BattleAiScoreService
     private static DamageSaveEstimate BuildDamageSaveEstimate(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         int damageBeforeSave,
         StringName skillId
     )
     {
         BattleSaveProbabilityResult probability =
             BattleSaveResolver.EstimateSaveSuccessProbabilityResult(
-            sourceUnit,
-            targetUnit,
-            effectDef,
-            BattleSaveContext.ForSkill(skillId)
-        );
+                sourceUnit,
+                targetUnit,
+                effectDefinition,
+                BattleSaveContext.ForSkill(skillId)
+            );
         if (!probability.HasSave)
         {
             return new DamageSaveEstimate
@@ -981,7 +901,7 @@ public partial class BattleAiScoreService
         );
         int failureBasisPoints = Mathf.Clamp(probability.FailureProbabilityBasisPoints, 0, 10000);
         int damageOnSaveSuccess = 0;
-        if (effectDef.save_partial_on_success && !probability.Immune)
+        if (effectDefinition.SavePartialOnSuccess && !probability.Immune)
         {
             damageOnSaveSuccess = damageBeforeSave / 2;
         }
@@ -998,7 +918,7 @@ public partial class BattleAiScoreService
             DamageAfterSaveEstimate = Math.Max(expectedDamage, 0),
             DamageOnSaveFailure = damageBeforeSave,
             DamageOnSaveSuccess = damageOnSaveSuccess,
-            SavePartialOnSuccess = effectDef.save_partial_on_success,
+            SavePartialOnSuccess = effectDefinition.SavePartialOnSuccess,
             SaveSuccessProbabilityBasisPoints = successBasisPoints,
             SaveSuccessRatePercent = RoundToInt(successBasisPoints / 100.0),
             SaveFailureProbabilityBasisPoints = failureBasisPoints,
@@ -1107,9 +1027,9 @@ public partial class BattleAiScoreService
         scoreInput.damage_estimates_by_target_id[targetKey] = existing;
     }
 
-    private static StringName ResolveSkillId(SkillDef skillDef)
+    private static StringName ResolveSkillId(SkillDefinition skillDefinition)
     {
-        return skillDef != null ? skillDef.skill_id : "";
+        return skillDefinition != null ? skillDefinition.SkillId : "";
     }
 
     private static int EstimateDamageFromPreview(
@@ -1127,18 +1047,18 @@ public partial class BattleAiScoreService
     }
 
     private double ResolveEffectDamageMultiplier(
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         BattleUnitState targetUnit
     )
     {
-        if (effectDef == null)
+        if (effectDefinition == null)
         {
             return 1.0;
         }
-        double multiplier = GetPreResistanceDamageMultiplier(effectDef);
-        if (HasBonusCondition(effectDef, targetUnit))
+        double multiplier = GetPreResistanceDamageMultiplier(effectDefinition);
+        if (HasBonusCondition(effectDefinition, targetUnit))
         {
-            multiplier *= GetDamageRatioMultiplier(effectDef);
+            multiplier *= GetDamageRatioMultiplier(effectDefinition);
         }
         return Math.Max(multiplier, 0.0);
     }
@@ -1301,7 +1221,8 @@ public partial class BattleAiScoreService
         {
             return 0;
         }
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = ContextSkillDefs(context);
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            ContextSkillDefinitions(context);
         int bestRange = 0;
         foreach (StringName skillId in threatUnit.known_active_skill_ids)
         {
@@ -1310,24 +1231,27 @@ public partial class BattleAiScoreService
             {
                 continue;
             }
-            SkillDef skillDef = GetSkillDef(skillDefs, normalizedSkillId);
-            if (skillDef == null || skillDef.combat_profile == null)
+            SkillDefinition skillDefinition = GetSkillDefinition(
+                skillDefinitions,
+                normalizedSkillId
+            );
+            if (skillDefinition == null || skillDefinition.CombatProfile == null)
             {
                 continue;
             }
             if (
-                BattleTypedNames.ToTargetFilter(skillDef.combat_profile.target_team_filter)
+                BattleTypedNames.ToTargetFilter(skillDefinition.CombatProfile.TargetTeamFilter)
                 == BattleTargetFilter.Ally
             )
             {
                 continue;
             }
-            List<CombatEffectDef> effectDefs = CollectRoleThreatEffectDefs(
+            List<CombatEffectDefinition> effectDefinitions = CollectRoleThreatEffectDefinitions(
                 threatUnit,
-                skillDef,
+                skillDefinition,
                 ContextSkillCatalog(context)
             );
-            if (!IsDamageSkill(effectDefs) && !IsControlSkill(effectDefs))
+            if (!IsDamageSkill(effectDefinitions) && !IsControlSkill(effectDefinitions))
             {
                 continue;
             }
@@ -1335,7 +1259,7 @@ public partial class BattleAiScoreService
                 bestRange,
                 BattleRangeService.GetEffectiveSkillThreatRange(
                     threatUnit,
-                    skillDef,
+                    skillDefinition,
                     ContextSkillCatalog(context)
                 )
             );

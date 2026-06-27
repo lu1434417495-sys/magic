@@ -870,8 +870,8 @@ public sealed class HeadlessGameTestSession : IDisposable
         }
 
         battleRuntime.SyncContentCatalogsTyped(
-            _gameSession.GetSkillDefsTyped(),
-            _gameSession.GetItemDefsTyped()
+            _gameSession.GetItemDefsTyped(),
+            _gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped()
         );
     }
 

@@ -142,13 +142,16 @@ public partial class run_confirmed_bugfix_regression : SceneTree
 
     private static CombatEffectDef BuildDamageEffect(int power)
     {
-        return new CombatEffectDef
-        {
-            effect_type = "damage",
-            power = power,
-            damage_tag = "physical_slash",
-            @params = new GDictionary(),
-        };
+        return TestResourceOwnership.Own(
+            new CombatEffectDef
+            {
+                effect_type = "damage",
+                power = power,
+                damage_tag = "physical_slash",
+                @params = new GDictionary(),
+            },
+            "ConfirmedBugfix.BuildDamageEffect"
+        );
     }
 
     private static BattleUnitState BuildUnit(StringName unitId)

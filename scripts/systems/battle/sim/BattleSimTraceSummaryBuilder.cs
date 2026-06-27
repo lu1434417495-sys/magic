@@ -347,7 +347,7 @@ public sealed class BattleSimTraceSummaryBuilder
             TrackedUnitIds = StringifyArrayList(ReadArray(result, "tracked_unit_ids")),
             UnitResults = SummarizeUnitResultsData(ReadArray(result, "unit_results")),
             LogLines = StringifyArrayList(ReadArray(result, "log_lines")),
-            ReportEntries = ReadArray(result, "report_entries"),
+            ReportEntries = ReadPlainArray(result, "report_entries", "execution_result.report_entries"),
         };
     }
 
@@ -1067,7 +1067,7 @@ public sealed class BattleSimTraceSummaryBuilder
         public List<string> TrackedUnitIds { get; set; } = new();
         public List<CompactUnitResultData> UnitResults { get; set; } = new();
         public List<string> LogLines { get; set; } = new();
-        public Godot.Collections.Array ReportEntries { get; set; } = new();
+        public List<object> ReportEntries { get; set; } = new();
 
         public Dictionary ToDictionary() =>
             new()
@@ -1079,7 +1079,10 @@ public sealed class BattleSimTraceSummaryBuilder
                 ["tracked_unit_ids"] = ToGodotArray(TrackedUnitIds),
                 ["unit_results"] = ToGodotArray(UnitResults),
                 ["log_lines"] = ToGodotArray(LogLines),
-                ["report_entries"] = ReportEntries,
+                ["report_entries"] = RuntimePlainPayload.ProjectArray(
+                    ReportEntries,
+                    "BattleSimTraceSummaryBuilder.execution_result.report_entries"
+                ),
             };
     }
 
@@ -1371,6 +1374,9 @@ public sealed class BattleSimTraceSummaryBuilder
             ? values
             : new Godot.Collections.Array();
     }
+
+    private static List<object> ReadPlainArray(Dictionary source, object key, string reason) =>
+        RuntimePlainPayload.NormalizeArray(ReadArray(source, key), reason);
 
     private static bool TryRawArray(object rawValue, out Godot.Collections.Array values)
     {

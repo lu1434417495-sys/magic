@@ -140,8 +140,8 @@ internal sealed class QuestClaimResultData
     public readonly bool Ok;
     public readonly string ErrorCode;
     public readonly int GoldDelta;
-    private readonly RuntimePayloadList _itemRewards;
-    private readonly RuntimePayloadList _pendingCharacterRewards;
+    private readonly List<Dictionary<string, object>> _itemRewards;
+    private readonly List<Dictionary<string, object>> _pendingCharacterRewards;
     private readonly List<StringName> _unsupportedRewardTypes;
 
     private QuestClaimResultData(
@@ -156,15 +156,28 @@ internal sealed class QuestClaimResultData
         Ok = ok;
         ErrorCode = errorCode ?? "";
         GoldDelta = Mathf.Max(goldDelta, 0);
-        _itemRewards = new RuntimePayloadList(itemRewards);
-        _pendingCharacterRewards = new RuntimePayloadList(pendingCharacterRewards);
+        _itemRewards = RuntimePlainPayload.NormalizeDictionaryArray(
+            itemRewards,
+            "QuestClaimResultData.item_rewards"
+        );
+        _pendingCharacterRewards = RuntimePlainPayload.NormalizeDictionaryArray(
+            pendingCharacterRewards,
+            "QuestClaimResultData.pending_character_rewards"
+        );
         _unsupportedRewardTypes = CloneStringNameList(unsupportedRewardTypes);
     }
 
-    internal GArray CloneItemRewards() => _itemRewards.ToUntypedGodotArray();
+    internal GArray CloneItemRewards() =>
+        RuntimePlainPayload.ProjectDictionaryArray(
+            _itemRewards,
+            "QuestClaimResultData.CloneItemRewards"
+        );
 
     internal GArray ClonePendingCharacterRewards() =>
-        _pendingCharacterRewards.ToUntypedGodotArray();
+        RuntimePlainPayload.ProjectDictionaryArray(
+            _pendingCharacterRewards,
+            "QuestClaimResultData.ClonePendingCharacterRewards"
+        );
 
     public GStringNameArray CloneUnsupportedRewardTypes() =>
         CloneStringNameArray(_unsupportedRewardTypes);
@@ -174,7 +187,7 @@ internal sealed class QuestClaimResultData
         var rewardParts = new List<string>();
         if (GoldDelta > 0)
             rewardParts.Add($"{GoldDelta} 金");
-        foreach (GDictionary rewardData in _itemRewards)
+        foreach (Dictionary<string, object> rewardData in _itemRewards)
         {
             int quantity = ReadInt(rewardData, "quantity");
             string label = ReadTrimmedString(rewardData, "display_name");
@@ -182,7 +195,7 @@ internal sealed class QuestClaimResultData
                 continue;
             rewardParts.Add($"{label} x{quantity}");
         }
-        foreach (GDictionary rewardData in _pendingCharacterRewards)
+        foreach (Dictionary<string, object> rewardData in _pendingCharacterRewards)
         {
             string memberName = ReadTrimmedString(rewardData, "member_name");
             rewardParts.Add(memberName.Length > 0 ? $"{memberName}的角色奖励" : "角色奖励");
@@ -237,23 +250,30 @@ internal sealed class QuestClaimResultData
         return result;
     }
 
-    private static int ReadInt(GDictionary data, string key)
+    private static int ReadInt(IReadOnlyDictionary<string, object> data, string key)
     {
-        if (data == null || !data.ContainsKey(key))
+        if (data == null || !data.TryGetValue(key, out object rawValue))
             return 0;
-        Variant value = data[key];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : 0;
+        return rawValue switch
+        {
+            Variant value when value.VariantType == Variant.Type.Int => value.AsInt32(),
+            int intValue => intValue,
+            long longValue => (int)longValue,
+            _ => 0,
+        };
     }
 
-    private static string ReadTrimmedString(GDictionary data, string key)
+    private static string ReadTrimmedString(IReadOnlyDictionary<string, object> data, string key)
     {
-        if (data == null || !data.ContainsKey(key))
+        if (data == null || !data.TryGetValue(key, out object rawValue))
             return "";
-        Variant value = data[key];
-        return value.VariantType switch
+        return rawValue switch
         {
-            Variant.Type.String => value.AsString().Trim(),
-            Variant.Type.StringName => value.AsStringName().ToString().Trim(),
+            Variant value when value.VariantType == Variant.Type.String => value.AsString().Trim(),
+            Variant value when value.VariantType == Variant.Type.StringName =>
+                value.AsStringName().ToString().Trim(),
+            string stringValue => stringValue.Trim(),
+            StringName stringNameValue => stringNameValue.ToString().Trim(),
             _ => "",
         };
     }

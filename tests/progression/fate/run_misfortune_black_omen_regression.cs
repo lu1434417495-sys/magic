@@ -294,7 +294,7 @@ public partial class run_misfortune_black_omen_regression : SceneTree
         partyState.SetMemberState(memberState);
 
         CharacterManagementModule manager = new();
-        manager.setup(partyState, new GDictionary(), new GDictionary(), new GDictionary());
+        manager.setup(partyState);
 
         MisfortuneBlackOmenService service = new();
         service.Setup(manager, itemDefs);

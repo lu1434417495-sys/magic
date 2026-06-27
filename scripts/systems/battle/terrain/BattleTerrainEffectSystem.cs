@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 internal sealed class BattleTerrainEffectSystem : IDisposable
@@ -12,17 +11,6 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
     private const int TuGranularity = 5;
 
     private WeakReference<BattleRuntimeModule> _runtimeRef = null;
-    private readonly GodotTransientResourceScope _transientScope =
-        new("BattleTerrainEffectSystem");
-    private readonly RuntimeSkillDefFactory _runtimeSkillFactory;
-
-    internal BattleTerrainEffectSystem()
-    {
-        _runtimeSkillFactory = new RuntimeSkillDefFactory(
-            _transientScope,
-            "BattleTerrainEffectSystem"
-        );
-    }
 
     private BattleRuntimeModule _ResolveRuntime()
     {
@@ -40,7 +28,6 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
     public void Dispose()
     {
         GC.SuppressFinalize(this);
-        _transientScope.Drain();
         _runtimeRef = null;
     }
 
@@ -136,11 +123,11 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         return maxDelta;
     }
 
-    public bool UpsertTimedTerrainEffect(
+    public bool UpsertTimedTerrainEffectFromDefinition(
         Vector2I effectCoord,
         BattleUnitState sourceUnit,
-        SkillDef skillDef,
-        CombatEffectDef effectDef,
+        SkillDefinition skillDefinition,
+        CombatEffectDefinition effectDefinition,
         StringName fieldInstanceId
     )
     {
@@ -153,8 +140,8 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         if (
             state == null
             || gridService == null
-            || effectDef == null
-            || effectDef.terrain_effect_id == ""
+            || effectDefinition == null
+            || effectDefinition.TerrainEffectId == ""
         )
             return false;
 
@@ -162,12 +149,12 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         if (cell == null)
             return false;
 
-        var normalizedBehavior = _NormalizeStackBehavior(effectDef.stack_behavior);
+        var normalizedBehavior = _NormalizeStackBehavior(effectDefinition.StackBehavior);
         int existingIndex = -1;
         for (int i = 0; i < cell.timed_terrain_effects.Count; i++)
         {
             var existingEffect = cell.timed_terrain_effects[i];
-            if (existingEffect != null && existingEffect.effect_id == effectDef.terrain_effect_id)
+            if (existingEffect != null && existingEffect.effect_id == effectDefinition.TerrainEffectId)
             {
                 existingIndex = i;
                 break;
@@ -182,8 +169,8 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
             {
                 var refreshedEffect = _BuildTimedTerrainEffect(
                     sourceUnit,
-                    skillDef,
-                    effectDef,
+                    skillDefinition,
+                    effectDefinition,
                     fieldInstanceId
                 );
                 if (refreshedEffect == null)
@@ -193,7 +180,12 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
             }
         }
 
-        var newEffect = _BuildTimedTerrainEffect(sourceUnit, skillDef, effectDef, fieldInstanceId);
+        var newEffect = _BuildTimedTerrainEffect(
+            sourceUnit,
+            skillDefinition,
+            effectDefinition,
+            fieldInstanceId
+        );
         if (newEffect == null)
             return false;
         cell.timed_terrain_effects.Add(newEffect);
@@ -327,35 +319,12 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
             return;
         processedTickKeys.Add(tickKey);
 
-        CombatEffectDef tempEffect = _runtimeSkillFactory.NewEffect(
-            effect =>
-            {
-                effect.effect_type = effectState.effect_type;
-                effect.power = effectState.power;
-                effect.damage_tag = effectState.damage_tag;
-                effect.status_id = effectState.applied_status_id;
-                effect.applied_status_duration_tu = effectState.applied_status_duration_tu;
-                effect.duration_tu = effectState.applied_status_duration_tu;
-                effect.@params = BattleTerrainEffectState.CopyResidualParamsForOwnedTransient(
-                    effectState.@params
-                );
-            },
-            $"tick_effect:{effectState.effect_id}"
-        );
-
-        GArray effectDefs = _transientScope.OwnWrapper(
-            new GArray { tempEffect },
-            $"tick_effect:{effectState.effect_id}:effects"
-        );
-        GDictionary damageContext = _transientScope.OwnWrapper(
-            new GDictionary { ["skill_id"] = effectState.source_skill_id },
-            $"tick_effect:{effectState.effect_id}:damage_context"
-        );
+        CombatEffectDefinition tickEffect = BuildTickEffectDefinition(effectState);
         AttackEffectResolutionResult damageResult = damageResolver.ResolveEffects(
             sourceUnit,
             targetUnit,
-            effectDefs,
-            damageContext
+            new[] { tickEffect },
+            DamageResolutionContext.ForSkill(effectState.source_skill_id)
         );
         if (!damageResult.Applied)
             return;
@@ -458,6 +427,94 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         }
     }
 
+    private static CombatEffectDefinition BuildTickEffectDefinition(
+        BattleTerrainEffectState effectState
+    )
+    {
+        return new CombatEffectDefinition(
+            effectType: NormalizeStringName(effectState?.effect_type),
+            effectTargetTeamFilter: default,
+            statusId: NormalizeStringName(effectState?.applied_status_id),
+            saveFailureStatusId: default,
+            terrainEffectId: default,
+            terrainReplaceTo: default,
+            heightDelta: 0,
+            requiresWeapon: false,
+            addWeaponDice: false,
+            preventRepeatTarget: true,
+            forcedMoveMode: default,
+            minSkillLevel: 0,
+            maxSkillLevel: 0,
+            damageTag: NormalizeStringName(effectState?.damage_tag),
+            damageRatioPercent: 0,
+            preResistanceDamageMultiplier: 1.0,
+            bonusCondition: default,
+            hpRatioThresholdPercent: 0,
+            damageCategory: default,
+            drBypassTag: default,
+            diceCount: 0,
+            diceSides: 0,
+            diceBonus: 0,
+            bonusDamageDiceCount: 0,
+            bonusDamageDiceSides: 0,
+            bonusDamageDiceBonus: 0,
+            saveDc: 0,
+            saveDcMode: default,
+            saveDcSourceAbility: default,
+            saveAbility: default,
+            savePartialOnSuccess: false,
+            saveTag: default,
+            thresholdBaseValue: 0,
+            thresholdLevelAnchor: 0,
+            thresholdLevelBonusPerDelta: 0,
+            thresholdMaxHpRatioPercent: 0,
+            thresholdCapMaxHpRatioPercent: 0,
+            soulFractureDurationTu: 0,
+            healMultiplierPercent: 0,
+            shieldGainMultiplierPercent: 0,
+            appliedStatusDurationTu: effectState?.applied_status_duration_tu ?? 0,
+            durationTu: effectState?.applied_status_duration_tu ?? 0,
+            tickIntervalTu: 0,
+            effectTags: Array.Empty<StringName>(),
+            triggerCondition: new StringName(""),
+            power: effectState?.power ?? 0,
+            parameters: CopyVariantDictionary(
+                BattleTerrainEffectState.CopyResidualParams(effectState?.@params)
+            ),
+            triggerEvent: new StringName("")
+        );
+    }
+
+    private static IReadOnlyDictionary<string, Variant> CopyVariantDictionary(
+        GDictionary source
+    )
+    {
+        var result = new Dictionary<string, Variant>();
+        if (source == null)
+        {
+            return result;
+        }
+        foreach (Variant rawKey in source.Keys)
+        {
+            string key = rawKey.VariantType switch
+            {
+                Variant.Type.String => rawKey.AsString(),
+                Variant.Type.StringName => rawKey.AsStringName().ToString(),
+                _ => "",
+            };
+            if (!string.IsNullOrEmpty(key))
+            {
+                result[key] = source[rawKey];
+            }
+        }
+        return result;
+    }
+
+    private static StringName NormalizeStringName(StringName value)
+    {
+        return value == null ? new StringName("") : value;
+    }
+
     private int _GetTimedTerrainMoveCostDelta(BattleTerrainEffectState effectState)
     {
         if (effectState == null)
@@ -537,12 +594,12 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
 
     private BattleTerrainEffectState _BuildTimedTerrainEffect(
         BattleUnitState sourceUnit,
-        SkillDef skillDef,
-        CombatEffectDef effectDef,
+        SkillDefinition skillDefinition,
+        CombatEffectDefinition effectDefinition,
         StringName fieldInstanceId
     )
     {
-        CombatEffectLifetimePolicy lifetimePolicy = _ResolveLifetimePolicy(effectDef);
+        CombatEffectLifetimePolicy lifetimePolicy = _ResolveLifetimePolicy(effectDefinition);
         if (lifetimePolicy == CombatEffectLifetimePolicy.Unknown)
             return null;
         int tickIntervalTu = 0;
@@ -555,11 +612,11 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         else
         {
             tickIntervalTu = _NormalizePositiveTuValue(
-                effectDef.tick_interval_tu,
+                effectDefinition.TickIntervalTu,
                 "terrain effect tick_interval_tu"
             );
             durationTu = _NormalizePositiveTuValue(
-                effectDef.duration_tu,
+                effectDefinition.DurationTu,
                 "terrain effect duration_tu"
             );
             if (tickIntervalTu <= 0 || durationTu <= 0)
@@ -568,8 +625,9 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
 
         var effectState = new BattleTerrainEffectState();
         effectState.field_instance_id = fieldInstanceId;
-        effectState.effect_id = effectDef.terrain_effect_id;
-        BattleTerrainEffectRuntimeKind tickEffectKind = effectDef.TerrainTickEffectKind;
+        effectState.effect_id = effectDefinition.TerrainEffectId;
+        BattleTerrainEffectRuntimeKind tickEffectKind =
+            BattleTypedNames.ToTerrainEffectRuntimeKind(effectDefinition.TickEffectType);
         effectState.RuntimeEffectKind =
             tickEffectKind != BattleTerrainEffectRuntimeKind.Unknown
                 ? tickEffectKind
@@ -578,28 +636,28 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
                         ? BattleTerrainEffectRuntimeKind.None
                         : BattleTerrainEffectRuntimeKind.Damage
                 );
-        effectState.applied_status_id = effectDef.status_id;
-        effectState.applied_status_duration_tu = effectDef.applied_status_duration_tu;
-        effectState.lifetime_policy = CombatEffectDef.ToStringName(lifetimePolicy);
-        effectState.move_cost_delta = effectDef.move_cost_delta;
-        effectState.render_overlay_id = effectDef.render_overlay_id;
-        effectState.overlay_priority = effectDef.overlay_priority;
-        effectState.display_name = effectDef.display_name;
-        effectState.accuracy_modifier_spec = effectDef.accuracy_modifier_spec?.Clone();
-        effectState.does_not_stack_with_status_id = effectDef.does_not_stack_with_status_id;
+        effectState.applied_status_id = effectDefinition.StatusId;
+        effectState.applied_status_duration_tu = effectDefinition.AppliedStatusDurationTu;
+        effectState.lifetime_policy = CombatEffectContentRules.ToStringName(lifetimePolicy);
+        effectState.move_cost_delta = effectDefinition.MoveCostDelta;
+        effectState.render_overlay_id = effectDefinition.RenderOverlayId;
+        effectState.overlay_priority = effectDefinition.OverlayPriority;
+        effectState.display_name = effectDefinition.DisplayName;
+        effectState.accuracy_modifier_spec = effectDefinition.AccuracyModifierSpec?.Clone();
+        effectState.does_not_stack_with_status_id = effectDefinition.DoesNotStackWithStatusId;
         effectState.does_not_stack_with_status_ids = BuildStringNameList(
-            effectDef.does_not_stack_with_status_ids
+            effectDefinition.DoesNotStackWithStatusIds
         );
         effectState.source_unit_id =
             sourceUnit != null ? sourceUnit.unit_id : "";
         effectState.source_skill_id =
-            skillDef?.skill_id ?? new StringName("");
+            skillDefinition?.SkillId ?? new StringName("");
         effectState.target_team_filter = BattleTargetTeamRules.ResolveEffectTargetFilter(
-            skillDef,
-            effectDef
+            skillDefinition,
+            effectDefinition
         );
-        effectState.power = effectDef.power;
-        effectState.damage_tag = effectDef.damage_tag;
+        effectState.power = effectDefinition.Power;
+        effectState.damage_tag = effectDefinition.DamageTag;
         effectState.tick_interval_tu = tickIntervalTu;
         effectState.remaining_tu =
             lifetimePolicy == CombatEffectLifetimePolicy.Battle
@@ -625,8 +683,10 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
             effectState.next_tick_at_tu = tickIntervalTu;
         }
 
-        effectState.stack_behavior = _NormalizeStackBehavior(effectDef.stack_behavior);
-        effectState.@params = BattleTerrainEffectState.CopyResidualParams(effectDef.@params);
+        effectState.stack_behavior = _NormalizeStackBehavior(effectDefinition.StackBehavior);
+        effectState.@params = BattleTerrainEffectState.CopyResidualParams(
+            effectDefinition.Parameters
+        );
         return effectState;
     }
 
@@ -643,7 +703,7 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
     {
         if (effectState == null)
             return false;
-        return CombatEffectDef.ToLifetimePolicy(effectState.lifetime_policy)
+        return CombatEffectContentRules.ToLifetimePolicy(effectState.lifetime_policy)
             == CombatEffectLifetimePolicy.Battle;
     }
 
@@ -652,11 +712,13 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         return _IsBattleLifetimeEffectStatic(effectState);
     }
 
-    private CombatEffectLifetimePolicy _ResolveLifetimePolicy(CombatEffectDef effectDef)
+    private CombatEffectLifetimePolicy _ResolveLifetimePolicy(
+        CombatEffectDefinition effectDefinition
+    )
     {
-        if (effectDef == null)
+        if (effectDefinition == null)
             return CombatEffectLifetimePolicy.Unknown;
-        return effectDef.LifetimePolicyKind;
+        return CombatEffectContentRules.ToLifetimePolicy(effectDefinition.LifetimePolicy);
     }
 
     private StringName _NormalizeStackBehavior(StringName stackBehavior)

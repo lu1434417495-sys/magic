@@ -51,7 +51,7 @@ public partial class run_skill_merge_service_regression : SceneTree
         progress.SetSkillProgress(lockedProgress);
 
         SkillMergeService service = new();
-        service.Setup(progress, new Dictionary<StringName, SkillDef>(), null);
+        service.Setup(progress, new Dictionary<StringName, SkillDefinition>(), null);
         _test.True(
             service.MergeSkills(
                 new[] { activeSkillId, lockedSkillId },
@@ -128,7 +128,7 @@ public partial class run_skill_merge_service_regression : SceneTree
         progress.SetSkillProgress(secondSourceProgress);
 
         SkillMergeService service = new();
-        service.Setup(progress, BuildSkillDefs(resultSkillId), null);
+        service.Setup(progress, BuildSkillDefinitions(resultSkillId), null);
 
         _test.True(
             service.ApplyCompositeUpgradeResult(
@@ -220,7 +220,7 @@ public partial class run_skill_merge_service_regression : SceneTree
         progress.SetSkillProgress(firstSourceProgress);
 
         SkillMergeService service = new();
-        service.Setup(progress, BuildSkillDefs(resultSkillId), null);
+        service.Setup(progress, BuildSkillDefinitions(resultSkillId), null);
 
         bool threw = false;
         bool success = false;
@@ -263,15 +263,16 @@ public partial class run_skill_merge_service_regression : SceneTree
         );
     }
 
-    private static IReadOnlyDictionary<StringName, SkillDef> BuildSkillDefs(StringName resultSkillId) =>
-        new Dictionary<StringName, SkillDef>
+    private static IReadOnlyDictionary<StringName, SkillDefinition> BuildSkillDefinitions(
+        StringName resultSkillId
+    ) =>
+        new Dictionary<StringName, SkillDefinition>
         {
-            [resultSkillId] = new SkillDef
-            {
-                skill_id = resultSkillId,
-                max_level = 5,
-                non_core_max_level = 5,
-            },
+            [resultSkillId] = TestSkillDefinitionProjection.BuildSkill(
+                resultSkillId,
+                maxLevel: 5,
+                nonCoreMaxLevel: 5
+            ),
         };
 
 

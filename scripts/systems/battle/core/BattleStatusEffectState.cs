@@ -84,11 +84,14 @@ public class BattleStatusEffectState
     public StringName stack_behavior { get; set; } = "";
     public int stack_limit { get; set; }
     public int power { get; set; }
-    private readonly RuntimePayloadStore _params = new();
+    private readonly Dictionary<string, object> _params = new(System.StringComparer.Ordinal);
     internal GDictionary @params
     {
-        get => _params.ProjectPayload();
-        set => _params.ReplaceWithPayload(value ?? new GDictionary());
+        get => RuntimePlainPayload.ProjectDictionary(
+            _params,
+            "BattleStatusEffectState.@params"
+        );
+        set => ReplaceParams(value);
     }
     public double? incoming_damage_multiplier { get; set; }
     public double? outgoing_damage_multiplier { get; set; }
@@ -183,7 +186,10 @@ public class BattleStatusEffectState
 
     internal Dictionary<string, object> GetParamsTyped()
     {
-        return NormalizeDictionary(BuildParamsProjection());
+        return RuntimePlainPayload.NormalizeDictionary(
+            BuildParamsProjection(),
+            "BattleStatusEffectState.GetParamsTyped"
+        );
     }
 
     internal static BattleStatusEffectState CreateOrDuplicate(BattleStatusEffectState existingEntry)
@@ -547,8 +553,8 @@ public class BattleStatusEffectState
 
     private GDictionary BuildParamsProjection()
     {
-        GDictionary projected = RuntimePayloadCopy.Dictionary(
-            @params,
+        GDictionary projected = RuntimePlainPayload.ProjectDictionary(
+            _params,
             "BattleStatusEffectState.BuildParamsProjection"
         );
         if (incoming_damage_multiplier.HasValue)
@@ -719,6 +725,21 @@ public class BattleStatusEffectState
             projected["save_bonus_by_tag"] = projectedBonusByTag;
         }
         return projected;
+    }
+
+    private void ReplaceParams(GDictionary values)
+    {
+        _params.Clear();
+        foreach (
+            KeyValuePair<string, object> entry in RuntimePlainPayload.NormalizeDictionary(
+                values ?? new GDictionary(),
+                "BattleStatusEffectState.@params"
+            )
+        )
+        {
+            if (!string.IsNullOrEmpty(entry.Key))
+                _params[entry.Key] = entry.Value;
+        }
     }
 
     internal static GDictionary CopyResidualParams(GDictionary parameters)
@@ -936,81 +957,6 @@ public class BattleStatusEffectState
             }
         }
         return false;
-    }
-
-    private static Dictionary<string, object> NormalizeDictionary(GDictionary source)
-    {
-        var result = new Dictionary<string, object>(System.StringComparer.Ordinal);
-        if (source == null)
-        {
-            return result;
-        }
-        foreach (Variant rawKey in source.Keys)
-        {
-            string key = rawKey.VariantType switch
-            {
-                Variant.Type.String => rawKey.AsString(),
-                Variant.Type.StringName => rawKey.AsStringName().ToString(),
-                _ => "",
-            };
-            if (string.IsNullOrEmpty(key))
-            {
-                continue;
-            }
-            result[key] = NormalizeValue(source[rawKey]);
-        }
-        return result;
-    }
-
-    private static List<object> NormalizeArray(Godot.Collections.Array source)
-    {
-        var result = new List<object>();
-        if (source == null)
-        {
-            return result;
-        }
-        foreach (object rawValue in source)
-        {
-            result.Add(NormalizeValue(rawValue));
-        }
-        return result;
-    }
-
-    private static object NormalizeValue(object rawValue)
-    {
-        if (rawValue is Variant variantValue)
-        {
-            return NormalizeVariant(variantValue);
-        }
-        if (rawValue is GDictionary dictionaryValue)
-        {
-            return NormalizeDictionary(dictionaryValue);
-        }
-        if (rawValue is Godot.Collections.Array arrayValue)
-        {
-            return NormalizeArray(arrayValue);
-        }
-        return rawValue;
-    }
-
-    private static object NormalizeVariant(Variant value)
-    {
-        return value.VariantType switch
-        {
-            Variant.Type.Nil => null,
-            Variant.Type.Bool => value.AsBool(),
-            Variant.Type.Int => value.AsInt64(),
-            Variant.Type.Float => value.AsDouble(),
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.Vector2I => value.AsVector2I(),
-            Variant.Type.Vector2 => value.AsVector2(),
-            Variant.Type.Vector3I => value.AsVector3I(),
-            Variant.Type.Vector3 => value.AsVector3(),
-            Variant.Type.Dictionary => NormalizeDictionary(value.AsGodotDictionary()),
-            Variant.Type.Array => NormalizeArray(value.AsGodotArray()),
-            _ => value.Obj,
-        };
     }
 
     private static List<StringName> BuildStringNameList(IEnumerable<StringName> values)

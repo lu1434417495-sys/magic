@@ -1007,7 +1007,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         MakeVisible(runtime, Vector2I.Zero);
         runtime._character_management.setup(
             partyState,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             gameSession.GetProfessionDefsTyped(),
             gameSession.GetAchievementDefsTyped(),
             itemDefs,
@@ -1019,7 +1019,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         runtime._party_item_use_service.Setup(
             partyState,
             itemDefs,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             runtime._party_warehouse_service,
             runtime._character_management
         );

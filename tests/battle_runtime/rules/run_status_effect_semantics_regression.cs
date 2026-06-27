@@ -155,23 +155,21 @@ public partial class run_status_effect_semantics_regression : SceneTree
             );
 
             BattleStatusEffectState merged = BattleStatusSemanticTable.MergeStatus(
-                new CombatEffectDef
-                {
-                    effect_type = "status",
-                    status_id = statusId,
-                    power = 1,
-                    duration_tu = 10,
-                },
+                TestSkillDefinitionProjection.BuildEffect(
+                    "status",
+                    statusId: statusId,
+                    power: 1,
+                    durationTu: 10
+                ),
                 "source_a"
             );
             merged = BattleStatusSemanticTable.MergeStatus(
-                new CombatEffectDef
-                {
-                    effect_type = "status",
-                    status_id = statusId,
-                    power = 2,
-                    duration_tu = 15,
-                },
+                TestSkillDefinitionProjection.BuildEffect(
+                    "status",
+                    statusId: statusId,
+                    power: 2,
+                    durationTu: 15
+                ),
                 "source_b",
                 merged
             );
@@ -406,20 +404,18 @@ public partial class run_status_effect_semantics_regression : SceneTree
         };
         foreach ((StringName statusId, string label) in cases)
         {
-            var firstEffect = new CombatEffectDef
-            {
-                effect_type = "status",
-                status_id = statusId,
-                power = 1,
-                duration_tu = 10,
-            };
-            var secondEffect = new CombatEffectDef
-            {
-                effect_type = "status",
-                status_id = statusId,
-                power = 2,
-                duration_tu = 15,
-            };
+            CombatEffectDefinition firstEffect = TestSkillDefinitionProjection.BuildEffect(
+                "status",
+                statusId: statusId,
+                power: 1,
+                durationTu: 10
+            );
+            CombatEffectDefinition secondEffect = TestSkillDefinitionProjection.BuildEffect(
+                "status",
+                statusId: statusId,
+                power: 2,
+                durationTu: 15
+            );
 
             _test.True(BattleStatusSemanticTable.HasSemantic(statusId), $"{label} 应注册正式状态语义。");
             BattleStatusEffectState merged = BattleStatusSemanticTable.MergeStatus(firstEffect, "source_a");
@@ -479,12 +475,11 @@ public partial class run_status_effect_semantics_regression : SceneTree
 
     private void TestStatusDurationIsNotBackfilledFromSemanticDefaults()
     {
-        var effectDef = new CombatEffectDef
-        {
-            effect_type = "status",
-            status_id = "pinned",
-            power = 1,
-        };
+        CombatEffectDefinition effectDef = TestSkillDefinitionProjection.BuildEffect(
+            "status",
+            statusId: "pinned",
+            power: 1
+        );
 
         BattleStatusEffectState merged = BattleStatusSemanticTable.MergeStatus(effectDef, "source_unit");
         _test.True(merged != null, "状态效果应能在缺少 duration_tu 时正常合并。");
@@ -493,13 +488,12 @@ public partial class run_status_effect_semantics_regression : SceneTree
 
     private void TestStatusParamsDurationIsNotUsedAsRuntimeDuration()
     {
-        var effectDef = new CombatEffectDef
-        {
-            effect_type = "status",
-            status_id = "pinned",
-            power = 1,
-            @params = new GDictionary { ["duration"] = 15 },
-        };
+        CombatEffectDefinition effectDef = TestSkillDefinitionProjection.BuildEffect(
+            "status",
+            statusId: "pinned",
+            power: 1,
+            parameters: new Dictionary<string, Variant> { ["duration"] = Variant.From(15) }
+        );
 
         BattleStatusEffectState merged = BattleStatusSemanticTable.MergeStatus(effectDef, "source_unit");
         _test.True(merged != null, "旧 params.duration 不应阻止状态对象合并。");
@@ -508,14 +502,13 @@ public partial class run_status_effect_semantics_regression : SceneTree
 
     private void TestStatusDurationTuIgnoresLegacyParamsDuration()
     {
-        var effectDef = new CombatEffectDef
-        {
-            effect_type = "status",
-            status_id = "pinned",
-            power = 1,
-            duration_tu = 20,
-            @params = new GDictionary { ["duration"] = 90 },
-        };
+        CombatEffectDefinition effectDef = TestSkillDefinitionProjection.BuildEffect(
+            "status",
+            statusId: "pinned",
+            power: 1,
+            durationTu: 20,
+            parameters: new Dictionary<string, Variant> { ["duration"] = Variant.From(90) }
+        );
 
         BattleStatusEffectState merged = BattleStatusSemanticTable.MergeStatus(effectDef, "source_unit");
         _test.True(merged != null, "正式 duration_tu 应继续生成状态对象。");
@@ -524,13 +517,12 @@ public partial class run_status_effect_semantics_regression : SceneTree
 
     private void TestStatusLegacyParamsDurationTuIsNotUsedAsRuntimeDuration()
     {
-        var effectDef = new CombatEffectDef
-        {
-            effect_type = "status",
-            status_id = "pinned",
-            power = 1,
-            @params = new GDictionary { ["duration_tu"] = 20 },
-        };
+        CombatEffectDefinition effectDef = TestSkillDefinitionProjection.BuildEffect(
+            "status",
+            statusId: "pinned",
+            power: 1,
+            parameters: new Dictionary<string, Variant> { ["duration_tu"] = Variant.From(20) }
+        );
 
         BattleStatusEffectState merged = BattleStatusSemanticTable.MergeStatus(effectDef, "source_unit");
         _test.True(merged != null, "旧 params.duration_tu 不应阻止状态对象合并。");
@@ -542,14 +534,16 @@ public partial class run_status_effect_semantics_regression : SceneTree
 
     private void TestStatusLegacyParamsTickIntervalTuIsNotUsedAsRuntimeTickInterval()
     {
-        var effectDef = new CombatEffectDef
-        {
-            effect_type = "status",
-            status_id = "burning",
-            power = 1,
-            duration_tu = 20,
-            @params = new GDictionary { ["tick_interval_tu"] = 10 },
-        };
+        CombatEffectDefinition effectDef = TestSkillDefinitionProjection.BuildEffect(
+            "status",
+            statusId: "burning",
+            power: 1,
+            durationTu: 20,
+            parameters: new Dictionary<string, Variant>
+            {
+                ["tick_interval_tu"] = Variant.From(10),
+            }
+        );
 
         BattleStatusEffectState merged = BattleStatusSemanticTable.MergeStatus(effectDef, "source_unit");
         _test.True(merged != null, "旧 params.tick_interval_tu 不应阻止状态对象合并。");
@@ -562,13 +556,12 @@ public partial class run_status_effect_semantics_regression : SceneTree
 
     private void TestMergedStatusCarriesTypedStackMetadata()
     {
-        var semanticEffect = new CombatEffectDef
-        {
-            effect_type = "status",
-            status_id = "burning",
-            power = 1,
-            duration_tu = 20,
-        };
+        CombatEffectDefinition semanticEffect = TestSkillDefinitionProjection.BuildEffect(
+            "status",
+            statusId: "burning",
+            power: 1,
+            durationTu: 20
+        );
 
         BattleStatusEffectState semanticMerged = BattleStatusSemanticTable.MergeStatus(
             semanticEffect,
@@ -586,14 +579,13 @@ public partial class run_status_effect_semantics_regression : SceneTree
             "有正式 semantic 的状态应把生效 stack_limit 写入 typed 字段。"
         );
 
-        var genericEffect = new CombatEffectDef
-        {
-            effect_type = "status",
-            status_id = "custom_stack_status",
-            power = 1,
-            stack_behavior = "refresh",
-            stack_limit = 7,
-        };
+        CombatEffectDefinition genericEffect = TestSkillDefinitionProjection.BuildEffect(
+            "status",
+            statusId: "custom_stack_status",
+            power: 1,
+            stackBehavior: "refresh",
+            stackLimit: 7
+        );
 
         BattleStatusEffectState genericMerged = BattleStatusSemanticTable.MergeStatus(
             genericEffect,
@@ -603,12 +595,12 @@ public partial class run_status_effect_semantics_regression : SceneTree
         _test.Eq(
             genericMerged != null ? genericMerged.stack_behavior : "",
             new StringName("refresh"),
-            "无正式 semantic 的状态应保留 CombatEffectDef.stack_behavior。"
+            "无正式 semantic 的状态应保留 CombatEffectDefinition.StackBehavior。"
         );
         _test.Eq(
             genericMerged != null ? genericMerged.stack_limit : -1,
             7,
-            "无正式 semantic 的状态应保留 CombatEffectDef.stack_limit。"
+            "无正式 semantic 的状态应保留 CombatEffectDefinition.StackLimit。"
         );
     }
 
@@ -616,7 +608,7 @@ public partial class run_status_effect_semantics_regression : SceneTree
     {
         BattleRuntimeModule runtime = BuildRuntime();
         BattleUnitState source = BuildUnit("damage_alias_source", Vector2I.Zero, 2);
-        CombatEffectDef physicalEffect = BuildDamageEffect(10, "physical_slash");
+        CombatEffectDefinition physicalEffect = BuildDamageEffect(10, "physical_slash");
 
         BattleUnitState formalTagTarget = BuildUnit("formal_damage_tag_target", Vector2I.Zero, 2);
         SetTypedStatusFields(
@@ -628,7 +620,7 @@ public partial class run_status_effect_semantics_regression : SceneTree
         GDictionary formalTagResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
             source,
             formalTagTarget,
-            new GArray { physicalEffect }
+            new[] { physicalEffect }
         ));
         _test.Eq(DictInt(formalTagResult, "damage", -1), 10, "正式 damage_tag 不匹配时不应套用 mitigation_tier。");
 
@@ -646,7 +638,7 @@ public partial class run_status_effect_semantics_regression : SceneTree
         GDictionary legacyFormalTagResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
             source,
             legacyFormalTagTarget,
-            new GArray { physicalEffect }
+            new[] { physicalEffect }
         ));
         _test.Eq(
             DictInt(legacyFormalTagResult, "damage", -1),
@@ -664,12 +656,15 @@ public partial class run_status_effect_semantics_regression : SceneTree
         GDictionary legacyTagResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
             source,
             legacyTagTarget,
-            new GArray { physicalEffect }
+            new[] { physicalEffect }
         ));
         _test.Eq(DictInt(legacyTagResult, "damage", -1), 6, "旧 params.tag 不应再被当作 damage_tag 过滤。");
 
-        CombatEffectDef formalBypassEffect = BuildDamageEffect(10, "physical_slash");
-        formalBypassEffect.dr_bypass_tag = "armor_pierce";
+        CombatEffectDefinition formalBypassEffect = BuildDamageEffect(
+            10,
+            "physical_slash",
+            drBypassTag: "armor_pierce"
+        );
         BattleUnitState formalBypassTarget = BuildUnit("formal_bypass_target", Vector2I.Zero, 2);
         SetTypedStatusFields(
             formalBypassTarget,
@@ -680,12 +675,15 @@ public partial class run_status_effect_semantics_regression : SceneTree
         GDictionary formalBypassResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
             source,
             formalBypassTarget,
-            new GArray { formalBypassEffect }
+            new[] { formalBypassEffect }
         ));
         _test.Eq(DictInt(formalBypassResult, "damage", -1), 10, "正式 dr_bypass_tag 匹配时应绕过 content_dr。");
 
-        CombatEffectDef legacyEffectBypass = BuildDamageEffect(10, "physical_slash");
-        legacyEffectBypass.@params["bypass_tag"] = "armor_pierce";
+        CombatEffectDefinition legacyEffectBypass = BuildDamageEffect(
+            10,
+            "physical_slash",
+            parameters: new Dictionary<string, Variant> { ["bypass_tag"] = "armor_pierce" }
+        );
         BattleUnitState legacyEffectBypassTarget = BuildUnit("legacy_effect_bypass_target", Vector2I.Zero, 2);
         SetStatusParams(
             legacyEffectBypassTarget,
@@ -695,7 +693,7 @@ public partial class run_status_effect_semantics_regression : SceneTree
         GDictionary legacyEffectBypassResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
             source,
             legacyEffectBypassTarget,
-            new GArray { legacyEffectBypass }
+            new[] { legacyEffectBypass }
         ));
         _test.Eq(DictInt(legacyEffectBypassResult, "damage", -1), 10, "旧 status params.content_dr 不应继续驱动正式固定减伤。");
 
@@ -708,7 +706,7 @@ public partial class run_status_effect_semantics_regression : SceneTree
         GDictionary legacyStatusBypassResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
             source,
             legacyStatusBypassTarget,
-            new GArray { formalBypassEffect }
+            new[] { formalBypassEffect }
         ));
         _test.Eq(DictInt(legacyStatusBypassResult, "damage", -1), 10, "旧 status params.content_dr/bypass_tag 不应再被当作正式减伤契约。");
 
@@ -717,7 +715,7 @@ public partial class run_status_effect_semantics_regression : SceneTree
         GDictionary formalPassiveResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
             source,
             formalPassiveTarget,
-            new GArray { physicalEffect }
+            new[] { physicalEffect }
         ));
         _test.Eq(DictInt(formalPassiveResult, "damage", -1), 7, "正式 passive_reduction 字段应减少固定伤害。");
 
@@ -726,21 +724,24 @@ public partial class run_status_effect_semantics_regression : SceneTree
         GDictionary legacyPassiveResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
             source,
             legacyPassiveTarget,
-            new GArray { physicalEffect }
+            new[] { physicalEffect }
         ));
         _test.Eq(DictInt(legacyPassiveResult, "damage", -1), 10, "旧 status params.passive_reduction 不应继续驱动正式减伤。");
 
-        CombatEffectDef formalLowHpEffect = BuildDamageEffect(10, "physical_slash");
-        formalLowHpEffect.bonus_condition = "target_low_hp";
-        formalLowHpEffect.hp_ratio_threshold_percent = 70;
-        formalLowHpEffect.bonus_damage_dice_count = 4;
-        formalLowHpEffect.bonus_damage_dice_sides = 1;
+        CombatEffectDefinition formalLowHpEffect = BuildDamageEffect(
+            10,
+            "physical_slash",
+            bonusCondition: "target_low_hp",
+            hpRatioThresholdPercent: 70,
+            bonusDamageDiceCount: 4,
+            bonusDamageDiceSides: 1
+        );
         BattleUnitState formalLowHpTarget = BuildUnit("formal_low_hp_target", Vector2I.Zero, 2);
         formalLowHpTarget.current_hp = 18;
         GDictionary formalLowHpResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
             source,
             formalLowHpTarget,
-            new GArray { formalLowHpEffect }
+            new[] { formalLowHpEffect }
         ));
         _test.Eq(DictInt(formalLowHpResult, "damage", -1), 14, "正式 hp_ratio_threshold_percent 应控制低血追加伤害骰阈值。");
         BattleUnitState formalLowHpCritTarget = BuildUnit("formal_low_hp_crit_target", Vector2I.Zero, 2);
@@ -748,22 +749,28 @@ public partial class run_status_effect_semantics_regression : SceneTree
         GDictionary formalLowHpCritResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
             source,
             formalLowHpCritTarget,
-            new GArray { formalLowHpEffect },
-            new GDictionary { ["critical_hit"] = true }
+            new[] { formalLowHpEffect },
+            DamageResolutionContext.FromDictionary(new GDictionary { ["critical_hit"] = true })
         ));
         _test.Eq(DictInt(formalLowHpCritResult, "damage", -1), 18, "低血暴击应额外掷一组处决追加骰。");
 
-        CombatEffectDef legacyLowHpEffect = BuildDamageEffect(10, "physical_slash");
-        legacyLowHpEffect.bonus_condition = "target_low_hp";
-        legacyLowHpEffect.@params["low_hp_ratio"] = 0.7;
-        legacyLowHpEffect.@params["bonus_damage_dice_count"] = 4;
-        legacyLowHpEffect.@params["bonus_damage_dice_sides"] = 1;
+        CombatEffectDefinition legacyLowHpEffect = BuildDamageEffect(
+            10,
+            "physical_slash",
+            bonusCondition: "target_low_hp",
+            parameters: new Dictionary<string, Variant>
+            {
+                ["low_hp_ratio"] = 0.7,
+                ["bonus_damage_dice_count"] = 4,
+                ["bonus_damage_dice_sides"] = 1,
+            }
+        );
         BattleUnitState legacyLowHpTarget = BuildUnit("legacy_low_hp_target", Vector2I.Zero, 2);
         legacyLowHpTarget.current_hp = 18;
         GDictionary legacyLowHpResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
             source,
             legacyLowHpTarget,
-            new GArray { legacyLowHpEffect }
+            new[] { legacyLowHpEffect }
         ));
         _test.Eq(DictInt(legacyLowHpResult, "damage", -1), 10, "旧 params.low_hp_ratio 不应再覆盖默认低血阈值或触发追加骰。");
     }
@@ -971,20 +978,17 @@ public partial class run_status_effect_semantics_regression : SceneTree
         int tickIntervalTu = 0
     )
     {
-        var effectDef = new CombatEffectDef
-        {
-            effect_type = "status",
-            status_id = statusId,
-            power = power,
-        };
-        if (durationTu > 0)
-            effectDef.duration_tu = durationTu;
-        if (tickIntervalTu > 0)
-            effectDef.tick_interval_tu = tickIntervalTu;
+        CombatEffectDefinition effectDef = TestSkillDefinitionProjection.BuildEffect(
+            "status",
+            statusId: statusId,
+            power: power,
+            durationTu: Math.Max(durationTu, 0),
+            tickIntervalTu: Math.Max(tickIntervalTu, 0)
+        );
         GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
             sourceUnit,
             targetUnit,
-            new GArray { effectDef }
+            new[] { effectDef }
         ));
         runtime.MarkAppliedStatusesForTurnTiming(
             targetUnit,
@@ -1046,14 +1050,27 @@ public partial class run_status_effect_semantics_regression : SceneTree
         unit.SetStatusEffect(statusEffect);
     }
 
-    private static CombatEffectDef BuildDamageEffect(int power, StringName damageTag) =>
-        new()
-        {
-            effect_type = "damage",
-            power = power,
-            damage_tag = damageTag,
-            @params = new GDictionary(),
-        };
+    private static CombatEffectDefinition BuildDamageEffect(
+        int power,
+        StringName damageTag,
+        StringName drBypassTag = default,
+        StringName bonusCondition = default,
+        int hpRatioThresholdPercent = 0,
+        int bonusDamageDiceCount = 0,
+        int bonusDamageDiceSides = 0,
+        IReadOnlyDictionary<string, Variant> parameters = null
+    ) =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            power: power,
+            damageTag: damageTag,
+            drBypassTag: drBypassTag,
+            bonusCondition: bonusCondition,
+            hpRatioThresholdPercent: hpRatioThresholdPercent,
+            bonusDamageDiceCount: bonusDamageDiceCount,
+            bonusDamageDiceSides: bonusDamageDiceSides,
+            parameters: parameters
+        );
 
     private BattleRuntimeModule BuildRuntime()
     {

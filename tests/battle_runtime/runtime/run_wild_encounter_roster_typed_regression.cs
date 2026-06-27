@@ -129,7 +129,7 @@ public partial class run_wild_encounter_roster_typed_regression : SceneTree
         };
         GArray enemyUnits = builder.BuildEnemyUnitsTyped(
             encounterAnchor,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             gameSession.GetEnemyTemplatesTyped(),
             gameSession.GetEnemyAiBrainsTyped(),
             gameSession.GetItemDefsTyped()
@@ -214,16 +214,6 @@ public partial class run_wild_encounter_roster_typed_regression : SceneTree
             return result;
         foreach ((StringName brainId, EnemyAiBrainDef brain) in enemyAiBrains)
             result[brainId] = brain;
-        return result;
-    }
-
-    private static GDictionary ProjectSkillDefs(IReadOnlyDictionary<StringName, SkillDef> skillDefs)
-    {
-        GDictionary result = new();
-        if (skillDefs == null)
-            return result;
-        foreach ((StringName skillId, SkillDef skillDef) in skillDefs)
-            result[skillId] = skillDef;
         return result;
     }
 

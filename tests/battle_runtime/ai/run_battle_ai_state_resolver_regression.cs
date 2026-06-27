@@ -106,30 +106,30 @@ public partial class run_battle_ai_state_resolver_regression : SceneTree
     private void TestSkillAffordanceUsesPlanCacheAndContextLazyCache()
     {
         Fixture fixture = BuildFixture();
-        SkillDef supportSkill = BuildSupportSkill("aid_spell");
-        fixture.Context.SetSkillDefs(
-            new Dictionary<StringName, SkillDef>
+        SkillDefinition supportSkill = BuildSupportSkill("aid_spell");
+        fixture.Context.SetSkillDefinitions(
+            new Dictionary<StringName, SkillDefinition>
             {
-                [supportSkill.skill_id] = supportSkill,
+                [supportSkill.SkillId] = supportSkill,
             }
         );
         fixture.Actor.known_active_skill_ids = new Godot.Collections.Array<Godot.StringName>
         {
-            supportSkill.skill_id,
+            supportSkill.SkillId,
         };
-        fixture.Actor.known_skill_level_map[supportSkill.skill_id] = 1;
+        fixture.Actor.known_skill_level_map[supportSkill.SkillId] = 1;
         EnemyAiBrainDef brain = BuildBrain(
             "hold",
             Rule("aid_skill_available", 10, "aid_ally", Condition("has_skill_affordance", affordances: new[] { new StringName("ally_heal") })),
             Rule("hold_default", 20, "hold", Condition("always"))
         );
 
-        var plan = new BattleAiRuntimeActionPlan();
+        using var plan = new BattleAiRuntimeActionPlan();
         plan.SetSource(fixture.Actor, brain);
         plan.SetSkillAffordanceRecordTyped(
             new BattleAiSkillAffordanceRecord
             {
-                skill_id = supportSkill.skill_id,
+                skill_id = supportSkill.SkillId,
                 affordances = new() { "ally_heal" },
                 action_families = new() { "use_unit_skill" },
             }
@@ -148,42 +148,42 @@ public partial class run_battle_ai_state_resolver_regression : SceneTree
             fixture.Context,
             brain
         );
-        _test.Eq(lazyResult.StateId, new StringName("aid_ally"), "无 plan 的测试路径应按 skill_defs lazy classify。");
+        _test.Eq(lazyResult.StateId, new StringName("aid_ally"), "无 plan 的测试路径应按 skill definitions lazy classify。");
     }
 
     private void TestContextLazySkillAffordanceRequiresTypedSkillDefs()
     {
         Fixture fixture = BuildFixture();
-        SkillDef supportSkill = BuildSupportSkill("aid_spell");
+        SkillDefinition supportSkill = BuildSupportSkill("aid_spell");
         fixture.Actor.known_active_skill_ids = new Godot.Collections.Array<Godot.StringName>
         {
-            supportSkill.skill_id,
+            supportSkill.SkillId,
         };
-        fixture.Actor.known_skill_level_map[supportSkill.skill_id] = 1;
+        fixture.Actor.known_skill_level_map[supportSkill.SkillId] = 1;
         EnemyAiBrainDef brain = BuildBrain(
             "hold",
             Rule("aid_skill_available", 10, "aid_ally", Condition("has_skill_affordance", affordances: new[] { new StringName("ally_heal") })),
             Rule("hold_default", 20, "hold", Condition("always"))
         );
 
-        fixture.Context.SetSkillDefs(new Dictionary<StringName, SkillDef>());
+        fixture.Context.SetSkillDefinitions(new Dictionary<StringName, SkillDefinition>());
         BattleAiStateResolver.TransitionResult missingTypedDefsResult = fixture.Resolver.ResolveTyped(
             fixture.Context,
             brain
         );
-        _test.Eq(missingTypedDefsResult.StateId, new StringName("hold"), "skill_defs lazy cache 不应从空 typed index 恢复。");
+        _test.Eq(missingTypedDefsResult.StateId, new StringName("hold"), "skill definitions lazy cache 不应从空 typed index 恢复。");
 
-        fixture.Context.SetSkillDefs(
-            new Dictionary<StringName, SkillDef>
+        fixture.Context.SetSkillDefinitions(
+            new Dictionary<StringName, SkillDefinition>
             {
-                [supportSkill.skill_id] = supportSkill,
+                [supportSkill.SkillId] = supportSkill,
             }
         );
         BattleAiStateResolver.TransitionResult typedIndexResult = fixture.Resolver.ResolveTyped(
             fixture.Context,
             brain
         );
-        _test.Eq(typedIndexResult.StateId, new StringName("aid_ally"), "skill_defs lazy cache 应消费 typed skill index。");
+        _test.Eq(typedIndexResult.StateId, new StringName("aid_ally"), "skill definitions lazy cache 应消费 typed skill index。");
     }
 
     private static Fixture BuildFixture()
@@ -217,7 +217,7 @@ public partial class run_battle_ai_state_resolver_regression : SceneTree
             unit_state = actor,
             grid_service = gridService,
         };
-        context.SetSkillDefs(new Dictionary<StringName, SkillDef>());
+        context.SetSkillDefinitions(new Dictionary<StringName, SkillDefinition>());
 
         return new Fixture
         {
@@ -233,19 +233,22 @@ public partial class run_battle_ai_state_resolver_regression : SceneTree
 
     private static EnemyAiBrainDef BuildBrain(StringName defaultStateId, params EnemyAiTransitionRuleDef[] rules)
     {
-        var brain = new EnemyAiBrainDef
-        {
-            brain_id = "resolver_brain",
-            default_state_id = defaultStateId,
-            states = new Godot.Collections.Array<EnemyAiStateDef>
+        var brain = TestResourceOwnership.Own(
+            new EnemyAiBrainDef
             {
-                State("hold"),
-                State("recover"),
-                State("aid_ally"),
-                State("close_range"),
+                brain_id = "resolver_brain",
+                default_state_id = defaultStateId,
+                states = new Godot.Collections.Array<EnemyAiStateDef>
+                {
+                    State("hold"),
+                    State("recover"),
+                    State("aid_ally"),
+                    State("close_range"),
+                },
+                transition_rules = new Godot.Collections.Array<EnemyAiTransitionRuleDef>(),
             },
-            transition_rules = new Godot.Collections.Array<EnemyAiTransitionRuleDef>(),
-        };
+            "BattleAiStateResolver.BuildBrain"
+        );
         foreach (EnemyAiTransitionRuleDef rule in rules)
         {
             brain.transition_rules.Add(rule);
@@ -380,30 +383,27 @@ public partial class run_battle_ai_state_resolver_regression : SceneTree
         }
     }
 
-    private static SkillDef BuildSupportSkill(StringName skillId)
-    {
-        var skillDef = new SkillDef
-        {
-            skill_id = skillId,
-            display_name = "测试支援",
-            skill_type = "active",
-            combat_profile = new CombatSkillDef
-            {
-                skill_id = skillId,
-                target_mode = "unit",
-                target_team_filter = "ally",
-                target_selection_mode = "single_unit",
-            },
-        };
-        var healEffect = new CombatEffectDef
-        {
-            effect_type = "heal",
-            effect_target_team_filter = "ally",
-            power = 8,
-        };
-        ((CombatSkillDef)skillDef.combat_profile).effect_defs.Add(healEffect);
-        return TestResourceOwnership.Own(skillDef, "BattleAiStateResolver.BuildSupportSkill");
-    }
+    private static SkillDefinition BuildSupportSkill(StringName skillId) =>
+        TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            "测试支援",
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: new[]
+                {
+                    TestSkillDefinitionProjection.BuildEffect(
+                        "heal",
+                        effectTargetTeamFilter: "ally",
+                        power: 8
+                    ),
+                },
+                targetMode: "unit",
+                targetTeamFilter: "ally",
+                targetSelectionMode: BattleTypedNames.ToStringName(
+                    BattleTargetSelectionMode.SingleUnit
+                )
+            )
+        );
 
     private static bool IsGodotDynamicBoundaryType(Type type)
     {

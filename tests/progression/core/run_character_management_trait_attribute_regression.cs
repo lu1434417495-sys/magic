@@ -64,7 +64,7 @@ public partial class run_character_management_trait_attribute_regression : Scene
             Dictionary<StringName, TraitDef> traitDefs = BuildTraitDefs();
             manager.setup(
                 partyState,
-                new Dictionary<StringName, SkillDef>(),
+                new Dictionary<StringName, SkillDefinition>(),
                 new Dictionary<StringName, ProfessionDef>(),
                 new Dictionary<StringName, AchievementDef>(),
                 new Dictionary<StringName, ItemDef>(),

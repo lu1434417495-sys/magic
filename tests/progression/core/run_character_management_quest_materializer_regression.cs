@@ -35,29 +35,24 @@ public partial class run_character_management_quest_materializer_regression : Sc
     {
         PartyState party = BuildPartyWithMember("hero", 1);
         PartyMemberState member = party.GetMemberState("hero");
-        SkillDef triggerSkill = TestResourceOwnership.Own(
-            new SkillDef
-            {
-                skill_id = "test_level_trigger_catalog_boundary",
-                display_name = "Test level trigger catalog boundary",
-                max_level = 1,
-            },
-            "character_management_quest_materializer.level_trigger_catalog_boundary"
+        SkillDefinition triggerSkill = BuildLevelTriggerSkillDefinition(
+            "test_level_trigger_catalog_boundary",
+            1
         );
         member.progression.SetSkillProgress(
             new UnitSkillProgress
             {
-                skill_id = triggerSkill.skill_id,
+                skill_id = triggerSkill.SkillId,
                 is_learned = true,
                 is_core = true,
                 skill_level = 1,
             }
         );
-        member.progression.active_level_trigger_core_skill_id = triggerSkill.skill_id;
+        member.progression.active_level_trigger_core_skill_id = triggerSkill.SkillId;
 
         LevelGrowthEvaluationService service = new();
         service.Setup(
-            new Dictionary<StringName, SkillDef>
+            new Dictionary<StringName, SkillDefinition>
             {
                 [new StringName("wrong_level_trigger_key")] = triggerSkill,
             }
@@ -67,10 +62,12 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "LevelGrowthEvaluationService.Setup should not recover a skill def from value.skill_id when the dictionary key is wrong."
         );
 
-        service.Setup(new Dictionary<StringName, SkillDef> { [triggerSkill.skill_id] = triggerSkill });
+        service.Setup(
+            new Dictionary<StringName, SkillDefinition> { [triggerSkill.SkillId] = triggerSkill }
+        );
         _test.True(
             service.IsActiveTriggerReadyForLevelUp(member),
-            "LevelGrowthEvaluationService.Setup should accept a typed skill def map keyed by skill id."
+            "LevelGrowthEvaluationService.Setup should accept a typed skill definition map keyed by skill id."
         );
     }
 
@@ -222,6 +219,42 @@ public partial class run_character_management_quest_materializer_regression : Sc
         _test.True(
             party.HasActiveQuest(missingTargetQuest.quest_id),
             "missing target_value should keep quest active."
+        );
+    }
+
+    private static SkillDefinition BuildLevelTriggerSkillDefinition(StringName skillId, int maxLevel)
+    {
+        return new SkillDefinition(
+            skillId,
+            skillId.ToString(),
+            "",
+            "",
+            "combat",
+            maxLevel,
+            0,
+            "",
+            0,
+            0,
+            System.Array.Empty<int>(),
+            System.Array.Empty<StringName>(),
+            "",
+            System.Array.Empty<StringName>(),
+            "",
+            System.Array.Empty<StringName>(),
+            new Dictionary<StringName, int>(),
+            new Dictionary<StringName, int>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            false,
+            "",
+            System.Array.Empty<StringName>(),
+            "",
+            new Dictionary<StringName, int>(),
+            "",
+            System.Array.Empty<AttributeModifierDefinition>(),
+            "",
+            new Dictionary<int, IReadOnlyDictionary<string, Variant>>(),
+            null
         );
     }
 
@@ -581,16 +614,15 @@ public partial class run_character_management_quest_materializer_regression : Sc
     {
         PartyState party = BuildPartyWithMember("hero", 2);
         PartyMemberState member = party.GetMemberState("hero");
-        SkillDef triggerSkill = new()
-        {
-            skill_id = "test_set_clear_trigger",
-            display_name = "Test set clear trigger",
-            max_level = 1,
-        };
+        SkillDefinition triggerSkill = TestSkillDefinitionProjection.BuildSkill(
+            "test_set_clear_trigger",
+            displayName: "Test set clear trigger",
+            maxLevel: 1
+        );
         member.progression.SetSkillProgress(
             new UnitSkillProgress
             {
-                skill_id = triggerSkill.skill_id,
+                skill_id = triggerSkill.SkillId,
                 is_learned = true,
                 is_core = true,
                 skill_level = 1,
@@ -600,20 +632,20 @@ public partial class run_character_management_quest_materializer_regression : Sc
         CharacterManagementModule manager = new();
         manager.setup(
             party,
-            new GDictionary { [triggerSkill.skill_id] = triggerSkill },
-            new GDictionary(),
-            new GDictionary()
+            new Dictionary<StringName, SkillDefinition> { [triggerSkill.SkillId] = triggerSkill },
+            new Dictionary<StringName, ProfessionDef>(),
+            new Dictionary<StringName, AchievementDef>()
         );
 
         LevelGrowthTriggerResult setResult = manager.SetActiveLevelTriggerCoreSkillTyped(
             "hero",
-            triggerSkill.skill_id
+            triggerSkill.SkillId
         );
-        UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(triggerSkill.skill_id);
+        UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(triggerSkill.SkillId);
         _test.True(setResult.Ok, "set active trigger should succeed.");
         _test.Eq(
             setResult.SkillId,
-            triggerSkill.skill_id,
+            triggerSkill.SkillId,
             "set active trigger should preserve skill id in boundary result."
         );
         _test.Eq(
@@ -623,7 +655,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
         );
         _test.Eq(
             member.progression.active_level_trigger_core_skill_id,
-            triggerSkill.skill_id,
+            triggerSkill.SkillId,
             "set active trigger should update progression state."
         );
         _test.True(
@@ -632,7 +664,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
         );
 
         LevelGrowthTriggerResult clearResult = manager.ClearActiveLevelTriggerCoreSkillTyped("hero");
-        triggerProgress = member.progression.GetSkillProgress(triggerSkill.skill_id);
+        triggerProgress = member.progression.GetSkillProgress(triggerSkill.SkillId);
         _test.True(clearResult.Ok, "clear active trigger should succeed.");
         _test.Eq(
             member.progression.active_level_trigger_core_skill_id,
@@ -662,25 +694,22 @@ public partial class run_character_management_quest_materializer_regression : Sc
         PartyMemberState member = party.GetMemberState("hero");
         member.progression.unit_base_attributes.SetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility), 2);
 
-        SkillDef triggerSkill = new()
-        {
-            skill_id = "test_growth_trigger",
-            display_name = "Test growth trigger",
-            max_level = 1,
-        };
-        triggerSkill.SetAttributeGrowthProgress(
-            new Dictionary<StringName, int> { ["agility"] = 60 }
+        SkillDefinition triggerSkill = TestSkillDefinitionProjection.BuildSkill(
+            "test_growth_trigger",
+            displayName: "Test growth trigger",
+            maxLevel: 1,
+            attributeGrowthProgress: new Dictionary<StringName, int> { ["agility"] = 60 }
         );
         member.progression.SetSkillProgress(
             new UnitSkillProgress
             {
-                skill_id = triggerSkill.skill_id,
+                skill_id = triggerSkill.SkillId,
                 is_learned = true,
                 is_core = true,
                 skill_level = 1,
             }
         );
-        member.progression.active_level_trigger_core_skill_id = triggerSkill.skill_id;
+        member.progression.active_level_trigger_core_skill_id = triggerSkill.SkillId;
 
         ProfessionDef profession = new()
         {
@@ -694,9 +723,9 @@ public partial class run_character_management_quest_materializer_regression : Sc
         CharacterManagementModule manager = new();
         manager.setup(
             party,
-            new GDictionary { [triggerSkill.skill_id] = triggerSkill },
-            new GDictionary { [profession.profession_id] = profession },
-            new GDictionary()
+            new Dictionary<StringName, SkillDefinition> { [triggerSkill.SkillId] = triggerSkill },
+            new Dictionary<StringName, ProfessionDef> { [profession.profession_id] = profession },
+            new Dictionary<StringName, AchievementDef>()
         );
 
         CharacterProgressionDelta delta = manager.PromoteProfession(
@@ -704,12 +733,12 @@ public partial class run_character_management_quest_materializer_regression : Sc
             profession.profession_id,
             PromotionSelectionData.Empty
         );
-        UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(triggerSkill.skill_id);
+        UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(triggerSkill.SkillId);
 
         _test.Eq(delta.changed_profession_ids.Count, 1, "active trigger promotion should rank up.");
         _test.Eq(delta.AttributeChangesTyped.Count, 1, "active trigger should apply attribute growth directly.");
         _test.Eq(
-            triggerSkill.AttributeGrowthProgressTyped.Count,
+            triggerSkill.AttributeGrowthProgress.Count,
             1,
             "trigger skill should keep attribute growth entries in typed backing state."
         );
@@ -824,18 +853,17 @@ public partial class run_character_management_quest_materializer_regression : Sc
             CharacterManagementModule manager = new();
             manager.setup(
                 party,
-                OwnedDictionary(
-                    new GDictionary { [triggerSkill.skill_id] = triggerSkill },
-                    $"character_management_quest_materializer.invalid_growth.skill_defs.{testCase.Label}"
+                SkillDefinition.ProjectIndex(
+                    new Dictionary<StringName, SkillDef>
+                    {
+                        [triggerSkill.skill_id] = triggerSkill,
+                    }
                 ),
-                OwnedDictionary(
-                    new GDictionary { [profession.profession_id] = profession },
-                    $"character_management_quest_materializer.invalid_growth.profession_defs.{testCase.Label}"
-                ),
-                OwnedDictionary(
-                    new GDictionary(),
-                    $"character_management_quest_materializer.invalid_growth.empty_defs.{testCase.Label}"
-                )
+                new Dictionary<StringName, ProfessionDef>
+                {
+                    [profession.profession_id] = profession,
+                },
+                new Dictionary<StringName, AchievementDef>()
             );
 
             CharacterProgressionDelta delta = manager.PromoteProfession(
@@ -879,21 +907,20 @@ public partial class run_character_management_quest_materializer_regression : Sc
                 skill_level = 1,
             }
         );
-        SkillDef charge = new()
-        {
-            skill_id = "charge",
-            display_name = "Charge",
-        };
-        charge.mastery_sources = new Godot.Collections.Array<StringName> { "battle" };
+        SkillDefinition charge = TestSkillDefinitionProjection.BuildSkill(
+            "charge",
+            displayName: "Charge",
+            masterySources: new[] { new StringName("battle") }
+        );
 
         CharacterManagementModule manager = new();
         manager.setup(
             party,
-            new GDictionary { [charge.skill_id] = charge },
-            new GDictionary(),
-            new GDictionary(),
-            BuildItemDefs(),
-            new GDictionary()
+            new Dictionary<StringName, SkillDefinition> { [charge.SkillId] = charge },
+            new Dictionary<StringName, ProfessionDef>(),
+            new Dictionary<StringName, AchievementDef>(),
+            BuildItemDefIndex(BuildItemDefs()),
+            new Dictionary<StringName, QuestDef>()
         );
 
         PendingCharacterReward reward = manager.BuildPendingSkillMasteryReward(
@@ -950,11 +977,11 @@ public partial class run_character_management_quest_materializer_regression : Sc
         CharacterManagementModule manager = new();
         manager.setup(
             party,
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            itemDefs,
-            questDefs
+            new Dictionary<StringName, SkillDefinition>(),
+            new Dictionary<StringName, ProfessionDef>(),
+            new Dictionary<StringName, AchievementDef>(),
+            BuildItemDefIndex(itemDefs),
+            BuildQuestDefIndex(questDefs)
         );
         return manager;
     }
@@ -1013,6 +1040,24 @@ public partial class run_character_management_quest_materializer_regression : Sc
                 continue;
             if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
                 result[itemId] = itemDef;
+        }
+        return result;
+    }
+
+    private static Dictionary<StringName, QuestDef> BuildQuestDefIndex(GDictionary questDefs)
+    {
+        Dictionary<StringName, QuestDef> result = new();
+        if (questDefs == null)
+            return result;
+        foreach (Variant rawKey in questDefs.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+                continue;
+            StringName questId = rawKey.AsStringName();
+            if (questId == "")
+                continue;
+            if (questDefs[rawKey].AsGodotObject() is QuestDef questDef)
+                result[questId] = questDef;
         }
         return result;
     }

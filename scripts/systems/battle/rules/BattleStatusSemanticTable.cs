@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Godot;
+using GDictionary = Godot.Collections.Dictionary;
 
 public readonly record struct BattleStatusDurationAdvanceResult(bool Expired, bool Changed);
 
@@ -311,28 +312,41 @@ public static class BattleStatusSemanticTable
     }
 
     public static BattleStatusEffectState MergeStatus(
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         StringName sourceUnitId,
-        BattleStatusEffectState existingEntry = null
+        BattleStatusEffectState existingEntry = null,
+        StringName statusIdOverride = default
     )
     {
-        if (effectDef == null || ProgressionDataUtils.to_string_name(effectDef.status_id) == "")
+        if (effectDefinition == null)
             return null;
-        BattleStatusSemantic semantic = GetSemantic(effectDef.status_id);
-        var statusEntry = BuildMergedStatusEffectState(effectDef, sourceUnitId, existingEntry);
-        int incomingPower = Mathf.Max(effectDef.power, 1);
+        StringName resolvedStatusId = ProgressionDataUtils.to_string_name(
+            statusIdOverride == default || statusIdOverride == ""
+                ? effectDefinition.StatusId
+                : statusIdOverride
+        );
+        if (resolvedStatusId == "")
+            return null;
+        BattleStatusSemantic semantic = GetSemantic(resolvedStatusId);
+        var statusEntry = BuildMergedStatusEffectState(
+            effectDefinition,
+            sourceUnitId,
+            existingEntry,
+            resolvedStatusId
+        );
+        int incomingPower = Mathf.Max(effectDefinition.Power, 1);
         int previousPower = Mathf.Max(statusEntry.power, 0);
         int previousStacks = Mathf.Max(statusEntry.stacks, 0);
         if (!semantic.Defined)
         {
             statusEntry.stack_behavior =
-                ProgressionDataUtils.to_string_name(effectDef.stack_behavior) == ""
+                ProgressionDataUtils.to_string_name(effectDefinition.StackBehavior) == ""
                     ? STACK_REFRESH
-                    : effectDef.stack_behavior;
-            statusEntry.stack_limit = Mathf.Max(effectDef.stack_limit, 0);
-            statusEntry.power = effectDef.power;
+                    : effectDefinition.StackBehavior;
+            statusEntry.stack_limit = Mathf.Max(effectDefinition.StackLimit, 0);
+            statusEntry.power = effectDefinition.Power;
             statusEntry.stacks = Mathf.Max(previousStacks + 1, 1);
-            int durationTu = ResolveDurationTu(effectDef);
+            int durationTu = ResolveDurationTu(effectDefinition);
             if (durationTu >= 0)
                 statusEntry.duration = durationTu;
             return statusEntry;
@@ -354,13 +368,13 @@ public static class BattleStatusSemanticTable
                         : Mathf.Max(previousStacks + 1, 1)
                 )
                 : 1;
-        int semanticDurationTu = ResolveDurationTu(effectDef);
+        int semanticDurationTu = ResolveDurationTu(effectDefinition);
         if (semanticDurationTu >= 0)
         {
             int previousDuration = statusEntry.duration;
             statusEntry.duration = Mathf.Max(semanticDurationTu, previousDuration);
         }
-        int tickIntervalTu = ResolveTickIntervalTu(effectDef);
+        int tickIntervalTu = ResolveTickIntervalTu(effectDefinition);
         if (tickIntervalTu > 0)
         {
             statusEntry.tick_interval_tu = tickIntervalTu;
@@ -371,50 +385,56 @@ public static class BattleStatusSemanticTable
     }
 
     private static BattleStatusEffectState BuildMergedStatusEffectState(
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         StringName sourceUnitId,
-        BattleStatusEffectState existingEntry
+        BattleStatusEffectState existingEntry,
+        StringName resolvedStatusId
     )
     {
         var statusEntry = BattleStatusEffectState.CreateOrDuplicate(existingEntry);
-        statusEntry.status_id = ProgressionDataUtils.to_string_name(effectDef.status_id);
+        statusEntry.status_id = resolvedStatusId;
         statusEntry.source_unit_id = sourceUnitId;
-        statusEntry.@params = BattleStatusEffectState.CopyResidualParams(effectDef.@params);
-        statusEntry.counts_as_debuff_override = effectDef.counts_as_debuff_override;
-        statusEntry.counts_as_debuff = effectDef.counts_as_debuff;
-        statusEntry.lock_counterattack = effectDef.lock_counterattack;
-        statusEntry.lock_guard = effectDef.lock_guard;
-        statusEntry.lock_dodge_bonus = effectDef.lock_dodge_bonus;
-        statusEntry.lock_crit = effectDef.lock_crit;
-        statusEntry.save_bonus = effectDef.save_bonus;
-        statusEntry.control_save_bonus = effectDef.control_save_bonus;
-        statusEntry.heal_multiplier_percent = effectDef.heal_multiplier_percent;
-        statusEntry.shield_gain_multiplier_percent = effectDef.shield_gain_multiplier_percent;
-        statusEntry.passive_reduction = effectDef.passive_reduction;
-        statusEntry.content_dr = effectDef.content_dr;
-        statusEntry.guard_block = effectDef.guard_block;
-        statusEntry.range_bonus = effectDef.range_bonus;
-        statusEntry.death_prevention_priority = Mathf.Max(effectDef.death_prevention_priority, 0);
-        statusEntry.save_advantage_tags = BuildStringNameList(effectDef.save_advantage_tags);
-        statusEntry.save_disadvantage_tags = BuildStringNameList(effectDef.save_disadvantage_tags);
-        statusEntry.save_immunity_tags = BuildStringNameList(effectDef.save_immunity_tags);
-        statusEntry.save_tags = BuildStringNameList(effectDef.save_tags);
-        statusEntry.status_tags = BuildStringNameList(effectDef.effect_tags);
-        statusEntry.save_bonus_by_tag = BuildStringNameIntMap(
-            effectDef.GetStringNameIntMapParamTyped("save_bonus_by_tag")
+        statusEntry.@params = CopyResidualParams(effectDefinition.Parameters);
+        statusEntry.counts_as_debuff_override = effectDefinition.CountsAsDebuffOverride;
+        statusEntry.counts_as_debuff = effectDefinition.CountsAsDebuff;
+        statusEntry.lock_counterattack = effectDefinition.LockCounterattack;
+        statusEntry.lock_guard = effectDefinition.LockGuard;
+        statusEntry.lock_dodge_bonus = effectDefinition.LockDodgeBonus;
+        statusEntry.lock_crit = effectDefinition.LockCrit;
+        statusEntry.save_bonus = effectDefinition.SaveBonus;
+        statusEntry.control_save_bonus = effectDefinition.ControlSaveBonus;
+        statusEntry.heal_multiplier_percent = effectDefinition.HealMultiplierPercent;
+        statusEntry.shield_gain_multiplier_percent = effectDefinition.ShieldGainMultiplierPercent;
+        statusEntry.passive_reduction = effectDefinition.PassiveReduction;
+        statusEntry.content_dr = effectDefinition.ContentDr;
+        statusEntry.guard_block = effectDefinition.GuardBlock;
+        statusEntry.range_bonus = effectDefinition.RangeBonus;
+        statusEntry.death_prevention_priority = Mathf.Max(
+            effectDefinition.DeathPreventionPriority,
+            0
         );
-        statusEntry.attack_roll_penalty = effectDef.attack_roll_penalty;
-        statusEntry.undispellable = effectDef.undispellable;
-        statusEntry.dispellable_magic = effectDef.dispellable_magic;
-        statusEntry.dispellable_harmful_magic = effectDef.dispellable_harmful_magic;
-        statusEntry.dispellable_beneficial_magic = effectDef.dispellable_beneficial_magic;
-        statusEntry.damage_tag = effectDef.damage_tag;
-        statusEntry.damage_tags = BuildStringNameList(effectDef.damage_tags);
-        statusEntry.damage_category = effectDef.damage_category;
-        statusEntry.mitigation_tier = effectDef.mitigation_tier;
-        statusEntry.dr_bypass_tag = effectDef.dr_bypass_tag;
+        statusEntry.save_advantage_tags = BuildStringNameList(effectDefinition.SaveAdvantageTags);
+        statusEntry.save_disadvantage_tags = BuildStringNameList(
+            effectDefinition.SaveDisadvantageTags
+        );
+        statusEntry.save_immunity_tags = BuildStringNameList(effectDefinition.SaveImmunityTags);
+        statusEntry.save_tags = BuildStringNameList(effectDefinition.SaveTags);
+        statusEntry.status_tags = BuildStringNameList(effectDefinition.EffectTags);
+        statusEntry.save_bonus_by_tag = BuildStringNameIntMap(
+            effectDefinition.GetStringNameIntMapParamTyped("save_bonus_by_tag")
+        );
+        statusEntry.attack_roll_penalty = effectDefinition.AttackRollPenalty;
+        statusEntry.undispellable = effectDefinition.Undispellable;
+        statusEntry.dispellable_magic = effectDefinition.DispellableMagic;
+        statusEntry.dispellable_harmful_magic = effectDefinition.DispellableHarmfulMagic;
+        statusEntry.dispellable_beneficial_magic = effectDefinition.DispellableBeneficialMagic;
+        statusEntry.damage_tag = effectDefinition.DamageTag;
+        statusEntry.damage_tags = BuildStringNameList(effectDefinition.DamageTags);
+        statusEntry.damage_category = effectDefinition.DamageCategory;
+        statusEntry.mitigation_tier = effectDefinition.MitigationTier;
+        statusEntry.dr_bypass_tag = effectDefinition.DrBypassTag;
         statusEntry.main_skill_lock_other_debuff_count = Mathf.Max(
-            effectDef.main_skill_lock_other_debuff_count,
+            effectDefinition.MainSkillLockOtherDebuffCount,
             0
         );
         return statusEntry;
@@ -560,21 +580,24 @@ public static class BattleStatusSemanticTable
             turnStartLogReasonId ?? ""
         );
 
-    private static int ResolveDurationTu(CombatEffectDef effectDef)
+    private static int ResolveDurationTu(CombatEffectDefinition effectDefinition)
     {
-        if (effectDef == null)
+        if (effectDefinition == null)
             return -1;
-        if (effectDef.duration_tu > 0)
-            return NormalizePositiveTu(effectDef.duration_tu, "status duration_tu");
+        if (effectDefinition.DurationTu > 0)
+            return NormalizePositiveTu(effectDefinition.DurationTu, "status duration_tu");
         return -1;
     }
 
-    private static int ResolveTickIntervalTu(CombatEffectDef effectDef)
+    private static int ResolveTickIntervalTu(CombatEffectDefinition effectDefinition)
     {
-        if (effectDef == null)
+        if (effectDefinition == null)
             return 0;
-        if (effectDef.tick_interval_tu > 0)
-            return NormalizePositiveTu(effectDef.tick_interval_tu, "status tick_interval_tu");
+        if (effectDefinition.TickIntervalTu > 0)
+            return NormalizePositiveTu(
+                effectDefinition.TickIntervalTu,
+                "status tick_interval_tu"
+            );
         return 0;
     }
 
@@ -615,6 +638,25 @@ public static class BattleStatusSemanticTable
             }
         }
         return result;
+    }
+
+    private static GDictionary CopyResidualParams(
+        IReadOnlyDictionary<string, Variant> parameters
+    )
+    {
+        if (parameters == null || parameters.Count == 0)
+        {
+            return new GDictionary();
+        }
+        var copied = new GDictionary();
+        foreach (KeyValuePair<string, Variant> entry in parameters)
+        {
+            if (!string.IsNullOrEmpty(entry.Key))
+            {
+                copied[entry.Key] = entry.Value;
+            }
+        }
+        return BattleStatusEffectState.CopyResidualParams(copied);
     }
 
     private static int NormalizePositiveTu(int value, string fieldLabel)

@@ -1,5 +1,5 @@
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
+using System.Collections.Generic;
 using GEnemyAiActionArray = Godot.Collections.Array<EnemyAiAction>;
 using GGenerationSlotArray = Godot.Collections.Array<EnemyAiGenerationSlotDef>;
 using GStringArray = Godot.Collections.Array<string>;
@@ -57,7 +57,7 @@ public partial class run_enemy_ai_generation_slots_schema_regression : SceneTree
             Slot("close", 20, new[] { "random_chain" }, new[] { "move_to_range" }, "template_move"),
         };
 
-        GStringArray errors = state.ValidateSchema("schema_brain", SkillDefs());
+        GStringArray errors = state.ValidateSchema("schema_brain", SkillDefinitions());
         _test.True(errors.Count == 0, $"合法 generation slots 不应产生 schema error: {FormatErrors(errors)}");
     }
 
@@ -70,7 +70,7 @@ public partial class run_enemy_ai_generation_slots_schema_regression : SceneTree
             Slot("dup", 10, new[] { "ground_control" }, new[] { "use_ground_skill" }, "template_attack"),
         };
 
-        GStringArray errors = state.ValidateSchema("schema_brain", SkillDefs());
+        GStringArray errors = state.ValidateSchema("schema_brain", SkillDefinitions());
         _test.True(errors.Count >= 2, $"重复 slot id/order 应被拒绝: {FormatErrors(errors)}");
     }
 
@@ -83,7 +83,7 @@ public partial class run_enemy_ai_generation_slots_schema_regression : SceneTree
             Slot("missing_template", 20, new[] { "unit_hostile.damage" }, new[] { "use_unit_skill" }, "does_not_exist"),
         };
 
-        GStringArray errors = state.ValidateSchema("schema_brain", SkillDefs());
+        GStringArray errors = state.ValidateSchema("schema_brain", SkillDefinitions());
         _test.True(errors.Count >= 2, $"旧 alias/未知 family 与缺失 template action 应被拒绝: {FormatErrors(errors)}");
     }
 
@@ -109,7 +109,7 @@ public partial class run_enemy_ai_generation_slots_schema_regression : SceneTree
         badDistance.desired_max_distance = 2;
         state.generation_slots = new GGenerationSlotArray { badSelector, badDistance };
 
-        GStringArray errors = state.ValidateSchema("schema_brain", SkillDefs());
+        GStringArray errors = state.ValidateSchema("schema_brain", SkillDefinitions());
         _test.True(errors.Count >= 2, $"未知 selector 与距离契约 min > max 应被拒绝: {FormatErrors(errors)}");
     }
 
@@ -165,10 +165,10 @@ public partial class run_enemy_ai_generation_slots_schema_regression : SceneTree
         return slot;
     }
 
-    private static GDictionary SkillDefs() =>
-        new()
+    private static IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions() =>
+        new Dictionary<StringName, SkillDefinition>
         {
-            ["dummy_skill"] = true,
+            ["dummy_skill"] = null,
         };
 
     private static string FormatErrors(GStringArray errors) => string.Join("; ", errors);

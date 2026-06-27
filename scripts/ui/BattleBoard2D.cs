@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GTileLayerArray = Godot.Collections.Array<Godot.TileMapLayer>;
@@ -52,7 +53,7 @@ public partial class BattleBoard2D : Node2D
     public StringName _pending_target_selection_mode = "single_unit";
     public int _pending_target_min_count = 1;
     public int _pending_target_max_count = 1;
-    public GDictionary _pending_target_hit_badges = new();
+    public Dictionary<Vector2I, string> _pending_target_hit_badges = new();
     public Vector2 _viewport_size = Vector2.Zero;
     public float _camera_zoom = DEFAULT_CAMERA_ZOOM;
     public Rect2 _content_bounds = new();
@@ -83,6 +84,16 @@ public partial class BattleBoard2D : Node2D
         _apply_pending_configuration();
     }
 
+    public override void _ExitTree()
+    {
+        _controller?.Clear();
+        _pending_battle_state = null;
+        _pending_preview_target_coords.Clear();
+        _pending_valid_target_coords.Clear();
+        _pending_target_hit_badges.Clear();
+        _is_bound = false;
+    }
+
     public void Configure(
         BattleState battle_state,
         Vector2I selected_coord,
@@ -102,7 +113,7 @@ public partial class BattleBoard2D : Node2D
         _pending_target_selection_mode = NormalizeTargetSelectionMode(target_selection_mode);
         _pending_target_min_count = Mathf.Max(min_target_count, 1);
         _pending_target_max_count = Mathf.Max(max_target_count, _pending_target_min_count);
-        _pending_target_hit_badges = CloneDictionary(target_hit_badges);
+        _pending_target_hit_badges = CloneHitBadges(target_hit_badges);
         _apply_pending_configuration();
         _fit_to_viewport(true);
     }
@@ -123,7 +134,7 @@ public partial class BattleBoard2D : Node2D
         _pending_target_selection_mode = NormalizeTargetSelectionMode(target_selection_mode);
         _pending_target_min_count = Mathf.Max(min_target_count, 1);
         _pending_target_max_count = Mathf.Max(max_target_count, _pending_target_min_count);
-        _pending_target_hit_badges = CloneDictionary(target_hit_badges);
+        _pending_target_hit_badges = CloneHitBadges(target_hit_badges);
         _apply_pending_marker_update();
     }
 
@@ -646,18 +657,45 @@ public partial class BattleBoard2D : Node2D
     }
 
     private static GVector2IArray CloneVector2IArray(GVector2IArray values)
+        => new Vector2IList(values).ToGodotArray();
+
+    private static Dictionary<Vector2I, string> CloneHitBadges(GDictionary values)
     {
-        var result = new GVector2IArray();
+        var result = new Dictionary<Vector2I, string>();
         if (values == null)
             return result;
-        foreach (Vector2I value in values)
-            result.Add(value);
+        foreach (Variant coordValue in values.Keys)
+        {
+            if (coordValue.VariantType != Variant.Type.Vector2I)
+                continue;
+            string badgeText = DictString(values, coordValue);
+            if (!string.IsNullOrEmpty(badgeText))
+                result[coordValue.AsVector2I()] = badgeText;
+        }
         return result;
     }
 
-    private static GDictionary CloneDictionary(GDictionary values)
+    private static string DictString(GDictionary dict, object key, string fallback = "")
     {
-        return values != null ? (GDictionary)values.Duplicate(true) : new GDictionary();
+        if (dict == null)
+            return fallback;
+        Variant variantKey = key switch
+        {
+            Variant variantValue => variantValue,
+            Vector2I vectorValue => vectorValue,
+            StringName stringNameValue => stringNameValue,
+            string stringValue => stringValue,
+            _ => default,
+        };
+        if (!dict.ContainsKey(variantKey))
+            return fallback;
+        Variant value = dict[variantKey];
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => fallback,
+        };
     }
 
     private static StringName NormalizeTargetSelectionMode(StringName value)

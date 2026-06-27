@@ -25,7 +25,6 @@ public sealed class GameContentCatalog
 
     private ProgressionContentRegistry _progressionContentRegistry;
     private ProgressionIdentityCatalogData _progressionIdentityCatalog;
-    private IReadOnlyDictionary<StringName, SkillDef> _skillDefs;
     private IReadOnlyDictionary<StringName, SkillDefinition> _skillDefinitions;
     private IReadOnlyDictionary<StringName, TraitDef> _traitDefs;
     private IReadOnlyDictionary<StringName, ProfessionDef> _professionDefs;
@@ -37,6 +36,10 @@ public sealed class GameContentCatalog
     private IReadOnlyDictionary<StringName, EnemyAiBrainDef> _enemyAiBrains;
     private IReadOnlyDictionary<StringName, WildEncounterRosterDef> _wildEncounterRosters;
     private GDictionary _battleSpecialProfileSnapshot;
+    private readonly Dictionary<string, object> _battleSpecialProfileRuntimeSnapshot = new(
+        StringComparer.Ordinal
+    );
+    private IBattleSpecialProfileView _battleSpecialProfileView;
 
     public GameContentCatalog()
     {
@@ -77,8 +80,7 @@ public sealed class GameContentCatalog
         _progressionContentRegistry = session.GetProgressionContentRegistry();
         _progressionIdentityCatalog =
             session.GetProgressionIdentityCatalogTyped() ?? new ProgressionIdentityCatalogData();
-        _skillDefs = SnapshotTyped(session.GetSkillDefsTyped());
-        _skillDefinitions = SkillDefinition.ProjectIndex(_skillDefs);
+        _skillDefinitions = SnapshotTyped(session.GetSkillDefinitionsTyped());
         _traitDefs = SnapshotTyped(session.GetTraitDefsTyped());
         _professionDefs = SnapshotTyped(session.GetProfessionDefsTyped());
         _achievementDefs = SnapshotTyped(session.GetAchievementDefsTyped());
@@ -92,6 +94,12 @@ public sealed class GameContentCatalog
             session.GetBattleSpecialProfileRegistrySnapshot() ?? new GDictionary(),
             "GameContentCatalog.Rebuild"
         );
+        ReplaceBattleSpecialProfileRuntimeSnapshot(
+            session.GetBattleSpecialProfileRegistryRuntimeSnapshot() ?? new GDictionary(),
+            "GameContentCatalog.Rebuild.runtime"
+        );
+        _battleSpecialProfileView =
+            session.GetBattleSpecialProfileRuntimeView() ?? BattleSpecialProfileRuntimeView.Empty;
         _revision++;
     }
 
@@ -99,7 +107,6 @@ public sealed class GameContentCatalog
     {
         _progressionContentRegistry = null;
         _progressionIdentityCatalog = new ProgressionIdentityCatalogData();
-        _skillDefs = EmptyTyped<SkillDef>();
         _skillDefinitions = EmptyTyped<SkillDefinition>();
         _traitDefs = EmptyTyped<TraitDef>();
         _professionDefs = EmptyTyped<ProfessionDef>();
@@ -114,6 +121,11 @@ public sealed class GameContentCatalog
             new GDictionary(),
             "GameContentCatalog.ResetSnapshot"
         );
+        ReplaceBattleSpecialProfileRuntimeSnapshot(
+            new GDictionary(),
+            "GameContentCatalog.ResetSnapshot.runtime"
+        );
+        _battleSpecialProfileView = BattleSpecialProfileRuntimeView.Empty;
     }
 
     /// <summary>catalog 快照版本号；每次 <see cref="Rebuild"/> 或 <see cref="ClearSessionBinding"/>
@@ -139,8 +151,6 @@ public sealed class GameContentCatalog
 
     public ProgressionIdentityCatalogData GetProgressionIdentityCatalogTyped() =>
         _progressionIdentityCatalog;
-
-    public IReadOnlyDictionary<StringName, SkillDef> GetSkillDefsTyped() => _skillDefs;
 
     public IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionsTyped() =>
         _skillDefinitions;
@@ -189,6 +199,15 @@ public sealed class GameContentCatalog
             "GameContentCatalog.GetBattleSpecialProfileRegistrySnapshot"
         );
 
+    public GDictionary GetBattleSpecialProfileRegistryRuntimeSnapshot() =>
+        RuntimePlainPayload.ProjectDictionary(
+            _battleSpecialProfileRuntimeSnapshot,
+            "GameContentCatalog.GetBattleSpecialProfileRegistryRuntimeSnapshot"
+        );
+
+    internal IBattleSpecialProfileView GetBattleSpecialProfileView() =>
+        _battleSpecialProfileView ?? BattleSpecialProfileRuntimeView.Empty;
+
     private static GDictionary RegisterBattleSpecialProfileSnapshot(
         GDictionary snapshot,
         string reason
@@ -202,6 +221,20 @@ public sealed class GameContentCatalog
             reason
         );
         return snapshot;
+    }
+
+    private void ReplaceBattleSpecialProfileRuntimeSnapshot(
+        GDictionary snapshot,
+        string reason
+    )
+    {
+        _battleSpecialProfileRuntimeSnapshot.Clear();
+        Dictionary<string, object> normalized =
+            RuntimePlainPayload.NormalizeDictionary(snapshot ?? new GDictionary(), reason);
+        foreach (KeyValuePair<string, object> entry in normalized)
+        {
+            _battleSpecialProfileRuntimeSnapshot[entry.Key] = entry.Value;
+        }
     }
 
     private static IReadOnlyDictionary<StringName, T> SnapshotTyped<T>(

@@ -32,7 +32,7 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
 
     private void TestBurstAutoCastBypassesTurnAndCostsButCommitsEffects()
     {
-        SkillDef storedSkill = StoredBoltSkill();
+        SkillDefinition storedSkill = StoredBoltSkill();
         PartyState partyState = BuildPartyState(
             ChargedSetup(
                 "combat_burst",
@@ -52,7 +52,7 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
         BattleRuntimeModule runtime = Track(new BattleRuntimeModule());
         runtime.setup(
             character_gateway: gateway,
-            skill_defs: new Dictionary<StringName, SkillDef> { [storedSkill.skill_id] = storedSkill }
+            skill_definitions: new Dictionary<StringName, SkillDefinition> { [storedSkill.SkillId] = storedSkill }
         );
         BattleState state = Track(
             BattleTestFixture.BuildFlatState(
@@ -115,7 +115,7 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
         _test.Eq(caster.current_stamina, casterStaminaBefore, "auto-cast should not consume stamina.");
         _test.Eq(caster.current_aura, casterAuraBefore, "auto-cast should not consume aura.");
         _test.Eq(
-            caster.GetCooldownTyped(storedSkill.skill_id),
+            caster.GetCooldownTyped(storedSkill.SkillId),
             0,
             "auto-cast should not place the stored skill on cooldown."
         );
@@ -144,7 +144,7 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
 
     private void TestSequentialReleaseQueuesAtReleaseTimeAndDrainsOnePerOwnerTurn()
     {
-        SkillDef storedSkill = StoredBoltSkill();
+        SkillDefinition storedSkill = StoredBoltSkill();
         PartyState partyState = BuildPartyState(
             ChargedSetup(
                 "combat_sequence",
@@ -164,7 +164,7 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
         BattleRuntimeModule runtime = Track(new BattleRuntimeModule());
         runtime.setup(
             character_gateway: gateway,
-            skill_defs: new Dictionary<StringName, SkillDef> { [storedSkill.skill_id] = storedSkill }
+            skill_definitions: new Dictionary<StringName, SkillDefinition> { [storedSkill.SkillId] = storedSkill }
         );
         BattleState state = Track(
             BattleTestFixture.BuildFlatState(
@@ -248,7 +248,7 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
 
     private void TestInvalidTargetResolutionSkipAndAbortGateExecution()
     {
-        SkillDef storedSkill = StoredBoltSkill();
+        SkillDefinition storedSkill = StoredBoltSkill();
         RunInvalidTargetResolutionScenario(
             "skip_invalid_resolution",
             new GArray
@@ -297,7 +297,10 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
 
     private void TestSpecialProfileAutoCastUsesFormalCommitWithoutCostsOrProgression()
     {
-        SkillDef meteorSkill = GD.Load<SkillDef>("res://data/configs/skills/mage_meteor_swarm.tres");
+        SkillDefinition meteorSkill = TestSkillDefinitionProjection.LoadSkillDefinition(
+            "res://data/configs/skills/mage_meteor_swarm.tres",
+            "contingency_autocast_origin:mage_meteor_swarm"
+        );
         MeteorSwarmProfile meteorProfile = GD.Load<MeteorSwarmProfile>(
             "res://data/configs/skill_special_profiles/profiles/meteor_swarm_profile.tres"
         );
@@ -332,8 +335,12 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
         BattleRuntimeModule runtime = Track(new BattleRuntimeModule());
         runtime.setup(
             character_gateway: gateway,
-            skill_defs: new Dictionary<StringName, SkillDef> { [meteorSkill.skill_id] = meteorSkill },
-            battle_special_profile_registry_snapshot: BuildMeteorSpecialProfileSnapshot(meteorProfile)
+            skill_definitions: new Dictionary<StringName, SkillDefinition> { [meteorSkill.SkillId] = meteorSkill },
+            battle_special_profile_registry_snapshot: BuildMeteorSpecialProfileSnapshot(meteorProfile),
+            battle_special_profile_view: BattleSpecialProfileRuntimeView.ForMeteorSwarm(
+                "meteor_swarm",
+                meteorProfile
+            )
         );
         BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
         BattleState state = Track(
@@ -471,56 +478,48 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
         return string.Join(" | ", logs);
     }
 
-    private static SkillDef StoredBoltSkill()
-    {
-        var skill = new SkillDef
-        {
-            skill_id = "contingency_bolt",
-            display_name = "Contingency Bolt",
-            max_level = 5,
-            non_core_max_level = 5,
-            combat_profile = new CombatSkillDef
-            {
-                skill_id = "contingency_bolt",
-                target_mode = "unit",
-                target_team_filter = "enemy",
-                target_selection_mode = "single_unit",
-                range_value = 5,
-                ap_cost = 2,
-                mp_cost = 7,
-                stamina_cost = 3,
-                aura_cost = 1,
-                cooldown_tu = 40,
-            },
-        };
-        skill.combat_profile.effect_defs.Add(
-            new CombatEffectDef
-            {
-                effect_type = "damage",
-                effect_target_team_filter = "enemy",
-                damage_tag = "physical_slash",
-                power = 1,
-                dice_count = 1,
-                dice_sides = 6,
-            }
+    private static SkillDefinition StoredBoltSkill() =>
+        TestSkillDefinitionProjection.BuildSkill(
+            "contingency_bolt",
+            "Contingency Bolt",
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                "contingency_bolt",
+                effects: new[]
+                {
+                    TestSkillDefinitionProjection.BuildEffect(
+                        "damage",
+                        effectTargetTeamFilter: "enemy",
+                        damageTag: "physical_slash",
+                        power: 1,
+                        diceCount: 1,
+                        diceSides: 6
+                    ),
+                    TestSkillDefinitionProjection.BuildEffect(
+                        "status",
+                        effectTargetTeamFilter: "enemy",
+                        statusId: "contingency_marked",
+                        power: 1,
+                        durationTu: 30
+                    ),
+                },
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                targetSelectionMode: "single_unit",
+                rangeValue: 5,
+                apCost: 2,
+                mpCost: 7,
+                staminaCost: 3,
+                auraCost: 1,
+                cooldownTu: 40
+            ),
+            maxLevel: 5,
+            nonCoreMaxLevel: 5
         );
-        skill.combat_profile.effect_defs.Add(
-            new CombatEffectDef
-            {
-                effect_type = "status",
-                effect_target_team_filter = "enemy",
-                status_id = "contingency_marked",
-                power = 1,
-                duration_tu = 30,
-            }
-        );
-        return TestResourceOwnership.Own(skill, "contingency_autocast_origin.stored_bolt_skill");
-    }
 
     private void RunInvalidTargetResolutionScenario(
         string setupId,
         GArray storedSpells,
-        SkillDef storedSkill,
+        SkillDefinition storedSkill,
         bool shouldDamageTarget,
         int expectedReportCount,
         string message
@@ -536,7 +535,7 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
         BattleRuntimeModule runtime = Track(new BattleRuntimeModule());
         runtime.setup(
             character_gateway: gateway,
-            skill_defs: new Dictionary<StringName, SkillDef> { [storedSkill.skill_id] = storedSkill }
+            skill_definitions: new Dictionary<StringName, SkillDefinition> { [storedSkill.SkillId] = storedSkill }
         );
         BattleState state = Track(BattleTestFixture.BuildFlatState(setupId, new Vector2I(4, 3)));
         BattleTestFixture.InstallUnits(state, new[] { caster }, new[] { target });
@@ -745,7 +744,7 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
                 ["profile_id"] = "meteor_swarm",
                 ["runtime_resolver_id"] = "meteor_swarm",
                 ["owning_skill_ids"] = new GStringArray { "mage_meteor_swarm" },
-                ["profile_resource"] = meteorProfile,
+                ["profile_resource_path"] = meteorProfile?.ResourcePath ?? "",
                 ["presentation_metadata"] = new GDictionary
                 {
                     ["display_name"] = "陨星雨",

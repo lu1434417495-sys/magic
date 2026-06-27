@@ -385,7 +385,6 @@ internal static class AttackEffectResolutionResultReader
         AttackCheckInput attackCheck
     )
     {
-        source ??= new GDictionary();
         AttackCheckInput normalizedAttackCheck = attackCheck;
         var result = new AttackEffectResolutionResult
         {
@@ -1211,7 +1210,6 @@ internal static class AttackEffectResolutionResultReader
 
     internal static DamageEventResult ReadDamageEventPayload(GDictionary evt)
     {
-        evt ??= new GDictionary();
         ReadMitigationSourceLabels(
             evt,
             out string[] halfSourceLabels,
@@ -1441,7 +1439,6 @@ internal static class AttackEffectResolutionResultReader
 
     private static SaveResolutionResult ReadSaveResolution(GDictionary save)
     {
-        save ??= new GDictionary();
         return new SaveResolutionResult
         {
             HasSave = ReadExactBooleanField(save, "has_save", false),
@@ -1768,7 +1765,6 @@ internal static class BattleReportEntryPayload
 {
     internal static BattleReportEntry ReadPayload(GDictionary entry)
     {
-        entry ??= new GDictionary();
         GDictionary luckSnapshot = PayloadReader.ReadDictionary(entry, "luck_snapshot");
         return new BattleReportEntry
         {

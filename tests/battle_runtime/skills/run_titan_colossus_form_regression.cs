@@ -161,7 +161,7 @@ public partial class run_titan_colossus_form_regression : SceneTree
         BattleRuntimeModule runtime = new();
         runtime.setup(
             null,
-            registry.GetSkillDefsTyped(),
+            registry.GetSkillDefinitionsTyped(),
             new Dictionary<StringName, EnemyTemplateDef>(),
             new Dictionary<StringName, EnemyAiBrainDef>()
         );

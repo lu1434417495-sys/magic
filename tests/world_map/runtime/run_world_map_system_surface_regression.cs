@@ -182,15 +182,19 @@ public partial class run_world_map_system_surface_regression : SceneTree
         if (memberState?.progression == null)
             return new BookSkillPickData();
 
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = gameSession.GetSkillDefsTyped();
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            gameSession.GetSkillDefinitionsTyped();
         IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
-        var sortedSkillIds = new List<StringName>(skillDefs.Keys);
+        var sortedSkillIds = new List<StringName>(skillDefinitions.Keys);
         sortedSkillIds.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
         foreach (StringName skillId in sortedSkillIds)
         {
-            if (!skillDefs.TryGetValue(skillId, out SkillDef skillDef) || skillDef == null)
+            if (
+                !skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
+                || skillDefinition == null
+            )
                 continue;
-            if (skillDef.learn_source != "book")
+            if (skillDefinition.LearnSource != "book")
                 continue;
             UnitSkillProgress skillProgress = memberState.progression.GetSkillProgress(skillId);
             if (skillProgress != null && skillProgress.is_learned)

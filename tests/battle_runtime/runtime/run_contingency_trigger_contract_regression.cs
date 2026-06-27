@@ -773,7 +773,7 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
         CharacterManagementModule manager = new();
         manager.setup(
             partyState,
-            new Dictionary<StringName, SkillDef>(),
+            new Dictionary<StringName, SkillDefinition>(),
             new Dictionary<StringName, ProfessionDef>(),
             new Dictionary<StringName, AchievementDef>(),
             new Dictionary<StringName, ItemDef>(),

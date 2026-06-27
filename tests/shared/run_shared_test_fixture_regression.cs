@@ -64,17 +64,16 @@ public partial class run_shared_test_fixture_regression : SceneTree
 
         BattleUnitState source = BattleTestFixture.BuildUnit("source", "player", Vector2I.Zero);
         BattleUnitState target = BattleTestFixture.BuildUnit("target", "enemy", Vector2I.Right);
-        var effect = new CombatEffectDef
-        {
-            effect_type = "damage",
-            damage_tag = "physical_slash",
-            power = 1,
-            dice_count = 1,
-            dice_sides = 6,
-        };
+        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            damageTag: "physical_slash",
+            power: 1,
+            diceCount: 1,
+            diceSides: 6
+        );
 
         GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(
-            resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary())
+            resolver.ResolveEffects(source, target, new[] { effect }, DamageResolutionContext.Empty())
         );
         _test.Eq(DictInt(result, "damage"), 3, "FixedRollDamageResolver 应使用注入 damage roll。");
 

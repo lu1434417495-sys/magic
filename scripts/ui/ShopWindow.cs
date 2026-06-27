@@ -144,9 +144,7 @@ public partial class ShopWindow : Control
             HideWindow();
             return;
         }
-        GDictionary normalized = (GDictionary)window_data.Duplicate(true);
-        normalized["panel_kind"] = SettlementPanelKinds.ToPayloadValue(panelKind);
-        ShowShop(normalized);
+        ShowShop(window_data);
     }
 
     public void HideWindow()
@@ -408,7 +406,10 @@ public partial class ShopWindow : Control
     private GDictionary _build_confirm_payload()
     {
         ShopEntry entry = _get_selected_entry();
-        GDictionary payload = (GDictionary)entry.Payload.Duplicate(true);
+        GDictionary payload = RuntimePlainPayload.ProjectDictionary(
+            entry.Payload,
+            "ShopWindow.confirm_payload"
+        );
         string panelKind = SettlementPanelKinds.ToPayloadValue(_windowData.PanelKind);
         string submissionSource = SettlementSubmissionSources.ToPayloadValue(
             SettlementSubmissionSources.FromPanelKind(_windowData.PanelKind)
@@ -685,7 +686,7 @@ public partial class ShopWindow : Control
         public string CostLabel { get; private init; } = "";
         public bool IsEnabled { get; private init; }
         public string DisabledReason { get; private init; } = "";
-        public GDictionary Payload { get; private init; } = new();
+        public Dictionary<string, object> Payload { get; private init; } = new();
 
         public static ShopEntry From(GDictionary data)
         {
@@ -718,24 +719,33 @@ public partial class ShopWindow : Control
             if (!isEnabled && string.IsNullOrEmpty(disabledReason))
                 return null;
 
-            GDictionary payload = (GDictionary)data.Duplicate(true);
-            payload["entry_id"] = data["entry_id"].AsString().StripEdges();
-            payload["display_name"] = data["display_name"].AsString().StripEdges();
-            payload["summary_text"] = data["summary_text"].AsString().StripEdges();
-            payload["details_text"] = data["details_text"].AsString().StripEdges();
-            payload["state_label"] = data["state_label"].AsString().StripEdges();
-            payload["cost_label"] = data["cost_label"].AsString().StripEdges();
+            Dictionary<string, object> payload = RuntimePlainPayload.NormalizeDictionary(
+                data,
+                "ShopWindow.ShopEntry"
+            );
+            string entryId = data["entry_id"].AsString().StripEdges();
+            string displayName = data["display_name"].AsString().StripEdges();
+            string summaryText = data["summary_text"].AsString().StripEdges();
+            string detailsText = data["details_text"].AsString().StripEdges();
+            string stateLabel = data["state_label"].AsString().StripEdges();
+            string costLabel = data["cost_label"].AsString().StripEdges();
+            payload["entry_id"] = entryId;
+            payload["display_name"] = displayName;
+            payload["summary_text"] = summaryText;
+            payload["details_text"] = detailsText;
+            payload["state_label"] = stateLabel;
+            payload["cost_label"] = costLabel;
             payload["is_enabled"] = isEnabled;
             payload["disabled_reason"] = disabledReason;
 
             return new ShopEntry
             {
-                EntryId = payload["entry_id"].AsString(),
-                DisplayName = payload["display_name"].AsString(),
-                SummaryText = payload["summary_text"].AsString(),
-                DetailsText = payload["details_text"].AsString(),
-                StateLabel = payload["state_label"].AsString(),
-                CostLabel = payload["cost_label"].AsString(),
+                EntryId = entryId,
+                DisplayName = displayName,
+                SummaryText = summaryText,
+                DetailsText = detailsText,
+                StateLabel = stateLabel,
+                CostLabel = costLabel,
                 IsEnabled = isEnabled,
                 DisabledReason = disabledReason,
                 Payload = payload,

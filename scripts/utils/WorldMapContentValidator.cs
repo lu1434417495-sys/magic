@@ -951,7 +951,7 @@ public class WorldMapContentValidator : IDisposable
                 "WorldMapContentValidator.SuppressCachedResourceFinalizersForShutdown"
             );
         }
-        GodotContentOwnership.SuppressBorrowedContentForFinalizerDrain();
+        GodotContentOwnership.SuppressBorrowedContentForProcessExit();
     }
 
     private static bool ContainsStringName(

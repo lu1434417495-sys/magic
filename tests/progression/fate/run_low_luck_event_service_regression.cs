@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_low_luck_event_service_regression : SceneTree
 {
@@ -164,7 +163,12 @@ public partial class run_low_luck_event_service_regression : SceneTree
     {
         PartyState resolvedPartyState = partyState ?? BuildPartyState(hiddenLuckAtBirth);
         CharacterManagementModule manager = new();
-        manager.setup(resolvedPartyState, new GDictionary(), new GDictionary(), new GDictionary());
+        manager.setup(
+            resolvedPartyState,
+            new Dictionary<StringName, SkillDefinition>(),
+            new Dictionary<StringName, ProfessionDef>(),
+            new Dictionary<StringName, AchievementDef>()
+        );
         LowLuckEventService service = new();
         service.Setup(manager);
         return new LowLuckContext(resolvedPartyState, manager, service);

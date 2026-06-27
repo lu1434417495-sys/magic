@@ -415,10 +415,8 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         PartyWarehouseService warehouseService = new();
         warehouseService.Setup(partyState, BuildItemDefIndex(itemDefs));
 
-        GameSession gameSession = new()
-        {
-            _item_defs = itemDefs,
-        };
+        GameSession gameSession = new();
+        gameSession.ReplaceItemDefsForTests(itemDefs);
         GameRuntimeFacade runtime = new()
         {
             _game_session = gameSession,
@@ -601,7 +599,9 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
 
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         FixedSuccessOneDamageResolver damageResolver = new();
-        damageResolver.SetSkillDefs(facade.GetGameSession().GetSkillDefsTyped());
+        damageResolver.SetSkillDefinitions(
+            facade.GetGameSession().GetContentCatalogTyped().GetSkillDefinitionsTyped()
+        );
         runtime.ConfigureDamageResolverForTests(damageResolver);
     }
 

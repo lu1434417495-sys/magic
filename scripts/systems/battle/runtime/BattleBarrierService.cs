@@ -34,14 +34,14 @@ internal class BattleBarrierService
         int SaveDcOverride
     )
     {
-        public static BarrierApplyParams FromEffect(CombatEffectDef effectDef)
+        public static BarrierApplyParams FromEffect(CombatEffectDefinition effectDefinition)
         {
             return new BarrierApplyParams(
-                effectDef?.GetStringNameParamTyped("profile_id", "") ?? new StringName(""),
-                effectDef?.GetIntParamTyped("radius_cells", 0) ?? 0,
-                effectDef?.GetStringNameParamTyped("area_pattern", "") ?? new StringName(""),
-                effectDef?.GetIntParamTyped("duration_tu", 0) ?? 0,
-                effectDef?.GetIntParamTyped("save_dc", DEFAULT_SAVE_DC) ?? DEFAULT_SAVE_DC
+                effectDefinition?.GetStringNameParamTyped("profile_id", "") ?? new StringName(""),
+                effectDefinition?.GetIntParamTyped("radius_cells", 0) ?? 0,
+                effectDefinition?.GetStringNameParamTyped("area_pattern", "") ?? new StringName(""),
+                effectDefinition?.GetIntParamTyped("duration_tu", 0) ?? 0,
+                effectDefinition?.GetIntParamTyped("save_dc", DEFAULT_SAVE_DC) ?? DEFAULT_SAVE_DC
             );
         }
     }
@@ -74,8 +74,8 @@ internal class BattleBarrierService
     internal BattleLayeredBarrierApplyResult ApplyLayeredBarrierEffectResult(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        SkillDef skillDef,
-        CombatEffectDef effectDef,
+        SkillDefinition skillDefinition,
+        CombatEffectDefinition effectDefinition,
         BattleEventBatch batch
     )
     {
@@ -84,10 +84,10 @@ internal class BattleBarrierService
             runtime == null
             || runtime._state == null
             || sourceUnit == null
-            || effectDef == null
+            || effectDefinition == null
         )
             return BattleLayeredBarrierApplyResult.Empty();
-        BarrierApplyParams effectParams = BarrierApplyParams.FromEffect(effectDef);
+        BarrierApplyParams effectParams = BarrierApplyParams.FromEffect(effectDefinition);
         var profileId = effectParams.ProfileId;
         var profile = _contentRegistry.GetProfileDef(profileId);
         if (profile == null)
@@ -106,7 +106,7 @@ internal class BattleBarrierService
                 : profile.area_pattern;
         if (areaPattern == "")
             areaPattern = profile.area_pattern;
-        var durationTu = effectDef.duration_tu;
+        var durationTu = effectDefinition.DurationTu;
         if (durationTu <= 0)
             durationTu = Mathf.Max(
                 effectParams.DurationTuOverride > 0
@@ -116,14 +116,14 @@ internal class BattleBarrierService
             );
         if (durationTu <= 0)
             durationTu = DEFAULT_DURATION_TU;
-        var saveDc = _ResolveBarrierSaveDc(sourceUnit, effectDef, effectParams);
-        var instanceId = _BuildBarrierInstanceId(sourceUnit, skillDef, profile);
+        var saveDc = _ResolveBarrierSaveDc(sourceUnit, effectDefinition, effectParams);
+        var instanceId = _BuildBarrierInstanceId(sourceUnit, skillDefinition, profile);
         var instance = new BattleBarrierInstanceState();
         instance.BarrierInstanceId = instanceId;
         instance.ProfileId = profile.profile_id;
         instance.DisplayName = profile.display_name;
         instance.SourceUnitId = sourceUnit.unit_id;
-        instance.SourceSkillId = skillDef != null ? skillDef.skill_id : "";
+        instance.SourceSkillId = skillDefinition != null ? skillDefinition.SkillId : "";
         instance.AnchorMode = profile.AnchorModeKind;
         instance.AnchorCoord = anchorUnit.coord;
         instance.RadiusCells = radiusCells;
@@ -147,7 +147,7 @@ internal class BattleBarrierService
         var runtime = _ResolveRuntime();
         if (runtime == null || runtime._state == null || elapsedTu <= 0)
             return;
-        var expiredIds = new Godot.Collections.Array<StringName>();
+        var expiredIds = new StringNameList();
         foreach (StringName barrierKey in _SortedBarrierKeys())
         {
             if (!TryReadBarrier(barrierKey, out BattleBarrierInstanceState barrier))
@@ -218,8 +218,8 @@ internal class BattleBarrierService
     internal BattleBarrierInteractionResult ResolveSkillBarrierInteractionResult(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        SkillDef skillDef,
-        IEnumerable<CombatEffectDef> effectDefs,
+        SkillDefinition skillDefinition,
+        IEnumerable<CombatEffectDefinition> effectDefinitions,
         BattleEventBatch batch
     )
     {
@@ -229,8 +229,8 @@ internal class BattleBarrierService
             sourceUnit,
             targetUnit.coord,
             targetUnit.display_name,
-            skillDef,
-            effectDefs,
+            skillDefinition,
+            effectDefinitions,
             batch
         );
     }
@@ -238,8 +238,8 @@ internal class BattleBarrierService
     internal BattleBarrierInteractionResult ResolveGroundBarrierInteractionResult(
         BattleUnitState sourceUnit,
         Vector2I targetCoord,
-        SkillDef skillDef,
-        IEnumerable<CombatEffectDef> effectDefs,
+        SkillDefinition skillDefinition,
+        IEnumerable<CombatEffectDefinition> effectDefinitions,
         BattleEventBatch batch
     )
     {
@@ -247,8 +247,8 @@ internal class BattleBarrierService
             sourceUnit,
             targetCoord,
             $"({targetCoord.X}, {targetCoord.Y})",
-            skillDef,
-            effectDefs,
+            skillDefinition,
+            effectDefinitions,
             batch
         );
     }
@@ -257,8 +257,8 @@ internal class BattleBarrierService
         BattleUnitState sourceUnit,
         Vector2I targetCoord,
         string targetLabel,
-        SkillDef skillDef,
-        IEnumerable<CombatEffectDef> effectDefs,
+        SkillDefinition skillDefinition,
+        IEnumerable<CombatEffectDefinition> effectDefinitions,
         BattleEventBatch batch
     )
     {
@@ -278,12 +278,12 @@ internal class BattleBarrierService
             var activeLayer = _GetActiveLayer(barrier);
             if (activeLayer == null)
                 continue;
-            if (_SkillBreaksLayer(skillDef, activeLayer))
+            if (_SkillBreaksLayer(skillDefinition, activeLayer))
             {
                 _BreakActiveLayer(barrierKey, barrier, activeLayer, batch);
                 return new BattleBarrierInteractionResult(true, true);
             }
-            if (_SkillBreaksAnyRemainingLayer(skillDef, barrier))
+            if (_SkillBreaksAnyRemainingLayer(skillDefinition, barrier))
             {
                 _AppendLog(
                     batch,
@@ -292,8 +292,8 @@ internal class BattleBarrierService
                 return new BattleBarrierInteractionResult(true, true);
             }
             var categories = BattleEffectCategoryResolver.ResolveCategories(
-                skillDef,
-                effectDefs
+                skillDefinition,
+                effectDefinitions
             );
             var blockingLayer = _FindFirstBlockingLayer(barrier, categories);
             if (
@@ -305,7 +305,7 @@ internal class BattleBarrierService
                 continue;
             _AppendLog(
                 batch,
-                $"{sourceUnit.display_name} 的 {(skillDef != null ? skillDef.display_name : "效果")} 被{_GetBarrierLabel(barrier)}的 {_GetLayerLabel(blockingLayer)} 阻挡，无法影响 {targetLabel}。"
+                $"{sourceUnit.display_name} 的 {(skillDefinition != null ? skillDefinition.DisplayName : "效果")} 被{_GetBarrierLabel(barrier)}的 {_GetLayerLabel(blockingLayer)} 阻挡，无法影响 {targetLabel}。"
             );
             return new BattleBarrierInteractionResult(true, true);
         }
@@ -370,11 +370,11 @@ internal class BattleBarrierService
 
     private int _ResolveBarrierSaveDc(
         BattleUnitState sourceUnit,
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         BarrierApplyParams effectParams
     )
     {
-        var resolvedDc = BattleSaveResolver.ResolveSaveDc(sourceUnit, effectDef);
+        var resolvedDc = BattleSaveResolver.ResolveSaveDc(sourceUnit, effectDefinition);
         if (resolvedDc > 0)
             return resolvedDc;
         var paramDc = effectParams.SaveDcOverride;
@@ -383,13 +383,15 @@ internal class BattleBarrierService
 
     private StringName _BuildBarrierInstanceId(
         BattleUnitState sourceUnit,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BarrierProfileDef profile
     )
     {
         var sourceId = sourceUnit != null ? sourceUnit.unit_id.ToString() : "unknown";
         var skillId =
-            skillDef != null ? skillDef.skill_id.ToString() : profile.profile_id.ToString();
+            skillDefinition != null
+                ? skillDefinition.SkillId.ToString()
+                : profile.profile_id.ToString();
         return new StringName(
             $"{skillId}:{sourceId}:{_GetCurrentTu()}:{_GetBarrierStoreCount() + 1}"
         );
@@ -452,30 +454,30 @@ internal class BattleBarrierService
         return layer;
     }
 
-    private bool _SkillBreaksLayer(SkillDef skillDef, BattleBarrierLayerState layer)
+    private bool _SkillBreaksLayer(SkillDefinition skillDefinition, BattleBarrierLayerState layer)
     {
-        if (skillDef == null || layer == null)
+        if (skillDefinition == null || layer == null)
             return false;
         foreach (StringName breakerSkillId in layer.BreakerSkillIds)
         {
-            if (breakerSkillId == skillDef.skill_id)
+            if (breakerSkillId == skillDefinition.SkillId)
                 return true;
         }
         return false;
     }
 
     private bool _SkillBreaksAnyRemainingLayer(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BattleBarrierInstanceState barrier
     )
     {
-        if (skillDef == null || barrier == null)
+        if (skillDefinition == null || barrier == null)
             return false;
         foreach (BattleBarrierLayerState layer in barrier.GetLayersTyped())
         {
             if (layer == null || layer.Broken)
                 continue;
-            if (_SkillBreaksLayer(skillDef, layer))
+            if (_SkillBreaksLayer(skillDefinition, layer))
                 return true;
         }
         return false;
@@ -503,15 +505,6 @@ internal class BattleBarrierService
             }
         }
         return null;
-    }
-
-    private static Godot.Collections.Array<CombatEffectDef> DecodeEffectDefs(
-        Godot.Collections.Array effectDefs
-    )
-    {
-        return effectDefs != null
-            ? new Godot.Collections.Array<CombatEffectDef>(effectDefs)
-            : new Godot.Collections.Array<CombatEffectDef>();
     }
 
     private BattleBarrierLayerState _GetActiveLayer(BattleBarrierInstanceState barrier)

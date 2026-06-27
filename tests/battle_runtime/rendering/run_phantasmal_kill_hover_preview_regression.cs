@@ -24,7 +24,7 @@ public partial class run_phantasmal_kill_hover_preview_regression : SceneTree
 
     private void TestGroundHoverPreviewReportsFriendlyExecuteAndImmuneRisk()
     {
-        using SkillDef skill = MakeGroundPhantasmalKillSkill();
+        SkillDefinition skill = MakeGroundPhantasmalKillSkill();
         BattleUnitState caster = MakeUnit("preview_caster", "player", new Vector2I(0, 4), 200, 200);
         caster.known_active_skill_ids.Add(SkillId);
         caster.known_skill_level_map[SkillId] = 1;
@@ -43,7 +43,7 @@ public partial class run_phantasmal_kill_hover_preview_regression : SceneTree
         );
         fixture.Runtime.setup(
             null,
-            new Dictionary<StringName, SkillDef> { [SkillId] = skill }
+            new Dictionary<StringName, SkillDefinition> { [SkillId] = skill }
         );
         fixture.Runtime.SetupStateForTests(fixture.State);
 
@@ -93,7 +93,7 @@ public partial class run_phantasmal_kill_hover_preview_regression : SceneTree
         GDictionary hover = adapter.BuildHoverPreview(
             fixture.State,
             new Vector2I(4, 4),
-            skill.skill_id,
+            skill.SkillId,
             "",
             new Godot.Collections.Array<Vector2I> { new Vector2I(4, 4) },
             preview
@@ -101,8 +101,8 @@ public partial class run_phantasmal_kill_hover_preview_regression : SceneTree
         GDictionary snapshot = adapter.BuildSnapshot(
             fixture.State,
             new Vector2I(4, 4),
-            skill.skill_id,
-            skill.display_name,
+            skill.SkillId,
+            skill.DisplayName,
             "",
             new Godot.Collections.Array<Vector2I>(),
             1,
@@ -124,66 +124,58 @@ public partial class run_phantasmal_kill_hover_preview_regression : SceneTree
         _test.True(snapshotText.Contains("免疫"), "HUD selected-skill text should mention immune/no-op targets.");
 
         BattleTestFixture.DisposeBattlePreview(preview);
-        GodotSharpCleanup.DisposeGodotObject(command);
+        GodotSharpCleanup.ClearRuntimeReferences(command);
     }
 
-    private static SkillDef MakeGroundPhantasmalKillSkill()
+    private static SkillDefinition MakeGroundPhantasmalKillSkill()
     {
-        SkillDef skill = new()
-        {
-            skill_id = SkillId,
-            display_name = "Test Phantasmal Kill Hover",
-            max_level = 9,
-            non_core_max_level = 7,
-            combat_profile = new CombatSkillDef
+        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
+            "graded_save_execute",
+            effectTargetTeamFilter: "any",
+            damageTag: "psychic",
+            saveDcMode: "caster_spell",
+            saveDc: 0,
+            saveDcSourceAbility: "intelligence",
+            saveAbility: "willpower",
+            saveTag: "illusion",
+            savePartialOnSuccess: false,
+            parameters: new Dictionary<string, Variant>
             {
-                skill_id = SkillId,
-                target_mode = "ground",
-                target_team_filter = "any",
-                target_selection_mode = "single_coord",
-                range_value = 12,
-                area_pattern = "square",
-                area_value = 3,
-                ap_cost = 0,
-                mp_cost = 0,
-                cooldown_tu = 0,
-            },
-        };
-        skill.combat_profile.effect_defs.Add(MakePhantasmalKillEffect());
-        return TestResourceOwnership.Own(
-            skill,
-            "phantasmal_kill_hover_preview.ground_skill"
+                ["profile_id"] = "phantasmal_kill",
+                ["failure_execute_threshold_fixed"] = 50,
+                ["failure_execute_threshold_max_hp_percent"] = 25,
+                ["failure_damage_dice_count"] = 6,
+                ["failure_damage_dice_sides"] = 6,
+                ["failure_frightened_duration_tu"] = 60,
+                ["failure_reaction_lock_duration_tu"] = 30,
+                ["critical_failure_execute_threshold_max_hp_percent"] = 35,
+                ["critical_failure_damage_dice_count"] = 10,
+                ["critical_failure_damage_dice_sides"] = 6,
+                ["critical_failure_frightened_duration_tu"] = 90,
+                ["critical_failure_stunned_duration_tu"] = 30,
+                ["success_aftershock_duration_tu"] = 30,
+            }
+        );
+        return TestSkillDefinitionProjection.BuildSkill(
+            SkillId,
+            displayName: "Test Phantasmal Kill Hover",
+            maxLevel: 9,
+            nonCoreMaxLevel: 7,
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                SkillId,
+                effects: new[] { effect },
+                targetMode: "ground",
+                targetTeamFilter: "any",
+                targetSelectionMode: "single_coord",
+                rangeValue: 12,
+                areaPattern: "square",
+                areaValue: 3,
+                apCost: 0,
+                mpCost: 0,
+                cooldownTu: 0
+            )
         );
     }
-
-    private static CombatEffectDef MakePhantasmalKillEffect() => new()
-    {
-        effect_type = "graded_save_execute",
-        effect_target_team_filter = "any",
-        damage_tag = "psychic",
-        save_dc_mode = "caster_spell",
-        save_dc = 0,
-        save_dc_source_ability = "intelligence",
-        save_ability = "willpower",
-        save_tag = "illusion",
-        save_partial_on_success = false,
-        @params = new GDictionary
-        {
-            ["profile_id"] = "phantasmal_kill",
-            ["failure_execute_threshold_fixed"] = 50,
-            ["failure_execute_threshold_max_hp_percent"] = 25,
-            ["failure_damage_dice_count"] = 6,
-            ["failure_damage_dice_sides"] = 6,
-            ["failure_frightened_duration_tu"] = 60,
-            ["failure_reaction_lock_duration_tu"] = 30,
-            ["critical_failure_execute_threshold_max_hp_percent"] = 35,
-            ["critical_failure_damage_dice_count"] = 10,
-            ["critical_failure_damage_dice_sides"] = 6,
-            ["critical_failure_frightened_duration_tu"] = 90,
-            ["critical_failure_stunned_duration_tu"] = 30,
-            ["success_aftershock_duration_tu"] = 30,
-        },
-    };
 
     private static BattleUnitState MakeUnit(
         StringName unitId,

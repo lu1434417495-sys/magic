@@ -42,8 +42,10 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
         GDictionary firstResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             caster,
             target,
-            new GArray { FixedDamageEffect(1), DisjunctionEffect(28) },
-            new GDictionary { ["save_roll_override"] = 1, ["equipment_slot_override"] = "main_hand" }
+            new[] { FixedDamageEffect(1), DisjunctionEffect(28) },
+            DamageResolutionContext.FromDictionary(
+                new GDictionary { ["save_roll_override"] = 1, ["equipment_slot_override"] = "main_hand" }
+            )
         ));
         EquipmentInstanceState firstInstance = target
             .GetEquipmentView()
@@ -56,8 +58,10 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
         GDictionary secondResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             caster,
             target,
-            new GArray { FixedDamageEffect(1), DisjunctionEffect(28) },
-            new GDictionary { ["save_roll_override"] = 1, ["equipment_slot_override"] = "main_hand" }
+            new[] { FixedDamageEffect(1), DisjunctionEffect(28) },
+            DamageResolutionContext.FromDictionary(
+                new GDictionary { ["save_roll_override"] = 1, ["equipment_slot_override"] = "main_hand" }
+            )
         ));
         GArray events = DictArray(secondResult, "equipment_durability_events");
         _test.Eq(
@@ -92,13 +96,15 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
         GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             caster,
             target,
-            new GArray { DisjunctionEffect(28), FixedDamageEffect(1) },
-            new GDictionary
-            {
-                ["attack_success"] = true,
-                ["save_roll_override"] = 1,
-                ["equipment_slot_override"] = "main_hand",
-            }
+            new[] { DisjunctionEffect(28), FixedDamageEffect(1) },
+            DamageResolutionContext.FromDictionary(
+                new GDictionary
+                {
+                    ["attack_success"] = true,
+                    ["save_roll_override"] = 1,
+                    ["equipment_slot_override"] = "main_hand",
+                }
+            )
         ));
         EquipmentInstanceState equippedInstance = target
             .GetEquipmentView()
@@ -131,8 +137,10 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
         GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             caster,
             target,
-            new GArray { FixedDamageEffect(1), DisjunctionEffect(28) },
-            new GDictionary { ["save_roll_override"] = 20, ["equipment_slot_override"] = "main_hand" }
+            new[] { FixedDamageEffect(1), DisjunctionEffect(28) },
+            DamageResolutionContext.FromDictionary(
+                new GDictionary { ["save_roll_override"] = 20, ["equipment_slot_override"] = "main_hand" }
+            )
         ));
         EquipmentInstanceState equippedInstance = target
             .GetEquipmentView()
@@ -168,8 +176,10 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
         GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             caster,
             target,
-            new GArray { FixedDamageEffect(1), DisjunctionEffect(28) },
-            new GDictionary { ["save_roll_override"] = 11, ["equipment_slot_override"] = "main_hand" }
+            new[] { FixedDamageEffect(1), DisjunctionEffect(28) },
+            DamageResolutionContext.FromDictionary(
+                new GDictionary { ["save_roll_override"] = 11, ["equipment_slot_override"] = "main_hand" }
+            )
         ));
         GArray events = DictArray(result, "equipment_durability_events");
         _test.True(events.Count > 0, "稀有度加值豁免应记录裂解事件。");
@@ -188,32 +198,30 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
             _test.Eq(equippedInstance.current_durability, 120, "稀有度加值成功后耐久应保持满值。");
     }
 
-    private static CombatEffectDef FixedDamageEffect(int power) =>
-        new()
-        {
-            effect_type = "damage",
-            power = Mathf.Max(power, 0),
-            damage_tag = "magic",
-        };
+    private static CombatEffectDefinition FixedDamageEffect(int power) =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            power: Mathf.Max(power, 0),
+            damageTag: "magic"
+        );
 
-    private static CombatEffectDef DisjunctionEffect(int power) =>
-        new()
-        {
-            effect_type = "equipment_durability_damage",
-            power = Mathf.Max(power, 1),
-            effect_target_team_filter = "enemy",
-            save_dc_mode = "caster_spell",
-            save_ability = "willpower",
-            save_dc_source_ability = "intelligence",
-            save_tag = "equipment_disjunction",
-            require_damage_applied = true,
-            @params = new GDictionary
+    private static CombatEffectDefinition DisjunctionEffect(int power) =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "equipment_durability_damage",
+            power: Mathf.Max(power, 1),
+            effectTargetTeamFilter: "enemy",
+            saveDcMode: "caster_spell",
+            saveAbility: "willpower",
+            saveDcSourceAbility: "intelligence",
+            saveTag: "equipment_disjunction",
+            requireDamageApplied: true,
+            parameters: new Dictionary<string, Variant>
             {
                 ["max_damaged_items"] = 1,
                 ["slot_weight_map"] = new GDictionary { [new StringName("main_hand")] = 1 },
                 ["target_slots"] = new GStringNameArray { "main_hand" },
-            },
-        };
+            }
+        );
 
     private void EquipInstance(
         BattleUnitState unitState,

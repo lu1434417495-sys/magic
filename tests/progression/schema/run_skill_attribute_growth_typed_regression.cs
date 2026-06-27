@@ -111,51 +111,53 @@ public partial class run_skill_attribute_growth_typed_regression : SceneTree
     private void TestOfficialSkillResourcesExposeTypedAttributeGrowth()
     {
         ProgressionContentRegistry registry = new();
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = registry.GetSkillDefsTyped();
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            registry.GetSkillDefinitionsTyped();
 
         _test.True(
-            skillDefs.TryGetValue("basic_attack", out SkillDef basicAttack) && basicAttack != null,
-            "ProgressionContentRegistry 应暴露正式基础攻击资源。"
+            skillDefinitions.TryGetValue("basic_attack", out SkillDefinition basicAttack)
+                && basicAttack != null,
+            "ProgressionContentRegistry 应暴露正式基础攻击 DTO。"
         );
         _test.True(
-            skillDefs.TryGetValue("charge", out SkillDef charge) && charge != null,
-            "ProgressionContentRegistry 应暴露正式冲锋资源。"
+            skillDefinitions.TryGetValue("charge", out SkillDefinition charge) && charge != null,
+            "ProgressionContentRegistry 应暴露正式冲锋 DTO。"
         );
         _test.True(
-            skillDefs.TryGetValue("archer_multishot", out SkillDef archerMultishot)
+            skillDefinitions.TryGetValue("archer_multishot", out SkillDefinition archerMultishot)
                 && archerMultishot != null,
-            "ProgressionContentRegistry 应暴露正式连珠箭资源。"
+            "ProgressionContentRegistry 应暴露正式连珠箭 DTO。"
         );
         if (basicAttack == null || charge == null || archerMultishot == null)
             return;
 
         _test.Eq(
-            basicAttack.AttributeGrowthProgressTyped.Count,
+            basicAttack.AttributeGrowthProgress.Count,
             0,
             "基础攻击不应直接承接属性成长。"
         );
         _test.Eq(
-            charge.AttributeGrowthProgressTyped["agility"],
+            charge.AttributeGrowthProgress["agility"],
             100,
             "冲锋敏捷成长进度应来自正式资源。"
         );
         _test.Eq(
-            charge.AttributeGrowthProgressTyped["strength"],
+            charge.AttributeGrowthProgress["strength"],
             20,
             "冲锋力量成长进度应来自正式资源。"
         );
         _test.Eq(
-            archerMultishot.AttributeGrowthProgressTyped["agility"],
+            archerMultishot.AttributeGrowthProgress["agility"],
             80,
             "连珠箭满级应提供 80 点敏捷成长进度。"
         );
         _test.Eq(
-            archerMultishot.AttributeGrowthProgressTyped["strength"],
+            archerMultishot.AttributeGrowthProgress["strength"],
             40,
             "连珠箭满级应提供 40 点力量成长进度。"
         );
         _test.False(
-            archerMultishot.AttributeGrowthProgressTyped.ContainsKey("perception"),
+            archerMultishot.AttributeGrowthProgress.ContainsKey("perception"),
             "连珠箭不应再提供感知成长进度。"
         );
     }

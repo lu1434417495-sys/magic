@@ -103,7 +103,7 @@ public partial class run_faith_service_regression : SceneTree
     {
         PartyState partyState = BuildPartyState();
         var manager = new CharacterManagementModule();
-        manager.setup(partyState, new GDictionary(), new GDictionary(), new GDictionary());
+        manager.setup(partyState);
         var faithService = new FaithService();
 
         for (int targetRank = 1; targetRank <= 5; targetRank++)
@@ -237,7 +237,7 @@ public partial class run_faith_service_regression : SceneTree
     {
         PartyState partyState = BuildPartyState();
         var manager = new CharacterManagementModule();
-        manager.setup(partyState, new GDictionary(), new GDictionary(), new GDictionary());
+        manager.setup(partyState);
         var faithService = new FaithService();
         _test.True(
             faithService.GetFaithDeityDef(MisfortuneDeityId) != null,

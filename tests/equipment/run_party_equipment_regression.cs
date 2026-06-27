@@ -329,10 +329,10 @@ public partial class run_party_equipment_regression : SceneTree
         CharacterManagementModule baselineManager = new();
         baselineManager.setup(
             partyState,
-            SkillDefs(progressionRegistry),
-            ProfessionDefs(progressionRegistry),
-            AchievementDefs(progressionRegistry),
-            itemDefs
+            progressionRegistry.GetSkillDefinitionsTyped(),
+            progressionRegistry.GetProfessionDefsTyped(),
+            progressionRegistry.GetAchievementDefsTyped(),
+            BuildItemDefIndex(itemDefs)
         );
         AttributeSnapshot beforeSnapshot = baselineManager.GetMemberAttributeSnapshot("hero");
 
@@ -348,10 +348,10 @@ public partial class run_party_equipment_regression : SceneTree
         CharacterManagementModule manager = new();
         manager.setup(
             partyState,
-            SkillDefs(progressionRegistry),
-            ProfessionDefs(progressionRegistry),
-            AchievementDefs(progressionRegistry),
-            itemDefs
+            progressionRegistry.GetSkillDefinitionsTyped(),
+            progressionRegistry.GetProfessionDefsTyped(),
+            progressionRegistry.GetAchievementDefsTyped(),
+            BuildItemDefIndex(itemDefs)
         );
         AttributeSnapshot afterSnapshot = manager.GetMemberAttributeSnapshot("hero");
 
@@ -506,12 +506,24 @@ public partial class run_party_equipment_regression : SceneTree
         equipmentService.EquipItemTyped("hero", "iron_greatsword");
 
         CharacterManagementModule manager = new();
-        manager.setup(partyState, SkillDefs(progressionRegistry), ProfessionDefs(progressionRegistry), new GDictionary(), itemDefs);
+        manager.setup(
+            partyState,
+            progressionRegistry.GetSkillDefinitionsTyped(),
+            progressionRegistry.GetProfessionDefsTyped(),
+            new Dictionary<StringName, AchievementDef>(),
+            BuildItemDefIndex(itemDefs)
+        );
         AttributeSnapshot snapshot = manager.GetMemberAttributeSnapshot("hero");
 
         PartyState emptyParty = BuildPartyWithMember("blank", "Blank", 8);
         CharacterManagementModule emptyManager = new();
-        emptyManager.setup(emptyParty, SkillDefs(progressionRegistry), ProfessionDefs(progressionRegistry), new GDictionary(), itemDefs);
+        emptyManager.setup(
+            emptyParty,
+            progressionRegistry.GetSkillDefinitionsTyped(),
+            progressionRegistry.GetProfessionDefsTyped(),
+            new Dictionary<StringName, AchievementDef>(),
+            BuildItemDefIndex(itemDefs)
+        );
         AttributeSnapshot emptySnapshot = emptyManager.GetMemberAttributeSnapshot("blank");
 
         _test.Eq(
@@ -575,7 +587,13 @@ public partial class run_party_equipment_regression : SceneTree
         partyState.GetMemberState("hero").progression.unit_base_attributes.SetAttributeValue("agility", 18);
 
         CharacterManagementModule baselineManager = new();
-        baselineManager.setup(partyState, SkillDefs(progressionRegistry), ProfessionDefs(progressionRegistry), AchievementDefs(progressionRegistry), itemDefs);
+        baselineManager.setup(
+            partyState,
+            progressionRegistry.GetSkillDefinitionsTyped(),
+            progressionRegistry.GetProfessionDefsTyped(),
+            progressionRegistry.GetAchievementDefsTyped(),
+            BuildItemDefIndex(itemDefs)
+        );
         AttributeSnapshot baselineSnapshot = baselineManager.GetMemberAttributeSnapshot("hero");
         _test.Eq(baselineSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass)), 12, "Agility 18 without armor should produce AC 12.");
         _test.Eq(baselineSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorMaxDexBonus)), -1, "No armor should leave max dex at -1.");
@@ -588,7 +606,13 @@ public partial class run_party_equipment_regression : SceneTree
         var leatherResult = equipmentService.EquipItemTyped("hero", "leather_jerkin");
         _test.True(leatherResult.Success, "leather_jerkin should equip.");
         CharacterManagementModule leatherManager = new();
-        leatherManager.setup(partyState, SkillDefs(progressionRegistry), ProfessionDefs(progressionRegistry), AchievementDefs(progressionRegistry), itemDefs);
+        leatherManager.setup(
+            partyState,
+            progressionRegistry.GetSkillDefinitionsTyped(),
+            progressionRegistry.GetProfessionDefsTyped(),
+            progressionRegistry.GetAchievementDefsTyped(),
+            BuildItemDefIndex(itemDefs)
+        );
         AttributeSnapshot leatherSnapshot = leatherManager.GetMemberAttributeSnapshot("hero");
         _test.Eq(leatherSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorMaxDexBonus)), 6, "leather_jerkin max dex.");
         _test.Eq(leatherSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass)), 14, "leather_jerkin should not cap agility 18.");
@@ -596,7 +620,13 @@ public partial class run_party_equipment_regression : SceneTree
         var scaleResult = equipmentService.EquipItemTyped("hero", "iron_scale_mail");
         _test.True(scaleResult.Success, "iron_scale_mail should replace body armor.");
         CharacterManagementModule scaleManager = new();
-        scaleManager.setup(partyState, SkillDefs(progressionRegistry), ProfessionDefs(progressionRegistry), AchievementDefs(progressionRegistry), itemDefs);
+        scaleManager.setup(
+            partyState,
+            progressionRegistry.GetSkillDefinitionsTyped(),
+            progressionRegistry.GetProfessionDefsTyped(),
+            progressionRegistry.GetAchievementDefsTyped(),
+            BuildItemDefIndex(itemDefs)
+        );
         AttributeSnapshot scaleSnapshot = scaleManager.GetMemberAttributeSnapshot("hero");
         _test.Eq(scaleSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorMaxDexBonus)), 3, "iron_scale_mail max dex.");
         _test.Eq(scaleSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass)), 15, "iron_scale_mail should cap agility AC to +3.");
@@ -1094,15 +1124,6 @@ public partial class run_party_equipment_regression : SceneTree
 
     private static GDictionary ItemDefs() => ProjectItemDefs(new ItemContentRegistry().GetItemDefsTyped());
 
-    private static GDictionary SkillDefs(ProgressionContentRegistry registry) =>
-        ProjectSkillDefs(registry.GetSkillDefsTyped());
-
-    private static GDictionary ProfessionDefs(ProgressionContentRegistry registry) =>
-        ProjectProfessionDefs(registry.GetProfessionDefsTyped());
-
-    private static GDictionary AchievementDefs(ProgressionContentRegistry registry) =>
-        ProjectAchievementDefs(registry.GetAchievementDefsTyped());
-
     private static GDictionary ProjectItemDefs(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
     {
         GDictionary result = new();
@@ -1113,48 +1134,6 @@ public partial class run_party_equipment_regression : SceneTree
             if (itemId == "" || itemDef == null)
                 continue;
             result[itemId] = itemDef;
-        }
-        return result;
-    }
-
-    private static GDictionary ProjectSkillDefs(IReadOnlyDictionary<StringName, SkillDef> skillDefs)
-    {
-        GDictionary result = new();
-        if (skillDefs == null)
-            return result;
-        foreach ((StringName skillId, SkillDef skillDef) in skillDefs)
-        {
-            if (skillId == "" || skillDef == null)
-                continue;
-            result[skillId] = skillDef;
-        }
-        return result;
-    }
-
-    private static GDictionary ProjectProfessionDefs(IReadOnlyDictionary<StringName, ProfessionDef> professionDefs)
-    {
-        GDictionary result = new();
-        if (professionDefs == null)
-            return result;
-        foreach ((StringName professionId, ProfessionDef professionDef) in professionDefs)
-        {
-            if (professionId == "" || professionDef == null)
-                continue;
-            result[professionId] = professionDef;
-        }
-        return result;
-    }
-
-    private static GDictionary ProjectAchievementDefs(IReadOnlyDictionary<StringName, AchievementDef> achievementDefs)
-    {
-        GDictionary result = new();
-        if (achievementDefs == null)
-            return result;
-        foreach ((StringName achievementId, AchievementDef achievementDef) in achievementDefs)
-        {
-            if (achievementId == "" || achievementDef == null)
-                continue;
-            result[achievementId] = achievementDef.ToDictionary();
         }
         return result;
     }

@@ -34,7 +34,7 @@ public partial class GameSession : Node
     private static readonly StringName RandomStartSkillTierAdvanced = "advanced";
     private static readonly StringName RandomStartSkillTierUltimate = "ultimate";
 
-    private static readonly GDictionary RandomStartSkillLevelByTier = new()
+    private static readonly Dictionary<StringName, int> RandomStartSkillLevelByTier = new()
     {
         [RandomStartSkillTierBasic] = 3,
         [RandomStartSkillTierIntermediate] = 2,
@@ -129,6 +129,35 @@ public partial class GameSession : Node
         }
     }
 
+    private readonly struct SaveIndexFileSignature
+    {
+        public static SaveIndexFileSignature Missing => new(false, -1, -1, "");
+
+        public SaveIndexFileSignature(
+            bool exists,
+            int modifiedTime,
+            int size,
+            string fingerprint
+        )
+        {
+            Exists = exists;
+            ModifiedTime = modifiedTime;
+            Size = size;
+            Fingerprint = fingerprint ?? "";
+        }
+
+        public bool Exists { get; }
+        public int ModifiedTime { get; }
+        public int Size { get; }
+        public string Fingerprint { get; }
+
+        public bool Matches(SaveIndexFileSignature other) =>
+            Exists == other.Exists
+            && ModifiedTime == other.ModifiedTime
+            && Size == other.Size
+            && string.Equals(Fingerprint, other.Fingerprint, StringComparison.Ordinal);
+    }
+
     private static readonly StringName WorldEquipmentInstanceSerialKey =
         "next_equipment_instance_serial";
     private static readonly StringName SaveDirtyScopeWorldData = "world_data";
@@ -146,10 +175,10 @@ public partial class GameSession : Node
 
     internal string _active_save_id = "";
     internal string _active_save_path = "";
-    private readonly RuntimePayloadStore _activeSaveMeta = new();
+    private readonly Dictionary<string, object> _activeSaveMeta = new(StringComparer.Ordinal);
     internal string _generation_config_path = "";
     internal WorldMapGenerationConfig _generation_config;
-    private readonly RuntimePayloadStore _worldData = new();
+    private readonly Dictionary<string, object> _worldData = new(StringComparer.Ordinal);
     internal Vector2I _player_coord = Vector2I.Zero;
     internal string _player_faction_id = "player";
     internal PartyState _party_state = new();
@@ -171,7 +200,6 @@ public partial class GameSession : Node
     internal BattleSpecialProfileRegistry _battle_special_profile_registry = new();
     internal GameRoot _game_root = new();
 
-    public GDictionary _skill_defs = new();
     public GDictionary _profession_defs = new();
     public GDictionary _achievement_defs = new();
     public GDictionary _quest_defs = new();
@@ -180,10 +208,16 @@ public partial class GameSession : Node
     public GDictionary _enemy_templates = new();
     public GDictionary _enemy_ai_brains = new();
     public GDictionary _wild_encounter_rosters = new();
-    public GDictionary _content_validation_snapshot = new();
     private ContentValidationSnapshotData _contentValidationSnapshotData = new();
+    private Dictionary<StringName, SkillDefinition> _skillDefinitionIndex = new();
+    private Dictionary<StringName, ProfessionDef> _professionDefIndex = new();
     private Dictionary<StringName, AchievementDef> _achievementDefIndex = new();
     private Dictionary<StringName, QuestDef> _questDefIndex = new();
+    private Dictionary<StringName, ItemDef> _itemDefIndex = new();
+    private Dictionary<StringName, RecipeDef> _recipeDefIndex = new();
+    private Dictionary<StringName, EnemyTemplateDef> _enemyTemplateIndex = new();
+    private Dictionary<StringName, EnemyAiBrainDef> _enemyAiBrainIndex = new();
+    private Dictionary<StringName, WildEncounterRosterDef> _wildEncounterRosterIndex = new();
 
     public SaveSerializer _save_serializer = new();
     private SaveRepository _save_repository;
@@ -192,9 +226,9 @@ public partial class GameSession : Node
     private IGameLogSink _log_sink;
     private bool _disposed;
 
-    public GDictionaryArray _save_index_entries_cache = new();
-    public bool _save_index_cache_valid;
-    public GDictionary _save_index_cache_signature = new();
+    private List<Dictionary<string, object>> _saveIndexEntriesCache = new();
+    private bool _saveIndexCacheValid;
+    private SaveIndexFileSignature _saveIndexCacheSignature = SaveIndexFileSignature.Missing;
 
     public bool fail_payload_write;
 
@@ -453,7 +487,10 @@ public partial class GameSession : Node
     {
         if (visited == null)
             return;
-        SuppressResourceValues(_progression_content_registry?.GetSkillDefsTyped(), visited);
+        SuppressResourceValues(
+            _progression_content_registry?.GetLoadedSkillResourcesForFinalizerDrain(),
+            visited
+        );
         SuppressResourceValues(_progression_content_registry?.GetProfessionDefsTyped(), visited);
         SuppressResourceValues(_progression_content_registry?.GetAchievementDefsTyped(), visited);
         SuppressResourceValues(_progression_content_registry?.GetQuestDefsTyped(), visited);
@@ -483,7 +520,6 @@ public partial class GameSession : Node
         var visited = new HashSet<GodotObject>();
         SuppressOwnedContentFinalizerGraphsForShutdown(visited);
         SuppressGodotObjectFinalizerGraph(_generation_config, visited);
-        SuppressResourceDictionaryProjectionFinalizers(_skill_defs, visited);
         SuppressResourceDictionaryProjectionFinalizers(_profession_defs, visited);
         SuppressResourceDictionaryProjectionFinalizers(_achievement_defs, visited);
         SuppressResourceDictionaryProjectionFinalizers(_quest_defs, visited);
@@ -508,12 +544,25 @@ public partial class GameSession : Node
         }
     }
 
+    private static void SuppressResourceValues(
+        IEnumerable<Resource> resources,
+        HashSet<GodotObject> visited
+    )
+    {
+        if (resources == null || visited == null)
+            return;
+        foreach (Resource contentDef in resources)
+        {
+            if (contentDef != null)
+                SuppressGodotObjectFinalizerGraph(contentDef, visited);
+        }
+    }
+
     private void ClearSessionGodotObjectReferences(HashSet<GodotObject> finalizerSuppressionVisited)
     {
         if (finalizerSuppressionVisited != null)
             SuppressGodotObjectFinalizerGraph(_generation_config, finalizerSuppressionVisited);
         _generation_config = null;
-        ClearResourceDictionaryProjection(_skill_defs, finalizerSuppressionVisited);
         ClearResourceDictionaryProjection(_profession_defs, finalizerSuppressionVisited);
         ClearResourceDictionaryProjection(_achievement_defs, finalizerSuppressionVisited);
         ClearResourceDictionaryProjection(_quest_defs, finalizerSuppressionVisited);
@@ -522,7 +571,7 @@ public partial class GameSession : Node
         ClearResourceDictionaryProjection(_enemy_templates, finalizerSuppressionVisited);
         ClearResourceDictionaryProjection(_enemy_ai_brains, finalizerSuppressionVisited);
         ClearResourceDictionaryProjection(_wild_encounter_rosters, finalizerSuppressionVisited);
-        _skill_defs = new GDictionary();
+        _skillDefinitionIndex.Clear();
         _profession_defs = new GDictionary();
         _achievement_defs = new GDictionary();
         _quest_defs = new GDictionary();
@@ -531,11 +580,15 @@ public partial class GameSession : Node
         _enemy_templates = new GDictionary();
         _enemy_ai_brains = new GDictionary();
         _wild_encounter_rosters = new GDictionary();
-        _content_validation_snapshot.Clear();
-        _content_validation_snapshot = new GDictionary();
         _contentValidationSnapshotData = new ContentValidationSnapshotData();
+        _professionDefIndex.Clear();
         _achievementDefIndex.Clear();
         _questDefIndex.Clear();
+        _itemDefIndex.Clear();
+        _recipeDefIndex.Clear();
+        _enemyTemplateIndex.Clear();
+        _enemyAiBrainIndex.Clear();
+        _wildEncounterRosterIndex.Clear();
     }
 
     private static void ClearResourceDictionaryProjection(
@@ -957,8 +1010,8 @@ public partial class GameSession : Node
         GenerateUniqueSaveId((int)Time.GetUnixTimeFromSystem(), prefix);
 
     public GDictionary GetContentValidationSnapshot() =>
-        RuntimePayloadCopy.Dictionary(
-            _content_validation_snapshot,
+        MarkRuntimePayload(
+            _contentValidationSnapshotData.ToDictionary(),
             "GameSession.GetContentValidationSnapshot"
         );
 
@@ -987,6 +1040,17 @@ public partial class GameSession : Node
     }
 
     internal ItemContentRegistry GetItemContentRegistryForTests() => _item_content_registry;
+
+    internal void ReplaceItemDefsForTests(GDictionary itemDefs)
+    {
+        _itemDefIndex = BuildItemDefIndex(itemDefs);
+        _item_defs = RegisterContentProjectionWrapper(
+            itemDefs != null ? (GDictionary)itemDefs.Duplicate(true) : new GDictionary(),
+            "GameSession.ReplaceItemDefsForTests"
+        );
+        RefreshRecipeContent();
+        RefreshContentCatalog();
+    }
 
     internal void SetItemContentRegistryForTests(ItemContentRegistry registry)
     {
@@ -1081,23 +1145,44 @@ public partial class GameSession : Node
         ReplaceWorldDataPayload(worldData ?? new GDictionary());
     }
 
-    private GDictionary ActiveSaveMetaPayload() => _activeSaveMeta.ProjectPayload();
+    private GDictionary ActiveSaveMetaPayload() =>
+        RuntimePlainPayload.ProjectDictionary(_activeSaveMeta, "GameSession.active_save_meta");
 
     private void ReplaceActiveSaveMetaPayload(GDictionary payload)
     {
-        _activeSaveMeta.ReplaceWithPayload(payload ?? new GDictionary());
+        ReplacePlainPayload(
+            _activeSaveMeta,
+            payload ?? new GDictionary(),
+            "GameSession.active_save_meta"
+        );
     }
 
     private void ClearActiveSaveMetaPayload() => _activeSaveMeta.Clear();
 
-    private GDictionary WorldDataPayload() => _worldData.ProjectPayload();
+    private GDictionary WorldDataPayload() =>
+        RuntimePlainPayload.ProjectDictionary(_worldData, "GameSession.world_data");
 
     private void ReplaceWorldDataPayload(GDictionary payload)
     {
-        _worldData.ReplaceWithPayload(payload ?? new GDictionary());
+        ReplacePlainPayload(_worldData, payload ?? new GDictionary(), "GameSession.world_data");
     }
 
     private void ClearWorldDataPayload() => _worldData.Clear();
+
+    private static void ReplacePlainPayload(
+        Dictionary<string, object> target,
+        GDictionary payload,
+        string ownerPath
+    )
+    {
+        target.Clear();
+        Dictionary<string, object> normalized =
+            RuntimePlainPayload.NormalizeDictionary(payload, ownerPath);
+        foreach (KeyValuePair<string, object> entry in normalized)
+        {
+            target[entry.Key] = entry.Value;
+        }
+    }
 
     public GDictionary GetWorldData() => WorldDataPayload();
 
@@ -1304,9 +1389,11 @@ public partial class GameSession : Node
             ?? new ProgressionIdentityCatalogData();
     }
 
-    public IReadOnlyDictionary<StringName, SkillDef> GetSkillDefsTyped()
+    public IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionsTyped()
     {
-        return BuildSkillDefIndex(_skill_defs);
+        if (_skillDefinitionIndex.Count > 0 || _progression_content_registry == null)
+            return new Dictionary<StringName, SkillDefinition>(_skillDefinitionIndex);
+        return _progression_content_registry.GetSkillDefinitionsTyped();
     }
 
     public IReadOnlyDictionary<StringName, TraitDef> GetTraitDefsTyped()
@@ -1320,54 +1407,61 @@ public partial class GameSession : Node
             ? _battle_special_profile_registry.GetSnapshot()
             : new GDictionary();
 
+    public GDictionary GetBattleSpecialProfileRegistryRuntimeSnapshot() =>
+        _battle_special_profile_registry != null
+            ? _battle_special_profile_registry.GetRuntimeSnapshotPayload()
+            : new GDictionary();
+
+    internal IBattleSpecialProfileView GetBattleSpecialProfileRuntimeView() =>
+        _battle_special_profile_registry != null
+            ? _battle_special_profile_registry.BuildRuntimeProfileView()
+            : BattleSpecialProfileRuntimeView.Empty;
+
     public IReadOnlyDictionary<StringName, ProfessionDef> GetProfessionDefsTyped()
     {
-        return BuildProfessionDefIndex(_profession_defs);
+        return new Dictionary<StringName, ProfessionDef>(_professionDefIndex);
     }
 
     public IReadOnlyDictionary<StringName, AchievementDef> GetAchievementDefsTyped()
     {
-        if (_achievementDefIndex.Count == 0 && _achievement_defs != null && _achievement_defs.Count > 0)
-            _achievementDefIndex = BuildAchievementDefIndex(_achievement_defs);
         return new Dictionary<StringName, AchievementDef>(_achievementDefIndex);
     }
 
     public QuestDef GetQuestDef(StringName quest_id)
     {
-        if (quest_id == "" || _quest_defs == null)
+        if (quest_id == "")
             return null;
-        Dictionary<StringName, QuestDef> questDefs = BuildQuestDefIndex(_quest_defs);
-        return questDefs.TryGetValue(quest_id, out QuestDef questDef) ? questDef : null;
+        return _questDefIndex.TryGetValue(quest_id, out QuestDef questDef) ? questDef : null;
     }
 
     public IReadOnlyDictionary<StringName, QuestDef> GetQuestDefsTyped()
     {
-        return BuildQuestDefIndex(_quest_defs);
+        return new Dictionary<StringName, QuestDef>(_questDefIndex);
     }
 
     public IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped()
     {
-        return BuildItemDefIndex(_item_defs);
+        return new Dictionary<StringName, ItemDef>(_itemDefIndex);
     }
 
     public IReadOnlyDictionary<StringName, RecipeDef> GetRecipeDefsTyped()
     {
-        return BuildRecipeDefIndex(_recipe_defs);
+        return new Dictionary<StringName, RecipeDef>(_recipeDefIndex);
     }
 
     public IReadOnlyDictionary<StringName, EnemyTemplateDef> GetEnemyTemplatesTyped()
     {
-        return BuildEnemyTemplateIndex(_enemy_templates);
+        return new Dictionary<StringName, EnemyTemplateDef>(_enemyTemplateIndex);
     }
 
     public IReadOnlyDictionary<StringName, EnemyAiBrainDef> GetEnemyAiBrainsTyped()
     {
-        return BuildEnemyAiBrainIndex(_enemy_ai_brains);
+        return new Dictionary<StringName, EnemyAiBrainDef>(_enemyAiBrainIndex);
     }
 
     public IReadOnlyDictionary<StringName, WildEncounterRosterDef> GetWildEncounterRostersTyped()
     {
-        return BuildWildEncounterRosterIndex(_wild_encounter_rosters);
+        return new Dictionary<StringName, WildEncounterRosterDef>(_wildEncounterRosterIndex);
     }
 
     public int InstallTestContentDef(
@@ -1385,8 +1479,7 @@ public partial class GameSession : Node
 
         RegisterStaticContentOwnership(content_def);
         registry[content_key] = content_def;
-        if (domain_id == "quest")
-            _questDefIndex = BuildQuestDefIndex(_quest_defs);
+        RebuildTypedContentIndexForDomain(domain_id);
         if (refreshBattleSpecialProfiles)
             RefreshBattleSpecialProfiles();
         RefreshContentCatalog();
@@ -1408,8 +1501,7 @@ public partial class GameSession : Node
 
         RegisterStaticContentOwnership(content_def);
         registry[content_key] = content_def;
-        if (domain_id == "quest")
-            _questDefIndex = BuildQuestDefIndex(_quest_defs);
+        RebuildTypedContentIndexForDomain(domain_id);
         if (refreshBattleSpecialProfiles)
             RefreshBattleSpecialProfiles();
         RefreshContentCatalog();
@@ -1426,9 +1518,8 @@ public partial class GameSession : Node
         switch (domain_id.ToString())
         {
             case "skill":
-                registry = _skill_defs;
-                refreshBattleSpecialProfiles = true;
-                return true;
+                registry = new GDictionary();
+                return false;
             case "profession":
                 registry = _profession_defs;
                 return true;
@@ -1457,6 +1548,49 @@ public partial class GameSession : Node
                 registry = new GDictionary();
                 return false;
         }
+    }
+
+    private void RebuildTypedContentIndexForDomain(StringName domain_id)
+    {
+        switch (domain_id.ToString())
+        {
+            case "profession":
+                _professionDefIndex = BuildProfessionDefIndex(_profession_defs);
+                break;
+            case "achievement":
+                _achievementDefIndex = BuildAchievementDefIndex(_achievement_defs);
+                break;
+            case "quest":
+                _questDefIndex = BuildQuestDefIndex(_quest_defs);
+                break;
+            case "item":
+                _itemDefIndex = BuildItemDefIndex(_item_defs);
+                break;
+            case "recipe":
+                _recipeDefIndex = BuildRecipeDefIndex(_recipe_defs);
+                break;
+            case "enemy_template":
+                _enemyTemplateIndex = BuildEnemyTemplateIndex(_enemy_templates);
+                break;
+            case "enemy_ai_brain":
+                _enemyAiBrainIndex = BuildEnemyAiBrainIndex(_enemy_ai_brains);
+                break;
+            case "wild_encounter_roster":
+                _wildEncounterRosterIndex = BuildWildEncounterRosterIndex(
+                    _wild_encounter_rosters
+                );
+                break;
+        }
+    }
+
+    internal void SetSkillDefinitionForTests(
+        StringName skillId,
+        SkillDefinition skillDefinition
+    )
+    {
+        if (skillId == "" || skillDefinition == null)
+            return;
+        _skillDefinitionIndex[skillId] = skillDefinition;
     }
 
     public int SaveWorldState() => SaveGameState();
@@ -1772,7 +1906,7 @@ public partial class GameSession : Node
         return RacialSkillGrantService.BackfillParty(
             party_state,
             GetProgressionIdentityCatalogTyped(),
-            GetSkillDefsTyped(),
+            GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             GetProfessionDefsTyped()
         );
     }
@@ -1782,7 +1916,7 @@ public partial class GameSession : Node
         return RacialSkillGrantService.RevokeOrphanParty(
             party_state,
             GetProgressionIdentityCatalogTyped(),
-            GetSkillDefsTyped(),
+            GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             GetProfessionDefsTyped()
         );
     }
@@ -1963,7 +2097,10 @@ public partial class GameSession : Node
     public GDictionaryArray LoadSaveIndexEntries()
     {
         if (IsSaveIndexCacheCurrent())
-            return DuplicateSaveIndexEntries(_save_index_entries_cache);
+            return ProjectSaveIndexEntriesCache(
+                _saveIndexEntriesCache,
+                "GameSession.LoadSaveIndexEntries.cache"
+            );
 
         bool shouldRewriteIndex = false;
         GArray rawEntries = new();
@@ -2039,7 +2176,10 @@ public partial class GameSession : Node
     public GDictionaryArray PeekSaveIndexEntriesReadOnly()
     {
         if (IsSaveIndexCacheCurrent())
-            return DuplicateSaveIndexEntries(_save_index_entries_cache);
+            return ProjectSaveIndexEntriesCache(
+                _saveIndexEntriesCache,
+                "GameSession.PeekSaveIndexEntriesReadOnly.cache"
+            );
         if (!FileAccess.FileExists(SaveIndexPath))
             return new GDictionaryArray();
 
@@ -2112,66 +2252,29 @@ public partial class GameSession : Node
 
     private bool IsSaveIndexCacheCurrent()
     {
-        if (!_save_index_cache_valid)
+        if (!_saveIndexCacheValid)
             return false;
-        GDictionary currentSignature = GetSaveIndexFileSignature();
-        return ReadExactBool(_save_index_cache_signature, "exists") == ReadExactBool(currentSignature, "exists")
-            && GetInt(_save_index_cache_signature, "modified_time", -1)
-                == GetInt(currentSignature, "modified_time", -1)
-            && GetInt(_save_index_cache_signature, "size", -1)
-                == GetInt(currentSignature, "size", -1)
-            && GetString(_save_index_cache_signature, "fingerprint")
-                == GetString(currentSignature, "fingerprint");
+        return _saveIndexCacheSignature.Matches(GetSaveIndexFileSignature());
     }
 
     private void SetSaveIndexCache(GDictionaryArray entries)
     {
-        _save_index_entries_cache = DuplicateSaveIndexEntries(entries);
-        _save_index_cache_valid = true;
-        _save_index_cache_signature = GetSaveIndexFileSignature();
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-            _save_index_entries_cache,
-            "GameSession.SetSaveIndexCache.entries"
-        );
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-            _save_index_cache_signature,
-            "GameSession.SetSaveIndexCache.signature"
-        );
+        _saveIndexEntriesCache = NormalizeSaveIndexEntryCache(entries);
+        _saveIndexCacheValid = true;
+        _saveIndexCacheSignature = GetSaveIndexFileSignature();
     }
 
     private void InvalidateSaveIndexCache()
     {
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-            _save_index_entries_cache,
-            "GameSession.InvalidateSaveIndexCache.entries"
-        );
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-            _save_index_cache_signature,
-            "GameSession.InvalidateSaveIndexCache.signature"
-        );
-        _save_index_entries_cache.Clear();
-        _save_index_cache_valid = false;
-        _save_index_cache_signature = MarkRuntimePayload(
-            new GDictionary(),
-            "GameSession.InvalidateSaveIndexCache.new_signature"
-        );
+        _saveIndexEntriesCache.Clear();
+        _saveIndexCacheValid = false;
+        _saveIndexCacheSignature = SaveIndexFileSignature.Missing;
     }
 
-    private GDictionary GetSaveIndexFileSignature()
+    private SaveIndexFileSignature GetSaveIndexFileSignature()
     {
         if (!FileAccess.FileExists(SaveIndexPath))
-        {
-            return MarkRuntimePayload(
-                new GDictionary
-            {
-                ["exists"] = false,
-                ["modified_time"] = -1,
-                ["size"] = -1,
-                ["fingerprint"] = "",
-                },
-                "GameSession.GetSaveIndexFileSignature.missing"
-            );
-        }
+            return SaveIndexFileSignature.Missing;
 
         int size = -1;
         string fingerprint = "";
@@ -2191,15 +2294,11 @@ public partial class GameSession : Node
                 GodotObjectLifecycle.DisposeGodotObject(indexFile);
             }
         }
-        return MarkRuntimePayload(
-            new GDictionary
-        {
-            ["exists"] = true,
-            ["modified_time"] = (int)FileAccess.GetModifiedTime(SaveIndexPath),
-            ["size"] = size,
-            ["fingerprint"] = fingerprint,
-            },
-            "GameSession.GetSaveIndexFileSignature.current"
+        return new SaveIndexFileSignature(
+            true,
+            (int)FileAccess.GetModifiedTime(SaveIndexPath),
+            size,
+            fingerprint
         );
     }
 
@@ -2249,6 +2348,46 @@ public partial class GameSession : Node
             "GameSession.DuplicateSaveIndexEntries"
         );
         return duplicatedEntries;
+    }
+
+    private List<Dictionary<string, object>> NormalizeSaveIndexEntryCache(
+        GDictionaryArray entries
+    )
+    {
+        var result = new List<Dictionary<string, object>>();
+        if (entries == null)
+            return result;
+        foreach (GDictionary entry in entries)
+        {
+            result.Add(
+                RuntimePlainPayload.NormalizeDictionary(
+                    entry,
+                    "GameSession.SaveIndexCache.entry"
+                )
+            );
+        }
+        return result;
+    }
+
+    private GDictionaryArray ProjectSaveIndexEntriesCache(
+        IEnumerable<Dictionary<string, object>> entries,
+        string reason
+    )
+    {
+        GDictionaryArray projectedEntries = new();
+        if (entries != null)
+        {
+            int index = 0;
+            foreach (Dictionary<string, object> entry in entries)
+            {
+                projectedEntries.Add(
+                    RuntimePlainPayload.ProjectDictionary(entry, $"{reason}[{index}]")
+                );
+                index++;
+            }
+        }
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(projectedEntries, reason);
+        return projectedEntries;
     }
 
     private bool SaveIndexEntriesMatch(
@@ -2893,25 +3032,31 @@ public partial class GameSession : Node
         };
         warriorProgress.AddCoreSkill(starting_skill_id);
         progression.SetProfessionProgress(warriorProgress);
-        SkillDef randomStartingSkillDef = GrantRandomStartingBookSkill(progression);
+        SkillDefinition randomStartingSkillDefinition = GrantRandomStartingBookSkill(progression);
         RefreshProgressionRuntimeState(progression);
 
         memberState.progression = progression;
-        EquipStartingWeaponForSkill(memberState, randomStartingSkillDef);
+        EquipStartingWeaponForSkill(memberState, randomStartingSkillDefinition);
         return memberState;
     }
 
-    private SkillDef GrantRandomStartingBookSkill(UnitProgress progression)
+    private SkillDefinition GrantRandomStartingBookSkill(UnitProgress progression)
     {
-        if (progression == null || _skill_defs.Count == 0)
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            GetRandomStartSkillDefinitions();
+        if (progression == null || skillDefinitions.Count == 0)
             return null;
 
         GStringNameArray eligibleSkillIds = new();
-        foreach (string skillKey in ProgressionDataUtils.sorted_string_keys(_skill_defs))
+        foreach (StringName skillId in GetSortedSkillDefinitionIds(skillDefinitions))
         {
-            StringName skillId = new(skillKey);
-            SkillDef skillDef = GetObject<SkillDef>(_skill_defs, skillId);
-            if (!IsRandomStartBookSkillCandidate(skillDef, progression))
+            SkillDefinition skillDefinition = skillDefinitions.TryGetValue(
+                skillId,
+                out SkillDefinition resolvedSkillDefinition
+            )
+                ? resolvedSkillDefinition
+                : null;
+            if (!IsRandomStartBookSkillCandidate(skillDefinition, progression))
                 continue;
             eligibleSkillIds.Add(skillId);
         }
@@ -2922,8 +3067,13 @@ public partial class GameSession : Node
         StringName selectedSkillId = eligibleSkillIds[
             TrueRandomSeedService.RandiRange(0, eligibleSkillIds.Count - 1)
         ];
-        SkillDef selectedSkillDef = GetObject<SkillDef>(_skill_defs, selectedSkillId);
-        if (selectedSkillDef == null)
+        SkillDefinition selectedSkillDefinition = skillDefinitions.TryGetValue(
+            selectedSkillId,
+            out SkillDefinition resolvedSelectedSkillDefinition
+        )
+            ? resolvedSelectedSkillDefinition
+            : null;
+        if (selectedSkillDefinition == null)
             return null;
 
         UnitSkillProgress skillProgress = progression.GetSkillProgress(selectedSkillId);
@@ -2938,18 +3088,21 @@ public partial class GameSession : Node
             UnitSkillGrantSourceType.Player
         );
         skillProgress.granted_source_id = "";
-        skillProgress.skill_level = ResolveRandomStartSkillInitialLevel(selectedSkillDef);
+        skillProgress.skill_level = ResolveRandomStartSkillInitialLevel(selectedSkillDefinition);
         skillProgress.current_mastery = 0;
         skillProgress.total_mastery_earned = 0;
         progression.SetSkillProgress(skillProgress);
-        return selectedSkillDef;
+        return selectedSkillDefinition;
     }
 
-    private void EquipStartingWeaponForSkill(PartyMemberState member_state, SkillDef skill_def)
+    private void EquipStartingWeaponForSkill(
+        PartyMemberState member_state,
+        SkillDefinition skillDefinition
+    )
     {
         if (member_state?.equipment_state == null)
             return;
-        StringName itemId = ResolveStartingWeaponItemIdForSkill(skill_def);
+        StringName itemId = ResolveStartingWeaponItemIdForSkill(skillDefinition);
         if (itemId == "")
             return;
         ItemDef itemDef = GetObject<ItemDef>(_item_defs, itemId);
@@ -2973,12 +3126,12 @@ public partial class GameSession : Node
         );
     }
 
-    private StringName ResolveStartingWeaponItemIdForSkill(SkillDef skill_def)
+    private StringName ResolveStartingWeaponItemIdForSkill(SkillDefinition skillDefinition)
     {
         GStringNameArray candidates = new();
         if (
             SkillMatchesStartingWeaponType(
-                skill_def,
+                skillDefinition,
                 new GStringNameArray { "crossbow" },
                 new GStringArray { "crossbow" }
             )
@@ -2986,7 +3139,7 @@ public partial class GameSession : Node
             candidates.Add(StartingCrossbowWeaponItemId);
         if (
             SkillMatchesStartingWeaponType(
-                skill_def,
+                skillDefinition,
                 new GStringNameArray { "archer", "bow" },
                 new GStringArray { "archer_" }
             )
@@ -2994,7 +3147,7 @@ public partial class GameSession : Node
             candidates.Add(StartingArcherWeaponItemId);
         if (
             SkillMatchesStartingWeaponType(
-                skill_def,
+                skillDefinition,
                 new GStringNameArray { "mage", "magic", "spell" },
                 new GStringArray { "mage_" }
             )
@@ -3002,7 +3155,7 @@ public partial class GameSession : Node
             candidates.Add(StartingMageWeaponItemId);
         if (
             SkillMatchesStartingWeaponType(
-                skill_def,
+                skillDefinition,
                 new GStringNameArray { "priest", "faith", "heal" },
                 new GStringArray { "priest_", "saint_" }
             )
@@ -3010,7 +3163,7 @@ public partial class GameSession : Node
             candidates.Add(StartingPriestWeaponItemId);
         if (
             SkillMatchesStartingWeaponType(
-                skill_def,
+                skillDefinition,
                 new GStringNameArray { "warrior", "melee", "shield" },
                 new GStringArray { "warrior_" }
             )
@@ -3021,19 +3174,19 @@ public partial class GameSession : Node
     }
 
     private bool SkillMatchesStartingWeaponType(
-        SkillDef skill_def,
+        SkillDefinition skillDefinition,
         GStringNameArray tag_ids,
         GStringArray skill_id_prefixes
     )
     {
-        if (skill_def == null)
+        if (skillDefinition == null)
             return false;
         foreach (StringName tagId in tag_ids)
         {
-            if (skill_def.HasTag(tagId))
+            if (skillDefinition.HasTag(tagId))
                 return true;
         }
-        string skillIdText = skill_def.skill_id.ToString();
+        string skillIdText = skillDefinition.SkillId.ToString();
         foreach (string prefix in skill_id_prefixes)
         {
             if (skillIdText.StartsWith(prefix))
@@ -3060,75 +3213,94 @@ public partial class GameSession : Node
         if (progression == null)
             return;
         var progressionService = new ProgressionService();
-        progressionService.Setup(
+        progressionService.SetupDefinitions(
             progression,
-            BuildSkillDefIndex(_skill_defs),
+            GetRandomStartSkillDefinitions(),
             BuildProfessionDefIndex(_profession_defs)
         );
         progressionService.RefreshRuntimeState();
     }
 
-    private bool IsRandomStartBookSkillCandidate(SkillDef skill_def, UnitProgress progression)
+    private IReadOnlyDictionary<StringName, SkillDefinition> GetRandomStartSkillDefinitions()
     {
-        if (skill_def == null || skill_def.skill_id == "")
+        return GetSkillDefinitionsTyped();
+    }
+
+    private static List<StringName> GetSortedSkillDefinitionIds(
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
+    )
+    {
+        var sortedSkillIds = new List<StringName>(skillDefinitions?.Keys ?? Array.Empty<StringName>());
+        sortedSkillIds.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
+        return sortedSkillIds;
+    }
+
+    private bool IsRandomStartBookSkillCandidate(
+        SkillDefinition skillDefinition,
+        UnitProgress progression
+    )
+    {
+        if (skillDefinition == null || skillDefinition.SkillId == "")
             return false;
-        if (skill_def.LearnSourceKind != SkillLearnSourceKind.Book)
+        if (skillDefinition.LearnSourceKind != SkillLearnSourceKind.Book)
             return false;
-        if (skill_def.UnlockModeKind == SkillUnlockMode.CompositeUpgrade)
+        if (skillDefinition.UnlockModeKind == SkillUnlockMode.CompositeUpgrade)
             return false;
         if (
-            skill_def.LearnRequirementsTyped.Count > 0
-            || skill_def.KnowledgeRequirementsTyped.Count > 0
-            || skill_def.SkillLevelRequirementEntriesTyped.Count > 0
-            || skill_def.AttributeRequirementEntriesTyped.Count > 0
-            || skill_def.AchievementRequirementsTyped.Count > 0
+            skillDefinition.LearnRequirements.Count > 0
+            || skillDefinition.KnowledgeRequirements.Count > 0
+            || skillDefinition.SkillLevelRequirements.Count > 0
+            || skillDefinition.AttributeRequirements.Count > 0
+            || skillDefinition.AchievementRequirements.Count > 0
         )
         {
             return false;
         }
-        UnitSkillProgress learnedProgress = progression?.GetSkillProgress(skill_def.skill_id);
+        UnitSkillProgress learnedProgress = progression?.GetSkillProgress(skillDefinition.SkillId);
         return learnedProgress == null || !learnedProgress.is_learned;
     }
 
-    public int ResolveRandomStartSkillInitialLevel(SkillDef skill_def)
+    public int ResolveRandomStartSkillInitialLevel(SkillDefinition skillDefinition)
     {
-        return ResolveRandomStartSkillInitialLevel(skill_def, null);
+        return ResolveRandomStartSkillInitialLevel(skillDefinition, null);
     }
 
     private int ResolveRandomStartSkillInitialLevel(
-        SkillDef skill_def,
+        SkillDefinition skillDefinition,
         UnitProgress progression
     )
     {
-        if (skill_def == null)
+        if (skillDefinition == null)
             return 0;
-        int mappedLevel = GetInt(
-            RandomStartSkillLevelByTier,
-            ResolveRandomStartSkillTier(skill_def),
-            0
-        );
-        int maxInitialLevel = skill_def.max_level >= 0 ? Mathf.Max(skill_def.max_level, 0) : 999;
-        if (progression != null && skill_def.dynamic_max_level_stat_id != "")
+        int mappedLevel = RandomStartSkillLevelByTier.TryGetValue(
+            ResolveRandomStartSkillTier(skillDefinition),
+            out int configuredLevel
+        )
+            ? configuredLevel
+            : 0;
+        int maxInitialLevel =
+            skillDefinition.MaxLevel >= 0 ? Mathf.Max(skillDefinition.MaxLevel, 0) : 999;
+        if (progression != null && skillDefinition.DynamicMaxLevelStatId != "")
         {
             int effectiveMax = SkillEffectiveMaxLevelRules.GetEffectiveMaxLevel(
-                skill_def,
+                skillDefinition,
                 null,
                 progression
             );
             if (effectiveMax > 0)
                 maxInitialLevel = Mathf.Min(maxInitialLevel, effectiveMax);
         }
-        if (skill_def.non_core_max_level > 0)
-            maxInitialLevel = Mathf.Min(maxInitialLevel, skill_def.non_core_max_level);
+        if (skillDefinition.NonCoreMaxLevel > 0)
+            maxInitialLevel = Mathf.Min(maxInitialLevel, skillDefinition.NonCoreMaxLevel);
         return Mathf.Clamp(mappedLevel, 0, maxInitialLevel);
     }
 
-    private StringName ResolveRandomStartSkillTier(SkillDef skill_def)
+    private StringName ResolveRandomStartSkillTier(SkillDefinition skillDefinition)
     {
-        if (skill_def == null)
+        if (skillDefinition == null)
             return RandomStartSkillTierBasic;
 
-        string description = skill_def.description ?? "";
+        string description = skillDefinition.Description ?? "";
         if (DescriptionContainsAnyKeyword(description, RandomStartSkillKeywordsUltimate))
             return RandomStartSkillTierUltimate;
         if (DescriptionContainsAnyKeyword(description, RandomStartSkillKeywordsAdvanced))
@@ -3138,7 +3310,7 @@ public partial class GameSession : Node
         if (DescriptionContainsAnyKeyword(description, RandomStartSkillKeywordsBasic))
             return RandomStartSkillTierBasic;
 
-        int tierScore = BuildRandomStartSkillTierScore(skill_def);
+        int tierScore = BuildRandomStartSkillTierScore(skillDefinition);
         if (tierScore >= 14)
             return RandomStartSkillTierUltimate;
         if (tierScore >= 9)
@@ -3158,28 +3330,28 @@ public partial class GameSession : Node
         return false;
     }
 
-    private int BuildRandomStartSkillTierScore(SkillDef skill_def)
+    private int BuildRandomStartSkillTierScore(SkillDefinition skillDefinition)
     {
-        if (skill_def == null || skill_def.combat_profile == null)
+        if (skillDefinition?.CombatProfile == null)
             return 0;
 
-        CombatSkillDef combatProfile = skill_def.combat_profile;
+        CombatSkillDefinition combatProfile = skillDefinition.CombatProfile;
         int score = 0;
-        score += combatProfile.ap_cost * 2;
-        score += combatProfile.mp_cost;
-        score += combatProfile.stamina_cost;
-        score += combatProfile.aura_cost * 2;
-        score += Mathf.Max(combatProfile.cooldown_tu / 5 - 1, 0);
-        if (BattleTypedNames.ToTargetMode(combatProfile.target_mode) == BattleTargetMode.Ground)
+        score += combatProfile.ApCost * 2;
+        score += combatProfile.MpCost;
+        score += combatProfile.StaminaCost;
+        score += combatProfile.AuraCost * 2;
+        score += Mathf.Max(combatProfile.CooldownTu / 5 - 1, 0);
+        if (combatProfile.TargetModeKind == BattleTargetMode.Ground)
             score += 1;
-        var areaPattern = BattleTypedNames.ToAreaPattern(combatProfile.area_pattern);
+        var areaPattern = BattleTypedNames.ToAreaPattern(combatProfile.AreaPattern);
         if (areaPattern != BattleAreaPattern.Unknown && areaPattern != BattleAreaPattern.Single)
             score += 1;
-        if (skill_def.HasTag("aoe"))
+        if (skillDefinition.HasTag("aoe"))
             score += 1;
-        if (skill_def.HasTag("finisher"))
+        if (skillDefinition.HasTag("finisher"))
             score += 2;
-        if (skill_def.UnlockModeKind == SkillUnlockMode.CompositeUpgrade)
+        if (skillDefinition.UnlockModeKind == SkillUnlockMode.CompositeUpgrade)
             score += 2;
         return score;
     }
@@ -3296,30 +3468,35 @@ public partial class GameSession : Node
     {
         if (_progression_content_registry == null)
             return;
-        _skill_defs = ProjectResourceDictionary(_progression_content_registry.GetSkillDefsTyped());
-        _profession_defs = ProjectResourceDictionary(_progression_content_registry.GetProfessionDefsTyped());
+        _skillDefinitionIndex = new Dictionary<StringName, SkillDefinition>(
+            _progression_content_registry.GetSkillDefinitionsTyped()
+        );
+        _professionDefIndex = new Dictionary<StringName, ProfessionDef>(
+            _progression_content_registry.GetProfessionDefsTyped()
+        );
+        _profession_defs = ProjectResourceDictionary(_professionDefIndex);
         _achievementDefIndex = new Dictionary<StringName, AchievementDef>(
             _progression_content_registry.GetAchievementDefsTyped()
         );
         _achievement_defs = ProjectAchievementDefPayloadDictionary(_achievementDefIndex);
-        _quest_defs = ProjectResourceDictionary(_progression_content_registry.GetQuestDefsTyped());
-        _questDefIndex = BuildQuestDefIndex(_quest_defs);
+        _questDefIndex = new Dictionary<StringName, QuestDef>(
+            _progression_content_registry.GetQuestDefsTyped()
+        );
+        _quest_defs = ProjectResourceDictionary(_questDefIndex);
     }
 
     private void RefreshBattleSpecialProfiles()
     {
         if (_battle_special_profile_registry == null)
             return;
-        _battle_special_profile_registry.Rebuild(BuildSkillDefIndex(_skill_defs));
+        _battle_special_profile_registry.Rebuild(GetSkillDefinitionsTyped());
     }
 
     private void RefreshItemContent()
     {
         if (_item_content_registry == null)
             return;
-        Dictionary<StringName, SkillDef> skillDefs = BuildSkillDefIndex(_skill_defs);
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
-            SkillDefinition.ProjectIndex(skillDefs);
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = GetSkillDefinitionsTyped();
         Dictionary<StringName, ItemDef> itemDefs = new(_item_content_registry.GetItemDefsTyped());
         foreach (
             var entry in SkillBookItemFactory.BuildGeneratedItemDefs(skillDefinitions, itemDefs)
@@ -3327,6 +3504,7 @@ public partial class GameSession : Node
         {
             itemDefs[entry.Key] = entry.Value;
         }
+        _itemDefIndex = new Dictionary<StringName, ItemDef>(itemDefs);
         _item_defs = ProjectResourceDictionary(itemDefs);
     }
 
@@ -3335,18 +3513,28 @@ public partial class GameSession : Node
         if (_recipe_content_registry == null)
             return;
         _recipe_content_registry.Setup(GetItemDefsTyped());
-        _recipe_defs = ProjectResourceDictionary(_recipe_content_registry.GetRecipeDefsTyped());
+        _recipeDefIndex = new Dictionary<StringName, RecipeDef>(
+            _recipe_content_registry.GetRecipeDefsTyped()
+        );
+        _recipe_defs = ProjectResourceDictionary(_recipeDefIndex);
     }
 
     private void RefreshEnemyContent()
     {
         if (_enemy_content_registry == null)
             return;
-        _enemy_templates = ProjectResourceDictionary(_enemy_content_registry.GetEnemyTemplatesTyped());
-        _enemy_ai_brains = ProjectResourceDictionary(_enemy_content_registry.GetEnemyAiBrainsTyped());
-        _wild_encounter_rosters = ProjectResourceDictionary(
+        _enemyTemplateIndex = new Dictionary<StringName, EnemyTemplateDef>(
+            _enemy_content_registry.GetEnemyTemplatesTyped()
+        );
+        _enemyAiBrainIndex = new Dictionary<StringName, EnemyAiBrainDef>(
+            _enemy_content_registry.GetEnemyAiBrainsTyped()
+        );
+        _wildEncounterRosterIndex = new Dictionary<StringName, WildEncounterRosterDef>(
             _enemy_content_registry.GetWildEncounterRostersTyped()
         );
+        _enemy_templates = ProjectResourceDictionary(_enemyTemplateIndex);
+        _enemy_ai_brains = ProjectResourceDictionary(_enemyAiBrainIndex);
+        _wild_encounter_rosters = ProjectResourceDictionary(_wildEncounterRosterIndex);
     }
 
     // 把 session 当前的正式内容缓存推进到 GameContentCatalog 自己的 typed 快照里。
@@ -3383,10 +3571,6 @@ public partial class GameSession : Node
         snapshot.Domains["world"] = BuildWorldContentValidationDomainSnapshot();
         snapshot.Domains["quest"] = BuildQuestContentValidationDomainSnapshot();
         _contentValidationSnapshotData = snapshot;
-        _content_validation_snapshot = MarkRuntimePayload(
-            snapshot.ToDictionary(),
-            "GameSession.RefreshContentValidationSnapshotState"
-        );
         // 验证刷新会重建 battle special profile registry，需要把新的 snapshot 推进 catalog，
         // 否则运行期再次走验证门时 catalog 的 battle special profile 视图会落后。
         RefreshContentCatalog();
@@ -3414,15 +3598,14 @@ public partial class GameSession : Node
         AppendErrors(errors, _item_content_registry?.ValidateTyped());
         if (
             _item_defs != null
-            && _skill_defs != null
+            && _skillDefinitionIndex != null
             && _item_defs.Count > 0
-            && _skill_defs.Count > 0
+            && _skillDefinitionIndex.Count > 0
         )
         {
             Dictionary<StringName, ItemDef> itemDefs = BuildItemDefIndex(_item_defs);
-            Dictionary<StringName, SkillDef> skillDefs = BuildSkillDefIndex(_skill_defs);
             IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
-                SkillDefinition.ProjectIndex(skillDefs);
+                GetSkillDefinitionsTyped();
             AppendErrors(errors, SkillBookItemContentValidator.Validate(itemDefs, skillDefinitions));
         }
         return BuildContentValidationDomainSnapshotFromErrors(errors);
@@ -3440,7 +3623,8 @@ public partial class GameSession : Node
         }
         Dictionary<StringName, QuestDef> questDefs = BuildQuestDefIndex(_quest_defs);
         Dictionary<StringName, ItemDef> itemDefs = BuildItemDefIndex(_item_defs);
-        Dictionary<StringName, SkillDef> skillDefs = BuildSkillDefIndex(_skill_defs);
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            GetSkillDefinitionsTyped();
         Dictionary<StringName, EnemyTemplateDef> enemyTemplates = BuildEnemyTemplateIndex(
             _enemy_templates
         );
@@ -3448,7 +3632,7 @@ public partial class GameSession : Node
             QuestContentValidator.ValidateTyped(
                 questDefs,
                 itemDefs,
-                skillDefs,
+                skillDefinitions,
                 enemyTemplates,
                 registrationErrors
             )
@@ -3560,23 +3744,6 @@ public partial class GameSession : Node
             if (roster == null || roster.profile_id == "")
                 continue;
             result[key.AsStringName()] = roster;
-        }
-        return result;
-    }
-
-    private static Dictionary<StringName, SkillDef> BuildSkillDefIndex(GDictionary skillDefs)
-    {
-        var result = new Dictionary<StringName, SkillDef>();
-        if (skillDefs == null)
-            return result;
-        foreach (Variant key in skillDefs.Keys)
-        {
-            if (key.VariantType != Variant.Type.StringName)
-                continue;
-            SkillDef skillDef = skillDefs[key].AsGodotObject() as SkillDef;
-            if (skillDef == null || skillDef.skill_id == "")
-                continue;
-            result[key.AsStringName()] = skillDef;
         }
         return result;
     }

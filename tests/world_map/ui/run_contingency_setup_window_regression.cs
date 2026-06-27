@@ -299,48 +299,44 @@ public partial class run_contingency_setup_window_regression : SceneTree
             granted_source_type = "test",
         };
 
-    private static Dictionary<StringName, SkillDef> BuildSkillIndex() =>
+    private static Dictionary<StringName, SkillDefinition> BuildSkillIndex() =>
         new()
         {
             ["mage_chain_contingency"] = BuildSkill("mage_chain_contingency", tags: new[] { "contingency", "meta_spell" }),
             ["mage_mirror_image"] = BuildSkill(
                 "mage_mirror_image",
-                automation: new ContingencyAutomationDef
-                {
-                    can_be_stored_in_contingency = true,
-                    min_contingency_skill_level = 1,
-                    effect_category = "defensive_self_buff",
-                    allowed_target_resolvers = new GStringNameArray { "self" },
-                    requires_manual_targeting = false,
-                    allowed_parameter_bindings = new GDictionary(),
-                }
+                automation: TestSkillDefinitionProjection.BuildContingencyAutomation(
+                    effectCategory: "defensive_self_buff",
+                    allowedTargetResolvers: new[] { new StringName("self") }
+                )
             ),
         };
 
-    private static SkillDef BuildSkill(
+    private static SkillDefinition BuildSkill(
         string skillId,
-        ContingencyAutomationDef automation = null,
+        ContingencyAutomationDefinition automation = null,
         string[] tags = null
     )
     {
-        SkillDef skill = new()
-        {
-            skill_id = skillId,
-            display_name = skillId,
-            icon_id = skillId,
-            skill_type = "passive",
-            max_level = 10,
-            mastery_curve = new[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 },
-            contingency_automation_profile = automation,
-        };
-        if (tags != null)
-        {
-            GStringNameArray tagValues = new();
-            foreach (string tag in tags)
-                tagValues.Add(tag);
-            skill.SetTags(tagValues);
-        }
-        return skill;
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: skillId,
+            skillType: "passive",
+            maxLevel: 10,
+            tags: ToStringNames(tags),
+            masteryCurve: new[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 },
+            contingencyAutomationProfile: automation
+        );
+    }
+
+    private static IReadOnlyList<StringName> ToStringNames(string[] values)
+    {
+        if (values == null || values.Length == 0)
+            return System.Array.Empty<StringName>();
+        List<StringName> result = new(values.Length);
+        foreach (string value in values)
+            result.Add(value);
+        return result;
     }
 
     private static Dictionary<StringName, ItemDef> BuildItemIndex() =>

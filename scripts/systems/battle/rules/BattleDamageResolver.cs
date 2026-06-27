@@ -75,7 +75,6 @@ public partial class BattleDamageResolver : IDisposable
     private const int BlackStarBrandGuardIgnoreFlat = 4;
 
     private readonly record struct DamageEffectRuntimeParameters(
-        GDictionary RawParams,
         bool UseWeaponPhysicalDamageTag,
         bool AddWeaponDice,
         bool RemoveHarmful,
@@ -85,25 +84,24 @@ public partial class BattleDamageResolver : IDisposable
         bool RequireDamageApplied
     )
     {
-        public static DamageEffectRuntimeParameters FromEffect(CombatEffectDef effectDef)
+        public static DamageEffectRuntimeParameters FromEffect(
+            CombatEffectDefinition effectDefinition
+        )
         {
-            GDictionary parameters = effectDef?.@params ?? new GDictionary();
             return new DamageEffectRuntimeParameters(
-                parameters,
-                effectDef?.use_weapon_physical_damage_tag ?? false,
-                effectDef?.add_weapon_dice ?? false,
-                effectDef?.remove_harmful ?? false,
-                effectDef?.remove_harmful_from_allies ?? true,
-                effectDef?.remove_beneficial ?? false,
-                effectDef?.remove_beneficial_from_enemies ?? true,
-                effectDef?.require_damage_applied ?? false
+                effectDefinition?.UseWeaponPhysicalDamageTag ?? false,
+                effectDefinition?.AddWeaponDice ?? false,
+                effectDefinition?.RemoveHarmful ?? false,
+                effectDefinition?.RemoveHarmfulFromAllies ?? true,
+                effectDefinition?.RemoveBeneficial ?? false,
+                effectDefinition?.RemoveBeneficialFromEnemies ?? true,
+                effectDefinition?.RequireDamageApplied ?? false
             );
         }
     }
 
     public void Dispose()
     {
-        _transientScope.Dispose();
         _fate_event_bus.Dispose();
     }
 
@@ -313,18 +311,17 @@ public partial class BattleDamageResolver : IDisposable
 
         internal static SpellControlCheckContext FromDictionary(GDictionary payload)
         {
-            GDictionary normalized = payload ?? new GDictionary();
             bool hasDisadvantage = false;
             bool isDisadvantage = false;
-            if (TryGetStatusParam(normalized, "is_disadvantage", out object disadvantageValue))
+            if (TryGetStatusParam(payload, "is_disadvantage", out object disadvantageValue))
             {
                 hasDisadvantage = true;
                 isDisadvantage = ToBool(disadvantageValue, false);
             }
             return new SpellControlCheckContext(
                 null,
-                DictStringNameLocal(normalized, "skill_id"),
-                ReadDispatchEvents(normalized),
+                DictStringNameLocal(payload, "skill_id"),
+                ReadDispatchEvents(payload),
                 hasDisadvantage,
                 isDisadvantage
             );
@@ -474,25 +471,13 @@ public partial class BattleDamageResolver : IDisposable
 
     private readonly record struct DamageDiceEventFlags(DamageDiceEventSnapshot Snapshot);
 
-    private readonly Dictionary<StringName, SkillDef> _skillDefIndex = new();
+    private readonly Dictionary<StringName, SkillDefinition> _skillDefinitionIndex = new();
     private readonly List<BattleSkillMasteryGrant> _last_stand_mastery_records = new();
     private readonly BattleFateEventBus _fate_event_bus = new();
     private readonly BattleReportFormatter _report_formatter = new();
     private readonly TraitTriggerHooks _trait_trigger_hooks = new();
-    private readonly GodotTransientResourceScope _transientScope =
-        new("BattleDamageResolver");
-    private readonly RuntimeSkillDefFactory _runtimeSkillFactory;
     private BattleHitResolver _hit_resolver = new();
     private IBattleDamageApplicationHook _damage_application_hook;
-    private bool _suppress_last_stand_mastery_records;
-
-    public BattleDamageResolver()
-    {
-        _runtimeSkillFactory = new RuntimeSkillDefFactory(
-            _transientScope,
-            "BattleDamageResolver"
-        );
-    }
 
     private static GArray MarkRuntimeArray(GArray array, string reason)
     {
@@ -549,21 +534,21 @@ public partial class BattleDamageResolver : IDisposable
         };
     }
 
-    internal void SetSkillDefs(IReadOnlyDictionary<StringName, SkillDef> skill_defs)
+    internal void SetSkillDefinitions(IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions)
     {
-        _skillDefIndex.Clear();
-        if (skill_defs == null || skill_defs.Count == 0)
+        _skillDefinitionIndex.Clear();
+        if (skillDefinitions == null || skillDefinitions.Count == 0)
         {
             return;
         }
 
-        foreach ((StringName skillId, SkillDef skillDef) in skill_defs)
+        foreach ((StringName skillId, SkillDefinition skillDefinition) in skillDefinitions)
         {
-            if (skillId == "" || skillDef == null)
+            if (skillId == "" || skillDefinition == null)
             {
                 continue;
             }
-            _skillDefIndex[skillId] = skillDef;
+            _skillDefinitionIndex[skillId] = skillDefinition;
         }
     }
 
@@ -598,38 +583,39 @@ public partial class BattleDamageResolver : IDisposable
     internal AttackEffectResolutionResult ResolveSkillResult(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        SkillDef skillDef
+        SkillDefinition skillDefinition
     )
     {
-        if (sourceUnit == null || targetUnit == null || skillDef?.combat_profile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (sourceUnit == null || targetUnit == null || combatProfile == null)
         {
-            return BuildEmptyResolutionResult(skillDef?.skill_id ?? new StringName(""));
+            return BuildEmptyResolutionResult(skillDefinition?.SkillId ?? new StringName(""));
         }
+        int skillLevel =
+            sourceUnit.GetKnownSkillLevelTyped(skillDefinition.SkillId, fallback: 1);
         return ResolveEffects(
             sourceUnit,
             targetUnit,
-            MarkRuntimeArray(
-                ToValueArray(skillDef.combat_profile.effect_defs),
-                "ResolveSkillResult.effects"
-            ),
-            MarkRuntimeDictionary(
-                new GDictionary { ["skill_id"] = skillDef.skill_id },
-                "ResolveSkillResult.damage_context"
-            )
+            combatProfile.EffectDefinitions,
+            DamageResolutionContext
+                .ForSkill(skillDefinition.SkillId)
+                .WithSourceSkillLevel(
+                    Math.Max(skillLevel, 1)
+                )
         );
     }
 
     internal virtual AttackEffectResolutionResult ResolveAttackEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        GArray effect_defs,
+        IEnumerable<CombatEffectDefinition> effect_definitions,
         AttackCheckInput attack_check
     )
     {
         return ResolveAttackEffects(
             source_unit,
             target_unit,
-            effect_defs,
+            effect_definitions,
             attack_check,
             new AttackContext()
         );
@@ -638,23 +624,7 @@ public partial class BattleDamageResolver : IDisposable
     internal virtual AttackEffectResolutionResult ResolveAttackEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        IEnumerable<CombatEffectDef> effect_defs,
-        AttackCheckInput attack_check
-    )
-    {
-        return ResolveAttackEffects(
-            source_unit,
-            target_unit,
-            effect_defs,
-            attack_check,
-            new AttackContext()
-        );
-    }
-
-    internal virtual AttackEffectResolutionResult ResolveAttackEffects(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        GArray effect_defs,
+        IEnumerable<CombatEffectDefinition> effect_definitions,
         AttackCheckInput attack_check,
         AttackContext attack_context = null
     )
@@ -669,7 +639,8 @@ public partial class BattleDamageResolver : IDisposable
             return AttackEffectResolutionResultReader.FinalizeTypedResult(emptyResult);
         }
 
-        GArray resolvedEffectDefs = CoerceEffectDefs(effect_defs);
+        IReadOnlyList<CombatEffectDefinition> resolvedEffectDefinitions =
+            ToEffectDefinitionList(effect_definitions);
         AttackContext normalizedAttackContext = attack_context ?? new AttackContext();
         AttackResolutionMetadata attackMetadata = ResolveAttackMetadata(
             source_unit,
@@ -705,16 +676,12 @@ public partial class BattleDamageResolver : IDisposable
         }
 
         int secondaryHitDcBase = 10;
-        foreach (var effectValue in resolvedEffectDefs)
+        foreach (CombatEffectDefinition effectDefinition in resolvedEffectDefinitions)
         {
-            CombatEffectDef effectDef = effectValue.AsGodotObject() as CombatEffectDef;
-            if (
-                effectDef != null
-                && effectDef.TriggerEventKind == CombatEffectTriggerEvent.SecondaryHit
-            )
+            if (effectDefinition?.TriggerEventKind == CombatEffectTriggerEvent.SecondaryHit)
             {
-                secondaryHitDcBase = effectDef.secondary_hit_dc_base > 0
-                    ? effectDef.secondary_hit_dc_base
+                secondaryHitDcBase = effectDefinition.SecondaryHitDcBase > 0
+                    ? effectDefinition.SecondaryHitDcBase
                     : 10;
                 break;
             }
@@ -729,7 +696,12 @@ public partial class BattleDamageResolver : IDisposable
             DamageResolutionContext.FromDictionary(BuildAttackEffectContext(attackMetadata));
 
         AttackEffectResolutionResult resolvedResult = ApplyAttackMetadataResult(
-            ResolveEffectsTypedCore(source_unit, target_unit, resolvedEffectDefs, attackEffectContext),
+            ResolveEffectsDefinitionCore(
+                source_unit,
+                target_unit,
+                resolvedEffectDefinitions,
+                attackEffectContext
+            ),
             attackMetadata
         );
         resolvedResult.AttackCheck = attack_check;
@@ -746,43 +718,6 @@ public partial class BattleDamageResolver : IDisposable
             normalizedAttackContext
         );
         return AttackEffectResolutionResultReader.FinalizeTypedResult(resolvedResult);
-    }
-
-    internal virtual AttackEffectResolutionResult ResolveAttackEffects(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        IEnumerable<CombatEffectDef> effect_defs,
-        AttackCheckInput attack_check,
-        AttackContext attack_context = null
-    )
-    {
-        return ResolveAttackEffects(
-            source_unit,
-            target_unit,
-            MarkRuntimeArray(
-                ToValueArray(effect_defs),
-                "ResolveAttackEffects.enumerable.effects"
-            ),
-            attack_check,
-            attack_context
-        );
-    }
-
-    internal virtual AttackEffectResolutionResult ResolveAttackEffectsTyped(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        IEnumerable<CombatEffectDef> effect_defs,
-        AttackCheckInput attack_check,
-        AttackContext attack_context = null
-    )
-    {
-        return ResolveAttackEffects(
-            source_unit,
-            target_unit,
-            effect_defs,
-            attack_check,
-            attack_context
-        );
     }
 
     internal BattleSpellControlMetadata ResolveSpellControlCheckTyped(
@@ -829,75 +764,16 @@ public partial class BattleDamageResolver : IDisposable
         return controlMetadata;
     }
 
-    internal virtual GDictionary PreviewDamageEffect(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        CombatEffectDef effect_def,
-        GDictionary damage_context = null,
-        BattleDamagePreviewRollMode roll_mode = BattleDamagePreviewRollMode.Average,
-        BattleDamagePreviewSaveMode save_mode = BattleDamagePreviewSaveMode.Expected
-    )
-    {
-        return BattleDamagePreviewProjection.Project(
-            PreviewDamageEffectTyped(
-                source_unit,
-                target_unit,
-                effect_def,
-                damage_context,
-                roll_mode,
-                save_mode
-            )
-        );
-    }
-
     internal virtual BattleDamagePreviewResult PreviewDamageEffectTyped(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        CombatEffectDef effect_def,
-        StringName skill_id,
-        BattleDamagePreviewRollMode roll_mode = BattleDamagePreviewRollMode.Average,
-        BattleDamagePreviewSaveMode save_mode = BattleDamagePreviewSaveMode.Expected
-    )
-    {
-        return PreviewDamageEffectTyped(
-            source_unit,
-            target_unit,
-            effect_def,
-            BuildPreviewDamageContext(skill_id),
-            roll_mode,
-            save_mode
-        );
-    }
-
-    internal virtual BattleDamagePreviewResult PreviewDamageEffectTyped(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        CombatEffectDef effect_def,
-        GDictionary damage_context = null,
-        BattleDamagePreviewRollMode roll_mode = BattleDamagePreviewRollMode.Average,
-        BattleDamagePreviewSaveMode save_mode = BattleDamagePreviewSaveMode.Expected
-    )
-    {
-        return PreviewDamageEffectTyped(
-            source_unit,
-            target_unit,
-            effect_def,
-            DamageResolutionContext.FromDictionary(damage_context),
-            roll_mode,
-            save_mode
-        );
-    }
-
-    internal virtual BattleDamagePreviewResult PreviewDamageEffectTyped(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        CombatEffectDef effect_def,
+        CombatEffectDefinition effect_definition,
         DamageResolutionContext damage_context,
         BattleDamagePreviewRollMode roll_mode = BattleDamagePreviewRollMode.Average,
         BattleDamagePreviewSaveMode save_mode = BattleDamagePreviewSaveMode.Expected
     )
     {
-        if (source_unit == null || target_unit == null || effect_def == null)
+        if (source_unit == null || target_unit == null || effect_definition == null)
         {
             return BattleDamagePreviewResult.Empty();
         }
@@ -925,7 +801,7 @@ public partial class BattleDamageResolver : IDisposable
         DamageOutcomeResult damageOutcome = ResolveDamageOutcome(
             sourcePreview,
             targetPreview,
-            effect_def,
+            effect_definition,
             previewContextFlags
         );
         if (damageOutcome.InvalidDamageTag)
@@ -944,7 +820,7 @@ public partial class BattleDamageResolver : IDisposable
                     BuildInvalidDamageTagDiagnostic(
                         source_unit,
                         target_unit,
-                        effect_def,
+                        effect_definition,
                         damageOutcome
                     ),
                 },
@@ -957,7 +833,7 @@ public partial class BattleDamageResolver : IDisposable
         DamagePreviewSaveEstimate saveEstimate = BuildDamagePreviewSaveEstimate(
             sourcePreview,
             targetPreview,
-            effect_def,
+            effect_definition,
             previewContextFlags,
             preSaveDamage,
             resolvedSaveMode
@@ -989,293 +865,62 @@ public partial class BattleDamageResolver : IDisposable
         );
     }
 
-    internal virtual BattleDamagePreviewResult preview_damage_sequence_typed(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        GArray effect_defs,
-        StringName skill_id,
-        BattleDamagePreviewRollMode roll_mode = BattleDamagePreviewRollMode.Average,
-        BattleDamagePreviewSaveMode save_mode = BattleDamagePreviewSaveMode.Expected
-    )
-    {
-        return preview_damage_sequence_typed(
-            source_unit,
-            target_unit,
-            effect_defs,
-            BuildPreviewDamageContext(skill_id),
-            BuildPreviewOptions(roll_mode, save_mode)
-        );
-    }
-
-    internal virtual BattleDamagePreviewResult preview_damage_sequence_typed(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        GArray effect_defs,
-        GDictionary damage_context = null,
-        BattleDamagePreviewOptions options = null
-    )
-    {
-        return preview_damage_sequence_typed(
-            source_unit,
-            target_unit,
-            effect_defs,
-            DamageResolutionContext.FromDictionary(damage_context),
-            options
-        );
-    }
-
-    internal virtual BattleDamagePreviewResult preview_damage_sequence_typed(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        GArray effect_defs,
-        DamageResolutionContext damage_context,
-        BattleDamagePreviewOptions options = null
-    )
-    {
-        if (source_unit == null || target_unit == null)
-        {
-            return BattleDamagePreviewResult.Empty();
-        }
-
-        options ??= new BattleDamagePreviewOptions();
-        BattleDamagePreviewRollMode rollMode =
-            options.RollMode == BattleDamagePreviewRollMode.Unknown
-                ? BattleDamagePreviewRollMode.Average
-                : options.RollMode;
-        BattleDamagePreviewSaveMode saveMode =
-            options.SaveMode == BattleDamagePreviewSaveMode.Unknown
-                ? BattleDamagePreviewSaveMode.Expected
-                : options.SaveMode;
-        StringName rollModeName = ToStringName(rollMode);
-        StringName saveModeName = ToStringName(saveMode);
-        DamageResolutionContext previewContextFlags =
-            (damage_context ?? DamageResolutionContext.Empty()).WithDamageRollMode(rollModeName);
-        BattleUnitState sourcePreview = source_unit.clone();
-        BattleUnitState targetPreview = target_unit.clone();
-        if (sourcePreview == null || targetPreview == null)
-        {
-            return BattleDamagePreviewResult.Empty();
-        }
-
-        int totalPreSaveDamage = 0;
-        int totalPostSaveDamage = 0;
-        int totalHpDamage = 0;
-        int totalShieldAbsorbed = 0;
-        bool shieldBroken = false;
-        bool applied = false;
-        bool stableLethalFromBranches = false;
-        int lethalProbabilityBasisPoints = 0;
-        var damageEvents = new List<object>();
-        var diagnostics = new List<object>();
-        var saveEstimates = new List<BattleDamagePreviewSaveEstimate>();
-
-        bool previousSuppression = _suppress_last_stand_mastery_records;
-        _suppress_last_stand_mastery_records = true;
-        try
-        {
-            foreach (var effectValue in CoerceEffectDefs(effect_defs))
-            {
-                CombatEffectDef effectDef = effectValue.AsGodotObject() as CombatEffectDef;
-                if (effectDef == null || !DoesEffectTrigger(effectDef, previewContextFlags))
-                {
-                    continue;
-                }
-                if (effectDef.EffectKind != BattleEffectKind.Damage)
-                {
-                    continue;
-                }
-                DamageOutcomeResult damageOutcome = ResolveDamageOutcome(
-                    sourcePreview,
-                    targetPreview,
-                    effectDef,
-                    previewContextFlags
-                );
-                if (damageOutcome.InvalidDamageTag)
-                {
-                    diagnostics.Add(
-                        BuildInvalidDamageTagDiagnostic(
-                            sourcePreview,
-                            targetPreview,
-                            effectDef,
-                            damageOutcome
-                        )
-                    );
-                    continue;
-                }
-                int preSaveDamage = damageOutcome.ResolvedDamage;
-                int targetHpBeforeEffect = Math.Max(targetPreview.current_hp, 1);
-                DamagePreviewSaveEstimate saveEstimate = BuildDamagePreviewSaveEstimate(
-                    sourcePreview,
-                    targetPreview,
-                    effectDef,
-                    previewContextFlags,
-                    preSaveDamage,
-                    saveMode
-                );
-                DamagePreviewBranchLethalEstimate branchLethal = default;
-                if (saveEstimate.HasSave)
-                {
-                    saveEstimates.Add(saveEstimate.ToPreviewSaveEstimate());
-                    branchLethal = BuildSaveBranchLethalEstimate(
-                        targetPreview,
-                        damageOutcome,
-                        saveEstimate,
-                        sourcePreview
-                    );
-                    stableLethalFromBranches =
-                        stableLethalFromBranches || branchLethal.StableLethal;
-                    lethalProbabilityBasisPoints = Math.Max(
-                        lethalProbabilityBasisPoints,
-                        branchLethal.LethalProbabilityBasisPoints
-                    );
-                }
-                totalPreSaveDamage += preSaveDamage;
-                totalPostSaveDamage += saveEstimate.DamageAfterSave;
-
-                AppliedDamageResult damageResult;
-                if (saveMode == BattleDamagePreviewSaveMode.Expected && saveEstimate.HasSave)
-                {
-                    damageResult = BuildExpectedSaveBranchDamageResult(
-                        targetPreview,
-                        damageOutcome,
-                        saveEstimate,
-                        sourcePreview
-                    );
-                }
-                else
-                {
-                    damageOutcome = WithDamagePreviewSaveEstimate(
-                        damageOutcome,
-                        saveEstimate
-                    );
-                    damageResult = ApplyDamageToTargetResult(
-                        targetPreview,
-                        damageOutcome.ToDamageApplicationInput(suppressDamageApplicationHook: true),
-                        sourcePreview
-                    );
-                }
-
-                int hpDamage = damageResult.HpDamage;
-                if (
-                    branchLethal.FailureKills
-                    && !branchLethal.SuccessKills
-                    && hpDamage >= targetHpBeforeEffect
-                )
-                {
-                    hpDamage = Math.Max(branchLethal.SuccessHpDamage, 0);
-                    damageResult = damageResult.WithHpDamage(hpDamage);
-                }
-                totalHpDamage += hpDamage;
-                totalShieldAbsorbed += damageResult.ShieldAbsorbed;
-                shieldBroken = shieldBroken || damageResult.ShieldBroken;
-                damageEvents.Add(ProjectAppliedDamagePayload(damageResult));
-                applied = true;
-            }
-        }
-        finally
-        {
-            _suppress_last_stand_mastery_records = previousSuppression;
-        }
-
-        bool stableLethal = targetPreview.current_hp <= 0 || stableLethalFromBranches;
-        return BattleDamagePreviewResult.Create(
-            applied: applied,
-            rollMode: rollModeName,
-            saveMode: saveModeName,
-            preSaveDamage: totalPreSaveDamage,
-            postSaveDamage: totalPostSaveDamage,
-            hpDamage: totalHpDamage,
-            damage: totalHpDamage,
-            incomingBudgetDamage: totalPostSaveDamage,
-            shieldAbsorbed: totalShieldAbsorbed,
-            shieldBroken: shieldBroken,
-            shieldHpBefore: target_unit.current_shield_hp,
-            shieldHpAfter: targetPreview.current_shield_hp,
-            stableLethal: stableLethal,
-            lethalProbabilityBasisPoints: targetPreview.current_hp <= 0
-                ? 10000
-                : lethalProbabilityBasisPoints,
-            saveEstimates: saveEstimates,
-            damageEvents: damageEvents,
-            diagnostics: diagnostics,
-            sourcePreviewAfter: sourcePreview,
-            targetPreviewAfter: targetPreview
-        );
-    }
-
-    private static DamageResolutionContext BuildPreviewDamageContext(StringName skillId)
-    {
-        return DamageResolutionContext.ForSkill(skillId);
-    }
-
-    private static BattleDamagePreviewOptions BuildPreviewOptions(
-        BattleDamagePreviewRollMode rollMode,
-        BattleDamagePreviewSaveMode saveMode
-    )
-    {
-        return new BattleDamagePreviewOptions(rollMode, saveMode);
-    }
-
     internal virtual AttackEffectResolutionResult ResolveEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        GArray effect_defs
-    )
-    {
-        return ResolveEffects(source_unit, target_unit, effect_defs, DamageResolutionContext.Empty());
-    }
-
-    internal virtual AttackEffectResolutionResult ResolveEffects(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        IEnumerable<CombatEffectDef> effect_defs
-    )
-    {
-        return ResolveEffects(
-            source_unit,
-            target_unit,
-            MarkRuntimeArray(
-                ToValueArray(effect_defs),
-                "ResolveEffects.enumerable.effects"
-            ),
-            DamageResolutionContext.Empty()
-        );
-    }
-
-    internal virtual AttackEffectResolutionResult ResolveEffects(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        GArray effect_defs,
-        GDictionary damage_context = null
-    )
-    {
-        return ResolveEffects(
-            source_unit,
-            target_unit,
-            effect_defs,
-            DamageResolutionContext.FromDictionary(damage_context)
-        );
-    }
-
-    internal virtual AttackEffectResolutionResult ResolveEffects(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        GArray effect_defs,
+        IEnumerable<CombatEffectDefinition> effect_definitions,
         DamageResolutionContext damage_context
     )
     {
-        return ResolveEffectsTypedCore(
+        return ResolveEffectsDefinitionCore(
             source_unit,
             target_unit,
-            effect_defs,
+            ToEffectDefinitionList(effect_definitions),
             damage_context ?? DamageResolutionContext.Empty()
         );
     }
 
-    private AttackEffectResolutionResult ResolveEffectsTypedCore(
+    internal virtual AttackEffectResolutionResult ResolveEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        GArray effect_defs,
+        IEnumerable<CombatEffectDefinition> effect_definitions
+    )
+    {
+        return ResolveEffects(
+            source_unit,
+            target_unit,
+            effect_definitions,
+            DamageResolutionContext.Empty()
+        );
+    }
+
+    private static IReadOnlyList<CombatEffectDefinition> ToEffectDefinitionList(
+        IEnumerable<CombatEffectDefinition> effectDefinitions
+    )
+    {
+        if (effectDefinitions == null)
+        {
+            return Array.Empty<CombatEffectDefinition>();
+        }
+        if (effectDefinitions is IReadOnlyList<CombatEffectDefinition> typedList)
+        {
+            return typedList;
+        }
+        var result = new List<CombatEffectDefinition>();
+        foreach (CombatEffectDefinition effectDefinition in effectDefinitions)
+        {
+            if (effectDefinition != null)
+            {
+                result.Add(effectDefinition);
+            }
+        }
+        return result.Count == 0 ? Array.Empty<CombatEffectDefinition>() : result;
+    }
+
+    private AttackEffectResolutionResult ResolveEffectsDefinitionCore(
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
+        IReadOnlyList<CombatEffectDefinition> effect_definitions,
         DamageResolutionContext damage_context
     )
     {
@@ -1284,7 +929,6 @@ public partial class BattleDamageResolver : IDisposable
             return BuildEmptyResolutionResult();
         }
 
-        GArray resolvedEffectDefs = CoerceEffectDefs(effect_defs);
         DamageResolutionContext contextFlags = damage_context ?? DamageResolutionContext.Empty();
         BattleSaveContext saveContext = contextFlags.ToBattleSaveContext();
         int totalDamage = 0;
@@ -1306,21 +950,20 @@ public partial class BattleDamageResolver : IDisposable
         int executeStage = -1;
         StringName executeOutcome = "";
 
-        foreach (var effectValue in resolvedEffectDefs)
+        foreach (CombatEffectDefinition effectDefinition in effect_definitions ?? Array.Empty<CombatEffectDefinition>())
         {
-            CombatEffectDef effectDef = effectValue.AsGodotObject() as CombatEffectDef;
-            if (effectDef == null || !DoesEffectTrigger(effectDef, contextFlags))
+            if (effectDefinition == null || !DoesEffectTrigger(effectDefinition, contextFlags))
             {
                 continue;
             }
 
-            BattleEffectKind effectKind = effectDef.EffectKind;
+            BattleEffectKind effectKind = effectDefinition.EffectKind;
             if (effectKind == BattleEffectKind.Damage)
             {
                 DamageOutcomeResult damageOutcome = ResolveDamageOutcome(
                     source_unit,
                     target_unit,
-                    effectDef,
+                    effectDefinition,
                     contextFlags
                 );
                 if (damageOutcome.InvalidDamageTag)
@@ -1337,7 +980,7 @@ public partial class BattleDamageResolver : IDisposable
                 BattleSaveResult damageSaveResult = BattleSaveResolver.ResolveSaveResult(
                     source_unit,
                     target_unit,
-                    effectDef,
+                    effectDefinition,
                     saveContext
                 );
                 if (damageSaveResult.HasSave)
@@ -1347,7 +990,7 @@ public partial class BattleDamageResolver : IDisposable
                 damageOutcome = WithSaveResult(
                     damageOutcome,
                     damageSaveResult,
-                    effectDef
+                    effectDefinition
                 );
                 AppliedDamageResult damageResult = ApplyDamageToTargetResult(
                     target_unit,
@@ -1366,20 +1009,20 @@ public partial class BattleDamageResolver : IDisposable
                 applied = true;
                 if (damageResult.HasAppliedDamage)
                 {
-                    GrantStatusOnHitToSource(source_unit, effectDef);
+                    GrantStatusOnHitToSource(source_unit, effectDefinition);
                 }
             }
             else if (effectKind == BattleEffectKind.EquipmentDurabilityDamage)
             {
                 EquipmentDurabilityDamageEffectResult durabilityResult =
                     ApplyEquipmentDurabilityDamageEffect(
-                    source_unit,
-                    target_unit,
-                    effectDef,
-                    contextFlags,
-                    totalDamage,
-                    totalShieldAbsorbed
-                );
+                        source_unit,
+                        target_unit,
+                        effectDefinition,
+                        contextFlags,
+                        totalDamage,
+                        totalShieldAbsorbed
+                    );
                 if (durabilityResult.HasEvent)
                 {
                     equipmentDurabilityEvents.Add(durabilityResult.Event);
@@ -1395,7 +1038,7 @@ public partial class BattleDamageResolver : IDisposable
             }
             else if (effectKind == BattleEffectKind.Heal)
             {
-                int healAmount = ResolveHealAmount(source_unit, effectDef);
+                int healAmount = ResolveHealAmount(source_unit, effectDefinition);
                 healAmount = BattleStatusModifierRules.ApplyHealMultiplier(target_unit, healAmount);
                 if (healAmount > 0)
                 {
@@ -1406,12 +1049,17 @@ public partial class BattleDamageResolver : IDisposable
             }
             else if (effectKind == BattleEffectKind.StaminaRestore)
             {
-                ApplyStaminaRestore(source_unit, target_unit, effectDef);
+                ApplyStaminaRestore(source_unit, target_unit, effectDefinition);
                 applied = true;
             }
             else if (effectKind == BattleEffectKind.HealFatal)
             {
-                int healAmount = ResolveHealFatalAmount(target_unit, effectDef);
+                int healAmount = ResolveHealFatalAmount(
+                    source_unit,
+                    target_unit,
+                    effectDefinition,
+                    contextFlags
+                );
                 if (healAmount > 0)
                 {
                     ApplyHealing(target_unit, healAmount);
@@ -1421,13 +1069,13 @@ public partial class BattleDamageResolver : IDisposable
             }
             else if (effectKind == BattleEffectKind.EraseStatus)
             {
-                if (BattleTemporalStatusService.IsTemporalReleaseEffect(effectDef))
+                if (BattleTemporalStatusService.IsTemporalReleaseEffect(effectDefinition))
                 {
                     List<StringName> releasedStatusIds =
                         BattleTemporalStatusService.ApplyTemporalReleaseEffects(
                             source_unit,
                             target_unit,
-                            effectDef
+                            effectDefinition
                         );
                     foreach (StringName releasedStatusId in releasedStatusIds)
                     {
@@ -1441,12 +1089,12 @@ public partial class BattleDamageResolver : IDisposable
                 else
                 {
                     StringName erasedStatusId = ProgressionDataUtils.to_string_name(
-                        effectDef.status_id
+                        effectDefinition.StatusId
                     );
                     if (erasedStatusId == "")
                     {
                         erasedStatusId = ProgressionDataUtils.to_string_name(
-                            effectDef.trigger_status_id
+                            effectDefinition.TriggerStatusId
                         );
                     }
                     if (erasedStatusId != "" && target_unit.HasStatusEffect(erasedStatusId))
@@ -1480,7 +1128,7 @@ public partial class BattleDamageResolver : IDisposable
                 DispelEventResult dispelResult = ApplyDispelMagicEffect(
                     source_unit,
                     target_unit,
-                    effectDef
+                    effectDefinition
                 );
                 GStringNameArray removedIds =
                     dispelResult.RemovedStatusIds ?? new GStringNameArray();
@@ -1505,7 +1153,7 @@ public partial class BattleDamageResolver : IDisposable
                 BattleSaveResult statusSaveResult = BattleSaveResolver.ResolveSaveResult(
                     source_unit,
                     target_unit,
-                    effectDef,
+                    effectDefinition,
                     saveContext
                 );
                 if (statusSaveResult.HasSave)
@@ -1516,39 +1164,17 @@ public partial class BattleDamageResolver : IDisposable
                 {
                     continue;
                 }
-                StringName resolvedStatusId = ResolveStatusIdForSave(effectDef, statusSaveResult);
+                StringName resolvedStatusId = ResolveStatusIdForSave(effectDefinition, statusSaveResult);
                 resolvedStatusId = BattleTemporalStatusService.ApplyEliteBossStasisDowngrade(
                     target_unit,
                     resolvedStatusId
                 );
                 if (
                     resolvedStatusId != ""
-                    && ApplyStatusEffect(target_unit, source_unit, effectDef, resolvedStatusId)
+                    && ApplyStatusEffect(target_unit, source_unit, effectDefinition, resolvedStatusId)
                 )
                 {
                     AddUnique(statusEffectIds, resolvedStatusId);
-                    applied = true;
-                }
-            }
-            else if (
-                effectKind == BattleEffectKind.Terrain
-                || effectKind == BattleEffectKind.TerrainEffect
-            )
-            {
-                if (effectDef.terrain_effect_id != "")
-                {
-                    AddUnique(terrainEffectIds, effectDef.terrain_effect_id);
-                    applied = true;
-                }
-            }
-            else if (
-                effectKind == BattleEffectKind.Height
-                || effectKind == BattleEffectKind.HeightDelta
-            )
-            {
-                if (effectDef.height_delta != 0)
-                {
-                    totalHeightDelta += effectDef.height_delta;
                     applied = true;
                 }
             }
@@ -1557,7 +1183,7 @@ public partial class BattleDamageResolver : IDisposable
                 ExecuteEffectResult executeResult = ResolveExecuteEffect(
                     source_unit,
                     target_unit,
-                    effectDef,
+                    effectDefinition,
                     contextFlags,
                     statusEffectIds,
                     saveResults
@@ -1588,7 +1214,7 @@ public partial class BattleDamageResolver : IDisposable
                     ResolveGradedSaveExecuteEffect(
                         source_unit,
                         target_unit,
-                        effectDef,
+                        effectDefinition,
                         contextFlags,
                         statusEffectIds,
                         saveResults
@@ -1657,39 +1283,6 @@ public partial class BattleDamageResolver : IDisposable
                     "trait_trigger_results"
                 ),
             }
-        );
-    }
-
-    internal virtual AttackEffectResolutionResult ResolveEffects(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        IEnumerable<CombatEffectDef> effect_defs,
-        GDictionary damage_context = null
-    )
-    {
-        return ResolveEffects(
-            source_unit,
-            target_unit,
-            effect_defs,
-            DamageResolutionContext.FromDictionary(damage_context)
-        );
-    }
-
-    internal virtual AttackEffectResolutionResult ResolveEffects(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        IEnumerable<CombatEffectDef> effect_defs,
-        DamageResolutionContext damage_context
-    )
-    {
-        return ResolveEffects(
-            source_unit,
-            target_unit,
-            MarkRuntimeArray(
-                ToValueArray(effect_defs),
-                "ResolveEffects.context.enumerable.effects"
-            ),
-            damage_context ?? DamageResolutionContext.Empty()
         );
     }
 
@@ -1774,15 +1367,15 @@ public partial class BattleDamageResolver : IDisposable
     }
 
     private static bool DoesEffectTrigger(
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         DamageResolutionContext context
     )
     {
-        if (effectDef == null)
+        if (effectDefinition == null)
         {
             return false;
         }
-        return effectDef.TriggerEventKind switch
+        return effectDefinition.TriggerEventKind switch
         {
             CombatEffectTriggerEvent.None => true,
             CombatEffectTriggerEvent.CriticalHit => context.CriticalHit,
@@ -1924,38 +1517,48 @@ public partial class BattleDamageResolver : IDisposable
     private DamageOutcomeResult ResolveDamageOutcome(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         DamageResolutionContext damageContext
     )
     {
-        StringName damageTag = ResolveDamageTag(sourceUnit, effectDef);
+        StringName damageTag = ResolveDamageTag(sourceUnit, effectDefinition);
         if (damageTag == "")
         {
-            return BuildInvalidDamageTagOutcome(sourceUnit, effectDef);
+            return BuildInvalidDamageTagOutcome(sourceUnit, effectDefinition);
         }
         StringName rollMode = damageContext.DamageRollMode;
-        DicePoolRollResult damageRoll = RollDamageDice(effectDef, true, "damage_dice", rollMode);
+        DicePoolRollResult damageRoll = RollDamageDice(
+            effectDefinition,
+            true,
+            "damage_dice",
+            rollMode
+        );
         DicePoolRollResult weaponRoll = RollWeaponDice(
             sourceUnit,
-            effectDef,
+            effectDefinition,
             true,
             "weapon_damage_dice",
             rollMode
         );
         bool criticalHit = damageContext.CriticalHit;
-        bool bonusConditionMet = HasBonusCondition(effectDef, targetUnit);
+        bool bonusConditionMet = HasBonusCondition(effectDefinition, targetUnit);
         DicePoolRollResult bonusDamageRoll = bonusConditionMet
-            ? RollBonusDamageDice(effectDef, true, "bonus_damage_dice", rollMode)
+            ? RollBonusDamageDice(effectDefinition, true, "bonus_damage_dice", rollMode)
             : DicePoolRollResult.Empty;
         DicePoolRollResult criticalDamageRoll =
             criticalHit && damageRoll.HasDice
-                ? RollDamageDice(effectDef, false, "critical_extra_damage_dice", rollMode)
+                ? RollDamageDice(
+                    effectDefinition,
+                    false,
+                    "critical_extra_damage_dice",
+                    rollMode
+                )
                 : DicePoolRollResult.Empty;
         DicePoolRollResult criticalWeaponRoll =
             criticalHit && weaponRoll.HasDice
                 ? RollWeaponDice(
                     sourceUnit,
-                    effectDef,
+                    effectDefinition,
                     false,
                     "critical_extra_weapon_damage_dice",
                     rollMode
@@ -1964,7 +1567,7 @@ public partial class BattleDamageResolver : IDisposable
         DicePoolRollResult criticalBonusDamageRoll =
             criticalHit && bonusDamageRoll.HasDice
                 ? RollBonusDamageDice(
-                    effectDef,
+                    effectDefinition,
                     false,
                     "critical_extra_bonus_damage_dice",
                     rollMode
@@ -1973,7 +1576,7 @@ public partial class BattleDamageResolver : IDisposable
         TraitTriggerResultSnapshot traitCritResult = ResolveCritTraitResult(
             sourceUnit,
             targetUnit,
-            effectDef,
+            effectDefinition,
             criticalHit
         );
         DicePoolRollResult traitExtraWeaponRoll = traitCritResult.Triggered
@@ -1987,12 +1590,12 @@ public partial class BattleDamageResolver : IDisposable
             : DicePoolRollResult.Empty;
         DicePoolRollResult consumedStackRoll = RollConsumedStackDice(
             sourceUnit,
-            effectDef,
+            effectDefinition,
             rollMode
         );
 
         int baseDamage =
-            Math.Max(effectDef?.power ?? 0, 0)
+            Math.Max(effectDefinition?.Power ?? 0, 0)
             + weaponRoll.TotalWithBonus
             + damageRoll.TotalWithBonus
             + bonusDamageRoll.TotalWithBonus
@@ -2001,7 +1604,11 @@ public partial class BattleDamageResolver : IDisposable
             + criticalBonusDamageRoll.Total
             + traitExtraWeaponRoll.Total
             + consumedStackRoll.Total;
-        double offenseMultiplier = BuildOffenseMultiplier(sourceUnit, targetUnit, effectDef);
+        double offenseMultiplier = BuildOffenseMultiplier(
+            sourceUnit,
+            targetUnit,
+            effectDefinition
+        );
         int rolledDamage = Math.Max(RoundToInt(baseDamage * offenseMultiplier), 0);
         GDictionary mitigationTierResult = ResolveMitigationTierResult(targetUnit, damageTag);
         StringName mitigationTier = DictStringName(
@@ -2023,7 +1630,11 @@ public partial class BattleDamageResolver : IDisposable
             tierAdjustedDamage *= 2;
         }
 
-        FixedMitigationResult mitigation = BuildFixedMitigation(targetUnit, effectDef, damageTag);
+        FixedMitigationResult mitigation = BuildFixedMitigation(
+            targetUnit,
+            effectDefinition,
+            damageTag
+        );
         ApplyBlackStarBrandGuardIgnore(mitigation, targetUnit);
         bool lowLuckBlackStarWedgeTriggered = ApplyLowLuckBlackStarWedgeGuardIgnore(
             mitigation,
@@ -2058,7 +1669,7 @@ public partial class BattleDamageResolver : IDisposable
                 ),
             BaseDamage = baseDamage,
             CriticalHit = criticalHit,
-            AddWeaponDice = ShouldAddWeaponDice(effectDef),
+            AddWeaponDice = ShouldAddWeaponDice(effectDefinition),
             DamageDice = damageRoll.ToDamageDiceRollDetail(),
             BonusConditionMet = bonusConditionMet,
             BonusDamageDice = bonusDamageRoll.ToDamageDiceRollDetail(),
@@ -2472,7 +2083,7 @@ public partial class BattleDamageResolver : IDisposable
     private DamagePreviewSaveEstimate BuildDamagePreviewSaveEstimate(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         DamageResolutionContext damageContext,
         int damageBeforeSave,
         BattleDamagePreviewSaveMode saveMode
@@ -2482,7 +2093,7 @@ public partial class BattleDamageResolver : IDisposable
             BattleSaveResolver.EstimateSaveSuccessProbabilityResult(
                 sourceUnit,
                 targetUnit,
-                effectDef,
+                effectDefinition,
                 (damageContext ?? DamageResolutionContext.Empty()).ToBattleSaveContext()
             );
         if (!probability.HasSave)
@@ -2492,8 +2103,8 @@ public partial class BattleDamageResolver : IDisposable
         int successBasisPoints = Math.Clamp(probability.SuccessProbabilityBasisPoints, 0, 10000);
         int failureBasisPoints = Math.Clamp(probability.FailureProbabilityBasisPoints, 0, 10000);
         int damageOnSaveSuccess =
-            effectDef != null
-            && effectDef.save_partial_on_success
+            effectDefinition != null
+            && effectDefinition.SavePartialOnSuccess
             && !probability.Immune
                 ? damageBeforeSave / 2
                 : 0;
@@ -2512,7 +2123,7 @@ public partial class BattleDamageResolver : IDisposable
             Math.Max(worstDamage, 0),
             damageBeforeSave,
             damageOnSaveSuccess,
-            effectDef != null && effectDef.save_partial_on_success,
+            effectDefinition != null && effectDefinition.SavePartialOnSuccess,
             successBasisPoints,
             RoundToInt(successBasisPoints / 100.0),
             failureBasisPoints,
@@ -2614,14 +2225,14 @@ public partial class BattleDamageResolver : IDisposable
     private static DamageOutcomeResult WithSaveResult(
         DamageOutcomeResult damageOutcome,
         BattleSaveResult saveResult,
-        CombatEffectDef effectDef
+        CombatEffectDefinition effectDefinition
     )
     {
         DamageEventResult @event = damageOutcome.Event;
         int resolvedDamage = ApplySaveResultToDamageEvent(
             ref @event,
             saveResult,
-            effectDef,
+            effectDefinition,
             damageOutcome.ResolvedDamage
         );
         return damageOutcome with
@@ -2634,7 +2245,22 @@ public partial class BattleDamageResolver : IDisposable
     private static int ApplySaveResultToDamageEvent(
         ref DamageEventResult damageEvent,
         BattleSaveResult saveResult,
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
+        int preSaveDamage
+    )
+    {
+        return ApplySaveResultToDamageEvent(
+            ref damageEvent,
+            saveResult,
+            effectDefinition != null && effectDefinition.SavePartialOnSuccess,
+            preSaveDamage
+        );
+    }
+
+    private static int ApplySaveResultToDamageEvent(
+        ref DamageEventResult damageEvent,
+        BattleSaveResult saveResult,
+        bool savePartialOnSuccess,
         int preSaveDamage
     )
     {
@@ -2656,8 +2282,7 @@ public partial class BattleDamageResolver : IDisposable
         }
         int adjustedDamage = 0;
         if (
-            effectDef != null
-            && effectDef.save_partial_on_success
+            savePartialOnSuccess
             && !saveResult.Immune
         )
         {
@@ -2712,13 +2337,13 @@ public partial class BattleDamageResolver : IDisposable
     private double BuildOffenseMultiplier(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        CombatEffectDef effectDef
+        CombatEffectDefinition effectDefinition
     )
     {
-        double multiplier = GetPreResistanceDamageMultiplier(effectDef);
-        if (HasBonusCondition(effectDef, targetUnit))
+        double multiplier = GetPreResistanceDamageMultiplier(effectDefinition);
+        if (HasBonusCondition(effectDefinition, targetUnit))
         {
-            multiplier *= GetDamageRatioMultiplier(effectDef);
+            multiplier *= GetDamageRatioMultiplier(effectDefinition);
         }
         if (HasStatusEffect(sourceUnit, StatusAttackUp))
         {
@@ -2740,22 +2365,24 @@ public partial class BattleDamageResolver : IDisposable
 
     private static StringName ResolveDamageTag(
         BattleUnitState sourceUnit,
-        CombatEffectDef effectDef
+        CombatEffectDefinition effectDefinition
     )
     {
-        if (ShouldUseWeaponPhysicalDamageTag(effectDef))
+        if (ShouldUseWeaponPhysicalDamageTag(effectDefinition))
         {
             return GetUnitWeaponPhysicalDamageTag(sourceUnit);
         }
-        StringName explicitEffectTag = effectDef?.damage_tag ?? new StringName("");
+        StringName explicitEffectTag = effectDefinition?.DamageTag ?? new StringName("");
         return DamageTagContentRules.ToDamageTagKind(explicitEffectTag) != DamageTagKind.Unknown
             ? explicitEffectTag
             : new StringName("");
     }
 
-    private static bool ShouldUseWeaponPhysicalDamageTag(CombatEffectDef effectDef)
+    private static bool ShouldUseWeaponPhysicalDamageTag(
+        CombatEffectDefinition effectDefinition
+    )
     {
-        return DamageEffectRuntimeParameters.FromEffect(effectDef).UseWeaponPhysicalDamageTag;
+        return DamageEffectRuntimeParameters.FromEffect(effectDefinition).UseWeaponPhysicalDamageTag;
     }
 
     private static StringName GetUnitWeaponPhysicalDamageTag(BattleUnitState unitState)
@@ -2776,7 +2403,7 @@ public partial class BattleDamageResolver : IDisposable
     private TraitTriggerResultSnapshot ResolveCritTraitResult(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         bool criticalHit
     )
     {
@@ -2793,7 +2420,7 @@ public partial class BattleDamageResolver : IDisposable
                 sourceUnit,
                 targetUnit,
                 criticalHit,
-                ShouldAddWeaponDice(effectDef),
+                ShouldAddWeaponDice(effectDefinition),
                 sourceUnit != null ? sourceUnit.weapon_attack_range : 0,
                 GetCurrentWeaponDamageDiceSides(sourceUnit)
             )
@@ -2823,23 +2450,22 @@ public partial class BattleDamageResolver : IDisposable
     }
 
     private static StringName ResolveStatusIdForSave(
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         BattleSaveResult saveResult
     )
     {
-        if (effectDef == null)
+        if (effectDefinition == null)
         {
             return "";
         }
-        if (
-            saveResult.HasSave
-            && !saveResult.Success
-            && effectDef.save_failure_status_id != ""
-        )
+        StringName saveFailureStatusId = ProgressionDataUtils.to_string_name(
+            effectDefinition.SaveFailureStatusId
+        );
+        if (saveResult.HasSave && !saveResult.Success && saveFailureStatusId != "")
         {
-            return ProgressionDataUtils.to_string_name(effectDef.save_failure_status_id);
+            return saveFailureStatusId;
         }
-        return ProgressionDataUtils.to_string_name(effectDef.status_id);
+        return ProgressionDataUtils.to_string_name(effectDefinition.StatusId);
     }
 
 

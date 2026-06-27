@@ -119,11 +119,14 @@ public partial class run_quest_progress_service_regression : SceneTree
         CharacterManagementModule manager = new();
         manager.setup(
             partyState,
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            questDefs
+            new Dictionary<StringName, SkillDefinition>(),
+            new Dictionary<StringName, ProfessionDef>(),
+            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ItemDef>(),
+            ProjectQuestDefs(questDefs),
+            true,
+            null,
+            null
         );
 
         _test.True(
@@ -177,13 +180,31 @@ public partial class run_quest_progress_service_regression : SceneTree
         CharacterManagementModule manager = new();
         manager.setup(
             partyState,
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary { [questDef.quest_id] = questDef }
+            new Dictionary<StringName, SkillDefinition>(),
+            new Dictionary<StringName, ProfessionDef>(),
+            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ItemDef>(),
+            new Dictionary<StringName, QuestDef> { [questDef.quest_id] = questDef }
         );
         return manager;
+    }
+
+    private static Dictionary<StringName, QuestDef> ProjectQuestDefs(GDictionary questDefs)
+    {
+        Dictionary<StringName, QuestDef> result = new();
+        if (questDefs == null)
+            return result;
+        foreach (Variant rawKey in questDefs.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+                continue;
+            StringName questId = rawKey.AsStringName();
+            if (questId == "")
+                continue;
+            if (questDefs[rawKey].AsGodotObject() is QuestDef questDef)
+                result[questId] = questDef;
+        }
+        return result;
     }
 
     private static QuestProgressService.QuestProgressEventData QuestProgressEvent(

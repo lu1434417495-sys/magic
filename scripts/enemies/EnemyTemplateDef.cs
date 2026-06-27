@@ -198,7 +198,7 @@ public partial class EnemyTemplateDef : Resource
     internal Godot.Collections.Array<string> ValidateSchemaTyped(
         IReadOnlyDictionary<StringName, EnemyAiBrainDef> knownBrains = null,
         IReadOnlyDictionary<StringName, ItemDef> itemDefs = null,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = null
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null
     )
     {
         var errors = new Godot.Collections.Array<string>();
@@ -258,12 +258,12 @@ public partial class EnemyTemplateDef : Resource
             errors.Add(
                 $"Enemy template {template_id} must not declare attribute_overrides.armor_class; use base attributes and AC component bonuses."
             );
-        skillDefs ??= new Dictionary<StringName, SkillDef>();
+        skillDefinitions ??= new Dictionary<StringName, SkillDefinition>();
         itemDefs ??= new Dictionary<StringName, ItemDef>();
         HashSet<StringName> declaredSkillIds = _build_declared_skill_id_set();
-        foreach (var e in _validate_template_skill_ids(skillDefs))
+        foreach (var e in _validate_template_skill_ids(skillDefinitions))
             errors.Add(e);
-        foreach (var e in _validate_template_skill_level_map(skillDefs, declaredSkillIds))
+        foreach (var e in _validate_template_skill_level_map(skillDefinitions, declaredSkillIds))
             errors.Add(e);
         foreach (var uk in UNSUPPORTED_WEAPON_ATTRIBUTE_OVERRIDE_KEYS)
             if (_dictionary_has_unsupported_key(attribute_overrides, uk))
@@ -372,7 +372,7 @@ public partial class EnemyTemplateDef : Resource
     }
 
     private Godot.Collections.Array<string> _validate_template_skill_ids(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
         var errors = new Godot.Collections.Array<string>();
@@ -390,14 +390,14 @@ public partial class EnemyTemplateDef : Resource
                 errors.Add($"Enemy template {template_id} declares duplicate skill_id {si}.");
                 continue;
             }
-            if (skillDefs == null || !skillDefs.ContainsKey(si))
+            if (skillDefinitions == null || !skillDefinitions.ContainsKey(si))
                 errors.Add($"Enemy template {template_id} references missing skill {si}.");
         }
         return errors;
     }
 
     private Godot.Collections.Array<string> _validate_template_skill_level_map(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlySet<StringName> declaredSkillIds
     )
     {
@@ -425,11 +425,18 @@ public partial class EnemyTemplateDef : Resource
             int lv = rlv.AsInt32();
             if (lv < 1)
                 errors.Add($"Enemy template {template_id} skill_level_map[{si}] must be >= 1.");
-            else if (skillDefs != null && skillDefs.TryGetValue(si, out SkillDef sd))
+            else if (
+                skillDefinitions != null
+                && skillDefinitions.TryGetValue(si, out SkillDefinition skillDefinition)
+            )
             {
-                if (sd != null && sd.max_level > 0 && lv > sd.max_level)
+                if (
+                    skillDefinition != null
+                    && skillDefinition.MaxLevel > 0
+                    && lv > skillDefinition.MaxLevel
+                )
                     errors.Add(
-                        $"Enemy template {template_id} skill_level_map[{si}] = {lv} exceeds skill max_level {sd.max_level}."
+                        $"Enemy template {template_id} skill_level_map[{si}] = {lv} exceeds skill max_level {skillDefinition.MaxLevel}."
                     );
             }
         }
@@ -561,42 +568,13 @@ public partial class EnemyTemplateDef : Resource
         return result;
     }
 
-    internal static Dictionary<StringName, SkillDef> BuildSkillDefIndex(
-        Godot.Collections.Dictionary skillDefs
+    internal static Dictionary<StringName, SkillDefinition> CloneSkillDefinitionIndex(
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
-        var result = new Dictionary<StringName, SkillDef>();
-        if (skillDefs == null)
-        {
-            return result;
-        }
-        foreach (Variant rawKey in skillDefs.Keys)
-        {
-            if (rawKey.VariantType != VT.StringName)
-            {
-                continue;
-            }
-            SkillDef skillDef = skillDefs[rawKey].As<SkillDef>();
-            if (skillDef == null)
-            {
-                continue;
-            }
-            StringName keySkillId = rawKey.AsStringName();
-            if (keySkillId != "")
-            {
-                result[keySkillId] = skillDef;
-            }
-        }
-        return result;
-    }
-
-    internal static Dictionary<StringName, SkillDef> CloneSkillDefIndex(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
-    )
-    {
-        return skillDefs != null
-            ? new Dictionary<StringName, SkillDef>(skillDefs)
-            : new Dictionary<StringName, SkillDef>();
+        return skillDefinitions != null
+            ? new Dictionary<StringName, SkillDefinition>(skillDefinitions)
+            : new Dictionary<StringName, SkillDefinition>();
     }
 
     internal static Dictionary<StringName, ItemDef> BuildItemDefIndex(

@@ -4,7 +4,7 @@ using Godot;
 public sealed class AttributeSourceContext
 {
     public UnitProgress unit_progress;
-    public Dictionary<StringName, SkillDef> skill_defs = new();
+    public Dictionary<StringName, SkillDefinition> skill_definitions = new();
     public Dictionary<StringName, ProfessionDef> profession_defs = new();
     public RaceDef race_def;
     public SubraceDef subrace_def;

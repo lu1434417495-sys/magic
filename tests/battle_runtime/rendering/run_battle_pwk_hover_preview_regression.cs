@@ -16,7 +16,7 @@ public partial class run_battle_pwk_hover_preview_regression : SceneTree
 
     private void TestHighHpHoverHasNoBranchHitChanceOrDamageText()
     {
-        using SkillDef skill = MakeExecuteSkill();
+        SkillDefinition skill = MakeExecuteSkill();
         BattleUnitState source = MakeUnit("pwk_source", "player", new Vector2I(0, 0), 100, 100);
         BattleUnitState target = MakeUnit("healthy_target", "enemy", new Vector2I(1, 0), 100, 21);
 
@@ -27,7 +27,7 @@ public partial class run_battle_pwk_hover_preview_regression : SceneTree
         GDictionary hover = new BattleHudAdapter().BuildHoverPreview(
             fixture.State,
             target.coord,
-            skill.skill_id,
+            skill.SkillId,
             "",
             new Godot.Collections.Array<Vector2I>(),
             preview
@@ -43,7 +43,7 @@ public partial class run_battle_pwk_hover_preview_regression : SceneTree
 
     private void TestLowHpHoverShowsBranchTextAndHitChance()
     {
-        using SkillDef skill = MakeExecuteSkill();
+        SkillDefinition skill = MakeExecuteSkill();
         BattleUnitState source = MakeUnit("pwk_source", "player", new Vector2I(0, 0), 100, 100);
         BattleUnitState target = MakeUnit("weak_target", "enemy", new Vector2I(1, 0), 100, 20);
 
@@ -58,7 +58,7 @@ public partial class run_battle_pwk_hover_preview_regression : SceneTree
         GDictionary hover = new BattleHudAdapter().BuildHoverPreview(
             fixture.State,
             target.coord,
-            skill.skill_id,
+            skill.SkillId,
             "",
             new Godot.Collections.Array<Vector2I> { target.coord },
             preview
@@ -74,7 +74,7 @@ public partial class run_battle_pwk_hover_preview_regression : SceneTree
 
     private void TestHudDoesNotParseLogLinesOrDamagePreviewText()
     {
-        using SkillDef skill = MakeExecuteSkill();
+        SkillDefinition skill = MakeExecuteSkill();
         BattleUnitState source = MakeUnit("pwk_source", "player", new Vector2I(0, 0), 100, 100);
         BattleUnitState target = MakeUnit("weak_target", "enemy", new Vector2I(1, 0), 100, 20);
 
@@ -86,7 +86,7 @@ public partial class run_battle_pwk_hover_preview_regression : SceneTree
         GDictionary hover = adapter.BuildHoverPreview(
             fixture.State,
             target.coord,
-            skill.skill_id,
+            skill.SkillId,
             "",
             new Godot.Collections.Array<Vector2I> { target.coord },
             preview
@@ -94,8 +94,8 @@ public partial class run_battle_pwk_hover_preview_regression : SceneTree
         GDictionary snapshot = adapter.BuildSnapshot(
             fixture.State,
             target.coord,
-            skill.skill_id,
-            skill.display_name,
+            skill.SkillId,
+            skill.DisplayName,
             "",
             new Godot.Collections.Array<Vector2I>(),
             1,
@@ -141,7 +141,7 @@ public partial class run_battle_pwk_hover_preview_regression : SceneTree
 
     private static BattleTestFixture CreateFixture(
         StringName battleId,
-        SkillDef skill,
+        SkillDefinition skill,
         BattleUnitState source,
         BattleUnitState target
     )
@@ -154,49 +154,47 @@ public partial class run_battle_pwk_hover_preview_regression : SceneTree
         );
         fixture.Runtime.setup(
             null,
-            new Dictionary<StringName, SkillDef> { [skill.skill_id] = skill }
+            new Dictionary<StringName, SkillDefinition> { [skill.SkillId] = skill }
         );
         fixture.Runtime.SetupStateForTests(fixture.State);
         return fixture;
     }
 
-    private static SkillDef MakeExecuteSkill()
+    private static SkillDefinition MakeExecuteSkill()
     {
-        var skill = new SkillDef
-        {
-            skill_id = "test_power_word_kill_hover",
-            display_name = "测试律令死亡",
-            max_level = 20,
-            non_core_max_level = 20,
-            combat_profile = new CombatSkillDef
-            {
-                target_mode = "unit",
-                target_team_filter = "enemy",
-                target_selection_mode = "single_unit",
-                range_value = 5,
-                ap_cost = 1,
-                mp_cost = 0,
-            },
-        };
-        skill.combat_profile.effect_defs.Add(new CombatEffectDef
-        {
-            effect_type = "execute",
-            effect_target_team_filter = "enemy",
-            save_dc_mode = "caster_spell",
-            save_dc = 0,
-            save_dc_source_ability = "intelligence",
-            save_ability = "willpower",
-            save_tag = "execute",
-            damage_tag = "negative_energy",
-            threshold_max_hp_ratio_percent = 20,
-            threshold_level_anchor = 17,
-            threshold_level_bonus_per_delta = 5,
-            threshold_cap_max_hp_ratio_percent = 50,
-            soul_fracture_duration_tu = 60,
-            heal_multiplier_percent = 50,
-            shield_gain_multiplier_percent = 50,
-        });
-        return TestResourceOwnership.Own(skill, "battle_pwk_hover_preview.execute_skill");
+        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
+            "execute",
+            effectTargetTeamFilter: "enemy",
+            saveDcMode: "caster_spell",
+            saveDc: 0,
+            saveDcSourceAbility: "intelligence",
+            saveAbility: "willpower",
+            saveTag: "execute",
+            damageTag: "negative_energy",
+            thresholdMaxHpRatioPercent: 20,
+            thresholdLevelAnchor: 17,
+            thresholdLevelBonusPerDelta: 5,
+            thresholdCapMaxHpRatioPercent: 50,
+            soulFractureDurationTu: 60,
+            healMultiplierPercent: 50,
+            shieldGainMultiplierPercent: 50
+        );
+        return TestSkillDefinitionProjection.BuildSkill(
+            "test_power_word_kill_hover",
+            displayName: "测试律令死亡",
+            maxLevel: 20,
+            nonCoreMaxLevel: 20,
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                "test_power_word_kill_hover",
+                effects: new[] { effect },
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                targetSelectionMode: "single_unit",
+                rangeValue: 5,
+                apCost: 1,
+                mpCost: 0
+            )
+        );
     }
 
     private static BattleUnitState MakeUnit(
@@ -230,14 +228,14 @@ public partial class run_battle_pwk_hover_preview_regression : SceneTree
     private static BattleCommand MakeUnitCommand(
         BattleUnitState source,
         BattleUnitState target,
-        SkillDef skill
+        SkillDefinition skill
     )
     {
         var command = new BattleCommand
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = source.unit_id,
-            skill_id = skill.skill_id,
+            skill_id = skill.SkillId,
             target_unit_id = target.unit_id,
             target_coord = target.coord,
         };

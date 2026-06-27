@@ -38,7 +38,7 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
         try
         {
             BattleSimOverrideApplyResult overrides = overrideApplier.ApplyProfileTyped(
-                contentProvider.GetSkillDefsTyped(),
+                contentProvider.GetSkillDefinitionsTyped(),
                 contentProvider.GetEnemyAiBrainsTyped(),
                 new BattleSimProfileDef
                 {
@@ -170,7 +170,7 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
             bool useFormalTerrain = scenarioDef != null && scenarioDef.use_formal_terrain_generation;
             runtime.setup(
                 gateway,
-                overrides.SkillDefs,
+                overrides.SkillDefinitions,
                 contentProvider.GetEnemyTemplatesTyped(),
                 overrides.EnemyAiBrains,
                 null,

@@ -76,22 +76,32 @@ public partial class run_power_word_kill_execute_schema_regression : SceneTree
     {
         SkillDef skill = FormalPwkSkill();
         skill.combat_profile.special_resolution_profile_id = "meteor_swarm";
-        skill.combat_profile.effect_defs.Add(new CombatEffectDef
-        {
-            effect_type = "damage",
-            power = 1,
-            damage_tag = "fire",
-        });
+        skill.combat_profile.effect_defs.Add(
+            TestResourceOwnership.Own(
+                new CombatEffectDef
+                {
+                    effect_type = "damage",
+                    power = 1,
+                    damage_tag = "fire",
+                },
+                "PowerWordKillExecuteSchema.sibling-damage-effect"
+            )
+        );
         skill.combat_profile.passive_effect_defs.Add(FormalExecuteEffect());
-        skill.combat_profile.cast_variants.Add(new CombatCastVariantDef
-        {
-            variant_id = "ground_execute",
-            target_mode = "ground",
-            effect_defs = new Godot.Collections.Array<CombatEffectDef>
-            {
-                FormalExecuteEffect(),
-            },
-        });
+        skill.combat_profile.cast_variants.Add(
+            TestResourceOwnership.Own(
+                new CombatCastVariantDef
+                {
+                    variant_id = "ground_execute",
+                    target_mode = "ground",
+                    effect_defs = new Godot.Collections.Array<CombatEffectDef>
+                    {
+                        FormalExecuteEffect(),
+                    },
+                },
+                "PowerWordKillExecuteSchema.ground-cast-variant"
+            )
+        );
 
         string errors = FormatErrors(ValidateSkill(skill));
 

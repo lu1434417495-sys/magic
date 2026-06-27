@@ -26,7 +26,7 @@ public sealed class PracticeGrowthService
     private static readonly StringName MpMaxAttr = "mp_max";
     private static readonly StringName AuraMaxAttr = "aura_max";
 
-    private readonly Dictionary<StringName, SkillDef> _skillDefs = new();
+    private readonly Dictionary<StringName, SkillDefinition> _skillDefinitions = new();
 
     internal static StringName ToStringName(PracticeTrackKind kind)
     {
@@ -48,47 +48,47 @@ public sealed class PracticeGrowthService
     }
 
     public void Setup(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, ProfessionDef> _professionDefs
     )
     {
-        _skillDefs.Clear();
-        if (skillDefs == null)
+        _skillDefinitions.Clear();
+        if (skillDefinitions == null)
             return;
-        foreach (KeyValuePair<StringName, SkillDef> pair in skillDefs)
+        foreach (KeyValuePair<StringName, SkillDefinition> pair in skillDefinitions)
         {
             if (pair.Key != "" && pair.Value != null)
-                _skillDefs[pair.Key] = pair.Value;
+                _skillDefinitions[pair.Key] = pair.Value;
         }
     }
 
     public StringName GetTrackTypeForSkill(StringName skillId)
     {
-        SkillDef skillDef = GetSkillDef(skillId);
-        return skillDef != null ? GetExclusivePracticeTrack(skillDef) : "";
+        SkillDefinition skillDefinition = GetSkillDefinition(skillId);
+        return skillDefinition != null ? GetExclusivePracticeTrack(skillDefinition) : "";
     }
 
     public int GetPracticeTier(StringName skillId)
     {
-        SkillDef skillDef = GetSkillDef(skillId);
-        if (skillDef == null)
+        SkillDefinition skillDefinition = GetSkillDefinition(skillId);
+        if (skillDefinition == null)
             return -1;
-        return ResolveTierValue(skillDef.PracticeTierKind);
+        return ResolveTierValue(skillDefinition.PracticeTier);
     }
 
     public static int ResolveTierValue(StringName tierName)
     {
-        return ResolveTierValue(SkillDef.ToPracticeTier(tierName));
+        return ResolveTierValue(SkillDefinition.ToPracticeTier(tierName));
     }
 
     public static StringName ResolveTierName(int tierValue)
     {
         return tierValue switch
         {
-            TierBasic => SkillDef.ToStringName(SkillPracticeTierKind.Basic),
-            TierIntermediate => SkillDef.ToStringName(SkillPracticeTierKind.Intermediate),
-            TierAdvanced => SkillDef.ToStringName(SkillPracticeTierKind.Advanced),
-            TierUltimate => SkillDef.ToStringName(SkillPracticeTierKind.Ultimate),
+            TierBasic => SkillDefinition.ToPracticeTierName(SkillPracticeTierKind.Basic),
+            TierIntermediate => SkillDefinition.ToPracticeTierName(SkillPracticeTierKind.Intermediate),
+            TierAdvanced => SkillDefinition.ToPracticeTierName(SkillPracticeTierKind.Advanced),
+            TierUltimate => SkillDefinition.ToPracticeTierName(SkillPracticeTierKind.Ultimate),
             _ => "",
         };
     }
@@ -143,16 +143,19 @@ public sealed class PracticeGrowthService
 
         UnitSkillProgress oldSkillProgress = unitProgress?.GetSkillProgress(oldSkillId);
         int oldLevel = oldSkillProgress?.skill_level ?? 0;
-        SkillDef newSkillDef = GetSkillDef(newSkillId);
-        if (newSkillDef == null)
+        SkillDefinition newSkillDefinition = GetSkillDefinition(newSkillId);
+        if (newSkillDefinition == null)
             return 0;
 
         int rawNewLevel = oldLevel + (oldTier - newTier);
-        int maxLevel = newSkillDef.max_level >= 0 ? Mathf.Max(newSkillDef.max_level, 0) : 999;
-        if (newSkillDef.dynamic_max_level_stat_id != "")
+        int maxLevel =
+            newSkillDefinition.MaxLevel >= 0
+                ? Mathf.Max(newSkillDefinition.MaxLevel, 0)
+                : 999;
+        if (newSkillDefinition.DynamicMaxLevelStatId != "")
         {
             int absoluteMax = SkillEffectiveMaxLevelRules.GetEffectiveAbsoluteMaxLevel(
-                newSkillDef,
+                newSkillDefinition,
                 unitProgress
             );
             if (absoluteMax > 0)
@@ -242,7 +245,7 @@ public sealed class PracticeGrowthService
         StringName existingSkillId = GetActivePracticeSkill(unitProgress, trackType);
         if (existingSkillId == "")
             return;
-        if (GetSkillDef(existingSkillId) == null)
+        if (GetSkillDefinition(existingSkillId) == null)
             return;
 
         int growth = CalculateDailyUpperLimitGrowth(unitProgress, existingSkillId, trackType);
@@ -323,35 +326,37 @@ public sealed class PracticeGrowthService
         };
     }
 
-    private SkillDef GetSkillDef(StringName skillId)
+    private SkillDefinition GetSkillDefinition(StringName skillId)
     {
-        return _skillDefs.TryGetValue(skillId, out SkillDef skillDef) ? skillDef : null;
+        return _skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
+            ? skillDefinition
+            : null;
     }
 
-    private static StringName GetExclusivePracticeTrack(SkillDef skillDef)
+    private static StringName GetExclusivePracticeTrack(SkillDefinition skillDefinition)
     {
-        if (skillDef == null)
+        if (skillDefinition == null)
             return "";
 
         StringName matchedTrack = "";
         int matchedCount = 0;
         foreach (StringName trackType in PracticeTracks)
         {
-            if (skillDef.HasTag(trackType))
+            if (skillDefinition.HasTag(trackType))
             {
                 matchedTrack = trackType;
                 matchedCount += 1;
             }
         }
-        if (matchedCount != 1 || skillDef.TagsTyped.Count != 1)
+        if (matchedCount != 1 || skillDefinition.Tags.Count != 1)
             return "";
         return matchedTrack;
     }
 
     private bool HasValidPracticeTier(StringName skillId)
     {
-        SkillDef skillDef = GetSkillDef(skillId);
-        return skillDef != null && ResolveTierValue(skillDef.PracticeTierKind) >= 0;
+        SkillDefinition skillDefinition = GetSkillDefinition(skillId);
+        return skillDefinition != null && ResolveTierValue(skillDefinition.PracticeTier) >= 0;
     }
 
     private static int ResolveTierValue(SkillPracticeTierKind tierKind)

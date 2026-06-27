@@ -47,11 +47,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     public int multishot_mastery;
     public int basic_mastery;
 
-    private Godot.Collections.Dictionary _skill_defs = new();
-    private Godot.Collections.Dictionary _profession_defs = new();
-    private Godot.Collections.Dictionary _achievement_defs = new();
-    private Godot.Collections.Dictionary _item_defs = new();
-    private Dictionary<StringName, SkillDef> _skill_def_index = new();
+    private Dictionary<StringName, SkillDefinition> _skill_definition_index = new();
     private Dictionary<StringName, ProfessionDef> _profession_def_index = new();
     private Dictionary<StringName, AchievementDef> _achievement_def_index = new();
     private Dictionary<StringName, ItemDef> _item_def_index = new();
@@ -67,11 +63,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     {
         System.GC.SuppressFinalize(this);
         _dispose_roster_state();
-        _skill_defs.Clear();
-        _profession_defs.Clear();
-        _achievement_defs.Clear();
-        _item_defs.Clear();
-        _skill_def_index.Clear();
+        _skill_definition_index.Clear();
         _profession_def_index.Clear();
         _achievement_def_index.Clear();
         _item_def_index.Clear();
@@ -84,26 +76,15 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
 
     public void SetupContent(
         ProgressionContentRegistry progression_registry,
-        ItemContentRegistry item_registry,
-        Godot.Collections.Dictionary skill_defs_override = null
+        ItemContentRegistry item_registry
     )
     {
         progression_registry ??= new ProgressionContentRegistry();
         item_registry ??= new ItemContentRegistry();
-        IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs =
-            skill_defs_override != null && skill_defs_override.Count > 0
-                ? _index_defs<SkillDef>(skill_defs_override, def => def.skill_id)
-                : progression_registry.GetSkillDefsTyped();
-        Godot.Collections.Dictionary skill_defs =
-            skill_defs_override != null && skill_defs_override.Count > 0
-                ? skill_defs_override
-                : ProjectDefs(typedSkillDefs);
+        IReadOnlyDictionary<StringName, SkillDefinition> typedSkillDefinitions =
+            progression_registry.GetSkillDefinitionsTyped();
         _apply_content_catalogs(
-            skill_defs,
-            ProjectDefs(progression_registry.GetProfessionDefsTyped()),
-            ProjectAchievementDefs(progression_registry.GetAchievementDefsTyped()),
-            ProjectDefs(item_registry.GetItemDefsTyped()),
-            typedSkillDefs,
+            typedSkillDefinitions,
             progression_registry.GetProfessionDefsTyped(),
             progression_registry.GetAchievementDefsTyped(),
             item_registry.GetItemDefsTyped(),
@@ -115,21 +96,17 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     public void SetupContent(
         ProgressionContentRegistry progression_registry,
         ItemContentRegistry item_registry,
-        IReadOnlyDictionary<StringName, SkillDef> skill_defs_override
+        IReadOnlyDictionary<StringName, SkillDefinition> skill_definitions_override
     )
     {
         progression_registry ??= new ProgressionContentRegistry();
         item_registry ??= new ItemContentRegistry();
+        IReadOnlyDictionary<StringName, SkillDefinition> typedSkillDefinitions =
+            skill_definitions_override != null && skill_definitions_override.Count > 0
+                ? new Dictionary<StringName, SkillDefinition>(skill_definitions_override)
+                : progression_registry.GetSkillDefinitionsTyped();
         _apply_content_catalogs(
-            skill_defs_override != null && skill_defs_override.Count > 0
-                ? ProjectDefs(skill_defs_override)
-                : ProjectDefs(progression_registry.GetSkillDefsTyped()),
-            ProjectDefs(progression_registry.GetProfessionDefsTyped()),
-            ProjectAchievementDefs(progression_registry.GetAchievementDefsTyped()),
-            ProjectDefs(item_registry.GetItemDefsTyped()),
-            skill_defs_override != null && skill_defs_override.Count > 0
-                ? new Dictionary<StringName, SkillDef>(skill_defs_override)
-                : progression_registry.GetSkillDefsTyped(),
+            typedSkillDefinitions,
             progression_registry.GetProfessionDefsTyped(),
             progression_registry.GetAchievementDefsTyped(),
             item_registry.GetItemDefsTyped(),
@@ -159,11 +136,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     }
 
     private void _apply_content_catalogs(
-        Godot.Collections.Dictionary skill_defs,
-        Godot.Collections.Dictionary profession_defs,
-        Godot.Collections.Dictionary achievement_defs,
-        Godot.Collections.Dictionary item_defs,
-        IReadOnlyDictionary<StringName, SkillDef> typed_skill_defs,
+        IReadOnlyDictionary<StringName, SkillDefinition> typed_skill_definitions,
         IReadOnlyDictionary<StringName, ProfessionDef> typed_profession_defs,
         IReadOnlyDictionary<StringName, AchievementDef> typed_achievement_defs,
         IReadOnlyDictionary<StringName, ItemDef> typed_item_defs,
@@ -171,22 +144,18 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         ProgressionIdentityCatalogData progression_identity_catalog
     )
     {
-        _skill_defs = skill_defs ?? new Godot.Collections.Dictionary();
-        _profession_defs = profession_defs ?? new Godot.Collections.Dictionary();
-        _achievement_defs = achievement_defs ?? new Godot.Collections.Dictionary();
-        _item_defs = item_defs ?? new Godot.Collections.Dictionary();
-        _skill_def_index = typed_skill_defs != null
-            ? new Dictionary<StringName, SkillDef>(typed_skill_defs)
-            : _index_defs<SkillDef>(_skill_defs, def => def.skill_id);
+        _skill_definition_index = typed_skill_definitions != null
+            ? new Dictionary<StringName, SkillDefinition>(typed_skill_definitions)
+            : new Dictionary<StringName, SkillDefinition>();
         _profession_def_index = typed_profession_defs != null
             ? new Dictionary<StringName, ProfessionDef>(typed_profession_defs)
-            : _index_defs<ProfessionDef>(_profession_defs, def => def.profession_id);
+            : new Dictionary<StringName, ProfessionDef>();
         _achievement_def_index = typed_achievement_defs != null
             ? new Dictionary<StringName, AchievementDef>(typed_achievement_defs)
-            : IndexAchievementDefs(_achievement_defs);
+            : new Dictionary<StringName, AchievementDef>();
         _item_def_index = typed_item_defs != null
             ? new Dictionary<StringName, ItemDef>(typed_item_defs)
-            : _index_defs<ItemDef>(_item_defs, def => def.item_id);
+            : new Dictionary<StringName, ItemDef>();
         _trait_def_index = typed_trait_defs != null
             ? new Dictionary<StringName, TraitDef>(typed_trait_defs)
             : new Dictionary<StringName, TraitDef>();
@@ -269,37 +238,6 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
 
     public ItemDef GetItemDef(StringName item_id) =>
         character_management?.GetItemDef(item_id) ?? GetIndexedItemDef(item_id);
-
-    private static Godot.Collections.Dictionary ProjectDefs<T>(IReadOnlyDictionary<StringName, T> values)
-        where T : RefCounted
-    {
-        var projected = new Godot.Collections.Dictionary();
-        if (values == null)
-            return projected;
-        foreach ((StringName id, T value) in values)
-        {
-            if (id == "" || value == null)
-                continue;
-            projected[id] = value;
-        }
-        return projected;
-    }
-
-    private static Godot.Collections.Dictionary ProjectAchievementDefs(
-        IReadOnlyDictionary<StringName, AchievementDef> values
-    )
-    {
-        var projected = new Godot.Collections.Dictionary();
-        if (values == null)
-            return projected;
-        foreach ((StringName id, AchievementDef value) in values)
-        {
-            if (id == "" || value == null)
-                continue;
-            projected[id] = value.ToDictionary();
-        }
-        return projected;
-    }
 
     public AttributeSnapshot GetMemberAttributeSnapshotForEquipmentView(
         StringName member_id,
@@ -1003,9 +941,9 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         if (unit_progress == null)
             return;
         var progression_service = new ProgressionService();
-        progression_service.Setup(
+        progression_service.SetupDefinitions(
             member_state.progression,
-            _skill_def_index,
+            _skill_definition_index,
             _profession_def_index
         );
         foreach (var skill_config in skill_configs)
@@ -1022,7 +960,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
             var skill_progress = unit_progress.GetSkillProgress(skill_id);
             if (skill_progress == null || !skill_progress.is_learned)
                 progression_service.LearnSkill(skill_id);
-            var skill_def = _get_skill_def(skill_id);
+            var skill_definition = _get_skill_definition(skill_id);
             if (is_core)
             {
                 progression_service.SetSkillCore(skill_id, true);
@@ -1030,11 +968,11 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
                 _unlock_fixture_core_skill_level_cap(
                     unit_progress,
                     skill_progress,
-                    skill_def,
+                    skill_definition,
                     target_level
                 );
             }
-            int mastery_amount = _calculate_mastery_for_level(skill_def, target_level);
+            int mastery_amount = _calculate_mastery_for_level(skill_definition, target_level);
             if (mastery_amount > 0)
                 progression_service.GrantSkillMastery(skill_id, mastery_amount, "training");
             if (is_core)
@@ -1049,13 +987,13 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     private void _unlock_fixture_core_skill_level_cap(
         UnitProgress unit_progress,
         UnitSkillProgress skill_progress,
-        SkillDef skill_def,
+        SkillDefinition skill_definition,
         int target_level
     )
     {
-        if (unit_progress == null || skill_progress == null || skill_def == null)
+        if (unit_progress == null || skill_progress == null || skill_definition == null)
             return;
-        int non_core_max_level = Mathf.Max(skill_def.non_core_max_level, 0);
+        int non_core_max_level = Mathf.Max(skill_definition.NonCoreMaxLevel, 0);
         if (non_core_max_level <= 0 || target_level <= non_core_max_level)
             return;
         skill_progress.is_level_trigger_active = false;
@@ -1073,16 +1011,16 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         int target_level
     )
     {
-        var skill_def = _get_skill_def(skill_id);
+        var skill_definition = _get_skill_definition(skill_id);
         var unit_progress = _unit_progress(member_state);
         var skill_progress = unit_progress?.GetSkillProgress(skill_id);
-        if (skill_def == null || skill_progress == null)
+        if (skill_definition == null || skill_progress == null)
             return;
         if (skill_progress.core_max_growth_claimed)
             return;
-        if (target_level < skill_def.max_level)
+        if (target_level < skill_definition.MaxLevel)
             return;
-        IReadOnlyDictionary<StringName, int> growth = skill_def.AttributeGrowthProgressTyped;
+        IReadOnlyDictionary<StringName, int> growth = skill_definition.AttributeGrowthProgress;
         if (growth.Count == 0)
         {
             skill_progress.core_max_growth_claimed = true;
@@ -1138,7 +1076,11 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         );
         member_state.SetCurrentHp(attributes.GetAttributeValue(AttributeService.HP_MAX));
         var ps = new ProgressionService();
-        ps.Setup(member_state.progression, _skill_def_index, _profession_def_index);
+        ps.SetupDefinitions(
+            member_state.progression,
+            _skill_definition_index,
+            _profession_def_index
+        );
         ps.RefreshRuntimeState();
     }
 
@@ -1283,7 +1225,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         character_management = new CharacterManagementModule();
         character_management.setup(
             party_state,
-            _skill_def_index,
+            _skill_definition_index,
             _profession_def_index,
             _achievement_def_index,
             _item_def_index,
@@ -1357,13 +1299,13 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         }
     }
 
-    private int _calculate_mastery_for_level(SkillDef skill_def, int target_level)
+    private int _calculate_mastery_for_level(SkillDefinition skill_definition, int target_level)
     {
-        if (skill_def == null)
+        if (skill_definition == null)
             return 0;
         int total = 0;
         for (int level = 0; level < target_level; level++)
-            total += Mathf.Max(skill_def.GetMasteryRequiredForLevel(level), 0);
+            total += Mathf.Max(skill_definition.GetMasteryRequiredForLevel(level), 0);
         return total;
     }
 
@@ -1452,8 +1394,10 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         return src[key].AsGodotDictionary() ?? new Godot.Collections.Dictionary();
     }
 
-    private SkillDef _get_skill_def(StringName skill_id) =>
-        _skill_def_index.TryGetValue(skill_id, out SkillDef skillDef) ? skillDef : null;
+    private SkillDefinition _get_skill_definition(StringName skill_id) =>
+        _skill_definition_index.TryGetValue(skill_id, out SkillDefinition skillDefinition)
+            ? skillDefinition
+            : null;
 
     private ProfessionDef _get_profession_def(StringName profession_id) =>
         _profession_def_index.TryGetValue(profession_id, out ProfessionDef professionDef)
@@ -1462,52 +1406,6 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
 
     private ItemDef GetIndexedItemDef(StringName item_id) =>
         _item_def_index.TryGetValue(item_id, out ItemDef itemDef) ? itemDef : null;
-
-    private static Dictionary<StringName, T> _index_defs<T>(
-        Godot.Collections.Dictionary source,
-        System.Func<T, StringName> id_selector
-    )
-        where T : RefCounted
-    {
-        var result = new Dictionary<StringName, T>();
-        if (source == null)
-            return result;
-        foreach (Variant raw_key in source.Keys)
-        {
-            if (source[raw_key].AsGodotObject() is not T entry)
-                continue;
-            StringName indexed_id = id_selector(entry);
-            if (indexed_id == "")
-                indexed_id = ProgressionDataUtils.to_string_name(raw_key);
-            if (indexed_id != "")
-                result[indexed_id] = entry;
-        }
-        return result;
-    }
-
-    private static Dictionary<StringName, AchievementDef> IndexAchievementDefs(
-        Godot.Collections.Dictionary source
-    )
-    {
-        var result = new Dictionary<StringName, AchievementDef>();
-        if (source == null)
-            return result;
-        foreach (Variant raw_key in source.Keys)
-        {
-            Variant rawValue = source[raw_key];
-            if (rawValue.VariantType != Variant.Type.Dictionary)
-                continue;
-            AchievementDef entry = AchievementDef.FromDictionary(rawValue.AsGodotDictionary());
-            if (entry == null)
-                continue;
-            StringName indexed_id = entry.achievement_id;
-            if (indexed_id == "")
-                indexed_id = ProgressionDataUtils.to_string_name(raw_key);
-            if (indexed_id != "")
-                result[indexed_id] = entry;
-        }
-        return result;
-    }
 
     private static int _d_int(Godot.Collections.Dictionary d, string key, int fallback) =>
         d != null && d.ContainsKey(key) ? d[key].AsInt32() : fallback;

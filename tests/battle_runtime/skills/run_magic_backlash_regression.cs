@@ -26,6 +26,7 @@ public partial class run_magic_backlash_regression : SceneTree
         TestFireballProtectedFumbleConsumesExtraMpAndSkipsBlast();
         TestFireballUnprotectedFumbleDriftsGroundAnchor();
         TestCastingTimePendingCastStartsThenCompletes();
+        TestGroundCastingTimePendingCastStartsThenCompletes();
         TestCastingTimeSpellControlDcOrdinaryFailureConsumesApOnly();
         TestCastingTimeCriticalFailureConsumesHalfCurrentApAndStartsCooldown();
         TestCastingTimeCancelRefundsHalfResourcesWithoutCooldown();
@@ -257,12 +258,12 @@ public partial class run_magic_backlash_regression : SceneTree
 
     private void TestCastingTimePendingCastStartsThenCompletes()
     {
-        SkillDef skillDef = BuildCastingTimeSkill(maintenanceDc: 0);
+        SkillDefinition skillDef = BuildCastingTimeSkill(maintenanceDc: 0);
         BattleRuntimeModule runtime = BuildRuntimeWithCastingSkill(skillDef);
         BattleState state = BuildState(new Vector2I(4, 1));
         BattleUnitState caster = BuildUnit("casting_caster", "player", new Vector2I(0, 0), 1, 50, -1);
         BattleUnitState target = BuildUnit("casting_target", "enemy", new Vector2I(1, 0), 0, 0, -1);
-        LearnSkill(caster, skillDef.skill_id);
+        LearnSkill(caster, skillDef.SkillId);
         AddUnit(runtime, state, caster, false);
         AddUnit(runtime, state, target, true);
         Activate(runtime, state, caster);
@@ -277,7 +278,7 @@ public partial class run_magic_backlash_regression : SceneTree
         _test.Eq(caster.pending_cast?.TargetUnitIds.Count ?? -1, 1, "pending cast 应保留单位目标。");
         _test.Eq(caster.current_mp, 40, "启动读条应立即扣除资源成本。");
         _test.Eq(caster.current_ap, 0, "启动读条应消耗本次行动。");
-        _test.Eq(caster.GetCooldownTyped(skillDef.skill_id), 0, "启动读条不应立刻进入冷却。");
+        _test.Eq(caster.GetCooldownTyped(skillDef.SkillId), 0, "启动读条不应立刻进入冷却。");
         _test.Eq(target.current_hp, beforeTargetHp, "启动读条不应立刻结算伤害。");
         _test.True(startBatch.changed_unit_ids.Contains(caster.unit_id), "启动读条应标记施法者变化。");
 
@@ -285,18 +286,51 @@ public partial class run_magic_backlash_regression : SceneTree
 
         _test.True(!caster.HasPendingCast(), "读条完成后应清除 pending cast。");
         _test.True(target.current_hp < beforeTargetHp, "读条完成后应结算技能效果。");
-        _test.Eq(caster.GetCooldownTyped(skillDef.skill_id), 20, "读条完成后应启动技能冷却。");
+        _test.Eq(caster.GetCooldownTyped(skillDef.SkillId), 20, "读条完成后应启动技能冷却。");
         _test.Eq(caster.action_progress, 0, "读条完成的同一 tick 不应额外获得行动进度。");
+    }
+
+    private void TestGroundCastingTimePendingCastStartsThenCompletes()
+    {
+        SkillDefinition skillDef = BuildGroundCastingTimeSkill(maintenanceDc: 0);
+        BattleRuntimeModule runtime = BuildRuntimeWithCastingSkill(skillDef);
+        BattleState state = BuildState(new Vector2I(4, 1));
+        BattleUnitState caster = BuildUnit("ground_casting_caster", "player", new Vector2I(0, 0), 1, 50, -1);
+        BattleUnitState target = BuildUnit("ground_casting_target", "enemy", new Vector2I(1, 0), 0, 0, -1);
+        LearnSkill(caster, skillDef.SkillId);
+        AddUnit(runtime, state, caster, false);
+        AddUnit(runtime, state, target, true);
+        Activate(runtime, state, caster);
+
+        int beforeTargetHp = target.current_hp;
+        BattleCommand command = BuildGroundCastingTimeCommand(caster.unit_id, target.coord);
+        BattlePreview preview = runtime.PreviewCommand(command);
+        BattleEventBatch startBatch = runtime.IssueCommand(command);
+
+        _test.True(preview.allowed, "地面读条技能启动前预览应允许。");
+        _test.True(caster.HasPendingCast(), "地面读条技能使用后应创建 pending cast。");
+        _test.Eq(caster.pending_cast?.TargetMode ?? BattleTargetMode.Unknown, BattleTargetMode.Ground, "地面读条 pending cast 应保留 ground target mode。");
+        _test.Eq(caster.pending_cast?.TargetCoords.Count ?? -1, 1, "地面读条 pending cast 应保留目标地格。");
+        _test.Eq(caster.current_mp, 40, "地面读条启动应立即扣除资源成本。");
+        _test.Eq(caster.current_ap, 0, "地面读条启动应消耗本次行动。");
+        _test.Eq(target.current_hp, beforeTargetHp, "地面读条启动不应立刻结算伤害。");
+        _test.True(startBatch.changed_unit_ids.Contains(caster.unit_id), "地面读条启动应标记施法者变化。");
+
+        AdvanceTimelineTu(runtime, state, 10);
+
+        _test.True(!caster.HasPendingCast(), "地面读条完成后应清除 pending cast。");
+        _test.True(target.current_hp < beforeTargetHp, "地面读条完成后应结算目标地格上的单位效果。");
+        _test.Eq(caster.GetCooldownTyped(skillDef.SkillId), 20, "地面读条完成后应启动技能冷却。");
     }
 
     private void TestCastingTimeSpellControlDcOrdinaryFailureConsumesApOnly()
     {
-        SkillDef skillDef = BuildCastingTimeSkill(maintenanceDc: 0, castingSpellControlDc: 999);
+        SkillDefinition skillDef = BuildCastingTimeSkill(maintenanceDc: 0, castingSpellControlDc: 999);
         BattleRuntimeModule runtime = BuildRuntimeWithCastingSkill(skillDef, spellControlRoll: 10);
         BattleState state = BuildState(new Vector2I(3, 1));
         BattleUnitState caster = BuildUnit("casting_dc_fail_caster", "player", new Vector2I(0, 0), 1, 50, -1);
         BattleUnitState target = BuildUnit("casting_dc_fail_target", "enemy", new Vector2I(1, 0), 0, 0, -1);
-        LearnSkill(caster, skillDef.skill_id);
+        LearnSkill(caster, skillDef.SkillId);
         AddUnit(runtime, state, caster, false);
         AddUnit(runtime, state, target, true);
         Activate(runtime, state, caster);
@@ -307,18 +341,18 @@ public partial class run_magic_backlash_regression : SceneTree
         _test.True(!caster.HasPendingCast(), "读条法术控制普通失败不应创建 pending cast。");
         _test.Eq(caster.current_ap, 0, "法术控制普通失败应按技能 AP 成本消耗行动。");
         _test.Eq(caster.current_mp, 50, "法术控制普通失败发生在持久资源扣除前。");
-        _test.Eq(caster.GetCooldownTyped(skillDef.skill_id), 0, "法术控制普通失败不应启动冷却。");
+        _test.Eq(caster.GetCooldownTyped(skillDef.SkillId), 0, "法术控制普通失败不应启动冷却。");
         _test.Eq(target.current_hp, beforeTargetHp, "法术控制普通失败不应结算技能效果。");
     }
 
     private void TestCastingTimeCriticalFailureConsumesHalfCurrentApAndStartsCooldown()
     {
-        SkillDef skillDef = BuildCastingTimeSkill(maintenanceDc: 0, castingSpellControlDc: 1);
+        SkillDefinition skillDef = BuildCastingTimeSkill(maintenanceDc: 0, castingSpellControlDc: 1);
         BattleRuntimeModule runtime = BuildRuntimeWithCastingSkill(skillDef, spellControlRoll: 1);
         BattleState state = BuildState(new Vector2I(3, 1));
         BattleUnitState caster = BuildUnit("casting_critical_fail_caster", "player", new Vector2I(0, 0), 5, 50, -1);
         BattleUnitState target = BuildUnit("casting_critical_fail_target", "enemy", new Vector2I(1, 0), 0, 0, -1);
-        LearnSkill(caster, skillDef.skill_id);
+        LearnSkill(caster, skillDef.SkillId);
         AddUnit(runtime, state, caster, false);
         AddUnit(runtime, state, target, true);
         Activate(runtime, state, caster);
@@ -329,18 +363,18 @@ public partial class run_magic_backlash_regression : SceneTree
         _test.True(!caster.HasPendingCast(), "读条法术控制大失败不应创建 pending cast。");
         _test.Eq(caster.current_ap, 2, "读条法术控制大失败应扣除当前 AP 的 50% 且向上取整。");
         _test.Eq(caster.current_mp, 50, "读条法术控制大失败发生在持久资源扣除前。");
-        _test.Eq(caster.GetCooldownTyped(skillDef.skill_id), 20, "读条法术控制大失败应启动技能冷却。");
+        _test.Eq(caster.GetCooldownTyped(skillDef.SkillId), 20, "读条法术控制大失败应启动技能冷却。");
         _test.Eq(target.current_hp, beforeTargetHp, "读条法术控制大失败不应结算技能效果。");
     }
 
     private void TestCastingTimeCancelRefundsHalfResourcesWithoutCooldown()
     {
-        SkillDef skillDef = BuildCastingTimeSkill(maintenanceDc: 0);
+        SkillDefinition skillDef = BuildCastingTimeSkill(maintenanceDc: 0);
         BattleRuntimeModule runtime = BuildRuntimeWithCastingSkill(skillDef);
         BattleState state = BuildState(new Vector2I(3, 1));
         BattleUnitState caster = BuildUnit("casting_cancel_caster", "player", new Vector2I(0, 0), 1, 50, -1);
         BattleUnitState target = BuildUnit("casting_cancel_target", "enemy", new Vector2I(1, 0), 0, 0, -1);
-        LearnSkill(caster, skillDef.skill_id);
+        LearnSkill(caster, skillDef.SkillId);
         AddUnit(runtime, state, caster, false);
         AddUnit(runtime, state, target, true);
         Activate(runtime, state, caster);
@@ -352,7 +386,7 @@ public partial class run_magic_backlash_regression : SceneTree
         _test.True(cancelPreview.allowed, "玩家可控己方单位应可在 timeline 阶段取消读条。");
         _test.True(!caster.HasPendingCast(), "取消读条后应清除 pending cast。");
         _test.Eq(caster.current_mp, 45, "取消读条应返还已付资源成本的一半。");
-        _test.Eq(caster.GetCooldownTyped(skillDef.skill_id), 0, "手动取消读条不应启动冷却。");
+        _test.Eq(caster.GetCooldownTyped(skillDef.SkillId), 0, "手动取消读条不应启动冷却。");
         _test.True(cancelBatch.changed_unit_ids.Contains(caster.unit_id), "取消读条应标记施法者变化。");
         _test.True(
             ReportContainsRefundPolicy(cancelBatch.report_entries, "half_persistent_costs"),
@@ -362,12 +396,12 @@ public partial class run_magic_backlash_regression : SceneTree
 
     private void TestCastingTimeHpMaintenanceFailureInterruptsWithCooldown()
     {
-        SkillDef skillDef = BuildCastingTimeSkill(maintenanceDc: 999);
+        SkillDefinition skillDef = BuildCastingTimeSkill(maintenanceDc: 999);
         BattleRuntimeModule runtime = BuildRuntimeWithCastingSkill(skillDef);
         BattleState state = BuildState(new Vector2I(3, 1));
         BattleUnitState caster = BuildUnit("casting_interrupt_caster", "player", new Vector2I(0, 0), 1, 50, -1);
         BattleUnitState target = BuildUnit("casting_interrupt_target", "enemy", new Vector2I(1, 0), 0, 0, -1);
-        LearnSkill(caster, skillDef.skill_id);
+        LearnSkill(caster, skillDef.SkillId);
         AddUnit(runtime, state, caster, false);
         AddUnit(runtime, state, target, true);
         Activate(runtime, state, caster);
@@ -378,17 +412,23 @@ public partial class run_magic_backlash_regression : SceneTree
         runtime.advance(1);
 
         _test.True(!caster.HasPendingCast(), "维持检定失败后应中断读条。");
-        _test.Eq(caster.GetCooldownTyped(skillDef.skill_id), 20, "维持失败中断应启动技能冷却。");
+        _test.Eq(caster.GetCooldownTyped(skillDef.SkillId), 20, "维持失败中断应启动技能冷却。");
         _test.Eq(target.current_hp, beforeTargetHp, "维持失败中断不应结算技能效果。");
     }
 
     private static BattleRuntimeModule BuildRuntimeWithSpellControlRoll(int roll)
     {
-        SkillDef skillDef = ResourceLoader.Load<SkillDef>("res://data/configs/skills/mage_fireball.tres");
+        SkillDefinition skillDefinition = TestSkillDefinitionProjection.LoadSkillDefinition(
+            "res://data/configs/skills/mage_fireball.tres",
+            "magic_backlash:mage_fireball"
+        );
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            new Dictionary<StringName, SkillDef> { [skillDef.skill_id] = skillDef }
+            new Dictionary<StringName, SkillDefinition>
+            {
+                [skillDefinition.SkillId] = skillDefinition,
+            }
         );
         runtime.ConfigureDamageResolverForTests(
             new FixedFailedSaveDamageResolver(new GArray(), new GArray { roll })
@@ -398,12 +438,12 @@ public partial class run_magic_backlash_regression : SceneTree
     }
 
     private static BattleRuntimeModule BuildRuntimeWithCastingSkill(
-        SkillDef skillDef,
+        SkillDefinition skillDef,
         int spellControlRoll = 20
     )
     {
         var runtime = new BattleRuntimeModule();
-        runtime.setup(null, new Dictionary<StringName, SkillDef> { [skillDef.skill_id] = skillDef });
+        runtime.setup(null, new Dictionary<StringName, SkillDefinition> { [skillDef.SkillId] = skillDef });
         runtime.ConfigureDamageResolverForTests(
             new FixedRollDamageResolver(new GArray { 4 }, new GArray { 20 })
         );
@@ -411,43 +451,69 @@ public partial class run_magic_backlash_regression : SceneTree
         return runtime;
     }
 
-    private static SkillDef BuildCastingTimeSkill(
+    private static SkillDefinition BuildCastingTimeSkill(
         int maintenanceDc,
         int castingSpellControlDc = 0
     )
     {
         StringName skillId = "test_slow_bolt";
-        var damageEffect = new CombatEffectDef
-        {
-            effect_type = "damage",
-            power = 10,
-            damage_tag = "physical_blunt",
-            effect_target_team_filter = "enemy",
-            @params = new GDictionary(),
-        };
-        var combatProfile = new CombatSkillDef
-        {
-            skill_id = skillId,
-            target_mode = "unit",
-            target_team_filter = "enemy",
-            target_selection_mode = "single_unit",
-            range_value = 3,
-            ap_cost = 1,
-            mp_cost = 10,
-            cooldown_tu = 20,
-            casting_time_tu = 10,
-            casting_spell_control_dc = castingSpellControlDc,
-            casting_maintenance_dc = maintenanceDc,
-            pending_cast_binding_mode = "soft_anchor",
-            effect_defs = new Godot.Collections.Array<CombatEffectDef> { damageEffect },
-        };
-        return new SkillDef
-        {
-            skill_id = skillId,
-            display_name = "Test Slow Bolt",
-            tags = new GStringNameArray { "test", "magic" },
-            combat_profile = combatProfile,
-        };
+        CombatEffectDefinition damageEffect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            effectTargetTeamFilter: "enemy",
+            power: 10,
+            damageTag: "physical_blunt"
+        );
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: "Test Slow Bolt",
+            tags: new[] { new StringName("test"), new StringName("magic") },
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: new[] { damageEffect },
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                targetSelectionMode: "single_unit",
+                rangeValue: 3,
+                apCost: 1,
+                mpCost: 10,
+                cooldownTu: 20,
+                castingTimeTu: 10,
+                castingSpellControlDc: castingSpellControlDc,
+                castingMaintenanceDc: maintenanceDc,
+                pendingCastBindingMode: "soft_anchor"
+            )
+        );
+    }
+
+    private static SkillDefinition BuildGroundCastingTimeSkill(int maintenanceDc)
+    {
+        StringName skillId = "test_slow_ground_burst";
+        CombatEffectDefinition damageEffect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            effectTargetTeamFilter: "enemy",
+            power: 10,
+            damageTag: "physical_blunt"
+        );
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: "Test Slow Ground Burst",
+            tags: new[] { new StringName("test"), new StringName("magic") },
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: new[] { damageEffect },
+                targetMode: "ground",
+                targetTeamFilter: "enemy",
+                targetSelectionMode: "single_cell",
+                areaPattern: "single",
+                rangeValue: 3,
+                apCost: 1,
+                mpCost: 10,
+                cooldownTu: 20,
+                castingTimeTu: 10,
+                castingMaintenanceDc: maintenanceDc,
+                pendingCastBindingMode: "ground_bind"
+            )
+        );
     }
 
     private static void LearnSkill(BattleUnitState unit, StringName skillId)
@@ -585,6 +651,19 @@ public partial class run_magic_backlash_regression : SceneTree
             target_unit_id = targetUnitId,
         };
         command.AddTargetUnitId(targetUnitId);
+        return command;
+    }
+
+    private static BattleCommand BuildGroundCastingTimeCommand(StringName unitId, Vector2I targetCoord)
+    {
+        var command = new BattleCommand
+        {
+            command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
+            unit_id = unitId,
+            skill_id = "test_slow_ground_burst",
+            target_coord = targetCoord,
+        };
+        command.AddTargetCoord(targetCoord);
         return command;
     }
 

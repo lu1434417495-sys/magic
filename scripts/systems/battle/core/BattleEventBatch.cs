@@ -10,7 +10,7 @@ public class BattleEventBatch : IDisposable
     private readonly List<StringName> _changedUnitIds = new();
     private readonly List<Vector2I> _changedCoords = new();
     private readonly List<string> _logLines = new();
-    private readonly RuntimePayloadList _reportEntries = new();
+    private readonly List<Dictionary<string, object>> _reportEntries = new();
     private readonly List<CharacterProgressionDelta> _progressionDeltas = new();
 
     public bool phase_changed { get; set; }
@@ -45,7 +45,7 @@ public class BattleEventBatch : IDisposable
     internal IReadOnlyList<StringName> ChangedUnitIdsTyped => _changedUnitIds;
     internal IReadOnlyList<Vector2I> ChangedCoordsTyped => _changedCoords;
     internal IReadOnlyList<string> LogLinesTyped => _logLines;
-    internal IReadOnlyList<GDictionary> ReportEntriesTyped => _reportEntries.ToList();
+    internal IReadOnlyList<GDictionary> ReportEntriesTyped => BuildReportEntryList();
     internal IReadOnlyList<CharacterProgressionDelta> ProgressionDeltasTyped => _progressionDeltas;
 
     public void Dispose() { }
@@ -156,7 +156,25 @@ public class BattleEventBatch : IDisposable
 
     internal void SetReportEntries(IEnumerable values)
     {
-        _reportEntries.SetFrom(values);
+        _reportEntries.Clear();
+        if (values == null)
+        {
+            return;
+        }
+        int index = 0;
+        foreach (object value in values)
+        {
+            if (TryAsDictionary(value, out GDictionary reportEntry))
+            {
+                _reportEntries.Add(
+                    RuntimePlainPayload.NormalizeDictionary(
+                        reportEntry,
+                        $"BattleEventBatch.report_entries[{index}]"
+                    )
+                );
+            }
+            index++;
+        }
     }
 
     internal void ClearReportEntries()
@@ -170,7 +188,12 @@ public class BattleEventBatch : IDisposable
         {
             return;
         }
-        _reportEntries.Add(reportEntry);
+        _reportEntries.Add(
+            RuntimePlainPayload.NormalizeDictionary(
+                reportEntry,
+                $"BattleEventBatch.report_entries[{_reportEntries.Count}]"
+            )
+        );
     }
 
     internal void SetProgressionDeltas(IEnumerable values)
@@ -238,7 +261,10 @@ public class BattleEventBatch : IDisposable
 
     internal GArray BuildReportEntriesArray()
     {
-        return _reportEntries.ToUntypedGodotArray();
+        return RuntimePlainPayload.ProjectDictionaryArray(
+            _reportEntries,
+            "BattleEventBatch.BuildReportEntriesArray"
+        );
     }
 
     internal GArray BuildProgressionDeltasArray()
@@ -268,6 +294,39 @@ public class BattleEventBatch : IDisposable
             delta = CharacterProgressionDelta.FromDictionary(variant.AsGodotDictionary());
             return delta != null;
         }
+        return false;
+    }
+
+    private List<GDictionary> BuildReportEntryList()
+    {
+        var result = new List<GDictionary>();
+        int index = 0;
+        foreach (Dictionary<string, object> entry in _reportEntries)
+        {
+            result.Add(
+                RuntimePlainPayload.ProjectDictionary(
+                    entry,
+                    $"BattleEventBatch.ReportEntriesTyped[{index}]"
+                )
+            );
+            index++;
+        }
+        return result;
+    }
+
+    private static bool TryAsDictionary(object value, out GDictionary dictionary)
+    {
+        if (value is GDictionary dictionaryValue)
+        {
+            dictionary = dictionaryValue;
+            return true;
+        }
+        if (value is Variant variant && variant.VariantType == Variant.Type.Dictionary)
+        {
+            dictionary = variant.AsGodotDictionary();
+            return true;
+        }
+        dictionary = null;
         return false;
     }
 }

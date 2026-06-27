@@ -226,35 +226,38 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
     private static SkillDef BuildSkillWithInvalidLevelOverrides()
     {
         const string skillId = "invalid_level_override_types_skill";
-        return new SkillDef
-        {
-            skill_id = skillId,
-            display_name = "Invalid Level Override Types",
-            icon_id = skillId,
-            skill_type = "active",
-            max_level = 1,
-            mastery_curve = new[] { 1 },
-            combat_profile = new CombatSkillDef
+        return TestResourceOwnership.Own(
+            new SkillDef
             {
                 skill_id = skillId,
-                target_mode = "unit",
-                target_team_filter = "enemy",
-                target_selection_mode = "single_unit",
-                selection_order_mode = "stable",
-                range_value = 1,
-                max_target_count = 1,
-                level_overrides = new GDictionary
+                display_name = "Invalid Level Override Types",
+                icon_id = skillId,
+                skill_type = "active",
+                max_level = 1,
+                mastery_curve = new[] { 1 },
+                combat_profile = new CombatSkillDef
                 {
-                    [1] = new GDictionary
+                    skill_id = skillId,
+                    target_mode = "unit",
+                    target_team_filter = "enemy",
+                    target_selection_mode = "single_unit",
+                    selection_order_mode = "stable",
+                    range_value = 1,
+                    max_target_count = 1,
+                    level_overrides = new GDictionary
                     {
-                        ["range_value"] = "3",
-                        ["attack_roll_bonus"] = true,
-                        ["area_value"] = 1.5,
-                        ["max_target_count"] = "two",
+                        [1] = new GDictionary
+                        {
+                            ["range_value"] = "3",
+                            ["attack_roll_bonus"] = true,
+                            ["area_value"] = 1.5,
+                            ["max_target_count"] = "two",
+                        },
                     },
                 },
             },
-        };
+            "BattleSaveSkillSchema.BuildSkillWithInvalidLevelOverrides"
+        );
     }
 
     private static void CleanupTempSkillDirectory()

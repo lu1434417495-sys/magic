@@ -4,7 +4,7 @@ using System.Collections.Generic;
 public sealed class BattleSimRunReport
 {
     private BattleSimMetricsSnapshot _metricsSnapshot = BattleSimMetricsSnapshot.Empty();
-    private Godot.Collections.Array _finalUnits = new();
+    private List<object> _finalUnits = new();
 
     public string ScenarioId { get; set; } = "";
 
@@ -47,9 +47,12 @@ public sealed class BattleSimRunReport
 
     public Godot.Collections.Array FinalUnits
     {
-        get => RuntimePayloadCopy.Array(_finalUnits, "BattleSimRunReport.FinalUnits.get");
+        get => RuntimePlainPayload.ProjectArray(
+            _finalUnits,
+            "BattleSimRunReport.FinalUnits.get"
+        );
         set =>
-            _finalUnits = RuntimePayloadCopy.Array(
+            _finalUnits = RuntimePlainPayload.NormalizeArray(
                 value,
                 "BattleSimRunReport.FinalUnits.set"
             );

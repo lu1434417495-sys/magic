@@ -33,11 +33,17 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
     private void _TestForceHitSkillRuntimePreviewIsGuaranteed()
     {
         var registry = new ProgressionContentRegistry();
-        IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs = registry.GetSkillDefsTyped();
-        GDictionary skillDefs = ProjectSkillDefs(typedSkillDefs);
-        var skillDef = GetObject<SkillDef>(skillDefs, BLACK_CONTRACT_PUSH_SKILL_ID);
-        _test.True(skillDef != null && skillDef.combat_profile != null, "黑契推进预览前置：技能定义应存在。");
-        if (skillDef == null || skillDef.combat_profile == null)
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            registry.GetSkillDefinitionsTyped();
+        skillDefinitions.TryGetValue(
+            BLACK_CONTRACT_PUSH_SKILL_ID,
+            out SkillDefinition skillDefinition
+        );
+        _test.True(
+            skillDefinition != null && skillDefinition.CombatProfile != null,
+            "黑契推进预览前置：技能定义应存在。"
+        );
+        if (skillDefinition == null || skillDefinition.CombatProfile == null)
         {
             registry.Dispose();
             return;
@@ -53,7 +59,7 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         {
             runtime.setup(
                 null,
-                typedSkillDefs,
+                skillDefinitions,
                 new Dictionary<StringName, EnemyTemplateDef>(),
                 new Dictionary<StringName, EnemyAiBrainDef>(),
                 null
@@ -110,11 +116,17 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
     private async Task _TestSingleHitSkillHudSurfacesRuntimePreview()
     {
         var registry = new ProgressionContentRegistry();
-        IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs = registry.GetSkillDefsTyped();
-        GDictionary skillDefs = ProjectSkillDefs(typedSkillDefs);
-        var skillDef = GetObject<SkillDef>(skillDefs, WARRIOR_HEAVY_STRIKE_SKILL_ID);
-        _test.True(skillDef != null && skillDef.combat_profile != null, "重击 HUD 预览前置：技能定义应存在。");
-        if (skillDef == null || skillDef.combat_profile == null)
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            registry.GetSkillDefinitionsTyped();
+        skillDefinitions.TryGetValue(
+            WARRIOR_HEAVY_STRIKE_SKILL_ID,
+            out SkillDefinition skillDefinition
+        );
+        _test.True(
+            skillDefinition != null && skillDefinition.CombatProfile != null,
+            "重击 HUD 预览前置：技能定义应存在。"
+        );
+        if (skillDefinition == null || skillDefinition.CombatProfile == null)
         {
             registry.Dispose();
             return;
@@ -138,7 +150,7 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         {
             runtime.setup(
                 null,
-                typedSkillDefs,
+                skillDefinitions,
                 new Dictionary<StringName, EnemyTemplateDef>(),
                 new Dictionary<StringName, EnemyAiBrainDef>(),
                 null
@@ -196,7 +208,7 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
                 state,
                 target.coord,
                 WARRIOR_HEAVY_STRIKE_SKILL_ID,
-                skillDef.display_name,
+                skillDefinition.DisplayName,
                 "",
                 new Godot.Collections.Array<Vector2I>(),
                 1,
@@ -237,7 +249,7 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
                 state,
                 target.coord,
                 WARRIOR_HEAVY_STRIKE_SKILL_ID,
-                skillDef.display_name,
+                skillDefinition.DisplayName,
                 "",
                 new Godot.Collections.Array<Vector2I>(),
                 1,
@@ -282,7 +294,7 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
                 state,
                 target.coord,
                 WARRIOR_HEAVY_STRIKE_SKILL_ID,
-                skillDef.display_name,
+                skillDefinition.DisplayName,
                 "",
                 new Godot.Collections.Array<Vector2I>(),
                 1,
@@ -373,22 +385,6 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         Root.AddChild(gameSession);
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
         return gameSession;
-    }
-
-    private static GDictionary ProjectSkillDefs(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
-    )
-    {
-        GDictionary result = new();
-        if (skillDefs == null)
-            return result;
-        foreach ((StringName skillId, SkillDef skillDef) in skillDefs)
-        {
-            if (skillId == "" || skillDef == null)
-                continue;
-            result[skillId] = skillDef;
-        }
-        return result;
     }
 
     private BattleState _BuildState(StringName battleId)
@@ -497,13 +493,6 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         command.target_unit_id = targetUnit?.unit_id ?? new StringName("");
         command.target_coord = targetUnit?.coord ?? new Vector2I(-1, -1);
         return command;
-    }
-
-    private static T GetObject<T>(GDictionary dict, StringName key) where T : GodotObject
-    {
-        if (dict == null || !dict.ContainsKey(key))
-            return null;
-        return dict[key].AsGodotObject() as T;
     }
 
     private static BattlePreview BuildCritLockedPreview()

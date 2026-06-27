@@ -6,12 +6,12 @@ using System.Collections.Generic;
 public sealed class BattleSimOverrideApplier
 {
     internal BattleSimOverrideApplyResult ApplyProfileTyped(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains,
         BattleSimProfileDef profile
     )
     {
-        var clonedSkillDefs = DuplicateResourceIndex(skillDefs);
+        var patchedSkillDefinitions = CloneSkillDefinitions(skillDefinitions);
         var clonedEnemyAiBrains = DuplicateResourceIndex(enemyAiBrains);
         BattleAiScoreProfile aiScoreProfile =
             DuplicateDerivedResource(
@@ -24,7 +24,6 @@ public sealed class BattleSimOverrideApplier
             "battle_sim_override:baseline_ai_score_profile",
             "BattleSimOverrideApplier.ApplyProfileTyped.default_profile"
         );
-        GDictionary clonedSkillDefsProjection = ProjectResourceIndex(clonedSkillDefs);
         GDictionary clonedEnemyAiBrainsProjection = ProjectResourceIndex(clonedEnemyAiBrains);
         var factionProfiles = new Dictionary<StringName, BattleAiScoreProfile>();
         var errors = new List<string>();
@@ -45,7 +44,7 @@ public sealed class BattleSimOverrideApplier
 
                 errors.AddRange(
                     ApplyPatchEntryTyped(
-                        clonedSkillDefsProjection,
+                        patchedSkillDefinitions,
                         clonedEnemyAiBrainsProjection,
                         aiScoreProfile,
                         factionProfiles,
@@ -59,12 +58,21 @@ public sealed class BattleSimOverrideApplier
             GameLog.Error(error, "battlesim.override.failed", "battlesim");
 
         return new BattleSimOverrideApplyResult(
-            clonedSkillDefs,
+            patchedSkillDefinitions,
             clonedEnemyAiBrains,
             aiScoreProfile,
             factionProfiles,
             errors
         );
+    }
+
+    private static Dictionary<StringName, SkillDefinition> CloneSkillDefinitions(
+        IReadOnlyDictionary<StringName, SkillDefinition> source
+    )
+    {
+        return source != null
+            ? new Dictionary<StringName, SkillDefinition>(source)
+            : new Dictionary<StringName, SkillDefinition>();
     }
 
     private static Dictionary<StringName, TResource> DuplicateResourceIndex<TResource>(
@@ -125,7 +133,7 @@ public sealed class BattleSimOverrideApplier
     }
 
     private List<string> ApplyPatchEntryTyped(
-        GDictionary skill_defs,
+        Dictionary<StringName, SkillDefinition> skill_definitions,
         GDictionary enemy_ai_brains,
         BattleAiScoreProfile ai_score_profile,
         Dictionary<StringName, BattleAiScoreProfile> faction_profiles,
@@ -152,7 +160,13 @@ public sealed class BattleSimOverrideApplier
             {
                 StringName skill_id = ReadStringName(patch_entry, "target_id");
 
-                if (!skill_defs.ContainsKey(skill_id))
+                if (
+                    !skill_definitions.TryGetValue(
+                        skill_id,
+                        out SkillDefinition skillDefinition
+                    )
+                    || skillDefinition == null
+                )
                     return new List<string>
                     {
                         "Battle sim override patch target skill "
@@ -162,7 +176,13 @@ public sealed class BattleSimOverrideApplier
                             + ".",
                     };
 
-                var error = _set_value_by_path(skill_defs[skill_id], path, value);
+                var error = ApplySkillDefinitionPatch(
+                    skill_definitions,
+                    skill_id,
+                    skillDefinition,
+                    path,
+                    value
+                );
 
                 if (!string.IsNullOrEmpty(error))
                     errors.Add(error);
@@ -280,6 +300,43 @@ public sealed class BattleSimOverrideApplier
         }
 
         return errors;
+    }
+
+    private static string ApplySkillDefinitionPatch(
+        Dictionary<StringName, SkillDefinition> skillDefinitions,
+        StringName skillId,
+        SkillDefinition skillDefinition,
+        string path,
+        Variant value
+    )
+    {
+        if (path != "combat_profile.stamina_cost")
+        {
+            return "Battle sim override skill patch path "
+                + path
+                + " is unsupported; supported skill patch paths: combat_profile.stamina_cost.";
+        }
+        if (skillDefinition.CombatProfile == null)
+        {
+            return "Battle sim override patch target skill "
+                + skillId
+                + " has no combat_profile for path "
+                + path
+                + ".";
+        }
+        if (value.VariantType != Variant.Type.Int)
+        {
+            return "Battle sim override skill patch "
+                + skillId
+                + "."
+                + path
+                + " requires an int value.";
+        }
+
+        skillDefinitions[skillId] = skillDefinition.WithCombatProfile(
+            skillDefinition.CombatProfile.WithStaminaCost(value.AsInt32())
+        );
+        return "";
     }
 
     private EnemyAiAction _resolve_action_resource(GDictionary enemy_ai_brains, GDictionary patch_entry)

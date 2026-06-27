@@ -46,9 +46,9 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         BattleUnitState source = BuildUnit("weapon_formula_user");
         ApplyWeapon(source, 1, 6, 2);
         BattleUnitState target = BuildUnit("weapon_formula_target");
-        CombatEffectDef effect = BuildDamageEffect(5, true, 2, 4, 3);
+        CombatEffectDefinition effect = BuildDamageEffect(5, true, 2, 4, 3);
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary()));
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { effect }, DamageResolutionContext.Empty()));
         GDictionary damageEvent = FirstDamageEvent(result);
         _test.Eq(
             DictInt(damageEvent, "base_damage", 0),
@@ -87,12 +87,18 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         var resolver = BuildFixedRollDamageResolver(new[] { 6, 6, 6 });
         BattleUnitState source = BuildUnit("legacy_dice_alias_user");
         BattleUnitState target = BuildUnit("legacy_dice_alias_target");
-        CombatEffectDef effect = BuildDamageEffect(5, false);
-        effect.@params["damage_dice_count"] = 3;
-        effect.@params["damage_dice_sides"] = 6;
-        effect.@params["damage_dice_bonus"] = 9;
+        CombatEffectDefinition effect = BuildDamageEffect(
+            5,
+            false,
+            parameters: new Dictionary<string, Variant>
+            {
+                ["damage_dice_count"] = 3,
+                ["damage_dice_sides"] = 6,
+                ["damage_dice_bonus"] = 9,
+            }
+        );
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary()));
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { effect }, DamageResolutionContext.Empty()));
         GDictionary damageEvent = FirstDamageEvent(result);
         _test.Eq(
             DictInt(damageEvent, "base_damage", 0),
@@ -122,9 +128,9 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         BattleUnitState source = BuildUnit("physical_default_user");
         ApplyWeapon(source, 1, 6, 2);
         BattleUnitState target = BuildUnit("physical_default_target");
-        CombatEffectDef effect = BuildDamageEffect(5, false, 1, 4, 1, "physical_slash");
+        CombatEffectDefinition effect = BuildDamageEffect(5, false, 1, 4, 1, "physical_slash");
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary()));
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { effect }, DamageResolutionContext.Empty()));
         GDictionary damageEvent = FirstDamageEvent(result);
         _test.Eq(
             DictInt(damageEvent, "base_damage", 0),
@@ -148,13 +154,13 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         BattleUnitState source = BuildUnit("critical_weapon_user");
         ApplyWeapon(source, 1, 6, 2);
         BattleUnitState target = BuildUnit("critical_weapon_target");
-        CombatEffectDef effect = BuildDamageEffect(7, true, 1, 4, 3);
+        CombatEffectDefinition effect = BuildDamageEffect(7, true, 1, 4, 3);
 
         GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
-            new GArray { effect },
-            new GDictionary { ["critical_hit"] = true }
+            new[] { effect },
+            DamageResolutionContext.FromDictionary(new GDictionary { ["critical_hit"] = true })
         ));
         GDictionary damageEvent = FirstDamageEvent(result);
         _test.True(
@@ -233,14 +239,14 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         BattleUnitState source = BuildUnit("multi_weapon_user");
         ApplyWeapon(source, 1, 6, 0);
         BattleUnitState target = BuildUnit("multi_weapon_target");
-        CombatEffectDef firstEffect = BuildDamageEffect(0, true);
-        CombatEffectDef secondEffect = BuildDamageEffect(0, true);
+        CombatEffectDefinition firstEffect = BuildDamageEffect(0, true);
+        CombatEffectDefinition secondEffect = BuildDamageEffect(0, true);
 
         GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
-            new GArray { firstEffect, secondEffect },
-            new GDictionary()
+            new[] { firstEffect, secondEffect },
+            DamageResolutionContext.Empty()
         ));
         GArray events = GetArray(result, "damage_events");
         _test.Eq(events.Count, 2, "多段 damage effect 应各自产生 damage event。");
@@ -305,9 +311,9 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             }
         );
         BattleUnitState target = BuildUnit("two_handed_target");
-        CombatEffectDef effect = BuildDamageEffect(0, true);
+        CombatEffectDefinition effect = BuildDamageEffect(0, true);
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary()));
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { effect }, DamageResolutionContext.Empty()));
         GDictionary damageEvent = FirstDamageEvent(result);
         _test.Eq(
             DictInt(damageEvent, "weapon_damage_dice_count", 0),
@@ -331,14 +337,14 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         var resolver = BuildFixedRollDamageResolver(new[] { 5, 2, 4 });
         BattleUnitState source = BuildUnit("versatile_user");
         BattleUnitState target = BuildUnit("versatile_target");
-        CombatEffectDef effect = BuildDamageEffect(0, true);
+        CombatEffectDefinition effect = BuildDamageEffect(0, true);
 
         ApplyVersatileWeapon(source, false);
         GDictionary oneHandedResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
-            new GArray { effect },
-            new GDictionary()
+            new[] { effect },
+            DamageResolutionContext.Empty()
         ));
         GDictionary oneHandedEvent = FirstDamageEvent(oneHandedResult);
         _test.Eq(
@@ -363,8 +369,8 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         GDictionary twoHandedResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
-            new GArray { effect },
-            new GDictionary()
+            new[] { effect },
+            DamageResolutionContext.Empty()
         ));
         GDictionary twoHandedEvent = FirstDamageEvent(twoHandedResult);
         _test.Eq(
@@ -391,7 +397,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         var resolver = BuildFixedRollDamageResolver(new[] { 4, 6 });
         BattleUnitState source = BuildUnit("innate_weapon_user");
         BattleUnitState target = BuildUnit("innate_weapon_target");
-        CombatEffectDef effect = BuildDamageEffect(0, true);
+        CombatEffectDefinition effect = BuildDamageEffect(0, true);
 
         source.SetUnarmedWeaponProjectionTyped(
             "physical_blunt",
@@ -406,8 +412,8 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         GDictionary unarmedResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
-            new GArray { effect },
-            new GDictionary()
+            new[] { effect },
+            DamageResolutionContext.Empty()
         ));
         GDictionary unarmedEvent = FirstDamageEvent(unarmedResult);
         _test.Eq(
@@ -442,8 +448,8 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         GDictionary naturalResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
-            new GArray { effect },
-            new GDictionary()
+            new[] { effect },
+            DamageResolutionContext.Empty()
         ));
         GDictionary naturalEvent = FirstDamageEvent(naturalResult);
         _test.Eq(
@@ -470,18 +476,18 @@ public partial class run_battle_weapon_dice_regression : SceneTree
 
     private void TestRequiresWeaponGateAcceptsEquippedOnly()
     {
-        SkillDef skill = BuildRuntimeDamageSkill("requires_weapon_contract", 1, true, false);
+        SkillDefinition skill = BuildRuntimeDamageSkill("requires_weapon_contract", 1, true, false);
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            new Dictionary<StringName, SkillDef> { [skill.skill_id] = skill }
+            new Dictionary<StringName, SkillDefinition> { [skill.SkillId] = skill }
         );
         runtime.ConfigureDamageResolverForTests(
             BuildFixedRollDamageResolver(new[] { 1 }, new[] { 10 })
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
 
-        RuntimeDuelFixture fixture = BuildRuntimeDuelFixture(runtime, skill.skill_id);
+        RuntimeDuelFixture fixture = BuildRuntimeDuelFixture(runtime, skill.SkillId);
         BattleUnitState attacker = fixture.Attacker;
         BattleUnitState target = fixture.Target;
         BattleCommand command = fixture.Command;
@@ -538,18 +544,18 @@ public partial class run_battle_weapon_dice_regression : SceneTree
     private void TestNaturalWeaponDiceDoNotTriggerSkillMastery()
     {
         var gateway = new MasteryGatewayStub();
-        SkillDef skill = BuildRuntimeDamageSkill("natural_weapon_only_mastery_contract", 0, false, true);
+        SkillDefinition skill = BuildRuntimeDamageSkill("natural_weapon_only_mastery_contract", 0, false, true);
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             gateway,
-            new Dictionary<StringName, SkillDef> { [skill.skill_id] = skill }
+            new Dictionary<StringName, SkillDefinition> { [skill.SkillId] = skill }
         );
         runtime.ConfigureDamageResolverForTests(
             BuildFixedRollDamageResolver(new[] { 1 }, new[] { 10 })
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
 
-        RuntimeDuelFixture fixture = BuildRuntimeDuelFixture(runtime, skill.skill_id);
+        RuntimeDuelFixture fixture = BuildRuntimeDuelFixture(runtime, skill.SkillId);
         BattleUnitState attacker = fixture.Attacker;
         BattleCommand command = fixture.Command;
         attacker.source_member_id = "hero";
@@ -581,14 +587,14 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         BattleUnitState source = BuildUnit("dice_event_split_user");
         ApplyWeapon(source, 1, 6, 0);
         BattleUnitState target = BuildUnit("dice_event_split_target");
-        CombatEffectDef weaponOnlyEffect = BuildDamageEffect(0, true);
-        CombatEffectDef skillOnlyEffect = BuildDamageEffect(0, false, 1, 4);
+        CombatEffectDefinition weaponOnlyEffect = BuildDamageEffect(0, true);
+        CombatEffectDefinition skillOnlyEffect = BuildDamageEffect(0, false, 1, 4);
 
         GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
-            new GArray { weaponOnlyEffect, skillOnlyEffect },
-            new GDictionary()
+            new[] { weaponOnlyEffect, skillOnlyEffect },
+            DamageResolutionContext.Empty()
         ));
         GArray events = GetArray(result, "damage_events");
         _test.Eq(events.Count, 2, "拆分骰子事件回归应产生两段 damage event。");
@@ -674,9 +680,9 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         var resolver = BuildFixedRollDamageResolver(new[] { 6 });
         BattleUnitState source = BuildUnit("no_dice_event_user");
         BattleUnitState target = BuildUnit("no_dice_event_target");
-        CombatEffectDef effect = BuildDamageEffect(5, false);
+        CombatEffectDefinition effect = BuildDamageEffect(5, false);
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary()));
+        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { effect }, DamageResolutionContext.Empty()));
         GDictionary damageEvent = FirstDamageEvent(result);
         _test.True(
             !DictBool(damageEvent, "damage_dice_high_total_roll", true),
@@ -721,14 +727,15 @@ public partial class run_battle_weapon_dice_regression : SceneTree
 
     private void TestWarriorHeavyStrikeUsesWeaponPlusSkillDiceTemplate()
     {
-        var registry = new ProgressionContentRegistry();
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = registry.GetSkillDefsTyped();
-        skillDefs.TryGetValue("warrior_heavy_strike", out SkillDef skillDef);
+        using var registry = new ProgressionContentRegistry();
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            registry.GetSkillDefinitionsTyped();
+        skillDefinitions.TryGetValue("warrior_heavy_strike", out SkillDefinition skillDefinition);
         _test.True(
-            skillDef?.combat_profile != null,
+            skillDefinition?.CombatProfile != null,
             "重击技能配置应可加载。"
         );
-        if (skillDef?.combat_profile == null)
+        if (skillDefinition?.CombatProfile == null)
         {
             return;
         }
@@ -740,10 +747,10 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             new ExpectedDamageProfile(3, 4, 1, 8),
             new ExpectedDamageProfile(5, -1, 2, 5),
         };
-        var damageEffects = new Godot.Collections.Array<CombatEffectDef>();
-        foreach (CombatEffectDef effect in skillDef.combat_profile.effect_defs)
+        var damageEffects = new List<CombatEffectDefinition>();
+        foreach (CombatEffectDefinition effect in skillDefinition.CombatProfile.EffectDefinitions)
         {
-            if (effect == null || effect.effect_type != "damage")
+            if (effect == null || effect.EffectType != "damage")
             {
                 continue;
             }
@@ -758,41 +765,45 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         int count = Math.Min(damageEffects.Count, expectedProfiles.Length);
         for (int i = 0; i < count; i++)
         {
-            CombatEffectDef effect = damageEffects[i];
+            CombatEffectDefinition effect = damageEffects[i];
             ExpectedDamageProfile expected = expectedProfiles[i];
-            _test.True(effect.add_weapon_dice, "重击每段伤害样板都应显式 add_weapon_dice。");
-            _test.True(effect.requires_weapon, "重击仍应要求装备武器。");
-            _test.True(effect.use_weapon_physical_damage_tag, "重击每段伤害应使用当前武器物理伤害标签。");
+            _test.True(effect.AddWeaponDice, "重击每段伤害样板都应显式 add_weapon_dice。");
+            _test.True(effect.RequiresWeapon, "重击仍应要求装备武器。");
+            _test.True(
+                effect.UseWeaponPhysicalDamageTag,
+                "重击每段伤害应使用当前武器物理伤害标签。"
+            );
             _test.Eq(
-                effect.min_skill_level,
+                effect.MinSkillLevel,
                 expected.MinSkillLevel,
                 "重击技能骰分段 min_skill_level 应匹配当前样板。"
             );
             _test.Eq(
-                effect.max_skill_level,
+                effect.MaxSkillLevel,
                 expected.MaxSkillLevel,
                 "重击技能骰分段 max_skill_level 应匹配当前样板。"
             );
             _test.Eq(
-                effect.dice_count,
+                effect.DiceCount,
                 expected.DiceCount,
                 "重击技能骰数量应按等级样板递进。"
             );
             _test.Eq(
-                effect.dice_sides,
+                effect.DiceSides,
                 expected.DiceSides,
                 "重击技能骰骰面应按等级样板递进。"
             );
         }
     }
 
-    private static CombatEffectDef BuildDamageEffect(
+    private static CombatEffectDefinition BuildDamageEffect(
         int power,
         bool addWeaponDice,
         int diceCount = 0,
         int diceSides = 0,
         int diceBonus = 0,
-        StringName damageTag = default
+        StringName damageTag = default,
+        IReadOnlyDictionary<string, Variant> parameters = null
     )
     {
         if (damageTag == default || damageTag == (StringName)"")
@@ -800,27 +811,19 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             damageTag = "physical_blunt";
         }
 
-        var effect = new CombatEffectDef
-        {
-            effect_type = "damage",
-            power = power,
-            damage_tag = damageTag,
-            @params = new GDictionary(),
-        };
-        if (addWeaponDice)
-        {
-            effect.add_weapon_dice = true;
-        }
-        if (diceCount > 0 && diceSides > 0)
-        {
-            effect.dice_count = diceCount;
-            effect.dice_sides = diceSides;
-            effect.dice_bonus = diceBonus;
-        }
-        return effect;
+        return TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            power: power,
+            damageTag: damageTag,
+            addWeaponDice: addWeaponDice,
+            diceCount: diceCount,
+            diceSides: diceSides,
+            diceBonus: diceBonus,
+            parameters: parameters
+        );
     }
 
-    private static SkillDef BuildRuntimeDamageSkill(
+    private static SkillDefinition BuildRuntimeDamageSkill(
         StringName skillId,
         int power,
         bool requiresWeapon,
@@ -829,39 +832,31 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         int diceSides = 0
     )
     {
-        CombatEffectDef damageEffect = BuildDamageEffect(
-            power,
-            addWeaponDice,
-            diceCount,
-            diceSides
+        CombatEffectDefinition damageEffect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            effectTargetTeamFilter: "enemy",
+            power: power,
+            damageTag: "physical_blunt",
+            requiresWeapon: requiresWeapon,
+            addWeaponDice: addWeaponDice,
+            useWeaponPhysicalDamageTag: requiresWeapon,
+            diceCount: diceCount,
+            diceSides: diceSides
         );
-        damageEffect.effect_target_team_filter = "enemy";
-        if (requiresWeapon)
-        {
-            damageEffect.requires_weapon = true;
-            damageEffect.use_weapon_physical_damage_tag = true;
-        }
 
-        var combatProfile = new CombatSkillDef
-        {
-            skill_id = skillId,
-            target_mode = "unit",
-            target_team_filter = "enemy",
-            range_value = 1,
-            ap_cost = 1,
-        };
-        combatProfile.effect_defs = new Godot.Collections.Array<CombatEffectDef>
-        {
-            damageEffect,
-        };
-
-        return new SkillDef
-        {
-            skill_id = skillId,
-            display_name = skillId.ToString(),
-            tags = new GStringNameArray { "warrior", "melee" },
-            combat_profile = combatProfile,
-        };
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: skillId.ToString(),
+            tags: new[] { new StringName("warrior"), new StringName("melee") },
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: new[] { damageEffect },
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                rangeValue: 1,
+                apCost: 1
+            )
+        );
     }
 
     private RuntimeDuelFixture BuildRuntimeDuelFixture(BattleRuntimeModule runtime, StringName skillId)

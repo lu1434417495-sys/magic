@@ -336,12 +336,13 @@ public partial class run_battle_ai_performance_baseline : SceneTree
             BattleRuntimeModule runtime = new();
             _runtimeKeepAlive.Add(runtime);
             runtime.setup(
-                skill_defs: catalog.GetSkillDefsTyped(),
+                skill_definitions: catalog.GetSkillDefinitionsTyped(),
                 enemy_templates: catalog.GetEnemyTemplatesTyped(),
                 enemy_ai_brains: catalog.GetEnemyAiBrainsTyped(),
                 item_defs: catalog.GetItemDefsTyped(),
-                battle_special_profile_registry_snapshot: catalog.GetBattleSpecialProfileRegistrySnapshot(),
-                skill_catalog: catalog.GetSkillCatalogTyped()
+                battle_special_profile_registry_snapshot: catalog.GetBattleSpecialProfileRegistryRuntimeSnapshot(),
+                skill_catalog: catalog.GetSkillCatalogTyped(),
+                battle_special_profile_view: catalog.GetBattleSpecialProfileView()
             );
             runtime._ai_service.EnableMutationGuard = aiMutationGuardEnabled;
 

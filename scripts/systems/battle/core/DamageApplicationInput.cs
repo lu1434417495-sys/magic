@@ -22,31 +22,18 @@ internal readonly record struct DamageDiceEventSnapshot(
 
     internal static DamageDiceEventSnapshot FromDictionary(GDictionary payload)
     {
-        GDictionary normalized = EnsureDamageDiceEventDefaults(payload);
         return new DamageDiceEventSnapshot(
-            ReadDamageDiceFlag(normalized, "damage_dice_high_total_roll"),
-            ReadStringName(normalized, "damage_dice_high_total_roll_reason"),
-            ReadDamageDiceFlag(normalized, "skill_damage_dice_is_max"),
+            ReadDamageDiceFlag(payload, "damage_dice_high_total_roll"),
+            ReadStringName(payload, "damage_dice_high_total_roll_reason"),
+            ReadDamageDiceFlag(payload, "skill_damage_dice_is_max"),
             AttackEffectResolutionResultReader.ParseDamageDiceMaxReason(
-                ReadStringName(normalized, "skill_damage_dice_is_max_reason")
+                ReadStringName(payload, "skill_damage_dice_is_max_reason")
             ),
-            ReadDamageDiceFlag(normalized, "weapon_damage_dice_is_max"),
+            ReadDamageDiceFlag(payload, "weapon_damage_dice_is_max"),
             AttackEffectResolutionResultReader.ParseDamageDiceMaxReason(
-                ReadStringName(normalized, "weapon_damage_dice_is_max_reason")
+                ReadStringName(payload, "weapon_damage_dice_is_max_reason")
             )
         );
-    }
-
-    private static GDictionary EnsureDamageDiceEventDefaults(GDictionary source)
-    {
-        GDictionary result = source?.Duplicate(false) ?? new GDictionary();
-        if (!result.ContainsKey("damage_dice_high_total_roll_reason"))
-            result["damage_dice_high_total_roll_reason"] = new StringName("");
-        if (!result.ContainsKey("skill_damage_dice_is_max_reason"))
-            result["skill_damage_dice_is_max_reason"] = DamageDiceMaxReasonKind.None.ToString();
-        if (!result.ContainsKey("weapon_damage_dice_is_max_reason"))
-            result["weapon_damage_dice_is_max_reason"] = DamageDiceMaxReasonKind.None.ToString();
-        return result;
     }
 
     private static bool ReadDamageDiceFlag(GDictionary payload, string key)
@@ -150,19 +137,18 @@ internal readonly record struct DamageApplicationInput(
 
     internal static DamageApplicationInput FromDictionary(GDictionary payload)
     {
-        GDictionary normalized = payload ?? new GDictionary();
         DamageEventResult @event =
-            AttackEffectResolutionResultReader.ReadDamageEventPayload(normalized);
+            AttackEffectResolutionResultReader.ReadDamageEventPayload(payload);
         return new DamageApplicationInput(
             @event,
-            Math.Max(ReadInt(normalized, "resolved_damage"), 0),
-            ReadBool(normalized, "bypass_shield"),
-            ReadBool(normalized, "bypass_death_prevention"),
-            ReadDouble(normalized, "shield_absorption_percent", 100.0),
-            Math.Max(ReadInt(normalized, "min_hp_after_damage"), 0),
-            ReadBool(normalized, "low_luck_black_star_wedge_triggered"),
-            DamageDiceEventSnapshot.FromDictionary(normalized),
-            ReadBool(normalized, "suppress_damage_application_hook")
+            Math.Max(ReadInt(payload, "resolved_damage"), 0),
+            ReadBool(payload, "bypass_shield"),
+            ReadBool(payload, "bypass_death_prevention"),
+            ReadDouble(payload, "shield_absorption_percent", 100.0),
+            Math.Max(ReadInt(payload, "min_hp_after_damage"), 0),
+            ReadBool(payload, "low_luck_black_star_wedge_triggered"),
+            DamageDiceEventSnapshot.FromDictionary(payload),
+            ReadBool(payload, "suppress_damage_application_hook")
         );
     }
 

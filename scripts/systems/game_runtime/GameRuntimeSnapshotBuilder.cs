@@ -864,11 +864,8 @@ public sealed class GameRuntimeSnapshotBuilder
             ["calamity_by_member_id"] = calamitySnapshot,
             ["contingency"] = contingencySnapshot,
             ["hud"] = hudSnapshot,
-            ["report_entry_count"] = battleState.report_entries.Count,
-            ["report_entries"] = RuntimePayloadCopy.Array(
-                battleState.report_entries,
-                "GameRuntimeSnapshotBuilder.BuildBattleSnapshot.report_entries"
-            ),
+            ["report_entry_count"] = battleState.ReportEntryCount,
+            ["report_entries"] = battleState.ProjectReportEntries(),
             ["units"] = units,
         };
     }

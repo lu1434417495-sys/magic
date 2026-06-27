@@ -28,7 +28,8 @@ public partial class run_quest_content_validator_typed_regression : SceneTree
         IReadOnlyDictionary<StringName, QuestDef> questDefs =
             progressionRegistry.GetQuestDefsTyped();
         Dictionary<StringName, ItemDef> itemDefs = new(itemRegistry.GetItemDefsTyped());
-        Dictionary<StringName, SkillDef> skillDefs = new(progressionRegistry.GetSkillDefsTyped());
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            progressionRegistry.GetSkillDefinitionsTyped();
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
             enemyRegistry.GetEnemyTemplatesTyped();
         IReadOnlyList<string> registrationErrors =
@@ -37,7 +38,7 @@ public partial class run_quest_content_validator_typed_regression : SceneTree
         List<string> typedErrors = QuestContentValidator.ValidateTyped(
             questDefs,
             itemDefs,
-            skillDefs,
+            skillDefinitions,
             enemyTemplates,
             registrationErrors
         );
@@ -57,7 +58,8 @@ public partial class run_quest_content_validator_typed_regression : SceneTree
 
         Dictionary<StringName, QuestDef> typedQuestDefs = new() { [invalidQuest.quest_id] = invalidQuest };
         Dictionary<StringName, ItemDef> itemDefs = new(itemRegistry.GetItemDefsTyped());
-        Dictionary<StringName, SkillDef> skillDefs = new(skillRegistry.GetSkillDefsTyped());
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            skillRegistry.GetSkillDefinitionsTyped();
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
             enemyRegistry.GetEnemyTemplatesTyped();
         List<string> registrationErrors = new() { "typed registration error" };
@@ -65,7 +67,7 @@ public partial class run_quest_content_validator_typed_regression : SceneTree
         List<string> typedErrors = QuestContentValidator.ValidateTyped(
             typedQuestDefs,
             itemDefs,
-            skillDefs,
+            skillDefinitions,
             enemyTemplates,
             registrationErrors
         );

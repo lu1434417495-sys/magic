@@ -60,8 +60,8 @@ public partial class PartyManagementWindow : Control
         new Dictionary<StringName, AchievementDef>();
     private IReadOnlyDictionary<StringName, ItemDef> _item_defs =
         new Dictionary<StringName, ItemDef>();
-    private IReadOnlyDictionary<StringName, SkillDef> _skill_defs =
-        new Dictionary<StringName, SkillDef>();
+    private IReadOnlyDictionary<StringName, SkillDefinition> _skill_definitions =
+        new Dictionary<StringName, SkillDefinition>();
     private IReadOnlyDictionary<StringName, ProfessionDef> _profession_defs =
         new Dictionary<StringName, ProfessionDef>();
     public CharacterManagementModule _character_management;
@@ -140,9 +140,12 @@ public partial class PartyManagementWindow : Control
             RefreshView();
     }
 
-    public void SetSkillDefs(IReadOnlyDictionary<StringName, SkillDef> skill_defs)
+    public void SetSkillDefinitions(
+        IReadOnlyDictionary<StringName, SkillDefinition> skill_definitions
+    )
     {
-        _skill_defs = skill_defs ?? new Dictionary<StringName, SkillDef>();
+        _skill_definitions =
+            skill_definitions ?? new Dictionary<StringName, SkillDefinition>();
         if (Visible)
             RefreshView();
     }
@@ -698,7 +701,7 @@ public partial class PartyManagementWindow : Control
             if (skillProgress == null || !skillProgress.is_learned)
                 continue;
             learnedCount += 1;
-            SkillDef skillDef = GetTypedObject(_skill_defs, skillId);
+            SkillDefinition skillDefinition = GetTypedObject(_skill_definitions, skillId);
             var tags = new List<string>();
             if (skillProgress.is_core)
                 tags.Add("核心");
@@ -715,7 +718,7 @@ public partial class PartyManagementWindow : Control
                     $"指派：{_get_profession_display_name(skillProgress.assigned_profession_id)}"
                 );
             string typeLabel = _get_skill_type_label(
-                skillDef != null ? skillDef.skill_type : new StringName("")
+                skillDefinition != null ? skillDefinition.SkillType : new StringName("")
             );
             lines.Add(
                 $"{_get_skill_display_name(skillId)}  Lv.{skillProgress.skill_level}{(tags.Count > 0 ? $"  |  {string.Join("，", tags)}" : "")}"
@@ -725,11 +728,11 @@ public partial class PartyManagementWindow : Control
             lines.Add(
                 $"  熟练度：{skillProgress.current_mastery}  总获得：{skillProgress.total_mastery_earned}"
             );
-            if (skillDef != null && !string.IsNullOrEmpty(skillDef.description))
-                lines.Add($"  说明：{skillDef.description}");
+            if (skillDefinition != null && !string.IsNullOrEmpty(skillDefinition.Description))
+                lines.Add($"  说明：{skillDefinition.Description}");
 
             int currentLevel = skillProgress.skill_level;
-            if (skillDef != null)
+            if (skillDefinition != null)
             {
                 var runtimeContext = new GDictionary();
                 if (snapshot != null)
@@ -744,17 +747,20 @@ public partial class PartyManagementWindow : Control
                     );
                 }
                 runtimeContext["dynamic_max_level"] = SkillEffectiveMaxLevelRules
-                    .GetEffectiveMaxLevel(skillDef, skillProgress, progression)
+                    .GetEffectiveMaxLevel(skillDefinition, skillProgress, progression)
                     .ToString();
                 string levelDesc = SkillLevelDescriptionFormatter.BuildLevelDescription(
-                    skillDef,
+                    skillDefinition,
                     currentLevel,
                     runtimeContext
                 );
                 if (!string.IsNullOrEmpty(levelDesc))
                     lines.Add($"  当前效果：{levelDesc}");
                 foreach (
-                    string previewLine in _build_level_override_preview(skillDef, currentLevel)
+                    string previewLine in _build_level_override_preview(
+                        skillDefinition,
+                        currentLevel
+                    )
                 )
                     lines.Add(previewLine);
             }
@@ -772,22 +778,26 @@ public partial class PartyManagementWindow : Control
         return lines;
     }
 
-    private static List<string> _build_level_override_preview(SkillDef skillDef, int skillLevel)
+    private static List<string> _build_level_override_preview(
+        SkillDefinition skillDefinition,
+        int skillLevel
+    )
     {
         var lines = new List<string>();
-        if (skillDef?.combat_profile == null)
+        if (skillDefinition?.CombatProfile == null)
             return lines;
-        GDictionary overrides = skillDef.combat_profile.level_overrides;
+        IReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>> overrides =
+            skillDefinition.CombatProfile.LevelOverrides;
         if (overrides.Count == 0)
             return lines;
+        var levels = new List<int>(overrides.Keys);
+        levels.Sort();
         var nextLevels = new List<string>();
-        foreach (var levelKey in overrides.Keys)
+        foreach (int level in levels)
         {
-            int level = levelKey.AsString().ToInt();
             if (level <= skillLevel)
                 continue;
-            var dataValue = overrides[levelKey];
-            if (!dataValue.TryAsDictionary(out GDictionary data))
+            if (!overrides.TryGetValue(level, out IReadOnlyDictionary<string, Variant> data))
                 continue;
             var parts = new List<string>();
             foreach (
@@ -801,7 +811,7 @@ public partial class PartyManagementWindow : Control
                 }
             )
             {
-                if (!data.ContainsKey(costKey))
+                if (!data.TryGetValue(costKey, out Variant costValue))
                     continue;
                 string label = costKey switch
                 {
@@ -812,7 +822,7 @@ public partial class PartyManagementWindow : Control
                     "cooldown_tu" => "冷却",
                     _ => "",
                 };
-                parts.Add($"{label}→{data[costKey].AsInt32()}");
+                parts.Add($"{label}→{costValue.AsInt32()}");
             }
             if (parts.Count > 0)
                 nextLevels.Add($"Lv.{level}：{string.Join("，", parts)}");
@@ -927,9 +937,9 @@ public partial class PartyManagementWindow : Control
 
     private string _get_skill_display_name(StringName skillId)
     {
-        SkillDef skillDef = GetTypedObject(_skill_defs, skillId);
-        return skillDef != null && !string.IsNullOrEmpty(skillDef.display_name)
-            ? skillDef.display_name
+        SkillDefinition skillDefinition = GetTypedObject(_skill_definitions, skillId);
+        return skillDefinition != null && !string.IsNullOrEmpty(skillDefinition.DisplayName)
+            ? skillDefinition.DisplayName
             : skillId.ToString();
     }
 

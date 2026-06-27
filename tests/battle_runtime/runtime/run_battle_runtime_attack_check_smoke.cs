@@ -1,5 +1,4 @@
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_battle_runtime_attack_check_smoke : SceneTree
@@ -77,18 +76,17 @@ public partial class run_battle_runtime_attack_check_smoke : SceneTree
             target,
             null
         );
-        var armorBreakEffect = new CombatEffectDef
-        {
-            effect_type = "status",
-            status_id = "armor_break",
-            power = 1,
-            duration_tu = 90,
-        };
+        CombatEffectDefinition armorBreakEffect = TestSkillDefinitionProjection.BuildEffect(
+            "status",
+            statusId: "armor_break",
+            power: 1,
+            durationTu: 90
+        );
         damageResolver.ResolveEffects(
             attacker,
             target,
-            new GArray { armorBreakEffect },
-            new GDictionary()
+            new[] { armorBreakEffect },
+            DamageResolutionContext.Empty()
         );
         AttackCheckInput brokenCheck = hitResolver.BuildSkillAttackCheck(attacker, target, null);
         _test.Eq(
@@ -107,26 +105,25 @@ public partial class run_battle_runtime_attack_check_smoke : SceneTree
         damageResolver.ResolveEffects(
             attacker,
             brokenTarget,
-            new GArray { armorBreakEffect },
-            new GDictionary()
+            new[] { armorBreakEffect },
+            DamageResolutionContext.Empty()
         );
-        var damageEffect = new CombatEffectDef
-        {
-            effect_type = "damage",
-            damage_tag = "physical_slash",
-            power = 10,
-        };
+        CombatEffectDefinition damageEffect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            damageTag: "physical_slash",
+            power: 10
+        );
         GDictionary plainResult = AttackEffectResolutionResultReader.BuildGodotPayload(damageResolver.ResolveEffects(
             attacker,
             plainTarget,
-            new GArray { damageEffect },
-            new GDictionary()
+            new[] { damageEffect },
+            DamageResolutionContext.Empty()
         ));
         GDictionary brokenResult = AttackEffectResolutionResultReader.BuildGodotPayload(damageResolver.ResolveEffects(
             attacker,
             brokenTarget,
-            new GArray { damageEffect },
-            new GDictionary()
+            new[] { damageEffect },
+            DamageResolutionContext.Empty()
         ));
         _test.Eq(
             DictInt(brokenResult, "damage", 0),

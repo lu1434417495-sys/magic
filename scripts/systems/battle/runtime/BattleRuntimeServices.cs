@@ -8,17 +8,17 @@ internal readonly struct BattleAiDecisionContextSetup
     internal readonly BattleUnitState UnitState;
     internal readonly BattleGridService GridService;
     internal readonly BattleAiRuntimeActionPlan ActionPlan;
-    internal readonly IReadOnlyDictionary<StringName, SkillDef> SkillDefs;
+    internal readonly IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions;
     internal readonly bool TraceEnabled;
     internal readonly ISkillCatalog SkillCatalog;
     internal readonly Func<BattleUnitState, Vector2I, int> MoveCostCallback;
     internal readonly Func<BattleCommand, BattlePreview> PreviewCommandCallback;
     internal readonly Func<
         BattleAiContext,
-        SkillDef,
+        SkillDefinition,
         BattleCommand,
         BattlePreview,
-        IReadOnlyList<CombatEffectDef>,
+        IReadOnlyList<CombatEffectDefinition>,
         IReadOnlyDictionary<string, object>,
         BattleAiScoreInput
     > SkillScoreInputCallback;
@@ -32,7 +32,7 @@ internal readonly struct BattleAiDecisionContextSetup
         IReadOnlyDictionary<string, object>,
         BattleAiScoreInput
     > ActionScoreInputCallback;
-    internal readonly Func<BattleUnitState, SkillDef, BattleSkillCastBlockReasonKind>
+    internal readonly Func<BattleUnitState, SkillDefinition, BattleSkillCastBlockReasonKind>
         SkillCastBlockReasonCallback;
 
     internal BattleAiDecisionContextSetup(
@@ -40,17 +40,17 @@ internal readonly struct BattleAiDecisionContextSetup
         BattleUnitState unitState,
         BattleGridService gridService,
         BattleAiRuntimeActionPlan actionPlan,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         bool traceEnabled,
         ISkillCatalog skillCatalog,
         Func<BattleUnitState, Vector2I, int> moveCostCallback,
         Func<BattleCommand, BattlePreview> previewCommandCallback,
         Func<
             BattleAiContext,
-            SkillDef,
+            SkillDefinition,
             BattleCommand,
             BattlePreview,
-            IReadOnlyList<CombatEffectDef>,
+            IReadOnlyList<CombatEffectDefinition>,
             IReadOnlyDictionary<string, object>,
             BattleAiScoreInput
         > skillScoreInputCallback,
@@ -64,7 +64,7 @@ internal readonly struct BattleAiDecisionContextSetup
             IReadOnlyDictionary<string, object>,
             BattleAiScoreInput
         > actionScoreInputCallback,
-        Func<BattleUnitState, SkillDef, BattleSkillCastBlockReasonKind>
+        Func<BattleUnitState, SkillDefinition, BattleSkillCastBlockReasonKind>
             skillCastBlockReasonCallback
     )
     {
@@ -72,7 +72,7 @@ internal readonly struct BattleAiDecisionContextSetup
         UnitState = unitState;
         GridService = gridService;
         ActionPlan = actionPlan;
-        SkillDefs = skillDefs;
+        SkillDefinitions = skillDefinitions;
         TraceEnabled = traceEnabled;
         SkillCatalog = skillCatalog;
         MoveCostCallback = moveCostCallback;
@@ -88,7 +88,7 @@ internal readonly struct BattleAiHelperBindingContext
     internal readonly BattleState State;
     internal readonly BattleGridService GridService;
     internal readonly BattleUnitState UnitState;
-    internal readonly IReadOnlyDictionary<StringName, SkillDef> SkillDefs;
+    internal readonly IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions;
     internal readonly ISkillCatalog SkillCatalog;
     internal readonly BattleAiScoreService ScoreService;
     internal readonly Func<StringName, Vector2I, Vector2I, int> MoveQueryCostCallback;
@@ -107,10 +107,10 @@ internal readonly struct BattleAiHelperBindingContext
     internal readonly Func<BattleCommand, BattlePreview> PreviewCommandCallback;
     internal readonly Func<
         BattleAiContext,
-        SkillDef,
+        SkillDefinition,
         BattleCommand,
         BattlePreview,
-        IReadOnlyList<CombatEffectDef>,
+        IReadOnlyList<CombatEffectDefinition>,
         IReadOnlyDictionary<string, object>,
         BattleAiScoreInput
     > SkillScoreInputCallback;
@@ -124,14 +124,14 @@ internal readonly struct BattleAiHelperBindingContext
         IReadOnlyDictionary<string, object>,
         BattleAiScoreInput
     > ActionScoreInputCallback;
-    internal readonly Func<BattleUnitState, SkillDef, BattleSkillCastBlockReasonKind>
+    internal readonly Func<BattleUnitState, SkillDefinition, BattleSkillCastBlockReasonKind>
         SkillCastBlockReasonCallback;
 
     internal BattleAiHelperBindingContext(
         BattleState state,
         BattleGridService gridService,
         BattleUnitState unitState,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         ISkillCatalog skillCatalog,
         BattleAiScoreService scoreService,
         Func<StringName, Vector2I, Vector2I, int> moveQueryCostCallback,
@@ -150,10 +150,10 @@ internal readonly struct BattleAiHelperBindingContext
         Func<BattleCommand, BattlePreview> previewCommandCallback,
         Func<
             BattleAiContext,
-            SkillDef,
+            SkillDefinition,
             BattleCommand,
             BattlePreview,
-            IReadOnlyList<CombatEffectDef>,
+            IReadOnlyList<CombatEffectDefinition>,
             IReadOnlyDictionary<string, object>,
             BattleAiScoreInput
         > skillScoreInputCallback,
@@ -167,14 +167,14 @@ internal readonly struct BattleAiHelperBindingContext
             IReadOnlyDictionary<string, object>,
             BattleAiScoreInput
         > actionScoreInputCallback,
-        Func<BattleUnitState, SkillDef, BattleSkillCastBlockReasonKind>
+        Func<BattleUnitState, SkillDefinition, BattleSkillCastBlockReasonKind>
             skillCastBlockReasonCallback
     )
     {
         State = state;
         GridService = gridService;
         UnitState = unitState;
-        SkillDefs = skillDefs;
+        SkillDefinitions = skillDefinitions;
         SkillCatalog = skillCatalog;
         ScoreService = scoreService;
         MoveQueryCostCallback = moveQueryCostCallback;
@@ -217,7 +217,7 @@ internal sealed class BattleRuntimeServices : IDisposable
             context.UnitState,
             context.GridService,
             context.ActionPlan,
-            context.SkillDefs,
+            context.SkillDefinitions,
             context.TraceEnabled,
             context.SkillCatalog
         );
@@ -256,8 +256,8 @@ internal sealed class BattleRuntimeServices : IDisposable
             context.State,
             context.UnitState,
             context.GridService,
-            context.SkillDefs,
-            context.SkillCatalog
+            context.SkillCatalog,
+            context.SkillDefinitions
         );
         AiTraceRecorder.Exit("bind_ai_helpers:score_adapter_setup");
 
@@ -266,7 +266,7 @@ internal sealed class BattleRuntimeServices : IDisposable
             context.State,
             context.GridService,
             context.UnitState.unit_id,
-            context.SkillDefs,
+            context.SkillDefinitions,
             context.QueryActionScoreInputCallback,
             AiMovementQuery,
             context.MovementBlockedCallback,

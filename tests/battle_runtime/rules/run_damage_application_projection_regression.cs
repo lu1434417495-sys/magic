@@ -145,16 +145,15 @@ public partial class run_damage_application_projection_regression : SceneTree
 
         BattleUnitState previewSource = Unit("preview_source", "player");
         BattleUnitState previewTarget = Unit("preview_target", hp: 20, shieldHp: 5);
-        resolver.PreviewDamageEffect(
+        resolver.PreviewDamageEffectTyped(
             previewSource,
             previewTarget,
-            new CombatEffectDef
-            {
-                effect_type = "damage",
-                damage_tag = "physical_slash",
-                power = 8,
-            },
-            new GDictionary()
+            TestSkillDefinitionProjection.BuildEffect(
+                "damage",
+                damageTag: "physical_slash",
+                power: 8
+            ),
+            DamageResolutionContext.Empty()
         );
         _test.Eq(hook.CallCount, 0, "Preview damage should suppress BeforeDamageResolved hooks.");
 

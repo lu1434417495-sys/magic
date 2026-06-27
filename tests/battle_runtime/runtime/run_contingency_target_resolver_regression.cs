@@ -233,7 +233,7 @@ public partial class run_contingency_target_resolver_regression : SceneTree
             new[] { Unit("owner", "player", new Vector2I(2, 2)) },
             Array.Empty<BattleUnitState>()
         );
-        SkillDef skill = GroundSkill("ward", "diamond", 1);
+        SkillDefinition skill = GroundSkill("ward", "diamond", 1);
 
         ContingencyTargetResolutionResult result = Resolve(
             fixture.State,
@@ -591,7 +591,7 @@ public partial class run_contingency_target_resolver_regression : SceneTree
         StringName ownerUnitId,
         ContingencyTargetResolverState resolverState,
         ContingencyFrozenTriggerFacts facts,
-        SkillDef skill = null
+        SkillDefinition skill = null
     ) =>
         _resolver.ResolveTarget(
             new ContingencyTargetResolutionRequest
@@ -601,7 +601,7 @@ public partial class run_contingency_target_resolver_regression : SceneTree
                 OwnerUnitId = ownerUnitId,
                 ResolverState = resolverState,
                 FrozenFacts = facts,
-                StoredSkillDef = skill,
+                StoredSkillDefinition = skill,
             }
         );
 
@@ -669,20 +669,18 @@ public partial class run_contingency_target_resolver_regression : SceneTree
             FatalDamageIncoming = fatalDamageIncoming,
         };
 
-    private static SkillDef GroundSkill(StringName skillId, StringName areaPattern, int areaValue) =>
-        new()
-        {
-            skill_id = skillId,
-            display_name = skillId.ToString(),
-            combat_profile = new CombatSkillDef
-            {
-                skill_id = skillId,
-                target_mode = "ground",
-                target_team_filter = "any",
-                area_pattern = areaPattern,
-                area_value = areaValue,
-            },
-        };
+    private static SkillDefinition GroundSkill(StringName skillId, StringName areaPattern, int areaValue) =>
+        TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: skillId.ToString(),
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                targetMode: "ground",
+                targetTeamFilter: "any",
+                areaPattern: areaPattern,
+                areaValue: areaValue
+            )
+        );
 
     private static PartyState PartyWithSetup(ContingencyMatrixSetupState setup) =>
         PartyWithSetups(setup);
@@ -788,7 +786,7 @@ public partial class run_contingency_target_resolver_regression : SceneTree
         CharacterManagementModule manager = new();
         manager.setup(
             party,
-            new Dictionary<StringName, SkillDef>
+            new Dictionary<StringName, SkillDefinition>
             {
                 ["escape_step"] = GroundSkill("escape_step", "single", 0),
             },

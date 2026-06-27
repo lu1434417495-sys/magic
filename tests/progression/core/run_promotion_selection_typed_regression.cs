@@ -86,12 +86,11 @@ public partial class run_promotion_selection_typed_regression : SceneTree
     {
         StringName triggerSkillId = "slash";
         UnitProgress progress = BuildReadyProgress(triggerSkillId);
-        SkillDef triggerSkill = new()
-        {
-            skill_id = triggerSkillId,
-            display_name = "Slash",
-            max_level = 1,
-        };
+        SkillDefinition triggerSkill = TestSkillDefinitionProjection.BuildSkill(
+            triggerSkillId,
+            displayName: "Slash",
+            maxLevel: 1
+        );
         ProfessionDef profession = new()
         {
             profession_id = "warrior",
@@ -101,11 +100,11 @@ public partial class run_promotion_selection_typed_regression : SceneTree
             hit_die_sides = 1,
         };
         ProgressionService service = new();
-        service.Setup(
+        service.SetupDefinitions(
             progress,
-            new System.Collections.Generic.Dictionary<StringName, SkillDef>
+            new System.Collections.Generic.Dictionary<StringName, SkillDefinition>
             {
-                [triggerSkill.skill_id] = triggerSkill,
+                [triggerSkill.SkillId] = triggerSkill,
             },
             new System.Collections.Generic.Dictionary<StringName, ProfessionDef>
             {

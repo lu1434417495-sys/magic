@@ -59,17 +59,7 @@ internal static class BattleValidationResultProjection
 
     private static Godot.Collections.Array<StringName> ToStringNameArray(
         IReadOnlyList<StringName> ids
-    )
-    {
-        var result = new Godot.Collections.Array<StringName>();
-        if (ids == null)
-            return result;
-        foreach (StringName id in ids)
-        {
-            result.Add(id);
-        }
-        return result;
-    }
+    ) => new StringNameList(ids).ToGodotArray();
 
     private static Godot.Collections.Array ToUnitArray(IReadOnlyList<BattleUnitState> units)
     {
@@ -88,15 +78,5 @@ internal static class BattleValidationResultProjection
 
     private static Godot.Collections.Array<Vector2I> ToVector2IArray(
         IReadOnlyList<Vector2I> coords
-    )
-    {
-        var result = new Godot.Collections.Array<Vector2I>();
-        if (coords == null)
-            return result;
-        foreach (Vector2I coord in coords)
-        {
-            result.Add(coord);
-        }
-        return result;
-    }
+    ) => new Vector2IList(coords).ToGodotArray();
 }

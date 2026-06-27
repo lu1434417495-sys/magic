@@ -100,16 +100,12 @@ public partial class run_skill_book_item_helpers_regression : SceneTree
         string displayName,
         string learnSource
     ) =>
-        SkillDefinition.FromResource(
-            new SkillDef
-            {
-                skill_id = new StringName(skillId),
-                display_name = displayName,
-                description = $"{displayName} description",
-                learn_source = new StringName(learnSource),
-                skill_type = "passive",
-                max_level = 1,
-            }
+        TestSkillDefinitionProjection.BuildSkill(
+            new StringName(skillId),
+            displayName: displayName,
+            skillType: "passive",
+            learnSource: new StringName(learnSource),
+            maxLevel: 1
         );
 
     private static ItemDef BuildSkillBookItem(string itemId, string grantedSkillId) =>

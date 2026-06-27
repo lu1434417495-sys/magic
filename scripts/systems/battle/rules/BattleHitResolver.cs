@@ -43,15 +43,15 @@ public class BattleHitResolver : IDisposable
         BattleState battle_state,
         BattleUnitState active_unit,
         BattleUnitState target_unit,
-        SkillDef skill_def,
-        CombatEffectDef repeat_attack_effect,
+        SkillDefinition skill_definition,
+        CombatEffectDefinition repeat_attack_effect,
         int stage_index
     )
     {
         AttackCheckInput attackCheck = BuildRepeatAttackStageHitCheck(
             active_unit,
             target_unit,
-            skill_def,
+            skill_definition,
             repeat_attack_effect,
             stage_index
         );
@@ -61,14 +61,14 @@ public class BattleHitResolver : IDisposable
     public AttackCheckInput BuildRepeatAttackStageHitCheck(
         BattleUnitState active_unit,
         BattleUnitState target_unit,
-        SkillDef skill_def,
-        CombatEffectDef repeat_attack_effect,
+        SkillDefinition skill_definition,
+        CombatEffectDefinition repeat_attack_effect,
         int stage_index
     )
     {
         int skillLevel =
-            active_unit != null && skill_def != null
-                ? active_unit.GetKnownSkillLevelTyped(skill_def.skill_id)
+            active_unit != null && skill_definition != null
+                ? active_unit.GetKnownSkillLevelTyped(skill_definition.SkillId)
                 : 0;
         BattleRepeatAttackStageSpec stageSpec =
             BattleRepeatAttackStageSpec.FromRepeatAttackEffect(
@@ -77,10 +77,10 @@ public class BattleHitResolver : IDisposable
                 0,
                 skillLevel
             );
-        return BuildSkillAttackCheck(
+        return BuildSkillDefinitionAttackCheck(
             active_unit,
             target_unit,
-            skill_def,
+            skill_definition,
             stageSpec.stage_base_attack_bonus,
             stageSpec.ResolveStageAttackPenalty()
         );
@@ -90,15 +90,15 @@ public class BattleHitResolver : IDisposable
         BattleState battle_state,
         BattleUnitState active_unit,
         BattleUnitState target_unit,
-        SkillDef skill_def,
-        CombatEffectDef repeat_attack_effect,
+        SkillDefinition skill_definition,
+        CombatEffectDefinition repeat_attack_effect,
         int stage_index
     )
     {
         AttackCheckInput baseAttackCheck = BuildRepeatAttackStageHitCheck(
             active_unit,
             target_unit,
-            skill_def,
+            skill_definition,
             repeat_attack_effect,
             stage_index
         );
@@ -114,15 +114,15 @@ public class BattleHitResolver : IDisposable
         BattleState battle_state,
         BattleUnitState active_unit,
         BattleUnitState target_unit,
-        SkillDef skill_def,
-        CombatEffectDef repeat_attack_effect,
+        SkillDefinition skill_definition,
+        CombatEffectDefinition repeat_attack_effect,
         int preview_stage_count = -1
     )
     {
         if (
             active_unit == null
             || target_unit == null
-            || skill_def == null
+            || skill_definition == null
             || repeat_attack_effect == null
         )
         {
@@ -134,7 +134,7 @@ public class BattleHitResolver : IDisposable
         {
             resolvedStageCount = _resolve_repeat_attack_preview_stage_count(
                 active_unit,
-                skill_def,
+                skill_definition,
                 repeat_attack_effect
             );
         }
@@ -150,7 +150,7 @@ public class BattleHitResolver : IDisposable
                 battle_state,
                 active_unit,
                 target_unit,
-                skill_def,
+                skill_definition,
                 repeat_attack_effect,
                 stageIndex
             );
@@ -167,7 +167,8 @@ public class BattleHitResolver : IDisposable
                 )
             );
         }
-        GDictionary effectParams = repeat_attack_effect?.@params ?? new GDictionary();
+        IReadOnlyDictionary<string, Variant> effectParams =
+            repeat_attack_effect?.Parameters ?? new Dictionary<string, Variant>();
         int avgSuccessRate = 0;
         int avgBaseHitRate = 0;
         if (stageChecks.Count > 0)
@@ -203,11 +204,45 @@ public class BattleHitResolver : IDisposable
         BattleState battle_state,
         BattleUnitState active_unit,
         BattleUnitState target_unit,
-        SkillDef skill_def,
+        SkillDefinition skill_definition,
         bool force_hit_no_crit = false
     )
     {
-        if (active_unit == null || target_unit == null || skill_def == null)
+        return BuildSkillDefinitionAttackPreview(
+            battle_state,
+            active_unit,
+            target_unit,
+            skill_definition,
+            force_hit_no_crit
+        );
+    }
+
+    internal AttackPreviewData BuildSkillAttackPreview(
+        BattleState battle_state,
+        BattleUnitReadView active_unit,
+        BattleUnitReadView target_unit,
+        SkillDefinition skill_definition,
+        bool force_hit_no_crit = false
+    )
+    {
+        return BuildSkillDefinitionAttackPreview(
+            battle_state,
+            active_unit,
+            target_unit,
+            skill_definition,
+            force_hit_no_crit
+        );
+    }
+
+    public AttackPreviewData BuildSkillDefinitionAttackPreview(
+        BattleState battle_state,
+        BattleUnitState active_unit,
+        BattleUnitState target_unit,
+        SkillDefinition skill_definition,
+        bool force_hit_no_crit
+    )
+    {
+        if (active_unit == null || target_unit == null || skill_definition == null)
         {
             return new AttackPreviewData();
         }
@@ -219,7 +254,7 @@ public class BattleHitResolver : IDisposable
             battle_state,
             active_unit,
             target_unit,
-            BuildSkillAttackCheck(active_unit, target_unit, skill_def)
+            BuildSkillDefinitionAttackCheck(active_unit, target_unit, skill_definition, 0, 0)
         );
         int successRate = attackCheck.SuccessRatePercent;
         int baseHitRate = attackCheck.BaseHitRatePercent;
@@ -245,15 +280,15 @@ public class BattleHitResolver : IDisposable
         };
     }
 
-    internal AttackPreviewData BuildSkillAttackPreview(
+    internal AttackPreviewData BuildSkillDefinitionAttackPreview(
         BattleState battle_state,
         BattleUnitReadView active_unit,
         BattleUnitReadView target_unit,
-        SkillDef skill_def,
-        bool force_hit_no_crit = false
+        SkillDefinition skill_definition,
+        bool force_hit_no_crit
     )
     {
-        if (!active_unit.IsValid || !target_unit.IsValid || skill_def == null)
+        if (!active_unit.IsValid || !target_unit.IsValid || skill_definition == null)
         {
             return new AttackPreviewData();
         }
@@ -265,7 +300,7 @@ public class BattleHitResolver : IDisposable
             battle_state,
             active_unit,
             target_unit,
-            BuildSkillAttackCheck(active_unit, target_unit, skill_def)
+            BuildSkillDefinitionAttackCheck(active_unit, target_unit, skill_definition, 0, 0)
         );
         int successRate = attackCheck.SuccessRatePercent;
         int baseHitRate = attackCheck.BaseHitRatePercent;
@@ -320,18 +355,61 @@ public class BattleHitResolver : IDisposable
     public AttackCheckInput BuildSkillAttackCheck(
         BattleUnitState active_unit,
         BattleUnitState target_unit,
-        SkillDef skill_def
+        SkillDefinition skill_definition
     )
     {
-        return BuildSkillAttackCheck(active_unit, target_unit, skill_def, 0, 0);
+        return BuildSkillDefinitionAttackCheck(active_unit, target_unit, skill_definition, 0, 0);
     }
 
     public AttackCheckInput BuildSkillAttackCheck(
         BattleUnitState active_unit,
         BattleUnitState target_unit,
-        SkillDef skill_def,
+        SkillDefinition skill_definition,
         int flat_bonus = 0,
         int flat_penalty = 0
+    )
+    {
+        return BuildSkillDefinitionAttackCheck(
+            active_unit,
+            target_unit,
+            skill_definition,
+            flat_bonus,
+            flat_penalty
+        );
+    }
+
+    internal AttackCheckInput BuildSkillAttackCheck(
+        BattleUnitReadView active_unit,
+        BattleUnitReadView target_unit,
+        SkillDefinition skill_definition
+    )
+    {
+        return BuildSkillDefinitionAttackCheck(active_unit, target_unit, skill_definition, 0, 0);
+    }
+
+    internal AttackCheckInput BuildSkillAttackCheck(
+        BattleUnitReadView active_unit,
+        BattleUnitReadView target_unit,
+        SkillDefinition skill_definition,
+        int flat_bonus = 0,
+        int flat_penalty = 0
+    )
+    {
+        return BuildSkillDefinitionAttackCheck(
+            active_unit,
+            target_unit,
+            skill_definition,
+            flat_bonus,
+            flat_penalty
+        );
+    }
+
+    public AttackCheckInput BuildSkillDefinitionAttackCheck(
+        BattleUnitState active_unit,
+        BattleUnitState target_unit,
+        SkillDefinition skill_definition,
+        int flat_bonus,
+        int flat_penalty
     )
     {
         int attackerBaseAttackBonus = _get_unit_attribute_value(
@@ -356,9 +434,9 @@ public class BattleHitResolver : IDisposable
         }
         int targetArmorClass = _get_target_armor_class(target_unit);
         int skillLevel = 0;
-        if (active_unit != null && skill_def != null)
+        StringName skillId = skill_definition?.SkillId ?? new StringName("");
+        if (active_unit != null && !IsEmpty(skillId))
         {
-            StringName skillId = skill_def.skill_id;
             if (active_unit.HasKnownSkillLevelTyped(skillId))
             {
                 skillLevel = active_unit.GetKnownSkillLevelTyped(skillId);
@@ -368,14 +446,9 @@ public class BattleHitResolver : IDisposable
                 skillLevel = 1;
             }
         }
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
-        int skillAttackBonus = SkillEffectiveCombatProfileResolver
-            .Resolve(null, skill_def, skillLevel)
-            .AttackRollBonus;
-        int lockedSkillHitBonus = _get_skill_lock_hit_bonus(
-            active_unit,
-            skill_def?.skill_id ?? new StringName("")
-        );
+        int skillAttackBonus =
+            SkillEffectiveCombatDefinition.BuildUncached(skill_definition, skillLevel).AttackRollBonus;
+        int lockedSkillHitBonus = _get_skill_lock_hit_bonus(active_unit, skillId);
         int statusAttackBonusDelta = _get_attacker_status_attack_bonus_delta(active_unit);
         int situationalAttackBonus = flat_bonus + Math.Max(statusAttackBonusDelta, 0);
         int situationalAttackPenalty = flat_penalty + Math.Max(-statusAttackBonusDelta, 0);
@@ -408,21 +481,12 @@ public class BattleHitResolver : IDisposable
         );
     }
 
-    internal AttackCheckInput BuildSkillAttackCheck(
+    internal AttackCheckInput BuildSkillDefinitionAttackCheck(
         BattleUnitReadView active_unit,
         BattleUnitReadView target_unit,
-        SkillDef skill_def
-    )
-    {
-        return BuildSkillAttackCheck(active_unit, target_unit, skill_def, 0, 0);
-    }
-
-    internal AttackCheckInput BuildSkillAttackCheck(
-        BattleUnitReadView active_unit,
-        BattleUnitReadView target_unit,
-        SkillDef skill_def,
-        int flat_bonus = 0,
-        int flat_penalty = 0
+        SkillDefinition skill_definition,
+        int flat_bonus,
+        int flat_penalty
     )
     {
         int attackerBaseAttackBonus = _get_unit_attribute_value(
@@ -447,9 +511,9 @@ public class BattleHitResolver : IDisposable
         }
         int targetArmorClass = _get_target_armor_class(target_unit);
         int skillLevel = 0;
-        if (active_unit.IsValid && skill_def != null)
+        StringName skillId = skill_definition?.SkillId ?? new StringName("");
+        if (active_unit.IsValid && !IsEmpty(skillId))
         {
-            StringName skillId = skill_def.skill_id;
             if (active_unit.HasKnownSkillLevel(skillId))
             {
                 skillLevel = active_unit.GetKnownSkillLevel(skillId);
@@ -459,13 +523,9 @@ public class BattleHitResolver : IDisposable
                 skillLevel = 1;
             }
         }
-        int skillAttackBonus = SkillEffectiveCombatProfileResolver
-            .Resolve(null, skill_def, skillLevel)
-            .AttackRollBonus;
-        int lockedSkillHitBonus = _get_skill_lock_hit_bonus(
-            active_unit,
-            skill_def?.skill_id ?? new StringName("")
-        );
+        int skillAttackBonus =
+            SkillEffectiveCombatDefinition.BuildUncached(skill_definition, skillLevel).AttackRollBonus;
+        int lockedSkillHitBonus = _get_skill_lock_hit_bonus(active_unit, skillId);
         int statusAttackBonusDelta = _get_attacker_status_attack_bonus_delta(active_unit);
         int situationalAttackBonus = flat_bonus + Math.Max(statusAttackBonusDelta, 0);
         int situationalAttackPenalty = flat_penalty + Math.Max(-statusAttackBonusDelta, 0);
@@ -1348,14 +1408,14 @@ public class BattleHitResolver : IDisposable
 
     private int _resolve_repeat_attack_preview_stage_count(
         BattleUnitState active_unit,
-        SkillDef skill_def,
-        CombatEffectDef repeat_attack_effect
+        SkillDefinition skill_definition,
+        CombatEffectDefinition repeat_attack_effect
     )
     {
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
+        CombatSkillDefinition combatProfile = skill_definition?.CombatProfile;
         if (
             active_unit == null
-            || skill_def == null
+            || skill_definition == null
             || combatProfile == null
             || repeat_attack_effect == null
         )
@@ -1368,9 +1428,9 @@ public class BattleHitResolver : IDisposable
         }
 
         int skillLevel = 0;
-        if (active_unit != null && skill_def != null)
+        if (active_unit != null && skill_definition != null)
         {
-            skillLevel = active_unit.GetKnownSkillLevelTyped(skill_def.skill_id);
+            skillLevel = active_unit.GetKnownSkillLevelTyped(skill_definition.SkillId);
         }
         BattleRepeatAttackStageSpec firstStageSpec =
             BattleRepeatAttackStageSpec.FromRepeatAttackEffect(
@@ -1381,7 +1441,10 @@ public class BattleHitResolver : IDisposable
                 true
             );
         firstStageSpec = firstStageSpec.WithBaseResourceCost(
-            _get_repeat_attack_preview_base_cost(skill_def, firstStageSpec.cost_resource_kind)
+            _get_repeat_attack_preview_base_cost(
+                skill_definition,
+                firstStageSpec.cost_resource_kind
+            )
         );
         int baseCost = firstStageSpec.base_resource_cost;
         if (baseCost <= 0)
@@ -1414,19 +1477,19 @@ public class BattleHitResolver : IDisposable
     }
 
     private int _get_repeat_attack_preview_base_cost(
-        SkillDef skill_def,
+        SkillDefinition skill_definition,
         CombatResourceKind cost_resource_kind
     )
     {
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
+        CombatSkillDefinition combatProfile = skill_definition?.CombatProfile;
         if (combatProfile == null)
             return 0;
         return cost_resource_kind switch
         {
-            CombatResourceKind.Ap => combatProfile.ap_cost,
-            CombatResourceKind.Aura => combatProfile.aura_cost,
-            CombatResourceKind.Mp => combatProfile.mp_cost,
-            CombatResourceKind.Stamina => combatProfile.stamina_cost,
+            CombatResourceKind.Ap => combatProfile.ApCost,
+            CombatResourceKind.Aura => combatProfile.AuraCost,
+            CombatResourceKind.Mp => combatProfile.MpCost,
+            CombatResourceKind.Stamina => combatProfile.StaminaCost,
             _ => 0,
         };
     }
@@ -1948,6 +2011,19 @@ public class BattleHitResolver : IDisposable
     private static int GetInt(GDictionary source, object key, int fallback = 0)
     {
         if (!TryGetValue(source, key, out dynamic value))
+        {
+            return fallback;
+        }
+        return ToInt(value, fallback);
+    }
+
+    private static int GetInt(
+        IReadOnlyDictionary<string, Variant> source,
+        string key,
+        int fallback = 0
+    )
+    {
+        if (source == null || string.IsNullOrEmpty(key) || !source.TryGetValue(key, out Variant value))
         {
             return fallback;
         }

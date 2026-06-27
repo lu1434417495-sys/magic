@@ -28,13 +28,14 @@ public partial class run_quest_config_validation : SceneTree
         using EnemyContentRegistry enemyRegistry = new();
 
         Dictionary<StringName, ItemDef> itemDefs = new(itemRegistry.GetItemDefsTyped());
-        Dictionary<StringName, SkillDef> skillDefs = new(skillRegistry.GetSkillDefsTyped());
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            skillRegistry.GetSkillDefinitionsTyped();
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
             enemyRegistry.GetEnemyTemplatesTyped();
 
         foreach (string questConfigPath in QuestConfigPaths)
         {
-            ValidateQuestFile(questConfigPath, itemDefs, skillDefs, enemyTemplates);
+            ValidateQuestFile(questConfigPath, itemDefs, skillDefinitions, enemyTemplates);
         }
 
         Quit(_test.Finish("Quest config validation"));
@@ -43,7 +44,7 @@ public partial class run_quest_config_validation : SceneTree
     private void ValidateQuestFile(
         string path,
         IReadOnlyDictionary<StringName, ItemDef> itemDefs,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates
     )
     {
@@ -145,7 +146,7 @@ public partial class run_quest_config_validation : SceneTree
             List<string> validationErrors = QuestContentValidator.ValidateTyped(
                 questDefs,
                 itemDefs,
-                skillDefs,
+                skillDefinitions,
                 enemyTemplates,
                 new List<string>()
             );

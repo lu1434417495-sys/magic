@@ -50,7 +50,7 @@ public class IdentityContentRegistryBase : System.IDisposable
 
     protected string _registry_label = "IdentityContentRegistry";
 
-    protected Godot.Collections.Array<string> _validation_errors = new();
+    protected System.Collections.Generic.List<string> _validation_errors = new();
     private bool _disposed;
 
     public IdentityContentRegistryBase()
@@ -86,7 +86,7 @@ public class IdentityContentRegistryBase : System.IDisposable
     {
         var copy = new Godot.Collections.Array<string>();
 
-        foreach (var e in _validation_errors)
+        foreach (string e in _validation_errors)
             copy.Add(e);
 
         return copy;
@@ -175,7 +175,7 @@ public class IdentityContentRegistryBase : System.IDisposable
     }
 
     protected void _append_string_name_field_error(
-        Godot.Collections.Array<string> errors,
+        System.Collections.Generic.ICollection<string> errors,
         string ownerLabel,
         string fieldLabel,
         StringName value,
@@ -187,7 +187,7 @@ public class IdentityContentRegistryBase : System.IDisposable
     }
 
     protected void _append_string_field_error(
-        Godot.Collections.Array<string> errors,
+        System.Collections.Generic.ICollection<string> errors,
         string ownerLabel,
         string fieldLabel,
         string value
@@ -196,7 +196,7 @@ public class IdentityContentRegistryBase : System.IDisposable
     }
 
     protected void _append_int_field_error(
-        Godot.Collections.Array<string> errors,
+        System.Collections.Generic.ICollection<string> errors,
         string ownerLabel,
         string fieldLabel,
         int value
@@ -205,7 +205,7 @@ public class IdentityContentRegistryBase : System.IDisposable
     }
 
     protected void _append_bool_field_error(
-        Godot.Collections.Array<string> errors,
+        System.Collections.Generic.ICollection<string> errors,
         string ownerLabel,
         string fieldLabel,
         bool value
@@ -214,7 +214,7 @@ public class IdentityContentRegistryBase : System.IDisposable
     }
 
     protected void _append_string_name_array_errors(
-        Godot.Collections.Array<string> errors,
+        System.Collections.Generic.ICollection<string> errors,
         string ownerLabel,
         Godot.Collections.Array values,
         string fieldLabel,
@@ -238,7 +238,7 @@ public class IdentityContentRegistryBase : System.IDisposable
     }
 
     protected void _append_string_array_errors(
-        Godot.Collections.Array<string> errors,
+        System.Collections.Generic.ICollection<string> errors,
         string ownerLabel,
         Godot.Collections.Array values,
         string fieldLabel
@@ -252,7 +252,7 @@ public class IdentityContentRegistryBase : System.IDisposable
     }
 
     protected void _append_string_name_to_string_name_dictionary_errors(
-        Godot.Collections.Array<string> errors,
+        System.Collections.Generic.ICollection<string> errors,
         string ownerLabel,
         Godot.Collections.Dictionary values,
         string fieldLabel
@@ -278,7 +278,7 @@ public class IdentityContentRegistryBase : System.IDisposable
     }
 
     protected void _append_string_name_to_int_dictionary_errors(
-        Godot.Collections.Array<string> errors,
+        System.Collections.Generic.ICollection<string> errors,
         string ownerLabel,
         Godot.Collections.Dictionary values,
         string fieldLabel,
@@ -307,7 +307,7 @@ public class IdentityContentRegistryBase : System.IDisposable
     }
 
     protected void _append_attribute_modifier_array_errors(
-        Godot.Collections.Array<string> errors,
+        System.Collections.Generic.ICollection<string> errors,
         string ownerLabel,
         Godot.Collections.Array modifiers,
         string fieldLabel
@@ -350,7 +350,7 @@ public class IdentityContentRegistryBase : System.IDisposable
     }
 
     protected void _append_racial_granted_skill_array_errors(
-        Godot.Collections.Array<string> errors,
+        System.Collections.Generic.ICollection<string> errors,
         string ownerLabel,
         Godot.Collections.Array grantedSkills,
         string fieldLabel

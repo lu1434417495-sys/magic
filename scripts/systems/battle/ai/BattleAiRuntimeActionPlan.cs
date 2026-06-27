@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-internal sealed class BattleAiRuntimeActionPlan
+internal sealed class BattleAiRuntimeActionPlan : System.IDisposable
 {
     public StringName unit_id = "";
     public StringName brain_id = "";
@@ -11,12 +11,15 @@ internal sealed class BattleAiRuntimeActionPlan
 
     private readonly Dictionary<StringName, List<EnemyAiAction>> _actionsByState = new();
     private readonly Dictionary<StringName, List<EnemyAiAction>> _generatedActionsByState = new();
+    private readonly Dictionary<StringName, List<BattleAiRuntimeActionEntry>> _entriesByState =
+        new();
     private readonly Dictionary<long, RuntimeActionMetadata> _metadataByInstanceId = new();
     private readonly Dictionary<StringName, BattleAiSkillAffordanceRecord> _skillAffordanceRecordsBySkillId =
         new();
     private readonly GodotTransientResourceScope _transientScope =
         new("BattleAiRuntimeActionPlan");
     private readonly RuntimeEnemyAiResourceFactory _enemyAiResourceFactory;
+    private bool _disposed;
 
     internal BattleAiRuntimeActionPlan()
     {
@@ -42,6 +45,8 @@ internal sealed class BattleAiRuntimeActionPlan
         }
         EnsureState(normalizedStateId);
         List<EnemyAiAction> copiedActions = CopyActionList(actions);
+        List<BattleAiRuntimeActionEntry> entries = GetStateEntries(normalizedStateId);
+        entries.Clear();
         foreach (EnemyAiAction action in copiedActions)
         {
             GodotObjectOwnershipRegistry.AssertBorrowedOrOwnedKnown(
@@ -55,6 +60,9 @@ internal sealed class BattleAiRuntimeActionPlan
                     RuntimeActionMetadata.ForAuthoredAction(normalizedStateId, action)
                 );
             }
+            entries.Add(
+                BattleAiRuntimeActionEntry.FromResource(action, GetActionMetadata(action))
+            );
         }
         SetStateActions(normalizedStateId, copiedActions);
     }
@@ -83,6 +91,8 @@ internal sealed class BattleAiRuntimeActionPlan
         actionMetadata.state_id = normalizedStateId;
         actionMetadata.ApplyActionDefaults(action);
         SetActionMetadata(action, actionMetadata);
+        GetStateEntries(normalizedStateId)
+            .Add(BattleAiRuntimeActionEntry.FromResource(action, actionMetadata));
         if (actionMetadata.generated)
         {
             List<EnemyAiAction> generatedActions = GetGeneratedActions(normalizedStateId);
@@ -129,8 +139,303 @@ internal sealed class BattleAiRuntimeActionPlan
             identity_key
         );
         SetActionMetadataTyped(action, metadata);
+        GetStateEntries(normalizedStateId)
+            .Add(BattleAiRuntimeActionEntry.FromResource(action, metadata));
         List<EnemyAiAction> generatedActions = GetGeneratedActions(normalizedStateId);
         generatedActions.Add(action);
+    }
+
+    internal void AddGeneratedMoveToRangeActionTyped(
+        StringName state_id,
+        BattleAiGeneratedMoveToRangeAction action,
+        StringName slot_id,
+        StringName slot_role,
+        StringName skill_id,
+        StringName action_family,
+        StringName source_action_id,
+        string identity_key
+    )
+    {
+        if (action == null)
+        {
+            return;
+        }
+        StringName normalizedStateId = ProgressionDataUtils.to_string_name(state_id);
+        if (normalizedStateId == "")
+        {
+            return;
+        }
+        EnsureState(normalizedStateId);
+        RuntimeActionMetadata metadata = RuntimeActionMetadata.ForGeneratedPlainAction(
+            normalizedStateId,
+            action.ActionId,
+            action.ScoreBucketId,
+            slot_id,
+            slot_role,
+            skill_id,
+            action_family,
+            source_action_id,
+            identity_key
+        );
+        GetStateEntries(normalizedStateId)
+            .Add(BattleAiRuntimeActionEntry.FromGeneratedMoveToRange(action, metadata));
+    }
+
+    internal void AddGeneratedUseUnitSkillActionTyped(
+        StringName state_id,
+        BattleAiUnitSkillActionSpec action,
+        StringName slot_id,
+        StringName slot_role,
+        StringName skill_id,
+        StringName action_family,
+        StringName source_action_id,
+        string identity_key
+    )
+    {
+        if (action == null)
+        {
+            return;
+        }
+        StringName normalizedStateId = ProgressionDataUtils.to_string_name(state_id);
+        if (normalizedStateId == "")
+        {
+            return;
+        }
+        EnsureState(normalizedStateId);
+        RuntimeActionMetadata metadata = RuntimeActionMetadata.ForGeneratedPlainAction(
+            normalizedStateId,
+            action.ActionId,
+            action.ScoreBucketId,
+            slot_id,
+            slot_role,
+            skill_id,
+            action_family,
+            source_action_id,
+            identity_key
+        );
+        GetStateEntries(normalizedStateId)
+            .Add(BattleAiRuntimeActionEntry.FromGeneratedUseUnitSkill(action, metadata));
+    }
+
+    internal void AddGeneratedRandomChainSkillActionTyped(
+        StringName state_id,
+        BattleAiRandomChainSkillActionSpec action,
+        StringName slot_id,
+        StringName slot_role,
+        StringName skill_id,
+        StringName action_family,
+        StringName source_action_id,
+        string identity_key
+    )
+    {
+        if (action == null)
+        {
+            return;
+        }
+        StringName normalizedStateId = ProgressionDataUtils.to_string_name(state_id);
+        if (normalizedStateId == "")
+        {
+            return;
+        }
+        EnsureState(normalizedStateId);
+        RuntimeActionMetadata metadata = RuntimeActionMetadata.ForGeneratedPlainAction(
+            normalizedStateId,
+            action.ActionId,
+            action.ScoreBucketId,
+            slot_id,
+            slot_role,
+            skill_id,
+            action_family,
+            source_action_id,
+            identity_key
+        );
+        GetStateEntries(normalizedStateId)
+            .Add(BattleAiRuntimeActionEntry.FromGeneratedRandomChainSkill(action, metadata));
+    }
+
+    internal void AddGeneratedMultiUnitSkillActionTyped(
+        StringName state_id,
+        BattleAiMultiUnitSkillActionSpec action,
+        StringName slot_id,
+        StringName slot_role,
+        StringName skill_id,
+        StringName action_family,
+        StringName source_action_id,
+        string identity_key
+    )
+    {
+        if (action == null)
+        {
+            return;
+        }
+        StringName normalizedStateId = ProgressionDataUtils.to_string_name(state_id);
+        if (normalizedStateId == "")
+        {
+            return;
+        }
+        EnsureState(normalizedStateId);
+        RuntimeActionMetadata metadata = RuntimeActionMetadata.ForGeneratedPlainAction(
+            normalizedStateId,
+            action.ActionId,
+            action.ScoreBucketId,
+            slot_id,
+            slot_role,
+            skill_id,
+            action_family,
+            source_action_id,
+            identity_key
+        );
+        GetStateEntries(normalizedStateId)
+            .Add(BattleAiRuntimeActionEntry.FromGeneratedMultiUnitSkill(action, metadata));
+    }
+
+    internal void AddGeneratedMoveToMultiUnitSkillPositionActionTyped(
+        StringName state_id,
+        BattleAiMoveToMultiUnitSkillPositionActionSpec action,
+        StringName slot_id,
+        StringName slot_role,
+        StringName skill_id,
+        StringName action_family,
+        StringName source_action_id,
+        string identity_key
+    )
+    {
+        if (action == null)
+        {
+            return;
+        }
+        StringName normalizedStateId = ProgressionDataUtils.to_string_name(state_id);
+        if (normalizedStateId == "")
+        {
+            return;
+        }
+        EnsureState(normalizedStateId);
+        RuntimeActionMetadata metadata = RuntimeActionMetadata.ForGeneratedPlainAction(
+            normalizedStateId,
+            action.ActionId,
+            action.ScoreBucketId,
+            slot_id,
+            slot_role,
+            skill_id,
+            action_family,
+            source_action_id,
+            identity_key
+        );
+        GetStateEntries(normalizedStateId)
+            .Add(
+                BattleAiRuntimeActionEntry.FromGeneratedMoveToMultiUnitSkillPosition(
+                    action,
+                    metadata
+                )
+            );
+    }
+
+    internal void AddGeneratedChargeActionTyped(
+        StringName state_id,
+        BattleAiChargeActionSpec action,
+        StringName slot_id,
+        StringName slot_role,
+        StringName skill_id,
+        StringName action_family,
+        StringName source_action_id,
+        string identity_key
+    )
+    {
+        if (action == null)
+        {
+            return;
+        }
+        StringName normalizedStateId = ProgressionDataUtils.to_string_name(state_id);
+        if (normalizedStateId == "")
+        {
+            return;
+        }
+        EnsureState(normalizedStateId);
+        RuntimeActionMetadata metadata = RuntimeActionMetadata.ForGeneratedPlainAction(
+            normalizedStateId,
+            action.ActionId,
+            action.ScoreBucketId,
+            slot_id,
+            slot_role,
+            skill_id,
+            action_family,
+            source_action_id,
+            identity_key
+        );
+        GetStateEntries(normalizedStateId)
+            .Add(BattleAiRuntimeActionEntry.FromGeneratedCharge(action, metadata));
+    }
+
+    internal void AddGeneratedChargePathAoeActionTyped(
+        StringName state_id,
+        BattleAiChargePathAoeActionSpec action,
+        StringName slot_id,
+        StringName slot_role,
+        StringName skill_id,
+        StringName action_family,
+        StringName source_action_id,
+        string identity_key
+    )
+    {
+        if (action == null)
+        {
+            return;
+        }
+        StringName normalizedStateId = ProgressionDataUtils.to_string_name(state_id);
+        if (normalizedStateId == "")
+        {
+            return;
+        }
+        EnsureState(normalizedStateId);
+        RuntimeActionMetadata metadata = RuntimeActionMetadata.ForGeneratedPlainAction(
+            normalizedStateId,
+            action.ActionId,
+            action.ScoreBucketId,
+            slot_id,
+            slot_role,
+            skill_id,
+            action_family,
+            source_action_id,
+            identity_key
+        );
+        GetStateEntries(normalizedStateId)
+            .Add(BattleAiRuntimeActionEntry.FromGeneratedChargePathAoe(action, metadata));
+    }
+
+    internal void AddGeneratedGroundSkillActionTyped(
+        StringName state_id,
+        BattleAiGroundSkillActionSpec action,
+        StringName slot_id,
+        StringName slot_role,
+        StringName skill_id,
+        StringName action_family,
+        StringName source_action_id,
+        string identity_key
+    )
+    {
+        if (action == null)
+        {
+            return;
+        }
+        StringName normalizedStateId = ProgressionDataUtils.to_string_name(state_id);
+        if (normalizedStateId == "")
+        {
+            return;
+        }
+        EnsureState(normalizedStateId);
+        RuntimeActionMetadata metadata = RuntimeActionMetadata.ForGeneratedPlainAction(
+            normalizedStateId,
+            action.ActionId,
+            action.ScoreBucketId,
+            slot_id,
+            slot_role,
+            skill_id,
+            action_family,
+            source_action_id,
+            identity_key
+        );
+        GetStateEntries(normalizedStateId)
+            .Add(BattleAiRuntimeActionEntry.FromGeneratedGroundSkill(action, metadata));
     }
 
     internal EnemyAiAction OwnRuntimeAction(EnemyAiAction action, string reason)
@@ -138,10 +443,19 @@ internal sealed class BattleAiRuntimeActionPlan
         return _enemyAiResourceFactory.OwnAction(action, reason);
     }
 
+    internal Godot.Collections.Array<StringName> NewRuntimeStringNameArray(
+        IEnumerable<StringName> values,
+        string reason
+    )
+    {
+        return _enemyAiResourceFactory.NewStringNameArray(values, reason);
+    }
+
     internal void Clear()
     {
         _actionsByState.Clear();
         _generatedActionsByState.Clear();
+        _entriesByState.Clear();
         _metadataByInstanceId.Clear();
         _skillAffordanceRecordsBySkillId.Clear();
         warnings.Clear();
@@ -152,12 +466,32 @@ internal sealed class BattleAiRuntimeActionPlan
         _transientScope.Drain();
     }
 
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        Clear();
+        _transientScope.Dispose();
+    }
+
     internal IReadOnlyList<EnemyAiAction> GetActions(StringName state_id)
     {
         StringName normalizedStateId = ProgressionDataUtils.to_string_name(state_id);
         return _actionsByState.TryGetValue(normalizedStateId, out List<EnemyAiAction> actions)
             ? actions
             : System.Array.Empty<EnemyAiAction>();
+    }
+
+    internal IReadOnlyList<BattleAiRuntimeActionEntry> GetActionEntries(StringName state_id)
+    {
+        StringName normalizedStateId = ProgressionDataUtils.to_string_name(state_id);
+        return _entriesByState.TryGetValue(
+            normalizedStateId,
+            out List<BattleAiRuntimeActionEntry> entries
+        )
+            ? entries
+            : System.Array.Empty<BattleAiRuntimeActionEntry>();
     }
 
     internal bool HasActionIdentityKey(EnemyAiAction action, string identityKey)
@@ -170,6 +504,25 @@ internal sealed class BattleAiRuntimeActionPlan
             InstanceKey(action),
             out RuntimeActionMetadata metadata
         ) && metadata.identity_key == identityKey;
+    }
+
+    internal bool HasActionIdentityKey(string identityKey)
+    {
+        if (string.IsNullOrEmpty(identityKey))
+        {
+            return false;
+        }
+        foreach (List<BattleAiRuntimeActionEntry> entries in _entriesByState.Values)
+        {
+            foreach (BattleAiRuntimeActionEntry entry in entries)
+            {
+                if (entry?.Metadata?.identity_key == identityKey)
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     internal bool TryGetSkillAffordances(
@@ -195,12 +548,14 @@ internal sealed class BattleAiRuntimeActionPlan
 
     public bool HasState(StringName state_id)
     {
-        return _actionsByState.ContainsKey(ProgressionDataUtils.to_string_name(state_id));
+        StringName normalizedStateId = ProgressionDataUtils.to_string_name(state_id);
+        return _actionsByState.ContainsKey(normalizedStateId)
+            || _entriesByState.ContainsKey(normalizedStateId);
     }
 
     public bool IsEmptyState(StringName state_id)
     {
-        return HasState(state_id) && GetActions(state_id).Count == 0;
+        return HasState(state_id) && GetActionEntries(state_id).Count == 0;
     }
 
     internal void SetActionMetadata(EnemyAiAction action, RuntimeActionMetadata metadata)
@@ -305,26 +660,26 @@ internal sealed class BattleAiRuntimeActionPlan
         }
         foreach (StringName stateId in _actionsByState.Keys)
         {
-            if (!_actionsByState.TryGetValue(stateId, out List<EnemyAiAction> stateActions))
+            if (!_entriesByState.TryGetValue(stateId, out List<BattleAiRuntimeActionEntry> stateEntries))
             {
                 validationErrors.Add(
                     $"Runtime action plan state {stateId} actions payload is invalid."
                 );
                 continue;
             }
-            foreach (EnemyAiAction action in stateActions)
+            foreach (BattleAiRuntimeActionEntry entry in stateEntries)
             {
-                if (action == null)
+                if (entry == null)
                 {
                     validationErrors.Add(
                         $"Runtime action plan state {stateId} contains null action."
                     );
                     continue;
                 }
-                if (!_metadataByInstanceId.ContainsKey(InstanceKey(action)))
+                if (entry.Metadata == null)
                 {
                     validationErrors.Add(
-                        $"Runtime action plan action {ProgressionDataUtils.to_string_name(action.action_id)} is missing metadata."
+                        $"Runtime action plan action {entry.ActionId} is missing metadata."
                     );
                 }
             }
@@ -356,6 +711,10 @@ internal sealed class BattleAiRuntimeActionPlan
         {
             _actionsByState[stateId] = new List<EnemyAiAction>();
         }
+        if (!_entriesByState.ContainsKey(stateId))
+        {
+            _entriesByState[stateId] = new List<BattleAiRuntimeActionEntry>();
+        }
     }
 
     private List<EnemyAiAction> GetStateActions(StringName stateId)
@@ -366,6 +725,16 @@ internal sealed class BattleAiRuntimeActionPlan
             _actionsByState[stateId] = actions;
         }
         return actions;
+    }
+
+    private List<BattleAiRuntimeActionEntry> GetStateEntries(StringName stateId)
+    {
+        if (!_entriesByState.TryGetValue(stateId, out List<BattleAiRuntimeActionEntry> entries))
+        {
+            entries = new List<BattleAiRuntimeActionEntry>();
+            _entriesByState[stateId] = entries;
+        }
+        return entries;
     }
 
     private List<EnemyAiAction> GetGeneratedActions(StringName stateId)
@@ -511,6 +880,7 @@ internal sealed class BattleAiRuntimeActionPlan
         public StringName score_bucket_id = "";
         public StringName action_id = "";
         public string identity_key = "";
+        public bool force_candidate_request_evaluation;
         public RuntimeActionExportMetadata runtime_action_metadata = new();
 
         public RuntimeActionMetadata Clone()
@@ -528,6 +898,7 @@ internal sealed class BattleAiRuntimeActionPlan
                 score_bucket_id = score_bucket_id,
                 action_id = action_id,
                 identity_key = identity_key ?? "",
+                force_candidate_request_evaluation = force_candidate_request_evaluation,
                 runtime_action_metadata = runtime_action_metadata?.Clone() ?? new RuntimeActionExportMetadata(),
             };
         }
@@ -547,6 +918,7 @@ internal sealed class BattleAiRuntimeActionPlan
                     action != null ? ProgressionDataUtils.to_string_name(action.action_id) : "",
             };
             result.ApplyActionDefaults(action);
+            result.force_candidate_request_evaluation = ShouldForceCandidateRequest(action);
             return result;
         }
 
@@ -590,6 +962,44 @@ internal sealed class BattleAiRuntimeActionPlan
             return result;
         }
 
+        public static RuntimeActionMetadata ForGeneratedPlainAction(
+            StringName stateId,
+            StringName actionId,
+            StringName scoreBucketId,
+            StringName slotId,
+            StringName slotRole,
+            StringName skillId,
+            StringName actionFamily,
+            StringName sourceActionId,
+            string identityKey
+        )
+        {
+            return new RuntimeActionMetadata
+            {
+                generated = true,
+                state_id = ProgressionDataUtils.to_string_name(stateId),
+                slot_id = ProgressionDataUtils.to_string_name(slotId),
+                slot_role = ProgressionDataUtils.to_string_name(slotRole),
+                skill_id = ProgressionDataUtils.to_string_name(skillId),
+                variant_id = "",
+                action_family = ProgressionDataUtils.to_string_name(actionFamily),
+                source_action_id = ProgressionDataUtils.to_string_name(sourceActionId),
+                score_bucket_id = ProgressionDataUtils.to_string_name(scoreBucketId),
+                action_id = ProgressionDataUtils.to_string_name(actionId),
+                identity_key = identityKey ?? "",
+                force_candidate_request_evaluation = true,
+                runtime_action_metadata = RuntimeActionExportMetadata.ForGeneratedAction(
+                    stateId,
+                    slotId,
+                    slotRole,
+                    skillId,
+                    actionFamily,
+                    sourceActionId,
+                    identityKey
+                ),
+            };
+        }
+
         public void ApplyActionDefaults(EnemyAiAction action)
         {
             if (action_id == "" && action != null)
@@ -600,6 +1010,12 @@ internal sealed class BattleAiRuntimeActionPlan
             {
                 score_bucket_id = ProgressionDataUtils.to_string_name(action.score_bucket_id);
             }
+        }
+
+        private static bool ShouldForceCandidateRequest(EnemyAiAction action)
+        {
+            return action is MoveToRangeAction moveToRange
+                && moveToRange.CanUseGeneratedCandidateRequestMode();
         }
 
     }

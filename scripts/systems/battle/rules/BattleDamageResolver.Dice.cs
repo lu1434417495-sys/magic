@@ -8,80 +8,11 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 // BattleDamageResolver 的 partial：伤害/加成/武器骰池的掷骰与骰面事件聚合。按阶段拆出，不改逻辑。
 public partial class BattleDamageResolver
 {
-    private DicePoolRollResult RollDamageDice(
-        CombatEffectDef effectDef,
-        bool includeBonus = true,
-        string fieldPrefix = "damage_dice",
-        StringName rollMode = default
-    )
-    {
-        if (effectDef == null)
-        {
-            return DicePoolRollResult.Empty;
-        }
-        int diceCount = Math.Max(effectDef.dice_count, 0);
-        int diceSides = Math.Max(effectDef.dice_sides, 0);
-        int diceBonus = includeBonus ? effectDef.dice_bonus : 0;
-        return RollDicePool(
-            diceCount,
-            diceSides,
-            diceBonus,
-            fieldPrefix,
-            IsEmpty(rollMode) ? DamagePreviewRollModeRandom : rollMode
-        );
-    }
 
-    private DicePoolRollResult RollBonusDamageDice(
-        CombatEffectDef effectDef,
-        bool includeBonus = true,
-        string fieldPrefix = "bonus_damage_dice",
-        StringName rollMode = default
-    )
-    {
-        if (effectDef == null)
-        {
-            return DicePoolRollResult.Empty;
-        }
-        int diceCount = Math.Max(effectDef.bonus_damage_dice_count, 0);
-        int diceSides = Math.Max(effectDef.bonus_damage_dice_sides, 0);
-        int diceBonus = includeBonus ? effectDef.bonus_damage_dice_bonus : 0;
-        return RollDicePool(
-            diceCount,
-            diceSides,
-            diceBonus,
-            fieldPrefix,
-            IsEmpty(rollMode) ? DamagePreviewRollModeRandom : rollMode
-        );
-    }
 
-    private DicePoolRollResult RollWeaponDice(
-        BattleUnitState sourceUnit,
-        CombatEffectDef effectDef,
-        bool includeBonus = true,
-        string fieldPrefix = "weapon_damage_dice",
-        StringName rollMode = default
-    )
-    {
-        if (!ShouldAddWeaponDice(effectDef))
-        {
-            return DicePoolRollResult.Empty;
-        }
-        WeaponDice dice = GetCurrentWeaponDamageDice(sourceUnit);
-        if (dice == null || dice.IsEmpty())
-        {
-            return DicePoolRollResult.Empty;
-        }
-        int diceCount = Math.Max(dice.dice_count, 0);
-        int diceSides = Math.Max(dice.dice_sides, 0);
-        int diceBonus = includeBonus ? dice.flat_bonus : 0;
-        return RollDicePool(
-            diceCount,
-            diceSides,
-            diceBonus,
-            fieldPrefix,
-            IsEmpty(rollMode) ? DamagePreviewRollModeRandom : rollMode
-        );
-    }
+
+
+
 
     private DicePoolRollResult RollDicePool(
         int diceCount,

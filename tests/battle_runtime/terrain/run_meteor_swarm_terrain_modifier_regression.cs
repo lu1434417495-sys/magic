@@ -23,9 +23,9 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
     private void TestDustAttackModifierUsesSchemaNotSourceId()
     {
         Fixture setup = BuildRuntimeWithUnits(new Vector2I(5, 3), new Vector2I(0, 1), new Vector2I(3, 1));
-        CombatEffectDef oddNamedDust = BuildDustEffect("schema_driven_not_meteor_named");
+        CombatEffectDefinition oddNamedDust = BuildDustEffect("schema_driven_not_meteor_named");
         _test.True(
-            setup.Runtime._terrain_effect_system.UpsertTimedTerrainEffect(
+            setup.Runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
                 setup.Target.coord,
                 setup.Attacker,
                 null,
@@ -59,7 +59,7 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
             new Vector2I(1, 0)
         );
         _test.True(
-            adjacentSetup.Runtime._terrain_effect_system.UpsertTimedTerrainEffect(
+            adjacentSetup.Runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
                 adjacentSetup.Target.coord,
                 adjacentSetup.Attacker,
                 null,
@@ -85,7 +85,7 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
             new Vector2I(3, 0)
         );
         _test.True(
-            doubleSetup.Runtime._terrain_effect_system.UpsertTimedTerrainEffect(
+            doubleSetup.Runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
                 doubleSetup.Attacker.coord,
                 doubleSetup.Attacker,
                 null,
@@ -95,7 +95,7 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
             "attacker footprint 尘土应能写入。"
         );
         _test.True(
-            doubleSetup.Runtime._terrain_effect_system.UpsertTimedTerrainEffect(
+            doubleSetup.Runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
                 doubleSetup.Target.coord,
                 doubleSetup.Attacker,
                 null,
@@ -125,7 +125,7 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
     {
         Fixture setup = BuildRuntimeWithUnits(new Vector2I(5, 2), new Vector2I(0, 0), new Vector2I(3, 0));
         _test.True(
-            setup.Runtime._terrain_effect_system.UpsertTimedTerrainEffect(
+            setup.Runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
                 setup.Target.coord,
                 setup.Attacker,
                 null,
@@ -135,7 +135,7 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
             "timed dust 应能写入。"
         );
         _test.True(
-            setup.Runtime._terrain_effect_system.UpsertTimedTerrainEffect(
+            setup.Runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
                 setup.Target.coord,
                 setup.Attacker,
                 null,
@@ -170,11 +170,11 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
     )
     {
         BattleAttackCheckPolicyService attackPolicy = runtime.GetAttackCheckPolicyService();
-        BattleAttackCheckPolicyContext context = attackPolicy.BuildAttackContext(
+        BattleAttackCheckPolicyContext context = attackPolicy.BuildSkillDefinitionAttackContext(
             runtime.GetState(),
             attacker,
             target,
-            null,
+            (SkillDefinition)null,
             "skill_attack_check",
             "execute",
             false
@@ -288,54 +288,58 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
         }
     }
 
-    private static CombatEffectDef BuildDustEffect(StringName effectId)
+    private static CombatEffectDefinition BuildDustEffect(StringName effectId)
     {
-        CombatEffectDef effect = BuildTimedTerrainEffect(effectId, 0, "timed", 50, 5);
-        effect.accuracy_modifier_spec = new BattleAttackRollModifierSpec
-        {
-            source_domain = "terrain",
-            label = "尘土",
-            modifier_delta = -2,
-            stack_key = "dust_attack_roll_penalty",
-            stack_mode = "max",
-            roll_kind_filter = "spell_attack",
-            endpoint_mode = "either",
-            distance_min_exclusive = 1,
-            distance_max_inclusive = -1,
-            target_team_filter = "any",
-            footprint_mode = "any_cell",
-            applies_to = "attack_roll",
-        };
-        return effect;
+        return BuildTimedTerrainEffect(
+            effectId,
+            0,
+            "timed",
+            50,
+            5,
+            new BattleAttackRollModifierSpec
+            {
+                source_domain = "terrain",
+                label = "尘土",
+                modifier_delta = -2,
+                stack_key = "dust_attack_roll_penalty",
+                stack_mode = "max",
+                roll_kind_filter = "spell_attack",
+                endpoint_mode = "either",
+                distance_min_exclusive = 1,
+                distance_max_inclusive = -1,
+                target_team_filter = "any",
+                footprint_mode = "any_cell",
+                applies_to = "attack_roll",
+            }
+        );
     }
 
-    private static CombatEffectDef BuildBattleTerrainEffect(StringName effectId, int moveCostDelta)
+    private static CombatEffectDefinition BuildBattleTerrainEffect(StringName effectId, int moveCostDelta)
     {
         return BuildTimedTerrainEffect(effectId, moveCostDelta, "battle", 0, 0);
     }
 
-    private static CombatEffectDef BuildTimedTerrainEffect(
+    private static CombatEffectDefinition BuildTimedTerrainEffect(
         StringName effectId,
         int moveCostDelta,
         StringName lifetimePolicy,
         int durationTu,
-        int tickIntervalTu
-    )
-    {
-        return new CombatEffectDef
-        {
-            effect_type = "terrain_effect",
-            tick_effect_type = "none",
-            lifetime_policy = lifetimePolicy,
-            move_cost_delta = moveCostDelta,
-            terrain_effect_id = effectId,
-            display_name = effectId.ToString(),
-            render_overlay_id = effectId,
-            duration_tu = durationTu,
-            tick_interval_tu = tickIntervalTu,
-            effect_target_team_filter = "any",
-        };
-    }
+        int tickIntervalTu,
+        BattleAttackRollModifierSpec accuracyModifierSpec = null
+    ) =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "terrain_effect",
+            effectTargetTeamFilter: "any",
+            tickEffectType: "none",
+            lifetimePolicy: lifetimePolicy,
+            moveCostDelta: moveCostDelta,
+            terrainEffectId: effectId,
+            displayName: effectId.ToString(),
+            renderOverlayId: effectId,
+            durationTu: durationTu,
+            tickIntervalTu: tickIntervalTu,
+            accuracyModifierSpec: accuracyModifierSpec
+        );
 
     private sealed class Fixture
     {

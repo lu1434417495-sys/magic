@@ -16,6 +16,7 @@ public partial class run_skill_level_description_typed_regression : SceneTree
     {
         TestLevelDescriptionSchemaValidationUsesTypedEntries();
         TestLevelDescriptionFormatterUsesTypedConfigs();
+        TestLevelDescriptionFormatterUsesTypedEffectParameters();
 
         Quit(_test.Finish("Skill level description typed regression"));
     }
@@ -82,17 +83,13 @@ public partial class run_skill_level_description_typed_regression : SceneTree
 
     private void TestLevelDescriptionFormatterUsesTypedConfigs()
     {
-        SkillDef skill = new()
-        {
-            skill_id = "typed_level_description_formatter_skill",
-            level_description_template = "模板{value}{{?bonus}}+{bonus}{{/bonus}}",
-            max_level = 1,
-        };
-        skill.SetLevelDescriptionConfigs(
-            new Dictionary<int, Dictionary<string, Variant>>
+        SkillDefinition skill = BuildSkillDefinition(
+            "typed_level_description_formatter_skill",
+            "模板{value}{{?bonus}}+{bonus}{{/bonus}}",
+            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, Variant>>
             {
-                [0] = new() { ["value"] = Variant.From("零级") },
-                [1] = new()
+                [0] = new Dictionary<string, Variant> { ["value"] = Variant.From("零级") },
+                [1] = new Dictionary<string, Variant>
                 {
                     ["value"] = Variant.From("一级"),
                     ["bonus"] = Variant.From(2),
@@ -109,6 +106,174 @@ public partial class run_skill_level_description_typed_regression : SceneTree
             SkillLevelDescriptionFormatter.BuildLevelDescription(skill, 1, new GDictionary()),
             "模板一级+2",
             "formatter 应从 typed level description config 读取 1 级描述。"
+        );
+    }
+
+    private void TestLevelDescriptionFormatterUsesTypedEffectParameters()
+    {
+        SkillDefinition skill = BuildSkillDefinition(
+            "typed_level_description_effect_params_skill",
+            "连锁半径{base_chain_radius}，湿地{wet_chain_radius}",
+            combatProfile: BuildCombatProfile(
+                "typed_level_description_effect_params_skill",
+                new CombatEffectDefinition(
+                    effectType: "chain_damage",
+                    effectTargetTeamFilter: "",
+                    statusId: "",
+                    saveFailureStatusId: "",
+                    terrainEffectId: "",
+                    terrainReplaceTo: "",
+                    heightDelta: 0,
+                    requiresWeapon: false,
+                    addWeaponDice: false,
+                    preventRepeatTarget: true,
+                    forcedMoveMode: "",
+                    minSkillLevel: 0,
+                    maxSkillLevel: -1,
+                    damageTag: "",
+                    damageRatioPercent: 100,
+                    preResistanceDamageMultiplier: 1.0,
+                    bonusCondition: "",
+                    hpRatioThresholdPercent: 0,
+                    damageCategory: "",
+                    drBypassTag: "",
+                    diceCount: 0,
+                    diceSides: 0,
+                    diceBonus: 0,
+                    bonusDamageDiceCount: 0,
+                    bonusDamageDiceSides: 0,
+                    bonusDamageDiceBonus: 0,
+                    saveDc: 0,
+                    saveDcMode: "",
+                    saveDcSourceAbility: "",
+                    saveAbility: "",
+                    savePartialOnSuccess: false,
+                    saveTag: "",
+                    thresholdBaseValue: 0,
+                    thresholdLevelAnchor: 17,
+                    thresholdLevelBonusPerDelta: 5,
+                    thresholdMaxHpRatioPercent: 20,
+                    thresholdCapMaxHpRatioPercent: 50,
+                    soulFractureDurationTu: 0,
+                    healMultiplierPercent: 100,
+                    shieldGainMultiplierPercent: 100,
+                    appliedStatusDurationTu: 0,
+                    durationTu: 0,
+                    tickIntervalTu: 0,
+                    effectTags: System.Array.Empty<StringName>(),
+                    parameters: new Dictionary<string, Variant>
+                    {
+                        ["base_chain_radius"] = Variant.From(1),
+                        ["wet_chain_radius"] = Variant.From(2),
+                    }
+                )
+            )
+        );
+
+        _test.Eq(
+            SkillLevelDescriptionFormatter.BuildLevelDescription(skill, 0, new GDictionary()),
+            "连锁半径1，湿地2",
+            "formatter 应从纯 SkillDefinition effect parameters 渲染描述。"
+        );
+    }
+
+    private static SkillDefinition BuildSkillDefinition(
+        StringName skillId,
+        string levelDescriptionTemplate,
+        IReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>> levelDescriptionConfigs = null,
+        CombatSkillDefinition combatProfile = null
+    )
+    {
+        return new SkillDefinition(
+            skillId: skillId,
+            displayName: (string)skillId,
+            iconId: skillId,
+            description: "",
+            skillType: "active",
+            maxLevel: 1,
+            nonCoreMaxLevel: 0,
+            dynamicMaxLevelStatId: "",
+            dynamicMaxLevelBase: 0,
+            dynamicMaxLevelPerStat: 0,
+            masteryCurve: System.Array.Empty<int>(),
+            tags: System.Array.Empty<StringName>(),
+            learnSource: "book",
+            learnRequirements: System.Array.Empty<StringName>(),
+            unlockMode: "",
+            knowledgeRequirements: System.Array.Empty<StringName>(),
+            skillLevelRequirements: new Dictionary<StringName, int>(),
+            attributeRequirements: new Dictionary<StringName, int>(),
+            achievementRequirements: System.Array.Empty<StringName>(),
+            upgradeSourceSkillIds: System.Array.Empty<StringName>(),
+            retainSourceSkillsOnUnlock: false,
+            coreSkillTransitionMode: "",
+            masterySources: System.Array.Empty<StringName>(),
+            growthTier: "",
+            attributeGrowthProgress: new Dictionary<StringName, int>(),
+            practiceTier: "",
+            attributeModifiers: System.Array.Empty<AttributeModifierDefinition>(),
+            levelDescriptionTemplate: levelDescriptionTemplate,
+            levelDescriptionConfigs: levelDescriptionConfigs
+                ?? new Dictionary<int, IReadOnlyDictionary<string, Variant>>(),
+            combatProfile: combatProfile
+        );
+    }
+
+    private static CombatSkillDefinition BuildCombatProfile(
+        StringName skillId,
+        params CombatEffectDefinition[] effects
+    )
+    {
+        return new CombatSkillDefinition(
+            skillId: skillId,
+            targetMode: "unit",
+            targetTeamFilter: "",
+            rangePattern: "single",
+            rangeValue: 1,
+            areaPattern: "",
+            areaValue: 0,
+            requiresLos: true,
+            apCost: 1,
+            mpCost: 0,
+            staminaCost: 0,
+            cooldownTu: 0,
+            castingTimeTu: 0,
+            castingMaintenanceDc: 0,
+            castingSpellControlDc: 0,
+            pendingCastBindingMode: "",
+            attackRollBonus: 0,
+            auraCost: 0,
+            levelOverrides: new Dictionary<int, IReadOnlyDictionary<string, Variant>>(),
+            masteryTriggerMode: "",
+            masteryAmountMode: "",
+            spellFateMode: "",
+            spellCriticalMode: "",
+            spellCriticalMpRefundPercent: 0,
+            fumbleProtectionCurve: System.Array.Empty<int>(),
+            fumbleProtectionExtraMpPercent: 0,
+            backlashMode: "",
+            backlashTargetFilter: "",
+            backlashOffsetRadius: 0,
+            areaOriginMode: "",
+            areaDirectionMode: "",
+            aiTags: System.Array.Empty<StringName>(),
+            deliveryCategories: System.Array.Empty<StringName>(),
+            specialResolutionProfileId: "",
+            targetSelectionMode: "",
+            minTargetCount: 0,
+            maxTargetCount: 0,
+            allowRepeatTarget: false,
+            maxHitsPerTarget: 0,
+            selectionOrderMode: "",
+            effectDefinitions: effects,
+            passiveEffectDefinitions: System.Array.Empty<CombatEffectDefinition>(),
+            castVariants: System.Array.Empty<CombatCastVariantDefinition>(),
+            requiredWeaponFamilies: System.Array.Empty<StringName>(),
+            excludedWeaponFamilies: System.Array.Empty<StringName>(),
+            excludedWeaponTypeIds: System.Array.Empty<StringName>(),
+            requiresEquippedShield: false,
+            masteryLowHpBonusMultiplier: 0,
+            masteryLowHpThresholdPercent: 0
         );
     }
 }

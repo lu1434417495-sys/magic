@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
 {
@@ -28,13 +26,13 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
     private void TestMultiUnitSkillScoresRoleThreatTargetGroups()
     {
         Fixture fixture = BuildFixture("multi_unit_role_threat_scoring");
-        SkillDef attackSkill = BuildSkill(
+        SkillDefinition attackSkill = BuildSkill(
             "archer_multishot_probe",
             "Multishot Probe",
             BuildDamageEffect(10)
         );
-        SkillDef healerRoleSkill = BuildHealSkill();
-        SkillDef normalRoleSkill = BuildSkill(
+        SkillDefinition healerRoleSkill = BuildHealSkill();
+        SkillDefinition normalRoleSkill = BuildSkill(
             "warrior_heavy_strike_probe",
             "Heavy Strike Probe",
             BuildDamageEffect(3)
@@ -48,9 +46,9 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
         BattleUnitState normalA = BuildUnit("multi_role_normal_a", "player", new Vector2I(4, 1));
         BattleUnitState normalB = BuildUnit("multi_role_normal_b", "player", new Vector2I(4, 2));
         BattleUnitState healer = BuildUnit("multi_role_healer", "player", new Vector2I(4, 3));
-        normalA.known_active_skill_ids.Add(normalRoleSkill.skill_id);
-        normalB.known_active_skill_ids.Add(normalRoleSkill.skill_id);
-        healer.known_active_skill_ids.Add(healerRoleSkill.skill_id);
+        normalA.known_active_skill_ids.Add(normalRoleSkill.SkillId);
+        normalB.known_active_skill_ids.Add(normalRoleSkill.SkillId);
+        healer.known_active_skill_ids.Add(healerRoleSkill.SkillId);
         fixture.AddUnit(actor);
         fixture.AddUnit(normalA);
         fixture.AddUnit(normalB);
@@ -60,17 +58,17 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
         BattleAiScoreInput normalScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
             attackSkill,
-            BuildCommand(actor, attackSkill.skill_id, normalA.coord),
+            BuildCommand(actor, attackSkill.SkillId, normalA.coord),
             BuildPreview(normalA, normalB),
-            new[] { attackSkill.combat_profile.effect_defs[0] },
+            new[] { attackSkill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(normalA, 3, 6)
         );
         BattleAiScoreInput threatScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
             attackSkill,
-            BuildCommand(actor, attackSkill.skill_id, normalA.coord),
+            BuildCommand(actor, attackSkill.SkillId, normalA.coord),
             BuildPreview(normalA, healer),
-            new[] { attackSkill.combat_profile.effect_defs[0] },
+            new[] { attackSkill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(normalA, 3, 6)
         );
 
@@ -93,13 +91,13 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
     private void TestGroundSkillScoresRoleThreatAreaTargets()
     {
         Fixture fixture = BuildFixture("ground_role_threat_scoring");
-        SkillDef fireballSkill = BuildSkill(
+        SkillDefinition fireballSkill = BuildSkill(
             "mage_fireball_probe",
             "Fireball Probe",
             BuildDamageEffect(10)
         );
-        SkillDef healerRoleSkill = BuildHealSkill();
-        SkillDef normalRoleSkill = BuildSkill(
+        SkillDefinition healerRoleSkill = BuildHealSkill();
+        SkillDefinition normalRoleSkill = BuildSkill(
             "warrior_heavy_strike_probe",
             "Heavy Strike Probe",
             BuildDamageEffect(3)
@@ -113,9 +111,9 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
         BattleUnitState normalA = BuildUnit("ground_role_normal_a", "player", new Vector2I(4, 1));
         BattleUnitState normalB = BuildUnit("ground_role_normal_b", "player", new Vector2I(4, 2));
         BattleUnitState healer = BuildUnit("ground_role_healer", "player", new Vector2I(4, 4));
-        normalA.known_active_skill_ids.Add(normalRoleSkill.skill_id);
-        normalB.known_active_skill_ids.Add(normalRoleSkill.skill_id);
-        healer.known_active_skill_ids.Add(healerRoleSkill.skill_id);
+        normalA.known_active_skill_ids.Add(normalRoleSkill.SkillId);
+        normalB.known_active_skill_ids.Add(normalRoleSkill.SkillId);
+        healer.known_active_skill_ids.Add(healerRoleSkill.SkillId);
         fixture.AddUnit(actor);
         fixture.AddUnit(normalA);
         fixture.AddUnit(normalB);
@@ -125,17 +123,17 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
         BattleAiScoreInput normalScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
             fireballSkill,
-            BuildCommand(actor, fireballSkill.skill_id, normalB.coord),
+            BuildCommand(actor, fireballSkill.SkillId, normalB.coord),
             BuildPreview(normalA, normalB),
-            new[] { fireballSkill.combat_profile.effect_defs[0] },
+            new[] { fireballSkill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(null, 3, 4)
         );
         BattleAiScoreInput threatScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
             fireballSkill,
-            BuildCommand(actor, fireballSkill.skill_id, healer.coord),
+            BuildCommand(actor, fireballSkill.SkillId, healer.coord),
             BuildPreview(normalA, healer),
-            new[] { fireballSkill.combat_profile.effect_defs[0] },
+            new[] { fireballSkill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(null, 3, 4)
         );
 
@@ -158,17 +156,17 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
     private void TestSkillScorePrioritizesLethalThreatTargets()
     {
         Fixture fixture = BuildFixture("lethal_threat_scoring");
-        SkillDef fireballSkill = BuildSkill(
+        SkillDefinition fireballSkill = BuildSkill(
             "mage_fireball_probe",
             "Fireball Probe",
             BuildDamageEffect(15)
         );
-        SkillDef chainSkill = BuildSkill(
+        SkillDefinition chainSkill = BuildSkill(
             "mage_chain_lightning_probe",
             "Chain Probe",
             BuildDamageEffect(15)
         );
-        SkillDef rangedThreatSkill = BuildRangedThreatSkill();
+        SkillDefinition rangedThreatSkill = BuildRangedThreatSkill();
         fixture.AddSkill(fireballSkill);
         fixture.AddSkill(chainSkill);
         fixture.AddSkill(rangedThreatSkill);
@@ -176,8 +174,8 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
         BattleUnitState actor = BuildUnit("lethal_threat_mage", "hostile", new Vector2I(1, 2));
         BattleUnitState archerA = BuildUnit("lethal_threat_archer_a", "player", new Vector2I(5, 2), hp: 10);
         BattleUnitState archerB = BuildUnit("lethal_threat_archer_b", "player", new Vector2I(5, 4), hp: 10);
-        archerA.known_active_skill_ids.Add(rangedThreatSkill.skill_id);
-        archerB.known_active_skill_ids.Add(rangedThreatSkill.skill_id);
+        archerA.known_active_skill_ids.Add(rangedThreatSkill.SkillId);
+        archerB.known_active_skill_ids.Add(rangedThreatSkill.SkillId);
         fixture.AddUnit(actor);
         fixture.AddUnit(archerA);
         fixture.AddUnit(archerB);
@@ -186,17 +184,17 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
         BattleAiScoreInput fireballScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
             fireballSkill,
-            BuildCommand(actor, fireballSkill.skill_id, archerA.coord),
+            BuildCommand(actor, fireballSkill.SkillId, archerA.coord),
             BuildPreview(archerA, archerB),
-            new[] { fireballSkill.combat_profile.effect_defs[0] },
+            new[] { fireballSkill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(null, 4, 5)
         );
         BattleAiScoreInput chainScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
             chainSkill,
-            BuildCommand(actor, chainSkill.skill_id, archerA.coord, archerA),
+            BuildCommand(actor, chainSkill.SkillId, archerA.coord, archerA),
             BuildPreview(archerA),
-            new[] { chainSkill.combat_profile.effect_defs[0] },
+            new[] { chainSkill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(archerA, 4, 5)
         );
 
@@ -229,31 +227,29 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
         fixture.AddUnit(actor);
         fixture.AddUnit(target);
 
-        SkillDef formalSkill = BuildSkill(
+        SkillDefinition formalSkill = BuildSkill(
             "formal_low_hp_bonus_probe",
             "Formal Low HP Bonus",
-            new CombatEffectDef
-            {
-                effect_type = "damage",
-                power = 10,
-                bonus_condition = "target_low_hp",
-                hp_ratio_threshold_percent = 70,
-                bonus_damage_dice_count = 2,
-                bonus_damage_dice_sides = 1,
-            }
+            TestSkillDefinitionProjection.BuildEffect(
+                "damage",
+                power: 10,
+                bonusCondition: "target_low_hp",
+                hpRatioThresholdPercent: 70,
+                bonusDamageDiceCount: 2,
+                bonusDamageDiceSides: 1
+            )
         );
-        SkillDef legacySkill = BuildSkill(
+        SkillDefinition legacySkill = BuildSkill(
             "legacy_low_hp_bonus_probe",
             "Legacy Low HP Bonus",
-            new CombatEffectDef
-            {
-                effect_type = "damage",
-                power = 10,
-                bonus_condition = "target_low_hp",
-                @params = new GDictionary { ["low_hp_ratio"] = 0.7 },
-                bonus_damage_dice_count = 2,
-                bonus_damage_dice_sides = 1,
-            }
+            TestSkillDefinitionProjection.BuildEffect(
+                "damage",
+                power: 10,
+                bonusCondition: "target_low_hp",
+                parameters: new Dictionary<string, Variant> { ["low_hp_ratio"] = 0.7 },
+                bonusDamageDiceCount: 2,
+                bonusDamageDiceSides: 1
+            )
         );
         fixture.AddSkill(formalSkill);
         fixture.AddSkill(legacySkill);
@@ -262,17 +258,17 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
         BattleAiScoreInput formalScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
             formalSkill,
-            BuildCommand(actor, formalSkill.skill_id, target.coord, target),
+            BuildCommand(actor, formalSkill.SkillId, target.coord, target),
             BuildPreview(target),
-            new[] { formalSkill.combat_profile.effect_defs[0] },
+            new[] { formalSkill.CombatProfile.EffectDefinitions[0] },
             new Dictionary<string, object>(StringComparer.Ordinal)
         );
         BattleAiScoreInput legacyScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
             legacySkill,
-            BuildCommand(actor, legacySkill.skill_id, target.coord, target),
+            BuildCommand(actor, legacySkill.SkillId, target.coord, target),
             BuildPreview(target),
-            new[] { legacySkill.combat_profile.effect_defs[0] },
+            new[] { legacySkill.CombatProfile.EffectDefinitions[0] },
             new Dictionary<string, object>(StringComparer.Ordinal)
         );
 
@@ -333,60 +329,53 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
         return unit;
     }
 
-    private static SkillDef BuildSkill(StringName skillId, string displayName, params CombatEffectDef[] effects)
+    private static SkillDefinition BuildSkill(
+        StringName skillId,
+        string displayName,
+        params CombatEffectDefinition[] effects
+    ) =>
+        BuildSkill(skillId, displayName, targetTeamFilter: default, rangeValue: 4, effects: effects);
+
+    private static SkillDefinition BuildSkill(
+        StringName skillId,
+        string displayName,
+        StringName targetTeamFilter,
+        int rangeValue,
+        params CombatEffectDefinition[] effects
+    )
     {
-        var combatProfile = new CombatSkillDef
-        {
-            skill_id = skillId,
-            range_value = 4,
-            ap_cost = 0,
-            mp_cost = 0,
-            stamina_cost = 0,
-            cooldown_tu = 0,
-        };
-        foreach (CombatEffectDef effect in effects ?? Array.Empty<CombatEffectDef>())
-        {
-            if (effect != null)
-            {
-                combatProfile.effect_defs.Add(effect);
-            }
-        }
-        return new SkillDef
-        {
-            skill_id = skillId,
-            display_name = displayName,
-            combat_profile = combatProfile,
-        };
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName,
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: effects ?? Array.Empty<CombatEffectDefinition>(),
+                targetTeamFilter: targetTeamFilter,
+                rangeValue: rangeValue
+            )
+        );
     }
 
-    private static SkillDef BuildHealSkill()
-    {
-        SkillDef skill = BuildSkill(
+    private static SkillDefinition BuildHealSkill() =>
+        BuildSkill(
             "mage_temporal_rewind_probe",
             "Temporal Rewind Probe",
-            new CombatEffectDef { effect_type = "heal", power = 8 }
+            targetTeamFilter: "ally",
+            rangeValue: 4,
+            effects: new[] { TestSkillDefinitionProjection.BuildEffect("heal", power: 8) }
         );
-        skill.combat_profile.target_team_filter = "ally";
-        return skill;
-    }
 
-    private static SkillDef BuildRangedThreatSkill()
-    {
-        SkillDef skill = BuildSkill(
+    private static SkillDefinition BuildRangedThreatSkill() =>
+        BuildSkill(
             "archer_aimed_shot_probe",
             "Aimed Shot Probe",
-            BuildDamageEffect(8)
+            targetTeamFilter: default,
+            rangeValue: 5,
+            effects: new[] { BuildDamageEffect(8) }
         );
-        skill.combat_profile.range_value = 5;
-        return skill;
-    }
 
-    private static CombatEffectDef BuildDamageEffect(int power) =>
-        new()
-        {
-            effect_type = "damage",
-            power = power,
-        };
+    private static CombatEffectDefinition BuildDamageEffect(int power) =>
+        TestSkillDefinitionProjection.BuildEffect("damage", power: power);
 
     private static BattleCommand BuildCommand(
         BattleUnitState actor,
@@ -451,19 +440,18 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
     {
         public readonly BattleState State;
         public readonly BattleAiScoreService ScoreService = new();
-        private readonly Dictionary<StringName, SkillDef> _skillDefs = new();
+        private readonly Dictionary<StringName, SkillDefinition> _skillDefinitions = new();
 
         public Fixture(string battleId)
         {
             State = BuildState(battleId);
         }
 
-        public void AddSkill(SkillDef skillDef)
+        public void AddSkill(SkillDefinition skillDefinition)
         {
-            if (skillDef != null && skillDef.skill_id != "")
+            if (skillDefinition != null && skillDefinition.SkillId != "")
             {
-                TestResourceOwnership.Own(skillDef, "BattleAiRoleThreatFixture.AddSkill");
-                _skillDefs[skillDef.skill_id] = skillDef;
+                _skillDefinitions[skillDefinition.SkillId] = skillDefinition;
             }
         }
 
@@ -483,7 +471,7 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
                 state = State,
                 unit_state = actor,
             };
-            context.SetSkillDefs(_skillDefs);
+            context.SetSkillDefinitions(_skillDefinitions);
             return context;
         }
     }

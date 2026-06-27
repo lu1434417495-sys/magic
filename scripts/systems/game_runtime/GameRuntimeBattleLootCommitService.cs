@@ -192,12 +192,8 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
         if (warehouseState != null)
             warehouseStateBefore = warehouseState.DuplicateState();
 
-        var fateRunFlagsBefore = new Dictionary();
-        if (partyState != null)
-            fateRunFlagsBefore = RuntimePayloadCopy.Dictionary(
-                partyState.CaptureFateRunFlags(),
-                "GameRuntimeBattleLootCommitService.fateRunFlagsBefore"
-            );
+        var fateRunFlagsBefore = partyState?.CaptureFateRunFlagsTyped()
+            ?? new System.Collections.Generic.Dictionary<StringName, bool>();
 
         var overflowEntries = new List<BattleLootEntry>();
         var committedItemCount = 0;
@@ -212,10 +208,9 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
                 continue;
 
             WarehouseState entryWarehouseStateBefore = partyState.warehouse_state?.DuplicateState();
-            var entryFateRunFlagsBefore = RuntimePayloadCopy.Dictionary(
-                partyState.CaptureFateRunFlags(),
-                "GameRuntimeBattleLootCommitService.entryFateRunFlagsBefore"
-            );
+            System.Collections.Generic.Dictionary<StringName, bool> entryFateRunFlagsBefore =
+                partyState?.CaptureFateRunFlagsTyped()
+                ?? new System.Collections.Generic.Dictionary<StringName, bool>();
 
             if (lootEntry.DropKind == BattleLootDropKind.EquipmentInstance)
             {
@@ -545,20 +540,13 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
         PartyWarehouseService partyWarehouseService,
         IReadOnlyDictionary<StringName, ItemDef> itemDefs,
         WarehouseState warehouseStateBefore,
-        Godot.Collections.Dictionary fateRunFlagsBefore
+        IReadOnlyDictionary<StringName, bool> fateRunFlagsBefore
     )
     {
         if (partyState == null)
             return;
         partyState.warehouse_state = warehouseStateBefore?.DuplicateState();
-        partyState.ApplyFateRunFlags(
-            fateRunFlagsBefore != null
-                ? RuntimePayloadCopy.Dictionary(
-                    fateRunFlagsBefore,
-                    "GameRuntimeBattleLootCommitService.RestoreFateRunFlags"
-                )
-                : new Dictionary()
-        );
+        partyState.ApplyFateRunFlagsTyped(fateRunFlagsBefore);
         _runtime.SetupPartyWarehouseService(partyWarehouseService, partyState, itemDefs);
     }
 

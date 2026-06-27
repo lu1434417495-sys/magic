@@ -158,11 +158,11 @@ public partial class run_character_management_identity_stage_regression : SceneT
         CharacterManagementModule manager = new();
         manager.setup(
             party,
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
+            new Dictionary<StringName, SkillDefinition>(),
+            new Dictionary<StringName, ProfessionDef>(),
+            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ItemDef>(),
+            new Dictionary<StringName, QuestDef>(),
             null,
             identityCatalog
         );

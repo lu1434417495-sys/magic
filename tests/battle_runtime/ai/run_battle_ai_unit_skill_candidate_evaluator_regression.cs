@@ -38,7 +38,7 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : S
         BattleUnitState target = BuildUnit("preview_range_target", "player", new Vector2I(5, 0));
         actor.known_active_skill_ids.Add(skillId);
 
-        SkillDef skill = BuildUnitSkill(skillId, rangeValue: 1);
+        SkillDefinition skill = BuildUnitSkill(skillId, rangeValue: 1);
         BattleState state = new()
         {
             battle_id = "unit_skill_preview_counter_regression",
@@ -58,10 +58,10 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : S
             trace_enabled = true,
             skill_cast_block_reason_callback = (_, _) => BattleSkillCastBlockReasonKind.None,
         };
-        context.SetSkillDefs(
-            new Dictionary<StringName, SkillDef>
+        context.SetSkillDefinitions(
+            new Dictionary<StringName, SkillDefinition>
             {
-                [skill.skill_id] = skill,
+                [skill.SkillId] = skill,
             }
         );
 
@@ -116,26 +116,16 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : S
         return unit;
     }
 
-    private static SkillDef BuildUnitSkill(StringName skillId, int rangeValue)
-    {
-        return TestResourceOwnership.Own(
-            new SkillDef
-            {
-                skill_id = skillId,
-                display_name = skillId.ToString(),
-                combat_profile = new CombatSkillDef
-                {
-                    skill_id = skillId,
-                    target_mode = "unit",
-                    target_team_filter = "enemy",
-                    range_value = rangeValue,
-                    ap_cost = 0,
-                    mp_cost = 0,
-                    stamina_cost = 0,
-                },
-            },
-            "BattleAiUnitSkillCandidateEvaluator.BuildUnitSkill"
+    private static SkillDefinition BuildUnitSkill(StringName skillId, int rangeValue) =>
+        TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            skillId.ToString(),
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                rangeValue: rangeValue
+            )
         );
-    }
 
 }

@@ -60,11 +60,11 @@ internal class BattleAttackCheckPolicyService
         return bundle;
     }
 
-    public BattleAttackCheckPolicyContext BuildAttackContext(
+    public BattleAttackCheckPolicyContext BuildSkillDefinitionAttackContext(
         BattleState battle_state,
         BattleUnitState active_unit,
         BattleUnitState target_unit,
-        SkillDef skill_def,
+        SkillDefinition skill_definition,
         StringName check_route,
         StringName trace_source,
         bool force_hit_no_crit
@@ -74,7 +74,7 @@ internal class BattleAttackCheckPolicyService
             battle_state,
             active_unit,
             target_unit,
-            skill_def,
+            skill_definition,
             ROLL_KIND_SPELL_ATTACK,
             check_route,
             trace_source
@@ -83,11 +83,11 @@ internal class BattleAttackCheckPolicyService
         return context;
     }
 
-    internal BattleAttackCheckPolicyContext BuildAttackContext(
+    internal BattleAttackCheckPolicyContext BuildSkillDefinitionAttackContext(
         BattleState battle_state,
         BattleUnitReadView active_unit,
         BattleUnitReadView target_unit,
-        SkillDef skill_def,
+        SkillDefinition skill_definition,
         StringName check_route,
         StringName trace_source,
         bool force_hit_no_crit
@@ -97,7 +97,7 @@ internal class BattleAttackCheckPolicyService
             battle_state,
             active_unit,
             target_unit,
-            skill_def,
+            skill_definition,
             ROLL_KIND_SPELL_ATTACK,
             check_route,
             trace_source
@@ -124,18 +124,18 @@ internal class BattleAttackCheckPolicyService
         BattleAttackRollModifierBundle modifierBundle = BuildModifierBundle(context);
         if (context.HasReadView)
         {
-            return _hitResolver.BuildSkillAttackCheck(
+            return _hitResolver.BuildSkillDefinitionAttackCheck(
                 context.attacker_view,
                 context.target_view,
-                context.skill_def,
+                context.skill_definition,
                 flat_bonus + modifierBundle.TotalBonus,
                 flat_penalty + modifierBundle.TotalPenalty
             );
         }
-        return _hitResolver.BuildSkillAttackCheck(
+        return _hitResolver.BuildSkillDefinitionAttackCheck(
             context.attacker,
             context.target,
-            context.skill_def,
+            context.skill_definition,
             flat_bonus + modifierBundle.TotalBonus,
             flat_penalty + modifierBundle.TotalPenalty
         );
@@ -170,19 +170,19 @@ internal class BattleAttackCheckPolicyService
         {
             if (context.HasReadView)
             {
-                return _hitResolver.BuildSkillAttackPreview(
+                return _hitResolver.BuildSkillDefinitionAttackPreview(
                     context.battle_state,
                     context.attacker_view,
                     context.target_view,
-                    context.skill_def,
+                    context.skill_definition,
                     false
                 );
             }
-            return _hitResolver.BuildSkillAttackPreview(
+            return _hitResolver.BuildSkillDefinitionAttackPreview(
                 context.battle_state,
                 context.attacker,
                 context.target,
-                context.skill_def,
+                context.skill_definition,
                 false
             );
         }
@@ -240,7 +240,7 @@ internal class BattleAttackCheckPolicyService
             || (!context.HasReadView && context.target == null)
             || (context.HasReadView && !context.attacker_view.IsValid)
             || (context.HasReadView && !context.target_view.IsValid)
-            || context.skill_def == null
+            || context.skill_definition == null
             || stage_specs == null
             || stage_specs.Count == 0
         )
@@ -308,7 +308,7 @@ internal class BattleAttackCheckPolicyService
         BattleState battle_state,
         BattleUnitState active_unit,
         BattleUnitState target_unit,
-        SkillDef skill_def,
+        SkillDefinition skill_definition,
         BattleRepeatAttackStageSpec stage_spec,
         StringName check_route,
         StringName trace_source
@@ -318,7 +318,7 @@ internal class BattleAttackCheckPolicyService
             battle_state,
             active_unit,
             target_unit,
-            skill_def,
+            skill_definition,
             ROLL_KIND_REPEAT_WEAPON_STAGE,
             check_route,
             trace_source
@@ -332,7 +332,7 @@ internal class BattleAttackCheckPolicyService
         BattleState battle_state,
         BattleUnitReadView active_unit,
         BattleUnitReadView target_unit,
-        SkillDef skill_def,
+        SkillDefinition skill_definition,
         BattleRepeatAttackStageSpec stage_spec,
         StringName check_route,
         StringName trace_source
@@ -342,7 +342,7 @@ internal class BattleAttackCheckPolicyService
             battle_state,
             active_unit,
             target_unit,
-            skill_def,
+            skill_definition,
             ROLL_KIND_REPEAT_WEAPON_STAGE,
             check_route,
             trace_source
@@ -364,18 +364,18 @@ internal class BattleAttackCheckPolicyService
         BattleAttackRollModifierBundle modifierBundle = BuildModifierBundle(context);
         if (context.HasReadView)
         {
-            return _hitResolver.BuildSkillAttackCheck(
+            return _hitResolver.BuildSkillDefinitionAttackCheck(
                 context.attacker_view,
                 context.target_view,
-                context.skill_def,
+                context.skill_definition,
                 resolvedStageSpec.stage_base_attack_bonus + modifierBundle.TotalBonus,
                 resolvedStageSpec.ResolveStageAttackPenalty() + modifierBundle.TotalPenalty
             );
         }
-        return _hitResolver.BuildSkillAttackCheck(
+        return _hitResolver.BuildSkillDefinitionAttackCheck(
             context.attacker,
             context.target,
-            context.skill_def,
+            context.skill_definition,
             resolvedStageSpec.stage_base_attack_bonus + modifierBundle.TotalBonus,
             resolvedStageSpec.ResolveStageAttackPenalty() + modifierBundle.TotalPenalty
         );
@@ -461,7 +461,7 @@ internal class BattleAttackCheckPolicyService
         BattleState battleState,
         BattleUnitState activeUnit,
         BattleUnitState targetUnit,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         StringName rollKind,
         StringName checkRoute,
         StringName traceSource
@@ -472,7 +472,7 @@ internal class BattleAttackCheckPolicyService
             battle_state = battleState ?? ResolveBattleState(),
             attacker = activeUnit,
             target = targetUnit,
-            skill_def = skillDef,
+            skill_definition = skillDefinition,
             roll_kind = rollKind,
             check_route = checkRoute,
             trace_source = traceSource,
@@ -486,7 +486,7 @@ internal class BattleAttackCheckPolicyService
         BattleState battleState,
         BattleUnitReadView activeUnit,
         BattleUnitReadView targetUnit,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         StringName rollKind,
         StringName checkRoute,
         StringName traceSource
@@ -497,7 +497,7 @@ internal class BattleAttackCheckPolicyService
             battle_state = battleState ?? ResolveBattleState(),
             attacker_view = activeUnit,
             target_view = targetUnit,
-            skill_def = skillDef,
+            skill_definition = skillDefinition,
             roll_kind = rollKind,
             check_route = checkRoute,
             trace_source = traceSource,
@@ -768,7 +768,7 @@ internal class BattleAttackCheckPolicyService
         context.target = sourceContext.target;
         context.attacker_view = sourceContext.attacker_view;
         context.target_view = sourceContext.target_view;
-        context.skill_def = sourceContext.skill_def;
+        context.skill_definition = sourceContext.skill_definition;
         context.roll_kind = ROLL_KIND_REPEAT_WEAPON_STAGE;
         context.check_route = !IsEmpty(checkRoute) ? checkRoute : sourceContext.check_route;
         context.trace_source = sourceContext.trace_source;

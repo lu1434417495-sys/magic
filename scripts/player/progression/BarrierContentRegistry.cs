@@ -7,7 +7,7 @@ public class BarrierContentRegistry : System.IDisposable
 
     private System.Collections.Generic.Dictionary<StringName, BarrierProfileDef> _profile_defs = new();
 
-    private Godot.Collections.Array<string> _validation_errors = new();
+    private readonly List<string> _validation_errors = new();
 
     private bool _disposed;
 
@@ -50,7 +50,7 @@ public class BarrierContentRegistry : System.IDisposable
     public Godot.Collections.Array<string> Validate()
     {
         var c = new Godot.Collections.Array<string>();
-        foreach (var e in _validation_errors)
+        foreach (string e in _validation_errors)
             c.Add(e);
         return c;
     }
@@ -160,9 +160,9 @@ public class BarrierContentRegistry : System.IDisposable
             return;
         }
 
-        var seenLayerIds = new Godot.Collections.Dictionary();
+        var seenLayerIds = new HashSet<StringName>();
 
-        var seenOrders = new Godot.Collections.Dictionary();
+        var seenOrders = new HashSet<int>();
 
         for (int i = 0; i < profile.layers.Count; i++)
         {
@@ -178,19 +178,19 @@ public class BarrierContentRegistry : System.IDisposable
 
             if (layer.layer_id == "")
                 _validation_errors.Add($"{layerLabel}.layer_id must be non-empty.");
-            else if (seenLayerIds.ContainsKey(layer.layer_id))
+            else if (seenLayerIds.Contains(layer.layer_id))
                 _validation_errors.Add(
                     $"{ownerLabel} declares duplicate layer_id {layer.layer_id}."
                 );
             else
-                seenLayerIds[layer.layer_id] = true;
+                seenLayerIds.Add(layer.layer_id);
 
-            if (seenOrders.ContainsKey(layer.order))
+            if (seenOrders.Contains(layer.order))
                 _validation_errors.Add(
                     $"{ownerLabel} declares duplicate layer order {layer.order}."
                 );
             else
-                seenOrders[layer.order] = true;
+                seenOrders.Add(layer.order);
 
             for (int j = 0; j < layer.passage_outcomes.Count; j++)
             {

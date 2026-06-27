@@ -368,9 +368,9 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
         {
             var knownBrains = new Dictionary<StringName, EnemyAiBrainDef>(_enemy_ai_brains);
             var itemDefs = _get_item_defs_for_validation_typed();
-            var skillDefs = _get_skill_defs_for_validation_typed();
+            var skillDefinitions = _get_skill_definitions_for_validation_typed();
             foreach (
-                var error in tmpl.ValidateSchemaTyped(knownBrains, itemDefs, skillDefs)
+                var error in tmpl.ValidateSchemaTyped(knownBrains, itemDefs, skillDefinitions)
             )
                 _validation_errors.Add(error);
             return;
@@ -411,13 +411,12 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
     private Godot.Collections.Array<string> _collect_validation_errors()
     {
         var e = new Godot.Collections.Array<string>();
-        var sd = _get_skill_defs_for_validation();
-        var skillDefIndex = _get_skill_defs_for_validation_typed();
+        var skillDefinitionIndex = _get_skill_definitions_for_validation_typed();
         foreach (StringName brainId in SortedKeys(_enemy_ai_brains.Keys))
         {
             if (_enemy_ai_brains.TryGetValue(brainId, out EnemyAiBrainDef brain) && brain != null)
             {
-                foreach (var ve in brain.ValidateSchema(sd))
+                foreach (var ve in brain.ValidateSchema(skillDefinitionIndex))
                 {
                     e.Add(ve);
                 }
@@ -433,7 +432,11 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
             )
             {
                 foreach (
-                    var ve in template.ValidateSchemaTyped(brainIndex, itemDefIndex, skillDefIndex)
+                    var ve in template.ValidateSchemaTyped(
+                        brainIndex,
+                        itemDefIndex,
+                        skillDefinitionIndex
+                    )
                 )
                 {
                     e.Add(ve);
@@ -457,49 +460,16 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
         return e;
     }
 
-    private static Godot.Collections.Dictionary _get_item_defs_for_validation()
-    {
-        using var ir = new ItemContentRegistry();
-        return ToGodotDictionary(ir.GetItemDefsTyped());
-    }
-
     private static IReadOnlyDictionary<StringName, ItemDef> _get_item_defs_for_validation_typed()
     {
         using var ir = new ItemContentRegistry();
         return EnemyTemplateDef.CloneItemDefIndex(ir.GetItemDefsTyped());
     }
 
-    private static Godot.Collections.Dictionary _get_skill_defs_for_validation()
+    private static IReadOnlyDictionary<StringName, SkillDefinition> _get_skill_definitions_for_validation_typed()
     {
         using var sr = new SkillContentRegistry();
-        return ToGodotDictionary(sr.GetSkillDefsTyped());
-    }
-
-    private static IReadOnlyDictionary<StringName, SkillDef> _get_skill_defs_for_validation_typed()
-    {
-        using var sr = new SkillContentRegistry();
-        return EnemyTemplateDef.CloneSkillDefIndex(sr.GetSkillDefsTyped());
-    }
-
-    private static Godot.Collections.Dictionary ToGodotDictionary<T>(
-        IReadOnlyDictionary<StringName, T> values
-    )
-        where T : Resource
-    {
-        var result = new Godot.Collections.Dictionary();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (KeyValuePair<StringName, T> pair in values)
-        {
-            if (pair.Key == "" || pair.Value == null)
-            {
-                continue;
-            }
-            result[pair.Key] = pair.Value;
-        }
-        return result;
+        return EnemyTemplateDef.CloneSkillDefinitionIndex(sr.GetSkillDefinitionsTyped());
     }
 
     private static Godot.Collections.Array<string> ToGodotStringArray(IEnumerable<string> values)

@@ -6,27 +6,6 @@ internal sealed class BattleAiSkillAffordanceClassifier
     private static readonly StringName MeteorSwarmProfileId = "meteor_swarm";
 
     internal BattleAiSkillAffordanceRecord ClassifySkill(
-        SkillDef skill_def,
-        int skill_level = 1,
-        ISkillCatalog skillCatalog = null
-    )
-    {
-        if (
-            skillCatalog != null
-            && skill_def != null
-            && skill_def.skill_id != ""
-            && skillCatalog.TryGetSkillDefinition(
-                skill_def.skill_id,
-                out SkillDefinition catalogSkillDefinition
-            )
-        )
-        {
-            return ClassifySkill(catalogSkillDefinition, skill_level, skillCatalog);
-        }
-        return ClassifySkill(SkillDefinition.FromResource(skill_def), skill_level, skillCatalog);
-    }
-
-    internal BattleAiSkillAffordanceRecord ClassifySkill(
         SkillDefinition skillDefinition,
         int skill_level = 1,
         ISkillCatalog skillCatalog = null

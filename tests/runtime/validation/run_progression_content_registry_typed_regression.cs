@@ -115,8 +115,8 @@ public partial class run_progression_content_registry_typed_regression : SceneTr
         );
 
         _test.True(
-            registry.GetSkillDefsTyped().ContainsKey("known_skill"),
-            "typed skill getter 应能看到 definition bucket 的替换内容。"
+            registry.GetSkillDefinitionsTyped().ContainsKey("known_skill"),
+            "SkillDefinition getter 应能看到 definition bucket 的替换内容。"
         );
         _test.True(
             registry.GetAchievementDefsTyped().ContainsKey("broken_achievement"),

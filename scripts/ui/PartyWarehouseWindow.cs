@@ -168,7 +168,6 @@ public partial class PartyWarehouseWindow : Control
             else
                 label += "  |  按实例占格";
             stack_list.AddItem(label);
-            stack_list.SetItemMetadata(stack_list.ItemCount - 1, entry.Metadata);
         }
     }
 
@@ -533,7 +532,6 @@ public partial class PartyWarehouseWindow : Control
         public int CurrentDurability { get; private init; }
         public bool IsSkillBook { get; private init; }
         public string GrantedSkillName { get; private init; } = "";
-        public GDictionary Metadata { get; private init; } = new();
 
         public static WarehouseEntry Empty() => new();
 
@@ -592,7 +590,6 @@ public partial class PartyWarehouseWindow : Control
                 CurrentDurability = ReadInt(data, "current_durability", 0),
                 IsSkillBook = ReadBool(data, "is_skill_book", false),
                 GrantedSkillName = ReadString(data, "granted_skill_name", ""),
-                Metadata = data.Duplicate(true),
             };
         }
 

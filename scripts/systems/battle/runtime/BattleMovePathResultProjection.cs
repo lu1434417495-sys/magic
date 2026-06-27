@@ -45,17 +45,7 @@ internal static class BattleMovePathResultProjection
 
     internal static Godot.Collections.Array<Vector2I> ToVector2IArray(
         IEnumerable<Vector2I> source
-    )
-    {
-        var result = new Godot.Collections.Array<Vector2I>();
-        if (source == null)
-            return result;
-        foreach (Vector2I coord in source)
-        {
-            result.Add(coord);
-        }
-        return result;
-    }
+    ) => new Vector2IList(source).ToGodotArray();
 
     private static Godot.Collections.Dictionary ToDictionary(Dictionary<Vector2I, int> source)
     {

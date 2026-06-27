@@ -29,18 +29,6 @@ internal enum CombatEffectLifetimePolicy
 [GlobalClass]
 public partial class CombatEffectDef : Resource
 {
-    private static readonly StringName TriggerEventCriticalHit = "critical_hit";
-    private static readonly StringName TriggerEventOrdinaryHit = "ordinary_hit";
-    private static readonly StringName TriggerEventSecondaryHit = "secondary_hit";
-    private static readonly StringName TriggerConditionBattleStart = "battle_start";
-    private static readonly StringName TriggerConditionOnFatalDamage = "on_fatal_damage";
-    private static readonly StringName LifetimePolicyTimed = "timed";
-    private static readonly StringName LifetimePolicyBattle = "battle";
-
-    private const double MinJumpArcRatio = 0.15;
-
-    public static double MIN_JUMP_ARC_RATIO() => MinJumpArcRatio;
-
     [Export]
     public StringName effect_type { get; set; } = "";
     internal BattleEffectKind EffectKind
@@ -67,8 +55,8 @@ public partial class CombatEffectDef : Resource
     public StringName lifetime_policy { get; set; } = "timed";
     internal CombatEffectLifetimePolicy LifetimePolicyKind
     {
-        get => ToLifetimePolicy(lifetime_policy);
-        set => lifetime_policy = ToStringName(value);
+        get => CombatEffectContentRules.ToLifetimePolicy(lifetime_policy);
+        set => lifetime_policy = CombatEffectContentRules.ToStringName(value);
     }
 
     [Export]
@@ -325,16 +313,16 @@ public partial class CombatEffectDef : Resource
     public StringName trigger_event { get; set; } = "";
     internal CombatEffectTriggerEvent TriggerEventKind
     {
-        get => ToTriggerEvent(trigger_event);
-        set => trigger_event = ToStringName(value);
+        get => CombatEffectContentRules.ToTriggerEvent(trigger_event);
+        set => trigger_event = CombatEffectContentRules.ToStringName(value);
     }
 
     [Export]
     public StringName trigger_condition { get; set; } = "";
     internal CombatEffectTriggerCondition TriggerConditionKind
     {
-        get => ToTriggerCondition(trigger_condition);
-        set => trigger_condition = ToStringName(value);
+        get => CombatEffectContentRules.ToTriggerCondition(trigger_condition);
+        set => trigger_condition = CombatEffectContentRules.ToStringName(value);
     }
 
     [Export]
@@ -350,72 +338,6 @@ public partial class CombatEffectDef : Resource
     {
         get => BattleSaveContentRules.ToSaveDcMode(save_dc_mode);
         set => save_dc_mode = BattleSaveContentRules.ToStringName(value);
-    }
-
-    internal static CombatEffectTriggerEvent ToTriggerEvent(StringName value)
-    {
-        if (value == "")
-            return CombatEffectTriggerEvent.None;
-        if (value == TriggerEventCriticalHit)
-            return CombatEffectTriggerEvent.CriticalHit;
-        if (value == TriggerEventOrdinaryHit)
-            return CombatEffectTriggerEvent.OrdinaryHit;
-        if (value == TriggerEventSecondaryHit)
-            return CombatEffectTriggerEvent.SecondaryHit;
-        return CombatEffectTriggerEvent.Unknown;
-    }
-
-    internal static CombatEffectTriggerCondition ToTriggerCondition(StringName value)
-    {
-        if (value == "")
-            return CombatEffectTriggerCondition.None;
-        if (value == TriggerConditionBattleStart)
-            return CombatEffectTriggerCondition.BattleStart;
-        if (value == TriggerConditionOnFatalDamage)
-            return CombatEffectTriggerCondition.OnFatalDamage;
-        return CombatEffectTriggerCondition.Unknown;
-    }
-
-    internal static CombatEffectLifetimePolicy ToLifetimePolicy(StringName value)
-    {
-        if (value == LifetimePolicyTimed)
-            return CombatEffectLifetimePolicy.Timed;
-        if (value == LifetimePolicyBattle)
-            return CombatEffectLifetimePolicy.Battle;
-        return CombatEffectLifetimePolicy.Unknown;
-    }
-
-    internal static StringName ToStringName(CombatEffectTriggerEvent triggerEvent)
-    {
-        return triggerEvent switch
-        {
-            CombatEffectTriggerEvent.None => "",
-            CombatEffectTriggerEvent.CriticalHit => TriggerEventCriticalHit,
-            CombatEffectTriggerEvent.OrdinaryHit => TriggerEventOrdinaryHit,
-            CombatEffectTriggerEvent.SecondaryHit => TriggerEventSecondaryHit,
-            _ => "",
-        };
-    }
-
-    internal static StringName ToStringName(CombatEffectTriggerCondition triggerCondition)
-    {
-        return triggerCondition switch
-        {
-            CombatEffectTriggerCondition.None => "",
-            CombatEffectTriggerCondition.BattleStart => TriggerConditionBattleStart,
-            CombatEffectTriggerCondition.OnFatalDamage => TriggerConditionOnFatalDamage,
-            _ => "",
-        };
-    }
-
-    internal static StringName ToStringName(CombatEffectLifetimePolicy lifetimePolicy)
-    {
-        return lifetimePolicy switch
-        {
-            CombatEffectLifetimePolicy.Timed => LifetimePolicyTimed,
-            CombatEffectLifetimePolicy.Battle => LifetimePolicyBattle,
-            _ => "",
-        };
     }
 
     [Export]
@@ -504,28 +426,6 @@ public partial class CombatEffectDef : Resource
 
     [Export]
     public Godot.Collections.Dictionary @params { get; set; } = new();
-
-    internal CombatEffectDef DuplicateForRuntime(
-        GodotTransientResourceScope owner,
-        string reason
-    )
-    {
-        if (owner == null)
-            throw new ArgumentNullException(nameof(owner));
-
-        var copy = (CombatEffectDef)Duplicate(true);
-
-        if (copy == null)
-            return null;
-
-        copy.@params =
-            copy.@params != null
-                ? copy.@params.Duplicate(true)
-                : new Godot.Collections.Dictionary();
-        copy.accuracy_modifier_spec = accuracy_modifier_spec?.Clone();
-
-        return owner.Own(copy, reason);
-    }
 
     internal int GetIntParamTyped(string key, int fallback = 0)
     {

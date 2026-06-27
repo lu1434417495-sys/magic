@@ -61,7 +61,7 @@ public partial class run_enemy_template_attribute_projection_regression : SceneT
 
         GArray enemyUnits = builder.BuildEnemyUnitsTyped(
             BuildEncounterAnchor(template.template_id),
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             enemyTemplates,
             gameSession.GetEnemyAiBrainsTyped(),
             gameSession.GetItemDefsTyped()
@@ -230,16 +230,6 @@ public partial class run_enemy_template_attribute_projection_regression : SceneT
             return result;
         foreach ((StringName brainId, EnemyAiBrainDef brain) in enemyAiBrains)
             result[brainId] = brain;
-        return result;
-    }
-
-    private static GDictionary ProjectSkillDefs(IReadOnlyDictionary<StringName, SkillDef> skillDefs)
-    {
-        GDictionary result = new();
-        if (skillDefs == null)
-            return result;
-        foreach ((StringName skillId, SkillDef skillDef) in skillDefs)
-            result[skillId] = skillDef;
         return result;
     }
 

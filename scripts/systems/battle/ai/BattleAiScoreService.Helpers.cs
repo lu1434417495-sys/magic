@@ -274,9 +274,9 @@ public partial class BattleAiScoreService
     private static BattleGridService ContextGridService(IBattleAiScoreContext context) =>
         context?.grid_service;
 
-    private static IReadOnlyDictionary<StringName, SkillDef> ContextSkillDefs(
+    private static IReadOnlyDictionary<StringName, SkillDefinition> ContextSkillDefinitions(
         IBattleAiScoreContext context
-    ) => context?.skill_defs ?? new Dictionary<StringName, SkillDef>();
+    ) => context?.skill_definitions ?? new Dictionary<StringName, SkillDefinition>();
 
     private static ISkillCatalog ContextSkillCatalog(IBattleAiScoreContext context) =>
         context?.skill_catalog;
@@ -290,25 +290,27 @@ public partial class BattleAiScoreService
         return state.TryGetUnitTyped(unitId, out BattleUnitState unitState) ? unitState : null;
     }
 
-    private static SkillDef GetSkillDef(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+    private static SkillDefinition GetSkillDefinition(
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         StringName skillId
     )
     {
-        if (skillDefs == null || IsEmpty(skillId))
+        if (skillDefinitions == null || IsEmpty(skillId))
         {
             return null;
         }
-        return skillDefs.TryGetValue(skillId, out SkillDef skillDef) ? skillDef : null;
+        return skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
+            ? skillDefinition
+            : null;
     }
 
-    private static SkillDef ResolveScoreInputSkillDef(
+    private static SkillDefinition ResolveScoreInputSkillDefinition(
         BattleAiScoreInput scoreInput,
         IBattleAiScoreContext context
     )
     {
-        return GetSkillDef(
-            ContextSkillDefs(context),
+        return GetSkillDefinition(
+            ContextSkillDefinitions(context),
             ProgressionDataUtils.to_string_name(scoreInput?.skill_id ?? new StringName(""))
         );
     }
@@ -386,14 +388,14 @@ public partial class BattleAiScoreService
         return metadata[key] is Vector2I coord ? coord : fallback;
     }
 
-    private static CombatEffectDef MetadataCombatEffectDef(
+    private static CombatEffectDefinition MetadataCombatEffectDefinition(
         IReadOnlyDictionary<string, object> metadata,
         string key
     )
     {
         if (!HasMetadataKey(metadata, key))
             return null;
-        return metadata[key] as CombatEffectDef;
+        return metadata[key] is CombatEffectDefinition effectDefinition ? effectDefinition : null;
     }
 
     private static List<StringName> ReadMetadataStringNameList(

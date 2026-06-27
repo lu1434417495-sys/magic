@@ -70,17 +70,17 @@ public partial class run_resource_validation_regression : SceneTree
         using ItemContentRegistry itemRegistry = new();
         using EnemyContentRegistry enemyRegistry = new();
 
-        GDictionary skillDefs = ProjectSkillDefs(progressionRegistry.GetSkillDefsTyped());
+        GDictionary skillDefs = progressionRegistry.DuplicateSkillResourceBucketForValidation();
         GDictionary itemDefs = ProjectItemDefs(itemRegistry.GetItemDefsTyped());
         GDictionary enemyTemplates = ProjectEnemyTemplates(enemyRegistry.GetEnemyTemplatesTyped());
         GDictionary wildEncounterRosters = ProjectEnemyRosters(
             enemyRegistry.GetWildEncounterRostersTyped()
         );
         IReadOnlyDictionary<StringName, ItemDef> typedItemDefs = itemRegistry.GetItemDefsTyped();
-        IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs =
-            progressionRegistry.GetSkillDefsTyped();
+        IReadOnlyDictionary<StringName, SkillDefinition> typedSkillDefinitions =
+            progressionRegistry.GetSkillDefinitionsTyped();
 
-        TestFormalPhantasmalKillResource(typedSkillDefs);
+        TestFormalPhantasmalKillResource(typedSkillDefinitions);
 
         ValidationDomainResult officialItemResult = ContentValidationRunner.ValidateOfficialItemContent();
         ValidationDomainResult officialEnemyResult = ContentValidationRunner.ValidateEnemySeed(
@@ -101,7 +101,7 @@ public partial class run_resource_validation_regression : SceneTree
                 ContentValidationRunner.ValidateIdentityContent("official_identity", skillDefs),
                 ContentValidationRunner.ValidateBattleSpecialProfileRegistry(
                     "official_battle_special_profiles",
-                    typedSkillDefs
+                    typedSkillDefinitions
                 ),
                 officialItemResult,
                 ContentValidationRunner.ValidateRecipeDirectory(OFFICIAL_RECIPE_DIRECTORY, itemDefs),
@@ -114,7 +114,7 @@ public partial class run_resource_validation_regression : SceneTree
                         "progression_seed"
                     ),
                     typedItemDefs,
-                    typedSkillDefs,
+                    typedSkillDefinitions,
                     enemyRegistry.GetEnemyTemplatesTyped()
                 ),
             }
@@ -193,19 +193,22 @@ public partial class run_resource_validation_regression : SceneTree
         ValidationDomainResult battleSpecialMissingManifestResult =
             ContentValidationRunner.ValidateBattleSpecialProfileRegistry(
                 "battle_special_profile_missing_manifest",
-                typedSkillDefs,
+                typedSkillDefinitions,
                 PrepareEmptyBattleSpecialProfileManifestDir("missing_manifest")
             );
         ValidationDomainResult battleSpecialUnknownProfileResult =
             ContentValidationRunner.ValidateBattleSpecialProfileRegistry(
                 "battle_special_profile_unknown_profile_missing_manifest",
-                BuildSingleSpecialProfileSkillDefs("phantom_special_skill", "phantom_profile"),
+                BuildSingleSpecialProfileSkillDefinitions(
+                    "phantom_special_skill",
+                    "phantom_profile"
+                ),
                 PrepareEmptyBattleSpecialProfileManifestDir("unknown_profile_missing_manifest")
             );
         ValidationDomainResult battleSpecialDuplicateProfileResult =
             ContentValidationRunner.ValidateBattleSpecialProfileRegistry(
                 "battle_special_profile_duplicate_profile",
-                typedSkillDefs,
+                typedSkillDefinitions,
                 PrepareBattleSpecialProfileManifestDir(
                     "duplicate_profile",
                     new List<GDictionary>
@@ -230,7 +233,7 @@ public partial class run_resource_validation_regression : SceneTree
         ValidationDomainResult battleSpecialDuplicateOwnerResult =
             ContentValidationRunner.ValidateBattleSpecialProfileRegistry(
                 "battle_special_profile_duplicate_owner",
-                typedSkillDefs,
+                typedSkillDefinitions,
                 PrepareBattleSpecialProfileManifestDir(
                     "duplicate_owner",
                     new List<GDictionary>
@@ -256,7 +259,7 @@ public partial class run_resource_validation_regression : SceneTree
         ValidationDomainResult battleSpecialWrongResourceResult =
             ContentValidationRunner.ValidateBattleSpecialProfileRegistry(
                 "battle_special_profile_wrong_resource_type",
-                typedSkillDefs,
+                typedSkillDefinitions,
                 PrepareBattleSpecialProfileManifestDir(
                     "wrong_resource_type",
                     new List<GDictionary>
@@ -274,7 +277,7 @@ public partial class run_resource_validation_regression : SceneTree
         ValidationDomainResult battleSpecialMissingOwnerResult =
             ContentValidationRunner.ValidateBattleSpecialProfileRegistry(
                 "battle_special_profile_missing_owner",
-                typedSkillDefs,
+                typedSkillDefinitions,
                 PrepareBattleSpecialProfileManifestDir(
                     "missing_owner",
                     new List<GDictionary>
@@ -292,7 +295,7 @@ public partial class run_resource_validation_regression : SceneTree
         ValidationDomainResult battleSpecialMissingRequiredTestResult =
             ContentValidationRunner.ValidateBattleSpecialProfileRegistry(
                 "battle_special_profile_missing_required_test",
-                typedSkillDefs,
+                typedSkillDefinitions,
                 PrepareBattleSpecialProfileManifestDir(
                     "missing_required_test",
                     new List<GDictionary>
@@ -314,7 +317,7 @@ public partial class run_resource_validation_regression : SceneTree
         ValidationDomainResult battleSpecialBadSchemaResult =
             ContentValidationRunner.ValidateBattleSpecialProfileRegistry(
                 "battle_special_profile_bad_schema",
-                typedSkillDefs,
+                typedSkillDefinitions,
                 PrepareBattleSpecialProfileManifestDir(
                     "bad_schema",
                     new List<GDictionary>
@@ -339,7 +342,7 @@ public partial class run_resource_validation_regression : SceneTree
             "invalid_quest_entries",
             BuildInvalidQuestEntries(),
             typedItemDefs,
-            typedSkillDefs,
+            typedSkillDefinitions,
             enemyRegistry.GetEnemyTemplatesTyped()
         );
         ValidationRunReport invalidFixtureReport = ContentValidationRunner.BuildRunReport(
@@ -478,30 +481,33 @@ public partial class run_resource_validation_regression : SceneTree
     }
 
     private void TestFormalPhantasmalKillResource(
-        IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs
+        IReadOnlyDictionary<StringName, SkillDefinition> typedSkillDefinitions
     )
     {
         StringName skillId = "mage_phantasmal_kill";
         _test.True(
-            typedSkillDefs != null && typedSkillDefs.ContainsKey(skillId),
-            "正式技能目录应包含 mage_phantasmal_kill。"
+            typedSkillDefinitions != null && typedSkillDefinitions.ContainsKey(skillId),
+            "正式 SkillDefinition 目录应包含 mage_phantasmal_kill。"
         );
-        if (typedSkillDefs == null || !typedSkillDefs.TryGetValue(skillId, out SkillDef skill))
+        if (
+            typedSkillDefinitions == null
+            || !typedSkillDefinitions.TryGetValue(skillId, out SkillDefinition skill)
+        )
             return;
 
-        _test.Eq(skill.skill_id, skillId, "Phantasmal Kill skill_id 应匹配。");
-        _test.Eq(skill.display_name, "怪影杀戮", "Phantasmal Kill display_name 应匹配。");
-        _test.Eq(skill.icon_id, skillId, "Phantasmal Kill icon_id 应匹配。");
-        _test.Eq(skill.skill_type, new StringName("active"), "Phantasmal Kill 应是 active 技能。");
-        _test.Eq(skill.max_level, 9, "Phantasmal Kill max_level 应为 9。");
-        _test.Eq(skill.non_core_max_level, 7, "Phantasmal Kill non_core_max_level 应为 7。");
+        _test.Eq(skill.SkillId, skillId, "Phantasmal Kill skill_id 应匹配。");
+        _test.Eq(skill.DisplayName, "怪影杀戮", "Phantasmal Kill display_name 应匹配。");
+        _test.Eq(skill.IconId, skillId, "Phantasmal Kill icon_id 应匹配。");
+        _test.Eq(skill.SkillType, new StringName("active"), "Phantasmal Kill 应是 active 技能。");
+        _test.Eq(skill.MaxLevel, 9, "Phantasmal Kill max_level 应为 9。");
+        _test.Eq(skill.NonCoreMaxLevel, 7, "Phantasmal Kill non_core_max_level 应为 7。");
         AssertIntArray(
-            skill.mastery_curve,
+            skill.MasteryCurve,
             new[] { 360, 900, 1980, 3600, 5760, 8600, 12000, 16000, 21000 },
             "Phantasmal Kill mastery_curve 应匹配正式 9 级曲线。"
         );
         AssertStringNameListContainsAll(
-            skill.TagsTyped,
+            skill.Tags,
             new StringName[]
             {
                 "mage",
@@ -516,74 +522,78 @@ public partial class run_resource_validation_regression : SceneTree
             },
             "Phantasmal Kill tags 应包含正式分类。"
         );
-        _test.Eq(skill.learn_source, new StringName("book"), "Phantasmal Kill learn_source 应为 book。");
-        _test.Eq(skill.growth_tier, new StringName("ultimate"), "Phantasmal Kill growth_tier 应为 ultimate。");
+        _test.Eq(skill.LearnSource, new StringName("book"), "Phantasmal Kill learn_source 应为 book。");
+        _test.Eq(skill.GrowthTier, new StringName("ultimate"), "Phantasmal Kill growth_tier 应为 ultimate。");
         _test.Eq(
-            skill.AttributeGrowthProgressTyped.TryGetValue("intelligence", out int intelligence)
+            skill.AttributeGrowthProgress.TryGetValue("intelligence", out int intelligence)
                 ? intelligence
                 : 0,
             160,
             "Phantasmal Kill intelligence growth 应为 160。"
         );
         _test.Eq(
-            skill.AttributeGrowthProgressTyped.TryGetValue("willpower", out int willpower)
+            skill.AttributeGrowthProgress.TryGetValue("willpower", out int willpower)
                 ? willpower
                 : 0,
             80,
             "Phantasmal Kill willpower growth 应为 80。"
         );
 
-        CombatSkillDef combat = skill.combat_profile;
+        CombatSkillDefinition combat = skill.CombatProfile;
         _test.True(combat != null, "Phantasmal Kill 应有 combat_profile。");
         if (combat == null)
             return;
 
-        _test.Eq(combat.target_mode, new StringName("ground"), "Phantasmal Kill target_mode 应为 ground。");
-        _test.Eq(combat.target_team_filter, new StringName("any"), "Phantasmal Kill target_team_filter 应为 any。");
+        _test.Eq(combat.TargetMode, new StringName("ground"), "Phantasmal Kill target_mode 应为 ground。");
+        _test.Eq(combat.TargetTeamFilter, new StringName("any"), "Phantasmal Kill target_team_filter 应为 any。");
         _test.Eq(
-            combat.target_selection_mode,
+            combat.TargetSelectionMode,
             new StringName("single_coord"),
             "Phantasmal Kill target_selection_mode 应为 single_coord。"
         );
-        _test.Eq(combat.selection_order_mode, new StringName("stable"), "Phantasmal Kill selection_order_mode 应为 stable。");
-        _test.Eq(combat.range_value, 12, "Phantasmal Kill range_value 应为 12。");
-        _test.Eq(combat.area_pattern, new StringName("square"), "Phantasmal Kill area_pattern 应为 square。");
-        _test.Eq(combat.area_value, 3, "Phantasmal Kill area_value 应为 3，形成 7x7 区域。");
-        _test.Eq(combat.ap_cost, 3, "Phantasmal Kill ap_cost 应为 3。");
-        _test.Eq(combat.mp_cost, 2000, "Phantasmal Kill mp_cost 应为 2000。");
-        _test.Eq(combat.aura_cost, 2, "Phantasmal Kill aura_cost 应为 2。");
-        _test.Eq(combat.cooldown_tu, 600, "Phantasmal Kill cooldown_tu 应为 600。");
+        _test.Eq(combat.SelectionOrderMode, new StringName("stable"), "Phantasmal Kill selection_order_mode 应为 stable。");
+        _test.Eq(combat.RangeValue, 12, "Phantasmal Kill range_value 应为 12。");
+        _test.Eq(combat.AreaPattern, new StringName("square"), "Phantasmal Kill area_pattern 应为 square。");
+        _test.Eq(combat.AreaValue, 3, "Phantasmal Kill area_value 应为 3，形成 7x7 区域。");
+        _test.Eq(combat.ApCost, 3, "Phantasmal Kill ap_cost 应为 3。");
+        _test.Eq(combat.MpCost, 2000, "Phantasmal Kill mp_cost 应为 2000。");
+        _test.Eq(combat.AuraCost, 2, "Phantasmal Kill aura_cost 应为 2。");
+        _test.Eq(combat.CooldownTu, 600, "Phantasmal Kill cooldown_tu 应为 600。");
         _test.Eq(
-            combat.special_resolution_profile_id,
+            combat.SpecialResolutionProfileId,
             new StringName(""),
             "Phantasmal Kill 不应设置 special_resolution_profile_id。"
         );
         AssertStringNameListContainsAll(
-            combat.ai_tags,
+            combat.AiTags,
             new StringName[] { "large_aoe", "ultimate", "execute", "friendly_fire_risk" },
             "Phantasmal Kill ai_tags 应包含友伤与处决提示。"
         );
         AssertStringNameListContainsAll(
-            combat.delivery_categories,
+            combat.DeliveryCategories,
             new StringName[] { "spell", "illusion", "fear", "psychic" },
             "Phantasmal Kill delivery_categories 应匹配法术/幻象/恐惧/心灵。"
         );
-        _test.Eq(combat.effect_defs?.Count ?? 0, 1, "Phantasmal Kill 应只有一个正式效果。");
-        if (combat.effect_defs == null || combat.effect_defs.Count == 0)
+        _test.Eq(
+            combat.EffectDefinitions?.Count ?? 0,
+            1,
+            "Phantasmal Kill 应只有一个正式效果。"
+        );
+        if (combat.EffectDefinitions == null || combat.EffectDefinitions.Count == 0)
             return;
 
-        CombatEffectDef effect = combat.effect_defs[0];
-        _test.Eq(effect.effect_type, new StringName("graded_save_execute"), "Phantasmal Kill effect_type 应匹配。");
-        _test.Eq(effect.effect_target_team_filter, new StringName("any"), "Phantasmal Kill effect target filter 应为 any。");
-        _test.Eq(effect.damage_tag, new StringName("psychic"), "Phantasmal Kill damage_tag 应为 psychic。");
-        _test.Eq(effect.save_dc_mode, new StringName("caster_spell"), "Phantasmal Kill save_dc_mode 应为 caster_spell。");
-        _test.Eq(effect.save_dc, 0, "Phantasmal Kill save_dc 应为 0。");
-        _test.Eq(effect.save_dc_source_ability, new StringName("intelligence"), "Phantasmal Kill save DC 来源应为 intelligence。");
-        _test.Eq(effect.save_ability, new StringName("willpower"), "Phantasmal Kill save_ability 应为 willpower。");
-        _test.Eq(effect.save_tag, new StringName("illusion"), "Phantasmal Kill save_tag 应为 illusion。");
-        _test.False(effect.save_partial_on_success, "Phantasmal Kill 不应启用 save_partial_on_success。");
+        CombatEffectDefinition effect = combat.EffectDefinitions[0];
+        _test.Eq(effect.EffectType, new StringName("graded_save_execute"), "Phantasmal Kill effect_type 应匹配。");
+        _test.Eq(effect.EffectTargetTeamFilter, new StringName("any"), "Phantasmal Kill effect target filter 应为 any。");
+        _test.Eq(effect.DamageTag, new StringName("psychic"), "Phantasmal Kill damage_tag 应为 psychic。");
+        _test.Eq(effect.SaveDcMode, new StringName("caster_spell"), "Phantasmal Kill save_dc_mode 应为 caster_spell。");
+        _test.Eq(effect.SaveDc, 0, "Phantasmal Kill save_dc 应为 0。");
+        _test.Eq(effect.SaveDcSourceAbility, new StringName("intelligence"), "Phantasmal Kill save DC 来源应为 intelligence。");
+        _test.Eq(effect.SaveAbility, new StringName("willpower"), "Phantasmal Kill save_ability 应为 willpower。");
+        _test.Eq(effect.SaveTag, new StringName("illusion"), "Phantasmal Kill save_tag 应为 illusion。");
+        _test.False(effect.SavePartialOnSuccess, "Phantasmal Kill 不应启用 save_partial_on_success。");
 
-        GDictionary parameters = effect.@params;
+        IReadOnlyDictionary<string, Variant> parameters = effect.Parameters;
         _test.Eq(parameters?.Count ?? 0, 13, "Phantasmal Kill profile params 应为精确白名单。");
         AssertParamString(parameters, "profile_id", "phantasmal_kill");
         AssertParamInt(parameters, "failure_execute_threshold_fixed", 50);
@@ -601,7 +611,11 @@ public partial class run_resource_validation_regression : SceneTree
 
         for (int level = 0; level <= 9; level++)
         {
-            string description = SkillLevelDescriptionFormatter.BuildLevelDescription(skill, level, new GDictionary());
+            string description = SkillLevelDescriptionFormatter.BuildLevelDescription(
+                skill,
+                level,
+                new GDictionary()
+            );
             AssertContainsText(description, "射程12", $"Phantasmal Kill level {level} 描述应包含射程。");
             AssertContainsText(description, "7x7", $"Phantasmal Kill level {level} 描述应包含 7x7 区域。");
             AssertContainsText(description, "意志幻象豁免", $"Phantasmal Kill level {level} 描述应包含意志幻象豁免。");
@@ -618,35 +632,24 @@ public partial class run_resource_validation_regression : SceneTree
         }
     }
 
-    private static IReadOnlyDictionary<StringName, SkillDef> BuildSingleSpecialProfileSkillDefs(
+    private static IReadOnlyDictionary<StringName, SkillDefinition> BuildSingleSpecialProfileSkillDefinitions(
         StringName skillId,
         StringName profileId
     )
     {
-        CombatSkillDef combatProfile = new() { skill_id = skillId, special_resolution_profile_id = profileId };
-        SkillDef skillDef = new()
+        SkillDefinition skillDefinition = TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: "Special Profile Fixture",
+            masteryCurve: new[] { 100 },
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                specialResolutionProfileId: profileId
+            )
+        );
+        return new Dictionary<StringName, SkillDefinition>
         {
-            skill_id = skillId,
-            display_name = "Special Profile Fixture",
-            icon_id = skillId,
-            mastery_curve = new[] { 100 },
-            combat_profile = combatProfile,
+            [skillId] = skillDefinition,
         };
-        return new Dictionary<StringName, SkillDef> { [skillId] = skillDef };
-    }
-
-    private static GDictionary ProjectSkillDefs(IReadOnlyDictionary<StringName, SkillDef> skillDefs)
-    {
-        GDictionary result = new();
-        if (skillDefs == null)
-            return result;
-        foreach ((StringName skillId, SkillDef skillDef) in skillDefs)
-        {
-            if (skillId == "" || skillDef == null)
-                continue;
-            result[skillId] = skillDef;
-        }
-        return result;
     }
 
     private static GDictionary ProjectItemDefs(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
@@ -1236,12 +1239,12 @@ public partial class run_resource_validation_regression : SceneTree
         _test.True(false, $"{message} errors={FormatErrors(domainResult.Errors)}");
     }
 
-    private void AssertIntArray(int[] actual, int[] expected, string message)
+    private void AssertIntArray(IReadOnlyList<int> actual, IReadOnlyList<int> expected, string message)
     {
-        _test.Eq(actual?.Length ?? 0, expected?.Length ?? 0, $"{message} 长度应匹配。");
+        _test.Eq(actual?.Count ?? 0, expected?.Count ?? 0, $"{message} 长度应匹配。");
         if (actual == null || expected == null)
             return;
-        int count = Math.Min(actual.Length, expected.Length);
+        int count = Math.Min(actual.Count, expected.Count);
         for (int index = 0; index < count; index++)
             _test.Eq(actual[index], expected[index], $"{message} index={index}。");
     }
@@ -1270,7 +1273,7 @@ public partial class run_resource_validation_regression : SceneTree
         }
     }
 
-    private void AssertParamInt(GDictionary parameters, string key, int expected)
+    private void AssertParamInt(IReadOnlyDictionary<string, Variant> parameters, string key, int expected)
     {
         _test.True(parameters != null && parameters.ContainsKey(key), $"Phantasmal Kill params 应包含 {key}。");
         if (parameters == null || !parameters.ContainsKey(key))
@@ -1281,7 +1284,11 @@ public partial class run_resource_validation_regression : SceneTree
             _test.Eq(value.AsInt32(), expected, $"Phantasmal Kill params.{key} 应匹配。");
     }
 
-    private void AssertParamString(GDictionary parameters, string key, string expected)
+    private void AssertParamString(
+        IReadOnlyDictionary<string, Variant> parameters,
+        string key,
+        string expected
+    )
     {
         _test.True(parameters != null && parameters.ContainsKey(key), $"Phantasmal Kill params 应包含 {key}。");
         if (parameters == null || !parameters.ContainsKey(key))

@@ -94,6 +94,12 @@ internal static class BattleAiPayloadGuard
         return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
     }
 
+    internal static bool ValidateNoForbiddenObject(BattleSaveBranchPreviewData value, string context)
+    {
+        string error = FindForbiddenInTypedObject(value, context, 0);
+        return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
+    }
+
     internal static bool ValidateNoForbiddenObject(
         BattleAiScoreRuntimeMetadata value,
         string context

@@ -13,40 +13,41 @@ internal sealed class BattleSpecialProfileGate
     }
 
     internal BattleSpecialProfileGateResult PreflightSkill(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BattleState battleState
-    ) => EvaluateSkill(skillDef, battleState);
+    ) => EvaluateSkill(skillDefinition, battleState);
 
     internal BattleSpecialProfileGateResult PreviewSkill(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BattleCommand command,
         BattleUnitState activeUnit,
         BattleState battleState
-    ) => EvaluateSkill(skillDef, battleState, command, activeUnit);
+    ) => EvaluateSkill(skillDefinition, battleState, command, activeUnit);
 
     internal BattleSpecialProfileGateResult PreviewSkill(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BattleCommand command,
         BattleUnitReadView activeUnit,
         BattleState battleState
-    ) => EvaluateSkill(skillDef, battleState, command, null);
+    ) => EvaluateSkill(skillDefinition, battleState, command, null);
 
     internal BattleSpecialProfileGateResult CanExecuteSkill(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BattleCommand command,
         BattleUnitState activeUnit,
         BattleState battleState
-    ) => EvaluateSkill(skillDef, battleState, command, activeUnit);
+    ) => EvaluateSkill(skillDefinition, battleState, command, activeUnit);
 
     private BattleSpecialProfileGateResult EvaluateSkill(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BattleState battleState,
         BattleCommand command = null,
         BattleUnitState activeUnit = null
     )
     {
         var result = new BattleSpecialProfileGateResult();
-        if (skillDef == null || skillDef.combat_profile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (skillDefinition == null || combatProfile == null)
             return Block(
                 result,
                 "",
@@ -55,19 +56,8 @@ internal sealed class BattleSpecialProfileGate
                 "Missing skill definition.",
                 null
             );
-
-        var combatProfile = skillDef.combat_profile as CombatSkillDef;
-        if (combatProfile == null)
-            return Block(
-                result,
-                "",
-                skillDef.skill_id,
-                "missing_combat_profile",
-                "Missing combat skill profile.",
-                null
-            );
-        result.SkillId = skillDef.skill_id;
-        result.ProfileId = combatProfile.special_resolution_profile_id;
+        result.SkillId = skillDefinition.SkillId;
+        result.ProfileId = combatProfile.SpecialResolutionProfileId;
 
         if (result.ProfileId == "")
         {

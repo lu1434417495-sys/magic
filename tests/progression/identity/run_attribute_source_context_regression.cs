@@ -150,14 +150,13 @@ public partial class run_attribute_source_context_regression : SceneTree
         {
             Modifier("strength", 1, valuePerRank: 1),
         };
-        SkillDef skill = new()
-        {
-            skill_id = "toughness",
-            skill_type = "passive",
-        };
-        skill.attribute_modifiers = ResourceModifiers(
-            Modifier(AttributeService.ToStringName(AttributeIdKind.CharacterHpMaxPercentBonus), 20),
-            Modifier(AttributeService.ToStringName(AttributeIdKind.StaminaRecoveryPercentBonus), 50)
+        SkillDefinition skill = TestSkillDefinitionProjection.BuildSkill(
+            "toughness",
+            skillType: "passive",
+            attributeModifiers: BuildAttributeModifierDefinitions(
+                Modifier(AttributeService.ToStringName(AttributeIdKind.CharacterHpMaxPercentBonus), 20),
+                Modifier(AttributeService.ToStringName(AttributeIdKind.StaminaRecoveryPercentBonus), 50)
+            )
         );
 
         UnitProfessionProgress professionProgress = new()
@@ -169,7 +168,7 @@ public partial class run_attribute_source_context_regression : SceneTree
         progress.SetProfessionProgress(professionProgress);
         UnitSkillProgress skillProgress = new()
         {
-            skill_id = skill.skill_id,
+            skill_id = skill.SkillId,
             is_learned = true,
             skill_level = 0,
             profession_granted_by = profession.profession_id,
@@ -184,7 +183,10 @@ public partial class run_attribute_source_context_regression : SceneTree
             new AttributeSourceContext
             {
                 unit_progress = progress,
-                skill_defs = new Dictionary<StringName, SkillDef> { [skill.skill_id] = skill },
+                skill_definitions = new Dictionary<StringName, SkillDefinition>
+                {
+                    [skill.SkillId] = skill,
+                },
                 profession_defs = new Dictionary<StringName, ProfessionDef>
                 {
                     [profession.profession_id] = profession,
@@ -219,18 +221,17 @@ public partial class run_attribute_source_context_regression : SceneTree
         UnitProgress progress = MakeProgress("strict_boundary");
         progress.unit_base_attributes.SetAttributeValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 30);
 
-        SkillDef skill = new()
-        {
-            skill_id = "strict_toughness",
-            skill_type = "passive",
-        };
-        skill.attribute_modifiers = ResourceModifiers(
-            Modifier(AttributeService.ToStringName(AttributeIdKind.CharacterHpMaxPercentBonus), 20)
+        SkillDefinition skill = TestSkillDefinitionProjection.BuildSkill(
+            "strict_toughness",
+            skillType: "passive",
+            attributeModifiers: BuildAttributeModifierDefinitions(
+                Modifier(AttributeService.ToStringName(AttributeIdKind.CharacterHpMaxPercentBonus), 20)
+            )
         );
         progress.SetSkillProgress(
             new UnitSkillProgress
             {
-                skill_id = skill.skill_id,
+                skill_id = skill.SkillId,
                 is_learned = true,
                 skill_level = 1,
             }
@@ -260,7 +261,7 @@ public partial class run_attribute_source_context_regression : SceneTree
             new AttributeSourceContext
             {
                 unit_progress = progress,
-                skill_defs = new Dictionary<StringName, SkillDef>
+                skill_definitions = new Dictionary<StringName, SkillDefinition>
                 {
                     [new StringName("wrong_toughness_key")] = skill,
                 },
@@ -312,11 +313,11 @@ public partial class run_attribute_source_context_regression : SceneTree
         CharacterManagementModule manager = new();
         manager.setup(
             partyState,
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
+            new Dictionary<StringName, SkillDefinition>(),
+            new Dictionary<StringName, ProfessionDef>(),
+            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ItemDef>(),
+            new Dictionary<StringName, QuestDef>(),
             null,
             MakeIdentityCatalog()
         );
@@ -563,6 +564,24 @@ public partial class run_attribute_source_context_regression : SceneTree
             if (modifier != null)
                 result.Add(modifier);
         return result;
+    }
+
+    private static AttributeModifierDefinition[] BuildAttributeModifierDefinitions(
+        params AttributeModifier[] modifiers
+    )
+    {
+        if (modifiers == null || modifiers.Length == 0)
+            return System.Array.Empty<AttributeModifierDefinition>();
+        List<AttributeModifierDefinition> result = new();
+        foreach (AttributeModifier modifier in modifiers)
+        {
+            AttributeModifierDefinition definition = AttributeModifierDefinition.FromResource(
+                modifier
+            );
+            if (definition != null)
+                result.Add(definition);
+        }
+        return result.ToArray();
     }
 
     private static Godot.Collections.Array<AttributeModifier> TypedModifiers(

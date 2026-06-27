@@ -95,20 +95,19 @@ public partial class UseGroundRepositionSkillAction : EnemyAiAction
         {
             var sid = sidV;
             _trace_count_increment(actionTrace, "skill_considered_count", 1);
-            var skillDef = _get_skill_def(context, sid);
+            SkillDefinition skillDefinition = _get_skill_definition(context, sid);
             if (
-                skillDef?.combat_profile == null
-                || (skillDef.combat_profile as CombatSkillDef).TargetModeKind
-                    != BattleTargetMode.Ground
+                skillDefinition?.CombatProfile == null
+                || skillDefinition.CombatProfile.TargetModeKind != BattleTargetMode.Ground
             )
             {
                 _trace_add_block_reason(
                     actionTrace,
-                    skillDef == null ? "missing_skill_def" : "non_ground_skill"
+                    skillDefinition == null ? "missing_skill_definition" : "non_ground_skill"
                 );
                 continue;
             }
-            var blockReason = _get_skill_cast_block_reason(context, skillDef);
+            var blockReason = _get_skill_cast_block_reason(context, skillDefinition);
             if (BattleSkillCastBlockReasonKinds.IsBlocked(blockReason))
             {
                 _trace_add_block_reason(
@@ -119,19 +118,26 @@ public partial class UseGroundRepositionSkillAction : EnemyAiAction
             }
             int effectiveRange = BattleRangeService.GetEffectiveSkillRange(
                 ctxUnitState,
-                skillDef,
+                skillDefinition,
                 context.skill_catalog
             );
-            foreach (CombatCastVariantDef cv in _get_ground_options_typed(context, skillDef))
+            foreach (
+                CombatCastVariantDefinition cv in _get_ground_option_definitions(
+                    context,
+                    skillDefinition
+                )
+            )
             {
                 if (cv == null || _is_charge_option(cv))
                     continue;
-                if (!_has_reposition_effect(cv.effect_defs))
+                if (!_has_reposition_effect(cv.EffectDefinitions))
                 {
                     _trace_add_block_reason(actionTrace, "missing_reposition_effect");
                     continue;
                 }
-                foreach (List<Vector2I> tcs in _enumerate_ground_target_coord_sets_typed(context, cv))
+                foreach (
+                    List<Vector2I> tcs in _enumerate_ground_target_coord_sets_typed(context, cv)
+                )
                 {
                     if (tcs.Count != 1)
                         continue;
@@ -157,7 +163,7 @@ public partial class UseGroundRepositionSkillAction : EnemyAiAction
                     var command = _build_typed_ground_skill_command(
                         context,
                         sid,
-                        cv.variant_id,
+                        cv.VariantId,
                         new[] { landingCoord }
                     );
                     BattlePreview preview = _build_fast_ground_skill_preview(
@@ -173,13 +179,13 @@ public partial class UseGroundRepositionSkillAction : EnemyAiAction
                     }
                     var scoreInput = _build_typed_skill_score_input(
                         context,
-                        skillDef,
+                        skillDefinition,
                         command,
                         preview,
-                        cv.effect_defs,
+                        cv.EffectDefinitions,
                         new Dictionary<string, object>(StringComparer.Ordinal)
                         {
-                            { "action_label", _format_skill_variant_label(skillDef, cv) },
+                            { "action_label", _format_skill_variant_label(skillDefinition, cv) },
                             { "action_base_score", action_base_score },
                             { "position_target_unit_id", focusTarget.unit_id },
                             { "position_anchor_coord", landingCoord },
@@ -201,7 +207,7 @@ public partial class UseGroundRepositionSkillAction : EnemyAiAction
                     _trace_offer_candidate(
                         actionTrace,
                         _build_candidate_summary(
-                            $"{_format_skill_variant_label(skillDef, cv)}_to_{landingCoord.X}_{landingCoord.Y}",
+                            $"{_format_skill_variant_label(skillDefinition, cv)}_to_{landingCoord.X}_{landingCoord.Y}",
                             command,
                             scoreInput,
                             new System.Collections.Generic.Dictionary<string, object>
@@ -218,7 +224,7 @@ public partial class UseGroundRepositionSkillAction : EnemyAiAction
                     bestDecision = _create_scored_decision(
                         command,
                         scoreInput,
-                        $"{ctxUnitState.display_name} 准备用 {skillDef.display_name} 拉开到 {landingDist} 格（评分 {_score_total(scoreInput)}）。"
+                        $"{ctxUnitState.display_name} 准备用 {skillDefinition.DisplayName} 拉开到 {landingDist} 格（评分 {_score_total(scoreInput)}）。"
                     );
                 }
             }
@@ -254,9 +260,11 @@ public partial class UseGroundRepositionSkillAction : EnemyAiAction
         return e;
     }
 
-    private static bool _has_reposition_effect(IEnumerable<CombatEffectDef> effectDefs)
+    private static bool _has_reposition_effect(IEnumerable<CombatEffectDefinition> effectDefs)
     {
-        foreach (CombatEffectDef ed in effectDefs ?? System.Array.Empty<CombatEffectDef>())
+        foreach (
+            CombatEffectDefinition ed in effectDefs ?? System.Array.Empty<CombatEffectDefinition>()
+        )
         {
             if (
                 ed != null

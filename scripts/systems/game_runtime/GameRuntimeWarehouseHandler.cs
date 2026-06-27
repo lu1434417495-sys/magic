@@ -8,20 +8,51 @@ public sealed class GameRuntimeWarehouseHandler
 
     private sealed class WarehouseTransactionSnapshot
     {
-        private readonly RuntimePayloadStore _runtimeState = new();
-        private readonly RuntimePayloadStore _worldData = new();
+        private readonly System.Collections.Generic.Dictionary<string, object> _runtimeState =
+            new(System.StringComparer.Ordinal);
+        private readonly System.Collections.Generic.Dictionary<string, object> _worldData =
+            new(System.StringComparer.Ordinal);
         internal Dictionary RuntimeState
         {
-            get => _runtimeState.ProjectPayload();
-            set => _runtimeState.ReplaceWithPayload(value);
+            get => RuntimePlainPayload.ProjectDictionary(
+                _runtimeState,
+                "GameRuntimeWarehouseHandler.RuntimeState"
+            );
+            set => ReplacePlainPayload(
+                _runtimeState,
+                value,
+                "GameRuntimeWarehouseHandler.RuntimeState"
+            );
         }
         public PartyState PartyState { get; set; }
         internal Dictionary WorldData
         {
-            get => _worldData.ProjectPayload();
-            set => _worldData.ReplaceWithPayload(value);
+            get => RuntimePlainPayload.ProjectDictionary(
+                _worldData,
+                "GameRuntimeWarehouseHandler.WorldData"
+            );
+            set => ReplacePlainPayload(
+                _worldData,
+                value,
+                "GameRuntimeWarehouseHandler.WorldData"
+            );
         }
         public StringName SelectedMemberId { get; set; } = "";
+
+        private static void ReplacePlainPayload(
+            System.Collections.Generic.Dictionary<string, object> target,
+            Dictionary payload,
+            string ownerPath
+        )
+        {
+            target.Clear();
+            System.Collections.Generic.Dictionary<string, object> normalized =
+                RuntimePlainPayload.NormalizeDictionary(payload ?? new Dictionary(), ownerPath);
+            foreach (System.Collections.Generic.KeyValuePair<string, object> entry in normalized)
+            {
+                target[entry.Key] = entry.Value;
+            }
+        }
     }
 
     private WeakReference<GameRuntimeFacade> _runtimeRef;
@@ -578,18 +609,9 @@ public sealed class GameRuntimeWarehouseHandler
 
     private string GetSkillDisplayName(StringName skillId)
     {
-        var gameSession = GetGameSession();
-        if (gameSession == null)
+        if (!HasRuntime())
             return skillId.ToString();
-        var skillDefs = gameSession.GetSkillDefsTyped();
-        if (
-            skillDefs != null
-            && skillDefs.TryGetValue(skillId, out SkillDef skillDef)
-            && skillDef != null
-            && !string.IsNullOrEmpty(skillDef.display_name)
-        )
-            return skillDef.display_name;
-        return skillId.ToString();
+        return _runtime.GetSkillDisplayName(skillId);
     }
 
     private string GetMemberDisplayName(StringName memberId)

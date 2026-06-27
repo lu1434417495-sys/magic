@@ -264,7 +264,7 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
     private static BattleRuntimeModule BuildRuntime(PartyState party, GDictionary itemDefs)
     {
         var gateway = new CharacterManagementModule();
-        gateway.setup(party, new GDictionary(), new GDictionary(), new GDictionary(), itemDefs);
+        gateway.setup(party, item_defs: BuildItemDefIndex(itemDefs));
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             gateway,

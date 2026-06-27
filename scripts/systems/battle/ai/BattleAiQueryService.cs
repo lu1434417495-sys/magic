@@ -37,41 +37,7 @@ internal sealed class BattleAiQueryService
         StringName TargetUnitId
     );
 
-    private readonly record struct SkillRecordCacheKey(long ActorSignature, int SkillDefCount);
-
-    internal void Setup(
-        BattleState state,
-        BattleGridService gridService,
-        StringName actorUnitId,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
-        Func<
-            BattleAiQueryService,
-            StringName,
-            string,
-            StringName,
-            BattleCommand,
-            BattlePreview,
-            IReadOnlyDictionary<string, object>,
-            BattleAiScoreInput
-        > actionScoreInputCallback,
-        BattleMovementQueryService movementQueryService,
-        Func<StringName, bool> movementBlockedCallback = null,
-        ISkillCatalog skillCatalog = null
-    )
-    {
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
-            ResolveSkillDefinitions(skillDefs, skillCatalog);
-        Setup(
-            state,
-            gridService,
-            actorUnitId,
-            skillDefinitions,
-            actionScoreInputCallback,
-            movementQueryService,
-            movementBlockedCallback,
-            skillCatalog
-        );
-    }
+    private readonly record struct SkillRecordCacheKey(long ActorSignature, int SkillDefinitionCount);
 
     internal void Setup(
         BattleState state,
@@ -125,26 +91,6 @@ internal sealed class BattleAiQueryService
         AiTraceRecorder.Enter("query_setup:skill_records");
         _skillRecords = GetCachedSkillRecords(skillDefinitions);
         AiTraceRecorder.Exit("query_setup:skill_records");
-    }
-
-    internal void SetupReadOnly(
-        BattleState state,
-        BattleGridService gridService,
-        StringName actorUnitId,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
-        ISkillCatalog skillCatalog = null
-    )
-    {
-        Setup(
-            state,
-            gridService,
-            actorUnitId,
-            skillDefs,
-            null,
-            null,
-            null,
-            skillCatalog
-        );
     }
 
     internal void SetupReadOnly(
@@ -527,20 +473,6 @@ internal sealed class BattleAiQueryService
     {
         StringName normalized = ProgressionDataUtils.to_string_name(value);
         return IsEmpty(normalized) ? 0 : normalized.GetHashCode();
-    }
-
-    private static IReadOnlyDictionary<StringName, SkillDefinition> ResolveSkillDefinitions(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
-        ISkillCatalog skillCatalog
-    )
-    {
-        IReadOnlyDictionary<StringName, SkillDefinition> catalogDefinitions =
-            skillCatalog?.GetSkillDefinitionsTyped();
-        if (catalogDefinitions != null && catalogDefinitions.Count > 0)
-        {
-            return catalogDefinitions;
-        }
-        return SkillDefinition.ProjectIndex(skillDefs);
     }
 
     private SkillEffectiveCombatDefinition ResolveEffectiveDefinition(

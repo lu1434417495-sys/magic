@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using Godot;
+using GArray = Godot.Collections.Array;
+using GDictionary = Godot.Collections.Dictionary;
 
 public partial class BattleState
 {
@@ -104,11 +106,23 @@ public partial class BattleState
 
     public StringList log_entries = new();
 
-    public RuntimePayloadList report_entries = new();
+    private readonly List<Dictionary<string, object>> _reportEntries = new();
+
+    public GArray report_entries
+    {
+        get => ProjectReportEntries();
+        set => SetReportEntries(value);
+    }
 
     public WarehouseState party_backpack_view = new WarehouseState();
 
-    public RuntimePayloadList promotion_queue = new();
+    private readonly List<Dictionary<string, object>> _promotionQueue = new();
+
+    public GArray promotion_queue
+    {
+        get => ProjectPromotionQueue();
+        set => SetPromotionQueue(value);
+    }
 
     public StringName modal_state = "";
 
@@ -131,6 +145,7 @@ public partial class BattleState
     internal int CellColumnCount => _cellColumns.Count;
     internal int RuntimeEdgeFaceCount => _runtimeEdgeFaces.Count;
     internal int LayeredBarrierFieldCount => _layeredBarrierStore.Count;
+    internal int ReportEntryCount => _reportEntries.Count;
     internal BattleBarrierStore LayeredBarrierStore => _layeredBarrierStore;
     internal long MovementGeometryRevision => _movement_geometry_revision;
 
@@ -176,6 +191,40 @@ public partial class BattleState
         log_entries.Add(ne);
         _log_text_byte_size += _estimate_log_text_bytes(ne);
         _trim_log_entries();
+    }
+
+    internal GArray ProjectReportEntries() =>
+        RuntimePlainPayload.ProjectDictionaryArray(
+            _reportEntries,
+            "BattleState.report_entries"
+        );
+
+    internal void SetReportEntries(System.Collections.IEnumerable values)
+    {
+        SetPlainPayloadEntries(_reportEntries, values, "BattleState.report_entries");
+    }
+
+    internal void AddReportEntry(GDictionary reportEntry)
+    {
+        if (reportEntry == null || reportEntry.Count == 0)
+            return;
+        _reportEntries.Add(
+            RuntimePlainPayload.NormalizeDictionary(
+                reportEntry,
+                $"BattleState.report_entries[{_reportEntries.Count}]"
+            )
+        );
+    }
+
+    internal GArray ProjectPromotionQueue() =>
+        RuntimePlainPayload.ProjectDictionaryArray(
+            _promotionQueue,
+            "BattleState.promotion_queue"
+        );
+
+    internal void SetPromotionQueue(System.Collections.IEnumerable values)
+    {
+        SetPlainPayloadEntries(_promotionQueue, values, "BattleState.promotion_queue");
     }
 
     public int GetLogTextByteSize() => _log_text_byte_size;
@@ -869,6 +918,47 @@ public partial class BattleState
             return true;
         }
         value = null;
+        return false;
+    }
+
+    private static void SetPlainPayloadEntries(
+        List<Dictionary<string, object>> target,
+        System.Collections.IEnumerable values,
+        string ownerPath
+    )
+    {
+        target.Clear();
+        if (values == null)
+            return;
+        int index = 0;
+        foreach (object value in values)
+        {
+            if (TryAsDictionary(value, out GDictionary payload))
+            {
+                target.Add(
+                    RuntimePlainPayload.NormalizeDictionary(
+                        payload,
+                        $"{ownerPath}[{index}]"
+                    )
+                );
+            }
+            index++;
+        }
+    }
+
+    private static bool TryAsDictionary(object value, out GDictionary dictionary)
+    {
+        if (value is GDictionary dictionaryValue)
+        {
+            dictionary = dictionaryValue;
+            return true;
+        }
+        if (value is Variant variantValue && variantValue.VariantType == Variant.Type.Dictionary)
+        {
+            dictionary = variantValue.AsGodotDictionary();
+            return true;
+        }
+        dictionary = null;
         return false;
     }
 

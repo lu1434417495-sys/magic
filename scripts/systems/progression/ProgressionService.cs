@@ -14,24 +14,24 @@ public sealed class ProgressionService
     private static readonly StringName PracticeTrackCultivation = "cultivation";
     private static readonly GStringNameArray PracticeTracks = new() { PracticeTrackMeditation, PracticeTrackCultivation };
     private UnitProgress _unit_progress;
-    private readonly Dictionary<StringName, SkillDef> _skill_defs = new();
+    private readonly Dictionary<StringName, SkillDefinition> _skill_definitions = new();
     private readonly Dictionary<StringName, ProfessionDef> _profession_defs = new();
     private ProfessionRuleService _rule_service;
     private ProfessionAssignmentService _assignment_service;
     private SkillMergeService _skill_merge_service;
 
-    public void Setup(
+    public void SetupDefinitions(
         UnitProgress unitProgress,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, ProfessionDef> professionDefs
     )
     {
-        Setup(unitProgress, skillDefs, professionDefs, null, null, null);
+        SetupDefinitions(unitProgress, skillDefinitions, professionDefs, null, null, null);
     }
 
-    public void Setup(
+    public void SetupDefinitions(
         UnitProgress unitProgress,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, ProfessionDef> professionDefs,
         ProfessionRuleService ruleService,
         ProfessionAssignmentService assignmentService,
@@ -40,7 +40,7 @@ public sealed class ProgressionService
     {
         SetupInternal(
             unitProgress,
-            skillDefs,
+            skillDefinitions,
             professionDefs,
             ruleService,
             assignmentService,
@@ -50,26 +50,26 @@ public sealed class ProgressionService
 
     private void SetupInternal(
         UnitProgress unitProgress,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, ProfessionDef> professionDefs,
         ProfessionRuleService ruleService,
         ProfessionAssignmentService assignmentService,
         SkillMergeService skillMergeService)
     {
         _unit_progress = unitProgress;
-        _skill_defs.Clear();
+        _skill_definitions.Clear();
         _profession_defs.Clear();
-        CopyCatalog(skillDefs, _skill_defs);
+        CopyCatalog(skillDefinitions, _skill_definitions);
         CopyCatalog(professionDefs, _profession_defs);
 
         _assignment_service = assignmentService ?? new ProfessionAssignmentService();
-        _assignment_service.Setup(_unit_progress, _skill_defs, _profession_defs);
+        _assignment_service.Setup(_unit_progress, _skill_definitions, _profession_defs);
 
         _rule_service = ruleService ?? new ProfessionRuleService();
-        _rule_service.Setup(_unit_progress, _skill_defs, _profession_defs);
+        _rule_service.Setup(_unit_progress, _skill_definitions, _profession_defs);
 
         _skill_merge_service = skillMergeService ?? new SkillMergeService();
-        _skill_merge_service.Setup(_unit_progress, _skill_defs, _assignment_service);
+        _skill_merge_service.Setup(_unit_progress, _skill_definitions, _assignment_service);
 
         RefreshRuntimeState();
     }
@@ -103,9 +103,9 @@ public sealed class ProgressionService
         if (!CanLearnSkill(skillId))
             return false;
 
-        SkillDef skillDef = GetSkillDef(skillId);
-        if (skillDef.UnlockModeKind == SkillUnlockMode.CompositeUpgrade)
-            return LearnCompositeUpgrade(skillDef);
+        SkillDefinition skillDefinition = GetSkillDefinition(skillId);
+        if (skillDefinition.UnlockModeKind == SkillUnlockMode.CompositeUpgrade)
+            return LearnCompositeUpgrade(skillDefinition);
 
         UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillId);
         if (skillProgress == null)
@@ -119,31 +119,31 @@ public sealed class ProgressionService
 
     public bool CanLearnSkill(StringName skillId)
     {
-        SkillDef skillDef = GetSkillDef(skillId);
-        if (_unit_progress == null || skillDef == null)
+        SkillDefinition skillDefinition = GetSkillDefinition(skillId);
+        if (_unit_progress == null || skillDefinition == null)
             return false;
-        if (HasInvalidPracticeConfiguration(skillDef))
+        if (HasInvalidPracticeConfiguration(skillDefinition))
             return false;
         if (IsSkillRelearnBlocked(skillId))
             return false;
-        if (IsManualSkillLearnSourceBlocked(skillDef.LearnSourceKind))
+        if (IsManualSkillLearnSourceBlocked(skillDefinition.LearnSourceKind))
             return false;
 
         UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillId);
         if (skillProgress != null && skillProgress.is_learned)
             return false;
-        if (!CanLearnSkillRequirements(skillDef.LearnRequirementsTyped))
+        if (!CanLearnSkillRequirements(skillDefinition.LearnRequirements))
             return false;
-        if (!CanSatisfyKnowledgeRequirements(skillDef.KnowledgeRequirementsTyped))
+        if (!CanSatisfyKnowledgeRequirements(skillDefinition.KnowledgeRequirements))
             return false;
-        if (!CanSatisfySkillLevelRequirements(skillDef.SkillLevelRequirementEntriesTyped))
+        if (!CanSatisfySkillLevelRequirements(skillDefinition.SkillLevelRequirements))
             return false;
-        if (!CanSatisfyAttributeRequirements(skillDef.AttributeRequirementEntriesTyped))
+        if (!CanSatisfyAttributeRequirements(skillDefinition.AttributeRequirements))
             return false;
-        if (!CanSatisfyAchievementRequirements(skillDef.AchievementRequirementsTyped))
+        if (!CanSatisfyAchievementRequirements(skillDefinition.AchievementRequirements))
             return false;
-        if (skillDef.UnlockModeKind == SkillUnlockMode.CompositeUpgrade)
-            return CanLearnCompositeUpgrade(skillDef);
+        if (skillDefinition.UnlockModeKind == SkillUnlockMode.CompositeUpgrade)
+            return CanLearnCompositeUpgrade(skillDefinition);
         return true;
     }
 
@@ -155,7 +155,7 @@ public sealed class ProgressionService
     {
         if (_unit_progress == null || grant == null)
             return false;
-        SkillLearnSourceKind sourceKind = SkillDef.ToLearnSource(sourceType);
+        SkillLearnSourceKind sourceKind = SkillDefinition.ToLearnSource(sourceType);
         if (!IsRacialGrantSourceType(sourceKind))
             return false;
         if (sourceId == "" || grant.skill_id == "")
@@ -165,10 +165,10 @@ public sealed class ProgressionService
         if (minimumSkillLevel < 0)
             return false;
 
-        SkillDef skillDef = GetSkillDef(grant.skill_id);
-        if (skillDef == null || skillDef.LearnSourceKind != sourceKind)
+        SkillDefinition skillDefinition = GetSkillDefinition(grant.skill_id);
+        if (skillDefinition == null || skillDefinition.LearnSourceKind != sourceKind)
             return false;
-        if (minimumSkillLevel > skillDef.max_level)
+        if (minimumSkillLevel > skillDefinition.MaxLevel)
             return false;
 
         UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(grant.skill_id);
@@ -192,17 +192,17 @@ public sealed class ProgressionService
         if (_unit_progress == null || amount <= 0)
             return false;
 
-        SkillDef skillDef = GetSkillDef(skillId);
+        SkillDefinition skillDefinition = GetSkillDefinition(skillId);
         UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillId);
-        if (skillDef == null || skillProgress == null || !skillProgress.is_learned)
+        if (skillDefinition == null || skillProgress == null || !skillProgress.is_learned)
             return false;
         if (
-            skillDef.MasterySourcesTyped.Count > 0
-            && !HasStringName(skillDef.MasterySourcesTyped, sourceType)
+            skillDefinition.MasterySources.Count > 0
+            && !HasStringName(skillDefinition.MasterySources, sourceType)
         )
             return false;
 
-        int effectiveMaxLevel = GetEffectiveSkillMaxLevel(skillDef, skillProgress);
+        int effectiveMaxLevel = GetEffectiveSkillMaxLevel(skillDefinition, skillProgress);
         if (effectiveMaxLevel <= 0)
         {
             skillProgress.skill_level = 0;
@@ -230,7 +230,7 @@ public sealed class ProgressionService
         skillProgress.current_mastery += amount;
         while (skillProgress.skill_level < effectiveMaxLevel)
         {
-            int masteryRequired = skillDef.GetMasteryRequiredForLevel(skillProgress.skill_level);
+            int masteryRequired = skillDefinition.GetMasteryRequiredForLevel(skillProgress.skill_level);
             if (masteryRequired <= 0 || skillProgress.current_mastery < masteryRequired)
                 break;
 
@@ -421,21 +421,21 @@ public sealed class ProgressionService
         return _unit_progress != null && _unit_progress.IsSkillRelearnBlocked(skillId);
     }
 
-    private bool LearnCompositeUpgrade(SkillDef skillDef)
+    private bool LearnCompositeUpgrade(SkillDefinition skillDefinition)
     {
-        if (_unit_progress == null || skillDef == null || skillDef.skill_id == "")
+        if (_unit_progress == null || skillDefinition == null || skillDefinition.SkillId == "")
             return false;
-        UnitSkillProgress existingProgress = _unit_progress.GetSkillProgress(skillDef.skill_id);
+        UnitSkillProgress existingProgress = _unit_progress.GetSkillProgress(skillDefinition.SkillId);
         if (existingProgress != null && existingProgress.is_learned)
             return false;
 
-        if (_skill_merge_service != null && skillDef.UpgradeSourceSkillIdsTyped.Count > 0)
+        if (_skill_merge_service != null && skillDefinition.UpgradeSourceSkillIds.Count > 0)
         {
             if (!_skill_merge_service.ApplyCompositeUpgradeResult(
-                skillDef.skill_id,
-                skillDef.UpgradeSourceSkillIdsTyped,
-                skillDef.retain_source_skills_on_unlock,
-                skillDef.CoreSkillTransitionModeKind
+                skillDefinition.SkillId,
+                skillDefinition.UpgradeSourceSkillIds,
+                skillDefinition.RetainSourceSkillsOnUnlock,
+                skillDefinition.CoreSkillTransitionModeKind
             ))
             {
                 return false;
@@ -443,12 +443,12 @@ public sealed class ProgressionService
         }
         else
         {
-            UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillDef.skill_id);
+            UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillDefinition.SkillId);
             if (skillProgress == null)
-                skillProgress = new UnitSkillProgress { skill_id = skillDef.skill_id };
+                skillProgress = new UnitSkillProgress { skill_id = skillDefinition.SkillId };
             skillProgress.is_learned = true;
             skillProgress.merged_from_skill_ids = new GStringNameArray(
-                skillDef.UpgradeSourceSkillIdsTyped
+                skillDefinition.UpgradeSourceSkillIds
             );
             _unit_progress.SetSkillProgress(skillProgress);
         }
@@ -486,33 +486,35 @@ public sealed class ProgressionService
                 or SkillLearnSourceKind.Bloodline;
     }
 
-    private static bool HasInvalidPracticeConfiguration(SkillDef skillDef)
+    private static bool HasInvalidPracticeConfiguration(SkillDefinition skillDefinition)
     {
-        if (skillDef == null)
+        if (skillDefinition == null)
             return false;
 
         int practiceTrackCount = 0;
         foreach (StringName trackType in PracticeTracks)
         {
-            if (skillDef.HasTag(trackType))
+            if (skillDefinition.HasTag(trackType))
                 practiceTrackCount += 1;
         }
         if (practiceTrackCount == 0)
-            return skillDef.PracticeTierKind != SkillPracticeTierKind.None;
+            return skillDefinition.PracticeTierKind != SkillPracticeTierKind.None;
         if (practiceTrackCount != 1)
             return true;
-        if (skillDef.TagsTyped.Count != 1)
+        if (skillDefinition.Tags.Count != 1)
             return true;
-        return skillDef.PracticeTierKind is SkillPracticeTierKind.None or SkillPracticeTierKind.Unknown;
+        return skillDefinition.PracticeTierKind
+            is SkillPracticeTierKind.None
+                or SkillPracticeTierKind.Unknown;
     }
 
-    private static StringName GetExclusivePracticeTrack(SkillDef skillDef)
+    private static StringName GetExclusivePracticeTrack(SkillDefinition skillDefinition)
     {
-        if (skillDef == null || HasInvalidPracticeConfiguration(skillDef))
+        if (skillDefinition == null || HasInvalidPracticeConfiguration(skillDefinition))
             return "";
         foreach (StringName trackType in PracticeTracks)
         {
-            if (skillDef.HasTag(trackType))
+            if (skillDefinition.HasTag(trackType))
                 return trackType;
         }
         return "";
@@ -527,9 +529,11 @@ public sealed class ProgressionService
                 or SkillLearnSourceKind.Bloodline;
     }
 
-    private SkillDef GetSkillDef(StringName skillId)
+    private SkillDefinition GetSkillDefinition(StringName skillId)
     {
-        return _skill_defs.TryGetValue(skillId, out SkillDef skillDef) ? skillDef : null;
+        return _skill_definitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
+            ? skillDefinition
+            : null;
     }
 
     private ProfessionDef GetProfessionDef(StringName professionId)
@@ -552,11 +556,11 @@ public sealed class ProgressionService
         foreach (StringName skillId in _unit_progress.GetSortedSkillIdsTyped())
         {
             UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillId);
-            SkillDef skillDef = GetSkillDef(skillId);
-            if (skillProgress == null || skillDef == null)
+            SkillDefinition skillDefinition = GetSkillDefinition(skillId);
+            if (skillProgress == null || skillDefinition == null)
                 continue;
 
-            int effectiveMaxLevel = GetEffectiveSkillMaxLevel(skillDef, skillProgress);
+            int effectiveMaxLevel = GetEffectiveSkillMaxLevel(skillDefinition, skillProgress);
             if (skillProgress.skill_level <= effectiveMaxLevel)
                 continue;
 
@@ -566,10 +570,10 @@ public sealed class ProgressionService
         }
     }
 
-    private int GetEffectiveSkillMaxLevel(SkillDef skillDef, UnitSkillProgress skillProgress)
+    private int GetEffectiveSkillMaxLevel(SkillDefinition skillDefinition, UnitSkillProgress skillProgress)
     {
         return SkillEffectiveMaxLevelRules.GetEffectiveMaxLevel(
-            skillDef,
+            skillDefinition,
             skillProgress,
             _unit_progress
         );
@@ -589,19 +593,19 @@ public sealed class ProgressionService
         return true;
     }
 
-    private bool CanLearnCompositeUpgrade(SkillDef skillDef)
+    private bool CanLearnCompositeUpgrade(SkillDefinition skillDefinition)
     {
-        if (_unit_progress == null || skillDef == null)
+        if (_unit_progress == null || skillDefinition == null)
             return false;
-        if (!CanLearnSkillRequirements(skillDef.LearnRequirementsTyped))
+        if (!CanLearnSkillRequirements(skillDefinition.LearnRequirements))
             return false;
-        if (!CanSatisfyKnowledgeRequirements(skillDef.KnowledgeRequirementsTyped))
+        if (!CanSatisfyKnowledgeRequirements(skillDefinition.KnowledgeRequirements))
             return false;
-        if (!CanSatisfySkillLevelRequirements(skillDef.SkillLevelRequirementEntriesTyped))
+        if (!CanSatisfySkillLevelRequirements(skillDefinition.SkillLevelRequirements))
             return false;
-        if (!CanSatisfyAttributeRequirements(skillDef.AttributeRequirementEntriesTyped))
+        if (!CanSatisfyAttributeRequirements(skillDefinition.AttributeRequirements))
             return false;
-        if (!CanSatisfyAchievementRequirements(skillDef.AchievementRequirementsTyped))
+        if (!CanSatisfyAchievementRequirements(skillDefinition.AchievementRequirements))
             return false;
         return true;
     }
@@ -619,16 +623,16 @@ public sealed class ProgressionService
     }
 
     private bool CanSatisfySkillLevelRequirements(
-        IReadOnlyList<SkillDef.IntRequirementEntryData> requiredSkillLevelEntries
+        IReadOnlyDictionary<StringName, int> requiredSkillLevelEntries
     )
     {
         if (_unit_progress == null)
             return false;
 
-        foreach (SkillDef.IntRequirementEntryData entry in requiredSkillLevelEntries)
+        foreach (KeyValuePair<StringName, int> entry in requiredSkillLevelEntries)
         {
-            StringName requiredSkillId = entry.RequirementId;
-            int requiredLevel = entry.Amount;
+            StringName requiredSkillId = entry.Key;
+            int requiredLevel = entry.Value;
             if (requiredSkillId == "" || requiredLevel <= 0)
                 return false;
 
@@ -642,16 +646,16 @@ public sealed class ProgressionService
     }
 
     private bool CanSatisfyAttributeRequirements(
-        IReadOnlyList<SkillDef.IntRequirementEntryData> requiredAttributeEntries
+        IReadOnlyDictionary<StringName, int> requiredAttributeEntries
     )
     {
         if (_unit_progress?.unit_base_attributes == null)
             return false;
 
-        foreach (SkillDef.IntRequirementEntryData entry in requiredAttributeEntries)
+        foreach (KeyValuePair<StringName, int> entry in requiredAttributeEntries)
         {
-            StringName attributeId = entry.RequirementId;
-            int requiredValue = entry.Amount;
+            StringName attributeId = entry.Key;
+            int requiredValue = entry.Value;
             if (attributeId == "" || requiredValue <= 0)
                 return false;
             if (_unit_progress.unit_base_attributes.GetAttributeValue(attributeId) < requiredValue)
@@ -851,14 +855,14 @@ public sealed class ProgressionService
             return false;
 
         UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillId);
-        SkillDef skillDef = GetSkillDef(skillId);
-        if (skillProgress == null || skillDef == null)
+        SkillDefinition skillDefinition = GetSkillDefinition(skillId);
+        if (skillProgress == null || skillDefinition == null)
             return false;
         if (!skillProgress.is_learned || !skillProgress.is_core)
             return false;
         if (
             !SkillEffectiveMaxLevelRules.IsAtEffectiveMaxLevel(
-                skillDef,
+                skillDefinition,
                 skillProgress,
                 _unit_progress
             )
@@ -1387,8 +1391,8 @@ public sealed class ProgressionService
             return "";
 
         UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(triggerSkillId);
-        SkillDef skillDef = GetSkillDef(triggerSkillId);
-        if (skillProgress == null || skillDef == null)
+        SkillDefinition skillDefinition = GetSkillDefinition(triggerSkillId);
+        if (skillProgress == null || skillDefinition == null)
             return "";
         if (!skillProgress.is_learned || !skillProgress.is_core)
             return "";
@@ -1398,7 +1402,7 @@ public sealed class ProgressionService
             return "";
         if (
             !SkillEffectiveMaxLevelRules.IsAtEffectiveMaxLevel(
-                skillDef,
+                skillDefinition,
                 skillProgress,
                 _unit_progress
             )
@@ -1491,23 +1495,23 @@ public sealed class ProgressionService
             if (skillProgress == null || !skillProgress.is_learned)
                 continue;
 
-            SkillDef skillDef = GetSkillDef(skillId);
-            StringName practiceTrack = GetExclusivePracticeTrack(skillDef);
+            SkillDefinition skillDefinition = GetSkillDefinition(skillId);
+            StringName practiceTrack = GetExclusivePracticeTrack(skillDefinition);
             if (practiceTrack == PracticeTrackMeditation)
                 _unit_progress.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));
             else if (practiceTrack == PracticeTrackCultivation)
                 _unit_progress.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura));
 
-            UnlockCombatResourcesForSkill(skillDef, Mathf.Max(skillProgress.skill_level, 1));
+            UnlockCombatResourcesForSkill(skillDefinition, Mathf.Max(skillProgress.skill_level, 1));
         }
     }
 
-    private void UnlockCombatResourcesForSkill(SkillDef skillDef, int skillLevel)
+    private void UnlockCombatResourcesForSkill(SkillDefinition skillDefinition, int skillLevel)
     {
-        if (_unit_progress == null || skillDef?.combat_profile == null)
+        if (_unit_progress == null || skillDefinition?.CombatProfile == null)
             return;
 
-        CombatSkillResourceCosts costs = skillDef.combat_profile.GetEffectiveResourceCostValues(
+        CombatSkillResourceCosts costs = skillDefinition.CombatProfile.GetEffectiveResourceCostValues(
             skillLevel
         );
         if (costs.MpCost > 0)

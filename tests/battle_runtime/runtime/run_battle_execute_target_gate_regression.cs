@@ -17,7 +17,7 @@ public partial class run_battle_execute_target_gate_regression : SceneTree
 
     private void TestHighHpTargetPreviewDeniedWithoutSaveDamageOrStatus()
     {
-        using SkillDef skill = MakeExecuteSkill(apCost: 1, mpCost: 5, cooldownTu: 30);
+        SkillDefinition skill = MakeExecuteSkill(apCost: 1, mpCost: 5, cooldownTu: 30);
         BattleUnitState source = MakeUnit("pwk_source", "player", new Vector2I(0, 0), 100, 100);
         BattleUnitState target = MakeUnit("healthy_target", "enemy", new Vector2I(1, 0), 100, 21);
         target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 100);
@@ -31,19 +31,20 @@ public partial class run_battle_execute_target_gate_regression : SceneTree
         _test.False(target.HasStatusEffect("soul_fracture"), "高 HP preview 不应附加 soul fracture。");
 
         BattleTestFixture.DisposeBattlePreview(preview);
-        GodotSharpCleanup.DisposeGodotObject(command);
+        GodotSharpCleanup.ClearRuntimeReferences(command);
     }
 
     private void TestHighHpTargetAffordanceDenied()
     {
-        using SkillDef skill = MakeExecuteSkill(apCost: 1, mpCost: 5, cooldownTu: 30);
+        SkillDefinition skill = MakeExecuteSkill(apCost: 1, mpCost: 5, cooldownTu: 30);
         BattleUnitState source = MakeUnit("pwk_source", "player", new Vector2I(0, 0), 100, 100);
         BattleUnitState target = MakeUnit("healthy_target", "enemy", new Vector2I(1, 0), 100, 21);
         target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 100);
 
         using BattleTestFixture fixture = CreateFixture("pwk_high_hp_affordance", skill, source, target);
+        SkillDefinition skillDefinition = fixture.Runtime.GetSkillDefinitionTyped(skill.SkillId);
         BattleUnitSkillTargetAffordance affordance =
-            fixture.Runtime.GetUnitSkillTargetAffordance(source, target, skill);
+            fixture.Runtime.GetUnitSkillTargetAffordance(source, target, skillDefinition);
 
         _test.False(affordance.Allowed, "高 HP 律令死亡目标 affordance 应标记为不可选。");
         _test.True(
@@ -54,13 +55,13 @@ public partial class run_battle_execute_target_gate_regression : SceneTree
 
     private void TestHighHpCommandDoesNotConsumeApMpCooldown()
     {
-        using SkillDef skill = MakeExecuteSkill(apCost: 1, mpCost: 5, cooldownTu: 30);
+        SkillDefinition skill = MakeExecuteSkill(apCost: 1, mpCost: 5, cooldownTu: 30);
         BattleUnitState source = MakeUnit("pwk_source", "player", new Vector2I(0, 0), 100, 100);
         BattleUnitState target = MakeUnit("healthy_target", "enemy", new Vector2I(1, 0), 100, 21);
         target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 100);
         source.current_ap = 2;
         source.current_mp = 20;
-        source.SetCooldownTyped(skill.skill_id, 0);
+        source.SetCooldownTyped(skill.SkillId, 0);
 
         using BattleTestFixture fixture = CreateFixture("pwk_high_hp_issue", skill, source, target);
         BattleCommand command = MakeUnitCommand(source, target, skill);
@@ -68,17 +69,17 @@ public partial class run_battle_execute_target_gate_regression : SceneTree
 
         _test.Eq(source.current_ap, 2, "高 HP 律令死亡命令失败时不应消耗 AP。");
         _test.Eq(source.current_mp, 20, "高 HP 律令死亡命令失败时不应消耗 MP。");
-        _test.Eq(source.GetCooldownTyped(skill.skill_id), 0, "高 HP 律令死亡命令失败时不应进入冷却。");
+        _test.Eq(source.GetCooldownTyped(skill.SkillId), 0, "高 HP 律令死亡命令失败时不应进入冷却。");
         _test.Eq(target.current_hp, 21, "高 HP 律令死亡命令失败时不应造成伤害。");
         _test.False(target.HasStatusEffect("soul_fracture"), "高 HP 律令死亡命令失败时不应附加状态。");
 
-        GodotSharpCleanup.DisposeGodotObject(batch);
-        GodotSharpCleanup.DisposeGodotObject(command);
+        GodotSharpCleanup.DisposeBatch(batch);
+        GodotSharpCleanup.ClearRuntimeReferences(command);
     }
 
     private void TestLowHpTargetPreviewAllowed()
     {
-        using SkillDef skill = MakeExecuteSkill(apCost: 1, mpCost: 5, cooldownTu: 30);
+        SkillDefinition skill = MakeExecuteSkill(apCost: 1, mpCost: 5, cooldownTu: 30);
         BattleUnitState source = MakeUnit("pwk_source", "player", new Vector2I(0, 0), 100, 100);
         BattleUnitState target = MakeUnit("weak_target", "enemy", new Vector2I(1, 0), 100, 20);
         target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 100);
@@ -90,12 +91,12 @@ public partial class run_battle_execute_target_gate_regression : SceneTree
         _test.True(preview.allowed, "HP 等于阈值的律令死亡目标应允许 preview。");
 
         BattleTestFixture.DisposeBattlePreview(preview);
-        GodotSharpCleanup.DisposeGodotObject(command);
+        GodotSharpCleanup.ClearRuntimeReferences(command);
     }
 
     private void TestBossAndNormalUseSameThresholdGate()
     {
-        using SkillDef skill = MakeExecuteSkill(apCost: 1, mpCost: 5, cooldownTu: 30);
+        SkillDefinition skill = MakeExecuteSkill(apCost: 1, mpCost: 5, cooldownTu: 30);
         BattleUnitState source = MakeUnit("pwk_source", "player", new Vector2I(0, 0), 100, 100);
         BattleUnitState bossTarget = MakeUnit("boss_target", "enemy", new Vector2I(1, 0), 100, 21);
         bossTarget.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 100);
@@ -109,12 +110,12 @@ public partial class run_battle_execute_target_gate_regression : SceneTree
         _test.Eq(bossTarget.current_hp, 21, "boss 高 HP preview 不应被非致命削血。");
 
         BattleTestFixture.DisposeBattlePreview(preview);
-        GodotSharpCleanup.DisposeGodotObject(command);
+        GodotSharpCleanup.ClearRuntimeReferences(command);
     }
 
     private static BattleTestFixture CreateFixture(
         StringName battleId,
-        SkillDef skill,
+        SkillDefinition skill,
         BattleUnitState source,
         BattleUnitState target
     )
@@ -127,50 +128,48 @@ public partial class run_battle_execute_target_gate_regression : SceneTree
         );
         fixture.Runtime.setup(
             null,
-            new Dictionary<StringName, SkillDef> { [skill.skill_id] = skill }
+            new Dictionary<StringName, SkillDefinition> { [skill.SkillId] = skill }
         );
         fixture.Runtime.SetupStateForTests(fixture.State);
         return fixture;
     }
 
-    private static SkillDef MakeExecuteSkill(int apCost, int mpCost, int cooldownTu)
-    {
-        var skill = new SkillDef
-        {
-            skill_id = "test_power_word_kill",
-            display_name = "测试律令死亡",
-            max_level = 20,
-            non_core_max_level = 20,
-            combat_profile = new CombatSkillDef
-            {
-                target_mode = "unit",
-                target_team_filter = "enemy",
-                target_selection_mode = "single_unit",
-                range_value = 5,
-                ap_cost = apCost,
-                mp_cost = mpCost,
-                cooldown_tu = cooldownTu,
-            },
-        };
-        skill.combat_profile.effect_defs.Add(new CombatEffectDef
-        {
-            effect_type = "execute",
-            effect_target_team_filter = "enemy",
-            save_dc_mode = "static",
-            save_dc = 10,
-            save_ability = "willpower",
-            save_tag = "execute",
-            damage_tag = "negative_energy",
-            threshold_max_hp_ratio_percent = 20,
-            threshold_level_anchor = 17,
-            threshold_level_bonus_per_delta = 5,
-            threshold_cap_max_hp_ratio_percent = 50,
-            soul_fracture_duration_tu = 60,
-            heal_multiplier_percent = 50,
-            shield_gain_multiplier_percent = 50,
-        });
-        return TestResourceOwnership.Own(skill, "battle_execute_target_gate.execute_skill");
-    }
+    private static SkillDefinition MakeExecuteSkill(int apCost, int mpCost, int cooldownTu) =>
+        TestSkillDefinitionProjection.BuildSkill(
+            "test_power_word_kill",
+            "测试律令死亡",
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                "test_power_word_kill",
+                effects: new[]
+                {
+                    TestSkillDefinitionProjection.BuildEffect(
+                        "execute",
+                        effectTargetTeamFilter: "enemy",
+                        saveDcMode: "static",
+                        saveDc: 10,
+                        saveAbility: "willpower",
+                        saveTag: "execute",
+                        damageTag: "negative_energy",
+                        thresholdMaxHpRatioPercent: 20,
+                        thresholdLevelAnchor: 17,
+                        thresholdLevelBonusPerDelta: 5,
+                        thresholdCapMaxHpRatioPercent: 50,
+                        soulFractureDurationTu: 60,
+                        healMultiplierPercent: 50,
+                        shieldGainMultiplierPercent: 50
+                    ),
+                },
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                targetSelectionMode: "single_unit",
+                rangeValue: 5,
+                apCost: apCost,
+                mpCost: mpCost,
+                cooldownTu: cooldownTu
+            ),
+            maxLevel: 20,
+            nonCoreMaxLevel: 20
+        );
 
     private static BattleUnitState MakeUnit(
         StringName unitId,
@@ -202,14 +201,14 @@ public partial class run_battle_execute_target_gate_regression : SceneTree
     private static BattleCommand MakeUnitCommand(
         BattleUnitState source,
         BattleUnitState target,
-        SkillDef skill
+        SkillDefinition skill
     )
     {
         var command = new BattleCommand
         {
             command_type = "skill",
             unit_id = source.unit_id,
-            skill_id = skill.skill_id,
+            skill_id = skill.SkillId,
             target_unit_id = target.unit_id,
         };
         command.AddTargetUnitId(target.unit_id);

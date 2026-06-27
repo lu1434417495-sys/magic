@@ -6,7 +6,7 @@ public static class PassiveStatusOrchestrator
     public static void ApplyToUnit(
         BattleUnitState unitState,
         PassiveSourceContext context = null,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = null
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null
     )
     {
         if (unitState == null)
@@ -19,7 +19,7 @@ public static class PassiveStatusOrchestrator
         SkillPassiveResolver.ApplyToUnit(
             unitState,
             resolvedContext,
-            skillDefs
+            skillDefinitions
         );
     }
 

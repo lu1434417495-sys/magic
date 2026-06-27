@@ -64,10 +64,14 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     private sealed class SettlementActionValidationResult
     {
-        private readonly RuntimePayloadStore _serviceEntry = new();
+        private readonly Dictionary<string, object> _serviceEntry = new(StringComparer.Ordinal);
         public bool Ok { get; }
         public string Message { get; }
-        internal GDictionary ServiceEntry => _serviceEntry.ProjectPayload();
+        internal GDictionary ServiceEntry =>
+            RuntimePlainPayload.ProjectDictionary(
+                _serviceEntry,
+                "GameRuntimeSettlementCommandHandler.SettlementActionValidationResult.serviceEntry"
+            );
 
         private SettlementActionValidationResult(
             bool ok,
@@ -77,7 +81,11 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             Ok = ok;
             Message = message ?? "";
-            _serviceEntry.ReplaceWithPayload(serviceEntry);
+            ReplacePlainPayload(
+                _serviceEntry,
+                serviceEntry,
+                "GameRuntimeSettlementCommandHandler.SettlementActionValidationResult.serviceEntry"
+            );
         }
 
         internal static SettlementActionValidationResult Success(GDictionary serviceEntry = null) =>
@@ -121,8 +129,12 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     private sealed class SettlementServiceEntryResolution
     {
-        private readonly RuntimePayloadStore _serviceEntry = new();
-        internal GDictionary ServiceEntry => _serviceEntry.ProjectPayload();
+        private readonly Dictionary<string, object> _serviceEntry = new(StringComparer.Ordinal);
+        internal GDictionary ServiceEntry =>
+            RuntimePlainPayload.ProjectDictionary(
+                _serviceEntry,
+                "GameRuntimeSettlementCommandHandler.SettlementServiceEntryResolution.serviceEntry"
+            );
         public bool IsEnabled { get; }
         public string DisabledReason { get; }
         public bool Found => _serviceEntry.Count != 0;
@@ -133,7 +145,11 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             string disabledReason
         )
         {
-            _serviceEntry.ReplaceWithPayload(serviceEntry);
+            ReplacePlainPayload(
+                _serviceEntry,
+                serviceEntry,
+                "GameRuntimeSettlementCommandHandler.SettlementServiceEntryResolution.serviceEntry"
+            );
             IsEnabled = isEnabled;
             DisabledReason = disabledReason ?? "";
         }
@@ -207,10 +223,14 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     private sealed class SettlementCommandRollbackSnapshot
     {
-        private readonly RuntimePayloadStore _activeShopContext = new();
-        private readonly RuntimePayloadStore _activeContractBoardContext = new();
-        private readonly RuntimePayloadStore _activeForgeContext = new();
-        private readonly RuntimePayloadStore _activeStagecoachContext = new();
+        private readonly Dictionary<string, object> _activeShopContext =
+            new(StringComparer.Ordinal);
+        private readonly Dictionary<string, object> _activeContractBoardContext =
+            new(StringComparer.Ordinal);
+        private readonly Dictionary<string, object> _activeForgeContext =
+            new(StringComparer.Ordinal);
+        private readonly Dictionary<string, object> _activeStagecoachContext =
+            new(StringComparer.Ordinal);
         public RuntimeTransactionRollbackState RuntimeState { get; }
         public RuntimeModalKind ActiveModalKind { get; }
         public string ActiveSettlementId { get; }
@@ -219,11 +239,26 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         public bool SettlementEntryActive { get; }
         public Vector2I SettlementEntrySourceCoord { get; }
         public Vector2I SettlementEntryTargetCoord { get; }
-        internal GDictionary ActiveShopContext => _activeShopContext.ProjectPayload();
+        internal GDictionary ActiveShopContext =>
+            RuntimePlainPayload.ProjectDictionary(
+                _activeShopContext,
+                "GameRuntimeSettlementCommandHandler.RollbackSnapshot.activeShopContext"
+            );
         internal GDictionary ActiveContractBoardContext =>
-            _activeContractBoardContext.ProjectPayload();
-        internal GDictionary ActiveForgeContext => _activeForgeContext.ProjectPayload();
-        internal GDictionary ActiveStagecoachContext => _activeStagecoachContext.ProjectPayload();
+            RuntimePlainPayload.ProjectDictionary(
+                _activeContractBoardContext,
+                "GameRuntimeSettlementCommandHandler.RollbackSnapshot.activeContractBoardContext"
+            );
+        internal GDictionary ActiveForgeContext =>
+            RuntimePlainPayload.ProjectDictionary(
+                _activeForgeContext,
+                "GameRuntimeSettlementCommandHandler.RollbackSnapshot.activeForgeContext"
+            );
+        internal GDictionary ActiveStagecoachContext =>
+            RuntimePlainPayload.ProjectDictionary(
+                _activeStagecoachContext,
+                "GameRuntimeSettlementCommandHandler.RollbackSnapshot.activeStagecoachContext"
+            );
 
         internal SettlementCommandRollbackSnapshot(
             RuntimeTransactionRollbackState runtimeState,
@@ -248,10 +283,41 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             SettlementEntryActive = settlementEntryActive;
             SettlementEntrySourceCoord = settlementEntrySourceCoord;
             SettlementEntryTargetCoord = settlementEntryTargetCoord;
-            _activeShopContext.ReplaceWithPayload(activeShopContext);
-            _activeContractBoardContext.ReplaceWithPayload(activeContractBoardContext);
-            _activeForgeContext.ReplaceWithPayload(activeForgeContext);
-            _activeStagecoachContext.ReplaceWithPayload(activeStagecoachContext);
+            ReplacePlainPayload(
+                _activeShopContext,
+                activeShopContext,
+                "GameRuntimeSettlementCommandHandler.RollbackSnapshot.activeShopContext"
+            );
+            ReplacePlainPayload(
+                _activeContractBoardContext,
+                activeContractBoardContext,
+                "GameRuntimeSettlementCommandHandler.RollbackSnapshot.activeContractBoardContext"
+            );
+            ReplacePlainPayload(
+                _activeForgeContext,
+                activeForgeContext,
+                "GameRuntimeSettlementCommandHandler.RollbackSnapshot.activeForgeContext"
+            );
+            ReplacePlainPayload(
+                _activeStagecoachContext,
+                activeStagecoachContext,
+                "GameRuntimeSettlementCommandHandler.RollbackSnapshot.activeStagecoachContext"
+            );
+        }
+    }
+
+    private static void ReplacePlainPayload(
+        Dictionary<string, object> target,
+        GDictionary payload,
+        string ownerPath
+    )
+    {
+        target.Clear();
+        Dictionary<string, object> normalized =
+            RuntimePlainPayload.NormalizeDictionary(payload ?? new GDictionary(), ownerPath);
+        foreach (KeyValuePair<string, object> entry in normalized)
+        {
+            target[entry.Key] = entry.Value;
         }
     }
 

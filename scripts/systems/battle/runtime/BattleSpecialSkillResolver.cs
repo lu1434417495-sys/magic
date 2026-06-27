@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GCombatEffectArray = Godot.Collections.Array<CombatEffectDef>;
 using GDictionary = Godot.Collections.Dictionary;
 
 public readonly record struct BattleSpecialSkillResult(
@@ -128,7 +128,7 @@ public class BattleSpecialSkillResolver
         {
             return;
         }
-        _runtime._append_changed_coords(batch, ToUntypedVector2IArray(coords));
+        _runtime._append_changed_coords_typed(batch, coords);
     }
 
     private void AppendChangedUnitId(BattleEventBatch batch, StringName unit_id)
@@ -152,12 +152,12 @@ public class BattleSpecialSkillResolver
     public void ApplyOnKillGainResourcesEffects(
         BattleUnitState source_unit,
         BattleUnitState defeated_unit,
-        SkillDef skill_def,
-        GCombatEffectArray effect_defs,
+        SkillDefinition skillDefinition,
+        IEnumerable<CombatEffectDefinition> effectDefinitions,
         BattleEventBatch batch
     )
     {
-        if (source_unit == null || defeated_unit == null || skill_def == null || batch == null)
+        if (source_unit == null || defeated_unit == null || skillDefinition == null || batch == null)
         {
             return;
         }
@@ -165,17 +165,20 @@ public class BattleSpecialSkillResolver
         {
             return;
         }
-        foreach (CombatEffectDef effectDef in effect_defs ?? new GCombatEffectArray())
+        foreach (
+            CombatEffectDefinition effectDefinition in effectDefinitions
+                ?? Array.Empty<CombatEffectDefinition>()
+        )
         {
             if (
-                effectDef == null
-                || effectDef.EffectKind != BattleEffectKind.OnKillGainResources
+                effectDefinition == null
+                || effectDefinition.EffectKind != BattleEffectKind.OnKillGainResources
             )
             {
                 continue;
             }
-            int apGain = Math.Max(effectDef.ap_gain, 0);
-            int freeMovePointsGain = Math.Max(effectDef.free_move_points_gain, 0);
+            int apGain = Math.Max(effectDefinition.ApGain, 0);
+            int freeMovePointsGain = Math.Max(effectDefinition.FreeMovePointsGain, 0);
             if (apGain <= 0 && freeMovePointsGain <= 0)
             {
                 continue;
@@ -192,7 +195,7 @@ public class BattleSpecialSkillResolver
                 source_unit.can_use_locked_move_points_this_turn = true;
             }
             AppendChangedUnitId(batch, source_unit.unit_id);
-            var gainParts = new System.Collections.Generic.List<string>();
+            var gainParts = new List<string>();
             if (apGain > 0)
             {
                 gainParts.Add($"恢复 {apGain} AP");
@@ -201,9 +204,9 @@ public class BattleSpecialSkillResolver
             {
                 gainParts.Add($"获得 {freeMovePointsGain} 点普通移动力并可在行动后移动");
             }
-            string skillName = !string.IsNullOrEmpty(skill_def.display_name)
-                ? skill_def.display_name
-                : skill_def.skill_id.ToString();
+            string skillName = !string.IsNullOrEmpty(skillDefinition.DisplayName)
+                ? skillDefinition.DisplayName
+                : skillDefinition.SkillId.ToString();
             batch.AddLogLine(
                 $"{source_unit.display_name} 击倒 {defeated_unit.display_name}，触发 {skillName}：{string.Join("，", gainParts)}。"
             );
@@ -213,43 +216,43 @@ public class BattleSpecialSkillResolver
     public BattleSpecialSkillResult ApplyUnitSkillSpecialEffectsResult(
         BattleUnitState active_unit,
         BattleUnitState target_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
-        GCombatEffectArray effect_defs,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        IEnumerable<CombatEffectDefinition> effectDefinitions,
         BattleEventBatch batch,
         BattleForcedMoveContext forced_move_context
     )
     {
-        if (active_unit == null || skill_def == null)
+        if (active_unit == null || skillDefinition == null)
         {
             return BattleSpecialSkillResult.Empty();
         }
-        if (IsBlackStarBrandSkill(skill_def.skill_id))
+        if (IsBlackStarBrandSkill(skillDefinition.SkillId))
         {
             return ApplyBlackStarBrandEffectResult(active_unit, target_unit);
         }
-        if (IsDoomShiftSkill(skill_def.skill_id))
+        if (IsDoomShiftSkill(skillDefinition.SkillId))
         {
             return ApplyDoomShiftEffectResult(active_unit, target_unit, batch);
         }
-        if (effect_defs == null || effect_defs.Count == 0)
+        if (effectDefinitions == null)
         {
             return BattleSpecialSkillResult.Empty();
         }
 
         BattleLayeredBarrierService layeredBarrierService = _runtime._layered_barrier_service;
-        var seenForcedMoveEffects = new HashSet<ulong>();
+        var seenForcedMoveEffects = new HashSet<long>();
         bool applied = false;
         int maxMovedSteps = 0;
         var statusEffectIds = new List<StringName>();
         var logLines = new List<string>();
-        foreach (CombatEffectDef effectDef in effect_defs)
+        foreach (CombatEffectDefinition effectDefinition in effectDefinitions)
         {
-            if (effectDef == null)
+            if (effectDefinition == null)
             {
                 continue;
             }
-            BattleEffectKind effectKind = effectDef.EffectKind;
+            BattleEffectKind effectKind = effectDefinition.EffectKind;
             if (effectKind == BattleEffectKind.LayeredBarrier)
             {
                 BattleLayeredBarrierApplyResult barrierResult =
@@ -257,8 +260,8 @@ public class BattleSpecialSkillResolver
                         ? layeredBarrierService.ApplyLayeredBarrierEffectResult(
                             active_unit,
                             target_unit ?? active_unit,
-                            skill_def,
-                            effectDef,
+                            skillDefinition,
+                            effectDefinition,
                             batch
                         )
                         : BattleLayeredBarrierApplyResult.Empty();
@@ -273,7 +276,7 @@ public class BattleSpecialSkillResolver
                 BodySizeOverrideResult bodySizeResult = ApplyBodySizeCategoryOverrideEffectResult(
                     active_unit,
                     target_unit ?? active_unit,
-                    effectDef,
+                    effectDefinition,
                     batch
                 );
                 if (bodySizeResult.Applied)
@@ -297,7 +300,7 @@ public class BattleSpecialSkillResolver
             {
                 continue;
             }
-            ulong forcedMoveInstanceId = effectDef.GetInstanceId();
+            long forcedMoveInstanceId = RuntimeHelpers.GetHashCode(effectDefinition);
             if (!seenForcedMoveEffects.Add(forcedMoveInstanceId))
             {
                 continue;
@@ -305,7 +308,7 @@ public class BattleSpecialSkillResolver
             int movedSteps = ApplyForcedMoveEffect(
                 active_unit,
                 target_unit ?? active_unit,
-                effectDef,
+                effectDefinition,
                 batch,
                 forced_move_context
             );
@@ -795,18 +798,18 @@ public class BattleSpecialSkillResolver
     public int ApplyForcedMoveEffect(
         BattleUnitState sourceUnit,
         BattleUnitState unitState,
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         BattleEventBatch eventBatch,
         BattleForcedMoveContext forcedMoveContext
     )
     {
         BattleState state = RtState();
         BattleGridService gridService = _runtime.GetGridService();
-        if (state == null || unitState == null || effectDef == null)
+        if (state == null || unitState == null || effectDefinition == null)
         {
             return 0;
         }
-        int moveDistance = Math.Max(effectDef.forced_move_distance, 0);
+        int moveDistance = Math.Max(effectDefinition.ForcedMoveDistance, 0);
         if (moveDistance <= 0)
         {
             return 0;
@@ -828,7 +831,7 @@ public class BattleSpecialSkillResolver
             return 0;
         }
 
-        BattleForcedMoveMode mode = effectDef.ForcedMoveModeKind;
+        BattleForcedMoveMode mode = effectDefinition.ForcedMoveModeKind;
         if (mode == BattleForcedMoveMode.Unknown)
         {
             return 0;
@@ -898,7 +901,7 @@ public class BattleSpecialSkillResolver
     private BodySizeOverrideResult ApplyBodySizeCategoryOverrideEffectResult(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        CombatEffectDef effect_def,
+        CombatEffectDefinition effect_definition,
         BattleEventBatch batch
     )
     {
@@ -909,13 +912,13 @@ public class BattleSpecialSkillResolver
         );
         BattleState state = RtState();
         BattleGridService gridService = _runtime.GetGridService();
-        if (state == null || target_unit == null || effect_def == null)
+        if (state == null || target_unit == null || effect_definition == null)
         {
             return result;
         }
-        StringName statusId = ProgressionDataUtils.to_string_name(effect_def.status_id);
+        StringName statusId = ProgressionDataUtils.to_string_name(effect_definition.StatusId);
         StringName targetCategory = ProgressionDataUtils.to_string_name(
-            effect_def.body_size_category
+            effect_definition.BodySizeCategory
         );
         if (
             IsEmpty(statusId)
@@ -924,7 +927,7 @@ public class BattleSpecialSkillResolver
         {
             return result;
         }
-        int durationTu = Math.Max(effect_def.duration_tu, 0);
+        int durationTu = Math.Max(effect_definition.DurationTu, 0);
         if (durationTu <= 0)
         {
             return result;
@@ -944,9 +947,7 @@ public class BattleSpecialSkillResolver
         StringName previousCategory = target_unit.body_size_category;
         int previousBodySize = target_unit.body_size;
         Vector2I previousFootprint = target_unit.footprint_size;
-        Godot.Collections.Array<Vector2I> previousOccupiedCoords = DuplicateVector2IArray(
-            target_unit.occupied_coords
-        );
+        List<Vector2I> previousOccupiedCoords = DuplicateVector2IArray(target_unit.occupied_coords);
         gridService.ClearUnitOccupancy(state, target_unit);
         target_unit.SetBodySizeCategory(targetCategory);
         if (
@@ -981,8 +982,8 @@ public class BattleSpecialSkillResolver
             statusId,
             durationTu,
             source_unit != null ? source_unit.unit_id : new StringName(""),
-            Math.Max(effect_def.power, 1),
-            effect_def.@params,
+            Math.Max(effect_definition.Power, 1),
+            ToGodotDictionary(effect_definition.Parameters),
             targetCategory,
             restoreCategory
         );
@@ -1021,7 +1022,7 @@ public class BattleSpecialSkillResolver
     internal void RecordVajraBodyMasteryFromIncomingDamageTyped(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         AttackEffectResolutionResult result,
         BattleEventBatch batch = null
     )
@@ -1032,9 +1033,9 @@ public class BattleSpecialSkillResolver
         BattleSkillMasteryGrant grant = skillMasteryService.BuildVajraBodyMasteryGrantTyped(
             sourceUnit,
             targetUnit,
-            skillDef,
+            skillDefinition,
             result,
-            _runtime.GetSkillDefIndexTyped()
+            _runtime.GetSkillDefinitionIndexTyped()
         );
         ApplySkillMasteryGrantTyped(targetUnit, grant, batch);
     }
@@ -1391,9 +1392,9 @@ public class BattleSpecialSkillResolver
         return false;
     }
 
-    private static GArray ToUntypedVector2IArray(IEnumerable<Vector2I> coords)
+    private static List<Vector2I> DuplicateVector2IArray(IEnumerable<Vector2I> coords)
     {
-        var result = new GArray();
+        var result = new List<Vector2I>();
         if (coords == null)
         {
             return result;
@@ -1405,19 +1406,18 @@ public class BattleSpecialSkillResolver
         return result;
     }
 
-    private static Godot.Collections.Array<Vector2I> DuplicateVector2IArray(
-        Godot.Collections.Array<Vector2I> coords
-    )
+    private static bool IsEmpty(StringName value) => value == null || value == "";
+
+    private static GDictionary ToGodotDictionary(IReadOnlyDictionary<string, Variant> source)
     {
-        var result = new Godot.Collections.Array<Vector2I>();
-        foreach (Vector2I coord in coords ?? new Godot.Collections.Array<Vector2I>())
-        {
-            result.Add(coord);
-        }
+        if (source == null || source.Count == 0)
+            return null;
+        GDictionary result = new();
+        foreach ((string key, Variant value) in source)
+            if (!string.IsNullOrEmpty(key))
+                result[key] = value;
         return result;
     }
-
-    private static bool IsEmpty(StringName value) => value == null || value == "";
 
     private BattleState RtState()
     {

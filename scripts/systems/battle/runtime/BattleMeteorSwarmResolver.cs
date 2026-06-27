@@ -6,7 +6,6 @@ using GDictArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 // 翻译自 battle_meteor_swarm_resolver.gd（2026-05-26，陨星雨 C# 迁移）。
 // 单位/meteor 数据按 C# 类型直用。
@@ -15,7 +14,6 @@ internal sealed class BattleMeteorSwarmResolver
     private static readonly StringName PROFILE_ID = "meteor_swarm";
     private static readonly StringName COVERAGE_SHAPE_ID = "square_7x7";
     private static readonly StringName DEFAULT_SKILL_ID = "mage_meteor_swarm";
-    private static readonly StringName STATUS_METEOR_CONCUSSED = "meteor_concussed";
     private static readonly StringName MITIGATION_TIER_NORMAL = "normal";
     private static readonly StringName SAVE_PROFILE_METEOR_DEX_HALF = "meteor_dex_half";
     private static readonly StringName SUMMARY_HARD_REJECT = "hard_reject";
@@ -23,20 +21,9 @@ internal sealed class BattleMeteorSwarmResolver
     // 镜像 BattleDamageResolver.cs 的预览常量。
 
     private readonly BattleReportFormatter _reportFormatter = new();
-    private readonly GodotTransientResourceScope _transientScope =
-        new("BattleMeteorSwarmResolver");
-    private readonly RuntimeSkillDefFactory _runtimeSkillFactory;
 
     private BattleRuntimeModule _runtime;
     private BattleAttackCheckPolicyService _attack_check_policy_service;
-
-    internal BattleMeteorSwarmResolver()
-    {
-        _runtimeSkillFactory = new RuntimeSkillDefFactory(
-            _transientScope,
-            "BattleMeteorSwarmResolver"
-        );
-    }
 
     internal void Setup(
         BattleRuntimeModule runtime,
@@ -49,7 +36,6 @@ internal sealed class BattleMeteorSwarmResolver
 
     internal void Dispose()
     {
-        _transientScope.Drain();
         _runtime = null;
         _attack_check_policy_service = null;
     }
@@ -57,7 +43,7 @@ internal sealed class BattleMeteorSwarmResolver
     internal void PopulatePreview(
         BattleUnitState active_unit,
         BattleCommand command,
-        SkillDef skill_def,
+        SkillDefinition skillDefinition,
         BattlePreview preview
     )
     {
@@ -71,10 +57,14 @@ internal sealed class BattleMeteorSwarmResolver
             preview.AddLogLine("技能或目标无效。");
             return;
         }
-        CombatCastVariantDef castVariant = ResolveGroundCastVariant(active_unit, command, skill_def);
+        CombatCastVariantDefinition castVariant = ResolveGroundCastVariantDefinition(
+            active_unit,
+            command,
+            skillDefinition
+        );
         BattleGroundSkillValidationResult validation = _runtime.ValidateGroundSkillCommandResultTyped(
             active_unit,
-            skill_def,
+            skillDefinition,
             castVariant,
             command
         );
@@ -85,7 +75,7 @@ internal sealed class BattleMeteorSwarmResolver
             );
             return;
         }
-        GVector2IArray targetCoords = ExtractTargetCoords(validation);
+        List<Vector2I> targetCoords = ExtractTargetCoords(validation);
         if (targetCoords.Count == 0)
         {
             preview.AddLogLine("技能或目标无效。");
@@ -95,7 +85,7 @@ internal sealed class BattleMeteorSwarmResolver
         MeteorSwarmCastContext context = BuildCastContextTyped(
             active_unit,
             command,
-            skill_def,
+            skillDefinition,
             castVariant,
             anchorCoord,
             anchorCoord
@@ -123,7 +113,7 @@ internal sealed class BattleMeteorSwarmResolver
     internal void PopulatePreview(
         BattleUnitReadView active_unit,
         BattleCommand command,
-        SkillDef skill_def,
+        SkillDefinition skillDefinition,
         BattlePreview preview
     )
     {
@@ -137,10 +127,14 @@ internal sealed class BattleMeteorSwarmResolver
             preview.AddLogLine("技能或目标无效。");
             return;
         }
-        CombatCastVariantDef castVariant = ResolveGroundCastVariant(active_unit, command, skill_def);
+        CombatCastVariantDefinition castVariant = ResolveGroundCastVariantDefinition(
+            active_unit,
+            command,
+            skillDefinition
+        );
         BattleGroundSkillValidationResult validation = _runtime.ValidateGroundSkillCommandResultTyped(
             active_unit,
-            skill_def,
+            skillDefinition,
             castVariant,
             command
         );
@@ -151,7 +145,7 @@ internal sealed class BattleMeteorSwarmResolver
             );
             return;
         }
-        GVector2IArray targetCoords = ExtractTargetCoords(validation);
+        List<Vector2I> targetCoords = ExtractTargetCoords(validation);
         if (targetCoords.Count == 0)
         {
             preview.AddLogLine("技能或目标无效。");
@@ -160,7 +154,7 @@ internal sealed class BattleMeteorSwarmResolver
         Vector2I anchorCoord = targetCoords[0];
         MeteorSwarmPreviewFacts facts = BuildReadOnlyPreviewFacts(
             active_unit,
-            skill_def,
+            skillDefinition,
             anchorCoord,
             anchorCoord
         );
@@ -186,8 +180,8 @@ internal sealed class BattleMeteorSwarmResolver
     internal MeteorSwarmCastContext BuildCastContextTyped(
         BattleUnitState active_unit,
         BattleCommand command,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
         Vector2I nominal_anchor_coord,
         Vector2I final_anchor_coord,
         BattleSpellControlResult spell_control_context = default,
@@ -198,7 +192,7 @@ internal sealed class BattleMeteorSwarmResolver
         {
             active_unit = active_unit,
             command = command,
-            skill_id = skill_def != null ? skill_def.skill_id : DEFAULT_SKILL_ID,
+            skill_id = skillDefinition != null ? skillDefinition.SkillId : DEFAULT_SKILL_ID,
             profile = ResolveProfile(),
             nominal_anchor_coord = nominal_anchor_coord,
             final_anchor_coord = final_anchor_coord,
@@ -242,14 +236,14 @@ internal sealed class BattleMeteorSwarmResolver
 
     private MeteorSwarmPreviewFacts BuildReadOnlyPreviewFacts(
         BattleUnitReadView sourceUnit,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         Vector2I nominalAnchorCoord,
         Vector2I finalAnchorCoord
     )
     {
         MeteorSwarmTargetPlan plan = BuildReadOnlyTargetPlan(
             sourceUnit,
-            skillDef,
+            skillDefinition,
             nominalAnchorCoord,
             finalAnchorCoord
         );
@@ -285,17 +279,17 @@ internal sealed class BattleMeteorSwarmResolver
 
     private MeteorSwarmTargetPlan BuildReadOnlyTargetPlan(
         BattleUnitReadView sourceUnit,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         Vector2I nominalAnchorCoord,
         Vector2I finalAnchorCoord
     )
     {
-        MeteorSwarmProfile profile = ResolveProfile();
+        MeteorSwarmProfileData profile = ResolveProfile();
         var plan = new MeteorSwarmTargetPlan
         {
             profile = profile,
             source_unit_id = sourceUnit.IsValid ? sourceUnit.UnitId : new StringName(""),
-            skill_id = skillDef != null ? skillDef.skill_id : DEFAULT_SKILL_ID,
+            skill_id = skillDefinition != null ? skillDefinition.SkillId : DEFAULT_SKILL_ID,
             nominal_anchor_coord = nominalAnchorCoord,
             final_anchor_coord = finalAnchorCoord,
             coverage_shape_id = profile != null ? profile.coverage_shape_id : COVERAGE_SHAPE_ID,
@@ -360,7 +354,7 @@ internal sealed class BattleMeteorSwarmResolver
     internal MeteorSwarmTargetPlan BuildTargetPlanTyped(MeteorSwarmCastContext context)
     {
         var plan = new MeteorSwarmTargetPlan();
-        MeteorSwarmProfile profile =
+        MeteorSwarmProfileData profile =
             context != null && context.profile != null ? context.profile : ResolveProfile();
         plan.profile = profile;
         plan.coverage_shape_id = profile != null ? profile.coverage_shape_id : COVERAGE_SHAPE_ID;
@@ -510,7 +504,7 @@ internal sealed class BattleMeteorSwarmResolver
             distance_from_anchor = plan.GetDistanceForUnit(target_unit.unit_id),
         };
         bool coversCenter = UnitCoversCoord(target_unit, plan.final_anchor_coord);
-        foreach (MeteorSwarmImpactComponent component in plan.profile.impact_components)
+        foreach (MeteorSwarmImpactComponentData component in plan.profile.impact_components)
         {
             if (
                 component == null
@@ -519,29 +513,22 @@ internal sealed class BattleMeteorSwarmResolver
             {
                 continue;
             }
-            CombatEffectDef effectDef = _build_damage_effect_def(
+            CombatEffectDefinition effectDefinition = _build_damage_effect_def(
                 component,
                 outcome.distance_from_anchor
-            );
-            var damageContext = _transientScope.OwnWrapper(
-                new GDictionary
-                {
-                    ["skill_id"] = plan.skill_id,
-                    ["meteor_component_id"] = component.component_id,
-                    ["meteor_role_label"] = component.role_label,
-                    ["dispatch_events"] = false,
-                },
-                $"meteor_swarm:{component.component_id}:damage_context"
             );
             AttackEffectResolutionResult damageResolution = DamageResolver()
                 .ResolveEffects(
                     plan.source_unit,
                     target_unit,
-                    _transientScope.OwnWrapper(
-                        new GArray { effectDef },
-                        $"meteor_swarm:{component.component_id}:effects"
-                    ),
-                    damageContext
+                    new[] { effectDefinition },
+                    DamageResolutionContext.Create(
+                        false,
+                        false,
+                        false,
+                        skillId: plan.skill_id,
+                        dispatchEvents: false
+                    )
                 );
             outcome.AddComponent(component);
             outcome.total_damage += damageResolution.Damage;
@@ -568,9 +555,12 @@ internal sealed class BattleMeteorSwarmResolver
                 plan,
                 target_unit
             );
-            foreach (StringName statusId in statusResult.StatusEffectIds ?? new GStringNameArray())
+            if (statusResult.StatusEffectIds != null)
             {
-                outcome.AddStatusEffectId(statusId);
+                foreach (StringName statusId in statusResult.StatusEffectIds)
+                {
+                    outcome.AddStatusEffectId(statusId);
+                }
             }
         }
         target_unit.SetCurrentHp(target_unit.current_hp);
@@ -590,18 +580,18 @@ internal sealed class BattleMeteorSwarmResolver
         foreach (Vector2I coord in plan.affected_coords)
         {
             int ring = plan.GetRingForCoord(coord);
-            foreach (GDictionary terrainProfile in TerrainProfilesForRing(plan.profile, ring))
+            foreach (MeteorSwarmTerrainProfileData terrainProfile in TerrainProfilesForRing(plan.profile, ring))
             {
-                CombatEffectDef effectDef = _build_terrain_effect_def(terrainProfile);
+                CombatEffectDefinition effectDefinition = _build_terrain_effect_def(terrainProfile);
                 StringName fieldInstanceId = _runtime._build_terrain_effect_instance_id(
-                    effectDef.terrain_effect_id
+                    effectDefinition.TerrainEffectId
                 );
                 if (
-                    !terrainSystem.UpsertTimedTerrainEffect(
+                    !terrainSystem.UpsertTimedTerrainEffectFromDefinition(
                         coord,
                         plan.source_unit,
-                        ResolveSkillDefForPlan(plan),
-                        effectDef,
+                        ResolveSkillDefinitionForPlan(plan),
+                        effectDefinition,
                         fieldInstanceId
                     )
                 )
@@ -613,14 +603,11 @@ internal sealed class BattleMeteorSwarmResolver
                     {
                         coord = coord,
                         ring = ring,
-                        terrain_profile_id = DictStringName(
-                            terrainProfile,
-                            "terrain_profile_id"
-                        ),
-                        terrain_effect_id = effectDef.terrain_effect_id,
-                        lifetime_policy = effectDef.lifetime_policy,
-                        move_cost_delta = effectDef.move_cost_delta,
-                        render_overlay_id = effectDef.render_overlay_id.ToString(),
+                        terrain_profile_id = terrainProfile.terrain_profile_id,
+                        terrain_effect_id = effectDefinition.TerrainEffectId,
+                        lifetime_policy = effectDefinition.LifetimePolicy,
+                        move_cost_delta = effectDefinition.MoveCostDelta,
+                        render_overlay_id = effectDefinition.RenderOverlayId.ToString(),
                     }
                 );
             }
@@ -628,85 +615,72 @@ internal sealed class BattleMeteorSwarmResolver
         return effects;
     }
 
-    private SkillDef ResolveSkillDefForPlan(MeteorSwarmTargetPlan plan)
+    private SkillDefinition ResolveSkillDefinitionForPlan(MeteorSwarmTargetPlan plan)
     {
         if (_runtime == null || plan == null || StringNameIsEmpty(plan.skill_id))
         {
             return null;
         }
-        return _runtime.GetSkillDefTyped(plan.skill_id);
+        return _runtime.GetSkillDefinitionTyped(plan.skill_id);
     }
 
-    internal CombatEffectDef _build_damage_effect_def(
-        MeteorSwarmImpactComponent component,
+    internal CombatEffectDefinition _build_damage_effect_def(
+        MeteorSwarmImpactComponentData component,
         int distance_from_anchor
     )
     {
-        var effect = _runtimeSkillFactory.NewEffect(
-            runtimeEffect =>
-            {
-                runtimeEffect.effect_type = "damage";
-                runtimeEffect.damage_tag = component.damage_tag;
-                runtimeEffect.effect_target_team_filter = "any";
-                runtimeEffect.power = component.base_power;
-                runtimeEffect.dice_count = component.dice_count;
-                runtimeEffect.dice_sides = component.dice_sides;
-                runtimeEffect.pre_resistance_damage_multiplier =
-                    component.GetDamageScale(distance_from_anchor);
-            },
-            $"damage_component:{component?.component_id}"
+        StringName saveDcMode = "";
+        StringName saveDcSourceAbility = "";
+        StringName saveAbility = "";
+        bool savePartialOnSuccess = false;
+        StringName saveTag = "";
+        if (component != null && component.save_profile_id == SAVE_PROFILE_METEOR_DEX_HALF)
+        {
+            saveDcMode = BattleSaveContentRules.ToStringName(BattleSaveDcMode.CasterSpell);
+            saveDcSourceAbility = "intelligence";
+            saveAbility = "agility";
+            savePartialOnSuccess = true;
+            saveTag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Magic);
+        }
+        return CreateMeteorEffectDefinition(
+            effectType: "damage",
+            effectTargetTeamFilter: "any",
+            damageTag: component?.damage_tag ?? new StringName(""),
+            power: component?.base_power ?? 0,
+            diceCount: component?.dice_count ?? 0,
+            diceSides: component?.dice_sides ?? 0,
+            preResistanceDamageMultiplier: component?.GetDamageScale(distance_from_anchor) ?? 1.0,
+            saveDcMode: saveDcMode,
+            saveDcSourceAbility: saveDcSourceAbility,
+            saveAbility: saveAbility,
+            savePartialOnSuccess: savePartialOnSuccess,
+            saveTag: saveTag
         );
-        ApplySaveProfileToDamageEffect(effect, component);
-        return effect;
     }
 
-    internal CombatEffectDef _build_terrain_effect_def(GDictionary terrain_profile)
+    internal CombatEffectDefinition _build_terrain_effect_def(MeteorSwarmTerrainProfileData terrain_profile)
     {
-        StringName terrainProfileId = ProgressionDataUtils.to_string_name(
-            DictStringName(terrain_profile, "terrain_profile_id")
-        );
-        var effect = _runtimeSkillFactory.NewEffect(
-            runtimeEffect =>
+        StringName terrainProfileId = terrain_profile?.terrain_profile_id ?? "";
+        return CreateMeteorEffectDefinition(
+            effectType: "terrain_effect",
+            effectTargetTeamFilter: "any",
+            terrainEffectId: terrainProfileId,
+            tickEffectType: terrain_profile?.tick_effect_type ?? "none",
+            lifetimePolicy: terrain_profile?.lifetime_policy ?? "timed",
+            moveCostDelta: terrain_profile?.move_cost_delta ?? 0,
+            renderOverlayId: terrain_profile?.render_overlay_id ?? "",
+            overlayPriority: terrain_profile?.overlay_priority ?? 0,
+            displayName: TerrainProfileDisplayName(terrainProfileId),
+            durationTu: terrain_profile?.duration_tu ?? 0,
+            tickIntervalTu: terrain_profile?.tick_interval_tu ?? 0,
+            stackBehavior: "refresh",
+            parameters: new Dictionary<string, Variant>
             {
-                runtimeEffect.effect_type = "terrain_effect";
-                runtimeEffect.tick_effect_type = ProgressionDataUtils.to_string_name(
-                    DictStringName(terrain_profile, "tick_effect_type", "none")
-                );
-                runtimeEffect.lifetime_policy = DictStringName(
-                    terrain_profile,
-                    "lifetime_policy",
-                    "timed"
-                );
-                runtimeEffect.move_cost_delta = DictInt(terrain_profile, "move_cost_delta", 0);
-                runtimeEffect.render_overlay_id = DictStringName(
-                    terrain_profile,
-                    "render_overlay_id"
-                );
-                runtimeEffect.overlay_priority = DictInt(terrain_profile, "overlay_priority", 0);
-                runtimeEffect.display_name = TerrainProfileDisplayName(terrainProfileId);
-                runtimeEffect.terrain_effect_id = terrainProfileId;
-                runtimeEffect.duration_tu = DictInt(terrain_profile, "duration_tu", 0);
-                runtimeEffect.tick_interval_tu = DictInt(terrain_profile, "tick_interval_tu", 0);
-                runtimeEffect.stack_behavior = "refresh";
-                runtimeEffect.effect_target_team_filter = "any";
-                runtimeEffect.@params = new GDictionary
-                {
-                    ["move_cost_stack_key"] = DictStringName(
-                        terrain_profile,
-                        "move_cost_stack_key",
-                        ""
-                    ),
-                    ["move_cost_stack_mode"] = DictStringName(
-                        terrain_profile,
-                        "move_cost_stack_mode",
-                        ""
-                    ),
-                };
-                runtimeEffect.accuracy_modifier_spec = BuildAccuracyModifierSpec(terrain_profile);
+                ["move_cost_stack_key"] = terrain_profile?.move_cost_stack_key ?? "",
+                ["move_cost_stack_mode"] = terrain_profile?.move_cost_stack_mode ?? "",
             },
-            $"terrain_effect:{terrainProfileId}"
+            accuracyModifierSpec: BuildAccuracyModifierSpec(terrain_profile)
         );
-        return effect;
     }
 
     internal AttackEffectResolutionResult _apply_concussed_status(
@@ -714,34 +688,115 @@ internal sealed class BattleMeteorSwarmResolver
         BattleUnitState target_unit
     )
     {
-        var effect = _runtimeSkillFactory.NewEffect(
-            runtimeEffect =>
-            {
-                runtimeEffect.effect_type = "apply_status";
-                runtimeEffect.status_id = plan.profile.concussed_status_id;
-                runtimeEffect.power = 1;
-                runtimeEffect.duration_tu = 60;
-                runtimeEffect.attack_roll_penalty = 2;
-            },
-            "concussed_status"
+        CombatEffectDefinition effectDefinition = CreateMeteorEffectDefinition(
+            effectType: "apply_status",
+            statusId: plan.profile.concussed_status_id,
+            power: 1,
+            durationTu: 60,
+            attackRollPenalty: 2
         );
         return DamageResolver()
             .ResolveEffects(
                 plan.source_unit,
                 target_unit,
-                _transientScope.OwnWrapper(
-                    new GArray { effect },
-                    "meteor_swarm:concussed_status:effects"
-                ),
-                _transientScope.OwnWrapper(
-                    new GDictionary
-                    {
-                        ["skill_id"] = plan.skill_id,
-                        ["meteor_component_id"] = STATUS_METEOR_CONCUSSED,
-                    },
-                    "meteor_swarm:concussed_status:damage_context"
-                )
+                new[] { effectDefinition },
+                DamageResolutionContext.ForSkill(plan.skill_id)
             );
+    }
+
+    private static CombatEffectDefinition CreateMeteorEffectDefinition(
+        StringName effectType,
+        StringName effectTargetTeamFilter = default,
+        StringName statusId = default,
+        StringName terrainEffectId = default,
+        StringName damageTag = default,
+        int power = 0,
+        int diceCount = 0,
+        int diceSides = 0,
+        double preResistanceDamageMultiplier = 1.0,
+        StringName saveDcMode = default,
+        StringName saveDcSourceAbility = default,
+        StringName saveAbility = default,
+        bool savePartialOnSuccess = false,
+        StringName saveTag = default,
+        StringName tickEffectType = default,
+        StringName lifetimePolicy = default,
+        int moveCostDelta = 0,
+        StringName renderOverlayId = default,
+        int overlayPriority = 0,
+        string displayName = "",
+        int durationTu = 0,
+        int tickIntervalTu = 0,
+        StringName stackBehavior = default,
+        IReadOnlyDictionary<string, Variant> parameters = null,
+        BattleAttackRollModifierSpec accuracyModifierSpec = null,
+        int attackRollPenalty = -1
+    )
+    {
+        return new CombatEffectDefinition(
+            effectType: NormalizeStringName(effectType),
+            effectTargetTeamFilter: NormalizeStringName(effectTargetTeamFilter),
+            statusId: NormalizeStringName(statusId),
+            saveFailureStatusId: default,
+            terrainEffectId: NormalizeStringName(terrainEffectId),
+            terrainReplaceTo: default,
+            heightDelta: 0,
+            requiresWeapon: false,
+            addWeaponDice: false,
+            preventRepeatTarget: true,
+            forcedMoveMode: default,
+            minSkillLevel: 0,
+            maxSkillLevel: 0,
+            damageTag: NormalizeStringName(damageTag),
+            damageRatioPercent: 0,
+            preResistanceDamageMultiplier: preResistanceDamageMultiplier,
+            bonusCondition: default,
+            hpRatioThresholdPercent: 0,
+            damageCategory: default,
+            drBypassTag: default,
+            diceCount: diceCount,
+            diceSides: diceSides,
+            diceBonus: 0,
+            bonusDamageDiceCount: 0,
+            bonusDamageDiceSides: 0,
+            bonusDamageDiceBonus: 0,
+            saveDc: 0,
+            saveDcMode: NormalizeStringName(saveDcMode),
+            saveDcSourceAbility: NormalizeStringName(saveDcSourceAbility),
+            saveAbility: NormalizeStringName(saveAbility),
+            savePartialOnSuccess: savePartialOnSuccess,
+            saveTag: NormalizeStringName(saveTag),
+            thresholdBaseValue: 0,
+            thresholdLevelAnchor: 0,
+            thresholdLevelBonusPerDelta: 0,
+            thresholdMaxHpRatioPercent: 0,
+            thresholdCapMaxHpRatioPercent: 0,
+            soulFractureDurationTu: 0,
+            healMultiplierPercent: 0,
+            shieldGainMultiplierPercent: 0,
+            appliedStatusDurationTu: 0,
+            durationTu: durationTu,
+            tickIntervalTu: tickIntervalTu,
+            effectTags: Array.Empty<StringName>(),
+            triggerCondition: new StringName(""),
+            power: power,
+            parameters: parameters ?? new Dictionary<string, Variant>(),
+            tickEffectType: NormalizeStringName(tickEffectType),
+            lifetimePolicy: NormalizeStringName(lifetimePolicy),
+            moveCostDelta: moveCostDelta,
+            renderOverlayId: NormalizeStringName(renderOverlayId),
+            overlayPriority: overlayPriority,
+            displayName: displayName,
+            accuracyModifierSpec: accuracyModifierSpec,
+            stackBehavior: NormalizeStringName(stackBehavior),
+            triggerEvent: new StringName(""),
+            attackRollPenalty: attackRollPenalty
+        );
+    }
+
+    private static StringName NormalizeStringName(StringName value)
+    {
+        return value == null ? new StringName("") : value;
     }
 
     internal MeteorSwarmReportEntry _build_report_entry(
@@ -799,7 +854,7 @@ internal sealed class BattleMeteorSwarmResolver
     }
 
     private MeteorSwarmComponentFact BuildComponentReportFactTyped(
-        MeteorSwarmImpactComponent component,
+        MeteorSwarmImpactComponentData component,
         AttackEffectResolutionResult damage_result,
         int distance_from_anchor
     )
@@ -852,13 +907,10 @@ internal sealed class BattleMeteorSwarmResolver
         foreach (Vector2I coord in plan.affected_coords)
         {
             int ring = plan.GetRingForCoord(coord);
-            foreach (GDictionary terrainProfile in TerrainProfilesForRing(plan.profile, ring))
+            foreach (MeteorSwarmTerrainProfileData terrainProfile in TerrainProfilesForRing(plan.profile, ring))
             {
                 terrainEffectCount += 1;
-                string profileId = DictString(
-                    terrainProfile,
-                    "terrain_profile_id"
-                );
+                string profileId = terrainProfile.terrain_profile_id.ToString();
                 if (profileId.Contains("crater"))
                 {
                     craterCount += 1;
@@ -997,53 +1049,58 @@ internal sealed class BattleMeteorSwarmResolver
         int worstShieldRemaining = targetUnit.CurrentShieldHp;
         var resistanceTiers = new Dictionary<StringName, StringName>();
 
-        foreach (MeteorSwarmImpactComponent component in plan.profile?.impact_components ?? new Godot.Collections.Array<MeteorSwarmImpactComponent>())
+        List<MeteorSwarmImpactComponentData> impactComponents =
+            plan.profile?.impact_components;
+        if (impactComponents != null)
         {
-            if (component == null || !component.AppliesToDistance(distance, coversCenter))
+            foreach (MeteorSwarmImpactComponentData component in impactComponents)
             {
-                continue;
-            }
-            int preSaveExpectedDamage = component.GetAverageBaseDamage(distance);
-            int preSaveWorstDamage = component.GetWorstCaseBaseDamage(distance);
-            int expectedComponentDamage = EstimatePostSaveDamage(component, preSaveExpectedDamage);
-            int worstComponentDamage = EstimateWorstPostSaveDamage(component, preSaveWorstDamage);
-            int expectedAfterShield = ApplyShieldEstimate(
-                expectedComponentDamage,
-                ref expectedShieldRemaining
-            );
-            int worstAfterShield = ApplyShieldEstimate(
-                worstComponentDamage,
-                ref worstShieldRemaining
-            );
-            expectedDamage += expectedAfterShield;
-            worstCaseDamage += worstAfterShield;
-            if (component.damage_tag != "")
-            {
-                resistanceTiers[component.damage_tag] = MITIGATION_TIER_NORMAL;
-            }
-            componentBreakdown.Add(
-                new MeteorSwarmComponentBreakdownEntry
+                if (component == null || !component.AppliesToDistance(distance, coversCenter))
                 {
-                    ComponentId = component.component_id,
-                    RoleLabel = component.role_label,
-                    DamageTag = component.damage_tag,
-                    ExpectedDamage = expectedAfterShield,
-                    WorstCaseDamage = worstAfterShield,
-                    PostSaveExpectedDamage = expectedComponentDamage,
-                    PostSaveWorstCaseDamage = worstComponentDamage,
-                    PreSaveExpectedDamage = preSaveExpectedDamage,
-                    PreSaveWorstCaseDamage = preSaveWorstDamage,
-                    ResistanceTier = MITIGATION_TIER_NORMAL,
-                    SaveProfileId = component.save_profile_id.ToString(),
-                    SaveEstimate = BuildReadOnlySaveEstimate(component, preSaveExpectedDamage),
-                    WorstSaveEstimate = BuildReadOnlyWorstSaveEstimate(component, preSaveWorstDamage),
-                    ShieldAbsorbedEstimate = Math.Max(
-                        expectedComponentDamage - expectedAfterShield,
-                        0
-                    ),
-                    ShieldAbsorbedWorst = Math.Max(worstComponentDamage - worstAfterShield, 0),
+                    continue;
                 }
-            );
+                int preSaveExpectedDamage = component.GetAverageBaseDamage(distance);
+                int preSaveWorstDamage = component.GetWorstCaseBaseDamage(distance);
+                int expectedComponentDamage = EstimatePostSaveDamage(component, preSaveExpectedDamage);
+                int worstComponentDamage = EstimateWorstPostSaveDamage(component, preSaveWorstDamage);
+                int expectedAfterShield = ApplyShieldEstimate(
+                    expectedComponentDamage,
+                    ref expectedShieldRemaining
+                );
+                int worstAfterShield = ApplyShieldEstimate(
+                    worstComponentDamage,
+                    ref worstShieldRemaining
+                );
+                expectedDamage += expectedAfterShield;
+                worstCaseDamage += worstAfterShield;
+                if (component.damage_tag != "")
+                {
+                    resistanceTiers[component.damage_tag] = MITIGATION_TIER_NORMAL;
+                }
+                componentBreakdown.Add(
+                    new MeteorSwarmComponentBreakdownEntry
+                    {
+                        ComponentId = component.component_id,
+                        RoleLabel = component.role_label,
+                        DamageTag = component.damage_tag,
+                        ExpectedDamage = expectedAfterShield,
+                        WorstCaseDamage = worstAfterShield,
+                        PostSaveExpectedDamage = expectedComponentDamage,
+                        PostSaveWorstCaseDamage = worstComponentDamage,
+                        PreSaveExpectedDamage = preSaveExpectedDamage,
+                        PreSaveWorstCaseDamage = preSaveWorstDamage,
+                        ResistanceTier = MITIGATION_TIER_NORMAL,
+                        SaveProfileId = component.save_profile_id.ToString(),
+                        SaveEstimate = BuildReadOnlySaveEstimate(component, preSaveExpectedDamage),
+                        WorstSaveEstimate = BuildReadOnlyWorstSaveEstimate(component, preSaveWorstDamage),
+                        ShieldAbsorbedEstimate = Math.Max(
+                            expectedComponentDamage - expectedAfterShield,
+                            0
+                        ),
+                        ShieldAbsorbedWorst = Math.Max(worstComponentDamage - worstAfterShield, 0),
+                    }
+                );
+            }
         }
 
         var statusEffectIds = new List<StringName>();
@@ -1124,18 +1181,18 @@ internal sealed class BattleMeteorSwarmResolver
         BattleUnitState worstTargetPreview = target_unit.clone();
         var resistanceTiers = new Dictionary<StringName, StringName>();
         int guardBlockEstimate = 0;
-        foreach (MeteorSwarmImpactComponent component in plan.profile.impact_components)
+        foreach (MeteorSwarmImpactComponentData component in plan.profile.impact_components)
         {
             if (component == null || !component.AppliesToDistance(distance, coversCenter))
             {
                 continue;
             }
-            CombatEffectDef effectDef = _build_damage_effect_def(component, distance);
+            CombatEffectDefinition effectDefinition = _build_damage_effect_def(component, distance);
             BattleDamagePreviewResult expectedPreview = BuildComponentDamagePreview(
                 plan,
                 expectedSourcePreview,
                 expectedTargetPreview,
-                effectDef,
+                effectDefinition,
                 BattleDamagePreviewRollMode.Average,
                 BattleDamagePreviewSaveMode.Expected
             );
@@ -1143,7 +1200,7 @@ internal sealed class BattleMeteorSwarmResolver
                 plan,
                 worstSourcePreview,
                 worstTargetPreview,
-                effectDef,
+                effectDefinition,
                 BattleDamagePreviewRollMode.Maximum,
                 BattleDamagePreviewSaveMode.Worst
             );
@@ -1297,14 +1354,14 @@ internal sealed class BattleMeteorSwarmResolver
         {
             return breakdown;
         }
-        foreach (GDictionary terrainProfile in ReadDictionaryItems(plan.profile.terrain_profiles))
+        foreach (MeteorSwarmTerrainProfileData terrainProfile in plan.profile.terrain_profiles)
         {
             BattleAttackRollModifierSpec spec = BuildAccuracyModifierSpec(terrainProfile);
             if (spec == null)
             {
                 continue;
             }
-            spec.source_instance_id = DictString(terrainProfile, "terrain_profile_id");
+            spec.source_instance_id = terrainProfile.terrain_profile_id.ToString();
             breakdown.Add(spec);
         }
         return breakdown;
@@ -1315,12 +1372,11 @@ internal sealed class BattleMeteorSwarmResolver
         return MeteorSwarmProjection.ProjectComponentFactArray(BuildComponentPreviewTyped(plan));
     }
 
-    private static BattleAttackRollModifierSpec BuildAccuracyModifierSpec(GDictionary terrainProfile)
+    private static BattleAttackRollModifierSpec BuildAccuracyModifierSpec(
+        MeteorSwarmTerrainProfileData terrainProfile
+    )
     {
-        GDictionary accuracySpec = DictDictionary(terrainProfile, "accuracy_modifier_spec");
-        return accuracySpec.Count == 0
-            ? null
-            : BattleAttackRollModifierSpec.FromPartialDictionary(accuracySpec);
+        return terrainProfile?.CloneAccuracyModifierSpec();
     }
 
     private List<MeteorSwarmComponentFact> BuildComponentPreviewTyped(MeteorSwarmTargetPlan plan)
@@ -1330,7 +1386,7 @@ internal sealed class BattleMeteorSwarmResolver
         {
             return preview;
         }
-        foreach (MeteorSwarmImpactComponent component in plan.profile.impact_components)
+        foreach (MeteorSwarmImpactComponentData component in plan.profile.impact_components)
         {
             if (component == null)
             {
@@ -1342,7 +1398,7 @@ internal sealed class BattleMeteorSwarmResolver
     }
 
     private static MeteorSwarmComponentFact BuildComponentPreviewFactTyped(
-        MeteorSwarmImpactComponent component,
+        MeteorSwarmImpactComponentData component,
         int distance_from_anchor
     )
     {
@@ -1425,13 +1481,13 @@ internal sealed class BattleMeteorSwarmResolver
     )
     {
         var consequence = new MeteorSwarmHostileTerrainConsequence();
-        foreach (GDictionary terrainProfile in TerrainProfilesForRing(plan.profile, distance_from_anchor))
+        foreach (MeteorSwarmTerrainProfileData terrainProfile in TerrainProfilesForRing(plan.profile, distance_from_anchor))
         {
             consequence.MoveCostDelta = Math.Max(
                 consequence.MoveCostDelta,
-                DictInt(terrainProfile, "move_cost_delta", 0)
+                terrainProfile.move_cost_delta
             );
-            string profileId = DictString(terrainProfile, "terrain_profile_id");
+            string profileId = terrainProfile.terrain_profile_id.ToString();
             if (profileId.Contains("dust"))
             {
                 consequence.CreatesDust = true;
@@ -1633,30 +1689,11 @@ internal sealed class BattleMeteorSwarmResolver
         };
     }
 
-    private void ApplySaveProfileToDamageEffect(
-        CombatEffectDef effect,
-        MeteorSwarmImpactComponent component
-    )
-    {
-        if (effect == null || component == null)
-        {
-            return;
-        }
-        if (component.save_profile_id == SAVE_PROFILE_METEOR_DEX_HALF)
-        {
-            effect.SaveDcModeKind = BattleSaveDcMode.CasterSpell;
-            effect.save_dc_source_ability = "intelligence";
-            effect.save_ability = "agility";
-            effect.save_partial_on_success = true;
-            effect.save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Magic);
-        }
-    }
-
     private BattleDamagePreviewResult BuildComponentDamagePreview(
         MeteorSwarmTargetPlan plan,
         BattleUnitState source_preview,
         BattleUnitState target_preview,
-        CombatEffectDef effect_def,
+        CombatEffectDefinition effectDefinition,
         BattleDamagePreviewRollMode roll_mode,
         BattleDamagePreviewSaveMode save_mode
     )
@@ -1665,7 +1702,7 @@ internal sealed class BattleMeteorSwarmResolver
             _runtime == null
             || source_preview == null
             || target_preview == null
-            || effect_def == null
+            || effectDefinition == null
         )
         {
             return BattleDamagePreviewResult.Empty();
@@ -1678,7 +1715,7 @@ internal sealed class BattleMeteorSwarmResolver
         return damageResolver.PreviewDamageEffectTyped(
             source_preview,
             target_preview,
-            effect_def,
+            effectDefinition,
             DamageResolutionContext.ForSkill(plan != null ? plan.skill_id : DEFAULT_SKILL_ID),
             roll_mode,
             save_mode
@@ -1686,7 +1723,7 @@ internal sealed class BattleMeteorSwarmResolver
     }
 
     private static int EstimatePostSaveDamage(
-        MeteorSwarmImpactComponent component,
+        MeteorSwarmImpactComponentData component,
         int damageBeforeSave
     )
     {
@@ -1699,7 +1736,7 @@ internal sealed class BattleMeteorSwarmResolver
     }
 
     private static int EstimateWorstPostSaveDamage(
-        MeteorSwarmImpactComponent component,
+        MeteorSwarmImpactComponentData component,
         int damageBeforeSave
     )
     {
@@ -1719,7 +1756,7 @@ internal sealed class BattleMeteorSwarmResolver
     }
 
     private static BattleDamagePreviewSaveEstimate BuildReadOnlySaveEstimate(
-        MeteorSwarmImpactComponent component,
+        MeteorSwarmImpactComponentData component,
         int damageBeforeSave
     )
     {
@@ -1755,7 +1792,7 @@ internal sealed class BattleMeteorSwarmResolver
     }
 
     private static BattleDamagePreviewSaveEstimate BuildReadOnlyWorstSaveEstimate(
-        MeteorSwarmImpactComponent component,
+        MeteorSwarmImpactComponentData component,
         int damageBeforeSave
     )
     {
@@ -1806,8 +1843,8 @@ internal sealed class BattleMeteorSwarmResolver
             targetUnit.RefreshFootprint();
             int bestDistance = 999999;
             Vector2I bestCoord = plan.GetPrimaryCoordForUnit(targetUnitId);
-            GVector2IArray occupiedCoords = targetUnit.occupied_coords;
-            if (occupiedCoords.Count == 0)
+            IEnumerable<Vector2I> occupiedCoords = targetUnit.occupied_coords;
+            if (targetUnit.occupied_coords == null || targetUnit.occupied_coords.Count == 0)
             {
                 occupiedCoords = gridService.GetUnitTargetCoords(targetUnit, targetUnit.coord);
             }
@@ -1868,9 +1905,9 @@ internal sealed class BattleMeteorSwarmResolver
         return $"{plan.skill_id}:{plan.coverage_shape_id}:r{plan.radius}:{anchor_coord.X},{anchor_coord.Y}:{plan.affected_coords.Count}:{string.Join(",", unitParts)}";
     }
 
-    private GVector2IArray ExtractTargetCoords(BattleGroundSkillValidationResult validation)
+    private List<Vector2I> ExtractTargetCoords(BattleGroundSkillValidationResult validation)
     {
-        var targetCoords = new GVector2IArray();
+        var targetCoords = new List<Vector2I>();
         foreach (Vector2I coord in validation.TargetCoords)
         {
             targetCoords.Add(coord);
@@ -1878,78 +1915,56 @@ internal sealed class BattleMeteorSwarmResolver
         return targetCoords;
     }
 
-    private MeteorSwarmProfile ResolveProfile()
+    private MeteorSwarmProfileData ResolveProfile()
     {
         if (_runtime == null)
         {
             return null;
         }
-        GDictionary snapshot = _runtime.GetSpecialProfileRegistrySnapshotPayload();
-        GDictionary profiles = DictDictionary(snapshot, "profiles");
-        GDictionary meteorProfileSnapshot = DictDictionary(profiles, "meteor_swarm");
-        if (meteorProfileSnapshot.Count == 0)
+        IBattleSpecialProfileView view = _runtime.GetSpecialProfileView();
+        if (
+            view == null
+            || !view.TryGetMeteorSwarmProfile(PROFILE_ID, out MeteorSwarmProfileData profile)
+            || profile == null
+        )
         {
             return null;
         }
-        return DictMeteorSwarmProfile(meteorProfileSnapshot, "profile_resource");
+        return profile;
     }
 
-    internal CombatCastVariantDef ResolveGroundCastVariant(
+    internal CombatCastVariantDefinition ResolveGroundCastVariantDefinition(
         BattleUnitState active_unit,
         BattleCommand command,
-        SkillDef skill_def
+        SkillDefinition skillDefinition
     )
     {
-        if (_runtime == null || skill_def == null)
+        if (_runtime == null || skillDefinition == null)
         {
             return null;
         }
-        CombatCastVariantDef castVariant = _runtime.ResolveGroundCastVariantTyped(
-            skill_def,
+        return _runtime._skill_resolution_rules?.ResolveGroundCastVariantDefinition(
+            skillDefinition,
             active_unit,
-            command
+            command != null ? command.skill_variant_id : new StringName("")
         );
-        if (castVariant != null)
-        {
-            return castVariant;
-        }
-        if (
-            skill_def.combat_profile != null
-            && skill_def.combat_profile.TargetModeKind == BattleTargetMode.Ground
-        )
-        {
-            return _runtime._build_implicit_ground_cast_variant(skill_def);
-        }
-        return null;
     }
 
-    internal CombatCastVariantDef ResolveGroundCastVariant(
+    internal CombatCastVariantDefinition ResolveGroundCastVariantDefinition(
         BattleUnitReadView active_unit,
         BattleCommand command,
-        SkillDef skill_def
+        SkillDefinition skillDefinition
     )
     {
-        if (_runtime == null || skill_def == null)
+        if (_runtime == null || skillDefinition == null)
         {
             return null;
         }
-        CombatCastVariantDef castVariant = _runtime.ResolveGroundCastVariantTyped(
-            skill_def,
+        return _runtime._skill_resolution_rules?.ResolveGroundCastVariantDefinition(
+            skillDefinition,
             active_unit,
-            command
+            command != null ? command.skill_variant_id : new StringName("")
         );
-        if (castVariant != null)
-        {
-            return castVariant;
-        }
-        if (
-            skill_def.combat_profile != null
-            && skill_def.combat_profile.TargetModeKind == BattleTargetMode.Ground
-        )
-        {
-            return _runtime._build_implicit_ground_cast_variant(skill_def);
-        }
-        return null;
     }
 
     private bool UnitCoversCoord(BattleUnitState unit_state, Vector2I coord)
@@ -2107,13 +2122,6 @@ internal sealed class BattleMeteorSwarmResolver
         return value.AsGodotDictionary();
     }
 
-    private static MeteorSwarmProfile DictMeteorSwarmProfile(GDictionary dictionary, string key)
-    {
-        if (!TryResolveStringKey(dictionary, key, out Variant value))
-            return null;
-        return value.As<MeteorSwarmProfile>();
-    }
-
     private static int DictInt(GDictionary dictionary, string key, int fallback = 0)
     {
         if (!TryResolveStringKey(dictionary, key, out Variant value))
@@ -2187,8 +2195,8 @@ internal sealed class BattleMeteorSwarmResolver
         return value == null || string.IsNullOrEmpty(value.ToString());
     }
 
-    private static IEnumerable<GDictionary> TerrainProfilesForRing(
-        MeteorSwarmProfile profile,
+    private static IEnumerable<MeteorSwarmTerrainProfileData> TerrainProfilesForRing(
+        MeteorSwarmProfileData profile,
         int ring
     )
     {
@@ -2196,9 +2204,7 @@ internal sealed class BattleMeteorSwarmResolver
         {
             yield break;
         }
-        foreach (GDictionary profileValue in ReadDictionaryItems(
-            profile.GetTerrainProfilesForRing(ring)
-        ))
+        foreach (MeteorSwarmTerrainProfileData profileValue in profile.GetTerrainProfilesForRing(ring))
         {
             yield return profileValue;
         }
@@ -2206,7 +2212,9 @@ internal sealed class BattleMeteorSwarmResolver
 
     private static IEnumerable<StringName> NormalizeStatusIds(GArray statusEffectIds)
     {
-        foreach (var statusIdValue in statusEffectIds ?? new GArray())
+        if (statusEffectIds == null)
+            yield break;
+        foreach (var statusIdValue in statusEffectIds)
         {
             StringName statusId = ProgressionDataUtils.to_string_name(statusIdValue);
             if (!StringNameIsEmpty(statusId))
@@ -2216,31 +2224,4 @@ internal sealed class BattleMeteorSwarmResolver
         }
     }
 
-    private static GVector2IArray ToVector2IArray(IEnumerable<Vector2I> values)
-    {
-        var result = new GVector2IArray();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (Vector2I value in values)
-        {
-            result.Add(value);
-        }
-        return result;
-    }
-
-    private static GStringNameArray ToStringNameArray(IEnumerable<StringName> values)
-    {
-        var result = new GStringNameArray();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (StringName value in values)
-        {
-            result.Add(value);
-        }
-        return result;
-    }
 }

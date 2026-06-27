@@ -15,36 +15,36 @@ public sealed class BattleAiDecision
 
     internal BattleAiDecisionCommitter.DecisionStatePatch StatePatch { get; set; }
 
-    internal void DisposeOwnedGodotObjects()
+    internal void ClearOwnedRuntimeReferences()
     {
-        DisposeScoreInput(score_input);
+        ClearScoreInputRuntimeReferences(score_input);
         if (!ReferenceEquals(skill_score_input, score_input))
-            DisposeScoreInput(skill_score_input);
-        DisposeCommand(command);
+            ClearScoreInputRuntimeReferences(skill_score_input);
+        ClearCommandRuntimeReferences(command);
         command = null;
         score_input = null;
         skill_score_input = null;
         StatePatch = null;
     }
 
-    private static void DisposeScoreInput(BattleAiScoreInput scoreInput)
+    private static void ClearScoreInputRuntimeReferences(BattleAiScoreInput scoreInput)
     {
         if (scoreInput == null)
             return;
-        DisposeCommand(scoreInput.command);
-        DisposePreview(scoreInput.preview);
+        ClearCommandRuntimeReferences(scoreInput.command);
+        ClearPreviewRuntimeReferences(scoreInput.preview);
         scoreInput.command = null;
         scoreInput.preview = null;
     }
 
-    private static void DisposeCommand(BattleCommand command)
+    private static void ClearCommandRuntimeReferences(BattleCommand command)
     {
         if (command == null)
             return;
         command.equipment_instance = null;
     }
 
-    private static void DisposePreview(BattlePreview preview)
+    private static void ClearPreviewRuntimeReferences(BattlePreview preview)
     {
         if (preview == null)
             return;

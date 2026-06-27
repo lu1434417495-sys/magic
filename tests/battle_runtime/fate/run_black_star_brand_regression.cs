@@ -30,8 +30,8 @@ public partial class run_black_star_brand_regression : SceneTree
     private void TestBlackStarBrandFirstCastFreeThenCostsCalamity()
     {
         BattleRuntimeModule runtime = BuildRuntime();
-        SkillDef blackStarBrand = GetSkill(runtime.GetSkillDefIndexTyped(), BLACK_STAR_BRAND_SKILL_ID);
-        _test.True(blackStarBrand != null, "black_star_brand SkillDef 应能从内容注册表加载。");
+        SkillDefinition blackStarBrand = runtime.GetSkillDefinitionTyped(BLACK_STAR_BRAND_SKILL_ID);
+        _test.True(blackStarBrand != null, "black_star_brand 定义应能从内容注册表加载。");
         if (blackStarBrand == null)
         {
             runtime.dispose();
@@ -139,7 +139,9 @@ public partial class run_black_star_brand_regression : SceneTree
     private void TestBlackStarBrandEliteTargetUsesEliteOnlyDebuffs()
     {
         BattleRuntimeModule runtime = BuildRuntime();
-        SkillDef heavyStrike = GetSkill(runtime.GetSkillDefIndexTyped(), WARRIOR_HEAVY_STRIKE_SKILL_ID);
+        SkillDefinition heavyStrike = runtime.GetSkillDefinitionTyped(
+            WARRIOR_HEAVY_STRIKE_SKILL_ID
+        );
         _test.True(heavyStrike != null, "elite case 前置：warrior_heavy_strike 定义应存在。");
         if (heavyStrike == null)
         {
@@ -194,11 +196,11 @@ public partial class run_black_star_brand_regression : SceneTree
 
         GDictionary firstHitResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime
             .GetDamageResolver()
-            .ResolveEffects(caster, elite, new GArray { BuildDamageEffect() }));
+            .ResolveEffects(caster, elite, new[] { BuildDamageEffect() }));
         GDictionary firstEvent = ExtractFirstDamageEvent(firstHitResult);
         GDictionary secondHitResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime
             .GetDamageResolver()
-            .ResolveEffects(caster, elite, new GArray { BuildDamageEffect() }));
+            .ResolveEffects(caster, elite, new[] { BuildDamageEffect() }));
         _test.True(
             ReadInt(firstHitResult, "damage") > ReadInt(secondHitResult, "damage"),
             $"elite 黑星烙印的第一次受击应比后续同条件受击承受更高伤害。 first={firstHitResult} second={secondHitResult}"
@@ -220,7 +222,7 @@ public partial class run_black_star_brand_regression : SceneTree
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            registry.GetSkillDefsTyped(),
+            registry.GetSkillDefinitionsTyped(),
             new Dictionary<StringName, EnemyTemplateDef>(),
             new Dictionary<StringName, EnemyAiBrainDef>()
         );
@@ -317,14 +319,12 @@ public partial class run_black_star_brand_regression : SceneTree
         return command;
     }
 
-    private CombatEffectDef BuildDamageEffect()
-    {
-        var effect = new CombatEffectDef();
-        effect.effect_type = "damage";
-        effect.damage_tag = "physical_slash";
-        effect.power = 12;
-        return effect;
-    }
+    private CombatEffectDefinition BuildDamageEffect() =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            damageTag: "physical_slash",
+            power: 12
+        );
 
     private void SetStatus(
         BattleUnitState unitState,
@@ -375,10 +375,4 @@ public partial class run_black_star_brand_regression : SceneTree
         return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
     }
 
-    private static SkillDef GetSkill(IReadOnlyDictionary<StringName, SkillDef> skillDefs, StringName skillId)
-    {
-        if (skillDefs == null || !skillDefs.TryGetValue(skillId, out SkillDef skillDef))
-            return null;
-        return skillDef;
-    }
 }

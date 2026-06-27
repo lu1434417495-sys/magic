@@ -107,37 +107,37 @@ internal static class BattleTemporalStatusService
             || normalized == BattleStatusSemanticTable.STATUS_TIME_SLOW;
     }
 
-    internal static bool IsTemporalReleaseEffect(CombatEffectDef effectDef)
+    internal static bool IsTemporalReleaseEffect(CombatEffectDefinition effectDefinition)
     {
-        return effectDef != null
-            && effectDef.EffectKind == BattleEffectKind.EraseStatus
-            && effectDef.HasEffectTagTyped(TemporalStatusTag)
-            && IsTemporalReleaseTargetStatusId(effectDef.status_id);
+        return effectDefinition != null
+            && effectDefinition.EffectKind == BattleEffectKind.EraseStatus
+            && HasEffectTag(effectDefinition, TemporalStatusTag)
+            && IsTemporalReleaseTargetStatusId(effectDefinition.StatusId);
     }
 
-    internal static bool IsTemporalReleaseSkill(SkillDef skillDef)
+    internal static bool IsTemporalReleaseSkill(SkillDefinition skillDefinition)
     {
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (combatProfile == null)
         {
             return false;
         }
-        foreach (CombatEffectDef effectDef in combatProfile.effect_defs)
+        foreach (CombatEffectDefinition effectDefinition in combatProfile.EffectDefinitions)
         {
-            if (IsTemporalReleaseEffect(effectDef))
+            if (IsTemporalReleaseEffect(effectDefinition))
             {
                 return true;
             }
         }
-        foreach (CombatCastVariantDef castVariant in combatProfile.cast_variants)
+        foreach (CombatCastVariantDefinition castVariant in combatProfile.CastVariants)
         {
-            if (castVariant?.effect_defs == null)
+            if (castVariant?.EffectDefinitions == null)
             {
                 continue;
             }
-            foreach (CombatEffectDef effectDef in castVariant.effect_defs)
+            foreach (CombatEffectDefinition effectDefinition in castVariant.EffectDefinitions)
             {
-                if (IsTemporalReleaseEffect(effectDef))
+                if (IsTemporalReleaseEffect(effectDefinition))
                 {
                     return true;
                 }
@@ -146,13 +146,29 @@ internal static class BattleTemporalStatusService
         return false;
     }
 
-    internal static bool CanTargetTimeStasis(BattleUnitState targetUnit, SkillDef skillDef)
+    internal static bool CanTargetTimeStasis(BattleUnitState targetUnit, SkillDefinition skillDefinition)
     {
         if (!HasTimeStasis(targetUnit))
         {
             return true;
         }
-        return IsTemporalReleaseSkill(skillDef);
+        return IsTemporalReleaseSkill(skillDefinition);
+    }
+
+    private static bool HasEffectTag(CombatEffectDefinition effectDefinition, StringName expectedTag)
+    {
+        if (effectDefinition?.EffectTags == null || expectedTag == "")
+        {
+            return false;
+        }
+        foreach (StringName tag in effectDefinition.EffectTags)
+        {
+            if (tag == expectedTag)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     // elite / boss 不获得 time_stasis；失败结果降级为 time_slow。
@@ -175,15 +191,17 @@ internal static class BattleTemporalStatusService
     internal static List<StringName> ApplyTemporalReleaseEffects(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        CombatEffectDef effectDef
+        CombatEffectDefinition effectDefinition
     )
     {
         var removedStatusIds = new List<StringName>();
-        if (targetUnit == null || !IsTemporalReleaseEffect(effectDef))
+        if (targetUnit == null || !IsTemporalReleaseEffect(effectDefinition))
         {
             return removedStatusIds;
         }
-        StringName releaseStatusId = ProgressionDataUtils.to_string_name(effectDef.status_id);
+        StringName releaseStatusId = ProgressionDataUtils.to_string_name(
+            effectDefinition.StatusId
+        );
         if (!targetUnit.HasStatusEffect(releaseStatusId))
         {
             return removedStatusIds;

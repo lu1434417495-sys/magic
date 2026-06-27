@@ -1,5 +1,6 @@
 using Godot;
 using Godot.Collections;
+using System.Collections.Generic;
 
 public partial class FixedFailedSaveDamageResolver : FixedRollDamageResolver
 {
@@ -10,32 +11,20 @@ public partial class FixedFailedSaveDamageResolver : FixedRollDamageResolver
 
     internal new BattleFateEventBus GetFateEventBus() => base.GetFateEventBus();
 
-    internal override AttackEffectResolutionResult ResolveAttackEffects(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        Godot.Collections.Array effect_defs,
-        AttackCheckInput attack_check,
-        AttackContext attack_context = null
-    )
-    {
-        return base.ResolveAttackEffects(
-            source_unit,
-            target_unit,
-            effect_defs,
-            attack_check,
-            attack_context
-        );
-    }
-
     internal override AttackEffectResolutionResult ResolveEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        Godot.Collections.Array effect_defs,
-        Dictionary damage_context = null
+        IEnumerable<CombatEffectDefinition> effect_definitions,
+        DamageResolutionContext damage_context
     )
     {
-        Dictionary fixedContext = damage_context?.Duplicate(true) ?? new Dictionary();
+        Dictionary fixedContext = damage_context?.RawContext?.Duplicate(true) ?? new Dictionary();
         fixedContext["save_roll_override"] = 1;
-        return base.ResolveEffects(source_unit, target_unit, effect_defs, fixedContext);
+        return base.ResolveEffects(
+            source_unit,
+            target_unit,
+            effect_definitions,
+            DamageResolutionContext.FromDictionary(fixedContext)
+        );
     }
 }

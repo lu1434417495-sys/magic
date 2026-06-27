@@ -5,7 +5,6 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 internal enum BattleWeaponProfileKind
 {
@@ -2460,19 +2459,9 @@ public partial class BattleUnitState
         return result;
     }
 
-    private static GVector2IArray ProjectVector2IArray(IEnumerable<Vector2I> source)
-    {
-        GVector2IArray result = new();
-        if (source == null)
-        {
-            return result;
-        }
-        foreach (Vector2I coordValue in source)
-        {
-            result.Add(coordValue);
-        }
-        return result;
-    }
+    private static Godot.Collections.Array<Vector2I> ProjectVector2IArray(
+        IEnumerable<Vector2I> source
+    ) => new Vector2IList(source ?? System.Array.Empty<Vector2I>()).ToGodotArray();
 
     private static AttributeSnapshot DuplicateAttributeSnapshot(AttributeSnapshot source)
     {

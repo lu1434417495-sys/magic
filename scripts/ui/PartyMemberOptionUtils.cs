@@ -17,11 +17,17 @@ public static class PartyMemberOptionUtils
     public static GDictionaryArray BuildMemberOptions(GDictionary window_data)
     {
         if (window_data != null && window_data.ContainsKey("member_options"))
-            return _build_explicit_member_options(DictArray(window_data, "member_options"));
+            return MarkOptionsFinalizerless(
+                _build_explicit_member_options(DictArray(window_data, "member_options")),
+                "PartyMemberOptionUtils.BuildMemberOptions.explicit"
+            );
 
         PartyState partyState = GetPartyState(window_data);
         if (partyState == null)
-            return new GDictionaryArray();
+            return MarkOptionsFinalizerless(
+                new GDictionaryArray(),
+                "PartyMemberOptionUtils.BuildMemberOptions.empty"
+            );
 
         var optionsFromParty = new GDictionaryArray();
         var seenIds = new GDictionary();
@@ -41,14 +47,20 @@ public static class PartyMemberOptionUtils
                 ProgressionDataUtils.to_string_name(memberId),
                 "替补"
             );
-        return optionsFromParty;
+        return MarkOptionsFinalizerless(
+            optionsFromParty,
+            "PartyMemberOptionUtils.BuildMemberOptions.party"
+        );
     }
 
     public static GDictionary BuildMemberVariantMap(GDictionaryArray options)
     {
         var memberMap = new GDictionary();
         if (options == null)
-            return memberMap;
+            return MarkDictionaryFinalizerless(
+                memberMap,
+                "PartyMemberOptionUtils.BuildMemberVariantMap.empty"
+            );
 
         foreach (GDictionary option in options)
         {
@@ -58,7 +70,10 @@ public static class PartyMemberOptionUtils
             if (memberId != "")
                 memberMap[memberId] = option;
         }
-        return memberMap;
+        return MarkDictionaryFinalizerless(
+            memberMap,
+            "PartyMemberOptionUtils.BuildMemberVariantMap"
+        );
     }
 
     public static string BuildMemberVariantLabel(GDictionary member_option)
@@ -185,6 +200,21 @@ public static class PartyMemberOptionUtils
             options.Add(option);
         }
         return options;
+    }
+
+    private static GDictionaryArray MarkOptionsFinalizerless(
+        GDictionaryArray options,
+        string reason
+    )
+    {
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(options, reason);
+        return options;
+    }
+
+    private static GDictionary MarkDictionaryFinalizerless(GDictionary dictionary, string reason)
+    {
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(dictionary, reason);
+        return dictionary;
     }
 
     private static bool DictHas(GDictionary dict, StringName key)

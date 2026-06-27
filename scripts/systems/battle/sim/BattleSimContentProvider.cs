@@ -15,9 +15,9 @@ public sealed class BattleSimContentProvider : IDisposable
         _enemy_content_registry = null;
     }
 
-    internal IReadOnlyDictionary<StringName, SkillDef> GetSkillDefsTyped()
+    internal IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionsTyped()
     {
-        return _progression_content_registry.GetSkillDefsTyped();
+        return _progression_content_registry.GetSkillDefinitionsTyped();
     }
 
     internal IReadOnlyDictionary<StringName, EnemyTemplateDef> GetEnemyTemplatesTyped()

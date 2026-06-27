@@ -147,11 +147,11 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
         };
         runtime._character_management.setup(
             partyState,
-            BuildSkillDefs(),
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary()
+            BuildSkillDefinitions(),
+            new Dictionary<StringName, ProfessionDef>(),
+            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ItemDef>(),
+            new Dictionary<StringName, QuestDef>()
         );
         runtime._settlement_command_handler.SetupRuntime(runtime);
         runtime._warehouse_handler.Setup(runtime);
@@ -197,34 +197,55 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
         return partyState;
     }
 
-    private static GDictionary BuildSkillDefs()
+    private static Dictionary<StringName, SkillDefinition> BuildSkillDefinitions()
     {
-        GDictionary result = TestResourceOwnership.OwnWrapper(
-            new GDictionary(),
-            "game_runtime_reward_flow.skill_defs"
+        return new Dictionary<StringName, SkillDefinition>
+        {
+            ["field_manual"] = BuildSkillDefinition("field_manual", "野外手册", "knowledge"),
+            ["skill_reward_a"] = BuildSkillDefinition("skill_reward_a", "A", ""),
+            ["skill_reward_b"] = BuildSkillDefinition("skill_reward_b", "B", ""),
+            ["skill_reward_c"] = BuildSkillDefinition("skill_reward_c", "C", ""),
+        };
+    }
+
+    private static SkillDefinition BuildSkillDefinition(
+        StringName skillId,
+        string displayName,
+        StringName skillType
+    )
+    {
+        return new SkillDefinition(
+            skillId,
+            displayName,
+            "",
+            "",
+            skillType,
+            1,
+            1,
+            "",
+            0,
+            0,
+            System.Array.Empty<int>(),
+            System.Array.Empty<StringName>(),
+            "",
+            System.Array.Empty<StringName>(),
+            "",
+            System.Array.Empty<StringName>(),
+            new Dictionary<StringName, int>(),
+            new Dictionary<StringName, int>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            false,
+            "",
+            System.Array.Empty<StringName>(),
+            "",
+            new Dictionary<StringName, int>(),
+            "",
+            System.Array.Empty<AttributeModifierDefinition>(),
+            "",
+            new Dictionary<int, IReadOnlyDictionary<string, Variant>>(),
+            null
         );
-        result["field_manual"] = TestResourceOwnership.Own(
-            new SkillDef
-            {
-                skill_id = "field_manual",
-                display_name = "野外手册",
-                skill_type = "knowledge",
-            },
-            "game_runtime_reward_flow.field_manual"
-        );
-        result["skill_reward_a"] = TestResourceOwnership.Own(
-            new SkillDef { skill_id = "skill_reward_a", display_name = "A" },
-            "game_runtime_reward_flow.skill_reward_a"
-        );
-        result["skill_reward_b"] = TestResourceOwnership.Own(
-            new SkillDef { skill_id = "skill_reward_b", display_name = "B" },
-            "game_runtime_reward_flow.skill_reward_b"
-        );
-        result["skill_reward_c"] = TestResourceOwnership.Own(
-            new SkillDef { skill_id = "skill_reward_c", display_name = "C" },
-            "game_runtime_reward_flow.skill_reward_c"
-        );
-        return result;
     }
 
     private static PendingCharacterReward BuildReward(string rewardId)

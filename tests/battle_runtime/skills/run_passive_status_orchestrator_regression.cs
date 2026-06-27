@@ -39,7 +39,7 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
         CharacterManagementModule gateway = new();
         gateway.setup(
             partyState,
-            registry.GetSkillDefsTyped(),
+            registry.GetSkillDefinitionsTyped(),
             registry.GetProfessionDefsTyped(),
             new Dictionary<StringName, AchievementDef>(),
             new Dictionary<StringName, ItemDef>(),
@@ -50,7 +50,7 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
         );
 
         BattleRuntimeModule runtime = new();
-        runtime.setup(gateway, registry.GetSkillDefsTyped(), null, null);
+        runtime.setup(gateway, registry.GetSkillDefinitionsTyped(), null, null);
         var units = runtime._unit_factory.BuildAllyUnits(
             partyState,
             new GDictionary()
@@ -87,7 +87,11 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
             subrace_def = MakeSubraceDef(),
         };
 
-        PassiveStatusOrchestrator.ApplyToUnit(unit, context, new Dictionary<StringName, SkillDef>());
+        PassiveStatusOrchestrator.ApplyToUnit(
+            unit,
+            context,
+            new Dictionary<StringName, SkillDefinition>()
+        );
 
         _test.True(unit.vision_tags.Contains("darkvision"), "race vision tag should be projected.");
         _test.True(
@@ -121,7 +125,11 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
             ascension_def = MakeAscensionDef(true),
         };
 
-        PassiveStatusOrchestrator.ApplyToUnit(unit, context, new Dictionary<StringName, SkillDef>());
+        PassiveStatusOrchestrator.ApplyToUnit(
+            unit,
+            context,
+            new Dictionary<StringName, SkillDefinition>()
+        );
 
         _test.False(
             unit.per_battle_charges.ContainsKey("racial_skill_dragon_breath_test"),
@@ -166,7 +174,11 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
         };
         context.unit_progress.SetProfessionProgress(professionProgress);
 
-        PassiveStatusOrchestrator.ApplyToUnit(unit, context, registry.GetSkillDefsTyped());
+        PassiveStatusOrchestrator.ApplyToUnit(
+            unit,
+            context,
+            registry.GetSkillDefinitionsTyped()
+        );
 
         BattleStatusEffectState status = unit.GetStatusEffect("archer_shooting_specialization");
         _test.True(status != null, "shooting specialization should project a battle status.");
@@ -189,7 +201,7 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
             );
         }
 
-        SkillDef weaponSkill = MakeWeaponRangeSkill();
+        SkillDefinition weaponSkill = MakeWeaponRangeSkill();
         unit.ApplyWeaponProjectionTyped(
             new WeaponProjection
             {
@@ -254,25 +266,24 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
         };
     }
 
-    private static SkillDef MakeWeaponRangeSkill()
+    private static SkillDefinition MakeWeaponRangeSkill()
     {
-        SkillDef skill = new()
-        {
-            skill_id = "test_weapon_range_skill",
-            skill_type = "active",
-            tags = new Godot.Collections.Array<StringName> { "archer", "ranged", "bow" },
-        };
-        CombatSkillDef combatProfile = new()
-        {
-            skill_id = skill.skill_id,
-            target_mode = "unit",
-            target_team_filter = "enemy",
-            target_selection_mode = "single_unit",
-            selection_order_mode = "stable",
-            range_value = 1,
-        };
-        skill.combat_profile = combatProfile;
-        return skill;
+        return TestSkillDefinitionProjection.BuildSkill(
+            "test_weapon_range_skill",
+            tags: new[]
+            {
+                new StringName("archer"),
+                new StringName("ranged"),
+                new StringName("bow"),
+            },
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                "test_weapon_range_skill",
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                targetSelectionMode: "single_unit",
+                rangeValue: 1
+            )
+        );
     }
 
     private static RaceDef MakeRaceDef()

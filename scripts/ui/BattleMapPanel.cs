@@ -91,11 +91,12 @@ public partial class BattleMapPanel : Control
     private GStringNameArray _pending_selected_skill_target_unit_ids = new();
     private StringName _pending_selected_skill_variant_id = "";
 
-    private GDictionary _battle_equipment_snapshot = new();
+    private Dictionary<string, object> _battleEquipmentSnapshot = new(StringComparer.Ordinal);
     private string _battle_equipment_feedback_text = "";
     private StringName _selected_backpack_instance_id = "";
     private StringName _selected_backpack_slot_id = "";
-    private readonly List<GDictionary> _battle_equipment_backpack_entries_by_index = new();
+    private readonly List<Dictionary<string, object>> _battleEquipmentBackpackEntriesByIndex =
+        new();
     private readonly List<StringName> _battle_equipment_slot_ids_by_index = new();
     private Button _battle_equipment_button;
     private Control _battle_equipment_overlay;
@@ -229,7 +230,7 @@ public partial class BattleMapPanel : Control
         _hud_adapter.SetupRuntimeContext(null, null);
         _hud_adapter.Dispose();
         _skill_icon_cache.Clear();
-        _battle_equipment_backpack_entries_by_index.Clear();
+        _battleEquipmentBackpackEntriesByIndex.Clear();
         _battle_equipment_slot_ids_by_index.Clear();
         ClearDynamicNodeRefs();
         GC.SuppressFinalize(this);
@@ -1067,7 +1068,8 @@ public partial class BattleMapPanel : Control
 
     private void _set_placeholder_state()
     {
-        _battle_equipment_snapshot.Clear();
+        _battleEquipmentSnapshot.Clear();
+        _battleEquipmentBackpackEntriesByIndex.Clear();
         _battle_equipment_feedback_text = "";
         _selected_backpack_instance_id = "";
         _selected_backpack_slot_id = "";
@@ -1098,10 +1100,13 @@ public partial class BattleMapPanel : Control
     public void _apply_snapshot(GDictionary snapshot)
     {
         GDictionary equipmentSnapshot = DictDictionary(snapshot, "equipment_panel");
-        _battle_equipment_snapshot =
+        _battleEquipmentSnapshot =
             equipmentSnapshot.Count > 0
-                ? (GDictionary)equipmentSnapshot.Duplicate(true)
-                : new GDictionary();
+                ? RuntimePlainPayload.NormalizeDictionary(
+                    equipmentSnapshot,
+                    "BattleMapPanel.equipment_panel"
+                )
+                : new Dictionary<string, object>(StringComparer.Ordinal);
         header_title_label.Text = DictString(snapshot, "header_title", "战斗地图");
         GDictionary roundBadge = DictDictionary(snapshot, "round_badge");
         tu_label.Text = DictString(roundBadge, "tu_text", "TU --");
@@ -1536,7 +1541,7 @@ public partial class BattleMapPanel : Control
     {
         if (_battle_equipment_overlay == null)
             return;
-        if (_battle_equipment_snapshot.Count == 0)
+        if (_battleEquipmentSnapshot.Count == 0)
             return;
         _battle_equipment_feedback_text = "";
         _battle_equipment_overlay.Visible = true;
@@ -1554,7 +1559,7 @@ public partial class BattleMapPanel : Control
     {
         if (_battle_equipment_button != null)
         {
-            bool hasSnapshot = _battle_equipment_snapshot.Count > 0;
+            bool hasSnapshot = _battleEquipmentSnapshot.Count > 0;
             _battle_equipment_button.Disabled = !hasSnapshot;
             _battle_equipment_button.TooltipText = hasSnapshot
                 ? "打开队伍共享背包（战斗局部）；战中不访问据点共享仓库。"
@@ -1563,19 +1568,22 @@ public partial class BattleMapPanel : Control
         if (_battle_equipment_overlay == null || !_battle_equipment_overlay.Visible)
             return;
 
+        GDictionary battleEquipmentSnapshot = _battle_equipment_snapshot_payload(
+            "BattleMapPanel.refresh_battle_equipment_ui"
+        );
         string disabledReason = _get_battle_equipment_panel_disabled_reason();
         _battle_equipment_title_label.Text = DictString(
-            _battle_equipment_snapshot,
+            battleEquipmentSnapshot,
             "title",
             "队伍共享背包（战斗局部）"
         );
         _battle_equipment_meta_label.Text = DictString(
-            _battle_equipment_snapshot,
+            battleEquipmentSnapshot,
             "meta",
             "战中不展示或访问据点共享仓库入口。"
         );
         _battle_equipment_summary_label.Text = DictString(
-            _battle_equipment_snapshot,
+            battleEquipmentSnapshot,
             "summary_text",
             ""
         );
@@ -1591,13 +1599,19 @@ public partial class BattleMapPanel : Control
         _refresh_battle_equipment_backpack_details();
     }
 
+    private GDictionary _battle_equipment_snapshot_payload(string reason) =>
+        RuntimePlainPayload.ProjectDictionary(_battleEquipmentSnapshot, reason);
+
     private string _get_battle_equipment_panel_disabled_reason()
     {
-        if (_battle_equipment_snapshot.Count == 0)
+        if (_battleEquipmentSnapshot.Count == 0)
             return "战斗装备数据尚未就绪。";
-        if (DictBool(_battle_equipment_snapshot, "can_change_equipment", false))
+        GDictionary battleEquipmentSnapshot = _battle_equipment_snapshot_payload(
+            "BattleMapPanel.get_battle_equipment_panel_disabled_reason"
+        );
+        if (DictBool(battleEquipmentSnapshot, "can_change_equipment", false))
             return "";
-        return DictString(_battle_equipment_snapshot, "disabled_reason", "当前不能换装。");
+        return DictString(battleEquipmentSnapshot, "disabled_reason", "当前不能换装。");
     }
 
     private void _rebuild_battle_equipment_slot_rows()
@@ -1605,7 +1619,10 @@ public partial class BattleMapPanel : Control
         if (_battle_equipment_slot_list == null)
             return;
         _clear_container(_battle_equipment_slot_list);
-        GArray slots = DictArray(_battle_equipment_snapshot, "slots");
+        GDictionary battleEquipmentSnapshot = _battle_equipment_snapshot_payload(
+            "BattleMapPanel.rebuild_battle_equipment_slot_rows"
+        );
+        GArray slots = DictArray(battleEquipmentSnapshot, "slots");
         if (slots.Count == 0)
         {
             var emptyLabel = new Label
@@ -1719,8 +1736,11 @@ public partial class BattleMapPanel : Control
             return;
         StringName previousSelection = _selected_backpack_instance_id;
         _battle_equipment_backpack_list.Clear();
-        _battle_equipment_backpack_entries_by_index.Clear();
-        GArray entries = DictArray(_battle_equipment_snapshot, "backpack_entries");
+        _battleEquipmentBackpackEntriesByIndex.Clear();
+        GDictionary battleEquipmentSnapshot = _battle_equipment_snapshot_payload(
+            "BattleMapPanel.rebuild_battle_equipment_backpack_list"
+        );
+        GArray entries = DictArray(battleEquipmentSnapshot, "backpack_entries");
         if (entries.Count == 0)
         {
             _battle_equipment_backpack_list.AddItem(BATTLE_EQUIPMENT_EMPTY_TEXT);
@@ -1737,7 +1757,12 @@ public partial class BattleMapPanel : Control
             int itemIndex = _battle_equipment_backpack_list.AddItem(
                 $"{DictString(entry, "display_name", "")}  ·  {itemStatus}"
             );
-            _battle_equipment_backpack_entries_by_index.Add(entry.Duplicate(true));
+            _battleEquipmentBackpackEntriesByIndex.Add(
+                RuntimePlainPayload.NormalizeDictionary(
+                    entry,
+                    "BattleMapPanel.backpack_entries_by_index"
+                )
+            );
             _battle_equipment_backpack_list.SetItemTooltipEnabled(itemIndex, true);
             _battle_equipment_backpack_list.SetItemTooltip(
                 itemIndex,
@@ -1909,10 +1934,13 @@ public partial class BattleMapPanel : Control
             _battle_equipment_backpack_list == null
             || index < 0
             || index >= _battle_equipment_backpack_list.ItemCount
-            || index >= _battle_equipment_backpack_entries_by_index.Count
+            || index >= _battleEquipmentBackpackEntriesByIndex.Count
         )
             return new GDictionary();
-        return _battle_equipment_backpack_entries_by_index[index].Duplicate(true);
+        return RuntimePlainPayload.ProjectDictionary(
+            _battleEquipmentBackpackEntriesByIndex[index],
+            "BattleMapPanel.get_backpack_entry_at_index"
+        );
     }
 
     public void _on_battle_equipment_equip_pressed()
@@ -1929,7 +1957,10 @@ public partial class BattleMapPanel : Control
             _set_battle_equipment_feedback(disabledReason);
             return;
         }
-        StringName activeUnitId = new(DictString(_battle_equipment_snapshot, "active_unit_id", ""));
+        GDictionary battleEquipmentSnapshot = _battle_equipment_snapshot_payload(
+            "BattleMapPanel.battle_equipment_equip_pressed"
+        );
+        StringName activeUnitId = new(DictString(battleEquipmentSnapshot, "active_unit_id", ""));
         if (StringNameIsEmpty(activeUnitId))
         {
             _set_battle_equipment_feedback("当前没有可换装单位。");
@@ -1964,7 +1995,10 @@ public partial class BattleMapPanel : Control
             _set_battle_equipment_feedback(panelDisabledReason);
             return;
         }
-        StringName activeUnitId = new(DictString(_battle_equipment_snapshot, "active_unit_id", ""));
+        GDictionary battleEquipmentSnapshot = _battle_equipment_snapshot_payload(
+            "BattleMapPanel.battle_equipment_unequip_pressed"
+        );
+        StringName activeUnitId = new(DictString(battleEquipmentSnapshot, "active_unit_id", ""));
         if (StringNameIsEmpty(activeUnitId))
         {
             _set_battle_equipment_feedback("当前没有可换装单位。");
@@ -2658,24 +2692,10 @@ public partial class BattleMapPanel : Control
     }
 
     private static GVector2IArray CloneVector2IArray(GVector2IArray source)
-    {
-        var result = new GVector2IArray();
-        if (source == null)
-            return result;
-        foreach (Vector2I coord in source)
-            result.Add(coord);
-        return result;
-    }
+        => new Vector2IList(source).ToGodotArray();
 
     private static GStringNameArray CloneStringNameArray(GStringNameArray source)
-    {
-        var result = new GStringNameArray();
-        if (source == null)
-            return result;
-        foreach (StringName id in source)
-            result.Add(id);
-        return result;
-    }
+        => new StringNameList(source).ToGodotArray();
 
     private static StringName NormalizeStringName(StringName value) => value ?? new StringName("");
 

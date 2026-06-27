@@ -11,8 +11,8 @@ public sealed class PartyContingencySetupService
 
     private PartyState _partyState = new();
     private PartyWarehouseService _warehouseService;
-    private IReadOnlyDictionary<StringName, SkillDef> _skillDefs =
-        new Dictionary<StringName, SkillDef>();
+    private IReadOnlyDictionary<StringName, SkillDefinition> _skillDefinitions =
+        new Dictionary<StringName, SkillDefinition>();
     private Func<StringName, AttributeSnapshot> _attributeSnapshotProvider;
     private Func<bool> _battleMutationBlockedProvider;
 
@@ -21,14 +21,14 @@ public sealed class PartyContingencySetupService
     public void Setup(
         PartyState partyState,
         PartyWarehouseService warehouseService,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         Func<StringName, AttributeSnapshot> attributeSnapshotProvider,
         Func<bool> battleMutationBlockedProvider
     )
     {
         _partyState = partyState ?? new PartyState();
         _warehouseService = warehouseService;
-        _skillDefs = skillDefs ?? new Dictionary<StringName, SkillDef>();
+        _skillDefinitions = skillDefinitions ?? new Dictionary<StringName, SkillDefinition>();
         _attributeSnapshotProvider = attributeSnapshotProvider;
         _battleMutationBlockedProvider = battleMutationBlockedProvider;
     }
@@ -222,7 +222,7 @@ public sealed class PartyContingencySetupService
         PartyState candidateParty = _partyState?.DuplicateState() ?? new PartyState();
         candidateParty.SetMemberState(candidateMember);
         return ContingencyContentValidator
-            .ValidateAllSetupsForSaveLoad(candidateParty, _skillDefs)
+            .ValidateAllSetupsForSaveLoad(candidateParty, _skillDefinitions)
             .Count == 0;
     }
 

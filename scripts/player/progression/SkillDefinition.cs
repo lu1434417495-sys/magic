@@ -45,7 +45,8 @@ public sealed class SkillDefinition
         IReadOnlyList<AttributeModifierDefinition> attributeModifiers,
         string levelDescriptionTemplate,
         IReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>> levelDescriptionConfigs,
-        CombatSkillDefinition combatProfile
+        CombatSkillDefinition combatProfile,
+        ContingencyAutomationDefinition contingencyAutomationProfile = null
     )
     {
         SkillId = skillId;
@@ -78,6 +79,7 @@ public sealed class SkillDefinition
         LevelDescriptionTemplate = levelDescriptionTemplate ?? "";
         LevelDescriptionConfigs = levelDescriptionConfigs ?? EmptyLevelDescriptionConfigs;
         CombatProfile = combatProfile;
+        ContingencyAutomationProfile = contingencyAutomationProfile;
     }
 
     public StringName SkillId { get; }
@@ -110,9 +112,60 @@ public sealed class SkillDefinition
     public string LevelDescriptionTemplate { get; }
     public IReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>> LevelDescriptionConfigs { get; }
     public CombatSkillDefinition CombatProfile { get; }
-    internal SkillTypeKind SkillTypeKind => SkillDef.ToSkillType(SkillType);
+    public ContingencyAutomationDefinition ContingencyAutomationProfile { get; }
+    internal SkillTypeKind SkillTypeKind => SkillContentRules.ToSkillType(SkillType);
+    internal SkillLearnSourceKind LearnSourceKind => SkillContentRules.ToLearnSource(LearnSource);
+    internal SkillUnlockMode UnlockModeKind => SkillContentRules.ToUnlockMode(UnlockMode);
+    internal CoreSkillTransitionMode CoreSkillTransitionModeKind =>
+        SkillContentRules.ToCoreSkillTransitionMode(CoreSkillTransitionMode);
+    internal SkillPracticeTierKind PracticeTierKind =>
+        SkillContentRules.ToPracticeTier(PracticeTier);
 
     public bool CanUseInCombat() => CombatProfile != null;
+
+    internal SkillDefinition WithCombatProfile(CombatSkillDefinition combatProfile) =>
+        new(
+            SkillId,
+            DisplayName,
+            IconId,
+            Description,
+            SkillType,
+            MaxLevel,
+            NonCoreMaxLevel,
+            DynamicMaxLevelStatId,
+            DynamicMaxLevelBase,
+            DynamicMaxLevelPerStat,
+            MasteryCurve,
+            Tags,
+            LearnSource,
+            LearnRequirements,
+            UnlockMode,
+            KnowledgeRequirements,
+            SkillLevelRequirements,
+            AttributeRequirements,
+            AchievementRequirements,
+            UpgradeSourceSkillIds,
+            RetainSourceSkillsOnUnlock,
+            CoreSkillTransitionMode,
+            MasterySources,
+            GrowthTier,
+            AttributeGrowthProgress,
+            PracticeTier,
+            AttributeModifiers,
+            LevelDescriptionTemplate,
+            LevelDescriptionConfigs,
+            combatProfile,
+            ContingencyAutomationProfile
+        );
+
+    internal static SkillPracticeTierKind ToPracticeTier(StringName value) =>
+        SkillContentRules.ToPracticeTier(value);
+
+    internal static StringName ToPracticeTierName(SkillPracticeTierKind value) =>
+        SkillContentRules.ToStringName(value);
+
+    internal static SkillLearnSourceKind ToLearnSource(StringName value) =>
+        SkillContentRules.ToLearnSource(value);
 
     public int GetMasteryRequiredForLevel(int level)
     {
@@ -173,7 +226,8 @@ public sealed class SkillDefinition
             ProjectAttributeModifiers(source.AttributeModifiersTyped),
             source.level_description_template,
             CopyLevelConfigMap(source.LevelDescriptionConfigsTyped),
-            CombatSkillDefinition.FromResource(source.combat_profile)
+            CombatSkillDefinition.FromResource(source.combat_profile),
+            ContingencyAutomationDefinition.FromResource(source.contingency_automation_profile)
         );
     }
 
@@ -312,6 +366,114 @@ public sealed class AttributeModifierDefinition
                 source.source_type,
                 source.source_id
             );
+    }
+}
+
+public sealed class ContingencyAutomationDefinition
+{
+    private static readonly IReadOnlyList<StringName> EmptyStringNames =
+        System.Array.Empty<StringName>();
+    private static readonly IReadOnlyDictionary<string, Variant> EmptyBindings =
+        new ReadOnlyDictionary<string, Variant>(new Dictionary<string, Variant>());
+
+    public ContingencyAutomationDefinition(
+        bool canBeStoredInContingency,
+        int minContingencySkillLevel,
+        StringName effectCategory,
+        IReadOnlyList<StringName> tags,
+        int contingencyLoadOverride,
+        IReadOnlyList<StringName> allowedTargetResolvers,
+        bool requiresManualTargeting,
+        IReadOnlyDictionary<string, Variant> allowedParameterBindings
+    )
+    {
+        CanBeStoredInContingency = canBeStoredInContingency;
+        MinContingencySkillLevel = minContingencySkillLevel;
+        EffectCategory = effectCategory;
+        Tags = tags ?? EmptyStringNames;
+        ContingencyLoadOverride = contingencyLoadOverride;
+        AllowedTargetResolvers = allowedTargetResolvers ?? EmptyStringNames;
+        RequiresManualTargeting = requiresManualTargeting;
+        AllowedParameterBindings = allowedParameterBindings ?? EmptyBindings;
+    }
+
+    public bool CanBeStoredInContingency { get; }
+    public int MinContingencySkillLevel { get; }
+    public StringName EffectCategory { get; }
+    public IReadOnlyList<StringName> Tags { get; }
+    public int ContingencyLoadOverride { get; }
+    public IReadOnlyList<StringName> AllowedTargetResolvers { get; }
+    public bool RequiresManualTargeting { get; }
+    public IReadOnlyDictionary<string, Variant> AllowedParameterBindings { get; }
+
+    public bool AllowsTargetResolver(StringName resolver)
+    {
+        if (resolver == "")
+            return false;
+        foreach (StringName allowedResolver in AllowedTargetResolvers)
+            if (allowedResolver == resolver)
+                return true;
+        return false;
+    }
+
+    public bool AllowsParameterBinding(StringName bindingKey)
+    {
+        if (bindingKey == "" || AllowedParameterBindings == null)
+            return false;
+        return AllowedParameterBindings.ContainsKey(bindingKey.ToString());
+    }
+
+    internal static ContingencyAutomationDefinition FromResource(
+        ContingencyAutomationDef source
+    )
+    {
+        if (source == null)
+            return null;
+        return new ContingencyAutomationDefinition(
+            source.can_be_stored_in_contingency,
+            source.min_contingency_skill_level,
+            source.effect_category,
+            CopyStringNameArray(source.tags),
+            source.contingency_load_override,
+            CopyStringNameArray(source.allowed_target_resolvers),
+            source.requires_manual_targeting,
+            CopyBindings(source.allowed_parameter_bindings)
+        );
+    }
+
+    private static IReadOnlyList<StringName> CopyStringNameArray(
+        Godot.Collections.Array<StringName> values
+    )
+    {
+        if (values == null || values.Count == 0)
+            return EmptyStringNames;
+        var result = new List<StringName>(values.Count);
+        foreach (StringName value in values)
+            result.Add(value);
+        return new ReadOnlyCollection<StringName>(result);
+    }
+
+    private static IReadOnlyDictionary<string, Variant> CopyBindings(
+        Godot.Collections.Dictionary source
+    )
+    {
+        if (source == null || source.Count == 0)
+            return EmptyBindings;
+        var result = new Dictionary<string, Variant>();
+        foreach (Variant rawKey in source.Keys)
+        {
+            string key = rawKey.VariantType switch
+            {
+                Variant.Type.String => rawKey.AsString(),
+                Variant.Type.StringName => rawKey.AsStringName().ToString(),
+                _ => "",
+            };
+            if (!string.IsNullOrEmpty(key))
+                result[key] = source[rawKey];
+        }
+        return result.Count > 0
+            ? new ReadOnlyDictionary<string, Variant>(result)
+            : EmptyBindings;
     }
 }
 
@@ -486,6 +648,22 @@ public sealed class CombatSkillDefinition
         BattleTypedNames.ToTargetSelectionMode(TargetSelectionMode);
     internal BattleTargetSelectionOrderMode SelectionOrderModeKind =>
         BattleTypedNames.ToTargetSelectionOrderMode(SelectionOrderMode);
+    internal PendingCastBindingModeKind PendingCastBindingModeKind =>
+        BattleTypedNames.ToPendingCastBindingMode(PendingCastBindingMode);
+    internal CombatSkillMasteryTriggerMode MasteryTriggerModeKind =>
+        BattleTypedNames.ToCombatSkillMasteryTriggerMode(MasteryTriggerMode);
+    internal CombatSkillMasteryAmountMode MasteryAmountModeKind =>
+        BattleTypedNames.ToCombatSkillMasteryAmountMode(MasteryAmountMode);
+    internal CombatSpellFateMode SpellFateModeKind =>
+        CombatSkillContentRules.ToSpellFateMode(SpellFateMode);
+    internal CombatSpellCriticalMode SpellCriticalModeKind =>
+        CombatSkillDef.ToSpellCriticalMode(SpellCriticalMode);
+    internal CombatSkillBacklashMode BacklashModeKind =>
+        CombatSkillContentRules.ToBacklashMode(BacklashMode);
+    internal CombatAreaOriginMode AreaOriginModeKind =>
+        CombatSkillContentRules.ToAreaOriginMode(AreaOriginMode);
+    internal CombatAreaDirectionMode AreaDirectionModeKind =>
+        CombatSkillContentRules.ToAreaDirectionMode(AreaDirectionMode);
 
     public CombatSkillResourceCosts GetEffectiveResourceCostValues(int skillLevel)
     {
@@ -512,6 +690,34 @@ public sealed class CombatSkillDefinition
     public int GetEffectiveAttackRollBonus(int skillLevel) =>
         ReadIntOverride(BuildLevelOverride(skillLevel), "attack_roll_bonus", AttackRollBonus);
 
+    public int GetEffectiveCastingTimeTu(int skillLevel) =>
+        ReadIntOverride(BuildLevelOverride(skillLevel), "casting_time_tu", CastingTimeTu);
+
+    public int GetEffectiveCastingMaintenanceDc(int skillLevel) =>
+        ReadIntOverride(
+            BuildLevelOverride(skillLevel),
+            "casting_maintenance_dc",
+            CastingMaintenanceDc
+        );
+
+    public int GetEffectiveCastingSpellControlDc(int skillLevel) =>
+        ReadIntOverride(
+            BuildLevelOverride(skillLevel),
+            "casting_spell_control_dc",
+            CastingSpellControlDc
+        );
+
+    public PendingCastBindingModeKind GetEffectivePendingCastBindingMode(int skillLevel)
+    {
+        IReadOnlyDictionary<string, Variant> overrides = BuildLevelOverride(skillLevel);
+        return overrides != null
+            && overrides.TryGetValue("pending_cast_binding_mode", out Variant rawValue)
+            ? BattleTypedNames.ToPendingCastBindingMode(
+                ProgressionDataUtils.to_string_name(rawValue)
+            )
+            : PendingCastBindingModeKind;
+    }
+
     public StringName GetEffectiveAreaPattern(int skillLevel)
     {
         IReadOnlyDictionary<string, Variant> overrides = BuildLevelOverride(skillLevel);
@@ -528,6 +734,127 @@ public sealed class CombatSkillDefinition
 
     public int GetEffectiveMaxTargetCount(int skillLevel) =>
         ReadIntOverride(BuildLevelOverride(skillLevel), "max_target_count", MaxTargetCount);
+
+    public bool HasCastingTime(int skillLevel) => GetEffectiveCastingTimeTu(skillLevel) > 0;
+
+    public bool HasSpellFateControl() => SpellFateModeKind == CombatSpellFateMode.ControlRoll;
+
+    internal CombatSkillDefinition WithStaminaCost(int staminaCost) =>
+        new(
+            SkillId,
+            TargetMode,
+            TargetTeamFilter,
+            RangePattern,
+            RangeValue,
+            AreaPattern,
+            AreaValue,
+            RequiresLos,
+            ApCost,
+            MpCost,
+            staminaCost,
+            CooldownTu,
+            CastingTimeTu,
+            CastingMaintenanceDc,
+            CastingSpellControlDc,
+            PendingCastBindingMode,
+            AttackRollBonus,
+            AuraCost,
+            LevelOverrides,
+            MasteryTriggerMode,
+            MasteryAmountMode,
+            SpellFateMode,
+            SpellCriticalMode,
+            SpellCriticalMpRefundPercent,
+            FumbleProtectionCurve,
+            FumbleProtectionExtraMpPercent,
+            BacklashMode,
+            BacklashTargetFilter,
+            BacklashOffsetRadius,
+            AreaOriginMode,
+            AreaDirectionMode,
+            AiTags,
+            DeliveryCategories,
+            SpecialResolutionProfileId,
+            TargetSelectionMode,
+            MinTargetCount,
+            MaxTargetCount,
+            AllowRepeatTarget,
+            MaxHitsPerTarget,
+            SelectionOrderMode,
+            EffectDefinitions,
+            PassiveEffectDefinitions,
+            CastVariants,
+            RequiredWeaponFamilies,
+            ExcludedWeaponFamilies,
+            ExcludedWeaponTypeIds,
+            RequiresEquippedShield,
+            MasteryLowHpBonusMultiplier,
+            MasteryLowHpThresholdPercent
+        );
+
+    internal CombatSkillDefinition WithArea(StringName areaPattern, int areaValue) =>
+        new(
+            SkillId,
+            TargetMode,
+            TargetTeamFilter,
+            RangePattern,
+            RangeValue,
+            areaPattern,
+            areaValue,
+            RequiresLos,
+            ApCost,
+            MpCost,
+            StaminaCost,
+            CooldownTu,
+            CastingTimeTu,
+            CastingMaintenanceDc,
+            CastingSpellControlDc,
+            PendingCastBindingMode,
+            AttackRollBonus,
+            AuraCost,
+            LevelOverrides,
+            MasteryTriggerMode,
+            MasteryAmountMode,
+            SpellFateMode,
+            SpellCriticalMode,
+            SpellCriticalMpRefundPercent,
+            FumbleProtectionCurve,
+            FumbleProtectionExtraMpPercent,
+            BacklashMode,
+            BacklashTargetFilter,
+            BacklashOffsetRadius,
+            AreaOriginMode,
+            AreaDirectionMode,
+            AiTags,
+            DeliveryCategories,
+            SpecialResolutionProfileId,
+            TargetSelectionMode,
+            MinTargetCount,
+            MaxTargetCount,
+            AllowRepeatTarget,
+            MaxHitsPerTarget,
+            SelectionOrderMode,
+            EffectDefinitions,
+            PassiveEffectDefinitions,
+            CastVariants,
+            RequiredWeaponFamilies,
+            ExcludedWeaponFamilies,
+            ExcludedWeaponTypeIds,
+            RequiresEquippedShield,
+            MasteryLowHpBonusMultiplier,
+            MasteryLowHpThresholdPercent
+        );
+
+    public int GetFumbleProtectionLimit(int skillLevel)
+    {
+        if (FumbleProtectionCurve.Count == 0)
+            return 0;
+        int index = Mathf.Clamp(skillLevel, 0, FumbleProtectionCurve.Count - 1);
+        return Mathf.Max(FumbleProtectionCurve[index], 0);
+    }
+
+    public bool UsesGroundAnchorDriftBacklash() =>
+        BacklashModeKind == CombatSkillBacklashMode.GroundAnchorDrift;
 
     public IReadOnlyList<CombatCastVariantDefinition> GetUnlockedCastVariants(int skillLevel)
     {
@@ -822,6 +1149,9 @@ public sealed class CombatCastVariantDefinition
     public IReadOnlyList<StringName> AllowedBaseTerrains { get; }
     public IReadOnlyList<CombatEffectDefinition> EffectDefinitions { get; }
     public IReadOnlyDictionary<string, Variant> Parameters { get; }
+    internal BattleTargetMode TargetModeKind => BattleTypedNames.ToTargetMode(TargetMode);
+    internal CombatCastFootprintPattern FootprintPatternKind =>
+        CombatSkillTargetingContentRules.ToFootprintPattern(FootprintPattern);
 
     internal static CombatCastVariantDefinition FromResource(CombatCastVariantDef source)
     {
@@ -895,17 +1225,128 @@ public sealed class CombatCastVariantDefinition
 
 public sealed class CombatEffectDefinition
 {
+    private static readonly IReadOnlyList<StringName> EmptyStringNames =
+        System.Array.Empty<StringName>();
+
     public CombatEffectDefinition(
         StringName effectType,
         StringName effectTargetTeamFilter,
         StringName statusId,
         StringName saveFailureStatusId,
         StringName terrainEffectId,
+        StringName terrainReplaceTo,
         int heightDelta,
         bool requiresWeapon,
+        bool addWeaponDice,
+        bool preventRepeatTarget,
         StringName forcedMoveMode,
         int minSkillLevel,
-        int maxSkillLevel
+        int maxSkillLevel,
+        StringName damageTag,
+        int damageRatioPercent,
+        double preResistanceDamageMultiplier,
+        StringName bonusCondition,
+        int hpRatioThresholdPercent,
+        StringName damageCategory,
+        StringName drBypassTag,
+        int diceCount,
+        int diceSides,
+        int diceBonus,
+        int bonusDamageDiceCount,
+        int bonusDamageDiceSides,
+        int bonusDamageDiceBonus,
+        int saveDc,
+        StringName saveDcMode,
+        StringName saveDcSourceAbility,
+        StringName saveAbility,
+        bool savePartialOnSuccess,
+        StringName saveTag,
+        int thresholdBaseValue,
+        int thresholdLevelAnchor,
+        int thresholdLevelBonusPerDelta,
+        int thresholdMaxHpRatioPercent,
+        int thresholdCapMaxHpRatioPercent,
+        int soulFractureDurationTu,
+        int healMultiplierPercent,
+        int shieldGainMultiplierPercent,
+        int appliedStatusDurationTu,
+        int durationTu,
+        int tickIntervalTu,
+        IReadOnlyList<StringName> effectTags,
+        StringName triggerCondition = default,
+        int power = 0,
+        int rangeBonus = 0,
+        int forcedMoveDistance = 0,
+        int jumpBaseBudget = 0,
+        double jumpStrScale = 0.0,
+        double jumpArcRatio = 0.0,
+        int jumpRangeMultiplier = 1,
+        int diceSidesBase = 0,
+        int diceSidesPerConstitutionMod = 0,
+        int diceSidesPerWillpowerMod = 0,
+        IReadOnlyDictionary<string, Variant> parameters = null,
+        IReadOnlyList<StringName> effectCategories = null,
+        bool allowRepeatHitsAcrossSteps = false,
+        StringName tickEffectType = default,
+        StringName lifetimePolicy = default,
+        int moveCostDelta = 0,
+        StringName renderOverlayId = default,
+        int overlayPriority = 0,
+        string displayName = "",
+        BattleAttackRollModifierSpec accuracyModifierSpec = null,
+        StringName doesNotStackWithStatusId = default,
+        IReadOnlyList<StringName> doesNotStackWithStatusIds = null,
+        IReadOnlyList<StringName> damageTags = null,
+        bool useWeaponPhysicalDamageTag = false,
+        bool resolveAsWeaponAttack = false,
+        bool stopOnMiss = true,
+        bool stopOnTargetDown = true,
+        bool removeHarmful = false,
+        bool removeHarmfulFromAllies = true,
+        bool removeBeneficial = false,
+        bool removeBeneficialFromEnemies = true,
+        bool requireDamageApplied = false,
+        int maxStatusRemoved = 0,
+        int minHpAfterDamage = 1,
+        int deathPreventionPriority = 0,
+        int attackRollPenalty = -1,
+        bool undispellable = false,
+        bool dispellableMagic = false,
+        bool dispellableHarmfulMagic = false,
+        bool dispellableBeneficialMagic = false,
+        StringName mitigationTier = default,
+        int secondaryHitDcBase = 10,
+        int debuffCountThreshold = 3,
+        int baseHeal = 8,
+        int healPerLevel = 4,
+        int conModBase = 2,
+        int conModPer2Levels = 1,
+        StringName bodySizeCategory = default,
+        StringName stackBehavior = default,
+        int stackLimit = 0,
+        StringName triggerEvent = default,
+        StringName triggerStatusId = default,
+        StringName consumedStatusId = default,
+        int dicePerConsumedStack = 0,
+        int diceSidesPerStack = 0,
+        int apGain = 0,
+        int freeMovePointsGain = 0,
+        bool countsAsDebuffOverride = false,
+        bool countsAsDebuff = false,
+        bool lockCounterattack = false,
+        bool lockGuard = false,
+        bool lockDodgeBonus = false,
+        bool lockCrit = false,
+        int saveBonus = 0,
+        int controlSaveBonus = 0,
+        int passiveReduction = 0,
+        int contentDr = 0,
+        int guardBlock = 0,
+        int mainSkillLockOtherDebuffCount = 0,
+        IReadOnlyList<StringName> saveAdvantageTags = null,
+        IReadOnlyList<StringName> saveDisadvantageTags = null,
+        IReadOnlyList<StringName> saveImmunityTags = null,
+        IReadOnlyList<StringName> saveTags = null
     )
     {
         EffectType = effectType;
@@ -913,11 +1354,121 @@ public sealed class CombatEffectDefinition
         StatusId = statusId;
         SaveFailureStatusId = saveFailureStatusId;
         TerrainEffectId = terrainEffectId;
+        TerrainReplaceTo = terrainReplaceTo;
         HeightDelta = heightDelta;
         RequiresWeapon = requiresWeapon;
+        AddWeaponDice = addWeaponDice;
+        PreventRepeatTarget = preventRepeatTarget;
         ForcedMoveMode = forcedMoveMode;
         MinSkillLevel = minSkillLevel;
         MaxSkillLevel = maxSkillLevel;
+        DamageTag = damageTag;
+        DamageRatioPercent = damageRatioPercent;
+        PreResistanceDamageMultiplier = preResistanceDamageMultiplier;
+        BonusCondition = bonusCondition;
+        HpRatioThresholdPercent = hpRatioThresholdPercent;
+        DamageCategory = damageCategory;
+        DrBypassTag = drBypassTag;
+        DiceCount = diceCount;
+        DiceSides = diceSides;
+        DiceBonus = diceBonus;
+        BonusDamageDiceCount = bonusDamageDiceCount;
+        BonusDamageDiceSides = bonusDamageDiceSides;
+        BonusDamageDiceBonus = bonusDamageDiceBonus;
+        SaveDc = saveDc;
+        SaveDcMode = saveDcMode;
+        SaveDcSourceAbility = saveDcSourceAbility;
+        SaveAbility = saveAbility;
+        SavePartialOnSuccess = savePartialOnSuccess;
+        SaveTag = saveTag;
+        ThresholdBaseValue = thresholdBaseValue;
+        ThresholdLevelAnchor = thresholdLevelAnchor;
+        ThresholdLevelBonusPerDelta = thresholdLevelBonusPerDelta;
+        ThresholdMaxHpRatioPercent = thresholdMaxHpRatioPercent;
+        ThresholdCapMaxHpRatioPercent = thresholdCapMaxHpRatioPercent;
+        SoulFractureDurationTu = soulFractureDurationTu;
+        HealMultiplierPercent = healMultiplierPercent;
+        ShieldGainMultiplierPercent = shieldGainMultiplierPercent;
+        AppliedStatusDurationTu = appliedStatusDurationTu;
+        DurationTu = durationTu;
+        TickIntervalTu = tickIntervalTu;
+        EffectTags = effectTags ?? EmptyStringNames;
+        TriggerCondition = triggerCondition;
+        Power = power;
+        RangeBonus = rangeBonus;
+        ForcedMoveDistance = forcedMoveDistance;
+        JumpBaseBudget = jumpBaseBudget;
+        JumpStrScale = jumpStrScale;
+        JumpArcRatio = jumpArcRatio;
+        JumpRangeMultiplier = jumpRangeMultiplier;
+        DiceSidesBase = diceSidesBase;
+        DiceSidesPerConstitutionMod = diceSidesPerConstitutionMod;
+        DiceSidesPerWillpowerMod = diceSidesPerWillpowerMod;
+        Parameters =
+            parameters
+            ?? new ReadOnlyDictionary<string, Variant>(new Dictionary<string, Variant>());
+        EffectCategories = effectCategories ?? EmptyStringNames;
+        AllowRepeatHitsAcrossSteps = allowRepeatHitsAcrossSteps;
+        TickEffectType = tickEffectType;
+        LifetimePolicy = lifetimePolicy == "" ? (StringName)"timed" : lifetimePolicy;
+        MoveCostDelta = moveCostDelta;
+        RenderOverlayId = renderOverlayId;
+        OverlayPriority = overlayPriority;
+        DisplayName = displayName ?? "";
+        AccuracyModifierSpec = accuracyModifierSpec?.Clone();
+        DoesNotStackWithStatusId = doesNotStackWithStatusId;
+        DoesNotStackWithStatusIds = doesNotStackWithStatusIds ?? EmptyStringNames;
+        DamageTags = damageTags ?? EmptyStringNames;
+        UseWeaponPhysicalDamageTag = useWeaponPhysicalDamageTag;
+        ResolveAsWeaponAttack = resolveAsWeaponAttack;
+        StopOnMiss = stopOnMiss;
+        StopOnTargetDown = stopOnTargetDown;
+        RemoveHarmful = removeHarmful;
+        RemoveHarmfulFromAllies = removeHarmfulFromAllies;
+        RemoveBeneficial = removeBeneficial;
+        RemoveBeneficialFromEnemies = removeBeneficialFromEnemies;
+        RequireDamageApplied = requireDamageApplied;
+        MaxStatusRemoved = maxStatusRemoved;
+        MinHpAfterDamage = minHpAfterDamage;
+        DeathPreventionPriority = deathPreventionPriority;
+        AttackRollPenalty = attackRollPenalty;
+        Undispellable = undispellable;
+        DispellableMagic = dispellableMagic;
+        DispellableHarmfulMagic = dispellableHarmfulMagic;
+        DispellableBeneficialMagic = dispellableBeneficialMagic;
+        MitigationTier = mitigationTier;
+        SecondaryHitDcBase = secondaryHitDcBase;
+        DebuffCountThreshold = debuffCountThreshold;
+        BaseHeal = baseHeal;
+        HealPerLevel = healPerLevel;
+        ConModBase = conModBase;
+        ConModPer2Levels = conModPer2Levels;
+        BodySizeCategory = bodySizeCategory;
+        StackBehavior = stackBehavior == "" ? (StringName)"refresh" : stackBehavior;
+        StackLimit = stackLimit;
+        TriggerEvent = triggerEvent;
+        TriggerStatusId = triggerStatusId;
+        ConsumedStatusId = consumedStatusId;
+        DicePerConsumedStack = dicePerConsumedStack;
+        DiceSidesPerStack = diceSidesPerStack;
+        ApGain = apGain;
+        FreeMovePointsGain = freeMovePointsGain;
+        CountsAsDebuffOverride = countsAsDebuffOverride;
+        CountsAsDebuff = countsAsDebuff;
+        LockCounterattack = lockCounterattack;
+        LockGuard = lockGuard;
+        LockDodgeBonus = lockDodgeBonus;
+        LockCrit = lockCrit;
+        SaveBonus = saveBonus;
+        ControlSaveBonus = controlSaveBonus;
+        PassiveReduction = passiveReduction;
+        ContentDr = contentDr;
+        GuardBlock = guardBlock;
+        MainSkillLockOtherDebuffCount = mainSkillLockOtherDebuffCount;
+        SaveAdvantageTags = saveAdvantageTags ?? EmptyStringNames;
+        SaveDisadvantageTags = saveDisadvantageTags ?? EmptyStringNames;
+        SaveImmunityTags = saveImmunityTags ?? EmptyStringNames;
+        SaveTags = saveTags ?? EmptyStringNames;
     }
 
     public StringName EffectType { get; }
@@ -925,14 +1476,482 @@ public sealed class CombatEffectDefinition
     public StringName StatusId { get; }
     public StringName SaveFailureStatusId { get; }
     public StringName TerrainEffectId { get; }
+    public StringName TerrainReplaceTo { get; }
     public int HeightDelta { get; }
     public bool RequiresWeapon { get; }
+    public bool AddWeaponDice { get; }
+    public bool PreventRepeatTarget { get; }
     public StringName ForcedMoveMode { get; }
     public int MinSkillLevel { get; }
     public int MaxSkillLevel { get; }
+    public StringName DamageTag { get; }
+    public int DamageRatioPercent { get; }
+    public double PreResistanceDamageMultiplier { get; }
+    public StringName BonusCondition { get; }
+    public int HpRatioThresholdPercent { get; }
+    public StringName DamageCategory { get; }
+    public StringName DrBypassTag { get; }
+    public int DiceCount { get; }
+    public int DiceSides { get; }
+    public int DiceBonus { get; }
+    public int BonusDamageDiceCount { get; }
+    public int BonusDamageDiceSides { get; }
+    public int BonusDamageDiceBonus { get; }
+    public int SaveDc { get; }
+    public StringName SaveDcMode { get; }
+    public StringName SaveDcSourceAbility { get; }
+    public StringName SaveAbility { get; }
+    public bool SavePartialOnSuccess { get; }
+    public StringName SaveTag { get; }
+    public int ThresholdBaseValue { get; }
+    public int ThresholdLevelAnchor { get; }
+    public int ThresholdLevelBonusPerDelta { get; }
+    public int ThresholdMaxHpRatioPercent { get; }
+    public int ThresholdCapMaxHpRatioPercent { get; }
+    public int SoulFractureDurationTu { get; }
+    public int HealMultiplierPercent { get; }
+    public int ShieldGainMultiplierPercent { get; }
+    public int AppliedStatusDurationTu { get; }
+    public int DurationTu { get; }
+    public int TickIntervalTu { get; }
+    public IReadOnlyList<StringName> EffectTags { get; }
+    public StringName TriggerCondition { get; }
+    public int Power { get; }
+    public int RangeBonus { get; }
+    public int ForcedMoveDistance { get; }
+    public int JumpBaseBudget { get; }
+    public double JumpStrScale { get; }
+    public double JumpArcRatio { get; }
+    public int JumpRangeMultiplier { get; }
+    public int DiceSidesBase { get; }
+    public int DiceSidesPerConstitutionMod { get; }
+    public int DiceSidesPerWillpowerMod { get; }
+    public IReadOnlyDictionary<string, Variant> Parameters { get; }
+    public IReadOnlyList<StringName> EffectCategories { get; }
+    public bool AllowRepeatHitsAcrossSteps { get; }
+    public StringName TickEffectType { get; }
+    public StringName LifetimePolicy { get; }
+    public int MoveCostDelta { get; }
+    public StringName RenderOverlayId { get; }
+    public int OverlayPriority { get; }
+    public string DisplayName { get; }
+    public BattleAttackRollModifierSpec AccuracyModifierSpec { get; }
+    public StringName DoesNotStackWithStatusId { get; }
+    public IReadOnlyList<StringName> DoesNotStackWithStatusIds { get; }
+    public IReadOnlyList<StringName> DamageTags { get; }
+    public bool UseWeaponPhysicalDamageTag { get; }
+    public bool ResolveAsWeaponAttack { get; }
+    public bool StopOnMiss { get; }
+    public bool StopOnTargetDown { get; }
+    public bool RemoveHarmful { get; }
+    public bool RemoveHarmfulFromAllies { get; }
+    public bool RemoveBeneficial { get; }
+    public bool RemoveBeneficialFromEnemies { get; }
+    public bool RequireDamageApplied { get; }
+    public int MaxStatusRemoved { get; }
+    public int MinHpAfterDamage { get; }
+    public int DeathPreventionPriority { get; }
+    public int AttackRollPenalty { get; }
+    public bool Undispellable { get; }
+    public bool DispellableMagic { get; }
+    public bool DispellableHarmfulMagic { get; }
+    public bool DispellableBeneficialMagic { get; }
+    public StringName MitigationTier { get; }
+    public int SecondaryHitDcBase { get; }
+    public int DebuffCountThreshold { get; }
+    public int BaseHeal { get; }
+    public int HealPerLevel { get; }
+    public int ConModBase { get; }
+    public int ConModPer2Levels { get; }
+    public StringName BodySizeCategory { get; }
+    public StringName StackBehavior { get; }
+    public int StackLimit { get; }
+    public StringName TriggerEvent { get; }
+    public StringName TriggerStatusId { get; }
+    public StringName ConsumedStatusId { get; }
+    public int DicePerConsumedStack { get; }
+    public int DiceSidesPerStack { get; }
+    public int ApGain { get; }
+    public int FreeMovePointsGain { get; }
+    public bool CountsAsDebuffOverride { get; }
+    public bool CountsAsDebuff { get; }
+    public bool LockCounterattack { get; }
+    public bool LockGuard { get; }
+    public bool LockDodgeBonus { get; }
+    public bool LockCrit { get; }
+    public int SaveBonus { get; }
+    public int ControlSaveBonus { get; }
+    public int PassiveReduction { get; }
+    public int ContentDr { get; }
+    public int GuardBlock { get; }
+    public int MainSkillLockOtherDebuffCount { get; }
+    public IReadOnlyList<StringName> SaveAdvantageTags { get; }
+    public IReadOnlyList<StringName> SaveDisadvantageTags { get; }
+    public IReadOnlyList<StringName> SaveImmunityTags { get; }
+    public IReadOnlyList<StringName> SaveTags { get; }
     internal BattleEffectKind EffectKind => BattleTypedNames.ToEffectKind(EffectType);
+    internal CombatEffectTriggerCondition TriggerConditionKind =>
+        CombatEffectContentRules.ToTriggerCondition(TriggerCondition);
+    internal CombatEffectTriggerEvent TriggerEventKind =>
+        CombatEffectContentRules.ToTriggerEvent(TriggerEvent);
     internal BattleForcedMoveMode ForcedMoveModeKind =>
         BattleTypedNames.ToForcedMoveMode(ForcedMoveMode);
+    internal BattleSaveDcMode SaveDcModeKind =>
+        BattleSaveContentRules.ToSaveDcMode(SaveDcMode);
+
+    internal int GetIntParamTyped(string key, int fallback = 0)
+    {
+        if (string.IsNullOrEmpty(key) || Parameters == null)
+        {
+            return fallback;
+        }
+        if (Parameters.TryGetValue(key, out Variant value))
+        {
+            return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        }
+        return fallback;
+    }
+
+    internal StringName GetStringNameParamTyped(string key, StringName fallback = default)
+    {
+        if (string.IsNullOrEmpty(key) || Parameters == null)
+        {
+            return fallback;
+        }
+        if (Parameters.TryGetValue(key, out Variant value))
+        {
+            StringName normalized = ProgressionDataUtils.to_string_name(value);
+            return normalized != "" ? normalized : fallback;
+        }
+        return fallback;
+    }
+
+    internal double GetFloatParamTyped(string key, double fallback = 0.0)
+    {
+        if (string.IsNullOrEmpty(key) || Parameters == null)
+        {
+            return fallback;
+        }
+        if (Parameters.TryGetValue(key, out Variant value))
+        {
+            return value.VariantType switch
+            {
+                Variant.Type.Int => value.AsInt64(),
+                Variant.Type.Float => value.AsDouble(),
+                _ => fallback,
+            };
+        }
+        return fallback;
+    }
+
+    internal bool HasEffectTagTyped(StringName tag)
+    {
+        if (tag == "" || EffectTags == null)
+        {
+            return false;
+        }
+        foreach (StringName effectTag in EffectTags)
+        {
+            if (effectTag == tag)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    internal IReadOnlyList<StringName> GetStringNameListParamTyped(string key)
+    {
+        if (string.IsNullOrEmpty(key) || Parameters == null)
+        {
+            return System.Array.Empty<StringName>();
+        }
+        if (Parameters.TryGetValue(key, out Variant value))
+        {
+            return ProgressionDataUtils.to_string_name_array(value);
+        }
+        return System.Array.Empty<StringName>();
+    }
+
+    internal IReadOnlyDictionary<StringName, int> GetStringNameIntMapParamTyped(string key)
+    {
+        if (string.IsNullOrEmpty(key) || Parameters == null)
+        {
+            return new Dictionary<StringName, int>();
+        }
+        if (!Parameters.TryGetValue(key, out Variant value) || value.VariantType != Variant.Type.Dictionary)
+        {
+            return new Dictionary<StringName, int>();
+        }
+        var result = new Dictionary<StringName, int>();
+        Godot.Collections.Dictionary dictionary = value.AsGodotDictionary();
+        foreach (Variant rawKey in dictionary.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+            {
+                continue;
+            }
+            StringName id = rawKey.AsStringName();
+            if (id == "")
+            {
+                continue;
+            }
+            Variant rawValue = dictionary[rawKey];
+            if (rawValue.VariantType == Variant.Type.Int)
+            {
+                result[id] = rawValue.AsInt32();
+            }
+        }
+        return result;
+    }
+
+    internal CombatEffectDefinition WithEffectType(StringName effectType)
+    {
+        return new CombatEffectDefinition(
+            effectType,
+            EffectTargetTeamFilter,
+            StatusId,
+            SaveFailureStatusId,
+            TerrainEffectId,
+            TerrainReplaceTo,
+            HeightDelta,
+            RequiresWeapon,
+            AddWeaponDice,
+            PreventRepeatTarget,
+            ForcedMoveMode,
+            MinSkillLevel,
+            MaxSkillLevel,
+            DamageTag,
+            DamageRatioPercent,
+            PreResistanceDamageMultiplier,
+            BonusCondition,
+            HpRatioThresholdPercent,
+            DamageCategory,
+            DrBypassTag,
+            DiceCount,
+            DiceSides,
+            DiceBonus,
+            BonusDamageDiceCount,
+            BonusDamageDiceSides,
+            BonusDamageDiceBonus,
+            SaveDc,
+            SaveDcMode,
+            SaveDcSourceAbility,
+            SaveAbility,
+            SavePartialOnSuccess,
+            SaveTag,
+            ThresholdBaseValue,
+            ThresholdLevelAnchor,
+            ThresholdLevelBonusPerDelta,
+            ThresholdMaxHpRatioPercent,
+            ThresholdCapMaxHpRatioPercent,
+            SoulFractureDurationTu,
+            HealMultiplierPercent,
+            ShieldGainMultiplierPercent,
+            AppliedStatusDurationTu,
+            DurationTu,
+            TickIntervalTu,
+            EffectTags,
+            TriggerCondition,
+            Power,
+            RangeBonus,
+            ForcedMoveDistance,
+            JumpBaseBudget,
+            JumpStrScale,
+            JumpArcRatio,
+            JumpRangeMultiplier,
+            DiceSidesBase,
+            DiceSidesPerConstitutionMod,
+            DiceSidesPerWillpowerMod,
+            Parameters,
+            EffectCategories,
+            AllowRepeatHitsAcrossSteps,
+            TickEffectType,
+            LifetimePolicy,
+            MoveCostDelta,
+            RenderOverlayId,
+            OverlayPriority,
+            DisplayName,
+            AccuracyModifierSpec,
+            DoesNotStackWithStatusId,
+            DoesNotStackWithStatusIds,
+            DamageTags,
+            UseWeaponPhysicalDamageTag,
+            ResolveAsWeaponAttack,
+            StopOnMiss,
+            StopOnTargetDown,
+            RemoveHarmful,
+            RemoveHarmfulFromAllies,
+            RemoveBeneficial,
+            RemoveBeneficialFromEnemies,
+            RequireDamageApplied,
+            MaxStatusRemoved,
+            MinHpAfterDamage,
+            DeathPreventionPriority,
+            AttackRollPenalty,
+            Undispellable,
+            DispellableMagic,
+            DispellableHarmfulMagic,
+            DispellableBeneficialMagic,
+            MitigationTier,
+            SecondaryHitDcBase,
+            DebuffCountThreshold,
+            BaseHeal,
+            HealPerLevel,
+            ConModBase,
+            ConModPer2Levels,
+            BodySizeCategory,
+            StackBehavior,
+            StackLimit,
+            TriggerEvent,
+            TriggerStatusId,
+            ConsumedStatusId,
+            DicePerConsumedStack,
+            DiceSidesPerStack,
+            ApGain,
+            FreeMovePointsGain,
+            CountsAsDebuffOverride,
+            CountsAsDebuff,
+            LockCounterattack,
+            LockGuard,
+            LockDodgeBonus,
+            LockCrit,
+            SaveBonus,
+            ControlSaveBonus,
+            PassiveReduction,
+            ContentDr,
+            GuardBlock,
+            MainSkillLockOtherDebuffCount,
+            SaveAdvantageTags,
+            SaveDisadvantageTags,
+            SaveImmunityTags,
+            SaveTags
+        );
+    }
+
+    internal CombatEffectDefinition WithPreResistanceDamageMultiplier(double multiplier)
+    {
+        return new CombatEffectDefinition(
+            EffectType,
+            EffectTargetTeamFilter,
+            StatusId,
+            SaveFailureStatusId,
+            TerrainEffectId,
+            TerrainReplaceTo,
+            HeightDelta,
+            RequiresWeapon,
+            AddWeaponDice,
+            PreventRepeatTarget,
+            ForcedMoveMode,
+            MinSkillLevel,
+            MaxSkillLevel,
+            DamageTag,
+            DamageRatioPercent,
+            multiplier,
+            BonusCondition,
+            HpRatioThresholdPercent,
+            DamageCategory,
+            DrBypassTag,
+            DiceCount,
+            DiceSides,
+            DiceBonus,
+            BonusDamageDiceCount,
+            BonusDamageDiceSides,
+            BonusDamageDiceBonus,
+            SaveDc,
+            SaveDcMode,
+            SaveDcSourceAbility,
+            SaveAbility,
+            SavePartialOnSuccess,
+            SaveTag,
+            ThresholdBaseValue,
+            ThresholdLevelAnchor,
+            ThresholdLevelBonusPerDelta,
+            ThresholdMaxHpRatioPercent,
+            ThresholdCapMaxHpRatioPercent,
+            SoulFractureDurationTu,
+            HealMultiplierPercent,
+            ShieldGainMultiplierPercent,
+            AppliedStatusDurationTu,
+            DurationTu,
+            TickIntervalTu,
+            EffectTags,
+            TriggerCondition,
+            Power,
+            RangeBonus,
+            ForcedMoveDistance,
+            JumpBaseBudget,
+            JumpStrScale,
+            JumpArcRatio,
+            JumpRangeMultiplier,
+            DiceSidesBase,
+            DiceSidesPerConstitutionMod,
+            DiceSidesPerWillpowerMod,
+            Parameters,
+            EffectCategories,
+            AllowRepeatHitsAcrossSteps,
+            TickEffectType,
+            LifetimePolicy,
+            MoveCostDelta,
+            RenderOverlayId,
+            OverlayPriority,
+            DisplayName,
+            AccuracyModifierSpec,
+            DoesNotStackWithStatusId,
+            DoesNotStackWithStatusIds,
+            DamageTags,
+            UseWeaponPhysicalDamageTag,
+            ResolveAsWeaponAttack,
+            StopOnMiss,
+            StopOnTargetDown,
+            RemoveHarmful,
+            RemoveHarmfulFromAllies,
+            RemoveBeneficial,
+            RemoveBeneficialFromEnemies,
+            RequireDamageApplied,
+            MaxStatusRemoved,
+            MinHpAfterDamage,
+            DeathPreventionPriority,
+            AttackRollPenalty,
+            Undispellable,
+            DispellableMagic,
+            DispellableHarmfulMagic,
+            DispellableBeneficialMagic,
+            MitigationTier,
+            SecondaryHitDcBase,
+            DebuffCountThreshold,
+            BaseHeal,
+            HealPerLevel,
+            ConModBase,
+            ConModPer2Levels,
+            BodySizeCategory,
+            StackBehavior,
+            StackLimit,
+            TriggerEvent,
+            TriggerStatusId,
+            ConsumedStatusId,
+            DicePerConsumedStack,
+            DiceSidesPerStack,
+            ApGain,
+            FreeMovePointsGain,
+            CountsAsDebuffOverride,
+            CountsAsDebuff,
+            LockCounterattack,
+            LockGuard,
+            LockDodgeBonus,
+            LockCrit,
+            SaveBonus,
+            ControlSaveBonus,
+            PassiveReduction,
+            ContentDr,
+            GuardBlock,
+            MainSkillLockOtherDebuffCount,
+            SaveAdvantageTags,
+            SaveDisadvantageTags,
+            SaveImmunityTags,
+            SaveTags
+        );
+    }
 
     internal static CombatEffectDefinition FromResource(CombatEffectDef source)
     {
@@ -944,11 +1963,168 @@ public sealed class CombatEffectDefinition
                 source.status_id,
                 source.save_failure_status_id,
                 source.terrain_effect_id,
+                source.terrain_replace_to,
                 source.height_delta,
                 source.requires_weapon,
+                source.add_weapon_dice,
+                source.prevent_repeat_target,
                 source.forced_move_mode,
                 source.min_skill_level,
-                source.max_skill_level
+                source.max_skill_level,
+                source.damage_tag,
+                source.damage_ratio_percent,
+                source.pre_resistance_damage_multiplier,
+                source.bonus_condition,
+                source.hp_ratio_threshold_percent,
+                source.damage_category,
+                source.dr_bypass_tag,
+                source.dice_count,
+                source.dice_sides,
+                source.dice_bonus,
+                source.bonus_damage_dice_count,
+                source.bonus_damage_dice_sides,
+                source.bonus_damage_dice_bonus,
+                source.save_dc,
+                source.save_dc_mode,
+                source.save_dc_source_ability,
+                source.save_ability,
+                source.save_partial_on_success,
+                source.save_tag,
+                source.threshold_base_value,
+                source.threshold_level_anchor,
+                source.threshold_level_bonus_per_delta,
+                source.threshold_max_hp_ratio_percent,
+                source.threshold_cap_max_hp_ratio_percent,
+                source.soul_fracture_duration_tu,
+                source.heal_multiplier_percent,
+                source.shield_gain_multiplier_percent,
+                source.applied_status_duration_tu,
+                source.duration_tu,
+                source.tick_interval_tu,
+                CopyStringNameArray(source.effect_tags),
+                source.trigger_condition,
+                source.power,
+                source.range_bonus,
+                source.forced_move_distance,
+                source.jump_base_budget,
+                source.jump_str_scale,
+                source.jump_arc_ratio,
+                source.jump_range_multiplier,
+                source.dice_sides_base,
+                source.dice_sides_per_constitution_mod,
+                source.dice_sides_per_willpower_mod,
+                CopyVariantDictionary(source.@params),
+                CopyStringNameArray(source.effect_categories),
+                source.allow_repeat_hits_across_steps,
+                source.tick_effect_type,
+                source.lifetime_policy,
+                source.move_cost_delta,
+                source.render_overlay_id,
+                source.overlay_priority,
+                source.display_name,
+                source.accuracy_modifier_spec,
+                source.does_not_stack_with_status_id,
+                CopyStringNameArray(source.does_not_stack_with_status_ids),
+                CopyStringNameArray(source.damage_tags),
+                source.use_weapon_physical_damage_tag,
+                source.resolve_as_weapon_attack,
+                source.stop_on_miss,
+                source.stop_on_target_down,
+                source.remove_harmful,
+                source.remove_harmful_from_allies,
+                source.remove_beneficial,
+                source.remove_beneficial_from_enemies,
+                source.require_damage_applied,
+                source.max_status_removed,
+                source.min_hp_after_damage,
+                source.death_prevention_priority,
+                source.attack_roll_penalty,
+                source.undispellable,
+                source.dispellable_magic,
+                source.dispellable_harmful_magic,
+                source.dispellable_beneficial_magic,
+                source.mitigation_tier,
+                source.secondary_hit_dc_base,
+                source.debuff_count_threshold,
+                source.base_heal,
+                source.heal_per_level,
+                source.con_mod_base,
+                source.con_mod_per_2_levels,
+                source.body_size_category,
+                source.stack_behavior,
+                source.stack_limit,
+                source.trigger_event,
+                source.trigger_status_id,
+                source.consumed_status_id,
+                source.dice_per_consumed_stack,
+                source.dice_sides_per_stack,
+                source.ap_gain,
+                source.free_move_points_gain,
+                source.counts_as_debuff_override,
+                source.counts_as_debuff,
+                source.lock_counterattack,
+                source.lock_guard,
+                source.lock_dodge_bonus,
+                source.lock_crit,
+                source.save_bonus,
+                source.control_save_bonus,
+                source.passive_reduction,
+                source.content_dr,
+                source.guard_block,
+                source.main_skill_lock_other_debuff_count,
+                CopyStringNameArray(source.save_advantage_tags),
+                CopyStringNameArray(source.save_disadvantage_tags),
+                CopyStringNameArray(source.save_immunity_tags),
+                CopyStringNameArray(source.save_tags)
             );
+    }
+
+    private static IReadOnlyList<StringName> CopyStringNameArray(
+        Godot.Collections.Array<StringName> values
+    )
+    {
+        if (values == null || values.Count == 0)
+            return EmptyStringNames;
+        var result = new List<StringName>(values.Count);
+        foreach (StringName value in values)
+            result.Add(value);
+        return new ReadOnlyCollection<StringName>(result);
+    }
+
+    private static IReadOnlyList<StringName> CopyStringNameArray(Godot.Collections.Array values)
+    {
+        if (values == null || values.Count == 0)
+            return EmptyStringNames;
+        var result = new List<StringName>(values.Count);
+        foreach (object value in values)
+        {
+            StringName normalized = ProgressionDataUtils.to_string_name(value);
+            if (normalized != "")
+                result.Add(normalized);
+        }
+        return result.Count > 0
+            ? new ReadOnlyCollection<StringName>(result)
+            : EmptyStringNames;
+    }
+
+    private static IReadOnlyDictionary<string, Variant> CopyVariantDictionary(
+        Godot.Collections.Dictionary source
+    )
+    {
+        if (source == null || source.Count == 0)
+            return new ReadOnlyDictionary<string, Variant>(new Dictionary<string, Variant>());
+        var result = new Dictionary<string, Variant>();
+        foreach (Variant rawKey in source.Keys)
+        {
+            string key = rawKey.VariantType switch
+            {
+                Variant.Type.String => rawKey.AsString(),
+                Variant.Type.StringName => rawKey.AsStringName().ToString(),
+                _ => "",
+            };
+            if (!string.IsNullOrEmpty(key))
+                result[key] = source[rawKey];
+        }
+        return new ReadOnlyDictionary<string, Variant>(result);
     }
 }

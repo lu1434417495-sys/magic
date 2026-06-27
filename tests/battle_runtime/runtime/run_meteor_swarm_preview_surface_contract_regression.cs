@@ -79,7 +79,10 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
         BattleUnitState enemyCenter = BuildUnit("meteor_surface_enemy_center", "中心敌人", "enemy", new Vector2I(4, 4), 160);
         BattleUnitState allyInner = BuildUnit("meteor_surface_ally_inner", "内圈友军", "player", new Vector2I(5, 4), 160);
         Fixture setup = BuildRuntimeFixture(new Vector2I(9, 9), new[] { enemyCenter, allyInner });
-        SkillDef skillDef = GetSkill(setup.SkillDefs, "mage_meteor_swarm");
+        SkillDefinition skillDefinition = GetSkillDefinition(
+            setup.SkillDefinitionIndex,
+            "mage_meteor_swarm"
+        );
         BattleCommand command = BuildCommand(setup.Caster, new Vector2I(4, 4));
         BattlePreview preview = setup.Runtime.PreviewCommand(command);
         _test.True(preview != null && preview.allowed, "陨星雨 preview surface 合同前置应可用。");
@@ -143,14 +146,14 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
         aiContext.state = setup.Runtime.GetState();
         aiContext.unit_state = setup.Caster;
         aiContext.grid_service = setup.Runtime.GetGridService();
-        aiContext.SetSkillDefs(setup.SkillDefIndex);
+        aiContext.SetSkillDefinitions(setup.SkillDefinitionIndex);
         var scoreService = new BattleAiScoreService();
         var scoreInput = scoreService.BuildSkillScoreInput(
             aiContext,
-            skillDef,
+            skillDefinition,
             command,
             preview,
-            Array.Empty<CombatEffectDef>(),
+            Array.Empty<CombatEffectDefinition>(),
             new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["action_kind"] = "ground_skill",
@@ -176,23 +179,19 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
     private Fixture BuildRuntimeFixture(Vector2I mapSize, BattleUnitState[] extraUnits)
     {
         var progressionRegistry = new ProgressionContentRegistry();
-        IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs =
-            progressionRegistry.GetSkillDefsTyped();
+        IReadOnlyDictionary<StringName, SkillDefinition> typedSkillDefinitions =
+            progressionRegistry.GetSkillDefinitionsTyped();
         var specialRegistry = new BattleSpecialProfileRegistry();
-        specialRegistry.Rebuild(typedSkillDefs);
+        specialRegistry.Rebuild(typedSkillDefinitions);
         _test.True(specialRegistry.Validate().Count == 0, "正式 special profile registry 应可用于 preview surface fixture。");
         var runtime = new BattleRuntimeModule();
         runtime.setup(
-            null,
-            typedSkillDefs,
-            new Dictionary<StringName, EnemyTemplateDef>(),
-            new Dictionary<StringName, EnemyAiBrainDef>(),
-            null,
-            null,
-            new Dictionary<StringName, ItemDef>(),
-            null,
-            default,
-            specialRegistry.GetSnapshot()
+            skill_definitions: typedSkillDefinitions,
+            enemy_templates: new Dictionary<StringName, EnemyTemplateDef>(),
+            enemy_ai_brains: new Dictionary<StringName, EnemyAiBrainDef>(),
+            item_defs: new Dictionary<StringName, ItemDef>(),
+            battle_special_profile_registry_snapshot: specialRegistry.GetRuntimeSnapshotPayload(),
+            battle_special_profile_view: specialRegistry.BuildRuntimeProfileView()
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         BattleState state = BuildState(mapSize);
@@ -229,25 +228,8 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
         {
             Runtime = runtime,
             Caster = caster,
-            SkillDefIndex = typedSkillDefs,
-            SkillDefs = ProjectSkillDefs(typedSkillDefs),
+            SkillDefinitionIndex = typedSkillDefinitions,
         };
-    }
-
-    private static GDictionary ProjectSkillDefs(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
-    )
-    {
-        GDictionary result = new();
-        if (skillDefs == null)
-            return result;
-        foreach ((StringName skillId, SkillDef skillDef) in skillDefs)
-        {
-            if (skillId == "" || skillDef == null)
-                continue;
-            result[skillId] = skillDef;
-        }
-        return result;
     }
 
     private static BattleState BuildState(Vector2I mapSize)
@@ -340,11 +322,17 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
         return command;
     }
 
-    private static SkillDef GetSkill(GDictionary skillDefs, StringName skillId)
+    private static SkillDefinition GetSkillDefinition(
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        StringName skillId
+    )
     {
-        if (skillDefs == null || !skillDefs.ContainsKey(skillId))
+        if (
+            skillDefinitions == null
+            || !skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
+        )
             return null;
-        return skillDefs[skillId].AsGodotObject() as SkillDef;
+        return skillDefinition;
     }
 
     private static string DictString(GDictionary dictionary, string key, string fallback)
@@ -359,7 +347,6 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
     {
         public BattleRuntimeModule Runtime;
         public BattleUnitState Caster;
-        public IReadOnlyDictionary<StringName, SkillDef> SkillDefIndex;
-        public GDictionary SkillDefs;
+        public IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitionIndex;
     }
 }

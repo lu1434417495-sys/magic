@@ -334,7 +334,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
         );
         runtime._character_management.setup(
             partyState,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             gameSession.GetProfessionDefsTyped(),
             gameSession.GetAchievementDefsTyped(),
             itemDefs,

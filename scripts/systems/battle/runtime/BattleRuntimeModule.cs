@@ -4,7 +4,6 @@ using System.Linq;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GBattleUnitArray = System.Collections.Generic.List<BattleUnitState>;
-using GCombatEffectArray = Godot.Collections.Array<CombatEffectDef>;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
@@ -233,7 +232,7 @@ public sealed class BattleRuntimeModule : IDisposable
     private IBattleRuntimeCharacterGateway _characterGateway;
     private ISkillCatalog _skillCatalog;
 
-    private readonly Dictionary<StringName, SkillDef> _skillDefIndex = new();
+    private readonly Dictionary<StringName, SkillDefinition> _skillDefinitionIndex = new();
     private readonly Dictionary<StringName, EnemyTemplateDef> _enemyTemplateIndex = new();
     private readonly Dictionary<StringName, EnemyAiBrainDef> _enemyAiBrainIndex = new();
     private readonly Dictionary<StringName, ItemDef> _itemDefIndex = new();
@@ -281,7 +280,10 @@ public sealed class BattleRuntimeModule : IDisposable
     internal BattleSkillExecutionOrchestrator _skill_orchestrator = new();
     internal BattleCastingTimeService _casting_time_service = new();
     internal TraitTriggerHooks _trait_trigger_hooks = new();
-    internal readonly RuntimePayloadStore _special_profile_registry_snapshot = new();
+    internal readonly Dictionary<string, object> _special_profile_registry_snapshot = new(
+        StringComparer.Ordinal
+    );
+    private IBattleSpecialProfileView _special_profile_view = BattleSpecialProfileRuntimeView.Empty;
 	internal BattleSpecialProfileGate _special_profile_gate;
 	internal BattleMeteorSwarmResolver _meteor_swarm_resolver;
     internal BattleAttackCheckPolicyService _attack_check_policy_service = new();
@@ -302,10 +304,10 @@ public sealed class BattleRuntimeModule : IDisposable
     private readonly Func<BattleCommand, BattlePreview> _ai_preview_command_callback;
     private readonly Func<
         BattleAiContext,
-        SkillDef,
+        SkillDefinition,
         BattleCommand,
         BattlePreview,
-        IReadOnlyList<CombatEffectDef>,
+        IReadOnlyList<CombatEffectDefinition>,
         IReadOnlyDictionary<string, object>,
         BattleAiScoreInput
     > _ai_skill_score_input_callback;
@@ -330,10 +332,10 @@ public sealed class BattleRuntimeModule : IDisposable
         BattleAiScoreInput
     > _ai_query_action_score_input_callback;
     private readonly Func<StringName, bool> _ai_movement_blocked_callback;
-    private readonly Func<BattleUnitState, SkillDef, BattleSkillCastBlockReasonKind>
+    private readonly Func<BattleUnitState, SkillDefinition, BattleSkillCastBlockReasonKind>
         _ai_skill_cast_block_reason_callback;
     internal BattleMetricsState _battle_metrics = new();
-    internal RuntimePayloadStore _last_start_failure = new();
+    private BattleStartFailureSnapshot _last_start_failure = new();
     internal BattleCalamityStore calamity_by_member_id = new();
     private bool _disposed;
 
@@ -351,7 +353,7 @@ public sealed class BattleRuntimeModule : IDisposable
 
     public void setup(
         IBattleRuntimeCharacterGateway character_gateway = null,
-        IReadOnlyDictionary<StringName, SkillDef> skill_defs = null,
+        IReadOnlyDictionary<StringName, SkillDefinition> skill_definitions = null,
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemy_templates = null,
         IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemy_ai_brains = null,
         EncounterRosterBuilder encounter_builder = null,
@@ -360,13 +362,20 @@ public sealed class BattleRuntimeModule : IDisposable
         BattleTerrainGenerator terrain_generator = null,
         Func<StringName> equipment_instance_id_allocator = null,
         GDictionary battle_special_profile_registry_snapshot = null,
-        ISkillCatalog skill_catalog = null
+        ISkillCatalog skill_catalog = null,
+        IBattleSpecialProfileView battle_special_profile_view = null
     )
     {
         _characterGateway = character_gateway;
         _skillCatalog = skill_catalog;
-        ApplySkillDefsTyped(skill_defs);
-        _special_profile_registry_snapshot.ReplaceWithPayload(battle_special_profile_registry_snapshot);
+        IReadOnlyDictionary<StringName, SkillDefinition> catalogSkillDefinitions =
+            _skillCatalog?.GetSkillDefinitionsTyped();
+        IReadOnlyDictionary<StringName, SkillDefinition> resolvedSkillDefinitions =
+            skill_definitions
+            ?? catalogSkillDefinitions;
+        ApplySkillDefinitionsTyped(resolvedSkillDefinitions);
+        ReplaceSpecialProfileRegistrySnapshot(battle_special_profile_registry_snapshot);
+        _special_profile_view = battle_special_profile_view ?? BattleSpecialProfileRuntimeView.Empty;
         BindDamageResolver();
 
         IReadOnlyDictionary<StringName, ItemDef> resolvedItemDefs = item_defs;
@@ -403,7 +412,7 @@ public sealed class BattleRuntimeModule : IDisposable
             SetTerrainGenerator(terrain_generator, false);
 
         ClearAiActionPlans();
-        _last_start_failure.Clear();
+        ClearLastStartFailure();
         _ai_service.Setup(_enemyAiBrainIndex, _damage_resolver);
         _terrain_effect_system.Setup(this);
         _attack_check_policy_service ??= new BattleAttackCheckPolicyService();
@@ -437,7 +446,11 @@ public sealed class BattleRuntimeModule : IDisposable
     internal void _setup_special_profile_runtime()
     {
         _special_profile_gate ??= new BattleSpecialProfileGate();
-        GDictionary specialProfileRegistrySnapshot = _special_profile_registry_snapshot.ProjectPayload();
+        GDictionary specialProfileRegistrySnapshot =
+            RuntimePlainPayload.ProjectDictionary(
+                _special_profile_registry_snapshot,
+                "BattleRuntimeModule.special_profile_registry_snapshot"
+            );
         _special_profile_gate.Setup(specialProfileRegistrySnapshot);
         _skill_outcome_committer ??= new BattleSkillOutcomeCommitter();
         _skill_outcome_committer.Setup(this);
@@ -459,7 +472,7 @@ public sealed class BattleRuntimeModule : IDisposable
     {
         using var contextScope = new GodotTransientResourceScope("BattleRuntimeModule.StartBattle");
         context = contextScope.OwnWrapper(context ?? new GDictionary(), "context");
-        _last_start_failure.Clear();
+        ClearLastStartFailure();
         _ensure_sidecars_ready();
         var partyState =
             _characterGateway != null ? _characterGateway.GetPartyState() : null;
@@ -495,9 +508,9 @@ public sealed class BattleRuntimeModule : IDisposable
         else if (_encounter_builder != null)
         {
             enemyUnits = ToBattleUnitArray(
-                _encounter_builder.BuildEnemyUnitsTyped(
+                _encounter_builder.BuildEnemyUnitsFromDefinitionsTyped(
                     encounter_anchor,
-                    GetSkillDefIndexTyped(),
+                    GetSkillDefinitionIndexTyped(),
                     GetEnemyTemplateIndexTyped(),
                     GetEnemyAiBrainIndexTyped(),
                     GetItemDefIndexTyped()
@@ -512,14 +525,12 @@ public sealed class BattleRuntimeModule : IDisposable
         {
             ClearRuntimeBattleStateReference();
             ClearAiActionPlans();
-            _last_start_failure.ReplaceWithPayload(
-                new GDictionary
-                {
-                    ["reason"] = "invalid_start_units",
-                    ["ally_unit_count"] = allyUnits?.Count ?? 0,
-                    ["enemy_unit_count"] = enemyUnits?.Count ?? 0,
-                }
-            );
+            _last_start_failure = new BattleStartFailureSnapshot
+            {
+                Reason = "invalid_start_units",
+                AllyUnitCount = allyUnits?.Count ?? 0,
+                EnemyUnitCount = enemyUnits?.Count ?? 0,
+            };
             return new BattleState();
         }
 
@@ -595,12 +606,12 @@ public sealed class BattleRuntimeModule : IDisposable
                 if (!IsEmpty(allySpawnSide) && enemySpawnSide == allySpawnSide)
                     enemySpawnSide = _get_opposite_spawn_side(allySpawnSide);
             }
-            if (!PlaceUnitsTyped(allyUnits, ToVector2IArray(allySpawnCoords), true, allySpawnSide))
+            if (!PlaceUnitsTyped(allyUnits, ToVector2IList(allySpawnCoords), true, allySpawnSide))
             {
                 ClearRuntimeBattleStateReference();
                 continue;
             }
-            if (!PlaceUnitsTyped(enemyUnits, ToVector2IArray(enemySpawnCoords), false, enemySpawnSide))
+            if (!PlaceUnitsTyped(enemyUnits, ToVector2IList(enemySpawnCoords), false, enemySpawnSide))
             {
                 ClearRuntimeBattleStateReference();
                 continue;
@@ -612,24 +623,22 @@ public sealed class BattleRuntimeModule : IDisposable
                     _spawn_reachability_service.ValidateStateTyped(
                         _state,
                         _grid_service,
-                        _skillDefIndex,
+                        _skillDefinitionIndex,
                         new BattleSpawnReachabilityOptions(
                             startOptions.ValidateBidirectionalSpawnReachability
                         )
                     );
                 if (!reachability.Valid)
                 {
-                    _last_start_failure.ReplaceWithPayload(
-                        new GDictionary
-                        {
-                            ["reason"] = "spawn_reachability",
-                            ["placement_attempt"] = placementAttempt,
-                            ["terrain_seed"] = terrainSeed,
-                            ["ally_spawn_count"] = allySpawnCoords.Count,
-                            ["enemy_spawn_count"] = enemySpawnCoords.Count,
-                            ["reachability"] = BattleSpawnReachabilityProjection.Project(reachability),
-                        }
-                    );
+                    _last_start_failure = new BattleStartFailureSnapshot
+                    {
+                        Reason = "spawn_reachability",
+                        PlacementAttempt = placementAttempt,
+                        TerrainSeed = terrainSeed,
+                        AllySpawnCount = allySpawnCoords.Count,
+                        EnemySpawnCount = enemySpawnCoords.Count,
+                        ReachabilityResult = reachability,
+                    };
                     ClearRuntimeBattleStateReference();
                     ClearAiActionPlans();
                     continue;
@@ -657,21 +666,24 @@ public sealed class BattleRuntimeModule : IDisposable
 
         ClearRuntimeBattleStateReference();
         ClearAiActionPlans();
-        if (_last_start_failure.Count == 0)
+        if (_last_start_failure.IsEmpty)
         {
-            _last_start_failure.ReplaceWithPayload(
-                new GDictionary
-                {
-                    ["reason"] = "placement_exhausted",
-                    ["placement_attempts"] = BATTLE_START_PLACEMENT_MAX_ATTEMPTS,
-                }
-            );
+            _last_start_failure = new BattleStartFailureSnapshot
+            {
+                Reason = "placement_exhausted",
+                PlacementAttempts = BATTLE_START_PLACEMENT_MAX_ATTEMPTS,
+            };
         }
         return new BattleState();
     }
 
     internal BattleStartFailureSnapshot GetLastStartFailureSnapshot() =>
-        BattleStartFailureSnapshot.FromDictionary(_last_start_failure.ProjectPayload());
+        _last_start_failure ?? new BattleStartFailureSnapshot();
+
+    private void ClearLastStartFailure()
+    {
+        _last_start_failure = new BattleStartFailureSnapshot();
+    }
 
     internal bool _validate_battle_units_for_start(GArray units, string side_label) =>
         ValidateBattleUnitsForStart(ToBattleUnitArray(units), side_label);
@@ -738,7 +750,7 @@ public sealed class BattleRuntimeModule : IDisposable
             BattleAiRuntimeActionPlan actionPlan = _ai_action_assembler.BuildUnitActionPlan(
                 unitState,
                 brain,
-                GetSkillDefIndexTyped()
+                GetSkillDefinitionIndexTyped()
             );
             if (actionPlan != null)
                 _ai_action_plans_by_unit_id[unitState.unit_id] = actionPlan;
@@ -749,7 +761,7 @@ public sealed class BattleRuntimeModule : IDisposable
     {
         foreach (BattleAiRuntimeActionPlan plan in _ai_action_plans_by_unit_id.Values)
         {
-            plan?.Clear();
+            plan?.Dispose();
         }
         _ai_action_plans_by_unit_id.Clear();
     }
@@ -768,7 +780,7 @@ public sealed class BattleRuntimeModule : IDisposable
         BattleAiRuntimeActionPlan actionPlan = _ai_action_assembler.BuildUnitActionPlan(
             unit_state,
             brain,
-            GetSkillDefIndexTyped()
+            GetSkillDefinitionIndexTyped()
         );
         if (actionPlan != null)
             _ai_action_plans_by_unit_id[unit_state.unit_id] = actionPlan;
@@ -786,7 +798,7 @@ public sealed class BattleRuntimeModule : IDisposable
                 _state,
                 _grid_service,
                 unit_state,
-                GetSkillDefIndexTyped(),
+                GetSkillDefinitionIndexTyped(),
                 _skillCatalog,
                 _ai_service.GetScoreService(),
                 _get_ai_move_query_cost,
@@ -814,7 +826,7 @@ public sealed class BattleRuntimeModule : IDisposable
                 activeUnit,
                 _grid_service,
                 actionPlan,
-                GetSkillDefIndexTyped(),
+                GetSkillDefinitionIndexTyped(),
                 _ai_trace_enabled,
                 _skillCatalog,
                 _ai_move_cost_callback,
@@ -828,20 +840,20 @@ public sealed class BattleRuntimeModule : IDisposable
 
     private BattleAiScoreInput BuildAiSkillScoreInput(
         BattleAiContext context,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BattleCommand command,
         BattlePreview preview,
-        IReadOnlyList<CombatEffectDef> effectDefs,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         IReadOnlyDictionary<string, object> metadata
     )
     {
         return _ai_service.GetScoreService()
             .BuildSkillScoreInput(
                 context,
-                skillDef,
+                skillDefinition,
                 command,
                 preview,
-                effectDefs ?? System.Array.Empty<CombatEffectDef>(),
+                effectDefinitions ?? System.Array.Empty<CombatEffectDefinition>(),
                 metadata
             );
     }
@@ -1007,7 +1019,7 @@ public sealed class BattleRuntimeModule : IDisposable
                         decisionBatch.InsertLogLine(0, aiLine);
                     AiTraceRecorder.Exit("advance:prepend_ai_batch_log");
                     AiTraceRecorder.Exit("advance:ai_trace_after_command");
-                    decision.DisposeOwnedGodotObjects();
+                    decision.ClearOwnedRuntimeReferences();
                     return decisionBatch;
                 }
             }
@@ -1386,12 +1398,7 @@ public sealed class BattleRuntimeModule : IDisposable
         {
             GDictionary reportEntry = batch.ReportEntriesTyped[i];
             if (reportEntry.Count > 0)
-                _state.report_entries.Add(
-                    RuntimePayloadCopy.Dictionary(
-                        reportEntry,
-                        "BattleRuntimeModule.AppendResultBatch.report_entry"
-                    )
-                );
+                _state.AddReportEntry(reportEntry);
         }
     }
 
@@ -1793,16 +1800,33 @@ public sealed class BattleRuntimeModule : IDisposable
 
     internal BattleSkillCastBlockReasonKind GetSkillCastBlockReason(
         BattleUnitState active_unit,
-        SkillDef skill_def
+        SkillDefinition skillDefinition
     ) =>
-        _get_skill_cast_block_reason(active_unit, skill_def);
+        _skill_turn_resolver.GetSkillCastBlockReason(active_unit, skillDefinition);
 
-    internal string GetSkillCastBlockMessage(BattleUnitState active_unit, SkillDef skill_def) =>
+    internal string GetSkillCastBlockMessage(
+        BattleUnitState active_unit,
+        SkillDefinition skillDefinition
+    ) =>
         _skill_turn_resolver.FormatSkillCastBlockReason(
             active_unit,
-            skill_def,
-            GetSkillCastBlockReason(active_unit, skill_def)
+            skillDefinition,
+            skillDefinition != null
+                ? GetSkillCastBlockReason(active_unit, skillDefinition)
+                : BattleSkillCastBlockReasonKind.InvalidSkillOrTarget
         );
+
+    internal string GetSkillCastBlockMessage(BattleUnitState active_unit, StringName skill_id)
+    {
+        SkillDefinition skillDefinition = GetSkillDefinitionTyped(skill_id);
+        return _skill_turn_resolver.FormatSkillCastBlockReason(
+            active_unit,
+            skillDefinition,
+            skillDefinition != null
+                ? GetSkillCastBlockReason(active_unit, skillDefinition)
+                : BattleSkillCastBlockReasonKind.InvalidSkillOrTarget
+        );
+    }
 
     public bool IsUnitGuardLocked(BattleUnitState unit_state) =>
         _has_status(unit_state, STATUS_BLACK_STAR_BRAND_NORMAL)
@@ -2048,23 +2072,33 @@ public sealed class BattleRuntimeModule : IDisposable
             terrainGenerator.Dispose();
     }
 
-    public SkillDef GetSkillDefTyped(StringName skill_id)
+    internal IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionIndexTyped() =>
+        _skillDefinitionIndex;
+
+    internal SkillDefinition GetSkillDefinitionTyped(StringName skillId)
     {
-        if (IsEmpty(skill_id))
-        {
-            return null;
-        }
-        return _skillDefIndex.TryGetValue(skill_id, out SkillDef skillDef) ? skillDef : null;
+        StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
+        return normalizedSkillId != ""
+            && _skillDefinitionIndex != null
+            && _skillDefinitionIndex.TryGetValue(
+                normalizedSkillId,
+                out SkillDefinition skillDefinition
+            )
+            ? skillDefinition
+            : null;
     }
 
-    internal IReadOnlyDictionary<StringName, SkillDef> GetSkillDefIndexTyped() => _skillDefIndex;
-
     internal void SyncContentCatalogsTyped(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null
     )
     {
-        ApplySkillDefsTyped(skillDefs);
+        IReadOnlyDictionary<StringName, SkillDefinition> catalogSkillDefinitions =
+            _skillCatalog?.GetSkillDefinitionsTyped();
+        IReadOnlyDictionary<StringName, SkillDefinition> resolvedSkillDefinitions =
+            skillDefinitions
+            ?? catalogSkillDefinitions;
+        ApplySkillDefinitionsTyped(resolvedSkillDefinitions);
         ApplyItemDefsTyped(itemDefs);
     }
 
@@ -2072,7 +2106,13 @@ public sealed class BattleRuntimeModule : IDisposable
         _enemyTemplateIndex;
 
     internal GDictionary GetSpecialProfileRegistrySnapshotPayload() =>
-        _special_profile_registry_snapshot.ProjectPayload();
+        RuntimePlainPayload.ProjectDictionary(
+            _special_profile_registry_snapshot,
+            "BattleRuntimeModule.GetSpecialProfileRegistrySnapshotPayload"
+        );
+
+    internal IBattleSpecialProfileView GetSpecialProfileView() =>
+        _special_profile_view ?? BattleSpecialProfileRuntimeView.Empty;
 
     internal EnemyTemplateDef GetEnemyTemplateTyped(StringName templateId)
     {
@@ -2092,21 +2132,23 @@ public sealed class BattleRuntimeModule : IDisposable
         ApplyEnemyTemplatesTyped(enemyTemplates);
     }
 
-    private void ApplySkillDefsTyped(IReadOnlyDictionary<StringName, SkillDef> skillDefs)
+    private void ApplySkillDefinitionsTyped(
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
+    )
     {
         _runtime_services.ClearRuntimeBindings();
-        _skillDefIndex.Clear();
-        if (skillDefs == null || skillDefs.Count == 0)
+        _skillDefinitionIndex.Clear();
+        if (skillDefinitions == null || skillDefinitions.Count == 0)
         {
             return;
         }
-        foreach ((StringName skillId, SkillDef skillDef) in skillDefs)
+        foreach ((StringName skillId, SkillDefinition skillDefinition) in skillDefinitions)
         {
-            if (skillId == "" || skillDef == null || skillDef.skill_id == "")
+            if (skillId == "" || skillDefinition == null || skillDefinition.SkillId == "")
             {
                 continue;
             }
-            _skillDefIndex[skillDef.skill_id] = skillDef;
+            _skillDefinitionIndex[skillDefinition.SkillId] = skillDefinition;
         }
     }
 
@@ -2145,6 +2187,25 @@ public sealed class BattleRuntimeModule : IDisposable
                 continue;
             }
             _enemyAiBrainIndex[brain.brain_id] = brain;
+        }
+    }
+
+    private void ReplaceSpecialProfileRegistrySnapshot(GDictionary snapshot)
+    {
+        _special_profile_registry_snapshot.Clear();
+        if (snapshot == null)
+        {
+            return;
+        }
+
+        Dictionary<string, object> normalized =
+            RuntimePlainPayload.NormalizeDictionary(
+                snapshot,
+                "BattleRuntimeModule.special_profile_registry_snapshot"
+            );
+        foreach (KeyValuePair<string, object> entry in normalized)
+        {
+            _special_profile_registry_snapshot[entry.Key] = entry.Value;
         }
     }
 
@@ -2188,10 +2249,6 @@ public sealed class BattleRuntimeModule : IDisposable
         _enemyAiBrainIndex;
 
     internal IReadOnlyDictionary<StringName, ItemDef> GetItemDefIndexTyped() => _itemDefIndex;
-
-    internal bool _has_special_profile(SkillDef skill_def, StringName profile_id) =>
-        skill_def?.combat_profile != null
-        && skill_def.combat_profile.special_resolution_profile_id == profile_id;
 
     internal void _append_special_profile_gate_block(
         BattleEventBatch batch,
@@ -2618,18 +2675,13 @@ public sealed class BattleRuntimeModule : IDisposable
 
     internal GVector2IArray sort_coords(GVector2IArray target_coords) => _sort_coords(target_coords);
 
-    internal string FormatSkillVariantLabel(
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant
-    ) => _format_skill_variant_label(skill_def, cast_variant);
-
     internal void MarkAppliedStatusesForTurnTiming(
         BattleUnitState target_unit,
         GArray status_effect_ids
     )
     {
         _initialize_applied_status_timeline_ticks(target_unit, status_effect_ids);
-        _fate_runtime?.HandleAppliedStatuses(target_unit, status_effect_ids ?? new GArray());
+        _fate_runtime?.HandleAppliedStatuses(target_unit, status_effect_ids);
     }
 
     internal void MarkAppliedStatusesForTurnTiming(
@@ -2680,7 +2732,9 @@ public sealed class BattleRuntimeModule : IDisposable
     private static GStringNameArray NormalizeStatusIdArray(GArray statusEffectIds)
     {
         GStringNameArray normalized = new();
-        foreach (var statusIdValue in statusEffectIds ?? new GArray())
+        if (statusEffectIds == null)
+            return normalized;
+        foreach (var statusIdValue in statusEffectIds)
         {
             StringName statusId = ProgressionDataUtils.to_string_name(statusIdValue);
             if (statusId == "" || normalized.Contains(statusId))
@@ -2693,7 +2747,9 @@ public sealed class BattleRuntimeModule : IDisposable
     private static GStringNameArray NormalizeStatusIdArray(GStringNameArray statusEffectIds)
     {
         GStringNameArray normalized = new();
-        foreach (StringName statusIdValue in statusEffectIds ?? new GStringNameArray())
+        if (statusEffectIds == null)
+            return normalized;
+        foreach (StringName statusIdValue in statusEffectIds)
         {
             StringName statusId = ProgressionDataUtils.to_string_name(statusIdValue);
             if (statusId == "" || normalized.Contains(statusId))
@@ -2703,18 +2759,11 @@ public sealed class BattleRuntimeModule : IDisposable
         return normalized;
     }
 
-    internal StringName ResolveEffectTargetFilter(
-        SkillDef skill_def,
-        CombatEffectDef effect_def
-    ) => _resolve_effect_target_filter(skill_def, effect_def);
-
     internal bool IsUnitValidForEffect(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         StringName target_filter
     ) => _is_unit_valid_for_effect(source_unit, target_unit, target_filter);
-
-    internal bool is_unit_effect(CombatEffectDef effect_def) => _is_unit_effect(effect_def);
 
     internal int GetUnitSkillLevel(BattleUnitState unit_state, StringName skill_id) =>
         _get_unit_skill_level(unit_state, skill_id);
@@ -2937,11 +2986,12 @@ public sealed class BattleRuntimeModule : IDisposable
         _terrain_effect_nonce = 0;
         _ai_trace_enabled = false;
         _characterGateway = null;
-        _skillDefIndex.Clear();
+        _skillDefinitionIndex.Clear();
         _itemDefIndex.Clear();
         _enemyTemplateIndex.Clear();
         _enemyAiBrainIndex.Clear();
         _special_profile_registry_snapshot.Clear();
+        _special_profile_view = BattleSpecialProfileRuntimeView.Empty;
         _encounter_builder = null;
         _equipment_drop_service = null;
         _equipment_instance_id_allocator = null;
@@ -2989,7 +3039,7 @@ public sealed class BattleRuntimeModule : IDisposable
         StringName spawn_side = default
     ) => PlaceUnitsTyped(
         ToBattleUnitArray(units),
-        ToVector2IArray(spawn_coords),
+        ToVector2IList(spawn_coords),
         is_ally,
         spawn_side
     );
@@ -3017,7 +3067,7 @@ public sealed class BattleRuntimeModule : IDisposable
             if (unitState == null)
                 continue;
             unitState.RefreshFootprint();
-            var preferredCoords = new GVector2IArray();
+            var preferredCoords = new List<Vector2I>();
             if (index < spawnCoordValues.Count)
                 preferredCoords.Add(spawnCoordValues[index]);
             foreach (Vector2I coord in spawnCoordValues)
@@ -3079,12 +3129,13 @@ public sealed class BattleRuntimeModule : IDisposable
 
     internal Vector2I _find_spawn_anchor(
         BattleUnitState unit_state,
-        GVector2IArray preferred_coords,
+        IReadOnlyList<Vector2I> preferred_coords,
         StringName spawn_side = default
     )
     {
         if (_state == null || unit_state == null)
             return new Vector2I(-1, -1);
+        preferred_coords ??= Array.Empty<Vector2I>();
         Vector2I bestCoord = new(-1, -1);
         int bestScore = int.MinValue + 1;
         for (int preferredIndex = 0; preferredIndex < preferred_coords.Count; preferredIndex++)
@@ -3120,7 +3171,7 @@ public sealed class BattleRuntimeModule : IDisposable
 
     internal Vector2I _find_spawn_anchor(
         BattleUnitState unit_state,
-        GVector2IArray preferred_coords
+        IReadOnlyList<Vector2I> preferred_coords
     ) => _find_spawn_anchor(unit_state, preferred_coords, "");
 
     internal bool _can_place_spawn_anchor(
@@ -3158,7 +3209,7 @@ public sealed class BattleRuntimeModule : IDisposable
             return "";
         int nearCount = 0;
         int farCount = 0;
-        foreach (Vector2I coord in ToVector2IArray(spawn_coords))
+        foreach (Vector2I coord in ToVector2IList(spawn_coords))
         {
             if (_coord_matches_spawn_side(coord, SPAWN_SIDE_NEAR_LONG_EDGE_VALUE))
                 nearCount++;
@@ -3387,58 +3438,6 @@ public sealed class BattleRuntimeModule : IDisposable
         _skill_orchestrator._preview_skill_command(active_unit, command, preview);
     }
 
-    internal void _preview_unit_skill_command(
-        BattleUnitReadView active_unit,
-        BattleCommand command,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
-        BattlePreview preview
-    )
-    {
-        _ensure_sidecars_ready();
-        _skill_orchestrator._preview_unit_skill_command(
-            active_unit,
-            command,
-            skill_def,
-            cast_variant,
-            preview
-        );
-    }
-
-    internal void _preview_ground_skill_command(
-        BattleUnitReadView active_unit,
-        BattleCommand command,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
-        BattlePreview preview
-    )
-    {
-        _ensure_sidecars_ready();
-        _skill_orchestrator._preview_ground_skill_command(
-            active_unit,
-            command,
-            skill_def,
-            cast_variant,
-            preview
-        );
-    }
-
-    internal AttackPreviewData _build_unit_skill_hit_preview(
-        BattleUnitState active_unit,
-        GArray target_units,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant
-    )
-    {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator._build_unit_skill_hit_preview(
-            active_unit,
-            target_units,
-            skill_def,
-            cast_variant
-        );
-    }
-
     internal void AppendDamageResultLogLines(
         BattleEventBatch batch,
         string subject_label,
@@ -3455,66 +3454,6 @@ public sealed class BattleRuntimeModule : IDisposable
         );
     }
 
-    internal string _build_skill_log_subject_label(
-        BattleUnitState source_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant = null
-    )
-    {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator._build_skill_log_subject_label(
-            source_unit,
-            skill_def,
-            cast_variant
-        );
-    }
-
-    internal bool _handle_unit_skill_command(
-        BattleUnitState active_unit,
-        BattleCommand command,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
-        BattleEventBatch batch
-    )
-    {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator._handle_unit_skill_command(
-            active_unit,
-            command,
-            skill_def,
-            cast_variant,
-            batch
-        );
-    }
-
-    internal bool _should_route_skill_command_to_unit_targeting(
-        SkillDef skill_def,
-        BattleCommand command
-    )
-    {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator._should_route_skill_command_to_unit_targeting(
-            skill_def,
-            command
-        );
-    }
-
-    internal BattleUnitSkillValidationResult _validate_unit_skill_targets_result(
-        BattleUnitState active_unit,
-        BattleCommand command,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant = null
-    )
-    {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator._validate_unit_skill_targets_result(
-            active_unit,
-            command,
-            skill_def,
-            cast_variant
-        );
-    }
-
     internal GStringNameArray _normalize_target_unit_ids(BattleCommand command)
     {
         _ensure_sidecars_ready();
@@ -3527,35 +3466,11 @@ public sealed class BattleRuntimeModule : IDisposable
         return _skill_orchestrator._sort_target_unit_ids_for_execution(target_unit_ids);
     }
 
-    internal bool _is_multi_unit_skill(SkillDef skill_def)
-    {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator._is_multi_unit_skill(skill_def);
-    }
-
-    internal bool _can_skill_target_unit(
-        BattleUnitState active_unit,
-        BattleUnitState target_unit,
-        SkillDef skill_def,
-        bool require_ap = true,
-        CombatCastVariantDef cast_variant = null
-    )
-    {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator._can_skill_target_unit(
-            active_unit,
-            target_unit,
-            skill_def,
-            require_ap,
-            cast_variant
-        );
-    }
-
     internal BattleUnitSkillTargetAffordance GetUnitSkillTargetAffordance(
         BattleUnitState active_unit,
         BattleUnitState target_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant = null,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant = null,
         bool require_ap = true
     )
     {
@@ -3563,8 +3478,8 @@ public sealed class BattleRuntimeModule : IDisposable
         return _skill_orchestrator.GetUnitSkillTargetAffordance(
             active_unit,
             target_unit,
-            skill_def,
-            cast_variant,
+            skillDefinition,
+            castVariant,
             require_ap
         );
     }
@@ -3576,17 +3491,6 @@ public sealed class BattleRuntimeModule : IDisposable
     {
         _ensure_sidecars_ready();
         return _skill_orchestrator._unit_stands_on_terrain_effect(unit_state, terrain_effect_id);
-    }
-
-    internal bool _is_unit_in_chain_radius(
-        BattleUnitState primary_target,
-        BattleUnitState candidate,
-        int radius,
-        CombatEffectDef chain_effect
-    )
-    {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator._is_within_chain_radius(primary_target, candidate, radius);
     }
 
     internal bool _is_within_chain_radius(
@@ -3605,7 +3509,7 @@ public sealed class BattleRuntimeModule : IDisposable
         return _skill_orchestrator._is_chain_path_clear(from_unit, to_unit);
     }
 
-    internal GVector2IArray _get_line_coords(Vector2I from, Vector2I to)
+    internal List<Vector2I> _get_line_coords(Vector2I from, Vector2I to)
     {
         _ensure_sidecars_ready();
         return _skill_orchestrator._get_line_coords(from, to);
@@ -3620,8 +3524,8 @@ public sealed class BattleRuntimeModule : IDisposable
     internal void _apply_on_kill_gain_resources_effects(
         BattleUnitState source_unit,
         BattleUnitState defeated_unit,
-        SkillDef skill_def,
-        GCombatEffectArray effect_defs,
+        SkillDefinition skillDefinition,
+        IEnumerable<CombatEffectDefinition> effectDefinitions,
         BattleEventBatch batch
     )
     {
@@ -3629,8 +3533,8 @@ public sealed class BattleRuntimeModule : IDisposable
         _special_skill_resolver.ApplyOnKillGainResourcesEffects(
             source_unit,
             defeated_unit,
-            skill_def,
-            effect_defs ?? new GCombatEffectArray(),
+            skillDefinition,
+            effectDefinitions ?? Array.Empty<CombatEffectDefinition>(),
             batch
         );
     }
@@ -3638,9 +3542,9 @@ public sealed class BattleRuntimeModule : IDisposable
     public BattleSpecialSkillResult ApplyUnitSkillSpecialEffectsResult(
         BattleUnitState active_unit,
         BattleUnitState target_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
-        GCombatEffectArray effect_defs,
+        SkillDefinition skill_definition,
+        CombatCastVariantDefinition cast_variant,
+        IEnumerable<CombatEffectDefinition> effect_definitions,
         BattleEventBatch batch,
         BattleForcedMoveContext forced_move_context = default
     )
@@ -3649,9 +3553,9 @@ public sealed class BattleRuntimeModule : IDisposable
         return _special_skill_resolver.ApplyUnitSkillSpecialEffectsResult(
             active_unit,
             target_unit,
-            skill_def,
+            skill_definition,
             cast_variant,
-            effect_defs ?? new GCombatEffectArray(),
+            effect_definitions ?? Array.Empty<CombatEffectDefinition>(),
             batch,
             forced_move_context
         );
@@ -3966,74 +3870,16 @@ public sealed class BattleRuntimeModule : IDisposable
     internal string _get_unit_skill_target_validation_message(
         BattleUnitState active_unit,
         BattleUnitState target_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant = null
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant = null
     )
     {
         _ensure_sidecars_ready();
         return _skill_orchestrator._get_unit_skill_target_validation_message(
             active_unit,
             target_unit,
-            skill_def,
-            cast_variant
-        );
-    }
-
-    internal string _get_body_size_category_override_validation_message(
-        BattleUnitState active_unit,
-        BattleUnitState target_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant = null
-    )
-    {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator._get_body_size_category_override_validation_message(
-            active_unit,
-            target_unit,
-            skill_def,
-            cast_variant
-        );
-    }
-
-    internal bool _skill_grants_guarding(SkillDef skill_def)
-    {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator._skill_grants_guarding(skill_def);
-    }
-
-    internal int _apply_forced_move_effect(
-        BattleUnitState source_unit,
-        BattleUnitState unit_state,
-        CombatEffectDef effect_def,
-        BattleEventBatch batch,
-        BattleForcedMoveContext forced_move_context = default
-    )
-    {
-        _ensure_sidecars_ready();
-        return _special_skill_resolver.ApplyForcedMoveEffect(
-            source_unit,
-            unit_state,
-            effect_def,
-            batch,
-            forced_move_context
-        );
-    }
-
-    public int ApplyForcedMoveEffect(
-        BattleUnitState source_unit,
-        BattleUnitState unit_state,
-        CombatEffectDef effect_def,
-        BattleEventBatch batch,
-        BattleForcedMoveContext forced_move_context
-    )
-    {
-        _ensure_sidecars_ready();
-        return _special_skill_resolver.ApplyForcedMoveEffect(
-            source_unit,
-            unit_state,
-            effect_def,
-            batch,
-            forced_move_context
+            skillDefinition,
+            castVariant
         );
     }
 
@@ -4046,7 +3892,7 @@ public sealed class BattleRuntimeModule : IDisposable
     internal void RecordVajraBodyMasteryFromIncomingDamageTyped(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         AttackEffectResolutionResult result,
         BattleEventBatch batch = null
     )
@@ -4055,7 +3901,7 @@ public sealed class BattleRuntimeModule : IDisposable
         _special_skill_resolver.RecordVajraBodyMasteryFromIncomingDamageTyped(
             sourceUnit,
             targetUnit,
-            skillDef,
+            skillDefinition,
             result,
             batch
         );
@@ -4129,27 +3975,9 @@ public sealed class BattleRuntimeModule : IDisposable
         );
     }
 
-    internal bool _handle_ground_skill_command(
-        BattleUnitState active_unit,
-        BattleCommand command,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
-        BattleEventBatch batch
-    )
-    {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator._handle_ground_skill_command(
-            active_unit,
-            command,
-            skill_def,
-            cast_variant,
-            batch
-        );
-    }
-
     internal BattleSpellControlResult _resolve_ground_spell_control_after_cost_result(
         BattleUnitState active_unit,
-        SkillDef skill_def,
+        SkillDefinition skillDefinition,
         int spent_mp,
         BattleEventBatch batch
     )
@@ -4157,7 +3985,7 @@ public sealed class BattleRuntimeModule : IDisposable
         _ensure_sidecars_ready();
         return _ground_effect_service.ResolveGroundSpellControlAfterCostResult(
             active_unit,
-            skill_def,
+            skillDefinition,
             spent_mp,
             batch
         );
@@ -4165,22 +3993,22 @@ public sealed class BattleRuntimeModule : IDisposable
 
     internal BattleSpellControlResult _resolve_unit_spell_control_after_cost_result(
         BattleUnitState active_unit,
-        SkillDef skill_def,
+        SkillDefinition skillDefinition,
         BattleEventBatch batch
     )
     {
         _ensure_sidecars_ready();
         return _ground_effect_service.ResolveUnitSpellControlAfterCostResult(
             active_unit,
-            skill_def,
+            skillDefinition,
             batch
         );
     }
 
     internal bool ApplyGroundPrecastSpecialEffectsTyped(
         BattleUnitState active_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
         IReadOnlyList<Vector2I> target_coords,
         BattleEventBatch batch
     )
@@ -4188,8 +4016,8 @@ public sealed class BattleRuntimeModule : IDisposable
         _ensure_sidecars_ready();
         return _ground_effect_service.ApplyGroundPrecastSpecialEffects(
             active_unit,
-            skill_def,
-            cast_variant,
+            skillDefinition,
+            castVariantDefinition,
             target_coords ?? Array.Empty<Vector2I>(),
             batch
         );
@@ -4209,158 +4037,125 @@ public sealed class BattleRuntimeModule : IDisposable
         );
     }
 
-    internal CombatEffectDef _get_ground_jump_effect_def(
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant
-    )
-    {
-        _ensure_sidecars_ready();
-        return _ground_effect_service._get_ground_jump_effect_def(skill_def, cast_variant)
-            as CombatEffectDef;
-    }
-
-    internal bool _is_ground_jump_effect(CombatEffectDef effect_def)
-    {
-        _ensure_sidecars_ready();
-        return _ground_effect_service._is_ground_jump_effect(effect_def);
-    }
-
     internal IReadOnlyList<Vector2I> BuildGroundEffectCoordsTyped(
-        SkillDef skill_def,
+        SkillDefinition skillDefinition,
         IReadOnlyList<Vector2I> target_coords,
         Vector2I source_coord = default,
         BattleUnitState active_unit = null,
-        CombatCastVariantDef cast_variant = null
+        CombatCastVariantDefinition castVariantDefinition = null
     )
     {
         _ensure_sidecars_ready();
         if (source_coord == default)
             source_coord = new Vector2I(-1, -1);
         return _ground_effect_service.BuildGroundEffectCoords(
-            skill_def,
+            skillDefinition,
             target_coords ?? Array.Empty<Vector2I>(),
             source_coord,
             active_unit,
-            cast_variant
+            castVariantDefinition
         );
     }
 
     internal IReadOnlyList<Vector2I> BuildGroundEffectCoordsTyped(
-        SkillDef skill_def,
+        SkillDefinition skillDefinition,
         IReadOnlyList<Vector2I> target_coords,
         Vector2I source_coord,
         BattleUnitReadView active_unit,
-        CombatCastVariantDef cast_variant = null
+        CombatCastVariantDefinition castVariantDefinition = null
     )
     {
         _ensure_sidecars_ready();
         if (source_coord == default)
             source_coord = new Vector2I(-1, -1);
         return _ground_effect_service.BuildGroundEffectCoords(
-            skill_def,
+            skillDefinition,
             target_coords ?? Array.Empty<Vector2I>(),
             source_coord,
             active_unit,
-            cast_variant
+            castVariantDefinition
         );
     }
 
-    internal IReadOnlyList<CombatEffectDef> CollectGroundUnitEffectDefsTyped(
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
+    internal IReadOnlyList<CombatEffectDefinition> CollectGroundUnitEffectDefinitionsTyped(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
         BattleUnitState active_unit = null
     )
     {
         _ensure_sidecars_ready();
-        return _ground_effect_service.CollectGroundUnitEffectDefs(
-            skill_def,
-            cast_variant,
+        return _ground_effect_service.CollectGroundUnitEffectDefinitions(
+            skillDefinition,
+            castVariantDefinition,
             active_unit
         );
     }
 
-    internal IReadOnlyList<CombatEffectDef> CollectGroundUnitEffectDefsTyped(
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
+    internal IReadOnlyList<CombatEffectDefinition> CollectGroundUnitEffectDefinitionsTyped(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
         BattleUnitReadView active_unit
     )
     {
         _ensure_sidecars_ready();
-        return _skill_resolution_rules != null
-            ? _skill_resolution_rules.CollectGroundUnitEffectDefs(
-                skill_def,
-                cast_variant,
-                active_unit
-            )
-            : Array.Empty<CombatEffectDef>();
+        return _ground_effect_service.CollectGroundUnitEffectDefinitions(
+            skillDefinition,
+            castVariantDefinition,
+            active_unit
+        );
     }
 
-    internal IReadOnlyList<CombatEffectDef> CollectGroundTerrainEffectDefsTyped(
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
+    internal IReadOnlyList<CombatEffectDefinition> CollectGroundTerrainEffectDefinitionsTyped(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
         BattleUnitState active_unit = null
     )
     {
         _ensure_sidecars_ready();
-        return _ground_effect_service.CollectGroundTerrainEffectDefs(
-            skill_def,
-            cast_variant,
+        return _ground_effect_service.CollectGroundTerrainEffectDefinitions(
+            skillDefinition,
+            castVariantDefinition,
             active_unit
         );
     }
 
-    internal IReadOnlyList<CombatEffectDef> CollectGroundTerrainEffectDefsTyped(
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
-        BattleUnitReadView active_unit
-    )
-    {
-        _ensure_sidecars_ready();
-        return _skill_resolution_rules != null
-            ? _skill_resolution_rules.CollectGroundTerrainEffectDefs(
-                skill_def,
-                cast_variant,
-                active_unit
-            )
-            : Array.Empty<CombatEffectDef>();
-    }
-
     internal IReadOnlyList<StringName> CollectGroundPreviewUnitIdsTyped(
-        BattleUnitState source_unit,
-        SkillDef skill_def,
-        IReadOnlyList<CombatEffectDef> effect_defs,
-        IReadOnlyList<Vector2I> effect_coords
+        BattleUnitState sourceUnit,
+        SkillDefinition skillDefinition,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        IReadOnlyList<Vector2I> effectCoords
     )
     {
         _ensure_sidecars_ready();
         return _ground_effect_service.CollectGroundPreviewUnitIds(
-            source_unit,
-            skill_def,
-            effect_defs ?? Array.Empty<CombatEffectDef>(),
-            effect_coords ?? Array.Empty<Vector2I>()
+            sourceUnit,
+            skillDefinition,
+            effectDefinitions ?? Array.Empty<CombatEffectDefinition>(),
+            effectCoords ?? Array.Empty<Vector2I>()
         );
     }
 
     internal IReadOnlyList<StringName> CollectGroundPreviewUnitIdsTyped(
-        BattleUnitReadView source_unit,
-        SkillDef skill_def,
-        IReadOnlyList<CombatEffectDef> effect_defs,
-        IReadOnlyList<Vector2I> effect_coords
+        BattleUnitReadView sourceUnit,
+        SkillDefinition skillDefinition,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        IReadOnlyList<Vector2I> effectCoords
     )
     {
         _ensure_sidecars_ready();
         return _ground_effect_service.CollectGroundPreviewUnitIds(
-            source_unit,
-            skill_def,
-            effect_defs ?? Array.Empty<CombatEffectDef>(),
-            effect_coords ?? Array.Empty<Vector2I>()
+            sourceUnit,
+            skillDefinition,
+            effectDefinitions ?? Array.Empty<CombatEffectDefinition>(),
+            effectCoords ?? Array.Empty<Vector2I>()
         );
     }
 
     internal BattleGroundUnitEffectsResult ApplyGroundUnitEffectsResultTyped(
         BattleUnitState source_unit,
-        SkillDef skill_def,
-        IReadOnlyList<CombatEffectDef> effect_defs,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         IReadOnlyList<Vector2I> effect_coords,
         BattleEventBatch batch,
         IReadOnlyList<Vector2I> target_coords = null
@@ -4369,45 +4164,19 @@ public sealed class BattleRuntimeModule : IDisposable
         _ensure_sidecars_ready();
         return _ground_effect_service._apply_ground_unit_effects_result(
             source_unit,
-            skill_def,
-            effect_defs ?? Array.Empty<CombatEffectDef>(),
+            skillDefinition,
+            castVariantDefinition,
+            effectDefinitions ?? Array.Empty<CombatEffectDefinition>(),
             effect_coords ?? Array.Empty<Vector2I>(),
             batch,
             target_coords ?? Array.Empty<Vector2I>()
         );
     }
 
-    internal BattleGroundUnitEffectsResult _apply_ground_unit_effects_result(
-        BattleUnitState source_unit,
-        SkillDef skill_def,
-        GCombatEffectArray effect_defs,
-        GVector2IArray effect_coords,
-        BattleEventBatch batch,
-        GVector2IArray target_coords = null
-    )
-    {
-        return ApplyGroundUnitEffectsResultTyped(
-            source_unit,
-            skill_def,
-            ToCombatEffectDefList(effect_defs),
-            ToVector2IList(effect_coords),
-            batch,
-            ToVector2IList(target_coords ?? new GVector2IArray())
-        );
-    }
-
-    internal bool _should_resolve_ground_effects_as_attack(GCombatEffectArray effect_defs)
-    {
-        _ensure_sidecars_ready();
-        return BattleGroundEffectService.ShouldResolveGroundEffectsAsAttack(
-            ToCombatEffectDefList(effect_defs)
-        );
-    }
-
     internal BattleGroundTerrainEffectsResult ApplyGroundTerrainEffectsResultTyped(
         BattleUnitState source_unit,
-        SkillDef skill_def,
-        IReadOnlyList<CombatEffectDef> effect_defs,
+        SkillDefinition skillDefinition,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         IReadOnlyList<Vector2I> effect_coords,
         BattleEventBatch batch
     )
@@ -4415,44 +4184,9 @@ public sealed class BattleRuntimeModule : IDisposable
         _ensure_sidecars_ready();
         return _ground_effect_service._apply_ground_terrain_effects_result(
             source_unit,
-            skill_def,
-            effect_defs ?? Array.Empty<CombatEffectDef>(),
+            skillDefinition,
+            effectDefinitions ?? Array.Empty<CombatEffectDefinition>(),
             effect_coords ?? Array.Empty<Vector2I>(),
-            batch
-        );
-    }
-
-    internal BattleGroundTerrainEffectsResult _apply_ground_terrain_effects_result(
-        BattleUnitState source_unit,
-        SkillDef skill_def,
-        GCombatEffectArray effect_defs,
-        GVector2IArray effect_coords,
-        BattleEventBatch batch
-    )
-    {
-        return ApplyGroundTerrainEffectsResultTyped(
-            source_unit,
-            skill_def,
-            ToCombatEffectDefList(effect_defs),
-            ToVector2IList(effect_coords),
-            batch
-        );
-    }
-
-    internal bool _apply_ground_cell_effect(
-        BattleUnitState source_unit,
-        SkillDef skill_def,
-        Vector2I target_coord,
-        CombatEffectDef effect_def,
-        BattleEventBatch batch
-    )
-    {
-        _ensure_sidecars_ready();
-        return _ground_effect_service._apply_ground_cell_effect(
-            source_unit,
-            skill_def,
-            target_coord,
-            effect_def,
             batch
         );
     }
@@ -4463,17 +4197,11 @@ public sealed class BattleRuntimeModule : IDisposable
         return _ground_effect_service.ReconcileWaterTopology(ToVector2IList(effect_coords), batch);
     }
 
-    internal bool _is_unit_effect(CombatEffectDef effect_def)
-    {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator._is_unit_effect(effect_def);
-    }
-
     internal BattleShieldApplyResult ApplyUnitShieldEffectsResult(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        SkillDef skill_def,
-        GCombatEffectArray effect_defs,
+        SkillDefinition skill_definition,
+        IEnumerable<CombatEffectDefinition> effect_definitions,
         Dictionary<long, int> shield_roll_context = null
     )
     {
@@ -4481,26 +4209,8 @@ public sealed class BattleRuntimeModule : IDisposable
         return _shield_service.ApplyUnitShieldEffectsResult(
             source_unit,
             target_unit,
-            skill_def,
-            effect_defs ?? new GCombatEffectArray(),
-            shield_roll_context ?? new Dictionary<long, int>()
-        );
-    }
-
-    internal BattleShieldApplyResult ApplyShieldEffectToTargetResult(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        SkillDef skill_def,
-        CombatEffectDef effect_def,
-        Dictionary<long, int> shield_roll_context = null
-    )
-    {
-        _ensure_sidecars_ready();
-        return _shield_service.ApplyShieldEffectToTargetResult(
-            source_unit,
-            target_unit,
-            skill_def,
-            effect_def,
+            skill_definition,
+            effect_definitions ?? Array.Empty<CombatEffectDefinition>(),
             shield_roll_context ?? new Dictionary<long, int>()
         );
     }
@@ -4525,70 +4235,10 @@ public sealed class BattleRuntimeModule : IDisposable
         );
     }
 
-    internal int _resolve_shield_hp(
-        CombatEffectDef effect_def,
-        GDictionary shield_roll_context = null
-    )
-    {
-        _ensure_sidecars_ready();
-        Dictionary<long, int> rollContext = BattleShieldService.ReadRollContext(
-            shield_roll_context
-        );
-        int shieldHp = _shield_service.ResolveShieldHp(
-            null,
-            effect_def,
-            rollContext
-        );
-        BattleShieldService.WriteRollContext(shield_roll_context, rollContext);
-        return shieldHp;
-    }
-
-    internal int _roll_shield_hp(CombatEffectDef effect_def)
-    {
-        _ensure_sidecars_ready();
-        return _shield_service._roll_shield_hp(effect_def);
-    }
-
-    internal bool _has_shield_dice_config(CombatEffectDef effect_def)
-    {
-        _ensure_sidecars_ready();
-        return _shield_service._has_shield_dice_config(effect_def);
-    }
-
-    internal int _get_shield_roll_cache_key(CombatEffectDef effect_def)
-    {
-        _ensure_sidecars_ready();
-        return (int)_shield_service._get_shield_roll_cache_key(effect_def);
-    }
-
     internal int _roll_battle_effect_die(int dice_sides)
     {
         _ensure_sidecars_ready();
         return _shield_service._roll_battle_effect_die(dice_sides);
-    }
-
-    internal int _resolve_shield_duration_tu(CombatEffectDef effect_def)
-    {
-        _ensure_sidecars_ready();
-        return _shield_service._resolve_shield_duration_tu(effect_def);
-    }
-
-    internal StringName _resolve_shield_family(SkillDef skill_def, CombatEffectDef effect_def)
-    {
-        _ensure_sidecars_ready();
-        return _shield_service._resolve_shield_family(skill_def, effect_def);
-    }
-
-    internal bool _is_terrain_effect(CombatEffectDef effect_def)
-    {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator._is_terrain_effect(effect_def);
-    }
-
-    internal StringName _resolve_effect_target_filter(SkillDef skill_def, CombatEffectDef effect_def)
-    {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator._resolve_effect_target_filter(skill_def, effect_def);
     }
 
     internal bool _is_unit_valid_for_effect(
@@ -4625,12 +4275,6 @@ public sealed class BattleRuntimeModule : IDisposable
         return _ground_effect_service._build_terrain_effect_instance_id(effect_id);
     }
 
-    internal string _get_terrain_effect_display_name(CombatEffectDef effect_def)
-    {
-        _ensure_sidecars_ready();
-        return _ground_effect_service._get_terrain_effect_display_name(effect_def);
-    }
-
     internal void _append_batch_log(BattleEventBatch batch, string message)
     {
         if (batch == null || string.IsNullOrEmpty(message))
@@ -4641,13 +4285,25 @@ public sealed class BattleRuntimeModule : IDisposable
 
     internal void _grant_skill_mastery_if_needed(
         BattleUnitState active_unit,
-        SkillDef skill_def,
+        SkillDefinition skillDefinition,
         BattleEventBatch batch
     )
     {
-        if (skill_def == null)
+        _grant_skill_mastery_if_needed(
+            active_unit,
+            skillDefinition?.SkillId ?? new StringName(""),
+            batch
+        );
+    }
+
+    internal void _grant_skill_mastery_if_needed(
+        BattleUnitState active_unit,
+        StringName skillId,
+        BattleEventBatch batch
+    )
+    {
+        if (skillId == "")
             return;
-        StringName skillId = skill_def.skill_id;
         _record_skill_success(active_unit, skillId);
         if (
             active_unit == null
@@ -4776,120 +4432,66 @@ public sealed class BattleRuntimeModule : IDisposable
             && !delta.needs_promotion_modal;
     }
 
-    internal CombatCastVariantDef ResolveGroundCastVariantTyped(
-        SkillDef skill_def,
-        BattleUnitState active_unit,
-        BattleCommand command
-    )
-    {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator.ResolveGroundCastVariant(skill_def, active_unit, command)
-            as CombatCastVariantDef;
-    }
-
-    internal CombatCastVariantDef ResolveGroundCastVariantTyped(
-        SkillDef skill_def,
-        BattleUnitReadView active_unit,
-        BattleCommand command
-    )
-    {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator.ResolveGroundCastVariant(skill_def, active_unit, command)
-            as CombatCastVariantDef;
-    }
-
-    internal CombatCastVariantDef _resolve_unit_cast_variant(
-        SkillDef skill_def,
-        BattleUnitState active_unit,
-        BattleCommand command
-    )
-    {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator._resolve_unit_cast_variant(skill_def, active_unit, command)
-            as CombatCastVariantDef;
-    }
-
-    internal CombatCastVariantDef _build_implicit_ground_cast_variant(SkillDef skill_def)
-    {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator._build_implicit_ground_cast_variant(skill_def);
-    }
-
     internal BattleGroundSkillValidationResult ValidateGroundSkillCommandResultTyped(
         BattleUnitState active_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
         BattleCommand command
     )
     {
         _ensure_sidecars_ready();
         return _ground_effect_service._validate_ground_skill_command_result(
             active_unit,
-            skill_def,
-            cast_variant,
+            skillDefinition,
+            castVariantDefinition,
             command
         );
     }
 
     internal BattleGroundSkillValidationResult ValidateGroundSkillCommandResultTyped(
         BattleUnitReadView active_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
         BattleCommand command
     )
     {
         _ensure_sidecars_ready();
         return _ground_effect_service._validate_ground_skill_command_result(
             active_unit,
-            skill_def,
-            cast_variant,
-            command
-        );
-    }
-
-    internal BattleGroundSkillValidationResult _validate_ground_skill_command_result(
-        BattleUnitState active_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
-        BattleCommand command
-    )
-    {
-        return ValidateGroundSkillCommandResultTyped(
-            active_unit,
-            skill_def,
-            cast_variant,
+            skillDefinition,
+            castVariantDefinition,
             command
         );
     }
 
     internal string GetGroundSpecialEffectValidationMessageTyped(
         BattleUnitState active_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
         IReadOnlyList<Vector2I> target_coords
     )
     {
         _ensure_sidecars_ready();
         return _ground_effect_service.GetGroundSpecialEffectValidationMessage(
             active_unit,
-            skill_def,
-            cast_variant,
+            skillDefinition,
+            castVariantDefinition,
             target_coords ?? Array.Empty<Vector2I>()
         );
     }
 
     internal string GetGroundSpecialEffectValidationMessageTyped(
         BattleUnitReadView active_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
         IReadOnlyList<Vector2I> target_coords
     )
     {
         _ensure_sidecars_ready();
         return _ground_effect_service.GetGroundSpecialEffectValidationMessage(
             active_unit,
-            skill_def,
-            cast_variant,
+            skillDefinition,
+            castVariantDefinition,
             target_coords ?? Array.Empty<Vector2I>()
         );
     }
@@ -4901,7 +4503,7 @@ public sealed class BattleRuntimeModule : IDisposable
     {
         _ensure_sidecars_ready();
         return _ground_effect_service._validate_target_coords_shape(
-            CombatCastVariantDef.ToFootprintPattern(footprint_pattern),
+            CombatSkillTargetingContentRules.ToFootprintPattern(footprint_pattern),
             target_coords
         );
     }
@@ -4921,13 +4523,26 @@ public sealed class BattleRuntimeModule : IDisposable
 
     internal void _append_changed_coords(BattleEventBatch batch, GArray coords)
     {
-        foreach (Vector2I coord in ToVector2IArray(coords))
+        foreach (Vector2I coord in ToVector2IList(coords))
         {
             _append_changed_coord(batch, coord);
         }
     }
 
     internal void _append_changed_coords(BattleEventBatch batch, GVector2IArray coords)
+    {
+        if (coords == null)
+            return;
+        foreach (Vector2I coord in coords)
+        {
+            _append_changed_coord(batch, coord);
+        }
+    }
+
+    internal void _append_changed_coords_typed(
+        BattleEventBatch batch,
+        IEnumerable<Vector2I> coords
+    )
     {
         if (coords == null)
             return;
@@ -4987,10 +4602,10 @@ public sealed class BattleRuntimeModule : IDisposable
     {
         if (_state == null || unit_state == null)
             return;
-        GVector2IArray previousCoords = DuplicateCoordArray(unit_state.occupied_coords);
+        List<Vector2I> previousCoords = new(unit_state.occupied_coords);
         unit_state.MarkDead();
         _grid_service.ClearUnitOccupancy(_state, unit_state);
-        _append_changed_coords(batch, previousCoords);
+        _append_changed_coords_typed(batch, previousCoords);
         _append_changed_unit_id(batch, unit_state.unit_id);
         if (!string.IsNullOrEmpty(log_line) && batch != null)
             batch.AddLogLine(log_line);
@@ -5004,9 +4619,9 @@ public sealed class BattleRuntimeModule : IDisposable
             return;
         _handle_adjacent_ally_defeat(unit_state);
         _handle_low_luck_relic_ally_defeat(unit_state, batch);
-        GVector2IArray previousCoords = DuplicateCoordArray(unit_state.occupied_coords);
+        List<Vector2I> previousCoords = new(unit_state.occupied_coords);
         _grid_service.ClearUnitOccupancy(_state, unit_state);
-        _append_changed_coords(batch, previousCoords);
+        _append_changed_coords_typed(batch, previousCoords);
         _append_changed_unit_id(batch, unit_state.unit_id);
     }
 
@@ -5028,20 +4643,20 @@ public sealed class BattleRuntimeModule : IDisposable
 
     internal GVector2IArray _sort_coords(GArray target_coords)
     {
-        var sortedCoords = ToVector2IArray(target_coords);
-        return _sort_coords(sortedCoords);
+        var coords = ToVector2IList(target_coords);
+        coords.Sort((a, b) => a.Y != b.Y ? a.Y.CompareTo(b.Y) : a.X.CompareTo(b.X));
+        return new Vector2IList(coords).ToGodotArray();
     }
 
     internal GVector2IArray _sort_coords(GVector2IArray target_coords)
     {
-        var coords = new List<Vector2I>();
-        foreach (Vector2I coord in target_coords ?? new GVector2IArray())
-            coords.Add(coord);
+        var coords = new List<Vector2I>(
+            target_coords != null
+                ? (IEnumerable<Vector2I>)target_coords
+                : Array.Empty<Vector2I>()
+        );
         coords.Sort((a, b) => a.Y != b.Y ? a.Y.CompareTo(b.Y) : a.X.CompareTo(b.X));
-        var result = new GVector2IArray();
-        foreach (Vector2I coord in coords)
-            result.Add(coord);
-        return result;
+        return new Vector2IList(coords).ToGodotArray();
     }
 
     internal int _normalize_unit_action_threshold(int action_threshold)
@@ -5077,28 +4692,22 @@ public sealed class BattleRuntimeModule : IDisposable
     internal GVector2IArray _collect_dict_vector2i_keys(GDictionary values)
     {
         _ensure_sidecars_ready();
-        var coords = new GVector2IArray();
+        var coords = new List<Vector2I>();
         if (values == null)
         {
-            return coords;
+            return new Vector2IList(coords).ToGodotArray();
         }
         foreach (Variant rawCoord in values.Keys)
         {
             coords.Add(rawCoord.AsVector2I());
         }
-        return coords;
+        return new Vector2IList(coords).ToGodotArray();
     }
 
     internal int _get_unit_skill_level(BattleUnitState unit_state, StringName skill_id)
     {
         _ensure_sidecars_ready();
         return _skill_orchestrator._get_unit_skill_level(unit_state, skill_id);
-    }
-
-    internal string _format_skill_variant_label(SkillDef skill_def, CombatCastVariantDef cast_variant)
-    {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator._format_skill_variant_label(skill_def, cast_variant);
     }
 
     internal bool _check_battle_end(BattleEventBatch batch)
@@ -5148,73 +4757,73 @@ public sealed class BattleRuntimeModule : IDisposable
 
     internal BattleSkillCastBlockReasonKind _get_skill_cast_block_reason(
         BattleUnitState active_unit,
-        SkillDef skill_def
+        SkillDefinition skillDefinition
     ) =>
-        _skill_turn_resolver.GetSkillCastBlockReason(active_unit, skill_def);
+        _skill_turn_resolver.GetSkillCastBlockReason(active_unit, skillDefinition);
 
-    internal string _get_skill_cast_block_message(BattleUnitState active_unit, SkillDef skill_def) =>
+    internal string _get_skill_cast_block_message(
+        BattleUnitState active_unit,
+        SkillDefinition skillDefinition
+    ) =>
         _skill_turn_resolver.FormatSkillCastBlockReason(
             active_unit,
-            skill_def,
-            _get_skill_cast_block_reason(active_unit, skill_def)
+            skillDefinition,
+            _get_skill_cast_block_reason(active_unit, skillDefinition)
         );
 
     internal bool _unit_has_melee_weapon(BattleUnitState active_unit) =>
         _skill_turn_resolver.UnitHasMeleeWeapon(active_unit);
 
-    internal bool _requires_melee_weapon(SkillDef skill_def) =>
-        _skill_turn_resolver.RequiresMeleeWeapon(skill_def);
-
-    internal bool _effect_uses_weapon_physical_damage_tag(CombatEffectDef effect_def) =>
-        _skill_turn_resolver.EffectUsesWeaponPhysicalDamageTag(effect_def);
+    internal bool _requires_melee_weapon(SkillDefinition skillDefinition) =>
+        _skill_turn_resolver.RequiresMeleeWeapon(skillDefinition);
 
     internal string _get_skill_command_block_reason(
         BattleUnitState active_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant
-    ) => _skill_turn_resolver.GetSkillCommandBlockReason(active_unit, skill_def, cast_variant);
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
+    ) => _skill_turn_resolver.GetSkillCommandBlockReason(active_unit, skillDefinition, castVariant);
 
     internal string _get_skill_command_block_reason(
         BattleUnitReadView active_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant
-    ) => _skill_turn_resolver.GetSkillCommandBlockReason(active_unit, skill_def, cast_variant);
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
+    ) => _skill_turn_resolver.GetSkillCommandBlockReason(active_unit, skillDefinition, castVariant);
 
     internal bool _consume_skill_costs(
         BattleUnitState active_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant = null,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant = null,
         BattleEventBatch batch = null
-    ) => _skill_turn_resolver.ConsumeSkillCosts(active_unit, skill_def, cast_variant, batch);
+    ) => _skill_turn_resolver.ConsumeSkillCosts(active_unit, skillDefinition, castVariant, batch);
 
     internal CombatSkillResourceCosts _get_effective_skill_resource_costs(
         BattleUnitState active_unit,
-        SkillDef skill_def
-    ) => _skill_turn_resolver.GetEffectiveSkillResourceCosts(active_unit, skill_def);
+        SkillDefinition skillDefinition
+    ) => _skill_turn_resolver.GetEffectiveSkillResourceCosts(active_unit, skillDefinition);
 
     internal string _get_black_contract_push_variant_block_reason(
         BattleUnitState active_unit,
-        CombatCastVariantDef cast_variant
+        CombatCastVariantDefinition castVariant
     )
     {
         BattleSkillCastBlockReasonKind blockReason =
             _skill_turn_resolver.GetBlackContractPushVariantBlockReason(
             active_unit,
-            cast_variant
+            castVariant
         );
         return _skill_turn_resolver.FormatSkillCastBlockReason(
             active_unit,
             null,
             blockReason,
-            cast_variant
+            castVariant
         );
     }
 
     internal bool _consume_black_contract_push_cast(
         BattleUnitState active_unit,
-        CombatCastVariantDef cast_variant,
+        CombatCastVariantDefinition castVariant,
         BattleEventBatch batch = null
-    ) => _skill_turn_resolver.ConsumeBlackContractPushCast(active_unit, cast_variant, batch);
+    ) => _skill_turn_resolver.ConsumeBlackContractPushCast(active_unit, castVariant, batch);
 
     internal void _ensure_unit_turn_anchor(BattleUnitState unit_state) =>
         _skill_turn_resolver.EnsureUnitTurnAnchor(unit_state);
@@ -5245,23 +4854,32 @@ public sealed class BattleRuntimeModule : IDisposable
         BattleEventBatch batch = null
     ) => _skill_turn_resolver.AdvanceUnitStatusDurations(unit_state, elapsed_tu, batch);
 
-    internal int _get_effective_skill_range(BattleUnitState active_unit, SkillDef skill_def) =>
-        _skill_turn_resolver.GetEffectiveSkillRange(active_unit, skill_def);
+    internal int _get_effective_skill_range(
+        BattleUnitState active_unit,
+        SkillDefinition skillDefinition
+    ) =>
+        _skill_turn_resolver.GetEffectiveSkillRange(active_unit, skillDefinition);
 
-    internal int _get_effective_skill_range(BattleUnitReadView active_unit, SkillDef skill_def) =>
-        _skill_turn_resolver.GetEffectiveSkillRange(active_unit, skill_def);
+    internal int _get_effective_skill_range(
+        BattleUnitReadView active_unit,
+        SkillDefinition skillDefinition
+    ) =>
+        _skill_turn_resolver.GetEffectiveSkillRange(active_unit, skillDefinition);
 
-    internal int _resolve_base_skill_range(BattleUnitState active_unit, SkillDef skill_def) =>
-        _skill_turn_resolver.ResolveBaseSkillRange(active_unit, skill_def);
+    internal int _resolve_base_skill_range(
+        BattleUnitState active_unit,
+        SkillDefinition skillDefinition
+    ) =>
+        _skill_turn_resolver.ResolveBaseSkillRange(active_unit, skillDefinition);
 
-    internal bool _is_weapon_range_skill(SkillDef skill_def) =>
-        _skill_turn_resolver.IsWeaponRangeSkill(skill_def);
+    internal bool _is_weapon_range_skill(SkillDefinition skillDefinition) =>
+        _skill_turn_resolver.IsWeaponRangeSkill(skillDefinition);
 
     internal int _get_weapon_attack_range(BattleUnitState active_unit) =>
         _skill_turn_resolver.GetWeaponAttackRange(active_unit);
 
-    internal bool _skill_has_tag(SkillDef skill_def, StringName expected_tag) =>
-        _skill_turn_resolver.SkillHasTag(skill_def, expected_tag);
+    internal bool _skill_has_tag(SkillDefinition skillDefinition, StringName expected_tag) =>
+        _skill_turn_resolver.SkillHasTag(skillDefinition, expected_tag);
 
     internal bool _is_movement_blocked(BattleUnitState unit_state) =>
         _skill_turn_resolver.IsMovementBlocked(unit_state);
@@ -5274,9 +4892,6 @@ public sealed class BattleRuntimeModule : IDisposable
         StringName status_id,
         BattleEventBatch batch = null
     ) => _skill_turn_resolver.ConsumeStatusIfPresent(unit_state, status_id, batch);
-
-    internal bool _is_main_skill_locked_by_status(BattleUnitState active_unit, SkillDef skill_def) =>
-        _skill_turn_resolver.IsMainSkillLockedByStatus(active_unit, skill_def);
 
     internal int _count_debuff_statuses(BattleUnitState unit_state) =>
         _skill_turn_resolver.CountDebuffStatuses(unit_state);
@@ -5375,7 +4990,7 @@ public sealed class BattleRuntimeModule : IDisposable
     {
         if (_damage_resolver == null)
             return;
-        _damage_resolver.SetSkillDefs(GetSkillDefIndexTyped());
+        _damage_resolver.SetSkillDefinitions(GetSkillDefinitionIndexTyped());
         _damage_resolver.SetHitResolver(_hit_resolver);
         _damage_resolver.SetDamageApplicationHook(_contingency_system);
     }
@@ -5449,32 +5064,8 @@ public sealed class BattleRuntimeModule : IDisposable
         }
     }
 
-    private static GVector2IArray ToVector2IArray(GArray values)
-    {
-        var result = new GVector2IArray();
-        if (values == null)
-            return result;
-        foreach (var value in values)
-        {
-            result.Add(value.AsVector2I());
-        }
-        return result;
-    }
-
     private static GVector2IArray ToVector2IArray(IEnumerable<Vector2I> values)
-    {
-        var result = new GVector2IArray();
-        if (values == null)
-            return result;
-        foreach (Vector2I value in values)
-        {
-            result.Add(value);
-        }
-        return result;
-    }
-
-    private static GVector2IArray DuplicateCoordArray(IEnumerable<Vector2I> values) =>
-        ToVector2IArray(values);
+        => new Vector2IList(values).ToGodotArray();
 
     private static GBattleUnitArray ToBattleUnitArray(GArray values)
     {
@@ -5503,56 +5094,9 @@ public sealed class BattleRuntimeModule : IDisposable
         return result;
     }
 
-    private static GCombatEffectArray ToCombatEffectArray(GArray values)
-    {
-        var result = new GCombatEffectArray();
-        if (values == null)
-            return result;
-        foreach (var value in values)
-        {
-            CombatEffectDef effectDef = value.As<CombatEffectDef>();
-            if (effectDef != null)
-                result.Add(effectDef);
-        }
-        return result;
-    }
-
-    private static GCombatEffectArray ToCombatEffectArray(
-        IEnumerable<CombatEffectDef> values
-    )
-    {
-        var result = new GCombatEffectArray();
-        if (values == null)
-            return result;
-        foreach (CombatEffectDef effectDef in values)
-        {
-            if (effectDef != null)
-                result.Add(effectDef);
-        }
-        return result;
-    }
-
     private static GStringNameArray ToStringNameArray(
         IEnumerable<StringName> values
-    )
-    {
-        var result = new GStringNameArray();
-        if (values == null)
-            return result;
-        foreach (StringName value in values)
-            result.Add(value);
-        return result;
-    }
-
-    private static GArray ToUntypedArray(GVector2IArray values)
-    {
-        var result = new GArray();
-        if (values == null)
-            return result;
-        foreach (Vector2I value in values)
-            result.Add(value);
-        return result;
-    }
+    ) => new StringNameList(values).ToGodotArray();
 
     private static List<Vector2I> ToVector2IList(GArray values)
     {
@@ -5574,35 +5118,12 @@ public sealed class BattleRuntimeModule : IDisposable
         return result;
     }
 
-    private static List<CombatEffectDef> ToCombatEffectDefList(GCombatEffectArray values)
-    {
-        var result = new List<CombatEffectDef>();
-        if (values == null)
-            return result;
-        foreach (CombatEffectDef value in values)
-        {
-            if (value != null)
-                result.Add(value);
-        }
-        return result;
-    }
-
     private static GArray ToUntypedArray(GStringNameArray values)
     {
         var result = new GArray();
         if (values == null)
             return result;
         foreach (StringName value in values)
-            result.Add(value);
-        return result;
-    }
-
-    private static GArray ToUntypedArray(GCombatEffectArray values)
-    {
-        var result = new GArray();
-        if (values == null)
-            return result;
-        foreach (CombatEffectDef value in values)
             result.Add(value);
         return result;
     }

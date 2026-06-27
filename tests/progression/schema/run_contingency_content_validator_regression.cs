@@ -37,12 +37,12 @@ public partial class run_contingency_content_validator_regression : SceneTree
     private void TestCatalogContainsRealChainContingencySkill()
     {
         using GameSession session = new();
-        IReadOnlyDictionary<StringName, SkillDef> skills =
-            session.GetContentCatalogTyped().GetSkillDefsTyped();
+        IReadOnlyDictionary<StringName, SkillDefinition> skills =
+            session.GetContentCatalogTyped().GetSkillDefinitionsTyped();
 
         _test.True(
-            skills.TryGetValue("mage_chain_contingency", out SkillDef chainSkill),
-            "Catalog should contain real mage_chain_contingency skill content."
+            skills.TryGetValue("mage_chain_contingency", out SkillDefinition chainSkill),
+            "Catalog should contain real mage_chain_contingency skill definition."
         );
         _test.True(
             chainSkill != null && chainSkill.HasTag("contingency"),
@@ -57,8 +57,8 @@ public partial class run_contingency_content_validator_regression : SceneTree
     private void TestCatalogContainsV1StorableAutomationProfiles()
     {
         using GameSession session = new();
-        IReadOnlyDictionary<StringName, SkillDef> skills =
-            session.GetContentCatalogTyped().GetSkillDefsTyped();
+        IReadOnlyDictionary<StringName, SkillDefinition> skills =
+            session.GetContentCatalogTyped().GetSkillDefinitionsTyped();
 
         ExpectProfile(
             skills,
@@ -117,7 +117,7 @@ public partial class run_contingency_content_validator_regression : SceneTree
         );
         IReadOnlyList<string> errors = ContingencyContentValidator.ValidateAllSetupsForSaveLoad(
             partyState,
-            BuildSyntheticSkillDefs(
+            BuildSyntheticSkillDefinitions(
                 SyntheticSkill("mage_chain_contingency", tags: new[] { "contingency", "meta_spell" }),
                 SyntheticSkill("skill_without_profile")
             )
@@ -140,7 +140,7 @@ public partial class run_contingency_content_validator_regression : SceneTree
         );
         IReadOnlyList<string> errors = ContingencyContentValidator.ValidateAllSetupsForSaveLoad(
             partyState,
-            BuildSyntheticSkillDefs(
+            BuildSyntheticSkillDefinitions(
                 SyntheticSkill("mage_chain_contingency", tags: new[] { "contingency", "meta_spell" }),
                 SyntheticSkill(
                     "non_storable_skill",
@@ -169,7 +169,7 @@ public partial class run_contingency_content_validator_regression : SceneTree
         );
         IReadOnlyList<string> errors = ContingencyContentValidator.ValidateAllSetupsForSaveLoad(
             partyState,
-            BuildSyntheticSkillDefs(
+            BuildSyntheticSkillDefinitions(
                 SyntheticSkill("mage_chain_contingency", tags: new[] { "contingency", "meta_spell" }),
                 SyntheticSkill(
                     "high_gate_skill",
@@ -198,7 +198,7 @@ public partial class run_contingency_content_validator_regression : SceneTree
         );
         IReadOnlyList<string> errors = ContingencyContentValidator.ValidateAllSetupsForSaveLoad(
             partyState,
-            BuildSyntheticSkillDefs(
+            BuildSyntheticSkillDefinitions(
                 SyntheticSkill("mage_chain_contingency", tags: new[] { "contingency", "meta_spell" }),
                 SyntheticSkill(
                     "high_gate_skill",
@@ -228,7 +228,7 @@ public partial class run_contingency_content_validator_regression : SceneTree
         );
         IReadOnlyList<string> errors = ContingencyContentValidator.ValidateAllSetupsForSaveLoad(
             partyState,
-            BuildSyntheticSkillDefs(
+            BuildSyntheticSkillDefinitions(
                 SyntheticSkill("mage_chain_contingency", tags: new[] { "contingency", "meta_spell" }),
                 SyntheticSkill(
                     "high_gate_skill",
@@ -254,7 +254,7 @@ public partial class run_contingency_content_validator_regression : SceneTree
         );
         IReadOnlyList<string> errors = ContingencyContentValidator.ValidateAllSetupsForSaveLoad(
             partyState,
-            BuildSyntheticSkillDefs(
+            BuildSyntheticSkillDefinitions(
                 SyntheticSkill("mage_chain_contingency", tags: new[] { "contingency", "meta_spell" }),
                 SyntheticSkill(
                     "forbidden_tag_skill",
@@ -291,7 +291,7 @@ public partial class run_contingency_content_validator_regression : SceneTree
         );
         IReadOnlyList<string> errors = ContingencyContentValidator.ValidateAllSetupsForSaveLoad(
             partyState,
-            BuildSyntheticSkillDefs(
+            BuildSyntheticSkillDefinitions(
                 SyntheticSkill("mage_chain_contingency", tags: new[] { "contingency", "meta_spell" }),
                 SyntheticSkill(
                     "self_only_skill",
@@ -320,7 +320,7 @@ public partial class run_contingency_content_validator_regression : SceneTree
         );
         IReadOnlyList<string> errors = ContingencyContentValidator.ValidateAllSetupsForSaveLoad(
             partyState,
-            BuildSyntheticSkillDefs(
+            BuildSyntheticSkillDefinitions(
                 SyntheticSkill("mage_chain_contingency", tags: new[] { "contingency", "meta_spell" }),
                 SyntheticSkill(
                     "binding_contract_skill",
@@ -377,47 +377,47 @@ public partial class run_contingency_content_validator_regression : SceneTree
     }
 
     private void ExpectProfile(
-        IReadOnlyDictionary<StringName, SkillDef> skills,
+        IReadOnlyDictionary<StringName, SkillDefinition> skills,
         StringName skillId,
         int minLevel,
         StringName effectCategory,
         StringName allowedResolver
     )
     {
-        _test.True(skills.TryGetValue(skillId, out SkillDef skillDef), $"{skillId} should be registered.");
-        ContingencyAutomationDef profile = skillDef?.contingency_automation_profile;
+        _test.True(skills.TryGetValue(skillId, out SkillDefinition skillDefinition), $"{skillId} should be registered.");
+        ContingencyAutomationDefinition profile = skillDefinition?.ContingencyAutomationProfile;
         _test.True(profile != null, $"{skillId} should declare a contingency automation profile.");
         if (profile == null)
             return;
 
         _test.True(
-            profile.can_be_stored_in_contingency,
+            profile.CanBeStoredInContingency,
             $"{skillId} should be storable in contingency."
         );
         _test.Eq(
-            profile.min_contingency_skill_level,
+            profile.MinContingencySkillLevel,
             minLevel,
             $"{skillId} should declare expected min_contingency_skill_level."
         );
         _test.Eq(
-            profile.effect_category,
+            profile.EffectCategory,
             effectCategory,
             $"{skillId} should declare expected effect_category."
         );
         _test.True(
-            HasStringName(profile.allowed_target_resolvers, allowedResolver),
+            HasStringName(profile.AllowedTargetResolvers, allowedResolver),
             $"{skillId} should allow target resolver {allowedResolver}."
         );
         _test.False(
-            profile.requires_manual_targeting,
+            profile.RequiresManualTargeting,
             $"{skillId} should not require manual targeting in V1."
         );
         _test.True(
-            profile.allowed_parameter_bindings != null,
+            profile.AllowedParameterBindings != null,
             $"{skillId} should declare allowed_parameter_bindings as an explicit contract."
         );
         _test.Eq(
-            profile.allowed_parameter_bindings.Count,
+            profile.AllowedParameterBindings.Count,
             0,
             $"{skillId} V1 profile should use empty allowed_parameter_bindings."
         );
@@ -442,67 +442,87 @@ public partial class run_contingency_content_validator_regression : SceneTree
             _test.Fail($"{message} | expected fragment={expectedFragment}");
     }
 
-    private static IReadOnlyDictionary<StringName, SkillDef> BuildSyntheticSkillDefs(
-        params SkillDef[] skills
+    private static IReadOnlyDictionary<StringName, SkillDefinition> BuildSyntheticSkillDefinitions(
+        params SkillDefinition[] skills
     )
     {
-        Dictionary<StringName, SkillDef> result = new();
-        foreach (SkillDef skill in skills)
+        Dictionary<StringName, SkillDefinition> result = new();
+        foreach (SkillDefinition skill in skills)
         {
-            if (skill != null && skill.skill_id != "")
-                result[skill.skill_id] = skill;
+            if (skill != null && skill.SkillId != "")
+                result[skill.SkillId] = skill;
         }
         return result;
     }
 
-    private static SkillDef SyntheticSkill(
+    private static SkillDefinition SyntheticSkill(
         string skillId,
-        ContingencyAutomationDef automation = null,
+        ContingencyAutomationDefinition automation = null,
         string[] tags = null
     )
     {
-        SkillDef skill = new()
-        {
-            skill_id = skillId,
-            display_name = skillId,
-            icon_id = skillId,
-            skill_type = "passive",
-            max_level = 10,
-            mastery_curve = new[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 },
-            contingency_automation_profile = automation,
-        };
-        if (tags != null)
-        {
-            Godot.Collections.Array<StringName> tagArray = new();
-            foreach (string tag in tags)
-                tagArray.Add(tag);
-            skill.tags = tagArray;
-        }
-        return skill;
+        return new SkillDefinition(
+            skillId,
+            skillId,
+            skillId,
+            "",
+            "passive",
+            10,
+            0,
+            "",
+            0,
+            0,
+            new[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 },
+            ToStringNameList(tags),
+            "",
+            System.Array.Empty<StringName>(),
+            "standard",
+            System.Array.Empty<StringName>(),
+            new Dictionary<StringName, int>(),
+            new Dictionary<StringName, int>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            false,
+            "",
+            System.Array.Empty<StringName>(),
+            "",
+            new Dictionary<StringName, int>(),
+            "",
+            System.Array.Empty<AttributeModifierDefinition>(),
+            "",
+            new Dictionary<int, IReadOnlyDictionary<string, Variant>>(),
+            null,
+            automation
+        );
     }
 
-    private static ContingencyAutomationDef BuildAutomation(
+    private static ContingencyAutomationDefinition BuildAutomation(
         bool canBeStored,
         int minLevel,
         string allowedResolver,
         string[] tags = null
     )
     {
-        ContingencyAutomationDef automation = new()
-        {
-            can_be_stored_in_contingency = canBeStored,
-            min_contingency_skill_level = minLevel,
-            effect_category = "test_effect",
-            allowed_target_resolvers = new Godot.Collections.Array<StringName> { allowedResolver },
-            requires_manual_targeting = false,
-            allowed_parameter_bindings = new GDictionary(),
-        };
-        if (tags != null)
-        {
-            foreach (string tag in tags)
-                automation.tags.Add(tag);
-        }
-        return automation;
+        return new ContingencyAutomationDefinition(
+            canBeStored,
+            minLevel,
+            "test_effect",
+            ToStringNameList(tags),
+            0,
+            new[] { new StringName(allowedResolver) },
+            false,
+            new Dictionary<string, Variant>()
+        );
+    }
+
+    private static IReadOnlyList<StringName> ToStringNameList(string[] values)
+    {
+        if (values == null || values.Length == 0)
+            return System.Array.Empty<StringName>();
+        var result = new List<StringName>(values.Length);
+        foreach (string value in values)
+            result.Add(value);
+        return result;
     }
 
     private static PartyState BuildPartyStateWithSetup(
@@ -647,8 +667,10 @@ public partial class run_contingency_content_validator_regression : SceneTree
         return Error.Ok;
     }
 
-    private static bool HasStringName(Godot.Collections.Array<StringName> values, StringName target)
+    private static bool HasStringName(IReadOnlyList<StringName> values, StringName target)
     {
+        if (values == null)
+            return false;
         foreach (StringName value in values)
             if (value == target)
                 return true;

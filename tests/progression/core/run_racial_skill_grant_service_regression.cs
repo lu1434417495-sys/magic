@@ -30,13 +30,7 @@ public partial class run_racial_skill_grant_service_regression : SceneTree
             race_id = "stonefolk",
             racial_granted_skills = new Godot.Collections.Array<RacialGrantedSkill> { grant },
         };
-        SkillDef skillDef = new()
-        {
-            skill_id = skillId,
-            display_name = "Stone Skin",
-            max_level = 3,
-            learn_source = "race",
-        };
+        SkillDefinition skillDefinition = BuildSkillDefinition(skillId, "Stone Skin", 3, "race");
         ProgressionIdentityCatalogData identityCatalog = new(
             new Dictionary<StringName, RaceDef> { [race.race_id] = race },
             new Dictionary<StringName, SubraceDef>(),
@@ -47,7 +41,8 @@ public partial class run_racial_skill_grant_service_regression : SceneTree
             new Dictionary<StringName, AscensionStageDef>(),
             new Dictionary<StringName, StageAdvancementModifier>()
         );
-        Dictionary<StringName, SkillDef> skillDefs = new() { [skillDef.skill_id] = skillDef };
+        Dictionary<StringName, SkillDefinition> skillDefinitions =
+            new() { [skillDefinition.SkillId] = skillDefinition };
         Dictionary<StringName, ProfessionDef> professionDefs = new();
         PartyMemberState member = MakeMember("hero", race.race_id);
 
@@ -55,7 +50,7 @@ public partial class run_racial_skill_grant_service_regression : SceneTree
             RacialSkillGrantService.BackfillMember(
                 member,
                 identityCatalog,
-                skillDefs,
+                skillDefinitions,
                 professionDefs
             ),
             "身份技能补授应报告发生变化。"
@@ -78,7 +73,7 @@ public partial class run_racial_skill_grant_service_regression : SceneTree
             RacialSkillGrantService.BackfillMember(
                 member,
                 identityCatalog,
-                skillDefs,
+                skillDefinitions,
                 professionDefs
             ),
             "重复补授已学会身份技能不应报告变化。"
@@ -89,7 +84,7 @@ public partial class run_racial_skill_grant_service_regression : SceneTree
             RacialSkillGrantService.RevokeOrphanMember(
                 member,
                 identityCatalog,
-                skillDefs,
+                skillDefinitions,
                 professionDefs
             ),
             "身份内容移除 grant 后应撤销孤儿身份技能。"
@@ -116,5 +111,45 @@ public partial class run_racial_skill_grant_service_regression : SceneTree
         };
     }
 
+    private static SkillDefinition BuildSkillDefinition(
+        StringName skillId,
+        string displayName,
+        int maxLevel,
+        StringName learnSource
+    )
+    {
+        return new SkillDefinition(
+            skillId,
+            displayName,
+            skillId,
+            "",
+            "passive",
+            maxLevel,
+            0,
+            "",
+            0,
+            0,
+            System.Array.Empty<int>(),
+            System.Array.Empty<StringName>(),
+            learnSource,
+            System.Array.Empty<StringName>(),
+            "standard",
+            System.Array.Empty<StringName>(),
+            new Dictionary<StringName, int>(),
+            new Dictionary<StringName, int>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            false,
+            "",
+            System.Array.Empty<StringName>(),
+            "",
+            new Dictionary<StringName, int>(),
+            "",
+            System.Array.Empty<AttributeModifierDefinition>(),
+            "",
+            new Dictionary<int, IReadOnlyDictionary<string, Variant>>(),
+            null
+        );
+    }
 
 }

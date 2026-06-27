@@ -187,12 +187,11 @@ public partial class run_temporal_status_semantics_regression : SceneTree
         );
         _test.Eq(stasisUnit.coord, new Vector2I(1, 1), "静滞单位坐标不应变化。");
 
-        CombatEffectDef knockback = new()
-        {
-            effect_type = "forced_move",
-            forced_move_mode = "knockback",
-            forced_move_distance = 2,
-        };
+        CombatEffectDefinition knockback = TestSkillDefinitionProjection.BuildEffect(
+            "forced_move",
+            forcedMoveMode: "knockback",
+            forcedMoveDistance: 2
+        );
         int movedSteps = fixture.Runtime._special_skill_resolver.ApplyForcedMoveEffect(
             sourceUnit,
             stasisUnit,
@@ -237,21 +236,19 @@ public partial class run_temporal_status_semantics_regression : SceneTree
 
     private void TestStatusConstructionImportsTemporalTypedFields()
     {
-        CombatEffectDef effectDef = new()
-        {
-            effect_type = "status",
-            status_id = BattleStatusSemanticTable.STATUS_TIME_REVERBERATION,
-            power = 1,
-            duration_tu = 60,
-            effect_tags = new Godot.Collections.Array<StringName> { TemporalTag },
-            @params = new GDictionary
+        CombatEffectDefinition effectDef = TestSkillDefinitionProjection.BuildEffect(
+            "status",
+            statusId: BattleStatusSemanticTable.STATUS_TIME_REVERBERATION,
+            power: 1,
+            durationTu: 60,
+            effectTags: new[] { TemporalTag },
+            parameters: new Dictionary<string, Variant>
             {
-                [new StringName("save_bonus_by_tag")] = new GDictionary
-                {
-                    [TemporalTag] = 4,
-                },
-            },
-        };
+                ["save_bonus_by_tag"] = Variant.From(
+                    new GDictionary { [Variant.From(TemporalTag)] = Variant.From(4) }
+                ),
+            }
+        );
         BattleStatusEffectState statusEntry = BattleStatusSemanticTable.MergeStatus(
             effectDef,
             "source_unit"
@@ -276,20 +273,18 @@ public partial class run_temporal_status_semantics_regression : SceneTree
         );
 
         // string key 不应被恢复进 typed map（无 string-key fallback）。
-        CombatEffectDef stringKeyDef = new()
-        {
-            effect_type = "status",
-            status_id = "string_key_probe",
-            power = 1,
-            duration_tu = 60,
-            @params = new GDictionary
+        CombatEffectDefinition stringKeyDef = TestSkillDefinitionProjection.BuildEffect(
+            "status",
+            statusId: "string_key_probe",
+            power: 1,
+            durationTu: 60,
+            parameters: new Dictionary<string, Variant>
             {
-                [new StringName("save_bonus_by_tag")] = new GDictionary
-                {
-                    ["temporal"] = 4,
-                },
-            },
-        };
+                ["save_bonus_by_tag"] = Variant.From(
+                    new GDictionary { [Variant.From("temporal")] = Variant.From(4) }
+                ),
+            }
+        );
         BattleStatusEffectState stringKeyEntry = BattleStatusSemanticTable.MergeStatus(
             stringKeyDef,
             "source_unit"

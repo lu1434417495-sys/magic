@@ -54,7 +54,7 @@ public partial class run_doom_sentence_regression : SceneTree
         GDictionary baselineDamageResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime.GetDamageResolver().ResolveEffects(
             allyAttacker,
             boss.clone(),
-            new GArray { BuildDamageEffect() }
+            new[] { BuildDamageEffect() }
         ));
         BattleCommand command = BuildUnitSkillCommand(caster.unit_id, DOOM_SENTENCE_SKILL_ID, boss);
         BattlePreview preview = runtime.PreviewCommand(command);
@@ -71,7 +71,7 @@ public partial class run_doom_sentence_regression : SceneTree
         GDictionary amplifiedDamageResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime.GetDamageResolver().ResolveEffects(
             allyAttacker,
             boss.clone(),
-            new GArray { BuildDamageEffect() }
+            new[] { BuildDamageEffect() }
         ));
         _test.True(
             ReadInt(amplifiedDamageResult, "damage") > ReadInt(baselineDamageResult, "damage"),
@@ -162,9 +162,11 @@ public partial class run_doom_sentence_regression : SceneTree
         runtime.IssueCommand(BuildUnitSkillCommand(caster.unit_id, DOOM_SENTENCE_SKILL_ID, firstElite));
         _test.True(firstElite.HasStatusEffect(STATUS_DOOM_SENTENCE_VERDICT), "首次施放后应成功命中首个精英。");
 
-        SkillDef skillDef = GetSkill(runtime.GetSkillDefIndexTyped(), DOOM_SENTENCE_SKILL_ID);
+        SkillDefinition skillDefinition = runtime.GetSkillDefinitionTyped(DOOM_SENTENCE_SKILL_ID);
         _test.True(
-            BattleSkillCastBlockReasonKinds.IsBlocked(runtime.GetSkillCastBlockReason(caster, skillDef)),
+            BattleSkillCastBlockReasonKinds.IsBlocked(
+                runtime.GetSkillCastBlockReason(caster, skillDefinition)
+            ),
             "每战 1 次用尽后，技能应进入阻断状态并提供反馈。"
         );
 
@@ -204,9 +206,11 @@ public partial class run_doom_sentence_regression : SceneTree
         BeginRuntimeBattle(runtime);
         runtime.calamity_by_member_id["hero"] = 3;
 
-        SkillDef skillDef = GetSkill(runtime.GetSkillDefIndexTyped(), DOOM_SENTENCE_SKILL_ID);
+        SkillDefinition skillDefinition = runtime.GetSkillDefinitionTyped(DOOM_SENTENCE_SKILL_ID);
         _test.True(
-            BattleSkillCastBlockReasonKinds.IsBlocked(runtime.GetSkillCastBlockReason(caster, skillDef)),
+            BattleSkillCastBlockReasonKinds.IsBlocked(
+                runtime.GetSkillCastBlockReason(caster, skillDefinition)
+            ),
             "当本战 calamity 上限小于 5 时，技能应进入阻断状态并提供反馈。"
         );
 
@@ -238,7 +242,7 @@ public partial class run_doom_sentence_regression : SceneTree
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            registry.GetSkillDefsTyped(),
+            registry.GetSkillDefinitionsTyped(),
             new Dictionary<StringName, EnemyTemplateDef>(),
             new Dictionary<StringName, EnemyAiBrainDef>()
         );
@@ -366,14 +370,12 @@ public partial class run_doom_sentence_regression : SceneTree
         return command;
     }
 
-    private CombatEffectDef BuildDamageEffect()
-    {
-        var effect = new CombatEffectDef();
-        effect.effect_type = "damage";
-        effect.damage_tag = "physical_slash";
-        effect.power = 12;
-        return effect;
-    }
+    private CombatEffectDefinition BuildDamageEffect() =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            damageTag: "physical_slash",
+            power: 12
+        );
 
     private void EnableDoomSentenceCap(BattleUnitState unitState)
     {
@@ -437,10 +439,4 @@ public partial class run_doom_sentence_regression : SceneTree
         return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
     }
 
-    private static SkillDef GetSkill(IReadOnlyDictionary<StringName, SkillDef> skillDefs, StringName skillId)
-    {
-        if (skillDefs == null || !skillDefs.TryGetValue(skillId, out SkillDef skillDef))
-            return null;
-        return skillDef;
-    }
 }

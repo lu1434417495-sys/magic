@@ -25,7 +25,7 @@ public partial class run_dragon_breath_regression : SceneTree
 
     private void TestOfficialDragonBreathSkillResourcesAreSchemaStable()
     {
-        SkillContentRegistry registry = new();
+        using SkillContentRegistry registry = new();
         AssertCurrentOfficialSkillValidationErrors(
             registry.Validate(),
             "official skill registry should validate cleanly."
@@ -39,48 +39,55 @@ public partial class run_dragon_breath_regression : SceneTree
             ["dragon_breath_acid_line"] = ("acid", "line"),
             ["dragon_breath_lightning_line"] = ("lightning", "line"),
         };
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = registry.GetSkillDefsTyped();
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            registry.GetSkillDefinitionsTyped();
         foreach (var kvp in expectedSpecs)
         {
             StringName skillId = kvp.Key;
-            SkillDef skillDef = skillDefs.TryGetValue(skillId, out SkillDef loadedSkillDef)
-                ? loadedSkillDef
+            SkillDefinition skillDefinition = skillDefinitions.TryGetValue(
+                skillId,
+                out SkillDefinition loadedSkillDefinition
+            )
+                ? loadedSkillDefinition
                 : null;
             _test.True(
-                skillDef != null,
+                skillDefinition != null,
                 $"{skillId} should be registered as official skill content."
             );
-            if (skillDef == null)
+            if (skillDefinition == null)
                 continue;
-            _test.Eq(skillDef.learn_source, new StringName("subrace"), $"{skillId} should be granted by Dragonborn subrace content.");
-            _test.True(skillDef.combat_profile != null, $"{skillId} should declare a combat profile.");
-            if (skillDef.combat_profile == null)
+            _test.Eq(skillDefinition.LearnSource, new StringName("subrace"), $"{skillId} should be granted by Dragonborn subrace content.");
+            _test.True(skillDefinition.CombatProfile != null, $"{skillId} should declare a combat profile.");
+            if (skillDefinition.CombatProfile == null)
                 continue;
-            _test.Eq(skillDef.combat_profile.target_mode, new StringName("ground"), $"{skillId} should use ground targeting.");
+            _test.Eq(skillDefinition.CombatProfile.TargetMode, new StringName("ground"), $"{skillId} should use ground targeting.");
             _test.Eq(
-                skillDef.combat_profile.area_pattern,
+                skillDefinition.CombatProfile.AreaPattern,
                 kvp.Value.AreaPattern,
                 $"{skillId} should keep its configured area pattern."
             );
-            _test.Eq(skillDef.combat_profile.ap_cost, 1, $"{skillId} should cost 1 AP before charge gating.");
+            _test.Eq(skillDefinition.CombatProfile.ApCost, 1, $"{skillId} should cost 1 AP before charge gating.");
             _test.True(
-                skillDef.combat_profile.effect_defs.Count > 0,
+                skillDefinition.CombatProfile.EffectDefinitions.Count > 0,
                 $"{skillId} should declare a damage effect."
             );
-            if (skillDef.combat_profile.effect_defs.Count == 0)
+            if (skillDefinition.CombatProfile.EffectDefinitions.Count == 0)
                 continue;
-            CombatEffectDef effectDef = skillDef.combat_profile.effect_defs[0];
-            _test.True(effectDef != null, $"{skillId} damage effect should be a CombatEffectDef.");
-            if (effectDef == null)
+            CombatEffectDefinition effectDefinition =
+                skillDefinition.CombatProfile.EffectDefinitions[0];
+            _test.True(
+                effectDefinition != null,
+                $"{skillId} damage effect should be a CombatEffectDefinition."
+            );
+            if (effectDefinition == null)
                 continue;
-            _test.Eq(effectDef.effect_type, new StringName("damage"), $"{skillId} should use the normal damage effect pipeline.");
-            _test.Eq(effectDef.damage_tag, kvp.Value.DamageTag, $"{skillId} should keep its damage tag.");
-            _test.Eq(effectDef.save_dc, 12, $"{skillId} should declare a dragon breath save DC.");
-            _test.Eq(effectDef.save_ability, new StringName("constitution"), $"{skillId} should use constitution saves.");
-            _test.Eq(effectDef.save_tag, new StringName("dragon_breath"), $"{skillId} should use the dragon_breath save tag.");
-            _test.True(effectDef.save_partial_on_success, $"{skillId} should keep half damage on successful save.");
+            _test.Eq(effectDefinition.EffectType, new StringName("damage"), $"{skillId} should use the normal damage effect pipeline.");
+            _test.Eq(effectDefinition.DamageTag, kvp.Value.DamageTag, $"{skillId} should keep its damage tag.");
+            _test.Eq(effectDefinition.SaveDc, 12, $"{skillId} should declare a dragon breath save DC.");
+            _test.Eq(effectDefinition.SaveAbility, new StringName("constitution"), $"{skillId} should use constitution saves.");
+            _test.Eq(effectDefinition.SaveTag, new StringName("dragon_breath"), $"{skillId} should use the dragon_breath save tag.");
+            _test.True(effectDefinition.SavePartialOnSuccess, $"{skillId} should keep half damage on successful save.");
         }
-        registry.Dispose();
     }
 
     private void TestSkillCastBlockReasonUsesTypedCooldown()
@@ -93,10 +100,13 @@ public partial class run_dragon_breath_regression : SceneTree
             new[] { DragonBreathFireCone },
             2
         );
-        SkillDef skillDef = BuildDragonBreathSkill(DragonBreathFireCone, "fire", "cone");
-        unit.SetCooldownTyped(skillDef.skill_id, 2);
+        SkillDefinition skillDefinition = BuildDragonBreathSkill(DragonBreathFireCone, "fire", "cone");
+        unit.SetCooldownTyped(skillDefinition.SkillId, 2);
 
-        BattleSkillCastBlockReasonKind blockReason = resolver.GetSkillCastBlockReason(unit, skillDef);
+        BattleSkillCastBlockReasonKind blockReason = resolver.GetSkillCastBlockReason(
+            unit,
+            skillDefinition
+        );
         _test.Eq(
             blockReason,
             BattleSkillCastBlockReasonKind.Cooldown,
@@ -106,16 +116,16 @@ public partial class run_dragon_breath_regression : SceneTree
 
     private void TestRacialSkillPerBattleChargeBlocksAndConsumes()
     {
-        SkillDef skillDef = BuildDragonBreathSkill(DragonBreathFireCone, "fire", "cone");
+        SkillDefinition skillDef = BuildDragonBreathSkill(DragonBreathFireCone, "fire", "cone");
         BattleRuntimeModule runtime = BuildRuntime(
-            new Dictionary<StringName, SkillDef> { [skillDef.skill_id] = skillDef }
+            new Dictionary<StringName, SkillDefinition> { [skillDef.SkillId] = skillDef }
         );
         BattleState state = BuildState(new Vector2I(5, 3));
         BattleUnitState caster = BuildUnit(
             "dragon_breath_user",
             "player",
             new Vector2I(1, 1),
-            new[] { skillDef.skill_id },
+            new[] { skillDef.SkillId },
             2
         );
         BattleUnitState target = BuildUnit(
@@ -132,10 +142,10 @@ public partial class run_dragon_breath_regression : SceneTree
 
         BattleCommand command = BuildGroundSkillCommand(
             caster.unit_id,
-            skillDef.skill_id,
+            skillDef.SkillId,
             new Vector2I(2, 1)
         );
-        caster.per_battle_charges[RacialSkillChargeKey(skillDef.skill_id)] = 0;
+        caster.per_battle_charges[RacialSkillChargeKey(skillDef.SkillId)] = 0;
         BattlePreview blockedPreview = runtime.PreviewCommand(command);
         _test.True(
             blockedPreview != null && !blockedPreview.allowed,
@@ -143,7 +153,7 @@ public partial class run_dragon_breath_regression : SceneTree
         );
         _test.True(blockedPreview?.log_lines.Count > 0, "blocked preview should report a block reason.");
 
-        caster.per_battle_charges[RacialSkillChargeKey(skillDef.skill_id)] = 1;
+        caster.per_battle_charges[RacialSkillChargeKey(skillDef.SkillId)] = 1;
         BattlePreview allowedPreview = runtime.PreviewCommand(command);
         _test.True(
             allowedPreview != null && allowedPreview.allowed,
@@ -156,7 +166,7 @@ public partial class run_dragon_breath_regression : SceneTree
             "dragon breath should resolve through the normal ground skill damage path."
         );
         _test.Eq(
-            caster.per_battle_charges.Get(RacialSkillChargeKey(skillDef.skill_id), -1),
+            caster.per_battle_charges.Get(RacialSkillChargeKey(skillDef.SkillId), -1),
             0,
             "dragon breath should consume its per-battle identity skill charge after execution starts."
         );
@@ -179,20 +189,20 @@ public partial class run_dragon_breath_regression : SceneTree
 
     private void TestRacialSkillConsumesPerBattleAndPerTurnChargesTogether()
     {
-        SkillDef skillDef = BuildDragonBreathSkill(
+        SkillDefinition skillDef = BuildDragonBreathSkill(
             "dragon_breath_dual_charge_contract",
             "fire",
             "cone"
         );
         BattleRuntimeModule runtime = BuildRuntime(
-            new Dictionary<StringName, SkillDef> { [skillDef.skill_id] = skillDef }
+            new Dictionary<StringName, SkillDefinition> { [skillDef.SkillId] = skillDef }
         );
         BattleState state = BuildState(new Vector2I(5, 3));
         BattleUnitState caster = BuildUnit(
             "dragon_breath_dual_user",
             "player",
             new Vector2I(1, 1),
-            new[] { skillDef.skill_id },
+            new[] { skillDef.SkillId },
             2
         );
         BattleUnitState target = BuildUnit(
@@ -206,13 +216,13 @@ public partial class run_dragon_breath_regression : SceneTree
         AddUnit(runtime, state, target);
         state.active_unit_id = caster.unit_id;
         runtime.SetupStateForTests(state);
-        StringName chargeKey = RacialSkillChargeKey(skillDef.skill_id);
+        StringName chargeKey = RacialSkillChargeKey(skillDef.SkillId);
         caster.per_battle_charges[chargeKey] = 1;
         caster.per_turn_charges[chargeKey] = 1;
 
         BattleCommand command = BuildGroundSkillCommand(
             caster.unit_id,
-            skillDef.skill_id,
+            skillDef.SkillId,
             new Vector2I(2, 1)
         );
         BattleEventBatch batch = runtime.IssueCommand(command);
@@ -267,7 +277,7 @@ public partial class run_dragon_breath_regression : SceneTree
         );
     }
 
-    private static BattleRuntimeModule BuildRuntime(IReadOnlyDictionary<StringName, SkillDef> skillDefs)
+    private static BattleRuntimeModule BuildRuntime(IReadOnlyDictionary<StringName, SkillDefinition> skillDefs)
     {
         BattleRuntimeModule runtime = new();
         runtime.setup(null, skillDefs);
@@ -344,44 +354,38 @@ public partial class run_dragon_breath_regression : SceneTree
         runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
     }
 
-    private static SkillDef BuildDragonBreathSkill(
+    private static SkillDefinition BuildDragonBreathSkill(
         StringName skillId,
         StringName damageTag,
         StringName areaPattern
     )
     {
-        CombatEffectDef effect = new()
-        {
-            effect_type = "damage",
-            power = 12,
-            damage_tag = damageTag,
-            save_dc = 12,
-            save_ability = "constitution",
-            save_tag = "dragon_breath",
-            save_partial_on_success = true,
-        };
-        CombatSkillDef combatProfile = new()
-        {
-            skill_id = skillId,
-            target_mode = "ground",
-            target_team_filter = "enemy",
-            range_value = 3,
-            area_pattern = areaPattern,
-            area_value = 1,
-            ap_cost = 1,
-            cooldown_tu = 0,
-            effect_defs = new Godot.Collections.Array<CombatEffectDef> { effect },
-        };
-        return new SkillDef
-        {
-            skill_id = skillId,
-            display_name = skillId.ToString(),
-            icon_id = skillId,
-            learn_source = "subrace",
-            mastery_curve = new[] { 20 },
-            tags = new Godot.Collections.Array<StringName> { "dragon_breath", damageTag },
-            combat_profile = combatProfile,
-        };
+        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            power: 12,
+            damageTag: damageTag,
+            saveDc: 12,
+            saveAbility: "constitution",
+            saveTag: "dragon_breath",
+            savePartialOnSuccess: true
+        );
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: skillId.ToString(),
+            learnSource: "subrace",
+            tags: new[] { new StringName("dragon_breath"), damageTag },
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: new[] { effect },
+                targetMode: "ground",
+                targetTeamFilter: "enemy",
+                rangeValue: 3,
+                areaPattern: areaPattern,
+                areaValue: 1,
+                apCost: 1,
+                cooldownTu: 0
+            )
+        );
     }
 
     private static BattleCommand BuildGroundSkillCommand(

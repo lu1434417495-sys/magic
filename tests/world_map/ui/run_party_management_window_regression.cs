@@ -18,6 +18,7 @@ public partial class run_party_management_window_regression : SceneTree
         await TestWindowUsesHalfViewportWithMinimumSize();
         await TestLeaderToReserveEmitsRosterBeforeLeader();
         await TestMemberDetailsTolerateMissingSkillAndOccupiedSlots();
+        await TestMemberDetailsUseSkillDefinitionSnapshot();
         await TestMemberDetailsUseInjectedCharacterManagementSnapshot();
         Quit(_test.Finish("Party management window regression"));
     }
@@ -162,7 +163,7 @@ public partial class run_party_management_window_regression : SceneTree
         hero.current_mp = 3;
         hero.progression.unit_base_attributes.SetAttributeValue("strength", 15);
         var manager = new CharacterManagementModule();
-        manager.setup(partyState, new GDictionary(), new GDictionary(), new GDictionary(), new GDictionary());
+        manager.setup(partyState);
         window.SetCharacterManagement(manager);
         window.ShowParty(partyState);
         await ProcessFrames(1);
@@ -185,6 +186,50 @@ public partial class run_party_management_window_regression : SceneTree
         _test.True(
             attributesText.Contains($"力量：{expectedStrength}"),
             "属性页基础属性应来自注入的角色管理快照。"
+        );
+
+        await DisposeNode(window);
+    }
+
+    private async Task TestMemberDetailsUseSkillDefinitionSnapshot()
+    {
+        PartyManagementWindow window = await CreateWindow();
+        var skillId = new StringName("dto_fire_spark");
+        PartyState partyState = BuildPartyState(new[] { new StringName("hero") });
+        PartyMemberState hero = partyState.GetMemberState("hero");
+        hero.progression.character_level = 7;
+        hero.progression.SetSkillProgress(
+            new UnitSkillProgress
+            {
+                skill_id = skillId,
+                is_learned = true,
+                skill_level = 1,
+                current_mastery = 12,
+                total_mastery_earned = 34,
+            }
+        );
+        window.SetSkillDefinitions(
+            new Dictionary<StringName, SkillDefinition>
+            {
+                [skillId] = BuildWindowSkillDefinition(skillId),
+            }
+        );
+        window.ShowParty(partyState);
+        await ProcessFrames(1);
+        _test.True(window.SelectMember("hero"), "测试应能选中带有 DTO 技能的主角。");
+        await ProcessFrames(1);
+
+        string skillsText = window.skills_label.Text;
+        _test.True(skillsText.Contains("DTO火花  Lv.1"), "技能页应使用 SkillDefinition 显示名。");
+        _test.True(skillsText.Contains("类型：战斗"), "技能页应使用 SkillDefinition 技能类型。");
+        _test.True(skillsText.Contains("说明：来自 SkillDefinition 快照"), "技能页应使用 SkillDefinition 描述。");
+        _test.True(
+            skillsText.Contains("当前效果：消耗 3 AP，最大 7；快照文本"),
+            "技能页当前效果应由 SkillDefinition 等级描述、战斗配置和 runtime context 生成。"
+        );
+        _test.True(
+            skillsText.Contains("升级预览：Lv.2：AP→5，冷却→20"),
+            "技能页升级预览应读取 SkillDefinition combat level override。"
         );
 
         await DisposeNode(window);
@@ -226,6 +271,110 @@ public partial class run_party_management_window_regression : SceneTree
         member.progression.display_name = displayName;
         member.progression.character_level = 1;
         return member;
+    }
+
+    private static SkillDefinition BuildWindowSkillDefinition(StringName skillId)
+    {
+        return new SkillDefinition(
+            skillId,
+            "DTO火花",
+            "",
+            "来自 SkillDefinition 快照",
+            "combat",
+            -1,
+            0,
+            "character_level",
+            0,
+            1,
+            System.Array.Empty<int>(),
+            System.Array.Empty<StringName>(),
+            "",
+            System.Array.Empty<StringName>(),
+            "",
+            System.Array.Empty<StringName>(),
+            new Dictionary<StringName, int>(),
+            new Dictionary<StringName, int>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            false,
+            "",
+            System.Array.Empty<StringName>(),
+            "",
+            new Dictionary<StringName, int>(),
+            "",
+            System.Array.Empty<AttributeModifierDefinition>(),
+            "消耗 {ap_cost} AP，最大 {dynamic_max_level}；{custom_text}",
+            new Dictionary<int, IReadOnlyDictionary<string, Variant>>
+            {
+                [1] = new Dictionary<string, Variant>
+                {
+                    ["custom_text"] = Variant.From("快照文本"),
+                },
+            },
+            BuildWindowCombatDefinition(skillId)
+        );
+    }
+
+    private static CombatSkillDefinition BuildWindowCombatDefinition(StringName skillId)
+    {
+        return new CombatSkillDefinition(
+            skillId,
+            "single",
+            "enemy",
+            "single",
+            1,
+            "single",
+            0,
+            true,
+            3,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            "",
+            0,
+            0,
+            new Dictionary<int, IReadOnlyDictionary<string, Variant>>
+            {
+                [2] = new Dictionary<string, Variant>
+                {
+                    ["ap_cost"] = Variant.From(5),
+                    ["cooldown_tu"] = Variant.From(20),
+                },
+            },
+            "",
+            "",
+            "",
+            "",
+            0,
+            System.Array.Empty<int>(),
+            0,
+            "",
+            "",
+            0,
+            "",
+            "",
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            "",
+            "",
+            0,
+            0,
+            false,
+            0,
+            "",
+            System.Array.Empty<CombatEffectDefinition>(),
+            System.Array.Empty<CombatEffectDefinition>(),
+            System.Array.Empty<CombatCastVariantDefinition>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            false,
+            0,
+            0
+        );
     }
 
     private void AssertStringList(IReadOnlyList<string> actual, IReadOnlyList<string> expected, string message)

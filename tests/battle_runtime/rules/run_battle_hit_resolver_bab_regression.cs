@@ -86,10 +86,14 @@ public partial class run_battle_hit_resolver_bab_regression : SceneTree
         BattleUnitState attacker = MakeUnitWithAttackBonuses(0, 0);
         attacker.known_skill_lock_hit_bonus_map[new StringName("locked_slash")] = 2;
         BattleUnitState target = MakeUnitWithArmorClass(15);
-        var skillDef = new SkillDef { skill_id = "locked_slash" };
+        SkillDefinition skillDefinition = TestSkillDefinitionProjection.BuildSkill("locked_slash");
         var resolver = new BattleHitResolver();
 
-        AttackCheckInput attackCheck = resolver.BuildSkillAttackCheck(attacker, target, skillDef);
+        AttackCheckInput attackCheck = resolver.BuildSkillAttackCheck(
+            attacker,
+            target,
+            skillDefinition
+        );
         _test.Eq(attackCheck.LockedSkillHitBonus, 2, "attack_check 应读取锁定技能的命中加值。");
         _test.Eq(attackCheck.RequiredRoll, 13, "锁定命中 +2 应把 required_roll 从 15 降到 13。");
     }

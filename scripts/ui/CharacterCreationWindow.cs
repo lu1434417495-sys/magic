@@ -72,7 +72,7 @@ public partial class CharacterCreationWindow : Control
     public bool _rerolling;
     public bool _stop_requested;
     public int _reroll_count;
-    public GDictionary _rolled_attributes = new();
+    public readonly Dictionary<StringName, int> _rolled_attributes = new();
     public string _player_name = "";
     public StringName _selected_race_id = "";
     public StringName _selected_subrace_id = "";
@@ -440,11 +440,16 @@ public partial class CharacterCreationWindow : Control
         return Mathf.Max(DiceValueFloor, total);
     }
 
+    private int RolledAttributeValue(StringName attributeId)
+    {
+        return _rolled_attributes.TryGetValue(attributeId, out int value) ? value : 0;
+    }
+
     private void _refresh_attribute_value_labels()
     {
         foreach (StringName attributeId in AttributeOrder)
         {
-            int value = DictInt(_rolled_attributes, attributeId, 0);
+            int value = RolledAttributeValue(attributeId);
             _set_value_label(attributeId, value, true);
             bool met = _row_meets_threshold(attributeId);
             bool wasMet = _rowPreviousMet.TryGetValue(attributeId, out bool previous) && previous;
@@ -486,7 +491,7 @@ public partial class CharacterCreationWindow : Control
         int threshold = (int)spinbox.Value;
         if (threshold <= DiceMinTotal)
             return false;
-        return DictInt(_rolled_attributes, attributeId, 0) >= threshold;
+        return RolledAttributeValue(attributeId) >= threshold;
     }
 
     private void _apply_row_state(StringName attributeId, bool met)
@@ -510,7 +515,7 @@ public partial class CharacterCreationWindow : Control
     private void _animate_all_value_tumbles()
     {
         foreach (StringName attributeId in AttributeOrder)
-            _animate_value_tumble(attributeId, DictInt(_rolled_attributes, attributeId, 0));
+            _animate_value_tumble(attributeId, RolledAttributeValue(attributeId));
     }
 
     private void _kill_all_value_tweens()
@@ -646,7 +651,7 @@ public partial class CharacterCreationWindow : Control
             int threshold = (int)spinbox.Value;
             if (threshold <= DiceMinTotal)
                 continue;
-            if (DictInt(_rolled_attributes, attributeId, 0) < threshold)
+            if (RolledAttributeValue(attributeId) < threshold)
                 return false;
         }
         return true;
@@ -1350,7 +1355,7 @@ public partial class CharacterCreationWindow : Control
         var lines = new List<string> { "属性预览：" };
         foreach (StringName attributeId in AttributeOrder)
         {
-            int baseValue = DictInt(_rolled_attributes, attributeId, 0);
+            int baseValue = RolledAttributeValue(attributeId);
             int finalValue = _resolve_preview_attribute_value(attributeId, baseValue);
             if (finalValue == baseValue)
                 lines.Add($"{_attribute_display_name(attributeId)}：{baseValue}");
@@ -1611,12 +1616,12 @@ public partial class CharacterCreationWindow : Control
         {
             ["display_name"] = _player_name,
             ["reroll_count"] = _reroll_count,
-            ["strength"] = DictInt(_rolled_attributes, UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength), 0),
-            ["agility"] = DictInt(_rolled_attributes, UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility), 0),
-            ["constitution"] = DictInt(_rolled_attributes, UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution), 0),
-            ["perception"] = DictInt(_rolled_attributes, UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Perception), 0),
-            ["intelligence"] = DictInt(_rolled_attributes, UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Intelligence), 0),
-            ["willpower"] = DictInt(_rolled_attributes, UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower), 0),
+            ["strength"] = RolledAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength)),
+            ["agility"] = RolledAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility)),
+            ["constitution"] = RolledAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution)),
+            ["perception"] = RolledAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Perception)),
+            ["intelligence"] = RolledAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Intelligence)),
+            ["willpower"] = RolledAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower)),
         };
         foreach (var key in identityPayload.Keys)
             payload[key] = identityPayload[key];

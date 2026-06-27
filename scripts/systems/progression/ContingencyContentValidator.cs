@@ -15,12 +15,12 @@ public static class ContingencyContentValidator
         GameContentCatalog catalog
     )
     {
-        return ValidateAllSetupsForSaveLoad(partyState, catalog?.GetSkillDefsTyped());
+        return ValidateAllSetupsForSaveLoad(partyState, catalog?.GetSkillDefinitionsTyped());
     }
 
     public static IReadOnlyList<string> ValidateAllSetupsForSaveLoad(
         PartyState partyState,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
         List<string> errors = new();
@@ -29,7 +29,7 @@ public static class ContingencyContentValidator
             errors.Add("party_state: contingency_content_validation.party_state_missing");
             return errors;
         }
-        if (skillDefs == null)
+        if (skillDefinitions == null)
         {
             errors.Add("skill_catalog: contingency_content_validation.skill_catalog_missing");
             return errors;
@@ -39,7 +39,7 @@ public static class ContingencyContentValidator
         {
             if (memberState == null)
                 continue;
-            ValidateMemberSetups(errors, memberState, skillDefs);
+            ValidateMemberSetups(errors, memberState, skillDefinitions);
         }
         return errors;
     }
@@ -47,7 +47,7 @@ public static class ContingencyContentValidator
     private static void ValidateMemberSetups(
         List<string> errors,
         PartyMemberState memberState,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
         IReadOnlyList<ContingencyMatrixSetupState> setups =
@@ -59,7 +59,7 @@ public static class ContingencyContentValidator
                 continue;
             string setupPath =
                 $"party_state.member_states.{memberState.member_id}.contingency_matrix_setups[{setupIndex}]";
-            ValidateSetup(errors, memberState, setup, setupPath, skillDefs);
+            ValidateSetup(errors, memberState, setup, setupPath, skillDefinitions);
         }
     }
 
@@ -68,10 +68,10 @@ public static class ContingencyContentValidator
         PartyMemberState memberState,
         ContingencyMatrixSetupState setup,
         string setupPath,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
-        if (!skillDefs.TryGetValue(setup.SourceSkillId, out SkillDef sourceSkill))
+        if (!skillDefinitions.TryGetValue(setup.SourceSkillId, out SkillDefinition sourceSkill))
         {
             errors.Add($"{setupPath}.source_skill_id: source_skill_missing:{setup.SourceSkillId}");
             return;
@@ -98,7 +98,7 @@ public static class ContingencyContentValidator
                 setup,
                 storedSpell,
                 $"{setupPath}.stored_spells[{spellIndex}]",
-                skillDefs
+                skillDefinitions
             );
         }
     }
@@ -109,10 +109,10 @@ public static class ContingencyContentValidator
         ContingencyMatrixSetupState setup,
         ContingencyStoredSpellEntryState storedSpell,
         string spellPath,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
-        if (!skillDefs.TryGetValue(storedSpell.StoredSkillId, out SkillDef skillDef))
+        if (!skillDefinitions.TryGetValue(storedSpell.StoredSkillId, out SkillDefinition skillDefinition))
         {
             errors.Add($"{spellPath}.stored_skill_id: stored_skill_missing:{storedSpell.StoredSkillId}");
             return;
@@ -125,34 +125,34 @@ public static class ContingencyContentValidator
                 $"{spellPath}.cast_level: stored_skill_cast_level_exceeds_known_level:{storedSpell.CastLevel}>{storedProgress.skill_level}"
             );
 
-        ContingencyAutomationDef automation = skillDef.contingency_automation_profile;
+        ContingencyAutomationDefinition automation = skillDefinition.ContingencyAutomationProfile;
         if (automation == null)
         {
             errors.Add($"{spellPath}.stored_skill_id: automation_profile_missing:{storedSpell.StoredSkillId}");
             return;
         }
 
-        StringName forbiddenTag = FirstForbiddenTag(skillDef, automation);
+        StringName forbiddenTag = FirstForbiddenTag(skillDefinition, automation);
         if (forbiddenTag != "")
         {
             errors.Add($"{spellPath}.stored_skill_id: forbidden_tag:{forbiddenTag}");
             return;
         }
 
-        if (!automation.can_be_stored_in_contingency)
+        if (!automation.CanBeStoredInContingency)
         {
             errors.Add($"{spellPath}.stored_skill_id: not_storable:{storedSpell.StoredSkillId}");
             return;
         }
-        if (automation.min_contingency_skill_level <= 0)
+        if (automation.MinContingencySkillLevel <= 0)
         {
             errors.Add($"{spellPath}.stored_skill_id: invalid_min_contingency_skill_level");
             return;
         }
-        if (setup.SourceSkillLevel < automation.min_contingency_skill_level)
+        if (setup.SourceSkillLevel < automation.MinContingencySkillLevel)
         {
             errors.Add(
-                $"{spellPath}.stored_skill_id: source_skill_level_too_low:{setup.SourceSkillLevel}<{automation.min_contingency_skill_level}"
+                $"{spellPath}.stored_skill_id: source_skill_level_too_low:{setup.SourceSkillLevel}<{automation.MinContingencySkillLevel}"
             );
             return;
         }
@@ -174,16 +174,16 @@ public static class ContingencyContentValidator
     }
 
     private static StringName FirstForbiddenTag(
-        SkillDef skillDef,
-        ContingencyAutomationDef automation
+        SkillDefinition skillDefinition,
+        ContingencyAutomationDefinition automation
     )
     {
-        foreach (StringName tag in skillDef.TagsTyped)
+        foreach (StringName tag in skillDefinition.Tags)
             if (ForbiddenAutomationTags.Contains(tag))
                 return tag;
-        if (automation?.tags != null)
+        if (automation?.Tags != null)
         {
-            foreach (StringName tag in automation.tags)
+            foreach (StringName tag in automation.Tags)
                 if (ForbiddenAutomationTags.Contains(tag))
                     return tag;
         }

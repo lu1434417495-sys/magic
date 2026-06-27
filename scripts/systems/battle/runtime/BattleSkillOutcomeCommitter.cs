@@ -35,7 +35,7 @@ internal class BattleSkillOutcomeCommitter
         {
             _runtime.AppendBatchLog(batch, message);
         }
-        foreach (GDictionary reportEntry in outcome.report_entries)
+        foreach (GDictionary reportEntry in outcome.ReportEntriesTyped)
         {
             if (reportEntry == null || reportEntry.Count == 0)
             {
@@ -238,7 +238,7 @@ internal class BattleSkillOutcomeCommitter
         }
         foreach (MeteorSwarmReportEntry reportEntry in result.GetReportEntriesTyped())
         {
-            outcome.report_entries.Add(MeteorSwarmProjection.Project(reportEntry));
+            outcome.AddReportEntry(MeteorSwarmProjection.Project(reportEntry));
         }
         return outcome;
     }

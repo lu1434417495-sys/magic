@@ -98,11 +98,19 @@ public partial class run_crown_break_regression : SceneTree
         try
         {
             runtime = BuildRuntime();
-            SkillDef skillDef = GetSkill(runtime.GetSkillDefIndexTyped(), SAINT_BLADE_COMBO_SKILL_ID);
-            _test.True(skillDef != null && skillDef.combat_profile != null, "折手回归前置：saint_blade_combo 定义应存在。");
-            if (skillDef == null || skillDef.combat_profile == null)
+            SkillDefinition skillDefinition = runtime.GetSkillDefinitionTyped(
+                SAINT_BLADE_COMBO_SKILL_ID
+            );
+            _test.True(
+                skillDefinition != null && skillDefinition.CombatProfile != null,
+                "折手回归前置：saint_blade_combo 定义应存在。"
+            );
+            if (skillDefinition == null || skillDefinition.CombatProfile == null)
                 return;
-            CombatEffectDef repeatEffect = GetEffectDef(skillDef.combat_profile.effect_defs, "repeat_attack_until_fail");
+            CombatEffectDefinition repeatEffect = GetEffectDefinition(
+                skillDefinition.CombatProfile.EffectDefinitions,
+                "repeat_attack_until_fail"
+            );
             _test.True(repeatEffect != null, "折手回归前置：saint_blade_combo 应声明 repeat_attack_until_fail。");
             if (repeatEffect == null)
                 return;
@@ -139,7 +147,13 @@ public partial class run_crown_break_regression : SceneTree
             state.phase = "unit_acting";
             elite.current_ap = 2;
             int followUpSeed = FindRepeatAttackSeedForStageOutcomes(
-                runtime, state, elite, allyTarget, skillDef, repeatEffect, new[] { true, true }
+                runtime,
+                state,
+                elite,
+                allyTarget,
+                skillDefinition,
+                repeatEffect,
+                new[] { true, true }
             );
             _test.True(followUpSeed >= 0, "折手回归应能找到原本可连续命中的圣剑连斩 battle seed。");
             if (followUpSeed < 0)
@@ -158,7 +172,7 @@ public partial class run_crown_break_regression : SceneTree
             followUpBatch = runtime.IssueCommand(followUpCommand);
             _test.Eq(
                 elite.current_aura,
-                auraBefore - (int)skillDef.combat_profile.aura_cost,
+                auraBefore - (skillDefinition?.CombatProfile?.AuraCost ?? 0),
                 "折手分支下的连斩应只结算首段 Aura 成本。"
             );
             _test.True(followUpBatch != null && followUpBatch.log_lines.Count > 0, $"折手分支应回传战斗反馈。 log={followUpBatch?.log_lines}");
@@ -307,7 +321,7 @@ public partial class run_crown_break_regression : SceneTree
         {
             runtime.setup(
                 null,
-                registry.GetSkillDefsTyped(),
+                registry.GetSkillDefinitionsTyped(),
                 new Dictionary<StringName, EnemyTemplateDef>(),
                 new Dictionary<StringName, EnemyAiBrainDef>()
             );
@@ -474,14 +488,17 @@ public partial class run_crown_break_regression : SceneTree
         return command;
     }
 
-    private static CombatEffectDef GetEffectDef(Godot.Collections.Array<CombatEffectDef> effectDefs, StringName effectType)
+    private static CombatEffectDefinition GetEffectDefinition(
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        StringName effectType
+    )
     {
-        if (effectDefs == null)
+        if (effectDefinitions == null)
             return null;
-        foreach (CombatEffectDef typedEffect in effectDefs)
+        foreach (CombatEffectDefinition effectDefinition in effectDefinitions)
         {
-            if (typedEffect != null && typedEffect.effect_type == effectType)
-                return typedEffect;
+            if (effectDefinition != null && effectDefinition.EffectType == effectType)
+                return effectDefinition;
         }
         return null;
     }
@@ -491,12 +508,12 @@ public partial class run_crown_break_regression : SceneTree
         BattleState state,
         BattleUnitState activeUnit,
         BattleUnitState targetUnit,
-        SkillDef skillDef,
-        CombatEffectDef repeatEffect,
+        SkillDefinition skillDefinition,
+        CombatEffectDefinition repeatEffect,
         bool[] expectedStageOutcomes
     )
     {
-        if (runtime == null || state == null || activeUnit == null || targetUnit == null || skillDef == null || repeatEffect == null)
+        if (runtime == null || state == null || activeUnit == null || targetUnit == null || skillDefinition == null || repeatEffect == null)
             return -1;
         for (int candidateSeed = 0; candidateSeed < 4096; candidateSeed++)
         {
@@ -509,7 +526,7 @@ public partial class run_crown_break_regression : SceneTree
                     state,
                     activeUnit,
                     targetUnit,
-                    skillDef,
+                    skillDefinition,
                     repeatEffect,
                     stageIndex
                 );
@@ -535,13 +552,6 @@ public partial class run_crown_break_regression : SceneTree
         foreach (Vector2I coord in coords)
             pairs.Add(new Vector2I(coord.X, coord.Y));
         return pairs;
-    }
-
-    private static SkillDef GetSkill(IReadOnlyDictionary<StringName, SkillDef> skillDefs, StringName skillId)
-    {
-        if (skillDefs == null || !skillDefs.TryGetValue(skillId, out SkillDef skillDef))
-            return null;
-        return skillDef;
     }
 
     private sealed class SelectionRuntimeProxy

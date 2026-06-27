@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
@@ -113,15 +112,14 @@ public partial class run_battle_status_modifier_rules_regression : SceneTree
         healTarget.SetStatusEffect(MakeModifierStatus("soul_fracture", 50, 50));
 
         var resolver = new BattleDamageResolver();
-        var healEffect = new CombatEffectDef
-        {
-            effect_type = "heal",
-            power = 10,
-        };
+        CombatEffectDefinition healEffect = TestSkillDefinitionProjection.BuildEffect(
+            "heal",
+            power: 10
+        );
         GDictionary healResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             healTarget,
-            new GArray { healEffect }
+            new[] { healEffect }
         ));
 
         _test.Eq(
@@ -134,12 +132,11 @@ public partial class run_battle_status_modifier_rules_regression : SceneTree
         BattleUnitState shieldTarget = MakeUnit("shield_target", 20, 20);
         shieldTarget.SetStatusEffect(MakeModifierStatus("soul_fracture", 50, 50));
         var shieldService = new BattleShieldService();
-        var shieldEffect = new CombatEffectDef
-        {
-            effect_type = "shield",
-            power = 10,
-            duration_tu = 60,
-        };
+        CombatEffectDefinition shieldEffect = TestSkillDefinitionProjection.BuildEffect(
+            "shield",
+            power: 10,
+            durationTu: 60
+        );
 
         BattleShieldApplyResult shieldResult = shieldService.ApplyShieldEffectToTargetResult(
             source,

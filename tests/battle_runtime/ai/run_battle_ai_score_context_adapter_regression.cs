@@ -30,20 +30,21 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
             fixture.State,
             fixture.Actor,
             fixture.GridService,
-            fixture.SkillDefs
+            null,
+            fixture.SkillDefinitions
         );
 
         IBattleAiScoreContext scoreContext = adapter;
         _test.True(
-            scoreContext.skill_defs.Count == 1,
-            "IBattleAiScoreContext 应直接暴露 typed skill_defs 视图。"
+            scoreContext.skill_definitions.Count == 1,
+            "IBattleAiScoreContext 应直接暴露 SkillDefinition 视图。"
         );
 
         BattleCommand command = new()
         {
             command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
             unit_id = fixture.Actor.unit_id,
-            skill_id = fixture.Skill.skill_id,
+            skill_id = fixture.Skill.SkillId,
             target_coord = new Vector2I(2, 1),
         };
         BattlePreview preview = new()
@@ -55,10 +56,10 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
 
         BattleAiScoreInput scoreInput = adapter.BuildSkillScoreInput(
             null,
-            fixture.Skill.skill_id,
+            fixture.Skill.SkillId,
             command,
             preview,
-            Array.Empty<CombatEffectDef>(),
+            Array.Empty<CombatEffectDefinition>(),
             new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["runtime_action_metadata"] = new Dictionary<string, object>(StringComparer.Ordinal)
@@ -77,17 +78,17 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
 
         _test.Eq(
             scoreInput.skill_id,
-            fixture.Skill.skill_id,
-            "score input 离开适配器前只保留 skill_id，不持有 SkillDef live resource。"
+            fixture.Skill.SkillId,
+            "score input 离开适配器前只保留 skill_id，不持有 live skill resource。"
         );
         _test.Eq(scoreInput.command, command, "score input 应保留 command value object。");
         _test.Eq(scoreInput.preview, preview, "score input 应保留 preview value object。");
         _test.Eq(scoreInput.action_kind, new StringName("skill"), "默认 action_kind 应为 skill。");
-        _test.Eq(scoreInput.ap_cost, 2, "适配器应通过 typed skill index 解析 SkillDef 并计算 AP cost。");
-        _test.Eq(scoreInput.mp_cost, 3, "适配器应通过 typed skill index 解析 SkillDef 并计算 MP cost。");
+        _test.Eq(scoreInput.ap_cost, 2, "适配器应通过 typed skill index 解析 SkillDefinition 并计算 AP cost。");
+        _test.Eq(scoreInput.mp_cost, 3, "适配器应通过 typed skill index 解析 SkillDefinition 并计算 MP cost。");
         _test.Eq(
             scoreInput.runtime_action_metadata?.skill_id ?? new StringName(""),
-            fixture.Skill.skill_id,
+            fixture.Skill.SkillId,
             "runtime_action_metadata 应带上 skill_id，替代 live skill_def。"
         );
         _test.True(
@@ -150,8 +151,9 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
         bool placed = gridService.PlaceUnit(state, actor, actor.coord, true);
         _test.True(placed, "测试单位应能放入测试战场。");
 
-        SkillDef skill = BuildSkill();
-        Dictionary<StringName, SkillDef> skillDefs = new() { [skill.skill_id] = skill };
+        SkillDefinition skill = BuildSkill();
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            new Dictionary<StringName, SkillDefinition> { [skill.SkillId] = skill };
 
         return new Fixture
         {
@@ -159,7 +161,7 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
             GridService = gridService,
             Actor = actor,
             Skill = skill,
-            SkillDefs = skillDefs,
+            SkillDefinitions = skillDefinitions,
         };
     }
 
@@ -221,25 +223,18 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
         return unit;
     }
 
-    private static SkillDef BuildSkill()
-    {
-        return TestResourceOwnership.Own(
-            new SkillDef
-            {
-                skill_id = "adapter_skill",
-                display_name = "Adapter Skill",
-                combat_profile = new CombatSkillDef
-                {
-                    skill_id = "adapter_skill",
-                    ap_cost = 2,
-                    mp_cost = 3,
-                    stamina_cost = 0,
-                    cooldown_tu = 0,
-                },
-            },
-            "BattleAiScoreContextAdapter.BuildSkill"
+    private static SkillDefinition BuildSkill() =>
+        TestSkillDefinitionProjection.BuildSkill(
+            "adapter_skill",
+            "Adapter Skill",
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                "adapter_skill",
+                apCost: 2,
+                mpCost: 3,
+                staminaCost: 0,
+                cooldownTu: 0
+            )
         );
-    }
 
     private static bool IsGodotDynamicBoundaryType(Type type) =>
         type == typeof(Godot.Collections.Dictionary)
@@ -265,7 +260,7 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
         public BattleState State;
         public BattleGridService GridService;
         public BattleUnitState Actor;
-        public SkillDef Skill;
-        internal IReadOnlyDictionary<StringName, SkillDef> SkillDefs;
+        public SkillDefinition Skill;
+        internal IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions;
     }
 }

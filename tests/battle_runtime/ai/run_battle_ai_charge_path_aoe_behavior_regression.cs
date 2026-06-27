@@ -41,19 +41,23 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
         PrepareTestWhirlwindUser(spinner);
 
         var assembler = new BattleAiActionAssembler();
-        BattleAiRuntimeActionPlan plan = assembler.BuildUnitActionPlan(
+        using BattleAiRuntimeActionPlan plan = assembler.BuildUnitActionPlan(
             spinner,
             brain,
-            runtime.GetSkillDefIndexTyped()
+            runtime.GetSkillDefinitionIndexTyped()
         );
         bool foundPathAction = false;
-        foreach (EnemyAiAction action in plan.GetActions("engage"))
+        foreach (BattleAiRuntimeActionEntry entry in plan.GetActionEntries("engage"))
         {
-            if (action is not UseChargePathAoeAction chargePathAction)
+            BattleAiChargePathAoeActionSpec chargePathAction = entry?.GeneratedChargePathAoe;
+            if (chargePathAction == null)
             {
                 continue;
             }
-            foundPathAction = chargePathAction.skill_ids.Contains("warrior_whirlwind_slash");
+            foundPathAction = ContainsSkillId(
+                chargePathAction.GetDeclaredSkillIds(),
+                "warrior_whirlwind_slash"
+            ) && entry.ResourceAction == null;
             if (foundPathAction)
             {
                 break;
@@ -64,6 +68,18 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
             foundPathAction,
             "AI 自动装配器应为 warrior_whirlwind_slash 生成 charge + path_step_aoe Action。"
         );
+    }
+
+    private static bool ContainsSkillId(IReadOnlyList<StringName> skillIds, StringName skillId)
+    {
+        foreach (StringName candidate in skillIds ?? Array.Empty<StringName>())
+        {
+            if (candidate == skillId)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void TestChargePathAoeScoresRepeatHits()
@@ -171,14 +187,14 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetSkillDefinitionsTyped(),
             gameSession.GetEnemyTemplatesTyped(),
             gameSession.GetEnemyAiBrainsTyped(),
             null
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         var damageResolver = new FixedSuccessOneDamageResolver();
-        damageResolver.SetSkillDefs(runtime.GetSkillDefIndexTyped());
+        damageResolver.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime.ConfigureDamageResolverForTests(damageResolver);
         return new BattleRuntimeScope(runtime, gameSession);
     }
@@ -239,7 +255,7 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
                 runtime._get_ai_move_query_cost(unit.unit_id, unit.coord, targetCoord),
             runtime_action_plan = actionPlan,
         };
-        context.SetSkillDefs(runtime.GetSkillDefIndexTyped());
+        context.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime._bind_ai_helper_services_for_decision(unitState, context);
         return context;
     }

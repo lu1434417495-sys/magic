@@ -125,7 +125,7 @@ public partial class run_battle_simulation_regression : SceneTree
             "高 stamina patch 后，AI 不应再使用 archer_suppressive_fire。"
         );
         _test.True(
-            GetInt(patchedEntry.Summary.SkillUsageTotals, "archer_pinning_shot") > 0,
+            HasTraceCommandSkill(patchedEntry, "archer_pinning_shot"),
             "压制射击被资源阻断后，AI 应回落到 archer_pinning_shot。"
         );
     }
@@ -240,7 +240,7 @@ public partial class run_battle_simulation_regression : SceneTree
             coord = coord,
             current_hp = 60,
             current_mp = 20,
-            current_stamina = 20,
+            current_stamina = 30,
             current_ap = 2,
             skill_ids = new GArray { "archer_suppressive_fire", "archer_pinning_shot" },
             skill_level_map = new GDictionary
@@ -248,12 +248,29 @@ public partial class run_battle_simulation_regression : SceneTree
                 ["archer_suppressive_fire"] = 1,
                 ["archer_pinning_shot"] = 1,
             },
+            weapon_projection = new GDictionary
+            {
+                ["weapon_profile_kind"] = "equipped",
+                ["weapon_item_id"] = "simulation_bow",
+                ["weapon_profile_type_id"] = "shortbow",
+                ["weapon_family"] = "bow",
+                ["weapon_current_grip"] = "two_handed",
+                ["weapon_attack_range"] = 5,
+                ["weapon_two_handed_dice"] = new GDictionary
+                {
+                    ["dice_count"] = 1,
+                    ["dice_sides"] = 6,
+                    ["flat_bonus"] = 0,
+                },
+                ["weapon_uses_two_hands"] = true,
+                ["weapon_physical_damage_tag"] = "piercing",
+            },
             base_attributes = BuildBaseAttributes(10, 12, 12, 14, 10, 10),
             attribute_overrides = new GDictionary
             {
                 ["hp_max"] = 60,
                 ["mp_max"] = 20,
-                ["stamina_max"] = 20,
+                ["stamina_max"] = 30,
                 ["action_points"] = 2,
                 ["attack_bonus"] = 6,
                 ["armor_ac_bonus"] = 5,
@@ -367,6 +384,27 @@ public partial class run_battle_simulation_regression : SceneTree
     private static int GetInt(IReadOnlyDictionary<string, int> source, string key, int fallback = 0)
     {
         return source != null && source.TryGetValue(key, out int value) ? value : fallback;
+    }
+
+    private static bool HasTraceCommandSkill(
+        BattleSimProfileReportEntry profileEntry,
+        StringName skillId
+    )
+    {
+        if (profileEntry?.Runs == null || skillId == "")
+            return false;
+        string expectedSkillId = skillId.ToString();
+        foreach (BattleSimRunReport run in profileEntry.Runs)
+        {
+            if (run?.AiTurnTraces == null)
+                continue;
+            foreach (BattleAiTurnTraceProjection trace in run.AiTurnTraces)
+            {
+                if (trace?.Command?.SkillId == expectedSkillId)
+                    return true;
+            }
+        }
+        return false;
     }
 
 }

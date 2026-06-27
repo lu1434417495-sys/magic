@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -21,13 +22,18 @@ public class ContingencyStoredSpellEntryState
         "fallback_policy",
     };
 
-    private readonly RuntimePayloadStore _parameterBindings = new();
+    private readonly Dictionary<string, object> _parameterBindings =
+        new(System.StringComparer.Ordinal);
 
     public StringName StoredSkillId { get; private set; } = "";
     public int CastLevel { get; private set; }
     public int Order { get; private set; }
     public ContingencyTargetResolverState TargetResolver { get; private set; }
-    public GDictionary ParameterBindings => _parameterBindings.ProjectPayload();
+    public GDictionary ParameterBindings =>
+        RuntimePlainPayload.ProjectDictionary(
+            _parameterBindings,
+            "ContingencyStoredSpellEntryState.ParameterBindings"
+        );
     public ContingencyFallbackPolicyKind FallbackPolicyKind { get; private set; } =
         ContingencyFallbackPolicyKind.Unknown;
     public StringName FallbackPolicy { get; private set; } = "";
@@ -72,7 +78,7 @@ public class ContingencyStoredSpellEntryState
             return null;
         if (!ContingencySchemaUtils.TryReadDictionary(payload, "parameter_bindings", out GDictionary bindingsPayload))
             return null;
-        GDictionary bindings = ParseParameterBindings(bindingsPayload);
+        Dictionary<string, object> bindings = ParseParameterBindings(bindingsPayload);
         if (bindings == null)
             return null;
         if (
@@ -97,7 +103,11 @@ public class ContingencyStoredSpellEntryState
             FallbackPolicyKind = fallbackKind,
             FallbackPolicy = fallbackPolicy,
         };
-        state._parameterBindings.ReplaceWithPayload(bindings);
+        foreach (KeyValuePair<string, object> entry in bindings)
+        {
+            if (!string.IsNullOrEmpty(entry.Key))
+                state._parameterBindings[entry.Key] = entry.Value;
+        }
         return state;
     }
 
@@ -120,41 +130,50 @@ public class ContingencyStoredSpellEntryState
         return ContingencyFallbackPolicyKind.Unknown;
     }
 
-    private static GDictionary ParseParameterBindings(GDictionary payload)
+    private static Dictionary<string, object> ParseParameterBindings(GDictionary payload)
     {
         if (payload == null)
             return null;
-        GDictionary result = new();
+        var result = new Dictionary<string, object>(System.StringComparer.Ordinal);
         foreach (Variant rawKey in payload.Keys)
         {
             if (!ContingencySchemaUtils.TryAsStringLike(rawKey, out string keyText))
                 return null;
             StringName key = new(keyText);
-            if (key == "" || result.ContainsKey(key.ToString()))
+            string keyString = key.ToString();
+            if (key == "" || result.ContainsKey(keyString))
                 return null;
             Variant value = payload[rawKey];
-            if (!TryParseParameterBindingValue(value, out Variant parsedValue))
+            if (!TryParseParameterBindingValue(value, out object parsedValue))
                 return null;
-            result[key] = parsedValue;
+            result[keyString] = parsedValue;
         }
         return result;
     }
 
-    private static bool TryParseParameterBindingValue(Variant value, out Variant parsedValue)
+    private static bool TryParseParameterBindingValue(Variant value, out object parsedValue)
     {
-        parsedValue = default;
+        parsedValue = null;
         switch (value.VariantType)
         {
             case Variant.Type.Bool:
+                parsedValue = value.AsBool();
+                return true;
             case Variant.Type.Int:
+                parsedValue = value.AsInt64();
+                return true;
             case Variant.Type.Float:
+                parsedValue = value.AsDouble();
+                return true;
             case Variant.Type.String:
+                parsedValue = value.AsString();
+                return true;
             case Variant.Type.StringName:
-                parsedValue = value;
+                parsedValue = value.AsStringName();
                 return true;
             case Variant.Type.Array:
                 GArray rawArray = value.AsGodotArray();
-                GArray normalizedArray = new();
+                var normalizedArray = new List<object>();
                 foreach (Variant rawItem in rawArray)
                 {
                     if (!ContingencySchemaUtils.TryAsStringLike(rawItem, out string itemText))
@@ -164,7 +183,7 @@ public class ContingencyStoredSpellEntryState
                         return false;
                     normalizedArray.Add(item);
                 }
-                parsedValue = Variant.From(normalizedArray);
+                parsedValue = normalizedArray;
                 return true;
             default:
                 return false;
@@ -173,8 +192,8 @@ public class ContingencyStoredSpellEntryState
 
     private static GDictionary DuplicateParameterBindings(GDictionary payload)
     {
-        GDictionary parsed = ParseParameterBindings(payload ?? new GDictionary());
-        return RuntimePayloadCopy.Dictionary(
+        Dictionary<string, object> parsed = ParseParameterBindings(payload ?? new GDictionary());
+        return RuntimePlainPayload.ProjectDictionary(
             parsed,
             "ContingencyStoredSpellEntryState.DuplicateParameterBindings"
         );

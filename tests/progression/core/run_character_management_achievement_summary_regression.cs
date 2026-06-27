@@ -127,7 +127,7 @@ public partial class run_character_management_achievement_summary_regression : S
         CharacterManagementModule manager = new();
         manager.setup(
             party,
-            new Dictionary<StringName, SkillDef>(),
+            new Dictionary<StringName, SkillDefinition>(),
             new Dictionary<StringName, ProfessionDef>(),
             indexedAchievementDefs,
             new Dictionary<StringName, ItemDef>(),

@@ -1,6 +1,5 @@
 using System;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_damage_context_typed_regression : SceneTree
@@ -29,10 +28,7 @@ public partial class run_damage_context_typed_regression : SceneTree
         try
         {
             ExpectArgumentException(
-                () => resolver.ResolveEffects(
-                    source,
-                    target,
-                    new GArray { BuildDamageEffect(power: 3) },
+                () => DamageResolutionContext.FromDictionary(
                     new GDictionary { ["secondary_hit_success"] = true }
                 ),
                 "dictionary damage_context with secondary_hit_success but missing attack metadata must be rejected."
@@ -72,7 +68,7 @@ public partial class run_damage_context_typed_regression : SceneTree
             AttackEffectResolutionResult result = resolver.ResolveEffects(
                 source,
                 target,
-                new GArray { BuildDamageEffect(power: 0, diceCount: 1, diceSides: 6) },
+                new[] { BuildDamageEffect(power: 0, diceCount: 1, diceSides: 6) },
                 context
             );
 
@@ -113,7 +109,7 @@ public partial class run_damage_context_typed_regression : SceneTree
             AttackEffectResolutionResult result = resolver.ResolveEffects(
                 source,
                 target,
-                new GArray { BuildDamageEffect(power: 10, damageTag: "physical_slash") },
+                new[] { BuildDamageEffect(power: 10, damageTag: "physical_slash") },
                 DamageResolutionContext.Create(
                     criticalHit: false,
                     attackSuccess: true,
@@ -156,21 +152,20 @@ public partial class run_damage_context_typed_regression : SceneTree
         return unit;
     }
 
-    private CombatEffectDef BuildDamageEffect(
+    private CombatEffectDefinition BuildDamageEffect(
         int power,
         int diceCount = 0,
         int diceSides = 0,
         StringName damageTag = default
     )
     {
-        return new CombatEffectDef
-        {
-            effect_type = "damage",
-            damage_tag = damageTag == default ? new StringName("force") : damageTag,
-            power = power,
-            dice_count = diceCount,
-            dice_sides = diceSides,
-        };
+        return TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            damageTag: damageTag == default ? new StringName("force") : damageTag,
+            power: power,
+            diceCount: diceCount,
+            diceSides: diceSides
+        );
     }
 
     private void ExpectArgumentException(Action action, string message)

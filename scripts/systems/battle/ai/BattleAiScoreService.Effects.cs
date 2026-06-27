@@ -5,7 +5,6 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 public partial class BattleAiScoreService
 {
@@ -70,14 +69,20 @@ public partial class BattleAiScoreService
         bool PreventRepeatTarget
     )
     {
-        public static ChainDamageParameters FromEffect(CombatEffectDef effectDef)
+        public static ChainDamageParameters FromEffect(CombatEffectDefinition effectDefinition)
         {
-            int baseRadius = Math.Max(effectDef?.GetIntParamTyped("base_chain_radius", 1) ?? 1, 0);
+            int baseRadius = Math.Max(
+                ReadIntParameter(effectDefinition, "base_chain_radius", 1),
+                0
+            );
             return new ChainDamageParameters(
                 baseRadius,
-                effectDef?.GetStringNameParamTyped("bonus_terrain_effect_id", "") ?? "",
-                Math.Max(effectDef?.GetIntParamTyped("wet_chain_radius", baseRadius) ?? baseRadius, baseRadius),
-                effectDef?.prevent_repeat_target ?? true
+                ReadStringNameParameter(effectDefinition, "bonus_terrain_effect_id"),
+                Math.Max(
+                    ReadIntParameter(effectDefinition, "wet_chain_radius", baseRadius),
+                    baseRadius
+                ),
+                effectDefinition?.PreventRepeatTarget ?? true
             );
         }
     }
@@ -225,7 +230,8 @@ public partial class BattleAiScoreService
         {
             return summary;
         }
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = ContextSkillDefs(context);
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            ContextSkillDefinitions(context);
         foreach (StringName skillId in targetUnit.known_active_skill_ids)
         {
             StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
@@ -233,17 +239,20 @@ public partial class BattleAiScoreService
             {
                 continue;
             }
-            SkillDef skillDef = GetSkillDef(skillDefs, normalizedSkillId);
-            if (skillDef == null || skillDef.combat_profile == null)
+            SkillDefinition skillDefinition = GetSkillDefinition(
+                skillDefinitions,
+                normalizedSkillId
+            );
+            if (skillDefinition == null || skillDefinition.CombatProfile == null)
             {
                 continue;
             }
-            List<CombatEffectDef> roleEffectDefs = CollectRoleThreatEffectDefs(
+            List<CombatEffectDefinition> roleEffectDefs = CollectRoleThreatEffectDefinitions(
                 targetUnit,
-                skillDef,
+                skillDefinition,
                 ContextSkillCatalog(context)
             );
-            if (IsHealOrSupportSkill(skillDef, roleEffectDefs))
+            if (IsHealOrSupportSkill(skillDefinition, roleEffectDefs))
             {
                 summary.HealSkillCount += 1;
             }
@@ -255,7 +264,7 @@ public partial class BattleAiScoreService
             {
                 int effectiveRange = BattleRangeService.GetEffectiveSkillThreatRange(
                     targetUnit,
-                    skillDef
+                    skillDefinition
                 );
                 if (effectiveRange >= MinRangedThreatRange)
                 {
@@ -513,13 +522,83 @@ public partial class BattleAiScoreService
         return Math.Max(unitState.current_hp, 1);
     }
 
+    private void PopulateEnemyTargetPayoff(
+        BattleAiScoreInput scoreInput,
+        IBattleAiScoreContext context,
+        BattleUnitState targetUnit,
+        int estimatedDamage,
+        int estimatedHealing,
+        int harmfulControlCount,
+        int beneficialControlCount,
+        int estimatedTerrainEffectCount,
+        int estimatedHeightDelta,
+        int estimatedShieldAbsorbed,
+        bool stableLethal,
+        bool isExecute = false,
+        int executeKillProbabilityBasisPoints = 0
+    )
+    {
+        bool hasBeneficialEnemyEffect =
+            estimatedDamage > 0
+            || harmfulControlCount > 0
+            || estimatedShieldAbsorbed > 0
+            || estimatedTerrainEffectCount > 0
+            || estimatedHeightDelta > 0;
+        if (hasBeneficialEnemyEffect)
+        {
+            scoreInput.effective_target_count += 1;
+        }
+        scoreInput.hit_payoff_score += estimatedDamage * _scoreProfile.damage_weight;
+        scoreInput.hit_payoff_score -= estimatedHealing * _scoreProfile.heal_weight;
+        scoreInput.hit_payoff_score += harmfulControlCount * _scoreProfile.status_weight;
+        scoreInput.hit_payoff_score +=
+            estimatedShieldAbsorbed * Math.Max(_scoreProfile.shield_absorbed_weight, 0);
+        scoreInput.hit_payoff_score -= beneficialControlCount * _scoreProfile.status_weight;
+        scoreInput.hit_payoff_score += estimatedTerrainEffectCount * _scoreProfile.terrain_weight;
+        scoreInput.hit_payoff_score += estimatedHeightDelta * _scoreProfile.height_weight;
+        int targetPriorityBonus = ResolveTargetRoleThreatBonus(
+            context,
+            targetUnit,
+            estimatedDamage,
+            harmfulControlCount,
+            estimatedTerrainEffectCount,
+            estimatedHeightDelta
+        );
+        scoreInput.target_priority_score += targetPriorityBonus;
+        scoreInput.hit_payoff_score += targetPriorityBonus;
+        int lethalBonus = isExecute
+            ? ResolveExecuteLethalBonusFromBasisPoints(
+                scoreInput,
+                context,
+                targetUnit,
+                executeKillProbabilityBasisPoints
+            )
+            : stableLethal
+                ? ResolveLethalTargetBonus(scoreInput, context, targetUnit, estimatedDamage)
+                : 0;
+        scoreInput.hit_payoff_score += lethalBonus;
+        scoreInput.target_priority_score += lethalBonus;
+        if (harmfulControlCount > 0)
+        {
+            AppendUniqueStringName(scoreInput.estimated_control_target_ids, targetUnit.unit_id);
+            if (IsPriorityThreatTarget(context, targetUnit))
+            {
+                AppendUniqueStringName(
+                    scoreInput.estimated_control_threat_target_ids,
+                    targetUnit.unit_id
+                );
+            }
+        }
+    }
+
     private void PopulateTargetEffectMetrics(
         BattleAiScoreInput scoreInput,
         IBattleAiScoreContext context,
         BattleUnitState targetUnit,
-        IReadOnlyList<CombatEffectDef> effectDefs,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         int hitCount = 1,
-        bool isChainTarget = false
+        bool isChainTarget = false,
+        SkillDefinition skillDefinition = null
     )
     {
         AiTraceRecorder.Enter("_populate_target_effect_metrics");
@@ -527,9 +606,10 @@ public partial class BattleAiScoreService
             scoreInput,
             context,
             targetUnit,
-            effectDefs,
+            effectDefinitions,
             hitCount,
-            isChainTarget
+            isChainTarget,
+            skillDefinition
         );
         AiTraceRecorder.Exit("_populate_target_effect_metrics");
     }
@@ -538,9 +618,10 @@ public partial class BattleAiScoreService
         BattleAiScoreInput scoreInput,
         IBattleAiScoreContext context,
         BattleUnitState targetUnit,
-        IReadOnlyList<CombatEffectDef> effectDefs,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         int hitCount = 1,
-        bool isChainTarget = false
+        bool isChainTarget = false,
+        SkillDefinition skillDefinition = null
     )
     {
         BattleUnitState actor = ContextUnitState(context);
@@ -548,13 +629,13 @@ public partial class BattleAiScoreService
         {
             return;
         }
-        SkillDef skillDef = ResolveScoreInputSkillDef(scoreInput, context);
+        skillDefinition ??= ResolveScoreInputSkillDefinition(scoreInput, context);
         TargetEffectMetrics targetMetrics = BuildTargetEffectMetrics(
             context,
-            skillDef,
+            skillDefinition,
             actor,
             targetUnit,
-            effectDefs,
+            effectDefinitions,
             hitCount
         );
         if (targetMetrics.IsEmpty)
@@ -646,75 +727,6 @@ public partial class BattleAiScoreService
         );
     }
 
-    private void PopulateEnemyTargetPayoff(
-        BattleAiScoreInput scoreInput,
-        IBattleAiScoreContext context,
-        BattleUnitState targetUnit,
-        int estimatedDamage,
-        int estimatedHealing,
-        int harmfulControlCount,
-        int beneficialControlCount,
-        int estimatedTerrainEffectCount,
-        int estimatedHeightDelta,
-        int estimatedShieldAbsorbed,
-        bool stableLethal,
-        bool isExecute = false,
-        int executeKillProbabilityBasisPoints = 0
-    )
-    {
-        bool hasBeneficialEnemyEffect =
-            estimatedDamage > 0
-            || harmfulControlCount > 0
-            || estimatedShieldAbsorbed > 0
-            || estimatedTerrainEffectCount > 0
-            || estimatedHeightDelta > 0;
-        if (hasBeneficialEnemyEffect)
-        {
-            scoreInput.effective_target_count += 1;
-        }
-        scoreInput.hit_payoff_score += estimatedDamage * _scoreProfile.damage_weight;
-        scoreInput.hit_payoff_score -= estimatedHealing * _scoreProfile.heal_weight;
-        scoreInput.hit_payoff_score += harmfulControlCount * _scoreProfile.status_weight;
-        scoreInput.hit_payoff_score +=
-            estimatedShieldAbsorbed * Math.Max(_scoreProfile.shield_absorbed_weight, 0);
-        scoreInput.hit_payoff_score -= beneficialControlCount * _scoreProfile.status_weight;
-        scoreInput.hit_payoff_score += estimatedTerrainEffectCount * _scoreProfile.terrain_weight;
-        scoreInput.hit_payoff_score += estimatedHeightDelta * _scoreProfile.height_weight;
-        int targetPriorityBonus = ResolveTargetRoleThreatBonus(
-            context,
-            targetUnit,
-            estimatedDamage,
-            harmfulControlCount,
-            estimatedTerrainEffectCount,
-            estimatedHeightDelta
-        );
-        scoreInput.target_priority_score += targetPriorityBonus;
-        scoreInput.hit_payoff_score += targetPriorityBonus;
-        int lethalBonus = isExecute
-            ? ResolveExecuteLethalBonusFromBasisPoints(
-                scoreInput,
-                context,
-                targetUnit,
-                executeKillProbabilityBasisPoints
-            )
-            : stableLethal
-                ? ResolveLethalTargetBonus(scoreInput, context, targetUnit, estimatedDamage)
-                : 0;
-        scoreInput.hit_payoff_score += lethalBonus;
-        scoreInput.target_priority_score += lethalBonus;
-        if (harmfulControlCount > 0)
-        {
-            AppendUniqueStringName(scoreInput.estimated_control_target_ids, targetUnit.unit_id);
-            if (IsPriorityThreatTarget(context, targetUnit))
-            {
-                AppendUniqueStringName(
-                    scoreInput.estimated_control_threat_target_ids,
-                    targetUnit.unit_id
-                );
-            }
-        }
-    }
-
     private void PopulateAllyTargetPayoff(
         BattleAiScoreInput scoreInput,
         BattleUnitState targetUnit,
@@ -762,10 +774,10 @@ public partial class BattleAiScoreService
 
     private TargetEffectMetrics BuildTargetEffectMetrics(
         IBattleAiScoreContext context,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        IReadOnlyList<CombatEffectDef> effectDefs,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         int hitCount = 1
     )
     {
@@ -774,10 +786,10 @@ public partial class BattleAiScoreService
         if (_decisionScopeActive)
         {
             TargetEffectMetricsCacheKey cacheKey = BuildTargetEffectMetricsCacheKey(
-                skillDef,
+                skillDefinition,
                 sourceUnit,
                 targetUnit,
-                effectDefs,
+                effectDefinitions,
                 hitCount
             );
             if (_targetEffectMetricsCache.TryGetValue(cacheKey, out TargetEffectMetrics cached))
@@ -787,10 +799,10 @@ public partial class BattleAiScoreService
             }
             result = BuildTargetEffectMetricsImpl(
                 context,
-                skillDef,
+                skillDefinition,
                 sourceUnit,
                 targetUnit,
-                effectDefs,
+                effectDefinitions,
                 hitCount
             );
             _targetEffectMetricsCache[cacheKey] = result.Clone();
@@ -799,10 +811,10 @@ public partial class BattleAiScoreService
         {
             result = BuildTargetEffectMetricsImpl(
                 context,
-                skillDef,
+                skillDefinition,
                 sourceUnit,
                 targetUnit,
-                effectDefs,
+                effectDefinitions,
                 hitCount
             );
         }
@@ -811,35 +823,59 @@ public partial class BattleAiScoreService
     }
 
     private static TargetEffectMetricsCacheKey BuildTargetEffectMetricsCacheKey(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        IReadOnlyList<CombatEffectDef> effectDefs,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         int hitCount
     )
     {
         return new TargetEffectMetricsCacheKey(
-            ResolveSkillId(skillDef),
+            ResolveSkillId(skillDefinition),
             ProgressionDataUtils.to_string_name(sourceUnit?.unit_id ?? ""),
             ProgressionDataUtils.to_string_name(targetUnit?.unit_id ?? ""),
             Math.Max(hitCount, 1),
-            BuildCombatEffectSignature(effectDefs),
+            BuildCombatEffectSignature(effectDefinitions),
             BuildUnitEffectSignature(sourceUnit),
             BuildUnitEffectSignature(targetUnit)
         );
     }
 
-    private static int BuildCombatEffectSignature(IReadOnlyList<CombatEffectDef> effectDefs)
+    private static int BuildCombatEffectSignature(
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions
+    )
     {
         unchecked
         {
             int hash = 17;
             int count = 0;
-            foreach (CombatEffectDef effectDef in effectDefs ?? System.Array.Empty<CombatEffectDef>())
+            foreach (
+                CombatEffectDefinition effectDefinition in effectDefinitions
+                    ?? System.Array.Empty<CombatEffectDefinition>()
+            )
             {
                 count += 1;
-                hash = hash * 31 + (effectDef != null ? RuntimeHelpers.GetHashCode(effectDef) : 0);
-                hash = hash * 31 + (int)(effectDef?.EffectKind ?? BattleEffectKind.Unknown);
+                hash = hash * 31 + (int)(effectDefinition?.EffectKind ?? BattleEffectKind.Unknown);
+                hash = hash * 31 + ProgressionDataUtils.to_string_name(effectDefinition?.EffectType ?? "").GetHashCode();
+                hash = hash * 31 + ProgressionDataUtils.to_string_name(effectDefinition?.EffectTargetTeamFilter ?? "").GetHashCode();
+                hash = hash * 31 + ProgressionDataUtils.to_string_name(effectDefinition?.StatusId ?? "").GetHashCode();
+                hash = hash * 31 + ProgressionDataUtils.to_string_name(effectDefinition?.SaveFailureStatusId ?? "").GetHashCode();
+                hash = hash * 31 + ProgressionDataUtils.to_string_name(effectDefinition?.TerrainEffectId ?? "").GetHashCode();
+                hash = hash * 31 + ProgressionDataUtils.to_string_name(effectDefinition?.TerrainReplaceTo ?? "").GetHashCode();
+                hash = hash * 31 + ProgressionDataUtils.to_string_name(effectDefinition?.DamageTag ?? "").GetHashCode();
+                hash = hash * 31 + ProgressionDataUtils.to_string_name(effectDefinition?.DamageCategory ?? "").GetHashCode();
+                hash = hash * 31 + ProgressionDataUtils.to_string_name(effectDefinition?.DrBypassTag ?? "").GetHashCode();
+                hash = hash * 31 + ProgressionDataUtils.to_string_name(effectDefinition?.SaveAbility ?? "").GetHashCode();
+                hash = hash * 31 + ProgressionDataUtils.to_string_name(effectDefinition?.SaveTag ?? "").GetHashCode();
+                hash = hash * 31 + (effectDefinition?.Power ?? 0);
+                hash = hash * 31 + (effectDefinition?.DiceCount ?? 0);
+                hash = hash * 31 + (effectDefinition?.DiceSides ?? 0);
+                hash = hash * 31 + (effectDefinition?.DiceBonus ?? 0);
+                hash = hash * 31 + (effectDefinition?.DamageRatioPercent ?? 0);
+                hash = hash * 31 + (effectDefinition?.HeightDelta ?? 0);
+                hash = hash * 31 + (effectDefinition?.SaveDc ?? 0);
+                hash = hash * 31 + (effectDefinition?.SavePartialOnSuccess == true ? 1 : 0);
+                hash = hash * 31 + BuildStringNameListSignature(effectDefinition?.EffectTags);
             }
             return hash * 31 + count;
         }
@@ -915,10 +951,10 @@ public partial class BattleAiScoreService
 
     private TargetEffectMetrics BuildTargetEffectMetricsImpl(
         IBattleAiScoreContext context,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        IReadOnlyList<CombatEffectDef> effectDefs,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         int hitCount = 1
     )
     {
@@ -927,31 +963,37 @@ public partial class BattleAiScoreService
         {
             return metrics;
         }
-        var damageEffects = new List<CombatEffectDef>();
-        foreach (CombatEffectDef effectDef in effectDefs ?? System.Array.Empty<CombatEffectDef>())
+        var damageEffects = new List<CombatEffectDefinition>();
+        foreach (
+            CombatEffectDefinition effectDefinition in effectDefinitions
+                ?? System.Array.Empty<CombatEffectDefinition>()
+        )
         {
-            if (effectDef == null || effectDef.EffectKind == BattleEffectKind.ChainDamage)
+            if (
+                effectDefinition == null
+                || effectDefinition.EffectKind == BattleEffectKind.ChainDamage
+            )
             {
                 continue;
             }
-            StringName targetFilter = ResolveEffectTargetFilter(skillDef, effectDef);
+            StringName targetFilter = ResolveEffectTargetFilter(skillDefinition, effectDefinition);
             if (!IsUnitValidForEffect(sourceUnit, targetUnit, targetFilter))
             {
                 continue;
             }
-            BattleEffectKind effectKind = effectDef.EffectKind;
+            BattleEffectKind effectKind = effectDefinition.EffectKind;
             if (effectKind == BattleEffectKind.Damage)
             {
                 metrics.IsEmpty = false;
-                damageEffects.Add(effectDef);
+                damageEffects.Add(effectDefinition);
             }
             else if (effectKind == BattleEffectKind.Execute)
             {
                 TargetEffectMetrics executeMetrics = EstimateExecuteForTargetResult(
-                    skillDef,
+                    skillDefinition,
                     sourceUnit,
                     targetUnit,
-                    effectDef,
+                    effectDefinition,
                     hitCount
                 );
                 if (!executeMetrics.IsEmpty)
@@ -962,10 +1004,10 @@ public partial class BattleAiScoreService
             else if (effectKind == BattleEffectKind.GradedSaveExecute)
             {
                 TargetEffectMetrics executeMetrics = EstimateGradedSaveExecuteForTargetResult(
-                    skillDef,
+                    skillDefinition,
                     sourceUnit,
                     targetUnit,
-                    effectDef,
+                    effectDefinition,
                     hitCount
                 );
                 if (!executeMetrics.IsEmpty)
@@ -976,7 +1018,7 @@ public partial class BattleAiScoreService
             else if (effectKind == BattleEffectKind.Heal)
             {
                 metrics.IsEmpty = false;
-                metrics.Healing += EstimateRecoveryAmount(effectDef, sourceUnit) * hitCount;
+                metrics.Healing += EstimateRecoveryAmount(effectDefinition, sourceUnit) * hitCount;
             }
             else if (
                 effectKind == BattleEffectKind.Status
@@ -1019,17 +1061,16 @@ public partial class BattleAiScoreService
             )
             {
                 metrics.IsEmpty = false;
-                metrics.HeightDelta += Math.Abs(effectDef.height_delta) * hitCount;
+                metrics.HeightDelta += Math.Abs(effectDefinition.HeightDelta) * hitCount;
             }
         }
         if (damageEffects.Count > 0)
         {
             DamageEstimateResult estimateResult = EstimateDamageForTargetResult(
-                context,
                 sourceUnit,
-                RepeatEffects(damageEffects, hitCount),
+                RepeatEffectDefinitions(damageEffects, hitCount),
                 targetUnit,
-                ResolveSkillId(skillDef)
+                ResolveSkillId(skillDefinition)
             );
             int damage = estimateResult.Damage;
             metrics.Damage += damage;
@@ -1043,21 +1084,27 @@ public partial class BattleAiScoreService
     }
 
     private TargetEffectMetrics EstimateExecuteForTargetResult(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         int hitCount
     )
     {
         var empty = new TargetEffectMetrics { IsEmpty = true, IsExecute = true };
-        if (skillDef == null || sourceUnit == null || targetUnit == null || effectDef == null)
+        if (
+            skillDefinition == null
+            || sourceUnit == null
+            || targetUnit == null
+            || effectDefinition == null
+        )
         {
             return empty;
         }
+        StringName skillId = ResolveSkillId(skillDefinition);
         BattleExecutionRuleParams parameters = BattleExecutionRuleParams.FromEffect(
-            effectDef,
-            skillDef.skill_id
+            effectDefinition,
+            skillId
         );
         BattleExecutePlan plan = BattleExecutionRules.BuildExecutePlan(
             sourceUnit,
@@ -1072,9 +1119,9 @@ public partial class BattleAiScoreService
         DamageSaveEstimate saveEstimate = BuildDamageSaveEstimate(
             sourceUnit,
             targetUnit,
-            effectDef,
+            effectDefinition,
             plan.FatalDamage,
-            skillDef.skill_id
+            skillId
         );
         int saveFailureBps = saveEstimate?.HasSave == true
             ? Mathf.Clamp(saveEstimate.SaveFailureProbabilityBasisPoints, 0, 10000)
@@ -1118,21 +1165,26 @@ public partial class BattleAiScoreService
     }
 
     private TargetEffectMetrics EstimateGradedSaveExecuteForTargetResult(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         int hitCount
     )
     {
         var empty = new TargetEffectMetrics { IsEmpty = true, IsExecute = true };
-        if (skillDef == null || sourceUnit == null || targetUnit == null || effectDef == null)
+        if (
+            skillDefinition == null
+            || sourceUnit == null
+            || targetUnit == null
+            || effectDefinition == null
+        )
         {
             return empty;
         }
         if (
             !BattleGradedSaveExecutionRules.TryReadPhantasmalKillProfile(
-                effectDef,
+                effectDefinition,
                 out BattleGradedSaveExecutionProfile profile,
                 out _
             )
@@ -1141,12 +1193,13 @@ public partial class BattleAiScoreService
             return empty;
         }
 
-        BattleSaveContext saveContext = BattleSaveContext.ForSkill(skillDef.skill_id);
+        StringName skillId = ResolveSkillId(skillDefinition);
+        BattleSaveContext saveContext = BattleSaveContext.ForSkill(skillId);
         BattleGradedSaveGradeDistribution distribution =
             BattleGradedSaveExecutionRules.EstimateGradeDistribution(
                 sourceUnit,
                 targetUnit,
-                effectDef,
+                effectDefinition,
                 saveContext
             );
         if (distribution.ImmuneBasisPoints >= 10000)
@@ -1198,8 +1251,8 @@ public partial class BattleAiScoreService
         DamageSaveEstimate saveEstimate = BuildGradedSaveExecuteEstimate(
             sourceUnit,
             targetUnit,
-            effectDef,
-            skillDef.skill_id,
+            effectDefinition,
+            skillId,
             failureDamage,
             criticalFailureDamage,
             expectedDamage,
@@ -1242,7 +1295,7 @@ public partial class BattleAiScoreService
     private static DamageSaveEstimate BuildGradedSaveExecuteEstimate(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         StringName skillId,
         int failureDamage,
         int criticalFailureDamage,
@@ -1254,7 +1307,7 @@ public partial class BattleAiScoreService
             BattleSaveResolver.EstimateSaveSuccessProbabilityResult(
                 sourceUnit,
                 targetUnit,
-                effectDef,
+                effectDefinition,
                 BattleSaveContext.ForSkill(skillId)
             );
         if (!probability.HasSave)
@@ -1317,43 +1370,50 @@ public partial class BattleAiScoreService
         return 0;
     }
 
-    private static int EstimateRecoveryAmount(CombatEffectDef effectDef, BattleUnitState sourceUnit)
+    private static int EstimateRecoveryAmount(
+        CombatEffectDefinition effectDefinition,
+        BattleUnitState sourceUnit
+    )
     {
-        if (effectDef == null)
+        if (effectDefinition == null)
         {
             return 0;
         }
-        if (HasAttributeScaledDiceConfig(effectDef))
+        if (HasAttributeScaledDiceConfig(effectDefinition))
         {
-            int diceCount = Math.Max(effectDef.dice_count, 1);
-            int diceSides = EstimateAttributeScaledDiceSides(effectDef, sourceUnit);
+            int diceCount = Math.Max(effectDefinition.DiceCount, 1);
+            int diceSides = EstimateAttributeScaledDiceSides(effectDefinition, sourceUnit);
             return Math.Max((int)Math.Round(diceCount * (diceSides + 1) / 2.0), 1);
         }
-        int amount = Math.Max(effectDef.power, 0);
-        if (effectDef.dice_count > 0 && effectDef.dice_sides > 0)
+        int amount = Math.Max(effectDefinition.Power, 0);
+        if (effectDefinition.DiceCount > 0 && effectDefinition.DiceSides > 0)
         {
             amount += (int)Math.Round(
-                Math.Max(effectDef.dice_count, 0) * (Math.Max(effectDef.dice_sides, 0) + 1) / 2.0
+                Math.Max(effectDefinition.DiceCount, 0)
+                    * (Math.Max(effectDefinition.DiceSides, 0) + 1)
+                    / 2.0
             );
         }
         return Math.Max(amount, 1);
     }
 
-    private static bool HasAttributeScaledDiceConfig(CombatEffectDef effectDef)
+    private static bool HasAttributeScaledDiceConfig(CombatEffectDefinition effectDefinition)
     {
-        return effectDef != null && effectDef.dice_count > 0 && effectDef.dice_sides_base > 0;
+        return effectDefinition != null
+            && effectDefinition.DiceCount > 0
+            && effectDefinition.DiceSidesBase > 0;
     }
 
     private static int EstimateAttributeScaledDiceSides(
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         BattleUnitState sourceUnit
     )
     {
         int conMod = GetBaseAttributeModifier(sourceUnit, UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution));
         int willMod = GetBaseAttributeModifier(sourceUnit, UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower));
-        int baseSides = Math.Max(effectDef.dice_sides_base, 0);
-        int conModSides = Math.Max(effectDef.dice_sides_per_constitution_mod, 0);
-        int willModSides = Math.Max(effectDef.dice_sides_per_willpower_mod, 0);
+        int baseSides = Math.Max(effectDefinition?.DiceSidesBase ?? 0, 0);
+        int conModSides = Math.Max(effectDefinition?.DiceSidesPerConstitutionMod ?? 0, 0);
+        int willModSides = Math.Max(effectDefinition?.DiceSidesPerWillpowerMod ?? 0, 0);
         long diceSidesRaw =
             (long)baseSides + (long)conMod * conModSides + (long)willMod * willModSides;
         return (int)Math.Clamp(diceSidesRaw, 4L, int.MaxValue);
@@ -1369,20 +1429,23 @@ public partial class BattleAiScoreService
         return modifierId == "" ? 0 : unitState.attribute_snapshot.GetValue(modifierId);
     }
 
-    private static List<CombatEffectDef> RepeatEffects(
-        IEnumerable<CombatEffectDef> effectDefs,
+    private static List<CombatEffectDefinition> RepeatEffectDefinitions(
+        IEnumerable<CombatEffectDefinition> effectDefinitions,
         int hitCount
     )
     {
-        var repeated = new List<CombatEffectDef>();
+        var repeated = new List<CombatEffectDefinition>();
         int safeHitCount = Math.Max(hitCount, 1);
         for (int i = 0; i < safeHitCount; i += 1)
         {
-            foreach (CombatEffectDef effectDef in effectDefs ?? System.Array.Empty<CombatEffectDef>())
+            foreach (
+                CombatEffectDefinition effectDefinition in effectDefinitions
+                    ?? System.Array.Empty<CombatEffectDefinition>()
+            )
             {
-                if (effectDef != null)
+                if (effectDefinition != null)
                 {
-                    repeated.Add(effectDef);
+                    repeated.Add(effectDefinition);
                 }
             }
         }
@@ -1390,19 +1453,19 @@ public partial class BattleAiScoreService
     }
 
     private static StringName ResolveEffectTargetFilter(
-        SkillDef skillDef,
-        CombatEffectDef effectDef
+        SkillDefinition skillDefinition,
+        CombatEffectDefinition effectDefinition
     )
     {
-        StringName resolved = BattleTargetTeamRules.ResolveEffectTargetFilter(
-            skillDef,
-            effectDef
-        );
+        StringName resolved =
+            effectDefinition != null && !IsEmpty(effectDefinition.EffectTargetTeamFilter)
+                ? effectDefinition.EffectTargetTeamFilter
+                : skillDefinition?.CombatProfile?.TargetTeamFilter ?? new StringName("");
         if (!IsEmpty(resolved))
         {
             return resolved;
         }
-        BattleEffectKind effectKind = effectDef?.EffectKind ?? BattleEffectKind.Unknown;
+        BattleEffectKind effectKind = effectDefinition?.EffectKind ?? BattleEffectKind.Unknown;
         if (
             effectKind == BattleEffectKind.Heal
             || effectKind == BattleEffectKind.Shield
@@ -1437,7 +1500,8 @@ public partial class BattleAiScoreService
     private void PopulateChainDamageMetrics(
         BattleAiScoreInput scoreInput,
         IBattleAiScoreContext context,
-        IReadOnlyList<CombatEffectDef> effectDefs
+        SkillDefinition skillDefinition,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions
     )
     {
         BattleState state = ContextState(context);
@@ -1446,15 +1510,17 @@ public partial class BattleAiScoreService
         {
             return;
         }
-        List<CombatEffectDef> chainEffects = CollectChainDamageEffectDefs(effectDefs);
+        List<CombatEffectDefinition> chainEffects = CollectChainDamageEffectDefinitions(
+            effectDefinitions
+        );
         if (chainEffects.Count == 0)
         {
             return;
         }
-        foreach (CombatEffectDef chainEffect in chainEffects)
+        foreach (CombatEffectDefinition chainEffect in chainEffects)
         {
-            List<CombatEffectDef> chainTargetEffects = BuildChainTargetEffectDefs(
-                effectDefs,
+            List<CombatEffectDefinition> chainTargetEffects = BuildChainTargetEffectDefinitions(
+                effectDefinitions,
                 chainEffect
             );
             if (chainTargetEffects.Count == 0)
@@ -1472,7 +1538,7 @@ public partial class BattleAiScoreService
                     BattleUnitState chainTarget in CollectChainDamageTargets(
                         context,
                         primaryTarget,
-                        ResolveScoreInputSkillDef(scoreInput, context),
+                        skillDefinition ?? ResolveScoreInputSkillDefinition(scoreInput, context),
                         chainEffect
                     )
                 )
@@ -1483,45 +1549,55 @@ public partial class BattleAiScoreService
                         chainTarget,
                         chainTargetEffects,
                         1,
-                        true
+                        true,
+                        skillDefinition: skillDefinition
                     );
                 }
             }
         }
     }
 
-    private static List<CombatEffectDef> CollectChainDamageEffectDefs(
-        IEnumerable<CombatEffectDef> effectDefs
+    private static List<CombatEffectDefinition> CollectChainDamageEffectDefinitions(
+        IEnumerable<CombatEffectDefinition> effectDefinitions
     )
     {
-        var chainEffects = new List<CombatEffectDef>();
-        foreach (CombatEffectDef effectDef in effectDefs ?? System.Array.Empty<CombatEffectDef>())
+        var chainEffects = new List<CombatEffectDefinition>();
+        foreach (
+            CombatEffectDefinition effectDefinition in effectDefinitions
+                ?? System.Array.Empty<CombatEffectDefinition>()
+        )
         {
-            if (effectDef != null && effectDef.EffectKind == BattleEffectKind.ChainDamage)
+            if (
+                effectDefinition != null
+                && effectDefinition.EffectKind == BattleEffectKind.ChainDamage
+            )
             {
-                chainEffects.Add(effectDef);
+                chainEffects.Add(effectDefinition);
             }
         }
         return chainEffects;
     }
 
-    private static List<CombatEffectDef> BuildChainTargetEffectDefs(
-        IEnumerable<CombatEffectDef> effectDefs,
-        CombatEffectDef chainEffect
+    private static List<CombatEffectDefinition> BuildChainTargetEffectDefinitions(
+        IEnumerable<CombatEffectDefinition> effectDefinitions,
+        CombatEffectDefinition chainEffect
     )
     {
-        var chainTargetEffects = new List<CombatEffectDef>();
-        foreach (CombatEffectDef effectDef in effectDefs ?? System.Array.Empty<CombatEffectDef>())
+        var chainTargetEffects = new List<CombatEffectDefinition>();
+        foreach (
+            CombatEffectDefinition effectDefinition in effectDefinitions
+                ?? System.Array.Empty<CombatEffectDefinition>()
+        )
         {
             if (
-                effectDef == null
-                || effectDef == chainEffect
-                || effectDef.EffectKind == BattleEffectKind.ChainDamage
+                effectDefinition == null
+                || effectDefinition == chainEffect
+                || effectDefinition.EffectKind == BattleEffectKind.ChainDamage
             )
             {
                 continue;
             }
-            chainTargetEffects.Add(effectDef);
+            chainTargetEffects.Add(effectDefinition);
         }
         return chainTargetEffects;
     }
@@ -1529,8 +1605,8 @@ public partial class BattleAiScoreService
     private List<BattleUnitState> CollectChainDamageTargets(
         IBattleAiScoreContext context,
         BattleUnitState primaryTarget,
-        SkillDef skillDef,
-        CombatEffectDef chainEffect
+        SkillDefinition skillDefinition,
+        CombatEffectDefinition chainEffect
     )
     {
         var targets = new List<BattleUnitState>();
@@ -1546,7 +1622,7 @@ public partial class BattleAiScoreService
         {
             return targets;
         }
-        StringName targetFilter = ResolveEffectTargetFilter(skillDef, chainEffect);
+        StringName targetFilter = ResolveEffectTargetFilter(skillDefinition, chainEffect);
         var visited = new HashSet<StringName> { primaryTarget.unit_id };
         var queue = new Queue<BattleUnitState>();
         queue.Enqueue(primaryTarget);
@@ -1685,9 +1761,9 @@ public partial class BattleAiScoreService
         return false;
     }
 
-    private static GVector2IArray GetLineCoords(Vector2I from, Vector2I to)
+    private static List<Vector2I> GetLineCoords(Vector2I from, Vector2I to)
     {
-        var coords = new GVector2IArray();
+        var coords = new List<Vector2I>();
         int dx = Math.Abs(to.X - from.X);
         int dy = Math.Abs(to.Y - from.Y);
         int sx = from.X < to.X ? 1 : -1;

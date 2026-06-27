@@ -28,24 +28,24 @@ public partial class run_character_management_practice_regression : SceneTree
 
     private void TestPracticeReplacementRequiresConfirmation()
     {
-        SkillDef oldSkill = MakePracticeSkill(
+        SkillDefinition oldSkill = MakePracticeSkill(
             "practice_confirm_old",
             PracticeGrowthService.ToStringName(PracticeTrackKind.Meditation),
             "basic"
         );
-        SkillDef newSkill = MakePracticeSkill(
+        SkillDefinition newSkill = MakePracticeSkill(
             "practice_confirm_new",
             PracticeGrowthService.ToStringName(PracticeTrackKind.Meditation),
             "intermediate"
         );
         PartyState party = BuildPartyWithMember("hero");
         UnitProgress progression = party.GetMemberState("hero").progression;
-        LearnSkillProgress(progression, oldSkill.skill_id, 3);
+        LearnSkillProgress(progression, oldSkill.SkillId, 3);
         CharacterManagementModule manager = BuildManager(party, oldSkill, newSkill);
 
         GDictionary status = manager.GetPracticeSkillLearnStatusTyped(
             "hero",
-            newSkill.skill_id
+            newSkill.SkillId
         ).ToLearnedStatusDictionary();
         _test.True(ReadBool(status, "is_practice_skill"), "replacement status should mark practice skills.");
         _test.True(ReadBool(status, "needs_replacement"), "replacement status should require replacement.");
@@ -61,101 +61,95 @@ public partial class run_character_management_practice_regression : SceneTree
         );
 
         _test.True(
-            !manager.LearnSkill("hero", newSkill.skill_id),
+            !manager.LearnSkill("hero", newSkill.SkillId),
             "practice replacement should require explicit confirmation."
         );
-        AssertSkillLearnedLevel(progression, oldSkill.skill_id, 3, "old practice skill should remain.");
+        AssertSkillLearnedLevel(progression, oldSkill.SkillId, 3, "old practice skill should remain.");
         _test.True(
-            progression.GetSkillProgress(newSkill.skill_id) == null,
+            progression.GetSkillProgress(newSkill.SkillId) == null,
             "new practice skill should not be learned without confirmation."
         );
     }
 
     private void TestPracticeReplacementUsesFormalLearningValidation()
     {
-        SkillDef oldSkill = MakePracticeSkill(
+        SkillDefinition oldSkill = MakePracticeSkill(
             "practice_validation_old",
             PracticeGrowthService.ToStringName(PracticeTrackKind.Meditation),
             "basic"
         );
-        SkillDef newSkill = MakePracticeSkill(
+        SkillDefinition newSkill = MakePracticeSkill(
             "practice_validation_new",
             PracticeGrowthService.ToStringName(PracticeTrackKind.Meditation),
-            "intermediate"
+            "intermediate",
+            knowledgeRequirements: new[] { new StringName("missing_practice_lore") }
         );
-        newSkill.knowledge_requirements = new Godot.Collections.Array<StringName>
-        {
-            "missing_practice_lore",
-        };
 
         PartyState party = BuildPartyWithMember("hero");
         UnitProgress progression = party.GetMemberState("hero").progression;
-        LearnSkillProgress(progression, oldSkill.skill_id, 3);
+        LearnSkillProgress(progression, oldSkill.SkillId, 3);
         CharacterManagementModule manager = BuildManager(party, oldSkill, newSkill);
 
         _test.True(
             !manager.LearnSkillTyped(
                 "hero",
-                newSkill.skill_id,
+                newSkill.SkillId,
                 ConfirmedPracticeReplacementOptions()
             ),
             "practice replacement should not bypass formal learning requirements."
         );
-        AssertSkillLearnedLevel(progression, oldSkill.skill_id, 3, "old practice skill should remain.");
+        AssertSkillLearnedLevel(progression, oldSkill.SkillId, 3, "old practice skill should remain.");
         _test.True(
-            progression.GetSkillProgress(newSkill.skill_id) == null,
+            progression.GetSkillProgress(newSkill.SkillId) == null,
             "new practice skill should not be written when requirements fail."
         );
     }
 
     private void TestPracticeReplacementSucceedsAfterFormalLearningValidation()
     {
-        SkillDef oldSkill = MakePracticeSkill(
+        SkillDefinition oldSkill = MakePracticeSkill(
             "practice_success_old",
             PracticeGrowthService.ToStringName(PracticeTrackKind.Meditation),
             "basic"
         );
-        SkillDef newSkill = MakePracticeSkill(
+        SkillDefinition prerequisite = MakeBookSkill(
+            "practice_success_prerequisite",
+            maxLevel: 3,
+            masteryCurve: new[] { 10, 20, 30 }
+        );
+        SkillDefinition newSkill = MakePracticeSkill(
             "practice_success_new",
             PracticeGrowthService.ToStringName(PracticeTrackKind.Meditation),
-            "intermediate"
+            "intermediate",
+            knowledgeRequirements: new[] { new StringName("practice_lore") },
+            skillLevelRequirements: new Dictionary<StringName, int> { [prerequisite.SkillId] = 2 },
+            attributeRequirements: new Dictionary<StringName, int> { ["strength"] = 3 }
         );
-        SkillDef prerequisite = MakeBookSkill("practice_success_prerequisite");
-        prerequisite.max_level = 3;
-        prerequisite.mastery_curve = new[] { 10, 20, 30 };
-        newSkill.knowledge_requirements = new Godot.Collections.Array<StringName>
-        {
-            "practice_lore",
-        };
-        newSkill.SetSkillLevelRequirements(
-            new Dictionary<StringName, int> { [prerequisite.skill_id] = 2 }
-        );
-        newSkill.SetAttributeRequirements(new Dictionary<StringName, int> { ["strength"] = 3 });
 
         PartyState party = BuildPartyWithMember("hero");
         PartyMemberState member = party.GetMemberState("hero");
         UnitProgress progression = member.progression;
         progression.LearnKnowledge("practice_lore");
         progression.unit_base_attributes.SetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength), 3);
-        LearnSkillProgress(progression, oldSkill.skill_id, 3);
-        LearnSkillProgress(progression, prerequisite.skill_id, 2);
+        LearnSkillProgress(progression, oldSkill.SkillId, 3);
+        LearnSkillProgress(progression, prerequisite.SkillId, 2);
         CharacterManagementModule manager = BuildManager(party, oldSkill, newSkill, prerequisite);
 
         _test.True(
             manager.LearnSkillTyped(
                 "hero",
-                newSkill.skill_id,
+                newSkill.SkillId,
                 ConfirmedPracticeReplacementOptions()
             ),
             "practice replacement should succeed after formal validation passes."
         );
         _test.True(
-            progression.GetSkillProgress(oldSkill.skill_id) == null,
+            progression.GetSkillProgress(oldSkill.SkillId) == null,
             "old practice skill should be removed after replacement."
         );
         AssertSkillLearnedLevel(
             progression,
-            newSkill.skill_id,
+            newSkill.SkillId,
             2,
             "basic level 3 should become intermediate level 2."
         );
@@ -163,30 +157,30 @@ public partial class run_character_management_practice_regression : SceneTree
 
     private void TestPracticeReplacementRejectsAmbiguousExistingTrack()
     {
-        SkillDef firstOld = MakePracticeSkill(
+        SkillDefinition firstOld = MakePracticeSkill(
             "practice_ambiguous_old_a",
             PracticeGrowthService.ToStringName(PracticeTrackKind.Meditation),
             "basic"
         );
-        SkillDef secondOld = MakePracticeSkill(
+        SkillDefinition secondOld = MakePracticeSkill(
             "practice_ambiguous_old_b",
             PracticeGrowthService.ToStringName(PracticeTrackKind.Meditation),
             "basic"
         );
-        SkillDef newSkill = MakePracticeSkill(
+        SkillDefinition newSkill = MakePracticeSkill(
             "practice_ambiguous_new",
             PracticeGrowthService.ToStringName(PracticeTrackKind.Meditation),
             "intermediate"
         );
         PartyState party = BuildPartyWithMember("hero");
         UnitProgress progression = party.GetMemberState("hero").progression;
-        LearnSkillProgress(progression, firstOld.skill_id, 2);
-        LearnSkillProgress(progression, secondOld.skill_id, 4);
+        LearnSkillProgress(progression, firstOld.SkillId, 2);
+        LearnSkillProgress(progression, secondOld.SkillId, 4);
         CharacterManagementModule manager = BuildManager(party, firstOld, secondOld, newSkill);
 
         GDictionary status = manager.GetPracticeSkillLearnStatusTyped(
             "hero",
-            newSkill.skill_id
+            newSkill.SkillId
         ).ToLearnedStatusDictionary();
         _test.Eq(
             ReadString(status, "error_code"),
@@ -196,37 +190,43 @@ public partial class run_character_management_practice_regression : SceneTree
         _test.True(
             !manager.LearnSkillTyped(
                 "hero",
-                newSkill.skill_id,
+                newSkill.SkillId,
                 ConfirmedPracticeReplacementOptions()
             ),
             "ambiguous practice replacement should fail."
         );
-        AssertSkillLearnedLevel(progression, firstOld.skill_id, 2, "first old practice should remain.");
-        AssertSkillLearnedLevel(progression, secondOld.skill_id, 4, "second old practice should remain.");
+        AssertSkillLearnedLevel(progression, firstOld.SkillId, 2, "first old practice should remain.");
+        AssertSkillLearnedLevel(progression, secondOld.SkillId, 4, "second old practice should remain.");
         _test.True(
-            progression.GetSkillProgress(newSkill.skill_id) == null,
+            progression.GetSkillProgress(newSkill.SkillId) == null,
             "ambiguous replacement should not write the new skill."
         );
     }
 
     private void TestPracticeTrackTagsFailClosedAtRuntime()
     {
-        SkillDef dualTrack = MakePracticeSkill(
+        SkillDefinition dualTrack = MakePracticeSkill(
             "practice_dual_track_runtime",
             PracticeGrowthService.ToStringName(PracticeTrackKind.Meditation),
-            "basic"
+            "basic",
+            tags: new[]
+            {
+                PracticeGrowthService.ToStringName(PracticeTrackKind.Meditation),
+                PracticeGrowthService.ToStringName(PracticeTrackKind.Cultivation),
+            }
         );
-        dualTrack.SetTags(
-            new[] { PracticeGrowthService.ToStringName(PracticeTrackKind.Meditation), PracticeGrowthService.ToStringName(PracticeTrackKind.Cultivation) }
-        );
-        SkillDef extraTag = MakePracticeSkill(
+        SkillDefinition extraTag = MakePracticeSkill(
             "practice_extra_tag_runtime",
             PracticeGrowthService.ToStringName(PracticeTrackKind.Meditation),
-            "basic"
+            "basic",
+            tags: new[]
+            {
+                PracticeGrowthService.ToStringName(PracticeTrackKind.Meditation),
+                new StringName("passive"),
+            }
         );
-        extraTag.SetTags(new[] { PracticeGrowthService.ToStringName(PracticeTrackKind.Meditation), new StringName("passive") });
 
-        foreach (SkillDef skill in new[] { dualTrack, extraTag })
+        foreach (SkillDefinition skill in new[] { dualTrack, extraTag })
         {
             PartyState party = BuildPartyWithMember("hero");
             UnitProgress progression = party.GetMemberState("hero").progression;
@@ -234,13 +234,13 @@ public partial class run_character_management_practice_regression : SceneTree
             _test.True(
                 !manager.LearnSkillTyped(
                     "hero",
-                    skill.skill_id,
+                    skill.SkillId,
                     ConfirmedPracticeReplacementOptions()
                 ),
                 "invalid practice tag configuration should fail closed."
             );
             _test.True(
-                progression.GetSkillProgress(skill.skill_id) == null,
+                progression.GetSkillProgress(skill.SkillId) == null,
                 "invalid practice tag configuration should not write learned progress."
             );
         }
@@ -248,52 +248,57 @@ public partial class run_character_management_practice_regression : SceneTree
 
     private void TestPracticeReplacementServiceRequiresVerifiedLearning()
     {
-        SkillDef oldSkill = MakePracticeSkill(
+        SkillDefinition oldSkill = MakePracticeSkill(
             "practice_service_old",
             PracticeGrowthService.ToStringName(PracticeTrackKind.Cultivation),
             "basic"
         );
-        SkillDef newSkill = MakePracticeSkill(
+        SkillDefinition newSkill = MakePracticeSkill(
             "practice_service_new",
             PracticeGrowthService.ToStringName(PracticeTrackKind.Cultivation),
             "intermediate"
         );
         UnitProgress progression = new();
-        LearnSkillProgress(progression, oldSkill.skill_id, 2);
+        LearnSkillProgress(progression, oldSkill.SkillId, 2);
         PracticeGrowthService practiceService = new();
         practiceService.Setup(
-            new Dictionary<StringName, SkillDef>
+            new Dictionary<StringName, SkillDefinition>
             {
-                [oldSkill.skill_id] = oldSkill,
-                [newSkill.skill_id] = newSkill,
+                [oldSkill.SkillId] = oldSkill,
+                [newSkill.SkillId] = newSkill,
             },
             null
         );
 
         _test.True(
-            !practiceService.ApplyReplacement(newSkill.skill_id, progression),
+            !practiceService.ApplyReplacement(newSkill.SkillId, progression),
             "PracticeGrowthService.ApplyReplacement should require formal learning verification."
         );
-        AssertSkillLearnedLevel(progression, oldSkill.skill_id, 2, "old practice skill should remain.");
+        AssertSkillLearnedLevel(progression, oldSkill.SkillId, 2, "old practice skill should remain.");
         _test.True(
-            progression.GetSkillProgress(newSkill.skill_id) == null,
+            progression.GetSkillProgress(newSkill.SkillId) == null,
             "unverified replacement should not write the new skill."
         );
     }
 
     private static CharacterManagementModule BuildManager(
         PartyState party,
-        params SkillDef[] skillDefs
+        params SkillDefinition[] skillDefinitions
     )
     {
-        GDictionary indexedSkillDefs = new();
-        foreach (SkillDef skillDef in skillDefs)
+        Dictionary<StringName, SkillDefinition> indexedSkillDefinitions = new();
+        foreach (SkillDefinition skillDefinition in skillDefinitions)
         {
-            if (skillDef != null)
-                indexedSkillDefs[skillDef.skill_id] = skillDef;
+            if (skillDefinition != null && skillDefinition.SkillId != "")
+                indexedSkillDefinitions[skillDefinition.SkillId] = skillDefinition;
         }
         CharacterManagementModule manager = new();
-        manager.setup(party, indexedSkillDefs, new GDictionary(), new GDictionary());
+        manager.setup(
+            party,
+            indexedSkillDefinitions,
+            new Dictionary<StringName, ProfessionDef>(),
+            new Dictionary<StringName, AchievementDef>()
+        );
         return manager;
     }
 
@@ -310,28 +315,38 @@ public partial class run_character_management_practice_regression : SceneTree
         return party;
     }
 
-    private static SkillDef MakePracticeSkill(
+    private static SkillDefinition MakePracticeSkill(
         StringName skillId,
         StringName trackType,
-        StringName practiceTier
-    )
-    {
-        SkillDef skill = MakeBookSkill(skillId);
-        skill.max_level = 5;
-        skill.mastery_curve = new[] { 10, 20, 30, 40, 50 };
-        skill.SetTags(new[] { trackType });
-        skill.practice_tier = practiceTier;
-        return skill;
-    }
+        StringName practiceTier,
+        IReadOnlyList<StringName> tags = null,
+        IReadOnlyList<StringName> knowledgeRequirements = null,
+        IReadOnlyDictionary<StringName, int> skillLevelRequirements = null,
+        IReadOnlyDictionary<StringName, int> attributeRequirements = null
+    ) =>
+        TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: skillId.ToString(),
+            maxLevel: 5,
+            masteryCurve: new[] { 10, 20, 30, 40, 50 },
+            tags: tags ?? new[] { trackType },
+            practiceTier: practiceTier,
+            knowledgeRequirements: knowledgeRequirements,
+            skillLevelRequirements: skillLevelRequirements,
+            attributeRequirements: attributeRequirements
+        );
 
-    private static SkillDef MakeBookSkill(StringName skillId) =>
-        new()
-        {
-            skill_id = skillId,
-            display_name = skillId.ToString(),
-            learn_source = "book",
-            max_level = 1,
-        };
+    private static SkillDefinition MakeBookSkill(
+        StringName skillId,
+        int maxLevel = 1,
+        IReadOnlyList<int> masteryCurve = null
+    ) =>
+        TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: skillId.ToString(),
+            maxLevel: maxLevel,
+            masteryCurve: masteryCurve
+        );
 
     private static CharacterManagementModule.LearnSkillOptionsData ConfirmedPracticeReplacementOptions() =>
         new(true);

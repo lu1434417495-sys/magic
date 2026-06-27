@@ -25,7 +25,7 @@ public static class RacialSkillGrantService
     public static bool BackfillParty(
         PartyState partyState,
         ProgressionIdentityCatalogData identityCatalog,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, ProfessionDef> professionDefs,
         Func<UnitProgress, ProgressionService> progressionServiceFactory = null
     )
@@ -38,7 +38,7 @@ public static class RacialSkillGrantService
                 BackfillMember(
                     memberState,
                     identityCatalog,
-                    skillDefs,
+                    skillDefinitions,
                     professionDefs,
                     progressionServiceFactory
                 ) || changed;
@@ -48,7 +48,7 @@ public static class RacialSkillGrantService
     public static bool RevokeOrphanParty(
         PartyState partyState,
         ProgressionIdentityCatalogData identityCatalog,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, ProfessionDef> professionDefs,
         Func<UnitProgress, ProgressionService> progressionServiceFactory = null
     )
@@ -61,7 +61,7 @@ public static class RacialSkillGrantService
                 RevokeOrphanMember(
                     memberState,
                     identityCatalog,
-                    skillDefs,
+                    skillDefinitions,
                     professionDefs,
                     progressionServiceFactory
                 ) || changed;
@@ -71,7 +71,7 @@ public static class RacialSkillGrantService
     public static bool BackfillMember(
         PartyMemberState memberState,
         ProgressionIdentityCatalogData identityCatalog,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, ProfessionDef> professionDefs,
         Func<UnitProgress, ProgressionService> progressionServiceFactory = null
     )
@@ -86,7 +86,7 @@ public static class RacialSkillGrantService
             return false;
         var ps = _build_progression_service(
             memberState.progression,
-            skillDefs,
+            skillDefinitions,
             professionDefs,
             progressionServiceFactory
         );
@@ -108,7 +108,7 @@ public static class RacialSkillGrantService
     public static bool RevokeOrphanMember(
         PartyMemberState memberState,
         ProgressionIdentityCatalogData identityCatalog,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, ProfessionDef> professionDefs,
         Func<UnitProgress, ProgressionService> progressionServiceFactory = null
     )
@@ -141,7 +141,7 @@ public static class RacialSkillGrantService
             memberState.progression.RemoveSkillProgress(skId);
         var ps = _build_progression_service(
             memberState.progression,
-            skillDefs,
+            skillDefinitions,
             professionDefs,
             progressionServiceFactory
         );
@@ -265,7 +265,7 @@ public static class RacialSkillGrantService
 
     private static ProgressionService _build_progression_service(
         UnitProgress progressionState,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, ProfessionDef> professionDefs,
         Func<UnitProgress, ProgressionService> factory
     )
@@ -273,7 +273,7 @@ public static class RacialSkillGrantService
         if (factory != null)
             return factory.Invoke(progressionState);
         var ps = new ProgressionService();
-        ps.Setup(progressionState, skillDefs, professionDefs);
+        ps.SetupDefinitions(progressionState, skillDefinitions, professionDefs);
         return ps;
     }
 

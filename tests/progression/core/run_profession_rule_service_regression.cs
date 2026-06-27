@@ -28,10 +28,10 @@ public partial class run_profession_rule_service_regression : SceneTree
     private void TestEligibleSkillIdsUseTypedSetupAndPreviewAssignments()
     {
         UnitProgress progress = MakeProgress("hero");
-        SkillDef heavyStrike = MakeSkill("heavy_strike", "martial", maxLevel: 2);
-        SkillDef lowLevelStrike = MakeSkill("low_level_strike", "martial", maxLevel: 2);
-        SkillDef arcaneBolt = MakeSkill("arcane_bolt", "arcane", maxLevel: 2);
-        SkillDef claimedStrike = MakeSkill("claimed_strike", "martial", maxLevel: 2);
+        SkillDefinition heavyStrike = MakeSkill("heavy_strike", "martial", maxLevel: 2);
+        SkillDefinition lowLevelStrike = MakeSkill("low_level_strike", "martial", maxLevel: 2);
+        SkillDefinition arcaneBolt = MakeSkill("arcane_bolt", "arcane", maxLevel: 2);
+        SkillDefinition claimedStrike = MakeSkill("claimed_strike", "martial", maxLevel: 2);
 
         progress.SetSkillProgress(MakeSkillProgress("heavy_strike", level: 2));
         progress.SetSkillProgress(MakeSkillProgress("low_level_strike", level: 1));
@@ -107,7 +107,7 @@ public partial class run_profession_rule_service_regression : SceneTree
 
         ProfessionRuleService service = MakeService(
             progress,
-            Array.Empty<SkillDef>(),
+            Array.Empty<SkillDefinition>(),
             new[] { warrior }
         );
 
@@ -138,20 +138,20 @@ public partial class run_profession_rule_service_regression : SceneTree
 
     private static ProfessionRuleService MakeService(
         UnitProgress progress,
-        IEnumerable<SkillDef> skillDefs,
+        IEnumerable<SkillDefinition> skillDefinitions,
         IEnumerable<ProfessionDef> professionDefs
     )
     {
-        Dictionary<StringName, SkillDef> indexedSkillDefs = new();
-        foreach (SkillDef skillDef in skillDefs)
-            indexedSkillDefs[skillDef.skill_id] = skillDef;
+        Dictionary<StringName, SkillDefinition> indexedSkillDefinitions = new();
+        foreach (SkillDefinition skillDefinition in skillDefinitions)
+            indexedSkillDefinitions[skillDefinition.SkillId] = skillDefinition;
 
         Dictionary<StringName, ProfessionDef> indexedProfessionDefs = new();
         foreach (ProfessionDef professionDef in professionDefs)
             indexedProfessionDefs[professionDef.profession_id] = professionDef;
 
         ProfessionRuleService service = new();
-        service.Setup(progress, indexedSkillDefs, indexedProfessionDefs);
+        service.Setup(progress, indexedSkillDefinitions, indexedProfessionDefs);
         return service;
     }
 
@@ -163,14 +163,13 @@ public partial class run_profession_rule_service_regression : SceneTree
             unit_base_attributes = new UnitBaseAttributes(),
         };
 
-    private static SkillDef MakeSkill(StringName skillId, StringName tag, int maxLevel) =>
-        new()
-        {
-            skill_id = skillId,
-            display_name = skillId.ToString(),
-            max_level = maxLevel,
-            tags = new Godot.Collections.Array<StringName> { tag },
-        };
+    private static SkillDefinition MakeSkill(StringName skillId, StringName tag, int maxLevel) =>
+        TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: skillId.ToString(),
+            maxLevel: maxLevel,
+            tags: new[] { tag }
+        );
 
     private static UnitSkillProgress MakeSkillProgress(StringName skillId, int level) =>
         new()

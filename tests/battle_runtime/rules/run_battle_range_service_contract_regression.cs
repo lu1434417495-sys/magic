@@ -29,27 +29,27 @@ public partial class run_battle_range_service_contract_regression : SceneTree
     private void TestBaseRangeHandlesNullSkill()
     {
         BattleUnitState unit = BuildUnit("range_null_guard_unit");
-        SkillDef skill = BuildDirectDamageSkill("range_null_guard_skill", 1);
-        skill.combat_profile = null;
+        SkillDefinition skillDefinition = TestSkillDefinitionProjection.BuildSkill("range_null_guard_skill");
 
         _test.Eq(
-            BattleRangeService.ResolveBaseSkillRange(unit, (SkillDef)null),
+            BattleRangeService.ResolveBaseSkillRange(unit, (SkillDefinition)null),
             0,
-            "ResolveBaseSkillRange 直接收到 null skillDef 时应返回 0。"
+            "ResolveBaseSkillRange 直接收到 null skillDefinition 时应返回 0。"
         );
         _test.Eq(
-            BattleRangeService.ResolveBaseSkillRange(unit, skill),
+            BattleRangeService.ResolveBaseSkillRange(unit, skillDefinition),
             0,
-            "ResolveBaseSkillRange 直接收到缺 combat_profile 的 skillDef 时应返回 0。"
+            "ResolveBaseSkillRange 直接收到缺 combat_profile 的 skillDefinition 时应返回 0。"
         );
     }
 
     private void TestRangeUsesWeaponProjectionAndStatusLayer()
     {
-        SkillDef skill = BuildDirectDamageSkill("range_layer_contract", 1);
-        skill.tags = new GStringNameArray { "archer", "bow" };
-        skill.combat_profile.range_value = 99;
-        SkillDefinition skillDefinition = SkillDefinition.FromResource(skill);
+        SkillDefinition skillDefinition = BuildDirectDamageSkill(
+            "range_layer_contract",
+            99,
+            new[] { new StringName("archer"), new StringName("bow") }
+        );
 
         BattleUnitState archer = BuildUnit("range_layer_archer");
         archer.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.WeaponAttackRange), 8);
@@ -62,14 +62,9 @@ public partial class run_battle_range_service_contract_regression : SceneTree
         );
 
         _test.Eq(
-            BattleRangeService.GetEffectiveSkillRange(archer, skill),
-            2,
-            "有效射程应读取 BattleUnitState.weapon_attack_range，而不是 attribute_snapshot 或技能 range_value。"
-        );
-        _test.Eq(
             BattleRangeService.GetEffectiveSkillRange(archer, skillDefinition),
             2,
-            "DTO 有效射程应读取 BattleUnitState.weapon_attack_range，而不是 attribute_snapshot 或技能 range_value。"
+            "有效射程应读取 BattleUnitState.weapon_attack_range，而不是 attribute_snapshot 或技能 range_value。"
         );
 
         archer.SetStatusEffect(
@@ -84,14 +79,9 @@ public partial class run_battle_range_service_contract_regression : SceneTree
         );
 
         _test.Eq(
-            BattleRangeService.GetEffectiveSkillRange(archer, skill),
-            3,
-            "状态提供的射程修正应只在有效射程读取层叠加。"
-        );
-        _test.Eq(
             BattleRangeService.GetEffectiveSkillRange(archer, skillDefinition),
             3,
-            "DTO 状态提供的射程修正应只在有效射程读取层叠加。"
+            "状态提供的射程修正应只在有效射程读取层叠加。"
         );
         _test.Eq(
             archer.weapon_attack_range,
@@ -102,19 +92,18 @@ public partial class run_battle_range_service_contract_regression : SceneTree
 
     private void TestGroundAreaThreatRangeIncludesOuterEdge()
     {
-        SkillDef skill = BuildGroundSkill(
+        SkillDefinition skill = BuildGroundSkill(
             "ground_outer_reach_contract",
             "narrow_cone",
-            5
+            5,
+            new Dictionary<int, IReadOnlyDictionary<string, Variant>>
+            {
+                [7] = new Dictionary<string, Variant> { ["area_value"] = 6 },
+            }
         );
-        skill.combat_profile.level_overrides = new GDictionary
-        {
-            [7] = new GDictionary { ["area_value"] = 6 },
-        };
         BattleUnitState caster = BuildUnit("ground_outer_reach_caster");
-        caster.known_active_skill_ids = new GStringNameArray { skill.skill_id };
-        caster.known_skill_level_map[skill.skill_id] = 7;
-        SkillDefinition skillDefinition = SkillDefinition.FromResource(skill);
+        caster.known_active_skill_ids = new GStringNameArray { skill.SkillId };
+        caster.known_skill_level_map[skill.SkillId] = 7;
 
         _test.Eq(
             BattleRangeService.GetEffectiveSkillRange(caster, skill),
@@ -122,19 +111,9 @@ public partial class run_battle_range_service_contract_regression : SceneTree
             "合法施法锚点距离仍应保持配置射程。"
         );
         _test.Eq(
-            BattleRangeService.GetEffectiveSkillRange(caster, skillDefinition),
-            1,
-            "DTO 合法施法锚点距离仍应保持配置射程。"
-        );
-        _test.Eq(
             BattleRangeService.GetEffectiveSkillThreatRange(caster, skill),
             7,
             "AI 战术威胁距离应计入地面范围技能的外缘覆盖。"
-        );
-        _test.Eq(
-            BattleRangeService.GetEffectiveSkillThreatRange(caster, skillDefinition),
-            7,
-            "DTO AI 战术威胁距离应计入地面范围技能的外缘覆盖。"
         );
 
         AssertGroundRanges(
@@ -203,65 +182,68 @@ public partial class run_battle_range_service_contract_regression : SceneTree
         string label
     )
     {
-        SkillDef skill = BuildGroundSkill(skillId, areaPattern, areaValue);
-        SkillDefinition skillDefinition = SkillDefinition.FromResource(skill);
+        SkillDefinition skill = BuildGroundSkill(skillId, areaPattern, areaValue);
         _test.Eq(
             BattleRangeService.GetEffectiveSkillThreatRange(caster, skill),
             expectedThreatRange,
             $"{label} 威胁距离应按实际外缘覆盖计算。"
         );
         _test.Eq(
-            BattleRangeService.GetEffectiveSkillThreatRange(caster, skillDefinition),
-            expectedThreatRange,
-            $"{label} DTO 威胁距离应按实际外缘覆盖计算。"
-        );
-        _test.Eq(
             BattleRangeService.GetEffectiveSkillDistanceContractRange(caster, skill),
             expectedDistanceContractRange,
             $"{label} 距离合同应按 AI 站位外缘合同计算。"
         );
-        _test.Eq(
-            BattleRangeService.GetEffectiveSkillDistanceContractRange(caster, skillDefinition),
-            expectedDistanceContractRange,
-            $"{label} DTO 距离合同应按 AI 站位外缘合同计算。"
+    }
+
+    private static SkillDefinition BuildDirectDamageSkill(
+        StringName skillId,
+        int rangeValue,
+        IReadOnlyList<StringName> tags = null
+    )
+    {
+        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            power: 1
+        );
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: skillId.ToString(),
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: new[] { effect },
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                rangeValue: rangeValue
+            ),
+            tags: tags
         );
     }
 
-    private static SkillDef BuildDirectDamageSkill(StringName skillId, int rangeValue)
-    {
-        var effect = new CombatEffectDef
-        {
-            effect_type = "damage",
-            power = 1,
-        };
-        var combatProfile = new CombatSkillDef
-        {
-            skill_id = skillId,
-            target_mode = "unit",
-            target_team_filter = "enemy",
-            range_value = rangeValue,
-            effect_defs = new Godot.Collections.Array<CombatEffectDef> { effect },
-        };
-        return new SkillDef
-        {
-            skill_id = skillId,
-            display_name = skillId.ToString(),
-            combat_profile = combatProfile,
-        };
-    }
-
-    private static SkillDef BuildGroundSkill(
+    private static SkillDefinition BuildGroundSkill(
         StringName skillId,
         StringName areaPattern,
-        int areaValue
+        int areaValue,
+        IReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>> levelOverrides = null
     )
     {
-        SkillDef skill = BuildDirectDamageSkill(skillId, 1);
-        skill.combat_profile.target_mode = "ground";
-        skill.combat_profile.target_team_filter = "enemy";
-        skill.combat_profile.area_pattern = areaPattern;
-        skill.combat_profile.area_value = areaValue;
-        return skill;
+        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            power: 1
+        );
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: skillId.ToString(),
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: new[] { effect },
+                targetMode: "ground",
+                targetTeamFilter: "enemy",
+                rangeValue: 1,
+                areaPattern: areaPattern,
+                areaValue: areaValue,
+                levelOverrides: levelOverrides
+            )
+        );
     }
 
     private static BattleUnitState BuildUnit(StringName unitId)

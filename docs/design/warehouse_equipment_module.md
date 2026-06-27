@@ -9,10 +9,10 @@
 ## 模块拓扑
 
 ```text
-GameContentCatalog.GetItemDefsTyped / GetSkillDefsTyped
+GameContentCatalog.GetItemDefsTyped / GetSkillDefinitionsTyped
   -> PartyWarehouseService(WarehouseState + ItemDef + equipment id allocator)
   -> PartyEquipmentService(PartyState + EquipmentState + Warehouse)
-  -> PartyItemUseService(PartyState + ItemDef + SkillDef + CharacterManagement)
+  -> PartyItemUseService(PartyState + ItemDef + SkillDefinition + CharacterManagement)
 GameRuntimeWarehouseHandler / GameRuntimePartyCommandHandler
   -> PartyWarehouseWindow / PartyManagementWindow
   -> GameSession.SetPartyState / CommitRuntimeState
@@ -389,4 +389,3 @@ Batch swap 用于 forge、商店、任务提交等“扣多个输入、给多个
 - `public void OnPartyManagementWindowClosed()`
 - `public void OnPartyManagementWarehouseRequested()`
 - `public void ApplyPartyStateToRuntime(string successMessage)`
-

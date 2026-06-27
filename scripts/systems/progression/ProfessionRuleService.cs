@@ -4,25 +4,25 @@ using Godot;
 public sealed class ProfessionRuleService
 {
     private UnitProgress _unit_progress;
-    private readonly Dictionary<StringName, SkillDef> _skillDefs = new();
+    private readonly Dictionary<StringName, SkillDefinition> _skillDefinitions = new();
     private readonly Dictionary<StringName, ProfessionDef> _professionDefs = new();
 
     public void Setup(
         UnitProgress unitProgress,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, ProfessionDef> professionDefs
     )
     {
         _unit_progress = unitProgress;
-        _skillDefs.Clear();
+        _skillDefinitions.Clear();
         _professionDefs.Clear();
 
-        if (skillDefs != null)
+        if (skillDefinitions != null)
         {
-            foreach (KeyValuePair<StringName, SkillDef> pair in skillDefs)
+            foreach (KeyValuePair<StringName, SkillDefinition> pair in skillDefinitions)
             {
                 if (pair.Key != "" && pair.Value != null)
-                    _skillDefs[pair.Key] = pair.Value;
+                    _skillDefinitions[pair.Key] = pair.Value;
             }
         }
 
@@ -420,12 +420,12 @@ public sealed class ProfessionRuleService
         if (skillProgress == null || !skillProgress.is_learned || !skillProgress.is_core)
             return false;
 
-        SkillDef skillDef = GetSkillDef(skillId);
-        if (skillDef == null)
+        SkillDefinition skillDefinition = GetSkillDefinition(skillId);
+        if (skillDefinition == null)
             return false;
         if (
             !SkillEffectiveMaxLevelRules.IsAtEffectiveMaxLevel(
-                skillDef,
+                skillDefinition,
                 skillProgress,
                 _unit_progress
             )
@@ -467,10 +467,10 @@ public sealed class ProfessionRuleService
         if (skillProgress == null || !skillProgress.is_learned)
             return false;
 
-        SkillDef skillDef = GetSkillDef(skillId);
-        if (skillDef == null || !skillDef.HasTag(tagRule.tag))
+        SkillDefinition skillDefinition = GetSkillDefinition(skillId);
+        if (skillDefinition == null || !skillDefinition.HasTag(tagRule.tag))
             return false;
-        if (!MatchesSkillState(skillProgress, skillDef, tagRule))
+        if (!MatchesSkillState(skillProgress, skillDefinition, tagRule))
             return false;
         if (!MatchesOriginFilter(skillProgress, tagRule))
             return false;
@@ -484,7 +484,7 @@ public sealed class ProfessionRuleService
 
     private bool MatchesSkillState(
         UnitSkillProgress skillProgress,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         TagRequirement tagRule
     )
     {
@@ -495,7 +495,7 @@ public sealed class ProfessionRuleService
             TagRequirementSkillState.CoreMax =>
                 skillProgress.is_core
                 && SkillEffectiveMaxLevelRules.IsAtEffectiveMaxLevel(
-                    skillDef,
+                    skillDefinition,
                     skillProgress,
                     _unit_progress
                 ),
@@ -540,8 +540,8 @@ public sealed class ProfessionRuleService
             return "";
 
         UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(triggerSkillId);
-        SkillDef skillDef = GetSkillDef(triggerSkillId);
-        if (skillProgress == null || skillDef == null)
+        SkillDefinition skillDefinition = GetSkillDefinition(triggerSkillId);
+        if (skillProgress == null || skillDefinition == null)
             return "";
         if (!skillProgress.is_learned || !skillProgress.is_core)
             return "";
@@ -551,7 +551,7 @@ public sealed class ProfessionRuleService
             return "";
         if (
             !SkillEffectiveMaxLevelRules.IsAtEffectiveMaxLevel(
-                skillDef,
+                skillDefinition,
                 skillProgress,
                 _unit_progress
             )
@@ -645,9 +645,11 @@ public sealed class ProfessionRuleService
         return true;
     }
 
-    private SkillDef GetSkillDef(StringName skillId)
+    private SkillDefinition GetSkillDefinition(StringName skillId)
     {
-        return _skillDefs.TryGetValue(skillId, out SkillDef skillDef) ? skillDef : null;
+        return _skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
+            ? skillDefinition
+            : null;
     }
 
     private ProfessionDef GetProfessionDef(StringName professionId)

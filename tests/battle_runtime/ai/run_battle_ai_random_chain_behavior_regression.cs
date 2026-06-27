@@ -22,7 +22,7 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
 
     private void TestRandomChainActionUsesCandidatePoolNotTargetIds()
     {
-        SkillDef randomChainSkill = BuildTestRandomChainSkill("ai_random_chain_score_test");
+        SkillDefinition randomChainSkill = BuildTestRandomChainSkill("ai_random_chain_score_test");
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent(randomChainSkill);
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(6, 3));
@@ -66,7 +66,7 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
             desired_max_distance = 3,
             distance_reference = "candidate_pool",
         };
-        action.skill_ids.Add(randomChainSkill.skill_id);
+        action.skill_ids.Add(randomChainSkill.SkillId);
 
         BattleAiDecision decision = action.Decide(aiContext);
         _test.True(decision?.command != null, "Random-chain action should produce a legal command.");
@@ -96,6 +96,20 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
             preview?.random_chain_candidate_unit_ids,
             targetB.unit_id,
             "Random-chain preview should expose candidate B in the candidate pool."
+        );
+        int targetAHpBefore = targetA.current_hp;
+        int targetBHpBefore = targetB.current_hp;
+        state.active_unit_id = chainUser.unit_id;
+        state.phase = "unit_acting";
+        chainUser.current_ap = 2;
+        BattleEventBatch batch = runtime.IssueCommand(decision.command);
+        _test.True(
+            batch != null && batch.log_lines.Count > 0,
+            "Random-chain command execution should return battle feedback."
+        );
+        _test.True(
+            targetA.current_hp < targetAHpBefore || targetB.current_hp < targetBHpBefore,
+            "Random-chain command execution should damage at least one candidate from the pool."
         );
 
         BattleAiScoreInput scoreInput = decision.score_input;
@@ -172,28 +186,30 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
         );
     }
 
-    private static BattleRuntimeScope BuildRuntimeWithEnemyContent(params SkillDef[] extraSkills)
+    private static BattleRuntimeScope BuildRuntimeWithEnemyContent(params SkillDefinition[] extraSkills)
     {
         var gameSession = new GameSession();
         var runtime = new BattleRuntimeModule();
-        var skillDefs = new Dictionary<StringName, SkillDef>(gameSession.GetSkillDefsTyped());
-        foreach (SkillDef skill in extraSkills ?? Array.Empty<SkillDef>())
+        var skillDefinitions = new Dictionary<StringName, SkillDefinition>(
+            gameSession.GetSkillDefinitionsTyped()
+        );
+        foreach (SkillDefinition skill in extraSkills ?? Array.Empty<SkillDefinition>())
         {
-            if (skill != null && skill.skill_id != (StringName)"")
+            if (skill != null && skill.SkillId != (StringName)"")
             {
-                skillDefs[skill.skill_id] = skill;
+                skillDefinitions[skill.SkillId] = skill;
             }
         }
         runtime.setup(
             null,
-            skillDefs,
+            skillDefinitions,
             gameSession.GetEnemyTemplatesTyped(),
             gameSession.GetEnemyAiBrainsTyped(),
             null
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         var damageResolver = new FixedSuccessOneDamageResolver();
-        damageResolver.SetSkillDefs(runtime.GetSkillDefIndexTyped());
+        damageResolver.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime.ConfigureDamageResolverForTests(damageResolver);
         return new BattleRuntimeScope(runtime, gameSession);
     }
@@ -242,7 +258,7 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
                 runtime._get_ai_move_query_cost(unit.unit_id, unit.coord, targetCoord),
             runtime_action_plan = actionPlan,
         };
-        context.SetSkillDefs(runtime.GetSkillDefIndexTyped());
+        context.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime._bind_ai_helper_services_for_decision(unitState, context);
         return context;
     }
@@ -359,36 +375,31 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 10);
     }
 
-    private static SkillDef BuildTestRandomChainSkill(StringName skillId)
-    {
-        var skill = new SkillDef
-        {
-            skill_id = skillId,
-            display_name = "Test random chain",
-            skill_type = "active",
-        };
-        var combat = new CombatSkillDef
-        {
-            skill_id = skillId,
-            target_mode = "unit",
-            target_team_filter = "enemy",
-            target_selection_mode = "random_chain",
-            range_pattern = "single",
-            range_value = 3,
-            ap_cost = 1,
-            max_hits_per_target = 1,
-        };
-        combat.effect_defs.Add(
-            new CombatEffectDef
-            {
-                effect_type = "damage",
-                power = 12,
-                damage_tag = "physical_slash",
-            }
+    private static SkillDefinition BuildTestRandomChainSkill(StringName skillId) =>
+        TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            "Test random chain",
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: new[]
+                {
+                    TestSkillDefinitionProjection.BuildEffect(
+                        "damage",
+                        power: 12,
+                        damageTag: "physical_slash"
+                    ),
+                },
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                targetSelectionMode: BattleTypedNames.ToStringName(
+                    BattleTargetSelectionMode.RandomChain
+                ),
+                rangePattern: "single",
+                rangeValue: 3,
+                apCost: 1,
+                maxHitsPerTarget: 1
+            )
         );
-        skill.combat_profile = combat;
-        return TestResourceOwnership.Own(skill, "BattleAiRandomChain.BuildTestRandomChainSkill");
-    }
 
     private static string ReadString(IReadOnlyDictionary<string, object> source, string key)
     {

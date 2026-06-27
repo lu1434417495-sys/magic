@@ -129,7 +129,7 @@ public partial class run_fortune_service_regression : SceneTree
         partyState.SetMemberState(BuildMemberState(HeroId, "Hero"));
 
         var manager = new CharacterManagementModule();
-        manager.setup(partyState, new GDictionary(), new GDictionary(), new GDictionary());
+        manager.setup(partyState);
 
         return new ServiceContext(partyState, manager);
     }

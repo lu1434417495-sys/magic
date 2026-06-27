@@ -139,13 +139,14 @@ public sealed class BattleSimRunner
     )
     {
         var runtime = new BattleRuntimeModule();
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = _contentProvider.GetSkillDefsTyped();
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            _contentProvider.GetSkillDefinitionsTyped();
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
             _contentProvider.GetEnemyTemplatesTyped();
         IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains =
             _contentProvider.GetEnemyAiBrainsTyped();
         BattleSimOverrideApplyResult overrides = _overrideApplier.ApplyProfileTyped(
-            skillDefs,
+            skillDefinitions,
             enemyAiBrains,
             profile
         );
@@ -153,7 +154,7 @@ public sealed class BattleSimRunner
 
         runtime.setup(
             null,
-            overrides.SkillDefs,
+            overrides.SkillDefinitions,
             enemyTemplates,
             overrides.EnemyAiBrains,
             null,

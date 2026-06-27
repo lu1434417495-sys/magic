@@ -49,7 +49,7 @@ public partial class EnemyAiStateDef : Resource
 
     public GStringArray ValidateSchema(
         StringName brainId = default,
-        Godot.Collections.Dictionary skillDefs = null
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null
     )
     {
         var errors = new GStringArray();
@@ -68,7 +68,7 @@ public partial class EnemyAiStateDef : Resource
             return errors;
         }
 
-        skillDefs ??= new Godot.Collections.Dictionary();
+        skillDefinitions ??= new Dictionary<StringName, SkillDefinition>();
 
         var seenActionIds = new HashSet<StringName>();
 
@@ -102,7 +102,7 @@ public partial class EnemyAiStateDef : Resource
             foreach (var ae in actionObj.ValidateSchema())
                 errors.Add($"{ctxLabel} {state_id}: {ae}");
 
-            foreach (var ase in actionObj.ValidateSkillReferences(skillDefs))
+            foreach (var ase in actionObj.ValidateSkillReferences(skillDefinitions))
                 errors.Add($"{ctxLabel} {state_id}: {ase}");
         }
 

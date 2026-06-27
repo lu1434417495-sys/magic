@@ -35,14 +35,17 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         try
         {
             setup = BuildRuntimeFixture(new Vector2I(9, 9), Array.Empty<BattleUnitState>());
-            SkillDef skillDef = GetSkill(setup.SkillDefs, "mage_meteor_swarm");
+            SkillDefinition skillDefinition = GetSkillDefinition(
+                setup.SkillDefinitionIndex,
+                "mage_meteor_swarm"
+            );
             BattleMeteorSwarmResolver resolver = setup.Runtime._meteor_swarm_resolver;
             centerCommand = BuildCommand(setup.Caster, new Vector2I(4, 4));
             MeteorSwarmTargetPlan centerPlan = resolver.BuildTargetPlanTyped(
                 resolver.BuildCastContextTyped(
                     setup.Caster,
                     centerCommand,
-                    skillDef,
+                    skillDefinition,
                     null,
                     new Vector2I(4, 4),
                     new Vector2I(4, 4)
@@ -56,7 +59,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
                 resolver.BuildCastContextTyped(
                     setup.Caster,
                     edgeCommand,
-                    skillDef,
+                    skillDefinition,
                     null,
                     new Vector2I(0, 4),
                     new Vector2I(0, 4)
@@ -69,7 +72,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
                 resolver.BuildCastContextTyped(
                     setup.Caster,
                     cornerCommand,
-                    skillDef,
+                    skillDefinition,
                     null,
                     Vector2I.Zero,
                     Vector2I.Zero
@@ -94,10 +97,11 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         BattleEventBatch batch = null;
         try
         {
-            setup = BuildRuntimeFixture(new Vector2I(9, 9), new[] { enemyCenter, enemyOuter, allyInner });
-            SkillDef skillDef = GetSkill(setup.SkillDefs, "mage_meteor_swarm");
-            skillDef.combat_profile.area_pattern = "diamond";
-            skillDef.combat_profile.area_value = 1;
+            setup = BuildRuntimeFixture(
+                new Vector2I(9, 9),
+                new[] { enemyCenter, enemyOuter, allyInner },
+                poisonLegacyArea: true
+            );
             command = BuildCommand(setup.Caster, new Vector2I(4, 4));
             preview = setup.Runtime.PreviewCommand(command);
 
@@ -211,10 +215,11 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         BattleEventBatch batch = null;
         try
         {
-            setup = BuildRuntimeFixture(new Vector2I(9, 9), new[] { enemyCenter, enemyOuter });
-            SkillDef skillDef = GetSkill(setup.SkillDefs, "mage_meteor_swarm");
-            skillDef.combat_profile.area_pattern = "diamond";
-            skillDef.combat_profile.area_value = 1;
+            setup = BuildRuntimeFixture(
+                new Vector2I(9, 9),
+                new[] { enemyCenter, enemyOuter },
+                poisonLegacyArea: true
+            );
             command = BuildCommand(setup.Caster, new Vector2I(4, 4));
             batch = setup.Runtime.IssueCommand(command);
 
@@ -265,7 +270,10 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         try
         {
             setup = BuildRuntimeFixture(new Vector2I(11, 11), new[] { target });
-            SkillDef skillDef = GetSkill(setup.SkillDefs, "mage_meteor_swarm");
+            SkillDefinition skillDefinition = GetSkillDefinition(
+                setup.SkillDefinitionIndex,
+                "mage_meteor_swarm"
+            );
             BattleMeteorSwarmResolver resolver = setup.Runtime._meteor_swarm_resolver;
             Vector2I nominalAnchor = new(4, 4);
             Vector2I driftedAnchor = new(5, 5);
@@ -274,7 +282,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
                 resolver.BuildCastContextTyped(
                     setup.Caster,
                     command,
-                    skillDef,
+                    skillDefinition,
                     null,
                     nominalAnchor,
                     driftedAnchor
@@ -304,14 +312,28 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         }
     }
 
-    private Fixture BuildRuntimeFixture(Vector2I mapSize, BattleUnitState[] extraUnits)
+    private Fixture BuildRuntimeFixture(
+        Vector2I mapSize,
+        BattleUnitState[] extraUnits,
+        bool poisonLegacyArea = false
+    )
     {
-        SkillDef meteorSkillDef = GD.Load<SkillDef>("res://data/configs/skills/mage_meteor_swarm.tres");
-        _test.True(meteorSkillDef != null, "陨星雨正式技能资源应可加载。");
-        IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs =
-            new Dictionary<StringName, SkillDef>
+        SkillDefinition meteorSkillDefinition = TestSkillDefinitionProjection.LoadSkillDefinition(
+            "res://data/configs/skills/mage_meteor_swarm.tres",
+            "meteor_swarm_special_profile:mage_meteor_swarm"
+        );
+        _test.True(meteorSkillDefinition != null, "陨星雨正式技能资源应可加载。");
+        if (poisonLegacyArea && meteorSkillDefinition?.CombatProfile != null)
+        {
+            meteorSkillDefinition = meteorSkillDefinition.WithCombatProfile(
+                meteorSkillDefinition.CombatProfile.WithArea("diamond", 1)
+            );
+        }
+        IReadOnlyDictionary<StringName, SkillDefinition> typedSkillDefinitions =
+            new Dictionary<StringName, SkillDefinition>
             {
-                [meteorSkillDef?.skill_id ?? new StringName("mage_meteor_swarm")] = meteorSkillDef,
+                [meteorSkillDefinition?.SkillId ?? new StringName("mage_meteor_swarm")] =
+                    meteorSkillDefinition,
             };
         MeteorSwarmProfile meteorProfile = GD.Load<MeteorSwarmProfile>(
             "res://data/configs/skill_special_profiles/profiles/meteor_swarm_profile.tres"
@@ -320,16 +342,15 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         GDictionary specialProfileSnapshot = BuildMeteorSpecialProfileSnapshot(meteorProfile);
         var runtime = new BattleRuntimeModule();
         runtime.setup(
-            null,
-            typedSkillDefs,
-            new Dictionary<StringName, EnemyTemplateDef>(),
-            new Dictionary<StringName, EnemyAiBrainDef>(),
-            null,
-            null,
-            new Dictionary<StringName, ItemDef>(),
-            null,
-            default,
-            specialProfileSnapshot
+            skill_definitions: typedSkillDefinitions,
+            enemy_templates: new Dictionary<StringName, EnemyTemplateDef>(),
+            enemy_ai_brains: new Dictionary<StringName, EnemyAiBrainDef>(),
+            item_defs: new Dictionary<StringName, ItemDef>(),
+            battle_special_profile_registry_snapshot: specialProfileSnapshot,
+            battle_special_profile_view: BattleSpecialProfileRuntimeView.ForMeteorSwarm(
+                "meteor_swarm",
+                meteorProfile
+            )
         );
         BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
         BattleState state = BuildState(mapSize);
@@ -374,8 +395,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
             State = state,
             Caster = caster,
             MeteorProfile = meteorProfile,
-            SkillDefIndex = typedSkillDefs,
-            SkillDefs = ProjectSkillDefs(typedSkillDefs),
+            SkillDefinitionIndex = typedSkillDefinitions,
         };
     }
 
@@ -388,7 +408,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
                 ["profile_id"] = "meteor_swarm",
                 ["runtime_resolver_id"] = "meteor_swarm",
                 ["owning_skill_ids"] = new GStringArray { "mage_meteor_swarm" },
-                ["profile_resource"] = meteorProfile,
+                ["profile_resource_path"] = meteorProfile?.ResourcePath ?? "",
                 ["presentation_metadata"] = new GDictionary
                 {
                     ["display_name"] = "陨星雨",
@@ -408,22 +428,6 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
                 ["mage_meteor_swarm"] = "meteor_swarm",
             },
         };
-    }
-
-    private static GDictionary ProjectSkillDefs(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
-    )
-    {
-        GDictionary result = new();
-        if (skillDefs == null)
-            return result;
-        foreach ((StringName skillId, SkillDef skillDef) in skillDefs)
-        {
-            if (skillId == "" || skillDef == null)
-                continue;
-            result[skillId] = skillDef;
-        }
-        return result;
     }
 
     private static BattleState BuildState(Vector2I mapSize)
@@ -557,13 +561,16 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         return state.GetCell(coord);
     }
 
-    private static SkillDef GetSkill(GDictionary skillDefs, StringName skillId)
+    private static SkillDefinition GetSkillDefinition(
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        StringName skillId
+    )
     {
-        if (skillDefs == null || !skillDefs.ContainsKey(skillId))
+        if (skillDefinitions == null || !skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition))
         {
             return null;
         }
-        return skillDefs[skillId].AsGodotObject() as SkillDef;
+        return skillDefinition;
     }
 
     private static bool DictBool(GDictionary dictionary, Variant key, bool fallback)
@@ -598,23 +605,20 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         public BattleState State;
         public BattleUnitState Caster;
         public MeteorSwarmProfile MeteorProfile;
-        public IReadOnlyDictionary<StringName, SkillDef> SkillDefIndex;
-        public GDictionary SkillDefs;
+        public IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitionIndex;
 
         public void Dispose()
         {
-            SkillDefs?.Clear();
-            if (SkillDefIndex is Dictionary<StringName, SkillDef> skillDefIndex)
+            if (SkillDefinitionIndex is Dictionary<StringName, SkillDefinition> skillDefinitionIndex)
             {
-                skillDefIndex.Clear();
+                skillDefinitionIndex.Clear();
             }
             Runtime?.dispose();
             Runtime = null;
             State = null;
             Caster = null;
             MeteorProfile = null;
-            SkillDefIndex = null;
-            SkillDefs = null;
+            SkillDefinitionIndex = null;
         }
     }
 }

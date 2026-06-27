@@ -138,7 +138,11 @@ public partial class run_bloodline_ascension_regression : SceneTree
     {
         GDictionary bundle = MakeIdentityBundle();
         PartyState partyState = MakePartyState();
-        CharacterManagementModule manager = BuildManager(partyState, new GDictionary(), bundle);
+        CharacterManagementModule manager = BuildManager(
+            partyState,
+            new Dictionary<StringName, SkillDefinition>(),
+            bundle
+        );
         PartyMemberState member = partyState.GetMemberState("hero");
 
         _test.False(
@@ -172,20 +176,19 @@ public partial class run_bloodline_ascension_regression : SceneTree
     private void TestCharacterManagementAppliesIdentityAndRefreshesGrants()
     {
         GDictionary bundle = MakeIdentityBundle();
-        SkillDef bloodlineSkill = MakeSkill("bloodline_skill", "bloodline");
-        SkillDef bloodlineStageSkill = MakeSkill("bloodline_stage_skill", "bloodline");
-        SkillDef ascensionSkill = MakeSkill("ascension_skill", "ascension");
-        SkillDef ascensionStageSkill = MakeSkill("ascension_stage_skill", "ascension");
+        SkillDefinition bloodlineSkill = MakeSkill("bloodline_skill", "bloodline");
+        SkillDefinition bloodlineStageSkill = MakeSkill("bloodline_stage_skill", "bloodline");
+        SkillDefinition ascensionSkill = MakeSkill("ascension_skill", "ascension");
+        SkillDefinition ascensionStageSkill = MakeSkill("ascension_stage_skill", "ascension");
         PartyState partyState = MakePartyState();
         CharacterManagementModule manager = BuildManager(
             partyState,
-            new GDictionary
-            {
-                [bloodlineSkill.skill_id] = bloodlineSkill,
-                [bloodlineStageSkill.skill_id] = bloodlineStageSkill,
-                [ascensionSkill.skill_id] = ascensionSkill,
-                [ascensionStageSkill.skill_id] = ascensionStageSkill,
-            },
+            BuildSkillIndex(
+                bloodlineSkill,
+                bloodlineStageSkill,
+                ascensionSkill,
+                ascensionStageSkill
+            ),
             bundle
         );
 
@@ -253,7 +256,11 @@ public partial class run_bloodline_ascension_regression : SceneTree
     {
         GDictionary bundle = MakeIdentityBundle();
         PartyState partyState = MakePartyState();
-        CharacterManagementModule manager = BuildManager(partyState, new GDictionary(), bundle);
+        CharacterManagementModule manager = BuildManager(
+            partyState,
+            new Dictionary<StringName, SkillDefinition>(),
+            bundle
+        );
         PartyMemberState member = partyState.GetMemberState("hero");
         _test.Eq(
             member.effective_age_stage_id,
@@ -301,7 +308,7 @@ public partial class run_bloodline_ascension_regression : SceneTree
     private void TestIdentitySummaryIncludesIdentityProjection()
     {
         GDictionary bundle = MakeIdentityBundle();
-        GDictionary skillDefs = new();
+        Dictionary<StringName, SkillDefinition> skillDefinitions = new();
         foreach (StringName skillId in new StringName[]
         {
             "bloodline_skill",
@@ -310,12 +317,12 @@ public partial class run_bloodline_ascension_regression : SceneTree
             "ascension_stage_skill",
         })
         {
-            SkillDef skill = MakeSkill(skillId, "bloodline");
-            skillDefs[skill.skill_id] = skill;
+            SkillDefinition skill = MakeSkill(skillId, "bloodline");
+            skillDefinitions[skill.SkillId] = skill;
         }
 
         PartyState partyState = MakePartyState();
-        CharacterManagementModule manager = BuildManager(partyState, skillDefs, bundle);
+        CharacterManagementModule manager = BuildManager(partyState, skillDefinitions, bundle);
         _test.True(manager.ApplyBloodline("hero", "titan", "titan_awakened"), "身份摘要测试前置：应能应用 bloodline。");
         _test.True(
             manager.ApplyAscension("hero", "dragon_ascension", "dragon_awakened", 11),
@@ -376,18 +383,18 @@ public partial class run_bloodline_ascension_regression : SceneTree
 
     private static CharacterManagementModule BuildManager(
         PartyState partyState,
-        GDictionary skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         GDictionary bundle
     )
     {
         CharacterManagementModule manager = new();
         manager.setup(
             partyState,
-            skillDefs,
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
+            skillDefinitions,
+            new Dictionary<StringName, ProfessionDef>(),
+            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ItemDef>(),
+            new Dictionary<StringName, QuestDef>(),
             null,
             MakeIdentityCatalog(bundle)
         );
@@ -701,21 +708,26 @@ public partial class run_bloodline_ascension_regression : SceneTree
         return modifier;
     }
 
-    private static SkillDef MakeSkill(StringName skillId, StringName learnSource)
+    private static Dictionary<StringName, SkillDefinition> BuildSkillIndex(
+        params SkillDefinition[] skillDefinitions
+    )
     {
-        SkillDef skill = new()
-        {
-            skill_id = skillId,
-            display_name = skillId.ToString(),
-            icon_id = skillId,
-            description = "Fixture skill.",
-            skill_type = "passive",
-            learn_source = learnSource,
-            max_level = 3,
-            mastery_curve = new[] { 10, 20, 30 },
-        };
-        return skill;
+        Dictionary<StringName, SkillDefinition> result = new();
+        foreach (SkillDefinition skillDefinition in skillDefinitions ?? System.Array.Empty<SkillDefinition>())
+            if (skillDefinition != null && skillDefinition.SkillId != "")
+                result[skillDefinition.SkillId] = skillDefinition;
+        return result;
     }
+
+    private static SkillDefinition MakeSkill(StringName skillId, StringName learnSource) =>
+        TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: skillId.ToString(),
+            skillType: "passive",
+            learnSource: learnSource,
+            maxLevel: 3,
+            masteryCurve: new[] { 10, 20, 30 }
+        );
 
     private static RacialGrantedSkill MakeGrantedSkill(StringName skillId) =>
         new()

@@ -465,7 +465,7 @@ public partial class run_move_to_range_progress_regression : SceneTree
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetSkillDefinitionsTyped(),
             gameSession.GetEnemyTemplatesTyped(),
             gameSession.GetEnemyAiBrainsTyped(),
             null
@@ -534,7 +534,7 @@ public partial class run_move_to_range_progress_regression : SceneTree
             grid_service = runtime._grid_service,
             allow_authored_action_fallback_for_tests = true,
         };
-        aiContext.SetSkillDefs(runtime.GetSkillDefIndexTyped());
+        aiContext.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime._bind_ai_helper_services_for_decision(unitState, aiContext);
         return aiContext;
     }
@@ -644,7 +644,7 @@ public partial class run_move_to_range_progress_regression : SceneTree
 
     private static void DisposeDecision(BattleAiDecision decision)
     {
-        decision?.DisposeOwnedGodotObjects();
+        decision?.ClearOwnedRuntimeReferences();
     }
 
     private sealed class BattleRuntimeScope : IDisposable

@@ -238,7 +238,7 @@ public partial class run_fortuna_guidance_regression : SceneTree
         using ProgressionContentRegistry progressionRegistry = new();
         manager.setup(
             partyState,
-            new Dictionary<StringName, SkillDef>(),
+            new Dictionary<StringName, SkillDefinition>(),
             new Dictionary<StringName, ProfessionDef>(),
             progressionRegistry.GetAchievementDefsTyped(),
             new Dictionary<StringName, ItemDef>(),

@@ -10,7 +10,7 @@ internal sealed class ContingencyTargetResolutionRequest
     internal ContingencyTargetResolverState ResolverState { get; init; }
     internal ContingencyFrozenTriggerFacts FrozenFacts { get; init; } =
         ContingencyFrozenTriggerFacts.Empty;
-    internal SkillDef StoredSkillDef { get; init; }
+    internal SkillDefinition StoredSkillDefinition { get; init; }
 }
 
 internal sealed class ContingencyTargetResolverService
@@ -155,7 +155,7 @@ internal sealed class ContingencyTargetResolverService
             request.BattleState,
             request.GridService,
             ownerUnit,
-            request.StoredSkillDef,
+            request.StoredSkillDefinition,
             anchor
         );
         return ContingencyTargetResolutionResult.GroundTarget(anchor, areaCells);
@@ -290,11 +290,11 @@ internal sealed class ContingencyTargetResolverService
         BattleState state,
         BattleGridService gridService,
         BattleUnitState ownerUnit,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         Vector2I anchor
     )
     {
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (combatProfile == null || gridService == null || state == null)
             return new[] { anchor };
 
@@ -304,8 +304,8 @@ internal sealed class ContingencyTargetResolverService
             Vector2I cell in gridService.GetAreaCoords(
                 state,
                 anchor,
-                combatProfile.area_pattern,
-                combatProfile.area_value,
+                combatProfile.AreaPattern,
+                combatProfile.AreaValue,
                 direction
             )
         )

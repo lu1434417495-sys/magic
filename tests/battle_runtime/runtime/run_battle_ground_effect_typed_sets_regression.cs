@@ -30,7 +30,7 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
             fixture.Runtime._ground_effect_service._apply_ground_wind_push_effects_result(
                 fixture.Source,
                 fixture.Skill,
-                new List<CombatEffectDef> { fixture.WindPushEffect },
+                new[] { fixture.WindPushEffect },
                 new List<Vector2I> { new Vector2I(1, 0) },
                 new List<Vector2I> { new Vector2I(1, 0) },
                 batch
@@ -63,7 +63,8 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
             fixture.Runtime._ground_effect_service._apply_ground_unit_effects_result(
                 fixture.Source,
                 fixture.Skill,
-                new List<CombatEffectDef> { fixture.WindPushEffect },
+                null,
+                new[] { fixture.WindPushEffect },
                 new List<Vector2I> { new Vector2I(1, 0) },
                 batch,
                 new List<Vector2I> { new Vector2I(1, 0) }
@@ -85,7 +86,7 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
             fixture.Front,
             fixture.Skill,
             null,
-            new Godot.Collections.Array<CombatEffectDef> { fixture.WindPushEffect },
+            new[] { fixture.WindPushEffect },
             batch,
             BattleForcedMoveContext.FromDirection(Vector2I.Right)
         );
@@ -160,12 +161,11 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
         Fixture fixture = BuildGroundEffectCoordsFixture();
         try
         {
-            var castVariant = TestResourceOwnership.Own(
-                new CombatCastVariantDef
-            {
-                @params = new Godot.Collections.Dictionary { ["square2_corner"] = "top_left" }
-                },
-                "battle_ground_effect_typed_sets.cast_variant"
+            CombatCastVariantDefinition castVariant = TestSkillDefinitionProjection.BuildCastVariant(
+                "square2_probe",
+                minSkillLevel: 0,
+                effects: Array.Empty<CombatEffectDefinition>(),
+                parameters: new Dictionary<string, Variant> { ["square2_corner"] = "top_left" }
             );
             IReadOnlyList<Vector2I> typedCoords = fixture.Runtime._ground_effect_service
                 .BuildGroundEffectCoords(
@@ -191,18 +191,21 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
         Fixture fixture = BuildWindPushFixture();
         try
         {
-            var duplicatePayload = new Godot.Collections.Array<CombatEffectDef>
+            CombatEffectDefinition windPushDefinition = fixture.WindPushEffect;
+            var duplicatePayload = new List<CombatEffectDefinition>
             {
-                fixture.WindPushEffect,
-                fixture.WindPushEffect,
+                windPushDefinition,
+                windPushDefinition,
             };
-            IReadOnlyList<CombatEffectDef> typedDeduped = fixture.Runtime._ground_effect_service
-                .DedupeEffectDefsByInstanceTyped(duplicatePayload);
+            IReadOnlyList<CombatEffectDefinition> typedDeduped = fixture
+                .Runtime
+                ._ground_effect_service
+                .DedupeEffectDefinitionsByIdentityTyped(duplicatePayload);
 
             _test.Eq(typedDeduped.Count, 1, "typed dedupe helper 应按实例去重。");
             _test.True(
-                ReferenceEquals(typedDeduped[0], fixture.WindPushEffect),
-                "typed dedupe helper 应保留原始 effect 实例。"
+                ReferenceEquals(typedDeduped[0], windPushDefinition),
+                "typed dedupe helper 应保留原始 effect definition 实例。"
             );
         }
         finally
@@ -236,24 +239,14 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
             Source = source,
             Front = front,
             Back = back,
-            Skill = TestResourceOwnership.Own(
-                new SkillDef
-            {
-                skill_id = "typed_wind_push_skill",
-                combat_profile = new CombatSkillDef { target_team_filter = "enemy" },
-                },
-                "battle_ground_effect_typed_sets.wind_push_skill"
+            Skill = TestSkillDefinitionProjection.BuildSkill(
+                "typed_wind_push_skill",
+                combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                    "typed_wind_push_skill",
+                    targetTeamFilter: "enemy"
+                )
             ),
-            WindPushEffect = TestResourceOwnership.Own(
-                new CombatEffectDef
-            {
-                effect_type = "forced_move",
-                effect_target_team_filter = "enemy",
-                forced_move_mode = "wind_push",
-                forced_move_distance = 1,
-                },
-                "battle_ground_effect_typed_sets.wind_push_effect"
-            ),
+            WindPushEffect = BuildWindPushEffect()
         };
     }
 
@@ -283,24 +276,14 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
             State = state,
             Source = source,
             Front = front,
-            Skill = TestResourceOwnership.Own(
-                new SkillDef
-            {
-                skill_id = "typed_forced_context_skill",
-                combat_profile = new CombatSkillDef { target_team_filter = "enemy" },
-                },
-                "battle_ground_effect_typed_sets.forced_context_skill"
+            Skill = TestSkillDefinitionProjection.BuildSkill(
+                "typed_forced_context_skill",
+                combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                    "typed_forced_context_skill",
+                    targetTeamFilter: "enemy"
+                )
             ),
-            WindPushEffect = TestResourceOwnership.Own(
-                new CombatEffectDef
-            {
-                effect_type = "forced_move",
-                effect_target_team_filter = "enemy",
-                forced_move_mode = "wind_push",
-                forced_move_distance = 1,
-                },
-                "battle_ground_effect_typed_sets.forced_context_effect"
-            ),
+            WindPushEffect = BuildWindPushEffect()
         };
     }
 
@@ -348,6 +331,57 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
         }
         state.RebuildCellColumns();
         return state;
+    }
+
+    private static CombatEffectDefinition BuildWindPushEffect()
+    {
+        return new CombatEffectDefinition(
+            effectType: "forced_move",
+            effectTargetTeamFilter: "enemy",
+            statusId: default,
+            saveFailureStatusId: default,
+            terrainEffectId: default,
+            terrainReplaceTo: default,
+            heightDelta: 0,
+            requiresWeapon: false,
+            addWeaponDice: false,
+            preventRepeatTarget: false,
+            forcedMoveMode: "wind_push",
+            minSkillLevel: 0,
+            maxSkillLevel: -1,
+            damageTag: default,
+            damageRatioPercent: 100,
+            preResistanceDamageMultiplier: 1.0,
+            bonusCondition: default,
+            hpRatioThresholdPercent: 0,
+            damageCategory: default,
+            drBypassTag: default,
+            diceCount: 0,
+            diceSides: 0,
+            diceBonus: 0,
+            bonusDamageDiceCount: 0,
+            bonusDamageDiceSides: 0,
+            bonusDamageDiceBonus: 0,
+            saveDc: 0,
+            saveDcMode: default,
+            saveDcSourceAbility: default,
+            saveAbility: default,
+            savePartialOnSuccess: false,
+            saveTag: default,
+            thresholdBaseValue: 0,
+            thresholdLevelAnchor: 0,
+            thresholdLevelBonusPerDelta: 0,
+            thresholdMaxHpRatioPercent: 0,
+            thresholdCapMaxHpRatioPercent: 0,
+            soulFractureDurationTu: 0,
+            healMultiplierPercent: 0,
+            shieldGainMultiplierPercent: 0,
+            appliedStatusDurationTu: 0,
+            durationTu: 0,
+            tickIntervalTu: 0,
+            effectTags: Array.Empty<StringName>(),
+            forcedMoveDistance: 1
+        );
     }
 
     private static BattleUnitState BuildUnit(StringName unitId, StringName factionId, Vector2I coord)
@@ -407,7 +441,7 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
         public BattleUnitState Source;
         public BattleUnitState Front;
         public BattleUnitState Back;
-        public SkillDef Skill;
-        public CombatEffectDef WindPushEffect;
+        public SkillDefinition Skill;
+        public CombatEffectDefinition WindPushEffect;
     }
 }

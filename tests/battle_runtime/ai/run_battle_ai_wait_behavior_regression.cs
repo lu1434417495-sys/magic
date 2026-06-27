@@ -189,26 +189,32 @@ public partial class run_battle_ai_wait_behavior_regression : SceneTree
         var pressureState = new EnemyAiStateDef { state_id = "pressure" };
         pressureState.actions.Add(basicAction);
         pressureState.actions.Add(waitAction);
-        var brain = new EnemyAiBrainDef
-        {
-            brain_id = "active_rest_probe_brain",
-            default_state_id = "pressure",
-        };
+        var brain = TestResourceOwnership.Own(
+            new EnemyAiBrainDef
+            {
+                brain_id = "active_rest_probe_brain",
+                default_state_id = "pressure",
+            },
+            "BattleAiWaitBehavior.BuildActiveRestProbeBrain"
+        );
         brain.states.Add(pressureState);
-        return TestResourceOwnership.Own(brain, "BattleAiWaitBehavior.BuildActiveRestProbeBrain");
+        return brain;
     }
 
     private static EnemyAiBrainDef BuildFallbackRestProbeBrain()
     {
         var engageState = new EnemyAiStateDef { state_id = "engage" };
         engageState.actions.Add(new WaitAction { action_id = "fallback_rest_wait" });
-        var brain = new EnemyAiBrainDef
-        {
-            brain_id = "fallback_rest_probe_brain",
-            default_state_id = "engage",
-        };
+        var brain = TestResourceOwnership.Own(
+            new EnemyAiBrainDef
+            {
+                brain_id = "fallback_rest_probe_brain",
+                default_state_id = "engage",
+            },
+            "BattleAiWaitBehavior.BuildFallbackRestProbeBrain"
+        );
         brain.states.Add(engageState);
-        return TestResourceOwnership.Own(brain, "BattleAiWaitBehavior.BuildFallbackRestProbeBrain");
+        return brain;
     }
 
     private static BattleRuntimeScope BuildRuntimeWithEnemyContent(params EnemyAiBrainDef[] extraBrains)
@@ -227,14 +233,14 @@ public partial class run_battle_ai_wait_behavior_regression : SceneTree
         }
         runtime.setup(
             null,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetSkillDefinitionsTyped(),
             gameSession.GetEnemyTemplatesTyped(),
             enemyAiBrains,
             null
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         var damageResolver = new FixedSuccessOneDamageResolver();
-        damageResolver.SetSkillDefs(runtime.GetSkillDefIndexTyped());
+        damageResolver.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime.ConfigureDamageResolverForTests(damageResolver);
         return new BattleRuntimeScope(runtime, gameSession);
     }
@@ -283,7 +289,7 @@ public partial class run_battle_ai_wait_behavior_regression : SceneTree
                 runtime._get_ai_move_query_cost(unit.unit_id, unit.coord, targetCoord),
             runtime_action_plan = actionPlan,
         };
-        context.SetSkillDefs(runtime.GetSkillDefIndexTyped());
+        context.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime._bind_ai_helper_services_for_decision(unitState, context);
         return context;
     }

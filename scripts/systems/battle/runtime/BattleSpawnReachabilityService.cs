@@ -102,14 +102,14 @@ internal sealed class BattleSpawnReachabilityService
     internal BattleSpawnReachabilityResult ValidateStateTyped(
         BattleState state,
         BattleGridService gridService,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         BattleSpawnReachabilityOptions options = default
     )
     {
         if (state == null || gridService == null)
             return BattleSpawnReachabilityResult.Invalid("missing_state_or_grid");
 
-        skillDefs ??= EmptySkillDefs;
+        skillDefinitions ??= EmptySkillDefinitions;
         var result = new BattleSpawnReachabilityResult();
         List<StringName> enemyUnitIds = ReadStringNameList(state.enemy_unit_ids);
         List<StringName> allyUnitIds = ReadStringNameList(state.ally_unit_ids);
@@ -126,7 +126,7 @@ internal sealed class BattleSpawnReachabilityService
             var enemyResult = _ValidateAttackerUnit(
                 state,
                 gridService,
-                skillDefs,
+                skillDefinitions,
                 enemyUnit,
                 playerTargets,
                 options
@@ -153,7 +153,7 @@ internal sealed class BattleSpawnReachabilityService
             var playerResult = _ValidateAttackerUnit(
                 state,
                 gridService,
-                skillDefs,
+                skillDefinitions,
                 playerUnit,
                 enemyTargets,
                 options
@@ -169,13 +169,13 @@ internal sealed class BattleSpawnReachabilityService
     private BattleSpawnReachabilityUnitResult _ValidateAttackerUnit(
         BattleState state,
         BattleGridService gridService,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         BattleUnitState attackerUnit,
         IReadOnlyList<BattleUnitState> targetUnits,
         BattleSpawnReachabilityOptions options
     )
     {
-        var attackSkills = _CollectAttackSkills(attackerUnit, skillDefs, targetUnits);
+        var attackSkills = _CollectAttackSkills(attackerUnit, skillDefinitions, targetUnits);
         if (attackSkills.Count == 0)
         {
             return new BattleSpawnReachabilityUnitResult
@@ -240,7 +240,7 @@ internal sealed class BattleSpawnReachabilityService
 
     private List<BattleSpawnReachabilityAttackSkill> _CollectAttackSkills(
         BattleUnitState enemyUnit,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyList<BattleUnitState> playerTargets
     )
     {
@@ -250,33 +250,34 @@ internal sealed class BattleSpawnReachabilityService
         foreach (var skillIdValue in enemyUnit.known_active_skill_ids)
         {
             var skillId = ProgressionDataUtils.to_string_name(skillIdValue);
-            if (!skillDefs.TryGetValue(skillId, out SkillDef skillDef))
+            if (!skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition))
                 continue;
-            if (skillDef == null || skillDef.combat_profile == null)
+            if (skillDefinition == null || skillDefinition.CombatProfile == null)
                 continue;
-            if (!_AttackerCanUseSkill(enemyUnit, skillDef))
+            if (!_AttackerCanUseSkill(enemyUnit, skillDefinition))
                 continue;
-            BattleTargetMode targetMode = skillDef.combat_profile.TargetModeKind;
+            CombatSkillDefinition combatProfile = skillDefinition.CombatProfile;
+            BattleTargetMode targetMode = combatProfile.TargetModeKind;
             if (targetMode != BattleTargetMode.Unit && targetMode != BattleTargetMode.Ground)
                 continue;
-            StringName targetTeamFilter = skillDef.combat_profile.target_team_filter;
+            StringName targetTeamFilter = combatProfile.TargetTeamFilter;
             if (!HasAttackableTargetForFilter(enemyUnit, playerTargets, targetTeamFilter))
                 continue;
             int skillLevel = _GetUnitSkillLevel(enemyUnit, skillId);
-            SkillEffectiveCombatProfile effectiveProfile =
-                SkillEffectiveCombatProfileResolver.BuildUncached(skillDef, skillLevel);
+            SkillEffectiveCombatDefinition effectiveProfile =
+                SkillEffectiveCombatDefinition.BuildUncached(skillDefinition, skillLevel);
             BattleAreaPattern groundAreaPattern = BattleTypedNames.ToAreaPattern(
                 effectiveProfile.AreaPattern
             );
             attackSkills.Add(
                 new BattleSpawnReachabilityAttackSkill(
                     skillId,
-                    skillDef,
-                    skillDef.combat_profile,
+                    skillDefinition,
+                    combatProfile,
                     targetMode,
                     targetTeamFilter,
                     skillLevel,
-                    _GetEffectiveSkillRange(enemyUnit, skillDef),
+                    _GetEffectiveSkillRange(enemyUnit, skillDefinition),
                     groundAreaPattern,
                     System.Math.Max(effectiveProfile.AreaValue, 0)
                 )
@@ -507,7 +508,7 @@ internal sealed class BattleSpawnReachabilityService
     )
     {
         BattleSpawnReachabilityAttackSkill attackSkill = attackTarget.AttackSkill;
-        if (attackSkill.SkillDef == null || attackSkill.CombatProfile == null)
+        if (attackSkill.SkillDefinition == null || attackSkill.CombatProfile == null)
             return false;
         switch (attackSkill.TargetMode)
         {
@@ -546,7 +547,7 @@ internal sealed class BattleSpawnReachabilityService
             || gridService == null
             || enemyUnit == null
             || targetUnit == null
-            || attackSkill.SkillDef == null
+            || attackSkill.SkillDefinition == null
             || attackSkill.CombatProfile == null
         )
             return false;
@@ -778,24 +779,25 @@ internal sealed class BattleSpawnReachabilityService
         );
     }
 
-    private int _GetEffectiveSkillRange(BattleUnitState unitState, SkillDef skillDef)
+    private int _GetEffectiveSkillRange(BattleUnitState unitState, SkillDefinition skillDefinition)
     {
-        return BattleRangeService.GetEffectiveSkillRange(unitState, skillDef);
+        return BattleRangeService.GetEffectiveSkillRange(unitState, skillDefinition);
     }
 
-    private bool _AttackerCanUseSkill(BattleUnitState unitState, SkillDef skillDef)
+    private bool _AttackerCanUseSkill(BattleUnitState unitState, SkillDefinition skillDefinition)
     {
-        if (unitState == null || skillDef == null || skillDef.combat_profile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (unitState == null || skillDefinition == null || combatProfile == null)
             return false;
         if (
             !BattleRangeService.UnitMatchesRequiredWeaponFamilies(
                 unitState,
-                skillDef.combat_profile.required_weapon_families
+                combatProfile.RequiredWeaponFamilies
             )
         )
             return false;
         if (
-            BattleRangeService.RequiresCurrentMeleeWeapon(skillDef)
+            BattleRangeService.RequiresCurrentMeleeWeapon(skillDefinition)
             && !BattleRangeService.UnitHasMeleeWeapon(unitState)
         )
             return false;
@@ -816,8 +818,8 @@ internal sealed class BattleSpawnReachabilityService
         return 0;
     }
 
-    private static readonly IReadOnlyDictionary<StringName, SkillDef> EmptySkillDefs =
-        new Dictionary<StringName, SkillDef>();
+    private static readonly IReadOnlyDictionary<StringName, SkillDefinition> EmptySkillDefinitions =
+        new Dictionary<StringName, SkillDefinition>();
 
     private static List<StringName> ReadStringNameList(IEnumerable<StringName> values)
     {
@@ -846,8 +848,8 @@ internal sealed class BattleSpawnReachabilityService
     private readonly struct BattleSpawnReachabilityAttackSkill
     {
         internal readonly StringName SkillId;
-        internal readonly SkillDef SkillDef;
-        internal readonly CombatSkillDef CombatProfile;
+        internal readonly SkillDefinition SkillDefinition;
+        internal readonly CombatSkillDefinition CombatProfile;
         internal readonly BattleTargetMode TargetMode;
         internal readonly StringName TargetTeamFilter;
         internal readonly int SkillLevel;
@@ -857,8 +859,8 @@ internal sealed class BattleSpawnReachabilityService
 
         internal BattleSpawnReachabilityAttackSkill(
             StringName skillId,
-            SkillDef skillDef,
-            CombatSkillDef combatProfile,
+            SkillDefinition skillDefinition,
+            CombatSkillDefinition combatProfile,
             BattleTargetMode targetMode,
             StringName targetTeamFilter,
             int skillLevel,
@@ -868,7 +870,7 @@ internal sealed class BattleSpawnReachabilityService
         )
         {
             SkillId = skillId;
-            SkillDef = skillDef;
+            SkillDefinition = skillDefinition;
             CombatProfile = combatProfile;
             TargetMode = targetMode;
             TargetTeamFilter = targetTeamFilter;

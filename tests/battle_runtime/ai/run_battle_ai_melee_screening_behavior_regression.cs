@@ -295,14 +295,14 @@ public partial class run_battle_ai_melee_screening_behavior_regression : SceneTr
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetSkillDefinitionsTyped(),
             gameSession.GetEnemyTemplatesTyped(),
             gameSession.GetEnemyAiBrainsTyped(),
             null
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         var damageResolver = new FixedSuccessOneDamageResolver();
-        damageResolver.SetSkillDefs(runtime.GetSkillDefIndexTyped());
+        damageResolver.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime.ConfigureDamageResolverForTests(damageResolver);
         return new BattleRuntimeScope(runtime, gameSession);
     }
@@ -351,7 +351,7 @@ public partial class run_battle_ai_melee_screening_behavior_regression : SceneTr
                 runtime._get_ai_move_query_cost(unit.unit_id, unit.coord, targetCoord),
             runtime_action_plan = actionPlan,
         };
-        context.SetSkillDefs(runtime.GetSkillDefIndexTyped());
+        context.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime._bind_ai_helper_services_for_decision(unitState, context);
         return context;
     }

@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 [GlobalClass]
@@ -161,7 +160,7 @@ public partial class run_character_management_weapon_projection_regression : Sce
         params ItemDef[] itemDefs
     )
     {
-        GDictionary indexedItemDefs = new();
+        Dictionary<StringName, ItemDef> indexedItemDefs = new();
         foreach (ItemDef itemDef in itemDefs)
         {
             if (itemDef != null)
@@ -171,9 +170,9 @@ public partial class run_character_management_weapon_projection_regression : Sce
         CharacterManagementModule manager = new();
         manager.setup(
             party,
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
+            new Dictionary<StringName, SkillDefinition>(),
+            new Dictionary<StringName, ProfessionDef>(),
+            new Dictionary<StringName, AchievementDef>(),
             indexedItemDefs
         );
         return manager;

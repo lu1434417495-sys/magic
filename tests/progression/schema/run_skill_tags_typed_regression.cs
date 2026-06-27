@@ -21,29 +21,43 @@ public partial class run_skill_tags_typed_regression : SceneTree
     private void TestOfficialSkillResourcesExposeTypedTags()
     {
         ProgressionContentRegistry registry = new();
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = registry.GetSkillDefsTyped();
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            registry.GetSkillDefinitionsTyped();
 
         _test.True(
-            skillDefs.TryGetValue("basic_attack", out SkillDef basicAttack) && basicAttack != null,
-            "ProgressionContentRegistry 应暴露正式基础攻击资源。"
+            skillDefinitions.TryGetValue("basic_attack", out SkillDefinition basicAttack)
+                && basicAttack != null,
+            "ProgressionContentRegistry 应暴露正式基础攻击 DTO。"
         );
         _test.True(
-            skillDefs.TryGetValue("charge", out SkillDef charge) && charge != null,
-            "ProgressionContentRegistry 应暴露正式冲锋资源。"
+            skillDefinitions.TryGetValue("charge", out SkillDefinition charge) && charge != null,
+            "ProgressionContentRegistry 应暴露正式冲锋 DTO。"
         );
         _test.True(
-            skillDefs.TryGetValue("warrior_toughness", out SkillDef warriorToughness)
+            skillDefinitions.TryGetValue("warrior_toughness", out SkillDefinition warriorToughness)
                 && warriorToughness != null,
-            "ProgressionContentRegistry 应暴露正式强健资源。"
+            "ProgressionContentRegistry 应暴露正式强健 DTO。"
         );
         if (basicAttack == null || charge == null || warriorToughness == null)
             return;
 
-        _test.True(basicAttack.HasTag("basic"), "基础攻击应通过 typed tags 暴露 basic 标签。");
-        _test.True(charge.HasTag("melee"), "冲锋应通过 typed tags 暴露 melee 标签。");
+        _test.True(HasTag(basicAttack, "basic"), "基础攻击应通过 DTO tags 暴露 basic 标签。");
+        _test.True(HasTag(charge, "melee"), "冲锋应通过 DTO tags 暴露 melee 标签。");
         _test.True(
-            warriorToughness.HasTag("warrior"),
-            "强健应通过 typed tags 暴露 warrior 标签。"
+            HasTag(warriorToughness, "warrior"),
+            "强健应通过 DTO tags 暴露 warrior 标签。"
         );
+    }
+
+    private static bool HasTag(SkillDefinition skillDefinition, StringName tag)
+    {
+        if (skillDefinition == null || tag == "")
+            return false;
+        foreach (StringName value in skillDefinition.Tags)
+        {
+            if (value == tag)
+                return true;
+        }
+        return false;
     }
 }

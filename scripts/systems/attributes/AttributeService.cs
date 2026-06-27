@@ -143,7 +143,7 @@ public sealed class AttributeService
     }
 
     private UnitProgress _unit_progress;
-    private Dictionary<StringName, SkillDef> _skill_defs = new();
+    private Dictionary<StringName, SkillDefinition> _skill_definitions = new();
     private Dictionary<StringName, ProfessionDef> _profession_defs = new();
     private List<AttributeModifier> _trait_attribute_modifiers = new();
     private List<AttributeModifier> _equipment_state = new();
@@ -177,10 +177,10 @@ public sealed class AttributeService
     {
         _context = context ?? new AttributeSourceContext();
         _unit_progress = _context.unit_progress;
-        _skill_defs =
-            _context.skill_defs != null
-                ? new Dictionary<StringName, SkillDef>(_context.skill_defs)
-                : new Dictionary<StringName, SkillDef>();
+        _skill_definitions =
+            _context.skill_definitions != null
+                ? new Dictionary<StringName, SkillDefinition>(_context.skill_definitions)
+                : new Dictionary<StringName, SkillDefinition>();
         _profession_defs =
             _context.profession_defs != null
                 ? new Dictionary<StringName, ProfessionDef>(_context.profession_defs)
@@ -190,7 +190,7 @@ public sealed class AttributeService
         _passive_state = CopyAttributeModifierList(_context.passive_state);
         _temporary_effects = CopyAttributeModifierList(_context.temporary_effects);
         _reserved_mp_max = Mathf.Max(_context.reserved_mp_max, 0);
-        _context.skill_defs = _skill_defs;
+        _context.skill_definitions = _skill_definitions;
         _context.profession_defs = _profession_defs;
         _context.trait_attribute_modifiers = _trait_attribute_modifiers;
         _context.equipment_state = _equipment_state;
@@ -559,13 +559,13 @@ public sealed class AttributeService
             if (!IsSkillModifierActive(skillProgress))
                 continue;
 
-            if (!_skill_defs.TryGetValue(skillId, out var skillDef))
+            if (!_skill_definitions.TryGetValue(skillId, out var skillDefinition))
                 continue;
 
             int effectiveRank = Mathf.Max(skillProgress.skill_level, 1);
             AppendModifierEntries(
                 entries,
-                skillDef.AttributeModifiersTyped,
+                skillDefinition.AttributeModifiers,
                 "skill",
                 skillId,
                 effectiveRank
@@ -625,6 +625,8 @@ public sealed class AttributeService
         {
             if (modifierValue is AttributeModifier modifier)
                 AppendModifierEntry(entries, modifier, sourceType, sourceId, rank);
+            else if (modifierValue is AttributeModifierDefinition definition)
+                AppendModifierEntry(entries, definition, sourceType, sourceId, rank);
         }
     }
 
@@ -646,6 +648,28 @@ public sealed class AttributeService
                 modifier.GetValueForRank(rank),
                 sourceType != "" ? sourceType : modifier.source_type,
                 sourceId != "" ? sourceId : modifier.source_id
+            )
+        );
+    }
+
+    private static void AppendModifierEntry(
+        List<AttributeModifierEntry> entries,
+        AttributeModifierDefinition modifier,
+        StringName sourceType,
+        StringName sourceId,
+        int rank
+    )
+    {
+        if (modifier == null || modifier.AttributeId == "")
+            return;
+
+        entries.Add(
+            new AttributeModifierEntry(
+                modifier.AttributeId,
+                AttributeModifier.ToMode(modifier.Mode),
+                modifier.GetValueForRank(rank),
+                sourceType != "" ? sourceType : modifier.SourceType,
+                sourceId != "" ? sourceId : modifier.SourceId
             )
         );
     }

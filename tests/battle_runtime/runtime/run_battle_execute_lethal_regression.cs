@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_battle_execute_lethal_regression : SceneTree
@@ -27,8 +26,8 @@ public partial class run_battle_execute_lethal_regression : SceneTree
         resolver.ResolveEffects(
             source,
             target,
-            new GArray { MakeExecuteEffect() },
-            new GDictionary { ["save_roll_override"] = 1 }
+            new[] { MakeExecuteEffect() },
+            DamageResolutionContext.FromDictionary(new GDictionary { ["save_roll_override"] = 1 })
         );
 
         _test.False(target.is_alive, "PWK should skip low-priority death ward.");
@@ -46,8 +45,8 @@ public partial class run_battle_execute_lethal_regression : SceneTree
         resolver.ResolveEffects(
             source,
             target,
-            new GArray { MakeExecuteEffect() },
-            new GDictionary { ["save_roll_override"] = 1 }
+            new[] { MakeExecuteEffect() },
+            DamageResolutionContext.FromDictionary(new GDictionary { ["save_roll_override"] = 1 })
         );
 
         _test.True(target.is_alive, "PWK should allow same-priority death ward to trigger.");
@@ -73,8 +72,8 @@ public partial class run_battle_execute_lethal_regression : SceneTree
         resolver.ResolveEffects(
             source,
             target,
-            new GArray { MakeExecuteEffect() },
-            new GDictionary { ["save_roll_override"] = 1 }
+            new[] { MakeExecuteEffect() },
+            DamageResolutionContext.FromDictionary(new GDictionary { ["save_roll_override"] = 1 })
         );
 
         _test.False(target.is_alive, "failed-save PWK should kill shielded low-HP target.");
@@ -86,11 +85,12 @@ public partial class run_battle_execute_lethal_regression : SceneTree
     private static BattleDamageResolver BuildResolverWithLastStand()
     {
         BattleDamageResolver resolver = new();
-        SkillDef lastStandSkill = ResourceLoader.Load<SkillDef>(
-            "res://data/configs/skills/warrior_last_stand.tres"
+        SkillDefinition lastStandSkill = TestSkillDefinitionProjection.LoadSkillDefinition(
+            "res://data/configs/skills/warrior_last_stand.tres",
+            "battle_execute_lethal:warrior_last_stand"
         );
-        resolver.SetSkillDefs(
-            new Dictionary<StringName, SkillDef>
+        resolver.SetSkillDefinitions(
+            new Dictionary<StringName, SkillDefinition>
             {
                 [(StringName)"warrior_last_stand"] = lastStandSkill,
             }
@@ -98,23 +98,23 @@ public partial class run_battle_execute_lethal_regression : SceneTree
         return resolver;
     }
 
-    private static CombatEffectDef MakeExecuteEffect() => new()
-    {
-        effect_type = "execute",
-        effect_target_team_filter = "enemy",
-        damage_tag = "negative_energy",
-        save_dc_mode = "static",
-        save_dc = 10,
-        save_ability = "willpower",
-        save_tag = "execute",
-        threshold_max_hp_ratio_percent = 20,
-        threshold_level_anchor = 17,
-        threshold_level_bonus_per_delta = 5,
-        threshold_cap_max_hp_ratio_percent = 50,
-        soul_fracture_duration_tu = 60,
-        heal_multiplier_percent = 50,
-        shield_gain_multiplier_percent = 50,
-    };
+    private static CombatEffectDefinition MakeExecuteEffect() =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "execute",
+            effectTargetTeamFilter: "enemy",
+            damageTag: "negative_energy",
+            saveDcMode: "static",
+            saveDc: 10,
+            saveAbility: "willpower",
+            saveTag: "execute",
+            thresholdMaxHpRatioPercent: 20,
+            thresholdLevelAnchor: 17,
+            thresholdLevelBonusPerDelta: 5,
+            thresholdCapMaxHpRatioPercent: 50,
+            soulFractureDurationTu: 60,
+            healMultiplierPercent: 50,
+            shieldGainMultiplierPercent: 50
+        );
 
     private static BattleUnitState MakeUnit(StringName unitId, StringName factionId)
     {

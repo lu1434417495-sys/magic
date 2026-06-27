@@ -35,10 +35,10 @@ internal sealed class AiServiceProbe
 
     public BattleAiScoreInput BuildSkillScoreInput(
         BattleAiContext context,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BattleCommand command,
         BattlePreview preview,
-        IReadOnlyList<CombatEffectDef> effectDefs = null,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions = null,
         IReadOnlyDictionary<string, object> metadata = null
     )
     {
@@ -46,7 +46,14 @@ internal sealed class AiServiceProbe
         ulong start = Time.GetTicksUsec();
         BattleAiScoreInput result = _service
             .GetScoreService()
-            .BuildSkillScoreInput(context, skillDef, command, preview, effectDefs, metadata);
+            .BuildSkillScoreInput(
+                context,
+                skillDefinition,
+                command,
+                preview,
+                effectDefinitions,
+                metadata
+            );
         AiProbeStats.Record(StatsSkillInput, (long)(Time.GetTicksUsec() - start));
         AiTraceRecorder.Exit("build_skill_score_input");
         return result;

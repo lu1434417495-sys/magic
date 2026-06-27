@@ -99,7 +99,7 @@ public partial class run_battle_move_path_result_projection_regression : SceneTr
     {
         PartyState party = BuildParty("movement_hero");
         CharacterManagementModule gateway = new();
-        gateway.setup(party, new Godot.Collections.Dictionary(), new Godot.Collections.Dictionary(), new Godot.Collections.Dictionary(), new Godot.Collections.Dictionary());
+        gateway.setup(party);
         BattleRuntimeModule runtime = new();
         runtime.setup(gateway);
         BattleState state = BuildState("movement_service_projection_regression");

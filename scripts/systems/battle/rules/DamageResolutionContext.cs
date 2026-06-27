@@ -7,14 +7,14 @@ using GDictionary = Godot.Collections.Dictionary;
 internal sealed class DamageResolutionContext
 {
     private static readonly StringName DefaultDamageRollMode = "random";
-    private readonly RuntimePayloadStore _rawContext = new();
 
-    public GDictionary RawContext => _rawContext.ProjectPayload();
+    public GDictionary RawContext => BuildRawContext();
     public StringName DamageRollMode { get; }
     public bool CriticalHit { get; }
     public bool AttackSuccess { get; }
     public bool SecondaryHitSuccess { get; }
     public StringName SkillId { get; }
+    public int SourceSkillLevel { get; }
     public IReadOnlyList<int> SaveRollOverrides { get; }
     public bool DispatchEvents { get; }
     public StringName EquipmentSlotOverride { get; }
@@ -22,12 +22,12 @@ internal sealed class DamageResolutionContext
     internal BattleEffectOrigin DamageApplicationHookOrigin { get; }
 
     private DamageResolutionContext(
-        GDictionary rawContext,
         StringName damageRollMode,
         bool criticalHit,
         bool attackSuccess,
         bool secondaryHitSuccess,
         StringName skillId,
+        int sourceSkillLevel,
         IReadOnlyList<int> saveRollOverrides,
         bool dispatchEvents,
         StringName equipmentSlotOverride,
@@ -35,12 +35,12 @@ internal sealed class DamageResolutionContext
         BattleEffectOrigin damageApplicationHookOrigin = null
     )
     {
-        _rawContext.ReplaceWithPayload(rawContext);
         DamageRollMode = damageRollMode == "" ? DefaultDamageRollMode : damageRollMode;
         CriticalHit = criticalHit;
         AttackSuccess = attackSuccess;
         SecondaryHitSuccess = secondaryHitSuccess;
         SkillId = skillId == default ? new StringName("") : skillId;
+        SourceSkillLevel = Math.Max(sourceSkillLevel, 0);
         SaveRollOverrides = saveRollOverrides ?? Array.Empty<int>();
         DispatchEvents = dispatchEvents;
         EquipmentSlotOverride =
@@ -57,40 +57,20 @@ internal sealed class DamageResolutionContext
         bool attackSuccess,
         bool secondaryHitSuccess,
         StringName skillId = default,
+        int sourceSkillLevel = 0,
         StringName damageRollMode = default,
         IReadOnlyList<int> saveRollOverrides = null,
         bool dispatchEvents = true,
         StringName equipmentSlotOverride = default
     )
     {
-        GDictionary rawContext = new()
-        {
-            ["critical_hit"] = criticalHit,
-            ["attack_success"] = attackSuccess,
-            ["secondary_hit_success"] = secondaryHitSuccess,
-            ["dispatch_events"] = dispatchEvents,
-        };
-        if (skillId != default && skillId != "")
-            rawContext["skill_id"] = skillId;
-        if (damageRollMode != default && damageRollMode != "")
-            rawContext["damage_roll_mode"] = damageRollMode;
-        if (equipmentSlotOverride != default && equipmentSlotOverride != "")
-            rawContext["equipment_slot_override"] = equipmentSlotOverride;
-        if (saveRollOverrides != null && saveRollOverrides.Count > 0)
-        {
-            var rolls = new GArray();
-            foreach (int roll in saveRollOverrides)
-                rolls.Add(Math.Clamp(roll, 1, 20));
-            rawContext["save_roll_overrides"] = rolls;
-        }
-
         return new DamageResolutionContext(
-            rawContext,
             damageRollMode == default ? DefaultDamageRollMode : damageRollMode,
             criticalHit,
             attackSuccess,
             secondaryHitSuccess,
             skillId,
+            sourceSkillLevel,
             saveRollOverrides ?? Array.Empty<int>(),
             dispatchEvents,
             equipmentSlotOverride
@@ -123,12 +103,14 @@ internal sealed class DamageResolutionContext
         }
 
         return new DamageResolutionContext(
-            payload,
             ReadStringName(payload, "damage_roll_mode", DefaultDamageRollMode),
             ReadBool(payload, "critical_hit"),
             ReadBool(payload, "attack_success"),
             ReadBool(payload, "secondary_hit_success"),
             ReadStringName(payload, "skill_id"),
+            ReadInt(payload, "source_skill_level") > 0
+                ? ReadInt(payload, "source_skill_level")
+                : ReadInt(payload, "skill_level"),
             ReadSaveRollOverrides(payload),
             ReadBool(payload, "dispatch_events", true),
             ReadStringName(payload, "equipment_slot_override")
@@ -137,15 +119,31 @@ internal sealed class DamageResolutionContext
 
     public DamageResolutionContext WithDamageRollMode(StringName damageRollMode)
     {
-        GDictionary rawContext = RawContext.Duplicate(false);
-        rawContext["damage_roll_mode"] = damageRollMode;
         return new DamageResolutionContext(
-            rawContext,
             damageRollMode,
             CriticalHit,
             AttackSuccess,
             SecondaryHitSuccess,
             SkillId,
+            SourceSkillLevel,
+            SaveRollOverrides,
+            DispatchEvents,
+            EquipmentSlotOverride,
+            DamageApplicationHookBatch,
+            DamageApplicationHookOrigin
+        );
+    }
+
+    public DamageResolutionContext WithSourceSkillLevel(int sourceSkillLevel)
+    {
+        int normalizedLevel = Math.Max(sourceSkillLevel, 0);
+        return new DamageResolutionContext(
+            DamageRollMode,
+            CriticalHit,
+            AttackSuccess,
+            SecondaryHitSuccess,
+            SkillId,
+            normalizedLevel,
             SaveRollOverrides,
             DispatchEvents,
             EquipmentSlotOverride,
@@ -160,12 +158,12 @@ internal sealed class DamageResolutionContext
     )
     {
         return new DamageResolutionContext(
-            RawContext,
             DamageRollMode,
             CriticalHit,
             AttackSuccess,
             SecondaryHitSuccess,
             SkillId,
+            SourceSkillLevel,
             SaveRollOverrides,
             DispatchEvents,
             EquipmentSlotOverride,
@@ -176,6 +174,37 @@ internal sealed class DamageResolutionContext
 
     public BattleSaveContext ToBattleSaveContext() =>
         new(SkillId, SaveRollOverrides ?? Array.Empty<int>());
+
+    private GDictionary BuildRawContext()
+    {
+        GDictionary rawContext = new()
+        {
+            ["critical_hit"] = CriticalHit,
+            ["attack_success"] = AttackSuccess,
+            ["secondary_hit_success"] = SecondaryHitSuccess,
+            ["dispatch_events"] = DispatchEvents,
+        };
+        if (SkillId != "")
+            rawContext["skill_id"] = SkillId;
+        if (SourceSkillLevel > 0)
+            rawContext["source_skill_level"] = SourceSkillLevel;
+        if (DamageRollMode != "" && DamageRollMode != DefaultDamageRollMode)
+            rawContext["damage_roll_mode"] = DamageRollMode;
+        if (EquipmentSlotOverride != "")
+            rawContext["equipment_slot_override"] = EquipmentSlotOverride;
+        if (SaveRollOverrides != null && SaveRollOverrides.Count > 0)
+        {
+            var rolls = new GArray();
+            foreach (int roll in SaveRollOverrides)
+                rolls.Add(Math.Clamp(roll, 1, 20));
+            rawContext["save_roll_overrides"] = rolls;
+        }
+        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
+            rawContext,
+            "DamageResolutionContext.RawContext"
+        );
+        return rawContext;
+    }
 
     private static void RequireBool(GDictionary payload, string key)
     {

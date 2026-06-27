@@ -4,25 +4,25 @@ using Godot;
 public sealed class ProfessionAssignmentService
 {
     private UnitProgress _unit_progress;
-    private readonly Dictionary<StringName, SkillDef> _skillDefs = new();
+    private readonly Dictionary<StringName, SkillDefinition> _skillDefinitions = new();
     private readonly Dictionary<StringName, ProfessionDef> _professionDefs = new();
 
     public void Setup(
         UnitProgress unit_progress,
-        IReadOnlyDictionary<StringName, SkillDef> skill_defs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skill_definitions,
         IReadOnlyDictionary<StringName, ProfessionDef> profession_defs
     )
     {
         _unit_progress = unit_progress;
-        _skillDefs.Clear();
+        _skillDefinitions.Clear();
         _professionDefs.Clear();
 
-        if (skill_defs != null)
+        if (skill_definitions != null)
         {
-            foreach (KeyValuePair<StringName, SkillDef> pair in skill_defs)
+            foreach (KeyValuePair<StringName, SkillDefinition> pair in skill_definitions)
             {
                 if (pair.Key != "" && pair.Value != null)
-                    _skillDefs[pair.Key] = pair.Value;
+                    _skillDefinitions[pair.Key] = pair.Value;
             }
         }
 
@@ -40,8 +40,8 @@ public sealed class ProfessionAssignmentService
     {
         UnitSkillProgress skillProgress = GetSkillProgress(skill_id);
         UnitProfessionProgress professionProgress = GetProfessionProgress(profession_id);
-        SkillDef skillDef = GetSkillDef(skill_id);
-        if (skillProgress == null || professionProgress == null || skillDef == null)
+        SkillDefinition skillDefinition = GetSkillDefinition(skill_id);
+        if (skillProgress == null || professionProgress == null || skillDefinition == null)
             return false;
         if (!skillProgress.is_learned)
             return false;
@@ -49,7 +49,7 @@ public sealed class ProfessionAssignmentService
             return false;
         if (
             !SkillEffectiveMaxLevelRules.IsAtEffectiveMaxLevel(
-                skillDef,
+                skillDefinition,
                 skillProgress,
                 _unit_progress
             )
@@ -102,12 +102,12 @@ public sealed class ProfessionAssignmentService
         UnitProfessionProgress professionProgress = GetProfessionProgress(profession_id);
         ProfessionDef professionDef = GetProfessionDef(profession_id);
         UnitSkillProgress skillProgress = GetSkillProgress(skill_id);
-        SkillDef skillDef = GetSkillDef(skill_id);
+        SkillDefinition skillDefinition = GetSkillDefinition(skill_id);
         if (
             professionProgress == null
             || professionDef == null
             || skillProgress == null
-            || skillDef == null
+            || skillDefinition == null
         )
             return false;
 
@@ -129,7 +129,7 @@ public sealed class ProfessionAssignmentService
             return false;
         if (
             !SkillEffectiveMaxLevelRules.IsAtEffectiveMaxLevel(
-                skillDef,
+                skillDefinition,
                 skillProgress,
                 _unit_progress
             )
@@ -140,7 +140,7 @@ public sealed class ProfessionAssignmentService
         if (acceptedTags.Count == 0)
             return false;
 
-        foreach (StringName rawTag in skillDef.TagsTyped)
+        foreach (StringName rawTag in skillDefinition.Tags)
         {
             StringName tag = ProgressionDataUtils.to_string_name(rawTag);
             if (acceptedTags.Contains(tag))
@@ -201,9 +201,11 @@ public sealed class ProfessionAssignmentService
         return _unit_progress?.GetProfessionProgress(professionId);
     }
 
-    private SkillDef GetSkillDef(StringName skillId)
+    private SkillDefinition GetSkillDefinition(StringName skillId)
     {
-        return _skillDefs.TryGetValue(skillId, out SkillDef skillDef) ? skillDef : null;
+        return _skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
+            ? skillDefinition
+            : null;
     }
 
     private ProfessionDef GetProfessionDef(StringName professionId)

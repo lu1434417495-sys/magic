@@ -1,6 +1,6 @@
 using System;
+using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_battle_graded_save_execution_rules_regression : SceneTree
 {
@@ -130,7 +130,7 @@ public partial class run_battle_graded_save_execution_rules_regression : SceneTr
     {
         BattleUnitState source = MakeUnit("grade_distribution_source");
         BattleUnitState target = MakeUnit("grade_distribution_target");
-        CombatEffectDef effect = MakeStaticSaveEffect(dc: 15);
+        CombatEffectDefinition effect = MakeStaticSaveEffect(dc: 15);
 
         BattleGradedSaveGradeDistribution normal =
             BattleGradedSaveExecutionRules.EstimateGradeDistribution(source, target, effect);
@@ -200,7 +200,7 @@ public partial class run_battle_graded_save_execution_rules_regression : SceneTr
     {
         BattleUnitState source = MakeUnit("override_distribution_source");
         BattleUnitState target = MakeUnit("override_distribution_target");
-        CombatEffectDef effect = MakeStaticSaveEffect(dc: 15);
+        CombatEffectDefinition effect = MakeStaticSaveEffect(dc: 15);
 
         BattleGradedSaveGradeDistribution naturalOne =
             BattleGradedSaveExecutionRules.EstimateGradeDistribution(
@@ -331,43 +331,42 @@ public partial class run_battle_graded_save_execution_rules_regression : SceneTr
         };
     }
 
-    private static CombatEffectDef MakePhantasmalKillEffect() => new()
-    {
-        effect_type = "graded_save_execute",
-        effect_target_team_filter = "any",
-        damage_tag = "psychic",
-        save_dc_mode = "caster_spell",
-        save_dc = 0,
-        save_dc_source_ability = "intelligence",
-        save_ability = "willpower",
-        save_tag = "illusion",
-        save_partial_on_success = false,
-        @params = new GDictionary
-        {
-            ["profile_id"] = "phantasmal_kill",
-            ["failure_execute_threshold_fixed"] = 50,
-            ["failure_execute_threshold_max_hp_percent"] = 25,
-            ["failure_damage_dice_count"] = 6,
-            ["failure_damage_dice_sides"] = 6,
-            ["failure_frightened_duration_tu"] = 60,
-            ["failure_reaction_lock_duration_tu"] = 30,
-            ["critical_failure_execute_threshold_max_hp_percent"] = 35,
-            ["critical_failure_damage_dice_count"] = 10,
-            ["critical_failure_damage_dice_sides"] = 6,
-            ["critical_failure_frightened_duration_tu"] = 90,
-            ["critical_failure_stunned_duration_tu"] = 30,
-            ["success_aftershock_duration_tu"] = 30,
-        },
-    };
+    private static CombatEffectDefinition MakePhantasmalKillEffect() =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "graded_save_execute",
+            effectTargetTeamFilter: "any",
+            damageTag: "psychic",
+            saveDcMode: "caster_spell",
+            saveDcSourceAbility: "intelligence",
+            saveAbility: "willpower",
+            saveTag: "illusion",
+            savePartialOnSuccess: false,
+            parameters: new Dictionary<string, Variant>
+            {
+                ["profile_id"] = "phantasmal_kill",
+                ["failure_execute_threshold_fixed"] = 50,
+                ["failure_execute_threshold_max_hp_percent"] = 25,
+                ["failure_damage_dice_count"] = 6,
+                ["failure_damage_dice_sides"] = 6,
+                ["failure_frightened_duration_tu"] = 60,
+                ["failure_reaction_lock_duration_tu"] = 30,
+                ["critical_failure_execute_threshold_max_hp_percent"] = 35,
+                ["critical_failure_damage_dice_count"] = 10,
+                ["critical_failure_damage_dice_sides"] = 6,
+                ["critical_failure_frightened_duration_tu"] = 90,
+                ["critical_failure_stunned_duration_tu"] = 30,
+                ["success_aftershock_duration_tu"] = 30,
+            }
+        );
 
-    private static CombatEffectDef MakeStaticSaveEffect(int dc) => new()
-    {
-        effect_type = "graded_save_execute",
-        save_dc_mode = "static",
-        save_dc = dc,
-        save_ability = "willpower",
-        save_tag = "illusion",
-    };
+    private static CombatEffectDefinition MakeStaticSaveEffect(int dc) =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "graded_save_execute",
+            saveDcMode: "static",
+            saveDc: dc,
+            saveAbility: "willpower",
+            saveTag: "illusion"
+        );
 
     private static BattleUnitState MakeUnit(StringName unitId)
     {

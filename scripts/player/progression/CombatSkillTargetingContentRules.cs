@@ -2,6 +2,11 @@ using Godot;
 
 internal static class CombatSkillTargetingContentRules
 {
+    private static readonly StringName FootprintSingle = "single";
+    private static readonly StringName FootprintLine2 = "line2";
+    private static readonly StringName FootprintSquare2 = "square2";
+    private static readonly StringName FootprintUnordered = "unordered";
+
     internal static bool IsValidCombatTargetMode(StringName value)
     {
         return IsSupportedTargetMode(BattleTypedNames.ToTargetMode(value));
@@ -46,8 +51,32 @@ internal static class CombatSkillTargetingContentRules
 
     internal static bool IsValidFootprintPattern(StringName value)
     {
-        return CombatCastVariantDef.ToFootprintPattern(value)
-            != CombatCastFootprintPattern.Unknown;
+        return ToFootprintPattern(value) != CombatCastFootprintPattern.Unknown;
+    }
+
+    internal static CombatCastFootprintPattern ToFootprintPattern(StringName value)
+    {
+        if (value == FootprintSingle)
+            return CombatCastFootprintPattern.Single;
+        if (value == FootprintLine2)
+            return CombatCastFootprintPattern.Line2;
+        if (value == FootprintSquare2)
+            return CombatCastFootprintPattern.Square2;
+        if (value == FootprintUnordered)
+            return CombatCastFootprintPattern.Unordered;
+        return CombatCastFootprintPattern.Unknown;
+    }
+
+    internal static StringName ToFootprintPatternId(CombatCastFootprintPattern pattern)
+    {
+        return pattern switch
+        {
+            CombatCastFootprintPattern.Single => FootprintSingle,
+            CombatCastFootprintPattern.Line2 => FootprintLine2,
+            CombatCastFootprintPattern.Square2 => FootprintSquare2,
+            CombatCastFootprintPattern.Unordered => FootprintUnordered,
+            _ => "",
+        };
     }
 
     internal static string ValidCombatTargetModeLabel()

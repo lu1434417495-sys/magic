@@ -176,13 +176,13 @@ public partial class run_effective_mp_reservation_regression : SceneTree
 
     private void TestDailyPracticeGrowthClampsToEffectiveMp()
     {
-        SkillDef meditationSkill = MakePracticeSkill("contingency_meditation");
+        SkillDefinition meditationSkill = MakePracticeSkill("contingency_meditation");
         PartyState partyState = BuildPartyState(
             ChargedSetup("daily_practice_charge", 12),
             currentMp: 25
         );
         PartyMemberState member = partyState.GetMemberState("hero");
-        LearnSkillProgress(member.progression, meditationSkill.skill_id, 1);
+        LearnSkillProgress(member.progression, meditationSkill.SkillId, 1);
         using CharacterManagementModule manager = BuildManager(partyState, meditationSkill);
 
         manager.ApplyDailyPracticeGrowthTyped(1);
@@ -234,13 +234,13 @@ public partial class run_effective_mp_reservation_regression : SceneTree
 
     private static CharacterManagementModule BuildManager(
         PartyState partyState,
-        params SkillDef[] skillDefs
+        params SkillDefinition[] skillDefinitions
     )
     {
         CharacterManagementModule manager = new();
         manager.setup(
             partyState,
-            BuildSkillIndex(skillDefs),
+            BuildSkillIndex(skillDefinitions),
             new Dictionary<StringName, ProfessionDef>(),
             new Dictionary<StringName, AchievementDef>(),
             new Dictionary<StringName, ItemDef>(),
@@ -252,12 +252,14 @@ public partial class run_effective_mp_reservation_regression : SceneTree
         return manager;
     }
 
-    private static Dictionary<StringName, SkillDef> BuildSkillIndex(params SkillDef[] skillDefs)
+    private static Dictionary<StringName, SkillDefinition> BuildSkillIndex(
+        params SkillDefinition[] skillDefinitions
+    )
     {
-        Dictionary<StringName, SkillDef> result = new();
-        foreach (SkillDef skillDef in skillDefs ?? System.Array.Empty<SkillDef>())
-            if (skillDef != null && skillDef.skill_id != "")
-                result[skillDef.skill_id] = skillDef;
+        Dictionary<StringName, SkillDefinition> result = new();
+        foreach (SkillDefinition skillDefinition in skillDefinitions ?? System.Array.Empty<SkillDefinition>())
+            if (skillDefinition != null && skillDefinition.SkillId != "")
+                result[skillDefinition.SkillId] = skillDefinition;
         return result;
     }
 
@@ -322,20 +324,15 @@ public partial class run_effective_mp_reservation_regression : SceneTree
         context.reserved_mp_max = reservedMpMax;
     }
 
-    private static SkillDef MakePracticeSkill(StringName skillId)
-    {
-        SkillDef skill = new()
-        {
-            skill_id = skillId,
-            display_name = skillId.ToString(),
-            learn_source = "book",
-            max_level = 5,
-            mastery_curve = new[] { 10, 20, 30, 40, 50 },
-            practice_tier = "basic",
-        };
-        skill.SetTags(new[] { PracticeGrowthService.ToStringName(PracticeTrackKind.Meditation) });
-        return skill;
-    }
+    private static SkillDefinition MakePracticeSkill(StringName skillId) =>
+        TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: skillId.ToString(),
+            maxLevel: 5,
+            masteryCurve: new[] { 10, 20, 30, 40, 50 },
+            practiceTier: "basic",
+            tags: new[] { PracticeGrowthService.ToStringName(PracticeTrackKind.Meditation) }
+        );
 
     private static void LearnSkillProgress(
         UnitProgress progression,

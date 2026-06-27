@@ -164,7 +164,7 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         using var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetSkillDefinitionsTyped(),
             enemyTemplates,
             gameSession.GetEnemyAiBrainsTyped(),
             null,
@@ -258,7 +258,7 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         {
             enemyUnits = builder.BuildEnemyUnitsTyped(
                 anchor,
-                gameSession.GetSkillDefsTyped(),
+                gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
                 enemyTemplates,
                 gameSession.GetEnemyAiBrainsTyped(),
                 itemDefs
@@ -377,7 +377,7 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetSkillDefinitionsTyped(),
             gameSession.GetEnemyTemplatesTyped(),
             gameSession.GetEnemyAiBrainsTyped(),
             null
@@ -427,19 +427,14 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         };
     }
 
-    private static CombatEffectDef MakeIllusionSaveEffect()
-    {
-        return TestResourceOwnership.Own(
-            new CombatEffectDef
-            {
-                save_dc_mode = BattleSaveContentRules.ToStringName(BattleSaveDcMode.Static),
-                save_dc = 12,
-                save_ability = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Willpower),
-                save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Illusion),
-            },
-            "EnemyTemplateRuntimeStart.MakeIllusionSaveEffect"
+    private static CombatEffectDefinition MakeIllusionSaveEffect() =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            saveDcMode: BattleSaveContentRules.ToStringName(BattleSaveDcMode.Static),
+            saveDc: 12,
+            saveAbility: BattleSaveContentRules.ToStringName(BattleSaveTagKind.Willpower),
+            saveTag: BattleSaveContentRules.ToStringName(BattleSaveTagKind.Illusion)
         );
-    }
 
     private static BattleUnitState GetUnit(BattleState state, StringName unitId)
     {

@@ -88,7 +88,10 @@ internal static class ContentValidationRunner
         {
             using ProgressionContentRegistry progressionRegistry = new();
             progressionRegistry.ReplaceValidationSources(
-                new GDictionary { ["skill_defs"] = ProjectSkillDefs(registry.GetSkillDefsTyped()) }
+                new GDictionary
+                {
+                    ["skill_defs"] = registry.DuplicateSkillResourceBucketForProgressionRegistry(),
+                }
             );
             AppendUniqueErrors(errors, progressionRegistry.CollectValidationErrors());
         }
@@ -101,7 +104,7 @@ internal static class ContentValidationRunner
     )
     {
         using ProfessionContentRegistry registry = new();
-        registry.Setup(skillDefs);
+        registry.Setup(ProjectSkillDefinitions(skillDefs));
         registry.LoadFromDirectory(directoryPath);
         return BuildDomainResult("profession", directoryPath, registry.Validate());
     }
@@ -251,14 +254,14 @@ internal static class ContentValidationRunner
 
     public static ValidationDomainResult ValidateBattleSpecialProfileRegistry(
         string label,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         string manifestDirectory = ""
     )
     {
         using BattleSpecialProfileRegistry registry = new();
         if (!string.IsNullOrEmpty(manifestDirectory))
             registry.SetManifestDirectory(manifestDirectory);
-        registry.Rebuild(skillDefs);
+        registry.Rebuild(skillDefinitions);
         return BuildDomainResult("battle_special_profile", label, registry.Validate());
     }
 
@@ -302,7 +305,7 @@ internal static class ContentValidationRunner
         string label,
         IReadOnlyList<QuestValidationEntry> questEntries,
         IReadOnlyDictionary<StringName, ItemDef> itemDefs,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates
     )
     {
@@ -338,7 +341,7 @@ internal static class ContentValidationRunner
             QuestContentValidator.ValidateTyped(
                 questDefs,
                 itemDefs ?? new Dictionary<StringName, ItemDef>(),
-                skillDefs ?? new Dictionary<StringName, SkillDef>(),
+                skillDefinitions ?? new Dictionary<StringName, SkillDefinition>(),
                 enemyTemplates ?? new Dictionary<StringName, EnemyTemplateDef>(),
                 Array.Empty<string>()
             )
@@ -536,6 +539,24 @@ internal static class ContentValidationRunner
             result[skillId] = skillDef;
         }
         return result;
+    }
+
+    private static IReadOnlyDictionary<StringName, SkillDefinition> ProjectSkillDefinitions(
+        GDictionary skillDefs
+    )
+    {
+        var resources = new Dictionary<StringName, SkillDef>();
+        if (skillDefs == null)
+            return SkillDefinition.ProjectIndex(resources);
+        foreach (Variant rawKey in skillDefs.Keys)
+        {
+            StringName skillId = ProgressionDataUtils.to_string_name(rawKey);
+            if (skillId == "")
+                continue;
+            if (skillDefs[rawKey].AsGodotObject() is SkillDef skillDef)
+                resources[skillId] = skillDef;
+        }
+        return SkillDefinition.ProjectIndex(resources);
     }
 
     private static GDictionary ProjectItemDefs(IReadOnlyDictionary<StringName, ItemDef> itemDefs)

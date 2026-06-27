@@ -46,30 +46,30 @@ public sealed class BattleSessionFacade : IDisposable
     public GVector2IArray GetSelectedBattleSkillTargetCoords()
     {
         if (IsBattleInteractionBlocked())
-            return new GVector2IArray();
+            return EmptyVector2IArray();
         var battleSelection = GetBattleSelection();
         if (battleSelection == null)
-            return new GVector2IArray();
+            return EmptyVector2IArray();
         return DuplicateVector2IArray(battleSelection.GetSelectedBattleSkillTargetCoords());
     }
 
     public GStringNameArray GetSelectedBattleSkillTargetUnitIds()
     {
         if (IsBattleInteractionBlocked())
-            return new GStringNameArray();
+            return EmptyStringNameArray();
         var battleSelection = GetBattleSelection();
         if (battleSelection == null)
-            return new GStringNameArray();
+            return EmptyStringNameArray();
         return DuplicateStringNameArray(battleSelection.GetSelectedBattleSkillTargetUnitIds());
     }
 
     public GVector2IArray GetSelectedBattleSkillValidTargetCoords()
     {
         if (IsBattleInteractionBlocked())
-            return new GVector2IArray();
+            return EmptyVector2IArray();
         var battleSelection = GetBattleSelection();
         if (battleSelection == null)
-            return new GVector2IArray();
+            return EmptyVector2IArray();
         return DuplicateVector2IArray(
             battleSelection.GetSelectedBattleSkillValidTargetCoords()
         );
@@ -99,49 +99,25 @@ public sealed class BattleSessionFacade : IDisposable
         return battleSelection?.PreviewSelectedBattleSkillAtCoord(coord);
     }
 
-    internal BattleUnitSkillTargetAffordance GetUnitSkillTargetAffordance(
-        BattleUnitState activeUnit,
-        BattleUnitState targetUnit,
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant,
-        bool requireAp = true
-    )
-    {
-        var battleRuntime = GetBattleRuntime();
-        if (!IsBattleReady() || battleRuntime == null)
-            return BattleUnitSkillTargetAffordance.Denied(RuntimeUnavailableMessage);
-        if (IsBattleInteractionBlocked())
-            return BattleUnitSkillTargetAffordance.Denied("当前无法操作。");
-        return battleRuntime.GetUnitSkillTargetAffordance(
-            activeUnit,
-            targetUnit,
-            skillDef,
-            castVariant,
-            requireAp
-        );
-    }
-
     public GVector2IArray GetBattleMovementReachableCoords()
     {
         var battleRuntime = GetBattleRuntime();
         if (!IsBattleReady() || !IsBattleActive() || battleRuntime == null)
-            return new GVector2IArray();
+            return EmptyVector2IArray();
         if (IsBattleInteractionBlocked())
-            return new GVector2IArray();
+            return EmptyVector2IArray();
         var activeUnit = GetManualActiveUnit();
         if (activeUnit == null)
-            return new GVector2IArray();
-        return DuplicateVector2IArray(
-            new GVector2IArray(battleRuntime.GetUnitReachableMoveCoordsTyped(activeUnit))
-        );
+            return EmptyVector2IArray();
+        return DuplicateVector2IArray(battleRuntime.GetUnitReachableMoveCoordsTyped(activeUnit));
     }
 
     public GVector2IArray GetBattleOverlayTargetCoords()
     {
         if (!IsBattleReady())
-            return new GVector2IArray();
+            return EmptyVector2IArray();
         if (IsBattleInteractionBlocked())
-            return new GVector2IArray();
+            return EmptyVector2IArray();
         if (_runtime.GetSelectedBattleSkillId() != "")
             return GetSelectedBattleSkillValidTargetCoords();
         return GetBattleMovementReachableCoords();
@@ -1145,31 +1121,17 @@ public sealed class BattleSessionFacade : IDisposable
 
     private static GVector2IArray DuplicateVector2IArray(
         System.Collections.Generic.IEnumerable<Vector2I> values
-    )
-    {
-        var result = new GVector2IArray();
-        if (values == null)
-            return result;
-        foreach (Vector2I value in values)
-        {
-            result.Add(value);
-        }
-        return result;
-    }
+    ) => new Vector2IList(values).ToGodotArray();
+
+    private static GVector2IArray EmptyVector2IArray() =>
+        DuplicateVector2IArray(System.Array.Empty<Vector2I>());
 
     private static GStringNameArray DuplicateStringNameArray(
         System.Collections.Generic.IEnumerable<StringName> values
-    )
-    {
-        var result = new GStringNameArray();
-        if (values == null)
-            return result;
-        foreach (StringName value in values)
-        {
-            result.Add(value);
-        }
-        return result;
-    }
+    ) => new StringNameList(values).ToGodotArray();
+
+    private static GStringNameArray EmptyStringNameArray() =>
+        DuplicateStringNameArray(System.Array.Empty<StringName>());
 
     private static GameRuntimeFacade ResolveWeakRef(WeakReference<GameRuntimeFacade> weakRef)
     {

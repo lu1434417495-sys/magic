@@ -48,7 +48,7 @@ internal static class BattleGradedSaveExecutionRules
         BattleSaveContentRules.ToStringName(BattleSaveAdvantageStateKind.Disadvantage);
 
     internal static bool TryReadPhantasmalKillProfile(
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         out BattleGradedSaveExecutionProfile profile,
         out string error
     )
@@ -56,18 +56,18 @@ internal static class BattleGradedSaveExecutionRules
         profile = default;
         error = "";
 
-        if (effectDef == null)
+        if (effectDefinition == null)
         {
             error = "graded save execute effect is required.";
             return false;
         }
-        if (effectDef.EffectKind != BattleEffectKind.GradedSaveExecute)
+        if (effectDefinition.EffectKind != BattleEffectKind.GradedSaveExecute)
         {
             error = "effect_type must be graded_save_execute.";
             return false;
         }
 
-        if (!TryReadStringNameParam(effectDef, "profile_id", out StringName profileId))
+        if (!TryReadStringNameParam(effectDefinition, "profile_id", out StringName profileId))
         {
             error = "params.profile_id is required.";
             return false;
@@ -80,7 +80,7 @@ internal static class BattleGradedSaveExecutionRules
 
         if (
             !TryReadIntParam(
-                effectDef,
+                effectDefinition,
                 "failure_execute_threshold_fixed",
                 out int failureExecuteThresholdFixed
             )
@@ -92,7 +92,7 @@ internal static class BattleGradedSaveExecutionRules
         }
         if (
             !TryReadPercentParam(
-                effectDef,
+                effectDefinition,
                 "failure_execute_threshold_max_hp_percent",
                 out int failureExecuteThresholdMaxHpPercent
             )
@@ -103,7 +103,7 @@ internal static class BattleGradedSaveExecutionRules
         }
         if (
             !TryReadPositiveIntParam(
-                effectDef,
+                effectDefinition,
                 "failure_damage_dice_count",
                 out int failureDamageDiceCount
             )
@@ -114,7 +114,7 @@ internal static class BattleGradedSaveExecutionRules
         }
         if (
             !TryReadPositiveIntParam(
-                effectDef,
+                effectDefinition,
                 "failure_damage_dice_sides",
                 out int failureDamageDiceSides
             )
@@ -125,7 +125,7 @@ internal static class BattleGradedSaveExecutionRules
         }
         if (
             !TryReadPositiveIntParam(
-                effectDef,
+                effectDefinition,
                 "failure_frightened_duration_tu",
                 out int failureFrightenedDurationTu
             )
@@ -136,7 +136,7 @@ internal static class BattleGradedSaveExecutionRules
         }
         if (
             !TryReadPositiveIntParam(
-                effectDef,
+                effectDefinition,
                 "failure_reaction_lock_duration_tu",
                 out int failureReactionLockDurationTu
             )
@@ -147,7 +147,7 @@ internal static class BattleGradedSaveExecutionRules
         }
         if (
             !TryReadPercentParam(
-                effectDef,
+                effectDefinition,
                 "critical_failure_execute_threshold_max_hp_percent",
                 out int criticalFailureExecuteThresholdMaxHpPercent
             )
@@ -158,7 +158,7 @@ internal static class BattleGradedSaveExecutionRules
         }
         if (
             !TryReadPositiveIntParam(
-                effectDef,
+                effectDefinition,
                 "critical_failure_damage_dice_count",
                 out int criticalFailureDamageDiceCount
             )
@@ -169,7 +169,7 @@ internal static class BattleGradedSaveExecutionRules
         }
         if (
             !TryReadPositiveIntParam(
-                effectDef,
+                effectDefinition,
                 "critical_failure_damage_dice_sides",
                 out int criticalFailureDamageDiceSides
             )
@@ -180,7 +180,7 @@ internal static class BattleGradedSaveExecutionRules
         }
         if (
             !TryReadPositiveIntParam(
-                effectDef,
+                effectDefinition,
                 "critical_failure_frightened_duration_tu",
                 out int criticalFailureFrightenedDurationTu
             )
@@ -191,7 +191,7 @@ internal static class BattleGradedSaveExecutionRules
         }
         if (
             !TryReadPositiveIntParam(
-                effectDef,
+                effectDefinition,
                 "critical_failure_stunned_duration_tu",
                 out int criticalFailureStunnedDurationTu
             )
@@ -202,7 +202,7 @@ internal static class BattleGradedSaveExecutionRules
         }
         if (
             !TryReadPositiveIntParam(
-                effectDef,
+                effectDefinition,
                 "success_aftershock_duration_tu",
                 out int successAftershockDurationTu
             )
@@ -282,7 +282,7 @@ internal static class BattleGradedSaveExecutionRules
     internal static BattleGradedSaveGradeDistribution EstimateGradeDistribution(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         BattleSaveContext context = default
     )
     {
@@ -290,7 +290,7 @@ internal static class BattleGradedSaveExecutionRules
             BattleSaveResolver.EstimateSaveSuccessProbabilityResult(
                 sourceUnit,
                 targetUnit,
-                effectDef,
+                effectDefinition,
                 context
             );
         return EstimateGradeDistribution(probability, context);
@@ -460,50 +460,63 @@ internal static class BattleGradedSaveExecutionRules
     }
 
     private static bool TryReadStringNameParam(
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         string key,
         out StringName value
     )
     {
         value = "";
-        if (!HasParam(effectDef, key))
+        if (!HasParam(effectDefinition, key))
         {
             return false;
         }
-        value = effectDef.GetStringNameParamTyped(key);
+        value = ProgressionDataUtils.to_string_name(effectDefinition.Parameters[key]);
         return !IsEmpty(value);
     }
 
-    private static bool TryReadIntParam(CombatEffectDef effectDef, string key, out int value)
-    {
-        value = 0;
-        if (!HasParam(effectDef, key))
-        {
-            return false;
-        }
-        value = effectDef.GetIntParamTyped(key, int.MinValue);
-        return value != int.MinValue;
-    }
-
-    private static bool TryReadPositiveIntParam(
-        CombatEffectDef effectDef,
+    private static bool TryReadIntParam(
+        CombatEffectDefinition effectDefinition,
         string key,
         out int value
     )
     {
-        return TryReadIntParam(effectDef, key, out value) && value > 0;
+        value = 0;
+        if (!HasParam(effectDefinition, key))
+        {
+            return false;
+        }
+        Variant rawValue = effectDefinition.Parameters[key];
+        if (rawValue.VariantType != Variant.Type.Int)
+        {
+            return false;
+        }
+        value = rawValue.AsInt32();
+        return true;
     }
 
-    private static bool TryReadPercentParam(CombatEffectDef effectDef, string key, out int value)
+    private static bool TryReadPositiveIntParam(
+        CombatEffectDefinition effectDefinition,
+        string key,
+        out int value
+    )
     {
-        return TryReadIntParam(effectDef, key, out value) && value >= 1 && value <= 100;
+        return TryReadIntParam(effectDefinition, key, out value) && value > 0;
     }
 
-    private static bool HasParam(CombatEffectDef effectDef, string key)
+    private static bool TryReadPercentParam(
+        CombatEffectDefinition effectDefinition,
+        string key,
+        out int value
+    )
     {
-        return effectDef?.@params != null
+        return TryReadIntParam(effectDefinition, key, out value) && value >= 1 && value <= 100;
+    }
+
+    private static bool HasParam(CombatEffectDefinition effectDefinition, string key)
+    {
+        return effectDefinition?.Parameters != null
             && !string.IsNullOrEmpty(key)
-            && effectDef.@params.ContainsKey(key);
+            && effectDefinition.Parameters.ContainsKey(key);
     }
 
     private static bool IsEmpty(StringName value)

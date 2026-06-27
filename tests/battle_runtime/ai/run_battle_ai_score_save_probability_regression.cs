@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_battle_ai_score_save_probability_regression : SceneTree
 {
@@ -37,27 +35,22 @@ public partial class run_battle_ai_score_save_probability_regression : SceneTree
             unit_state = source,
         };
 
-        var skill = TestResourceOwnership.Own(
-            new SkillDef
-            {
-                skill_id = "save_weighted_fire",
-                display_name = "Save Weighted Fire",
-            },
-            "BattleAiScoreSaveProbability.skill"
+        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            damageTag: "fire",
+            power: 40,
+            saveDc: 11,
+            saveAbility: "constitution",
+            saveTag: "fireball",
+            savePartialOnSuccess: true
         );
-
-        var effect = TestResourceOwnership.Own(
-            new CombatEffectDef
-            {
-                effect_type = "damage",
-                damage_tag = "fire",
-                power = 40,
-                save_dc = 11,
-                save_ability = "constitution",
-                save_tag = "fireball",
-                save_partial_on_success = true,
-            },
-            "BattleAiScoreSaveProbability.effect"
+        SkillDefinition skill = TestSkillDefinitionProjection.BuildSkill(
+            "save_weighted_fire",
+            "Save Weighted Fire",
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                "save_weighted_fire",
+                effects: new[] { effect }
+            )
         );
 
         var preview = new BattlePreview

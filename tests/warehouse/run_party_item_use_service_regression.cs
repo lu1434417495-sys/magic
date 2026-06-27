@@ -26,7 +26,7 @@ public partial class run_party_item_use_service_regression : SceneTree
         fixture.Service.Setup(
             fixture.PartyState,
             fixture.ItemDefIndex,
-            fixture.SkillDefIndex,
+            fixture.SkillDefinitionIndex,
             fixture.WarehouseService,
             fixture.CharacterManagement
         );
@@ -66,7 +66,7 @@ public partial class run_party_item_use_service_regression : SceneTree
         fixture.Service.Setup(
             fixture.PartyState,
             fixture.ItemDefIndex,
-            fixture.SkillDefIndex,
+            fixture.SkillDefinitionIndex,
             fixture.WarehouseService,
             fixture.CharacterManagement
         );
@@ -98,11 +98,11 @@ public partial class run_party_item_use_service_regression : SceneTree
     {
         PartyState partyState = BuildPartyState();
         GDictionary itemDefs = BuildItemDefs();
-        GDictionary skillDefs = BuildSkillDefs();
+        Dictionary<StringName, SkillDefinition> skillDefinitions = BuildSkillDefinitions();
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         CharacterManagementModule characterManagement = BuildCharacterManagement(
             partyState,
-            skillDefs,
+            skillDefinitions,
             itemDefs
         );
 
@@ -116,10 +116,7 @@ public partial class run_party_item_use_service_regression : SceneTree
                 ["skill_book_focus"] = (ItemDef)
                     itemDefs[new StringName("skill_book_focus")].AsGodotObject(),
             },
-            new Dictionary<StringName, SkillDef>
-            {
-                ["focus"] = (SkillDef)skillDefs[new StringName("focus")].AsGodotObject(),
-            }
+            skillDefinitions
         );
     }
 
@@ -168,22 +165,41 @@ public partial class run_party_item_use_service_regression : SceneTree
         return result;
     }
 
-    private static GDictionary BuildSkillDefs()
+    private static Dictionary<StringName, SkillDefinition> BuildSkillDefinitions()
     {
-        GDictionary result = TestResourceOwnership.OwnWrapper(
-            new GDictionary(),
-            "party_item_use_service.skill_defs"
-        );
-        result[new StringName("focus")] = TestResourceOwnership.Own(
-            new SkillDef
-            {
-                skill_id = "focus",
-                display_name = "Focus",
-                learn_source = "book",
-                skill_type = "passive",
-                max_level = 1,
-            },
-            "party_item_use_service.focus_skill"
+        Dictionary<StringName, SkillDefinition> result = new();
+        StringName skillId = "focus";
+        result[skillId] = new SkillDefinition(
+            skillId,
+            "Focus",
+            "",
+            "",
+            "passive",
+            1,
+            1,
+            "",
+            0,
+            0,
+            System.Array.Empty<int>(),
+            System.Array.Empty<StringName>(),
+            "book",
+            System.Array.Empty<StringName>(),
+            "",
+            System.Array.Empty<StringName>(),
+            new Dictionary<StringName, int>(),
+            new Dictionary<StringName, int>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            false,
+            "",
+            System.Array.Empty<StringName>(),
+            "",
+            new Dictionary<StringName, int>(),
+            "",
+            System.Array.Empty<AttributeModifierDefinition>(),
+            "",
+            new Dictionary<int, IReadOnlyDictionary<string, Variant>>(),
+            null
         );
         return result;
     }
@@ -218,12 +234,18 @@ public partial class run_party_item_use_service_regression : SceneTree
 
     private static CharacterManagementModule BuildCharacterManagement(
         PartyState partyState,
-        GDictionary skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         GDictionary itemDefs
     )
     {
         CharacterManagementModule module = new();
-        module.setup(partyState, skillDefs, new GDictionary(), new GDictionary(), itemDefs);
+        module.setup(
+            partyState,
+            skillDefinitions,
+            new Dictionary<StringName, ProfessionDef>(),
+            new Dictionary<StringName, AchievementDef>(),
+            BuildItemDefIndex(itemDefs)
+        );
         return module;
     }
 
@@ -236,7 +258,7 @@ public partial class run_party_item_use_service_regression : SceneTree
         public CharacterManagementModule CharacterManagement { get; }
         public PartyItemUseService Service { get; }
         public Dictionary<StringName, ItemDef> ItemDefIndex { get; }
-        public Dictionary<StringName, SkillDef> SkillDefIndex { get; }
+        public IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitionIndex { get; }
 
         public Fixture(
             PartyState partyState,
@@ -244,7 +266,7 @@ public partial class run_party_item_use_service_regression : SceneTree
             CharacterManagementModule characterManagement,
             PartyItemUseService service,
             Dictionary<StringName, ItemDef> itemDefIndex,
-            Dictionary<StringName, SkillDef> skillDefIndex
+            IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitionIndex
         )
         {
             PartyState = partyState;
@@ -252,7 +274,7 @@ public partial class run_party_item_use_service_regression : SceneTree
             CharacterManagement = characterManagement;
             Service = service;
             ItemDefIndex = itemDefIndex;
-            SkillDefIndex = skillDefIndex;
+            SkillDefinitionIndex = skillDefinitionIndex;
         }
     }
 }

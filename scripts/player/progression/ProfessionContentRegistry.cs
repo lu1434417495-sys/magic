@@ -12,13 +12,26 @@ public class ProfessionContentRegistry : System.IDisposable
     private readonly record struct GateRecord(string ProfessionId, string Node, string ContextLabel, string CheckMode);
 
     public Dictionary _profession_defs { get; set; } = new();
-    public Array<string> _validation_errors { get; set; } = new();
-    public Dictionary _skill_defs { get; set; } = new();
+    private readonly List<string> _validationErrors = new();
+    public Array<string> _validation_errors
+    {
+        get => ToGodotStringArray(_validationErrors);
+        set
+        {
+            _validationErrors.Clear();
+            if (value == null)
+                return;
+            foreach (string error in value)
+                _validationErrors.Add(error);
+        }
+    }
+    private IReadOnlyDictionary<StringName, SkillDefinition> _skill_definitions =
+        new System.Collections.Generic.Dictionary<StringName, SkillDefinition>();
     private bool _disposed;
 
     public ProfessionContentRegistry()
     {
-        Setup(new Dictionary());
+        Setup();
     }
 
     public void Dispose()
@@ -39,13 +52,15 @@ public class ProfessionContentRegistry : System.IDisposable
         }
         _disposed = true;
         _profession_defs.Clear();
-        _validation_errors.Clear();
-        _skill_defs = new Dictionary();
+        _validationErrors.Clear();
+        _skill_definitions = new System.Collections.Generic.Dictionary<StringName, SkillDefinition>();
     }
 
-    public void Setup(Dictionary skillDefs = null)
+    public void Setup(IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null)
     {
-        _skill_defs = skillDefs ?? new Dictionary();
+        _skill_definitions =
+            skillDefinitions
+            ?? new System.Collections.Generic.Dictionary<StringName, SkillDefinition>();
         Rebuild();
     }
 
@@ -57,9 +72,9 @@ public class ProfessionContentRegistry : System.IDisposable
     public void LoadFromDirectory(string directoryPath)
     {
         _profession_defs.Clear();
-        _validation_errors.Clear();
+        _validationErrors.Clear();
         ScanDirectory(directoryPath);
-        AppendArray(_validation_errors, CollectValidationErrors());
+        AppendArray(_validationErrors, CollectValidationErrors());
     }
 
     public IReadOnlyDictionary<StringName, ProfessionDef> GetProfessionDefsTyped()
@@ -79,7 +94,7 @@ public class ProfessionContentRegistry : System.IDisposable
     public Array<string> Validate()
     {
         var copy = new Array<string>();
-        foreach (string error in _validation_errors)
+        foreach (string error in _validationErrors)
             copy.Add(error);
         return copy;
     }
@@ -88,14 +103,14 @@ public class ProfessionContentRegistry : System.IDisposable
     {
         if (!DirAccess.DirExistsAbsolute(ProjectSettings.GlobalizePath(directoryPath)))
         {
-            _validation_errors.Add($"ProfessionContentRegistry could not find {directoryPath}.");
+            _validationErrors.Add($"ProfessionContentRegistry could not find {directoryPath}.");
             return;
         }
 
         DirAccess directory = DirAccess.Open(directoryPath);
         if (directory == null)
         {
-            _validation_errors.Add($"ProfessionContentRegistry could not open {directoryPath}.");
+            _validationErrors.Add($"ProfessionContentRegistry could not open {directoryPath}.");
             return;
         }
 
@@ -133,23 +148,23 @@ public class ProfessionContentRegistry : System.IDisposable
         var resource = GD.Load<Resource>(resourcePath);
         if (resource == null)
         {
-            _validation_errors.Add($"Failed to load profession config {resourcePath}.");
+            _validationErrors.Add($"Failed to load profession config {resourcePath}.");
             return;
         }
         GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
         if (resource is not ProfessionDef professionDef)
         {
-            _validation_errors.Add($"Profession config {resourcePath} is not a ProfessionDef.");
+            _validationErrors.Add($"Profession config {resourcePath} is not a ProfessionDef.");
             return;
         }
         if (professionDef.profession_id == "")
         {
-            _validation_errors.Add($"Profession config {resourcePath} is missing profession_id.");
+            _validationErrors.Add($"Profession config {resourcePath} is missing profession_id.");
             return;
         }
         if (_profession_defs.ContainsKey(professionDef.profession_id))
         {
-            _validation_errors.Add(
+            _validationErrors.Add(
                 $"Duplicate profession_id registered: {professionDef.profession_id}"
             );
             return;
@@ -229,7 +244,10 @@ public class ProfessionContentRegistry : System.IDisposable
                 errors.Add($"Profession {professionId} has an empty required_skill_id in unlock.");
                 continue;
             }
-            if (_skill_defs.Count > 0 && !ContainsKeyExact(_skill_defs, requiredSkillId))
+            if (
+                _skill_definitions.Count > 0
+                && !_skill_definitions.ContainsKey(requiredSkillId)
+            )
                 errors.Add(
                     $"Profession {professionId} references missing skill {requiredSkillId} in unlock.required_skill_ids."
                 );
@@ -339,21 +357,27 @@ public class ProfessionContentRegistry : System.IDisposable
                 errors.Add($"Profession {professionId} has a granted skill without skill_id.");
                 continue;
             }
-            if (_skill_defs.Count > 0 && !ContainsKeyExact(_skill_defs, grantedSkill.skill_id))
+            if (
+                _skill_definitions.Count > 0
+                && !_skill_definitions.ContainsKey(grantedSkill.skill_id)
+            )
             {
                 errors.Add(
                     $"Profession {professionId} grants missing skill {grantedSkill.skill_id}."
                 );
             }
-            else if (_skill_defs.Count > 0)
+            else if (_skill_definitions.Count > 0)
             {
-                SkillDef skillDef = GetTyped<SkillDef>(_skill_defs, grantedSkill.skill_id);
+                _skill_definitions.TryGetValue(
+                    grantedSkill.skill_id,
+                    out SkillDefinition skillDefinition
+                );
                 if (
-                    skillDef != null
-                    && skillDef.LearnSourceKind != SkillLearnSourceKind.Profession
+                    skillDefinition != null
+                    && skillDefinition.LearnSourceKind != SkillLearnSourceKind.Profession
                 )
                     errors.Add(
-                        $"Profession {professionId} granted skill {grantedSkill.skill_id} learn_source must be profession, got {skillDef.learn_source}."
+                        $"Profession {professionId} granted skill {grantedSkill.skill_id} learn_source must be profession, got {skillDefinition.LearnSource}."
                     );
             }
             if (grantedSkill.unlock_rank <= 0 || grantedSkill.unlock_rank > professionDef.max_rank)
@@ -730,9 +754,19 @@ public class ProfessionContentRegistry : System.IDisposable
     private static bool ContainsKeyExact(Dictionary dictionary, StringName key) =>
         dictionary.ContainsKey(key);
 
-    private static void AppendArray(Array<string> target, Array<string> source)
+    private static void AppendArray(List<string> target, Array<string> source)
     {
         foreach (string value in source)
             target.Add(value);
+    }
+
+    private static Array<string> ToGodotStringArray(IEnumerable<string> values)
+    {
+        var result = new Array<string>();
+        if (values == null)
+            return result;
+        foreach (string value in values)
+            result.Add(value);
+        return result;
     }
 }

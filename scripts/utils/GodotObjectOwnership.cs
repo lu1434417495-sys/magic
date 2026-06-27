@@ -363,7 +363,12 @@ internal static class GodotContentOwnership
     internal static bool IsStaticContent(object wrapper) =>
         GodotWrapperOwnershipRegistry.IsBorrowedOrDerivedStaticContent(wrapper);
 
-    internal static void SuppressBorrowedContentForFinalizerDrain()
+    internal static void RetainStaticContentForFinalizerDrain()
+    {
+        GC.KeepAlive(StaticStrongWrappers);
+    }
+
+    internal static void SuppressBorrowedContentForProcessExit()
     {
         List<object> staticWrappers;
         lock (StaticSync)
@@ -375,7 +380,6 @@ internal static class GodotContentOwnership
         foreach (object wrapper in staticWrappers)
             GodotWrapperOwnershipRegistry.SuppressWrapper(wrapper);
 
-        // Static content is process-lifetime; forced GC drains must retain the store.
         GC.KeepAlive(StaticStrongWrappers);
     }
 
@@ -629,7 +633,6 @@ internal sealed class GodotTransientResourceScope : IDisposable
 
             if (GodotWrapperOwnershipRegistry.IsBorrowedOrDerivedStaticContent(ownedWrapper))
             {
-                GodotWrapperOwnershipRegistry.SuppressWrapper(ownedWrapper);
                 return;
             }
 

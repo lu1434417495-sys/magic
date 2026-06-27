@@ -119,8 +119,8 @@ public partial class run_low_luck_relic_regression : SceneTree
         GDictionary baselineDamageResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             baselineSource,
             baselineTarget,
-            new GArray { BuildDamageEffect(18) },
-            new GDictionary()
+            new[] { BuildDamageEffect(18) },
+            DamageResolutionContext.Empty()
         ));
         int baselineDamage = DictInt(baselineDamageResult, "damage");
 
@@ -130,8 +130,8 @@ public partial class run_low_luck_relic_regression : SceneTree
         GDictionary wedgeResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             wedgeSource,
             wedgeTarget,
-            new GArray { BuildDamageEffect(18) },
-            new GDictionary()
+            new[] { BuildDamageEffect(18) },
+            DamageResolutionContext.Empty()
         ));
         GDictionary wedgeEvent = ExtractFirstDamageEvent(wedgeResult);
 
@@ -155,8 +155,8 @@ public partial class run_low_luck_relic_regression : SceneTree
             resolver.ResolveEffects(
                 enemyAttacker,
                 normalTarget,
-                new GArray { BuildDamageEffect(16) },
-                new GDictionary()
+                new[] { BuildDamageEffect(16) },
+                DamageResolutionContext.Empty()
             )),
             "damage"
         );
@@ -164,8 +164,8 @@ public partial class run_low_luck_relic_regression : SceneTree
             resolver.ResolveEffects(
                 enemyAttacker,
                 exposedTarget,
-                new GArray { BuildDamageEffect(16) },
-                new GDictionary()
+                new[] { BuildDamageEffect(16) },
+                DamageResolutionContext.Empty()
             )),
             "damage"
         );
@@ -186,8 +186,8 @@ public partial class run_low_luck_relic_regression : SceneTree
             resolver.ResolveEffects(
                 enemyAttacker,
                 baselineTarget,
-                new GArray { BuildDamageEffect(20) },
-                new GDictionary()
+                new[] { BuildDamageEffect(20) },
+                DamageResolutionContext.Empty()
             )),
             "damage"
         );
@@ -195,8 +195,8 @@ public partial class run_low_luck_relic_regression : SceneTree
             resolver.ResolveEffects(
                 enemyAttacker,
                 shawlTarget,
-                new GArray { BuildDamageEffect(20) },
-                new GDictionary()
+                new[] { BuildDamageEffect(20) },
+                DamageResolutionContext.Empty()
             )),
             "damage"
         );
@@ -316,7 +316,7 @@ public partial class run_low_luck_relic_regression : SceneTree
         partyState.SetMemberState(memberState);
 
         CharacterManagementModule manager = new();
-        manager.setup(partyState, new GDictionary(), new GDictionary(), new GDictionary(), itemDefs);
+        manager.setup(partyState, item_defs: BuildItemDefIndex(itemDefs));
         return manager.GetMemberAttributeSnapshot(HeroId);
     }
 
@@ -330,7 +330,7 @@ public partial class run_low_luck_relic_regression : SceneTree
             partyState.SetMemberState(BuildMemberState(AllyId, 0));
 
         CharacterManagementModule manager = new();
-        manager.setup(partyState, new GDictionary(), new GDictionary(), new GDictionary());
+        manager.setup(partyState);
         LowLuckEventService service = new();
         service.Setup(manager);
         return new LowLuckContext(partyState, manager, service);
@@ -463,15 +463,12 @@ public partial class run_low_luck_relic_regression : SceneTree
         return target;
     }
 
-    private static CombatEffectDef BuildDamageEffect(int power)
-    {
-        return new CombatEffectDef
-        {
-            effect_type = "damage",
-            damage_tag = "physical_slash",
-            power = power,
-        };
-    }
+    private static CombatEffectDefinition BuildDamageEffect(int power) =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            damageTag: "physical_slash",
+            power: power
+        );
 
     private static BattleState BuildRuntimeState(StringName battleId)
     {
@@ -535,12 +532,28 @@ public partial class run_low_luck_relic_regression : SceneTree
         runtime.SetPartyState(partyState);
         runtime._character_management.setup(
             partyState,
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            itemDefs
+            item_defs: BuildItemDefIndex(itemDefs)
         );
         return runtime;
+    }
+
+    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
+    {
+        var result = new Dictionary<StringName, ItemDef>();
+        if (itemDefs == null)
+            return result;
+        foreach (Variant key in itemDefs.Keys)
+        {
+            StringName itemId = key.VariantType == Variant.Type.StringName
+                ? key.AsStringName()
+                : new StringName(key.ToString());
+            if (itemId == "")
+                continue;
+            ItemDef itemDef = itemDefs[key].AsGodotObject() as ItemDef;
+            if (itemDef != null)
+                result[itemId] = itemDef;
+        }
+        return result;
     }
 
     private static StringName SlotForItem(StringName itemId)

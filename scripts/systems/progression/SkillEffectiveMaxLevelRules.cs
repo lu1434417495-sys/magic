@@ -5,18 +5,28 @@ public static class SkillEffectiveMaxLevelRules
     private const string PROFESSION_RANK_STAT_PREFIX = "profession_rank:";
 
     public static int GetEffectiveMaxLevel(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         UnitSkillProgress skillProgress,
         UnitProgress unitProgress
     )
     {
-        if (skillDef == null)
+        if (skillDefinition == null)
             return 0;
 
-        int absoluteMax = GetEffectiveAbsoluteMaxLevel(skillDef, unitProgress);
+        int absoluteMax = GetEffectiveAbsoluteMaxLevel(skillDefinition, unitProgress);
+        return ApplyNonCoreLimit(
+            absoluteMax,
+            skillDefinition.NonCoreMaxLevel,
+            skillProgress
+        );
+    }
 
-        int configuredNonCoreMax = skillDef.non_core_max_level;
-
+    private static int ApplyNonCoreLimit(
+        int absoluteMax,
+        int configuredNonCoreMax,
+        UnitSkillProgress skillProgress
+    )
+    {
         if (
             configuredNonCoreMax > 0
             && (
@@ -30,23 +40,23 @@ public static class SkillEffectiveMaxLevelRules
     }
 
     public static int GetEffectiveAbsoluteMaxLevel(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         UnitProgress unitProgress
     )
     {
-        if (skillDef == null)
+        if (skillDefinition == null)
             return 0;
 
-        if (_uses_dynamic_max_level(skillDef))
+        if (_uses_dynamic_max_level(skillDefinition))
         {
             int statValue = _get_dynamic_max_level_stat_value(
-                skillDef.dynamic_max_level_stat_id,
+                skillDefinition.DynamicMaxLevelStatId,
                 unitProgress
             );
 
-            int baseLevel = Mathf.Max(skillDef.dynamic_max_level_base, 0);
+            int baseLevel = Mathf.Max(skillDefinition.DynamicMaxLevelBase, 0);
 
-            int levelPerStat = skillDef.dynamic_max_level_per_stat;
+            int levelPerStat = skillDefinition.DynamicMaxLevelPerStat;
 
             int dynamicLevel;
 
@@ -57,34 +67,34 @@ public static class SkillEffectiveMaxLevelRules
             else
                 dynamicLevel = baseLevel;
 
-            if (skillDef.max_level >= 0)
-                return Mathf.Max(dynamicLevel, skillDef.max_level);
+            if (skillDefinition.MaxLevel >= 0)
+                return Mathf.Max(dynamicLevel, skillDefinition.MaxLevel);
 
             return dynamicLevel;
         }
 
-        if (skillDef.max_level < 0)
+        if (skillDefinition.MaxLevel < 0)
             return 0;
 
-        return Mathf.Max(skillDef.max_level, 0);
+        return Mathf.Max(skillDefinition.MaxLevel, 0);
     }
 
     public static bool IsAtEffectiveMaxLevel(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         UnitSkillProgress skillProgress,
         UnitProgress unitProgress
     )
     {
-        if (skillDef == null || skillProgress == null)
+        if (skillDefinition == null || skillProgress == null)
             return false;
 
         return skillProgress.skill_level
-            >= GetEffectiveMaxLevel(skillDef, skillProgress, unitProgress);
+            >= GetEffectiveMaxLevel(skillDefinition, skillProgress, unitProgress);
     }
 
-    private static bool _uses_dynamic_max_level(SkillDef skillDef)
+    private static bool _uses_dynamic_max_level(SkillDefinition skillDefinition)
     {
-        return skillDef != null && skillDef.dynamic_max_level_stat_id != "";
+        return skillDefinition != null && skillDefinition.DynamicMaxLevelStatId != "";
     }
 
     private static int _get_dynamic_max_level_stat_value(

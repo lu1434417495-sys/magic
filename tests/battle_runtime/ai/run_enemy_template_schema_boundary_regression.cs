@@ -37,12 +37,16 @@ public partial class run_enemy_template_schema_boundary_regression : SceneTree
                 "typed_schema_weapon_type"
             ),
         };
-        var skillDefIndex = new Dictionary<StringName, SkillDef>
+        var skillDefinitionIndex = new Dictionary<StringName, SkillDefinition>
         {
-            ["typed_schema_skill"] = BuildSkill("typed_schema_skill", maxLevel: 2),
+            ["typed_schema_skill"] = BuildSkillDefinition("typed_schema_skill", maxLevel: 2),
         };
 
-        GStringArray errors = template.ValidateSchemaTyped(brainIndex, itemDefIndex, skillDefIndex);
+        GStringArray errors = template.ValidateSchemaTyped(
+            brainIndex,
+            itemDefIndex,
+            skillDefinitionIndex
+        );
         _test.True(
             errors.Count == 0,
             $"typed ValidateSchemaTyped() 应接受正式 typed 引用表。 errors={FormatErrors(errors)}"
@@ -74,12 +78,34 @@ public partial class run_enemy_template_schema_boundary_regression : SceneTree
         GStringArray errors = template.ValidateSchemaTyped(
             EnemyTemplateDef.BuildBrainIndex(knownBrains),
             EnemyTemplateDef.BuildItemDefIndex(itemDefs),
-            EnemyTemplateDef.BuildSkillDefIndex(skillDefs)
+            BuildSkillDefinitionIndex(skillDefs)
         );
         _test.True(
             errors.Count == 0,
             $"typed ValidateSchemaTyped() 应接受从 StringName-key Dictionary 物化出来的正式 typed 索引。 errors={FormatErrors(errors)}"
         );
+    }
+
+    private static Dictionary<StringName, SkillDefinition> BuildSkillDefinitionIndex(
+        GDictionary skillDefs
+    )
+    {
+        var result = new Dictionary<StringName, SkillDefinition>();
+        if (skillDefs == null)
+            return result;
+        foreach (Variant rawKey in skillDefs.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+                continue;
+            SkillDefinition skillDefinition =
+                SkillDefinition.FromResource(skillDefs[rawKey].As<SkillDef>());
+            if (skillDefinition == null)
+                continue;
+            StringName keySkillId = rawKey.AsStringName();
+            if (keySkillId != "")
+                result[keySkillId] = skillDefinition;
+        }
+        return result;
     }
 
     private void TestTypedSchemaValidationRejectsMissingTypedItemReferences()
@@ -102,15 +128,15 @@ public partial class run_enemy_template_schema_boundary_regression : SceneTree
         {
             [template.brain_id] = BuildBrain(template.brain_id, template.initial_state_id),
         };
-        var skillDefIndex = new Dictionary<StringName, SkillDef>
+        var skillDefinitionIndex = new Dictionary<StringName, SkillDefinition>
         {
-            ["typed_schema_skill"] = BuildSkill("typed_schema_skill", maxLevel: 2),
+            ["typed_schema_skill"] = BuildSkillDefinition("typed_schema_skill", maxLevel: 2),
         };
 
         GStringArray errors = template.ValidateSchemaTyped(
             brainIndex,
             new Dictionary<StringName, ItemDef>(),
-            skillDefIndex
+            skillDefinitionIndex
         );
         _test.True(
             errors.Count >= 2,
@@ -264,6 +290,9 @@ public partial class run_enemy_template_schema_boundary_regression : SceneTree
         );
     }
 
+    private static SkillDefinition BuildSkillDefinition(StringName skillId, int maxLevel) =>
+        TestSkillDefinitionProjection.BuildSkill(skillId, displayName: skillId.ToString(), maxLevel: maxLevel);
+
     private static ItemDef MakeWeapon(StringName itemId, StringName weaponTypeId)
     {
         var itemDef = new ItemDef
@@ -306,11 +335,11 @@ public partial class run_enemy_template_schema_boundary_regression : SceneTree
                 $"{template.attack_equipment_item_id}_type"
             ),
         };
-        var skillDefIndex = new Dictionary<StringName, SkillDef>
+        var skillDefinitionIndex = new Dictionary<StringName, SkillDefinition>
         {
-            ["typed_schema_skill"] = BuildSkill("typed_schema_skill", maxLevel: 2),
+            ["typed_schema_skill"] = BuildSkillDefinition("typed_schema_skill", maxLevel: 2),
         };
-        return template.ValidateSchemaTyped(brainIndex, itemDefIndex, skillDefIndex);
+        return template.ValidateSchemaTyped(brainIndex, itemDefIndex, skillDefinitionIndex);
     }
 
     private static void SetSaveAdvantageTags(

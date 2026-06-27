@@ -79,14 +79,15 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         var progressionRegistry = new ProgressionContentRegistry();
         var itemRegistry = new ItemContentRegistry();
 
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = contentProvider.GetSkillDefsTyped();
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            contentProvider.GetSkillDefinitionsTyped();
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
             contentProvider.GetEnemyTemplatesTyped();
         IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains =
             contentProvider.GetEnemyAiBrainsTyped();
-        if (skillDefs.Count == 0 || enemyAiBrains.Count == 0)
+        if (skillDefinitions.Count == 0 || enemyAiBrains.Count == 0)
         {
-            GameLog.Error($"Battle sim content provider returned empty content: skills={skillDefs.Count}, brains={enemyAiBrains.Count}.", "bench.content.empty", "bench");
+            GameLog.Error($"Battle sim content provider returned empty content: skills={skillDefinitions.Count}, brains={enemyAiBrains.Count}.", "bench.content.empty", "bench");
             DisposeObjects(scenario, itemRegistry, progressionRegistry, terrainGenerator, overrideApplier, contentProvider);
             return 1;
         }
@@ -112,7 +113,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             }
         );
         BattleSimOverrideApplyResult overrides = overrideApplier.ApplyProfileTyped(
-            skillDefs,
+            skillDefinitions,
             enemyAiBrains,
             baseline
         );
@@ -298,7 +299,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         fixture.SetupContent(
             progressionRegistry,
             itemRegistry,
-            overrides.SkillDefs
+            overrides.SkillDefinitions
         );
         BattleSimFormalRosterOptionsData effectiveRosterOptions = new()
         {
@@ -349,7 +350,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             PrintProgress($"[Progress] run seed={seed} runtime setup start");
             runtime.setup(
                 fixture,
-                overrides.SkillDefs,
+                overrides.SkillDefinitions,
                 enemyTemplates,
                 overrides.EnemyAiBrains,
                 null,

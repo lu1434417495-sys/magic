@@ -5,43 +5,45 @@ using Godot;
 public sealed class BattleSkillResolutionPolicy
 {
     public IReadOnlyList<StringName> TargetUnitIds { get; }
-    public CombatCastVariantDef UnitCastVariant { get; }
-    public CombatCastVariantDef GroundCastVariant { get; }
-    public CombatCastVariantDef CommandCastVariant { get; }
-    public CombatCastVariantDef UnitExecutionCastVariant { get; }
-    public CombatCastVariantDef ExecutionCastVariant { get; }
+    public CombatCastVariantDefinition UnitCastVariantDefinition { get; }
+    public CombatCastVariantDefinition GroundCastVariantDefinition { get; }
+    public CombatCastVariantDefinition CommandCastVariantDefinition { get; }
+    public CombatCastVariantDefinition UnitExecutionCastVariantDefinition { get; }
+    public CombatCastVariantDefinition ExecutionCastVariantDefinition { get; }
     public bool RoutesToUnitTargeting { get; }
     public string OptionErrorMessage { get; }
     public bool OptionAllowed => string.IsNullOrEmpty(OptionErrorMessage);
-    public IReadOnlyList<CombatEffectDef> EffectDefs { get; }
+    public IReadOnlyList<CombatEffectDefinition> EffectDefinitions { get; }
     public bool UsesFateAttack { get; }
     public bool ForceHitNoCrit { get; }
     public StringName FatePreviewMode { get; }
 
     public BattleSkillResolutionPolicy(
         IEnumerable<StringName> targetUnitIds,
-        CombatCastVariantDef unitCastVariant,
-        CombatCastVariantDef groundCastVariant,
-        CombatCastVariantDef commandCastVariant,
-        CombatCastVariantDef unitExecutionCastVariant,
-        CombatCastVariantDef executionCastVariant,
         bool routesToUnitTargeting,
         string optionErrorMessage,
-        IEnumerable<CombatEffectDef> effectDefs,
         bool usesFateAttack,
         bool forceHitNoCrit,
-        StringName fatePreviewMode
+        StringName fatePreviewMode,
+        IEnumerable<CombatEffectDefinition> effectDefinitions = null,
+        CombatCastVariantDefinition unitCastVariantDefinition = null,
+        CombatCastVariantDefinition groundCastVariantDefinition = null,
+        CombatCastVariantDefinition commandCastVariantDefinition = null,
+        CombatCastVariantDefinition unitExecutionCastVariantDefinition = null,
+        CombatCastVariantDefinition executionCastVariantDefinition = null
     )
     {
         TargetUnitIds = new List<StringName>(targetUnitIds ?? Array.Empty<StringName>());
-        UnitCastVariant = unitCastVariant;
-        GroundCastVariant = groundCastVariant;
-        CommandCastVariant = commandCastVariant;
-        UnitExecutionCastVariant = unitExecutionCastVariant;
-        ExecutionCastVariant = executionCastVariant;
+        UnitCastVariantDefinition = unitCastVariantDefinition;
+        GroundCastVariantDefinition = groundCastVariantDefinition;
+        CommandCastVariantDefinition = commandCastVariantDefinition;
+        UnitExecutionCastVariantDefinition = unitExecutionCastVariantDefinition;
+        ExecutionCastVariantDefinition = executionCastVariantDefinition;
         RoutesToUnitTargeting = routesToUnitTargeting;
         OptionErrorMessage = optionErrorMessage ?? "";
-        EffectDefs = new List<CombatEffectDef>(effectDefs ?? Array.Empty<CombatEffectDef>());
+        EffectDefinitions = new List<CombatEffectDefinition>(
+            effectDefinitions ?? Array.Empty<CombatEffectDefinition>()
+        );
         UsesFateAttack = usesFateAttack;
         ForceHitNoCrit = forceHitNoCrit;
         FatePreviewMode = fatePreviewMode;
@@ -57,25 +59,17 @@ public sealed class BattleSkillResolutionRules : IDisposable
     private static readonly StringName FatePreviewModeStandard = "standard";
     private static readonly StringName FatePreviewModeForceHitNoCritName = "force_hit_no_crit";
     public static StringName FatePreviewModeForceHitNoCrit => FatePreviewModeForceHitNoCritName;
-    private readonly GodotTransientResourceScope _transientScope =
-        new("BattleSkillResolutionRules");
-    private readonly RuntimeSkillDefFactory _runtimeSkillFactory;
 
     public BattleSkillResolutionRules()
     {
-        _runtimeSkillFactory = new RuntimeSkillDefFactory(
-            _transientScope,
-            "BattleSkillResolutionRules"
-        );
     }
 
     public void Dispose()
     {
-        _transientScope.Drain();
     }
 
     public BattleSkillResolutionPolicy BuildSkillResolutionPolicy(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BattleUnitState activeUnit,
         StringName skillVariantId = default,
         IEnumerable<StringName> targetUnitIdsOption = null,
@@ -84,50 +78,63 @@ public sealed class BattleSkillResolutionRules : IDisposable
     {
         List<StringName> targetUnitIds = NormalizeTargetUnitIds(targetUnitIdsOption);
         bool routesToUnitTargeting = ShouldRouteSkillCommandToUnitTargeting(
-            skillDef,
+            skillDefinition,
             targetUnitIds
         );
         string optionErrorMessage = GetSkillVariantCommandErrorMessage(
-            skillDef,
+            skillDefinition,
             activeUnit,
             skillVariantId,
             routesToUnitTargeting
         );
-        CombatCastVariantDef unitCastVariant = ResolveUnitCastVariant(
-            skillDef,
+        CombatCastVariantDefinition unitCastVariant = ResolveUnitCastVariantDefinition(
+            skillDefinition,
             activeUnit,
             skillVariantId
         );
-        CombatCastVariantDef groundCastVariant = ResolveGroundCastVariant(
-            skillDef,
+        CombatCastVariantDefinition groundCastVariant = ResolveGroundCastVariantDefinition(
+            skillDefinition,
             activeUnit,
             skillVariantId
         );
-        CombatCastVariantDef commandCastVariant = ResolveCommandRouteCastVariant(
-            skillDef,
+        CombatCastVariantDefinition commandCastVariant = ResolveCommandRouteCastVariantDefinition(
+            skillDefinition,
             activeUnit,
             skillVariantId,
             routesToUnitTargeting
         );
-        CombatCastVariantDef unitExecutionCastVariant = routesToUnitTargeting
+        CombatCastVariantDefinition unitExecutionCastVariant = routesToUnitTargeting
             ? commandCastVariant
             : unitCastVariant;
-        CombatCastVariantDef executionCastVariant = routesToUnitTargeting
+        CombatCastVariantDefinition executionCastVariant = routesToUnitTargeting
             ? unitExecutionCastVariant
             : commandCastVariant;
 
-        List<CombatEffectDef> effectDefs = new();
+        List<CombatEffectDefinition> effectDefinitions = new();
         if (string.IsNullOrEmpty(optionErrorMessage))
         {
-            effectDefs = routesToUnitTargeting
-                ? CollectUnitSkillEffectDefs(skillDef, unitExecutionCastVariant, activeUnit)
-                : CollectGroundUnitEffectDefs(skillDef, groundCastVariant, activeUnit);
+            effectDefinitions = routesToUnitTargeting
+                ? CollectUnitSkillEffectDefinitions(
+                    skillDefinition,
+                    unitExecutionCastVariant,
+                    activeUnit
+                )
+                : CollectGroundUnitEffectDefinitions(
+                    skillDefinition,
+                    groundCastVariant,
+                    activeUnit
+                );
         }
 
         bool usesFateAttack =
             routesToUnitTargeting
-            && ShouldResolveUnitSkillAsFateAttack(activeUnit, targetUnit, skillDef, effectDefs);
-        bool forceHitNoCrit = usesFateAttack && IsForceHitNoCritSkill(skillDef);
+            && ShouldResolveUnitSkillAsFateAttack(
+                activeUnit,
+                targetUnit,
+                skillDefinition,
+                effectDefinitions
+            );
+        bool forceHitNoCrit = usesFateAttack && IsForceHitNoCritSkill(skillDefinition);
         StringName fatePreviewMode = FatePreviewModeNone;
         if (usesFateAttack)
         {
@@ -138,17 +145,108 @@ public sealed class BattleSkillResolutionRules : IDisposable
 
         return new BattleSkillResolutionPolicy(
             targetUnitIds,
+            routesToUnitTargeting,
+            optionErrorMessage,
+            usesFateAttack,
+            forceHitNoCrit,
+            fatePreviewMode,
+            effectDefinitions,
             unitCastVariant,
             groundCastVariant,
             commandCastVariant,
             unitExecutionCastVariant,
-            executionCastVariant,
+            executionCastVariant
+        );
+    }
+
+    internal BattleSkillResolutionPolicy BuildSkillResolutionPolicy(
+        SkillDefinition skillDefinition,
+        BattleUnitReadView activeUnit,
+        StringName skillVariantId = default,
+        IEnumerable<StringName> targetUnitIdsOption = null,
+        BattleUnitReadView targetUnit = default
+    )
+    {
+        List<StringName> targetUnitIds = NormalizeTargetUnitIds(targetUnitIdsOption);
+        bool routesToUnitTargeting = ShouldRouteSkillCommandToUnitTargeting(
+            skillDefinition,
+            targetUnitIds
+        );
+        string optionErrorMessage = GetSkillVariantCommandErrorMessage(
+            skillDefinition,
+            activeUnit,
+            skillVariantId,
+            routesToUnitTargeting
+        );
+        CombatCastVariantDefinition unitCastVariant = ResolveUnitCastVariantDefinition(
+            skillDefinition,
+            activeUnit,
+            skillVariantId
+        );
+        CombatCastVariantDefinition groundCastVariant = ResolveGroundCastVariantDefinition(
+            skillDefinition,
+            activeUnit,
+            skillVariantId
+        );
+        CombatCastVariantDefinition commandCastVariant = ResolveCommandRouteCastVariantDefinition(
+            skillDefinition,
+            activeUnit,
+            skillVariantId,
+            routesToUnitTargeting
+        );
+        CombatCastVariantDefinition unitExecutionCastVariant = routesToUnitTargeting
+            ? commandCastVariant
+            : unitCastVariant;
+        CombatCastVariantDefinition executionCastVariant = routesToUnitTargeting
+            ? unitExecutionCastVariant
+            : commandCastVariant;
+
+        List<CombatEffectDefinition> effectDefinitions = new();
+        if (string.IsNullOrEmpty(optionErrorMessage))
+        {
+            effectDefinitions = routesToUnitTargeting
+                ? CollectUnitSkillEffectDefinitions(
+                    skillDefinition,
+                    unitExecutionCastVariant,
+                    activeUnit
+                )
+                : CollectGroundUnitEffectDefinitions(
+                    skillDefinition,
+                    groundCastVariant,
+                    activeUnit
+                );
+        }
+
+        bool usesFateAttack =
+            routesToUnitTargeting
+            && ShouldResolveUnitSkillAsFateAttack(
+                activeUnit,
+                targetUnit,
+                skillDefinition,
+                effectDefinitions
+            );
+        bool forceHitNoCrit = usesFateAttack && IsForceHitNoCritSkill(skillDefinition);
+        StringName fatePreviewMode = FatePreviewModeNone;
+        if (usesFateAttack)
+        {
+            fatePreviewMode = forceHitNoCrit
+                ? FatePreviewModeForceHitNoCritName
+                : FatePreviewModeStandard;
+        }
+
+        return new BattleSkillResolutionPolicy(
+            targetUnitIds,
             routesToUnitTargeting,
             optionErrorMessage,
-            effectDefs,
             usesFateAttack,
             forceHitNoCrit,
-            fatePreviewMode
+            fatePreviewMode,
+            effectDefinitions,
+            unitCastVariant,
+            groundCastVariant,
+            commandCastVariant,
+            unitExecutionCastVariant,
+            executionCastVariant
         );
     }
 
@@ -172,12 +270,12 @@ public sealed class BattleSkillResolutionRules : IDisposable
     }
 
     public bool ShouldRouteSkillCommandToUnitTargeting(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         IReadOnlyList<StringName> targetUnitIds
     )
     {
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
-        if (skillDef == null || combatProfile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (skillDefinition == null || combatProfile == null)
         {
             return false;
         }
@@ -185,11 +283,7 @@ public sealed class BattleSkillResolutionRules : IDisposable
         {
             return true;
         }
-        if (
-            BattleTypedNames.ToTargetSelectionMode(
-                combatProfile.target_selection_mode
-            ) == BattleTargetSelectionMode.RandomChain
-        )
+        if (combatProfile.TargetSelectionModeKind == BattleTargetSelectionMode.RandomChain)
         {
             return true;
         }
@@ -197,37 +291,35 @@ public sealed class BattleSkillResolutionRules : IDisposable
     }
 
     public string GetSkillVariantCommandErrorMessage(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BattleUnitState activeUnit,
         StringName skillVariantId = default,
         bool routesToUnitTargeting = false
     )
     {
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
-        if (skillDef == null || combatProfile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (skillDefinition == null || combatProfile == null)
         {
             return "技能或目标无效。";
         }
-        if (combatProfile.cast_variants.Count == 0)
+        if (combatProfile.CastVariants.Count == 0)
         {
             return !IsEmpty(skillVariantId) ? "技能形态无效或尚未解锁。" : "";
         }
 
-        int skillLevel = GetUnitSkillLevel(activeUnit, skillDef.skill_id);
-        List<CombatCastVariantDef> unlockedOptions = GetUnlockedCastVariants(
-            combatProfile,
-            skillLevel
-        );
-        var matchingModeOptions = new List<CombatCastVariantDef>();
+        int skillLevel = GetUnitSkillLevel(activeUnit, skillDefinition.SkillId);
+        IReadOnlyList<CombatCastVariantDefinition> unlockedOptions =
+            combatProfile.GetUnlockedCastVariants(skillLevel);
+        var matchingModeOptions = new List<CombatCastVariantDefinition>();
         BattleTargetMode expectedTargetMode = GetCommandRouteCastVariantTargetModeKind(
-            skillDef,
+            skillDefinition,
             routesToUnitTargeting
         );
-        foreach (CombatCastVariantDef castVariant in unlockedOptions)
+        foreach (CombatCastVariantDefinition castVariant in unlockedOptions)
         {
             if (
                 castVariant != null
-                && GetCastVariantTargetModeKind(skillDef, castVariant) == expectedTargetMode
+                && GetCastVariantTargetModeKind(skillDefinition, castVariant) == expectedTargetMode
             )
             {
                 matchingModeOptions.Add(castVariant);
@@ -241,9 +333,9 @@ public sealed class BattleSkillResolutionRules : IDisposable
             }
             return matchingModeOptions.Count == 0 ? "技能形态无效或尚未解锁。" : "";
         }
-        foreach (CombatCastVariantDef castVariant in matchingModeOptions)
+        foreach (CombatCastVariantDefinition castVariant in matchingModeOptions)
         {
-            if (castVariant != null && castVariant.variant_id == skillVariantId)
+            if (castVariant != null && castVariant.VariantId == skillVariantId)
             {
                 return "";
             }
@@ -252,37 +344,35 @@ public sealed class BattleSkillResolutionRules : IDisposable
     }
 
     internal string GetSkillVariantCommandErrorMessage(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BattleUnitReadView activeUnit,
         StringName skillVariantId = default,
         bool routesToUnitTargeting = false
     )
     {
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
-        if (skillDef == null || combatProfile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (skillDefinition == null || combatProfile == null)
         {
             return "技能或目标无效。";
         }
-        if (combatProfile.cast_variants.Count == 0)
+        if (combatProfile.CastVariants.Count == 0)
         {
             return !IsEmpty(skillVariantId) ? "技能形态无效或尚未解锁。" : "";
         }
 
-        int skillLevel = GetUnitSkillLevel(activeUnit, skillDef.skill_id);
-        List<CombatCastVariantDef> unlockedOptions = GetUnlockedCastVariants(
-            combatProfile,
-            skillLevel
-        );
-        var matchingModeOptions = new List<CombatCastVariantDef>();
+        int skillLevel = GetUnitSkillLevel(activeUnit, skillDefinition.SkillId);
+        IReadOnlyList<CombatCastVariantDefinition> unlockedOptions =
+            combatProfile.GetUnlockedCastVariants(skillLevel);
+        var matchingModeOptions = new List<CombatCastVariantDefinition>();
         BattleTargetMode expectedTargetMode = GetCommandRouteCastVariantTargetModeKind(
-            skillDef,
+            skillDefinition,
             routesToUnitTargeting
         );
-        foreach (CombatCastVariantDef castVariant in unlockedOptions)
+        foreach (CombatCastVariantDefinition castVariant in unlockedOptions)
         {
             if (
                 castVariant != null
-                && GetCastVariantTargetModeKind(skillDef, castVariant) == expectedTargetMode
+                && GetCastVariantTargetModeKind(skillDefinition, castVariant) == expectedTargetMode
             )
             {
                 matchingModeOptions.Add(castVariant);
@@ -296,9 +386,9 @@ public sealed class BattleSkillResolutionRules : IDisposable
             }
             return matchingModeOptions.Count == 0 ? "技能形态无效或尚未解锁。" : "";
         }
-        foreach (CombatCastVariantDef castVariant in matchingModeOptions)
+        foreach (CombatCastVariantDefinition castVariant in matchingModeOptions)
         {
-            if (castVariant != null && castVariant.variant_id == skillVariantId)
+            if (castVariant != null && castVariant.VariantId == skillVariantId)
             {
                 return "";
             }
@@ -309,15 +399,15 @@ public sealed class BattleSkillResolutionRules : IDisposable
     public bool ShouldResolveUnitSkillAsFateAttack(
         BattleUnitState activeUnit,
         BattleUnitState targetUnit,
-        SkillDef skillDef,
-        IEnumerable<CombatEffectDef> effectDefs
+        SkillDefinition skillDefinition,
+        IEnumerable<CombatEffectDefinition> effectDefinitions
     )
     {
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (
             activeUnit == null
             || targetUnit == null
-            || skillDef == null
+            || skillDefinition == null
             || combatProfile == null
         )
         {
@@ -327,20 +417,20 @@ public sealed class BattleSkillResolutionRules : IDisposable
         {
             return false;
         }
-        if (effectDefs == null)
+        if (effectDefinitions == null)
         {
             return false;
         }
-        foreach (CombatEffectDef effectDef in effectDefs)
+        foreach (CombatEffectDefinition effectDefinition in effectDefinitions)
         {
             if (
-                effectDef == null
-                || effectDef.EffectKind != BattleEffectKind.Damage
+                effectDefinition == null
+                || effectDefinition.EffectKind != BattleEffectKind.Damage
             )
             {
                 continue;
             }
-            if (EffectHasSave(effectDef))
+            if (EffectHasSave(effectDefinition))
             {
                 continue;
             }
@@ -348,7 +438,7 @@ public sealed class BattleSkillResolutionRules : IDisposable
                 !IsUnitValidForEffect(
                     activeUnit,
                     targetUnit,
-                    ResolveEffectTargetFilter(skillDef, effectDef)
+                    ResolveEffectTargetFilter(skillDefinition, effectDefinition)
                 )
             )
             {
@@ -362,15 +452,15 @@ public sealed class BattleSkillResolutionRules : IDisposable
     internal bool ShouldResolveUnitSkillAsFateAttack(
         BattleUnitReadView activeUnit,
         BattleUnitReadView targetUnit,
-        SkillDef skillDef,
-        IEnumerable<CombatEffectDef> effectDefs
+        SkillDefinition skillDefinition,
+        IEnumerable<CombatEffectDefinition> effectDefinitions
     )
     {
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (
             !activeUnit.IsValid
             || !targetUnit.IsValid
-            || skillDef == null
+            || skillDefinition == null
             || combatProfile == null
         )
         {
@@ -380,20 +470,20 @@ public sealed class BattleSkillResolutionRules : IDisposable
         {
             return false;
         }
-        if (effectDefs == null)
+        if (effectDefinitions == null)
         {
             return false;
         }
-        foreach (CombatEffectDef effectDef in effectDefs)
+        foreach (CombatEffectDefinition effectDefinition in effectDefinitions)
         {
             if (
-                effectDef == null
-                || effectDef.EffectKind != BattleEffectKind.Damage
+                effectDefinition == null
+                || effectDefinition.EffectKind != BattleEffectKind.Damage
             )
             {
                 continue;
             }
-            if (EffectHasSave(effectDef))
+            if (EffectHasSave(effectDefinition))
             {
                 continue;
             }
@@ -401,7 +491,7 @@ public sealed class BattleSkillResolutionRules : IDisposable
                 !BattleTargetTeamRules.IsUnitValidForFilter(
                     activeUnit,
                     targetUnit,
-                    ResolveEffectTargetFilter(skillDef, effectDef)
+                    ResolveEffectTargetFilter(skillDefinition, effectDefinition)
                 )
             )
             {
@@ -412,48 +502,46 @@ public sealed class BattleSkillResolutionRules : IDisposable
         return false;
     }
 
-    public bool IsForceHitNoCritSkill(SkillDef skillDef)
+    public bool IsForceHitNoCritSkill(SkillDefinition skillDefinition)
     {
-        return skillDef != null && skillDef.skill_id == BlackContractPushSkillId;
+        return skillDefinition != null && skillDefinition.SkillId == BlackContractPushSkillId;
     }
 
-    public CombatCastVariantDef ResolveGroundCastVariant(
-        SkillDef skillDef,
+    public CombatCastVariantDefinition ResolveGroundCastVariantDefinition(
+        SkillDefinition skillDefinition,
         BattleUnitState activeUnit,
         StringName skillVariantId = default
     )
     {
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
-        if (skillDef == null || combatProfile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (skillDefinition == null || combatProfile == null)
         {
             return null;
         }
-        if (combatProfile.cast_variants.Count == 0)
+        if (combatProfile.CastVariants.Count == 0)
         {
             return
                 combatProfile.TargetModeKind == BattleTargetMode.Ground
                 && IsEmpty(skillVariantId)
-                ? BuildImplicitGroundCastVariant(skillDef)
+                ? BuildImplicitGroundCastVariantDefinition(skillDefinition)
                 : null;
         }
 
-        int skillLevel = GetUnitSkillLevel(activeUnit, skillDef.skill_id);
-        List<CombatCastVariantDef> unlockedOptions = GetUnlockedCastVariants(
-            combatProfile,
-            skillLevel
-        );
+        int skillLevel = GetUnitSkillLevel(activeUnit, skillDefinition.SkillId);
+        IReadOnlyList<CombatCastVariantDefinition> unlockedOptions =
+            combatProfile.GetUnlockedCastVariants(skillLevel);
         if (unlockedOptions.Count == 0)
         {
             return null;
         }
         if (IsEmpty(skillVariantId))
         {
-            var groundOptions = new List<CombatCastVariantDef>();
-            foreach (CombatCastVariantDef castVariant in unlockedOptions)
+            var groundOptions = new List<CombatCastVariantDefinition>();
+            foreach (CombatCastVariantDefinition castVariant in unlockedOptions)
             {
                 if (
                     castVariant != null
-                    && GetCastVariantTargetModeKind(skillDef, castVariant)
+                    && GetCastVariantTargetModeKind(skillDefinition, castVariant)
                         == BattleTargetMode.Ground
                 )
                 {
@@ -463,12 +551,12 @@ public sealed class BattleSkillResolutionRules : IDisposable
             return groundOptions.Count == 1 ? groundOptions[0] : null;
         }
 
-        foreach (CombatCastVariantDef castVariant in unlockedOptions)
+        foreach (CombatCastVariantDefinition castVariant in unlockedOptions)
         {
             if (
                 castVariant != null
-                && castVariant.variant_id == skillVariantId
-                && GetCastVariantTargetModeKind(skillDef, castVariant)
+                && castVariant.VariantId == skillVariantId
+                && GetCastVariantTargetModeKind(skillDefinition, castVariant)
                     == BattleTargetMode.Ground
             )
             {
@@ -478,43 +566,41 @@ public sealed class BattleSkillResolutionRules : IDisposable
         return null;
     }
 
-    internal CombatCastVariantDef ResolveGroundCastVariant(
-        SkillDef skillDef,
+    internal CombatCastVariantDefinition ResolveGroundCastVariantDefinition(
+        SkillDefinition skillDefinition,
         BattleUnitReadView activeUnit,
         StringName skillVariantId = default
     )
     {
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
-        if (skillDef == null || combatProfile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (skillDefinition == null || combatProfile == null)
         {
             return null;
         }
-        if (combatProfile.cast_variants.Count == 0)
+        if (combatProfile.CastVariants.Count == 0)
         {
             return
                 combatProfile.TargetModeKind == BattleTargetMode.Ground
                 && IsEmpty(skillVariantId)
-                ? BuildImplicitGroundCastVariant(skillDef)
+                ? BuildImplicitGroundCastVariantDefinition(skillDefinition)
                 : null;
         }
 
-        int skillLevel = GetUnitSkillLevel(activeUnit, skillDef.skill_id);
-        List<CombatCastVariantDef> unlockedOptions = GetUnlockedCastVariants(
-            combatProfile,
-            skillLevel
-        );
+        int skillLevel = GetUnitSkillLevel(activeUnit, skillDefinition.SkillId);
+        IReadOnlyList<CombatCastVariantDefinition> unlockedOptions =
+            combatProfile.GetUnlockedCastVariants(skillLevel);
         if (unlockedOptions.Count == 0)
         {
             return null;
         }
         if (IsEmpty(skillVariantId))
         {
-            var groundOptions = new List<CombatCastVariantDef>();
-            foreach (CombatCastVariantDef castVariant in unlockedOptions)
+            var groundOptions = new List<CombatCastVariantDefinition>();
+            foreach (CombatCastVariantDefinition castVariant in unlockedOptions)
             {
                 if (
                     castVariant != null
-                    && GetCastVariantTargetModeKind(skillDef, castVariant)
+                    && GetCastVariantTargetModeKind(skillDefinition, castVariant)
                         == BattleTargetMode.Ground
                 )
                 {
@@ -524,12 +610,12 @@ public sealed class BattleSkillResolutionRules : IDisposable
             return groundOptions.Count == 1 ? groundOptions[0] : null;
         }
 
-        foreach (CombatCastVariantDef castVariant in unlockedOptions)
+        foreach (CombatCastVariantDefinition castVariant in unlockedOptions)
         {
             if (
                 castVariant != null
-                && castVariant.variant_id == skillVariantId
-                && GetCastVariantTargetModeKind(skillDef, castVariant)
+                && castVariant.VariantId == skillVariantId
+                && GetCastVariantTargetModeKind(skillDefinition, castVariant)
                     == BattleTargetMode.Ground
             )
             {
@@ -539,39 +625,37 @@ public sealed class BattleSkillResolutionRules : IDisposable
         return null;
     }
 
-    public CombatCastVariantDef ResolveUnitCastVariant(
-        SkillDef skillDef,
+    public CombatCastVariantDefinition ResolveUnitCastVariantDefinition(
+        SkillDefinition skillDefinition,
         BattleUnitState activeUnit,
         StringName skillVariantId = default
     )
     {
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
-        if (skillDef == null || combatProfile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (skillDefinition == null || combatProfile == null)
         {
             return null;
         }
-        if (combatProfile.cast_variants.Count == 0)
+        if (combatProfile.CastVariants.Count == 0)
         {
             return null;
         }
 
-        int skillLevel = GetUnitSkillLevel(activeUnit, skillDef.skill_id);
-        List<CombatCastVariantDef> unlockedOptions = GetUnlockedCastVariants(
-            combatProfile,
-            skillLevel
-        );
+        int skillLevel = GetUnitSkillLevel(activeUnit, skillDefinition.SkillId);
+        IReadOnlyList<CombatCastVariantDefinition> unlockedOptions =
+            combatProfile.GetUnlockedCastVariants(skillLevel);
         if (unlockedOptions.Count == 0)
         {
             return null;
         }
         if (IsEmpty(skillVariantId))
         {
-            var unitOptions = new List<CombatCastVariantDef>();
-            foreach (CombatCastVariantDef castVariant in unlockedOptions)
+            var unitOptions = new List<CombatCastVariantDefinition>();
+            foreach (CombatCastVariantDefinition castVariant in unlockedOptions)
             {
                 if (
                     castVariant != null
-                    && GetCastVariantTargetModeKind(skillDef, castVariant)
+                    && GetCastVariantTargetModeKind(skillDefinition, castVariant)
                         == BattleTargetMode.Unit
                 )
                 {
@@ -581,12 +665,12 @@ public sealed class BattleSkillResolutionRules : IDisposable
             return unitOptions.Count == 1 ? unitOptions[0] : null;
         }
 
-        foreach (CombatCastVariantDef castVariant in unlockedOptions)
+        foreach (CombatCastVariantDefinition castVariant in unlockedOptions)
         {
             if (
                 castVariant != null
-                && castVariant.variant_id == skillVariantId
-                && GetCastVariantTargetModeKind(skillDef, castVariant)
+                && castVariant.VariantId == skillVariantId
+                && GetCastVariantTargetModeKind(skillDefinition, castVariant)
                     == BattleTargetMode.Unit
             )
             {
@@ -596,39 +680,37 @@ public sealed class BattleSkillResolutionRules : IDisposable
         return null;
     }
 
-    internal CombatCastVariantDef ResolveUnitCastVariant(
-        SkillDef skillDef,
+    internal CombatCastVariantDefinition ResolveUnitCastVariantDefinition(
+        SkillDefinition skillDefinition,
         BattleUnitReadView activeUnit,
         StringName skillVariantId = default
     )
     {
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
-        if (skillDef == null || combatProfile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (skillDefinition == null || combatProfile == null)
         {
             return null;
         }
-        if (combatProfile.cast_variants.Count == 0)
+        if (combatProfile.CastVariants.Count == 0)
         {
             return null;
         }
 
-        int skillLevel = GetUnitSkillLevel(activeUnit, skillDef.skill_id);
-        List<CombatCastVariantDef> unlockedOptions = GetUnlockedCastVariants(
-            combatProfile,
-            skillLevel
-        );
+        int skillLevel = GetUnitSkillLevel(activeUnit, skillDefinition.SkillId);
+        IReadOnlyList<CombatCastVariantDefinition> unlockedOptions =
+            combatProfile.GetUnlockedCastVariants(skillLevel);
         if (unlockedOptions.Count == 0)
         {
             return null;
         }
         if (IsEmpty(skillVariantId))
         {
-            var unitOptions = new List<CombatCastVariantDef>();
-            foreach (CombatCastVariantDef castVariant in unlockedOptions)
+            var unitOptions = new List<CombatCastVariantDefinition>();
+            foreach (CombatCastVariantDefinition castVariant in unlockedOptions)
             {
                 if (
                     castVariant != null
-                    && GetCastVariantTargetModeKind(skillDef, castVariant)
+                    && GetCastVariantTargetModeKind(skillDefinition, castVariant)
                         == BattleTargetMode.Unit
                 )
                 {
@@ -638,12 +720,12 @@ public sealed class BattleSkillResolutionRules : IDisposable
             return unitOptions.Count == 1 ? unitOptions[0] : null;
         }
 
-        foreach (CombatCastVariantDef castVariant in unlockedOptions)
+        foreach (CombatCastVariantDefinition castVariant in unlockedOptions)
         {
             if (
                 castVariant != null
-                && castVariant.variant_id == skillVariantId
-                && GetCastVariantTargetModeKind(skillDef, castVariant)
+                && castVariant.VariantId == skillVariantId
+                && GetCastVariantTargetModeKind(skillDefinition, castVariant)
                     == BattleTargetMode.Unit
             )
             {
@@ -653,57 +735,73 @@ public sealed class BattleSkillResolutionRules : IDisposable
         return null;
     }
 
-    public CombatCastVariantDef ResolveCommandRouteCastVariant(
-        SkillDef skillDef,
+    public CombatCastVariantDefinition ResolveCommandRouteCastVariantDefinition(
+        SkillDefinition skillDefinition,
         BattleUnitState activeUnit,
         StringName skillVariantId = default,
         bool routesToUnitTargeting = false
     )
     {
         BattleTargetMode targetMode = GetCommandRouteCastVariantTargetModeKind(
-            skillDef,
+            skillDefinition,
             routesToUnitTargeting
         );
         if (targetMode == BattleTargetMode.Unit)
         {
-            return ResolveUnitCastVariant(skillDef, activeUnit, skillVariantId);
+            return ResolveUnitCastVariantDefinition(
+                skillDefinition,
+                activeUnit,
+                skillVariantId
+            );
         }
         if (targetMode == BattleTargetMode.Ground)
         {
-            return ResolveGroundCastVariant(skillDef, activeUnit, skillVariantId);
+            return ResolveGroundCastVariantDefinition(
+                skillDefinition,
+                activeUnit,
+                skillVariantId
+            );
         }
         return null;
     }
 
-    internal CombatCastVariantDef ResolveCommandRouteCastVariant(
-        SkillDef skillDef,
+    internal CombatCastVariantDefinition ResolveCommandRouteCastVariantDefinition(
+        SkillDefinition skillDefinition,
         BattleUnitReadView activeUnit,
         StringName skillVariantId = default,
         bool routesToUnitTargeting = false
     )
     {
         BattleTargetMode targetMode = GetCommandRouteCastVariantTargetModeKind(
-            skillDef,
+            skillDefinition,
             routesToUnitTargeting
         );
         if (targetMode == BattleTargetMode.Unit)
         {
-            return ResolveUnitCastVariant(skillDef, activeUnit, skillVariantId);
+            return ResolveUnitCastVariantDefinition(
+                skillDefinition,
+                activeUnit,
+                skillVariantId
+            );
         }
         if (targetMode == BattleTargetMode.Ground)
         {
-            return ResolveGroundCastVariant(skillDef, activeUnit, skillVariantId);
+            return ResolveGroundCastVariantDefinition(
+                skillDefinition,
+                activeUnit,
+                skillVariantId
+            );
         }
         return null;
     }
 
     internal BattleTargetMode GetCommandRouteCastVariantTargetModeKind(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         bool routesToUnitTargeting = false
     )
     {
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
-        if (skillDef == null || combatProfile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (skillDefinition == null || combatProfile == null)
         {
             return BattleTargetMode.Unknown;
         }
@@ -711,8 +809,8 @@ public sealed class BattleSkillResolutionRules : IDisposable
     }
 
     internal BattleTargetMode GetCastVariantTargetModeKind(
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
     )
     {
         if (castVariant == null)
@@ -724,149 +822,146 @@ public sealed class BattleSkillResolutionRules : IDisposable
         {
             return targetMode;
         }
-        return skillDef?.combat_profile?.TargetModeKind ?? BattleTargetMode.Unknown;
+        return skillDefinition?.CombatProfile?.TargetModeKind ?? BattleTargetMode.Unknown;
     }
 
-    public List<CombatEffectDef> CollectUnitSkillEffectDefs(
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant,
+    public List<CombatEffectDefinition> CollectUnitSkillEffectDefinitions(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
         BattleUnitState activeUnit = null
     )
     {
-        return CollectEffectDefs(skillDef, castVariant, activeUnit);
+        return CollectEffectDefinitions(skillDefinition, castVariant, activeUnit);
     }
 
-    internal List<CombatEffectDef> CollectUnitSkillEffectDefs(
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant,
+    internal List<CombatEffectDefinition> CollectUnitSkillEffectDefinitions(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
         BattleUnitReadView activeUnit
     )
     {
-        return CollectEffectDefs(skillDef, castVariant, activeUnit);
+        return CollectEffectDefinitions(skillDefinition, castVariant, activeUnit);
     }
 
-    public List<CombatEffectDef> CollectGroundUnitEffectDefs(
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant,
+    public List<CombatEffectDefinition> CollectGroundUnitEffectDefinitions(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
         BattleUnitState activeUnit = null
     )
     {
-        var effectDefs = new List<CombatEffectDef>();
-        foreach (CombatEffectDef effectDef in CollectEffectDefs(skillDef, castVariant, activeUnit))
-        {
-            if (IsUnitEffect(effectDef))
-            {
-                effectDefs.Add(effectDef);
-            }
-        }
-        return effectDefs;
-    }
-
-    internal List<CombatEffectDef> CollectGroundUnitEffectDefs(
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant,
-        BattleUnitReadView activeUnit
-    )
-    {
-        var effectDefs = new List<CombatEffectDef>();
-        foreach (CombatEffectDef effectDef in CollectEffectDefs(skillDef, castVariant, activeUnit))
-        {
-            if (IsUnitEffect(effectDef))
-            {
-                effectDefs.Add(effectDef);
-            }
-        }
-        return effectDefs;
-    }
-
-    public List<CombatEffectDef> CollectGroundTerrainEffectDefs(
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant,
-        BattleUnitState activeUnit = null
-    )
-    {
-        var effectDefs = new List<CombatEffectDef>();
-        foreach (CombatEffectDef effectDef in CollectEffectDefs(skillDef, castVariant, activeUnit))
-        {
-            if (IsTerrainEffect(effectDef))
-            {
-                effectDefs.Add(effectDef);
-            }
-        }
-        return effectDefs;
-    }
-
-    internal List<CombatEffectDef> CollectGroundTerrainEffectDefs(
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant,
-        BattleUnitReadView activeUnit
-    )
-    {
-        var effectDefs = new List<CombatEffectDef>();
-        foreach (CombatEffectDef effectDef in CollectEffectDefs(skillDef, castVariant, activeUnit))
-        {
-            if (IsTerrainEffect(effectDef))
-            {
-                effectDefs.Add(effectDef);
-            }
-        }
-        return effectDefs;
-    }
-
-    public List<CombatEffectDef> CollectGroundEffectDefs(
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant,
-        BattleUnitState activeUnit = null
-    )
-    {
-        return CollectEffectDefs(skillDef, castVariant, activeUnit);
-    }
-
-    internal List<CombatEffectDef> CollectGroundEffectDefs(
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant,
-        BattleUnitReadView activeUnit
-    )
-    {
-        return CollectEffectDefs(skillDef, castVariant, activeUnit);
-    }
-
-    public CombatEffectDef FindRepeatAttackEffect(IEnumerable<CombatEffectDef> effectDefs)
-    {
-        foreach (CombatEffectDef effectDef in effectDefs ?? Array.Empty<CombatEffectDef>())
-        {
-            if (
-                effectDef != null
-                && effectDef.EffectKind == BattleEffectKind.RepeatAttackUntilFail
+        var effectDefinitions = new List<CombatEffectDefinition>();
+        foreach (
+            CombatEffectDefinition effectDefinition in CollectEffectDefinitions(
+                skillDefinition,
+                castVariant,
+                activeUnit
             )
+        )
+        {
+            if (IsUnitEffect(effectDefinition))
             {
-                return effectDef;
+                effectDefinitions.Add(effectDefinition);
             }
         }
-        return null;
+        return effectDefinitions;
     }
 
-    public bool IsUnitEffect(CombatEffectDef effectDef)
+    internal List<CombatEffectDefinition> CollectGroundUnitEffectDefinitions(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
+        BattleUnitReadView activeUnit
+    )
     {
-        if (effectDef == null)
+        var effectDefinitions = new List<CombatEffectDefinition>();
+        foreach (
+            CombatEffectDefinition effectDefinition in CollectEffectDefinitions(
+                skillDefinition,
+                castVariant,
+                activeUnit
+            )
+        )
+        {
+            if (IsUnitEffect(effectDefinition))
+            {
+                effectDefinitions.Add(effectDefinition);
+            }
+        }
+        return effectDefinitions;
+    }
+
+    public List<CombatEffectDefinition> CollectGroundTerrainEffectDefinitions(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
+        BattleUnitState activeUnit = null
+    )
+    {
+        var effectDefinitions = new List<CombatEffectDefinition>();
+        foreach (
+            CombatEffectDefinition effectDefinition in CollectEffectDefinitions(
+                skillDefinition,
+                castVariant,
+                activeUnit
+            )
+        )
+        {
+            if (IsTerrainEffect(effectDefinition))
+            {
+                effectDefinitions.Add(effectDefinition);
+            }
+        }
+        return effectDefinitions;
+    }
+
+    internal List<CombatEffectDefinition> CollectGroundTerrainEffectDefinitions(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
+        BattleUnitReadView activeUnit
+    )
+    {
+        var effectDefinitions = new List<CombatEffectDefinition>();
+        foreach (
+            CombatEffectDefinition effectDefinition in CollectEffectDefinitions(
+                skillDefinition,
+                castVariant,
+                activeUnit
+            )
+        )
+        {
+            if (IsTerrainEffect(effectDefinition))
+            {
+                effectDefinitions.Add(effectDefinition);
+            }
+        }
+        return effectDefinitions;
+    }
+
+    public bool IsUnitEffect(CombatEffectDefinition effectDefinition)
+    {
+        if (effectDefinition == null)
         {
             return false;
         }
-        return BattleTypedNames.IsUnitPayloadEffect(effectDef.EffectKind);
+        return BattleTypedNames.IsUnitPayloadEffect(effectDefinition.EffectKind);
     }
 
-    public bool IsTerrainEffect(CombatEffectDef effectDef)
+    public bool IsTerrainEffect(CombatEffectDefinition effectDefinition)
     {
-        if (effectDef == null)
+        if (effectDefinition == null)
         {
             return false;
         }
-        return BattleTypedNames.IsGroundPayloadEffect(effectDef.EffectKind);
+        return BattleTypedNames.IsGroundPayloadEffect(effectDefinition.EffectKind);
     }
 
-    public StringName ResolveEffectTargetFilter(SkillDef skillDef, CombatEffectDef effectDef)
+    public StringName ResolveEffectTargetFilter(
+        SkillDefinition skillDefinition,
+        CombatEffectDefinition effectDefinition
+    )
     {
-        return BattleTargetTeamRules.ResolveEffectTargetFilter(skillDef, effectDef);
+        return BattleTargetTeamRules.ResolveEffectTargetFilter(
+            skillDefinition,
+            effectDefinition
+        );
     }
 
     public bool IsUnitValidForEffect(
@@ -882,89 +977,92 @@ public sealed class BattleSkillResolutionRules : IDisposable
         );
     }
 
-    private List<CombatEffectDef> CollectEffectDefs(
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant,
+    private List<CombatEffectDefinition> CollectEffectDefinitions(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
         BattleUnitState activeUnit
     )
     {
-        var effectDefs = new List<CombatEffectDef>();
-        int skillLevel = GetUnitSkillLevel(activeUnit, skillDef?.skill_id ?? EmptyStringName);
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
-        if (skillDef != null && combatProfile != null)
+        var effectDefinitions = new List<CombatEffectDefinition>();
+        int skillLevel = GetUnitSkillLevel(activeUnit, skillDefinition?.SkillId ?? EmptyStringName);
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (skillDefinition != null && combatProfile != null)
         {
-            AddUnlockedEffectDefs(
-                effectDefs,
-                combatProfile.effect_defs,
+            AddUnlockedEffectDefinitions(
+                effectDefinitions,
+                combatProfile.EffectDefinitions,
                 skillLevel,
                 activeUnit != null
             );
         }
         if (castVariant != null)
         {
-            AddUnlockedEffectDefs(
-                effectDefs,
-                castVariant.effect_defs,
+            AddUnlockedEffectDefinitions(
+                effectDefinitions,
+                castVariant.EffectDefinitions,
                 skillLevel,
                 activeUnit != null
             );
         }
-        return effectDefs;
+        return effectDefinitions;
     }
 
-    private List<CombatEffectDef> CollectEffectDefs(
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant,
+    private List<CombatEffectDefinition> CollectEffectDefinitions(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
         BattleUnitReadView activeUnit
     )
     {
-        var effectDefs = new List<CombatEffectDef>();
-        int skillLevel = GetUnitSkillLevel(activeUnit, skillDef?.skill_id ?? EmptyStringName);
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
-        if (skillDef != null && combatProfile != null)
+        var effectDefinitions = new List<CombatEffectDefinition>();
+        int skillLevel = GetUnitSkillLevel(activeUnit, skillDefinition?.SkillId ?? EmptyStringName);
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (skillDefinition != null && combatProfile != null)
         {
-            AddUnlockedEffectDefs(
-                effectDefs,
-                combatProfile.effect_defs,
+            AddUnlockedEffectDefinitions(
+                effectDefinitions,
+                combatProfile.EffectDefinitions,
                 skillLevel,
                 activeUnit.IsValid
             );
         }
         if (castVariant != null)
         {
-            AddUnlockedEffectDefs(
-                effectDefs,
-                castVariant.effect_defs,
+            AddUnlockedEffectDefinitions(
+                effectDefinitions,
+                castVariant.EffectDefinitions,
                 skillLevel,
                 activeUnit.IsValid
             );
         }
-        return effectDefs;
+        return effectDefinitions;
     }
 
-    private static void AddUnlockedEffectDefs(
-        List<CombatEffectDef> target,
-        IEnumerable<CombatEffectDef> source,
+    private static void AddUnlockedEffectDefinitions(
+        List<CombatEffectDefinition> target,
+        IEnumerable<CombatEffectDefinition> source,
         int skillLevel,
         bool shouldFilter
     )
     {
-        foreach (CombatEffectDef effectDef in source ?? Array.Empty<CombatEffectDef>())
+        foreach (
+            CombatEffectDefinition effectDefinition in source
+                ?? Array.Empty<CombatEffectDefinition>()
+        )
         {
-            if (IsEffectUnlockedForSkillLevel(effectDef, skillLevel, shouldFilter))
+            if (IsEffectUnlockedForSkillLevel(effectDefinition, skillLevel, shouldFilter))
             {
-                target.Add(effectDef);
+                target.Add(effectDefinition);
             }
         }
     }
 
     private static bool IsEffectUnlockedForSkillLevel(
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         int skillLevel,
         bool shouldFilter
     )
     {
-        if (effectDef == null)
+        if (effectDefinition == null)
         {
             return false;
         }
@@ -972,8 +1070,8 @@ public sealed class BattleSkillResolutionRules : IDisposable
         {
             return true;
         }
-        int minLevel = Math.Max(effectDef.min_skill_level, 0);
-        int maxLevel = effectDef.max_skill_level;
+        int minLevel = Math.Max(effectDefinition.MinSkillLevel, 0);
+        int maxLevel = effectDefinition.MaxSkillLevel;
         return skillLevel >= minLevel && (maxLevel < 0 || skillLevel <= maxLevel);
     }
 
@@ -995,51 +1093,35 @@ public sealed class BattleSkillResolutionRules : IDisposable
         return Math.Max(activeUnit.GetKnownSkillLevel(skillId), 0);
     }
 
-    private static bool EffectHasSave(CombatEffectDef effectDef)
+    private static bool EffectHasSave(CombatEffectDefinition effectDefinition)
     {
-        if (effectDef == null)
+        if (effectDefinition == null)
         {
             return false;
         }
-        return effectDef.SaveDcModeKind == BattleSaveDcMode.CasterSpell || effectDef.save_dc > 0;
+        return effectDefinition.SaveDcModeKind == BattleSaveDcMode.CasterSpell
+            || effectDefinition.SaveDc > 0;
     }
 
-    private static List<CombatCastVariantDef> GetUnlockedCastVariants(
-        CombatSkillDef combatProfile,
-        int skillLevel
+    private static CombatCastVariantDefinition BuildImplicitGroundCastVariantDefinition(
+        SkillDefinition skillDefinition
     )
     {
-        var result = new List<CombatCastVariantDef>();
-        foreach (
-            CombatCastVariantDef castVariant in combatProfile?.cast_variants
-                ?? new Godot.Collections.Array<CombatCastVariantDef>()
-        )
-        {
-            if (castVariant != null && skillLevel >= castVariant.min_skill_level)
-            {
-                result.Add(castVariant);
-            }
-        }
-        return result;
-    }
-
-    private CombatCastVariantDef BuildImplicitGroundCastVariant(SkillDef skillDef)
-    {
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
-        if (combatProfile == null)
+        if (skillDefinition?.CombatProfile == null)
         {
             return null;
         }
-        return _runtimeSkillFactory.NewCastVariant(
-            variant =>
-            {
-                variant.variant_id = EmptyStringName;
-                variant.display_name = "";
-                variant.target_mode = BattleTypedNames.TargetModeGround;
-                variant.FootprintPatternKind = CombatCastFootprintPattern.Single;
-                variant.required_coord_count = 1;
-            },
-            $"implicit_ground_cast_variant:{skillDef?.skill_id}"
+        return new CombatCastVariantDefinition(
+            EmptyStringName,
+            "",
+            "",
+            0,
+            BattleTypedNames.TargetModeGround,
+            "single",
+            1,
+            Array.Empty<StringName>(),
+            Array.Empty<CombatEffectDefinition>(),
+            new Dictionary<string, Variant>()
         );
     }
 

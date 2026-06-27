@@ -43,12 +43,15 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
     {
         var registry = new SkillContentRegistry();
         var errors = new GStringArray();
-        var effectDef = new CombatEffectDef
-        {
-            effect_type = "status",
-            status_id = "legacy_lock_guard_param",
-            @params = new GDictionary { ["lock_guard"] = true },
-        };
+        var effectDef = TestResourceOwnership.Own(
+            new CombatEffectDef
+            {
+                effect_type = "status",
+                status_id = "legacy_lock_guard_param",
+                @params = new GDictionary { ["lock_guard"] = true },
+            },
+            "StatusEffectTypedFields.legacy-lock-guard-effect"
+        );
 
         registry.AppendEffectValidationErrors(
             errors,
@@ -275,13 +278,13 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
         unit.current_stamina = 3;
         unit.current_aura = 3;
         SetTypedStatus(unit, "typed_guard_lock_block", lockGuard: true);
-        SkillDef guardSkill = BuildGuardGrantingSkill();
+        SkillDefinition guardDefinition = BuildGuardGrantingSkill();
 
         try
         {
             BattleSkillCastBlockReasonKind blockReason = runtime.GetSkillCastBlockReason(
                 unit,
-                guardSkill
+                guardDefinition
             );
             _test.Eq(
                 blockReason,
@@ -294,7 +297,7 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
                 "typed lock_guard block reason should project a stable trace key."
             );
             _test.True(
-                runtime.GetSkillCastBlockMessage(unit, guardSkill).Contains("格挡"),
+                runtime.GetSkillCastBlockMessage(unit, guardDefinition).Contains("格挡"),
                 "typed lock_guard block reason should produce a guard-lock message."
             );
 
@@ -307,7 +310,7 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
                 }
             );
             _test.Eq(
-                runtime.GetSkillCastBlockReason(unit, guardSkill),
+                runtime.GetSkillCastBlockReason(unit, guardDefinition),
                 BattleSkillCastBlockReasonKind.BlackStarGuardLock,
                 "black-star guard lock should keep its existing distinct block reason."
             );
@@ -755,35 +758,32 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
         };
     }
 
-    private static SkillDef BuildGuardGrantingSkill()
+    private static SkillDefinition BuildGuardGrantingSkill()
     {
-        var combatProfile = new CombatSkillDef
-        {
-            skill_id = "test_guard_granting_skill",
-            target_mode = "unit",
-            target_team_filter = "self",
-            target_selection_mode = "self",
-            ap_cost = 0,
-            mp_cost = 0,
-            stamina_cost = 0,
-            aura_cost = 0,
-        };
-        combatProfile.effect_defs.Add(
-            new CombatEffectDef
-            {
-                effect_type = "status",
-                status_id = "guarding",
-                power = 1,
-                duration_tu = 10,
-            }
+        return TestSkillDefinitionProjection.BuildSkill(
+            "test_guard_granting_skill",
+            displayName: "Guard Grant",
+            maxLevel: 1,
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                "test_guard_granting_skill",
+                effects: new[]
+                {
+                    TestSkillDefinitionProjection.BuildEffect(
+                        "status",
+                        statusId: "guarding",
+                        power: 1,
+                        durationTu: 10
+                    ),
+                },
+                targetMode: "unit",
+                targetTeamFilter: "self",
+                targetSelectionMode: "self",
+                apCost: 0,
+                mpCost: 0,
+                staminaCost: 0,
+                auraCost: 0
+            )
         );
-        return new SkillDef
-        {
-            skill_id = "test_guard_granting_skill",
-            display_name = "Guard Grant",
-            max_level = 1,
-            combat_profile = combatProfile,
-        };
     }
 
     private static void SetStatusParams(

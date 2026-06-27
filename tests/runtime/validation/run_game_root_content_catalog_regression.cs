@@ -59,9 +59,9 @@ public partial class run_game_root_content_catalog_regression : SceneTree
             );
 
             _test.Eq(
-                gameSession.GetSkillDefsTyped().Count,
-                catalog.GetSkillDefsTyped().Count,
-                "content catalog skill defs 应与 GameSession 正式内容缓存一致。"
+                gameSession.GetSkillDefinitionsTyped().Count,
+                catalog.GetSkillDefinitionsTyped().Count,
+                "content catalog skill definitions 应与 GameSession 正式内容缓存一致。"
             );
             _test.Eq(
                 gameSession.GetProfessionDefsTyped().Count,
@@ -94,26 +94,29 @@ public partial class run_game_root_content_catalog_regression : SceneTree
             );
 
             // catalog 持有的是 typed 快照，而不是 session getter 的 live 转发：
-            // 直接往 session 的内容缓存塞一个 fake skill，未刷新前 catalog 不应看到，
+            // 直接往 session 的 DTO 内容缓存塞一个 fake skill，未刷新前 catalog 不应看到，
             // 显式刷新 catalog 后才应看到。
-            int baselineSkillCount = catalog.GetSkillDefsTyped().Count;
+            int baselineSkillCount = catalog.GetSkillDefinitionsTyped().Count;
             StringName fakeSkillId = "regression_fake_skill";
-            gameSession._skill_defs[fakeSkillId] = new SkillDef { skill_id = fakeSkillId };
+            gameSession.SetSkillDefinitionForTests(
+                fakeSkillId,
+                BuildProbeSkillDefinition(fakeSkillId)
+            );
             _test.Eq(
-                catalog.GetSkillDefsTyped().Count,
+                catalog.GetSkillDefinitionsTyped().Count,
                 baselineSkillCount,
-                "未刷新时 content catalog 不应看到直接塞进 GameSession._skill_defs 的 fake skill"
+                "未刷新时 content catalog 不应看到直接塞进 GameSession DTO 缓存的 fake skill"
                     + "（证明 catalog getter 不是 session getter 的 live 转发）。"
             );
             gameSession.RefreshContentCatalogForTests();
             _test.Eq(
-                catalog.GetSkillDefsTyped().Count,
+                catalog.GetSkillDefinitionsTyped().Count,
                 baselineSkillCount + 1,
-                "显式刷新 content catalog 后应反映新塞入 GameSession._skill_defs 的 fake skill。"
+                "显式刷新 content catalog 后应反映新塞入 GameSession DTO 缓存的 fake skill。"
             );
             _test.True(
-                catalog.GetSkillDefsTyped().ContainsKey(fakeSkillId),
-                "刷新后的 content catalog skill 快照应包含 fake skill id。"
+                catalog.GetSkillDefinitionsTyped().ContainsKey(fakeSkillId),
+                "刷新后的 content catalog skill definition 快照应包含 fake skill id。"
             );
         }
         finally
@@ -134,8 +137,11 @@ public partial class run_game_root_content_catalog_regression : SceneTree
 
             // catalog 不是纯代理：同一份 typed 表跨调用应返回缓存的同一实例。
             _test.True(
-                ReferenceEquals(catalog.GetSkillDefsTyped(), catalog.GetSkillDefsTyped()),
-                "content catalog 应返回缓存的 typed skill 视图，而不是每次重建。"
+                ReferenceEquals(
+                    catalog.GetSkillDefinitionsTyped(),
+                    catalog.GetSkillDefinitionsTyped()
+                ),
+                "content catalog 应返回缓存的 typed skill definition 视图，而不是每次重建。"
             );
             _test.True(
                 ReferenceEquals(catalog.GetItemDefsTyped(), catalog.GetItemDefsTyped()),
@@ -144,8 +150,8 @@ public partial class run_game_root_content_catalog_regression : SceneTree
             // 对照：GameSession 自身 getter 每次都重建 typed index，证明 catalog 持有独立缓存。
             _test.True(
                 !ReferenceEquals(
-                    gameSession.GetSkillDefsTyped(),
-                    gameSession.GetSkillDefsTyped()
+                    gameSession.GetSkillDefinitionsTyped(),
+                    gameSession.GetSkillDefinitionsTyped()
                 ),
                 "GameSession typed getter 仍每次重建，catalog 不应只是其代理。"
             );
@@ -210,29 +216,30 @@ public partial class run_game_root_content_catalog_regression : SceneTree
                 return;
 
             // 装入一个探针技能，让只读视图非空，证明防御性包装而不是空集合特例。
-            gameSession._skill_defs[DefensiveProbeSkillId] = new SkillDef
-            {
-                skill_id = DefensiveProbeSkillId,
-            };
+            gameSession.SetSkillDefinitionForTests(
+                DefensiveProbeSkillId,
+                BuildProbeSkillDefinition(DefensiveProbeSkillId)
+            );
             gameSession.RefreshContentCatalogForTests();
 
-            IReadOnlyDictionary<StringName, SkillDef> skillView = catalog.GetSkillDefsTyped();
+            IReadOnlyDictionary<StringName, SkillDefinition> skillView =
+                catalog.GetSkillDefinitionsTyped();
             _test.True(
                 skillView.ContainsKey(DefensiveProbeSkillId),
-                "刷新后的只读 skill 视图应包含探针技能。"
+                "刷新后的只读 skill definition 视图应包含探针技能。"
             );
             _test.True(
-                skillView as Dictionary<StringName, SkillDef> == null,
-                "typed skill getter 不应可被 downcast 成内部可变 Dictionary。"
+                skillView as Dictionary<StringName, SkillDefinition> == null,
+                "typed skill definition getter 不应可被 downcast 成内部可变 Dictionary。"
             );
 
-            int skillCountBefore = catalog.GetSkillDefsTyped().Count;
+            int skillCountBefore = catalog.GetSkillDefinitionsTyped().Count;
             bool skillMutationBlocked = false;
             try
             {
-                ((IDictionary<StringName, SkillDef>)skillView)[
+                ((IDictionary<StringName, SkillDefinition>)skillView)[
                     "defensive_inject_skill"
-                ] = new SkillDef { skill_id = "defensive_inject_skill" };
+                ] = skillView[DefensiveProbeSkillId];
             }
             catch (NotSupportedException)
             {
@@ -240,12 +247,12 @@ public partial class run_game_root_content_catalog_regression : SceneTree
             }
             _test.True(
                 skillMutationBlocked,
-                "通过 IDictionary 接口改写 catalog skill 只读视图应抛 NotSupportedException。"
+                "通过 IDictionary 接口改写 catalog skill definition 只读视图应抛 NotSupportedException。"
             );
             _test.Eq(
-                catalog.GetSkillDefsTyped().Count,
+                catalog.GetSkillDefinitionsTyped().Count,
                 skillCountBefore,
-                "对只读视图的改写尝试不应影响 catalog skill 快照。"
+                "对只读视图的改写尝试不应影响 catalog skill definition 快照。"
             );
 
             IReadOnlyDictionary<StringName, TraitDef> traitView = catalog.GetTraitDefsTyped();
@@ -415,9 +422,9 @@ public partial class run_game_root_content_catalog_regression : SceneTree
                 "dispose 后旧 catalog 不应再含探针物品。"
             );
             _test.Eq(
-                catalog.GetSkillDefsTyped().Count,
+                catalog.GetSkillDefinitionsTyped().Count,
                 0,
-                "dispose 后旧 catalog 不应再读到 stale typed skill 快照。"
+                "dispose 后旧 catalog 不应再读到 stale typed skill definition 快照。"
             );
             _test.Eq(
                 catalog.GetTraitDefsTyped().Count,
@@ -659,6 +666,42 @@ public partial class run_game_root_content_catalog_regression : SceneTree
             is_stackable = true,
             item_category = "material",
         };
+    }
+
+    private static SkillDefinition BuildProbeSkillDefinition(StringName skillId)
+    {
+        return new SkillDefinition(
+            skillId,
+            "Catalog Regression Probe Skill",
+            "",
+            "",
+            "passive",
+            1,
+            1,
+            "",
+            0,
+            0,
+            Array.Empty<int>(),
+            Array.Empty<StringName>(),
+            "",
+            Array.Empty<StringName>(),
+            "",
+            Array.Empty<StringName>(),
+            new Dictionary<StringName, int>(),
+            new Dictionary<StringName, int>(),
+            Array.Empty<StringName>(),
+            Array.Empty<StringName>(),
+            false,
+            "",
+            Array.Empty<StringName>(),
+            "",
+            new Dictionary<StringName, int>(),
+            "",
+            Array.Empty<AttributeModifierDefinition>(),
+            "",
+            new Dictionary<int, IReadOnlyDictionary<string, Variant>>(),
+            null
+        );
     }
 
     private void CleanupGameSession(GameSession gameSession)

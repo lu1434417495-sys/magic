@@ -43,8 +43,10 @@ public partial class run_phantasmal_kill_regression : SceneTree
         AttackEffectResolutionResult result = new FixedRollDamageResolver().ResolveEffects(
             source,
             target,
-            new GArray { MakePhantasmalKillEffect() },
-            new GDictionary { ["save_roll_override"] = 1, ["skill_id"] = SkillId }
+            new[] { MakePhantasmalKillEffect() },
+            DamageResolutionContext.FromDictionary(
+                new GDictionary { ["save_roll_override"] = 1, ["skill_id"] = SkillId }
+            )
         );
 
         _test.False(result.Applied, "immune target should be a no-op.");
@@ -62,8 +64,10 @@ public partial class run_phantasmal_kill_regression : SceneTree
         AttackEffectResolutionResult result = new FixedRollDamageResolver().ResolveEffects(
             source,
             target,
-            new GArray { MakePhantasmalKillEffect() },
-            new GDictionary { ["save_roll_override"] = 20, ["skill_id"] = SkillId }
+            new[] { MakePhantasmalKillEffect() },
+            DamageResolutionContext.FromDictionary(
+                new GDictionary { ["save_roll_override"] = 20, ["skill_id"] = SkillId }
+            )
         );
 
         _test.False(result.Applied, "critical success should be a no-op.");
@@ -89,8 +93,10 @@ public partial class run_phantasmal_kill_regression : SceneTree
         AttackEffectResolutionResult result = new FixedRollDamageResolver().ResolveEffects(
             source,
             target,
-            new GArray { MakePhantasmalKillEffect() },
-            new GDictionary { ["save_roll_override"] = 15, ["skill_id"] = SkillId }
+            new[] { MakePhantasmalKillEffect() },
+            DamageResolutionContext.FromDictionary(
+                new GDictionary { ["save_roll_override"] = 15, ["skill_id"] = SkillId }
+            )
         );
 
         _test.True(result.Applied, "ordinary success should apply aftershock.");
@@ -122,8 +128,10 @@ public partial class run_phantasmal_kill_regression : SceneTree
         AttackEffectResolutionResult result = new FixedRollDamageResolver().ResolveEffects(
             source,
             target,
-            new GArray { MakePhantasmalKillEffect() },
-            new GDictionary { ["save_roll_override"] = 5, ["skill_id"] = SkillId }
+            new[] { MakePhantasmalKillEffect() },
+            DamageResolutionContext.FromDictionary(
+                new GDictionary { ["save_roll_override"] = 5, ["skill_id"] = SkillId }
+            )
         );
 
         _test.True(result.Applied, "failure below threshold should apply execute damage.");
@@ -142,8 +150,10 @@ public partial class run_phantasmal_kill_regression : SceneTree
         AttackEffectResolutionResult result = new FixedRollDamageResolver(Ones(6)).ResolveEffects(
             source,
             target,
-            new GArray { MakePhantasmalKillEffect() },
-            new GDictionary { ["save_roll_override"] = 5, ["skill_id"] = SkillId }
+            new[] { MakePhantasmalKillEffect() },
+            DamageResolutionContext.FromDictionary(
+                new GDictionary { ["save_roll_override"] = 5, ["skill_id"] = SkillId }
+            )
         );
 
         _test.True(result.Applied, "failure above threshold should apply damage and statuses.");
@@ -171,8 +181,10 @@ public partial class run_phantasmal_kill_regression : SceneTree
         AttackEffectResolutionResult result = new FixedRollDamageResolver().ResolveEffects(
             source,
             target,
-            new GArray { MakePhantasmalKillEffect() },
-            new GDictionary { ["save_roll_override"] = 1, ["skill_id"] = SkillId }
+            new[] { MakePhantasmalKillEffect() },
+            DamageResolutionContext.FromDictionary(
+                new GDictionary { ["save_roll_override"] = 1, ["skill_id"] = SkillId }
+            )
         );
 
         _test.True(result.Applied, "critical failure below threshold should apply execute damage.");
@@ -192,8 +204,10 @@ public partial class run_phantasmal_kill_regression : SceneTree
         AttackEffectResolutionResult result = new FixedRollDamageResolver(Ones(10)).ResolveEffects(
             source,
             target,
-            new GArray { MakePhantasmalKillEffect() },
-            new GDictionary { ["save_roll_override"] = 1, ["skill_id"] = SkillId }
+            new[] { MakePhantasmalKillEffect() },
+            DamageResolutionContext.FromDictionary(
+                new GDictionary { ["save_roll_override"] = 1, ["skill_id"] = SkillId }
+            )
         );
 
         _test.True(result.Applied, "critical failure above threshold should apply damage and statuses.");
@@ -221,11 +235,12 @@ public partial class run_phantasmal_kill_regression : SceneTree
     private void TestDeathWardCanInterceptExecuteDamage()
     {
         FixedRollDamageResolver resolver = new();
-        SkillDef lastStandSkill = ResourceLoader.Load<SkillDef>(
-            "res://data/configs/skills/warrior_last_stand.tres"
+        SkillDefinition lastStandSkill = TestSkillDefinitionProjection.LoadSkillDefinition(
+            "res://data/configs/skills/warrior_last_stand.tres",
+            "phantasmal_kill:warrior_last_stand"
         );
-        resolver.SetSkillDefs(
-            new Dictionary<StringName, SkillDef>
+        resolver.SetSkillDefinitions(
+            new Dictionary<StringName, SkillDefinition>
             {
                 [(StringName)"warrior_last_stand"] = lastStandSkill,
             }
@@ -237,8 +252,10 @@ public partial class run_phantasmal_kill_regression : SceneTree
         AttackEffectResolutionResult result = resolver.ResolveEffects(
             source,
             target,
-            new GArray { MakePhantasmalKillEffect() },
-            new GDictionary { ["save_roll_override"] = 5, ["skill_id"] = SkillId }
+            new[] { MakePhantasmalKillEffect() },
+            DamageResolutionContext.FromDictionary(
+                new GDictionary { ["save_roll_override"] = 5, ["skill_id"] = SkillId }
+            )
         );
 
         _test.True(target.is_alive, "same-priority death ward should intercept execute damage.");
@@ -262,8 +279,10 @@ public partial class run_phantasmal_kill_regression : SceneTree
             new FixedRollDamageResolver(Ones(6)).ResolveEffects(
                 source,
                 resistant,
-                new GArray { MakePhantasmalKillEffect() },
-                new GDictionary { ["save_roll_override"] = 5, ["skill_id"] = SkillId }
+                new[] { MakePhantasmalKillEffect() },
+                DamageResolutionContext.FromDictionary(
+                    new GDictionary { ["save_roll_override"] = 5, ["skill_id"] = SkillId }
+                )
             );
 
         _test.Eq(resistantResult.Damage, 3, "psychic half resistance should halve failure damage.");
@@ -284,8 +303,10 @@ public partial class run_phantasmal_kill_regression : SceneTree
             new FixedRollDamageResolver(Ones(6)).ResolveEffects(
                 source,
                 immune,
-                new GArray { MakePhantasmalKillEffect() },
-                new GDictionary { ["save_roll_override"] = 5, ["skill_id"] = SkillId }
+                new[] { MakePhantasmalKillEffect() },
+                DamageResolutionContext.FromDictionary(
+                    new GDictionary { ["save_roll_override"] = 5, ["skill_id"] = SkillId }
+                )
             );
 
         _test.Eq(immuneResult.Damage, 0, "psychic immunity should absorb non-execute damage.");
@@ -303,7 +324,7 @@ public partial class run_phantasmal_kill_regression : SceneTree
 
     private void TestGroundSkillAffectsAnyTeamInSevenBySevenOnly()
     {
-        using SkillDef skill = MakeGroundPhantasmalKillSkill();
+        SkillDefinition skill = MakeGroundPhantasmalKillSkill();
         BattleUnitState source = MakeUnit("ground_source", "player", 200, 200, new Vector2I(0, 5));
         source.known_active_skill_ids.Add(SkillId);
         source.known_skill_level_map[SkillId] = 1;
@@ -324,7 +345,7 @@ public partial class run_phantasmal_kill_regression : SceneTree
         );
         fixture.Runtime.setup(
             null,
-            new Dictionary<StringName, SkillDef> { [SkillId] = skill }
+            new Dictionary<StringName, SkillDefinition> { [SkillId] = skill }
         );
         fixture.Runtime.SetupStateForTests(fixture.State);
         BattleTestFixture.ConfigureDamageResolverForTests(
@@ -344,22 +365,41 @@ public partial class run_phantasmal_kill_regression : SceneTree
         _test.False(enemyOutOfRange.HasStatusEffect("stunned"), "out-of-range enemy should not gain stunned.");
         _test.False(allyOutOfRange.HasStatusEffect("stunned"), "out-of-range ally should not gain stunned.");
 
-        GodotSharpCleanup.DisposeGodotObject(batch);
-        GodotSharpCleanup.DisposeGodotObject(command);
+        GodotSharpCleanup.DisposeBatch(batch);
+        GodotSharpCleanup.ClearRuntimeReferences(command);
     }
 
-    private static CombatEffectDef MakePhantasmalKillEffect() => new()
-    {
-        effect_type = "graded_save_execute",
-        effect_target_team_filter = "any",
-        damage_tag = "psychic",
-        save_dc_mode = "static",
-        save_dc = 10,
-        save_dc_source_ability = "intelligence",
-        save_ability = "willpower",
-        save_tag = "illusion",
-        save_partial_on_success = false,
-        @params = new GDictionary
+    private static CombatEffectDefinition MakePhantasmalKillEffect() =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "graded_save_execute",
+            effectTargetTeamFilter: "any",
+            damageTag: "psychic",
+            saveDcMode: "static",
+            saveDc: 10,
+            saveDcSourceAbility: "intelligence",
+            saveAbility: "willpower",
+            saveTag: "illusion",
+            savePartialOnSuccess: false,
+            parameters: new Dictionary<string, Variant>
+            {
+                ["profile_id"] = "phantasmal_kill",
+                ["failure_execute_threshold_fixed"] = 50,
+                ["failure_execute_threshold_max_hp_percent"] = 25,
+                ["failure_damage_dice_count"] = 6,
+                ["failure_damage_dice_sides"] = 6,
+                ["failure_frightened_duration_tu"] = 60,
+                ["failure_reaction_lock_duration_tu"] = 30,
+                ["critical_failure_execute_threshold_max_hp_percent"] = 35,
+                ["critical_failure_damage_dice_count"] = 10,
+                ["critical_failure_damage_dice_sides"] = 6,
+                ["critical_failure_frightened_duration_tu"] = 90,
+                ["critical_failure_stunned_duration_tu"] = 30,
+                ["success_aftershock_duration_tu"] = 30,
+            }
+        );
+
+    private static IReadOnlyDictionary<string, Variant> MakePhantasmalKillParameters() =>
+        new Dictionary<string, Variant>
         {
             ["profile_id"] = "phantasmal_kill",
             ["failure_execute_threshold_fixed"] = 50,
@@ -374,33 +414,41 @@ public partial class run_phantasmal_kill_regression : SceneTree
             ["critical_failure_frightened_duration_tu"] = 90,
             ["critical_failure_stunned_duration_tu"] = 30,
             ["success_aftershock_duration_tu"] = 30,
-        },
-    };
-
-    private static SkillDef MakeGroundPhantasmalKillSkill()
-    {
-        SkillDef skill = new()
-        {
-            skill_id = SkillId,
-            display_name = "Test Phantasmal Kill",
-            max_level = 9,
-            non_core_max_level = 7,
-            combat_profile = new CombatSkillDef
-            {
-                skill_id = SkillId,
-                target_mode = "ground",
-                target_team_filter = "any",
-                target_selection_mode = "single_coord",
-                range_value = 10,
-                area_pattern = "square",
-                area_value = 3,
-                ap_cost = 0,
-                mp_cost = 0,
-                cooldown_tu = 0,
-            },
         };
-        skill.combat_profile.effect_defs.Add(MakePhantasmalKillEffect());
-        return skill;
+
+    private static SkillDefinition MakeGroundPhantasmalKillSkill()
+    {
+        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
+            "graded_save_execute",
+            effectTargetTeamFilter: "any",
+            damageTag: "psychic",
+            saveDcMode: "static",
+            saveDc: 10,
+            saveDcSourceAbility: "intelligence",
+            saveAbility: "willpower",
+            saveTag: "illusion",
+            savePartialOnSuccess: false,
+            parameters: MakePhantasmalKillParameters()
+        );
+        return TestSkillDefinitionProjection.BuildSkill(
+            SkillId,
+            displayName: "Test Phantasmal Kill",
+            maxLevel: 9,
+            nonCoreMaxLevel: 7,
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                SkillId,
+                effects: new[] { effect },
+                targetMode: "ground",
+                targetTeamFilter: "any",
+                targetSelectionMode: "single_coord",
+                rangeValue: 10,
+                areaPattern: "square",
+                areaValue: 3,
+                apCost: 0,
+                mpCost: 0,
+                cooldownTu: 0
+            )
+        );
     }
 
     private static BattleUnitState MakeUnit(

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GCombatCastVariantDefArray = Godot.Collections.Array<CombatCastVariantDef>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
@@ -19,7 +18,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
     private static readonly StringName SelfSelectionMode = BattleTypedNames.TargetSelectionSelf;
     private static readonly StringName EnemyFilter = "enemy";
     private readonly BattleTargetCollectionService _targetCollectionService = new();
-    private readonly Dictionary<StringName, CombatCastVariantDef> _implicitGroundCastVariantsBySkillId =
+    private readonly Dictionary<StringName, CombatCastVariantDefinition> _implicitGroundCastVariantsBySkillId =
         new();
     private WeakReference<GameRuntimeFacade> _runtimeRef;
 
@@ -43,20 +42,20 @@ public sealed class GameRuntimeBattleSelection : IDisposable
     internal string GetSelectedBattleSkillName()
     {
         BattleUnitState activeUnit = GetManualActiveUnit();
-        SkillDef skillDef = GetSelectedBattleSkillDef(activeUnit);
-        return skillDef?.display_name ?? "";
+        SkillDefinition skillDefinition = GetSelectedBattleSkillDefinition(activeUnit);
+        return skillDefinition?.DisplayName ?? "";
     }
 
     internal string GetSelectedBattleSkillVariantName()
     {
         BattleUnitState activeUnit = GetManualActiveUnit();
-        CombatCastVariantDef castVariant = GetSelectedBattleSkillVariant(activeUnit);
-        return castVariant?.display_name ?? "";
+        CombatCastVariantDefinition castVariant = GetSelectedBattleSkillVariant(activeUnit);
+        return castVariant?.DisplayName ?? "";
     }
 
     internal GVector2IArray GetSelectedBattleSkillTargetCoords()
     {
-        return CollectSelectedBattleSkillTargetCoords();
+        return DuplicateVector2IArray(CollectSelectedBattleSkillTargetCoordsTyped());
     }
 
     internal GStringNameArray GetSelectedBattleSkillTargetUnitIds()
@@ -66,35 +65,36 @@ public sealed class GameRuntimeBattleSelection : IDisposable
 
     internal GVector2IArray GetSelectedBattleSkillValidTargetCoords()
     {
-        return CollectSelectedBattleSkillValidTargetCoords();
+        return DuplicateVector2IArray(CollectSelectedBattleSkillValidTargetCoordsTyped());
     }
 
     internal int GetSelectedBattleSkillRequiredCoordCount()
     {
         BattleUnitState activeUnit = GetManualActiveUnit();
-        SkillDef skillDef = GetSelectedBattleSkillDef(activeUnit);
-        CombatCastVariantDef castVariant = GetSelectedBattleSkillVariant(activeUnit);
-        if (skillDef?.combat_profile != null)
+        SkillDefinition skillDefinition = GetSelectedBattleSkillDefinition(activeUnit);
+        CombatCastVariantDefinition castVariant = GetSelectedBattleSkillVariant(activeUnit);
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (combatProfile != null)
         {
             BattleTargetSelectionMode selectionMode =
                 GetSelectedBattleSkillTargetSelectionModeKind(activeUnit);
             if (selectionMode == BattleTargetSelectionMode.MultiUnit)
             {
-                SkillEffectiveCombatProfile effectiveProfile = GetEffectiveCombatProfileForUnit(
+                SkillEffectiveCombatDefinition effectiveProfile = GetEffectiveCombatProfileForUnit(
                     activeUnit,
-                    skillDef
+                    skillDefinition
                 );
                 return Math.Max(
                     effectiveProfile.MaxTargetCount,
-                    skillDef.combat_profile.min_target_count
+                    combatProfile.MinTargetCount
                 );
             }
-            if (skillDef.combat_profile.TargetModeKind == BattleTargetMode.Unit)
+            if (combatProfile.TargetModeKind == BattleTargetMode.Unit)
             {
                 return 1;
             }
         }
-        return castVariant == null ? 0 : castVariant.required_coord_count;
+        return castVariant == null ? 0 : castVariant.RequiredCoordCount;
     }
 
     internal BattlePreview GetSelectedBattleSkillPreview()
@@ -126,8 +126,9 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         }
 
         StringName skillId = activeUnit.known_active_skill_ids[index];
-        SkillDef skillDef = GetSkillDef(skillId);
-        if (skillDef?.combat_profile == null)
+        SkillDefinition skillDefinition = GetSkillDefinition(skillId);
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (combatProfile == null)
         {
             UpdateStatus("该技能当前不可用于战斗。");
             return SelectionErrorTyped("该技能当前不可用于战斗。");
@@ -139,7 +140,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             return SelectionOkTyped();
         }
 
-        string blockReason = GetSkillCastBlockMessage(activeUnit, skillDef);
+        string blockReason = GetSkillCastBlockMessage(activeUnit, skillDefinition);
         if (!string.IsNullOrEmpty(blockReason))
         {
             RefreshBattleSelectionState();
@@ -151,15 +152,15 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         SetSelectedSkillVariantId("");
         ClearBattleSkillTargetSelection();
 
-        if (skillDef.combat_profile.TargetSelectionModeKind == BattleTargetSelectionMode.RandomChain)
+        if (combatProfile.TargetSelectionModeKind == BattleTargetSelectionMode.RandomChain)
         {
             var chainCommand = new BattleCommand
             {
                 CommandKind = BattleCommandKind.Skill,
                 unit_id = activeUnit.unit_id,
                 skill_id = skillId,
-                skill_variant_id = GetDefaultUnitSkillVariantId(activeUnit, skillDef),
-                target_unit_ids = new GStringNameArray(),
+                skill_variant_id = GetDefaultUnitSkillVariantId(activeUnit, skillDefinition),
+                target_unit_ids = new StringNameList(),
             };
             BattlePreview chainPreview = PreviewBattleCommand(chainCommand);
             if (chainPreview != null && chainPreview.allowed)
@@ -176,13 +177,16 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             return SelectionErrorTyped("无法执行连锁攻击。");
         }
 
-        GCombatCastVariantDefArray unlockedOptions = GetUnlockedCastVariants(activeUnit, skillDef);
-        if (unlockedOptions.Count > 0 && unlockedOptions[0] is CombatCastVariantDef firstValue)
+        IReadOnlyList<CombatCastVariantDefinition> unlockedOptions = GetUnlockedCastVariants(
+            activeUnit,
+            skillDefinition
+        );
+        if (unlockedOptions.Count > 0 && unlockedOptions[0] is CombatCastVariantDefinition firstValue)
         {
-            SetSelectedSkillVariantId(firstValue.variant_id);
+            SetSelectedSkillVariantId(firstValue.VariantId);
         }
         RefreshBattleSelectionState();
-        UpdateStatus(BuildBattleSkillSelectionStatus(skillDef, activeUnit));
+        UpdateStatus(BuildBattleSkillSelectionStatus(skillDefinition, activeUnit));
         return SelectionOkTyped();
     }
 
@@ -200,14 +204,18 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             return;
         }
 
-        SkillDef skillDef = GetSelectedBattleSkillDef(activeUnit);
-        if (skillDef?.combat_profile == null || skillDef.combat_profile.cast_variants.Count == 0)
+        SkillDefinition skillDefinition = GetSelectedBattleSkillDefinition(activeUnit);
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (combatProfile == null || combatProfile.CastVariants.Count == 0)
         {
             UpdateStatus("当前技能没有可切换的施法形态。");
             return;
         }
 
-        GCombatCastVariantDefArray unlockedOptions = GetUnlockedCastVariants(activeUnit, skillDef);
+        IReadOnlyList<CombatCastVariantDefinition> unlockedOptions = GetUnlockedCastVariants(
+            activeUnit,
+            skillDefinition
+        );
         if (unlockedOptions.Count == 0)
         {
             UpdateStatus("当前技能等级尚未解锁任何施法形态。");
@@ -217,8 +225,8 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         int currentIndex = 0;
         for (int optionIndex = 0; optionIndex < unlockedOptions.Count; optionIndex++)
         {
-            CombatCastVariantDef castVariant = unlockedOptions[optionIndex];
-            if (castVariant != null && castVariant.variant_id == GetSelectedSkillVariantId())
+            CombatCastVariantDefinition castVariant = unlockedOptions[optionIndex];
+            if (castVariant != null && castVariant.VariantId == GetSelectedSkillVariantId())
             {
                 currentIndex = optionIndex;
                 break;
@@ -226,13 +234,13 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         }
 
         int nextIndex = PosMod(currentIndex + step, unlockedOptions.Count);
-        if (unlockedOptions[nextIndex] is CombatCastVariantDef nextValue)
+        if (unlockedOptions[nextIndex] is CombatCastVariantDefinition nextValue)
         {
-            SetSelectedSkillVariantId(nextValue.variant_id);
+            SetSelectedSkillVariantId(nextValue.VariantId);
         }
         ClearBattleSkillTargetSelection();
         RefreshBattleSelectionState();
-        UpdateStatus(BuildBattleSkillSelectionStatus(skillDef, activeUnit));
+        UpdateStatus(BuildBattleSkillSelectionStatus(skillDefinition, activeUnit));
     }
 
     internal void ClearBattleSkillSelection(bool announce = false)
@@ -274,20 +282,21 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             return;
         }
 
-        SkillDef skillDef = GetSelectedBattleSkillDef(activeUnit);
-        if (skillDef?.combat_profile == null)
+        SkillDefinition skillDefinition = GetSelectedBattleSkillDefinition(activeUnit);
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (combatProfile == null)
         {
             SetSelectedSkillId("");
             SetSelectedSkillVariantId("");
             ClearBattleSkillTargetSelection();
             return;
         }
-        if (skillDef.combat_profile.cast_variants.Count == 0)
+        if (combatProfile.CastVariants.Count == 0)
         {
             SetSelectedSkillVariantId("");
             return;
         }
-        CombatCastVariantDef castVariant = GetSelectedBattleSkillVariant(activeUnit);
+        CombatCastVariantDefinition castVariant = GetSelectedBattleSkillVariant(activeUnit);
         if (castVariant == null)
         {
             SetSelectedSkillId("");
@@ -295,7 +304,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             ClearBattleSkillTargetSelection();
             return;
         }
-        SetSelectedSkillVariantId(castVariant.variant_id);
+        SetSelectedSkillVariantId(castVariant.VariantId);
     }
 
     internal BattleRefreshMode AttemptBattleMoveTo(Vector2I target_coord)
@@ -350,13 +359,14 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         }
         else if (GetSelectedBattleSkillTargetSelectionModeKind(activeUnit) == BattleTargetSelectionMode.MultiUnit)
         {
-            SkillDef skillDef = GetSelectedBattleSkillDef(activeUnit);
-            if (skillDef?.combat_profile != null)
+            SkillDefinition skillDefinition = GetSelectedBattleSkillDefinition(activeUnit);
+            CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+            if (combatProfile != null)
             {
-                int minTargetCount = Math.Max(skillDef.combat_profile.min_target_count, 1);
+                int minTargetCount = Math.Max(combatProfile.MinTargetCount, 1);
                 if (GetTargetUnitIdsStateTyped().Count >= minTargetCount)
                 {
-                    return IssueSelectedMultiUnitSkill(activeUnit, skillDef);
+                    return IssueSelectedMultiUnitSkill(activeUnit, skillDefinition);
                 }
             }
         }
@@ -421,19 +431,21 @@ public sealed class GameRuntimeBattleSelection : IDisposable
 
         foreach (StringName skillId in activeUnit.known_active_skill_ids)
         {
-            SkillDef skillDef = GetSkillDef(skillId);
-            if (skillDef?.combat_profile == null)
+            SkillDefinition skillDefinition = GetSkillDefinition(skillId);
+            CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+            if (combatProfile == null)
             {
                 continue;
             }
-            if (skillDef.combat_profile.TargetModeKind != BattleTargetMode.Unit)
+            if (combatProfile.TargetModeKind != BattleTargetMode.Unit)
             {
                 continue;
             }
-            CombatCastVariantDef castVariant = skillDef.combat_profile.GetCastVariant(
-                GetDefaultUnitSkillVariantId(activeUnit, skillDef)
+            CombatCastVariantDefinition castVariant = GetCastVariant(
+                combatProfile,
+                GetDefaultUnitSkillVariantId(activeUnit, skillDefinition)
             );
-            if (!CanSkillTargetUnit(activeUnit, targetUnit, skillDef, castVariant))
+            if (!CanSkillTargetUnit(activeUnit, targetUnit, skillDefinition, castVariant))
             {
                 continue;
             }
@@ -442,7 +454,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
                 CommandKind = BattleCommandKind.Skill,
                 unit_id = activeUnit.unit_id,
                 skill_id = skillId,
-                skill_variant_id = GetDefaultUnitSkillVariantId(activeUnit, skillDef),
+                skill_variant_id = GetDefaultUnitSkillVariantId(activeUnit, skillDefinition),
                 target_unit_id = targetUnit.unit_id,
                 target_coord = targetUnit.coord,
             };
@@ -460,17 +472,18 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             return null;
         }
 
-        SkillDef skillDef = GetSelectedBattleSkillDef(activeUnit);
-        if (skillDef?.combat_profile == null)
+        SkillDefinition skillDefinition = GetSelectedBattleSkillDefinition(activeUnit);
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (combatProfile == null)
         {
             return null;
         }
-        if (skillDef.combat_profile.TargetModeKind != BattleTargetMode.Unit)
+        if (combatProfile.TargetModeKind != BattleTargetMode.Unit)
         {
             return null;
         }
-        CombatCastVariantDef castVariant = GetSelectedBattleSkillVariant(activeUnit);
-        if (!CanSkillTargetUnit(activeUnit, targetUnit, skillDef, castVariant))
+        CombatCastVariantDefinition castVariant = GetSelectedBattleSkillVariant(activeUnit);
+        if (!CanSkillTargetUnit(activeUnit, targetUnit, skillDefinition, castVariant))
         {
             return null;
         }
@@ -493,17 +506,18 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         if (activeUnit == null || GetSelectedSkillId() == "")
             return null;
 
-        SkillDef skillDef = GetSelectedBattleSkillDef(activeUnit);
-        if (skillDef?.combat_profile == null)
+        SkillDefinition skillDefinition = GetSelectedBattleSkillDefinition(activeUnit);
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (combatProfile == null)
             return null;
 
-        CombatCastVariantDef castVariant = GetSelectedBattleSkillVariant(activeUnit);
+        CombatCastVariantDefinition castVariant = GetSelectedBattleSkillVariant(activeUnit);
         var command = new BattleCommand
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = activeUnit.unit_id,
             skill_id = GetSelectedSkillId(),
-            skill_variant_id = castVariant?.variant_id ?? GetSelectedSkillVariantId(),
+            skill_variant_id = castVariant?.VariantId ?? GetSelectedSkillVariantId(),
             target_coord = coord,
         };
 
@@ -511,11 +525,11 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             GetSelectedBattleSkillTargetSelectionModeKind(activeUnit);
         if (selectionMode == BattleTargetSelectionMode.MultiUnit)
         {
-            return BuildSelectedMultiUnitPreviewCommand(command, activeUnit, skillDef, coord);
+            return BuildSelectedMultiUnitPreviewCommand(command, activeUnit, skillDefinition, coord);
         }
 
         BattleTargetMode targetMode = castVariant?.TargetModeKind
-            ?? skillDef.combat_profile.TargetModeKind;
+            ?? combatProfile.TargetModeKind;
         if (targetMode == BattleTargetMode.Ground)
         {
             return BuildSelectedGroundPreviewCommand(command, castVariant, coord);
@@ -526,7 +540,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             targetUnit == null
             && (
                 selectionMode == BattleTargetSelectionMode.Self
-                || skillDef.combat_profile.target_team_filter == SelfSelectionMode
+                || combatProfile.TargetTeamFilter == SelfSelectionMode
             )
         )
         {
@@ -543,7 +557,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
     private BattleCommand BuildSelectedMultiUnitPreviewCommand(
         BattleCommand command,
         BattleUnitState activeUnit,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         Vector2I coord
     )
     {
@@ -552,11 +566,11 @@ public sealed class GameRuntimeBattleSelection : IDisposable
 
         var targetUnitIds = new List<StringName>(GetTargetUnitIdsStateTyped());
         BattleUnitState hoveredUnit = GetRuntimeUnitAtCoord(coord);
-        CombatCastVariantDef castVariant = GetSelectedBattleSkillVariant(activeUnit);
+        CombatCastVariantDefinition castVariant = GetSelectedBattleSkillVariant(activeUnit);
         if (
             hoveredUnit != null
             && !targetUnitIds.Contains(hoveredUnit.unit_id)
-            && CanSkillTargetUnit(activeUnit, hoveredUnit, skillDef, castVariant)
+            && CanSkillTargetUnit(activeUnit, hoveredUnit, skillDefinition, castVariant)
         )
         {
             targetUnitIds.Add(hoveredUnit.unit_id);
@@ -575,7 +589,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
 
     private BattleCommand BuildSelectedGroundPreviewCommand(
         BattleCommand command,
-        CombatCastVariantDef castVariant,
+        CombatCastVariantDefinition castVariant,
         Vector2I coord
     )
     {
@@ -588,7 +602,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             targetCoords.Add(coord);
         }
 
-        int requiredCoordCount = Math.Max(castVariant.required_coord_count, 1);
+        int requiredCoordCount = Math.Max(castVariant.RequiredCoordCount, 1);
         if (targetCoords.Count > requiredCoordCount)
         {
             targetCoords = targetCoords.GetRange(
@@ -604,17 +618,21 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         return command;
     }
 
-    private StringName GetDefaultUnitSkillVariantId(BattleUnitState activeUnit, SkillDef skillDef)
+    private StringName GetDefaultUnitSkillVariantId(
+        BattleUnitState activeUnit,
+        SkillDefinition skillDefinition
+    )
     {
-        if (skillDef?.combat_profile == null || skillDef.combat_profile.cast_variants.Count == 0)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (combatProfile == null || combatProfile.CastVariants.Count == 0)
         {
             return "";
         }
-        foreach (CombatCastVariantDef castVariant in GetUnlockedCastVariants(activeUnit, skillDef))
+        foreach (CombatCastVariantDefinition castVariant in GetUnlockedCastVariants(activeUnit, skillDefinition))
         {
             if (castVariant != null && castVariant.TargetModeKind == BattleTargetMode.Unit)
             {
-                return castVariant.variant_id;
+                return castVariant.VariantId;
             }
         }
         return "";
@@ -626,7 +644,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             return false;
         }
-        CombatCastVariantDef castVariant = GetSelectedBattleSkillVariant(activeUnit);
+        CombatCastVariantDefinition castVariant = GetSelectedBattleSkillVariant(activeUnit);
         return castVariant != null && castVariant.TargetModeKind == BattleTargetMode.Ground;
     }
 
@@ -635,16 +653,16 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         Vector2I targetCoord
     )
     {
-        CombatCastVariantDef castVariant = GetSelectedBattleSkillVariant(activeUnit);
-        SkillDef skillDef = GetSelectedBattleSkillDef(activeUnit);
-        if (castVariant == null || skillDef == null)
+        CombatCastVariantDefinition castVariant = GetSelectedBattleSkillVariant(activeUnit);
+        SkillDefinition skillDefinition = GetSelectedBattleSkillDefinition(activeUnit);
+        if (castVariant == null || skillDefinition == null)
         {
             RefreshBattleSelectionState();
             UpdateStatus("当前地面技能形态不可用。");
             return BattleRefreshMode.Overlay;
         }
 
-        string blockReason = GetSkillCastBlockMessage(activeUnit, skillDef);
+        string blockReason = GetSkillCastBlockMessage(activeUnit, skillDefinition);
         if (!string.IsNullOrEmpty(blockReason))
         {
             RefreshBattleSelectionState();
@@ -652,7 +670,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             return BattleRefreshMode.Error;
         }
 
-        int requiredCoordCount = Math.Max(castVariant.required_coord_count, 1);
+        int requiredCoordCount = Math.Max(castVariant.RequiredCoordCount, 1);
         List<Vector2I> queuedTargetCoords = GetTargetCoordsStateTyped();
         List<Vector2I> previousTargets = new(queuedTargetCoords);
         int existingIndex = queuedTargetCoords.IndexOf(targetCoord);
@@ -687,7 +705,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             RefreshBattleSelectionState();
             UpdateStatus(
-                $"{BuildSkillVariantDisplayName(skillDef, castVariant)}：已选择 {resolvedTargetCoords.Count} / {requiredCoordCount} 个地格。"
+                $"{BuildSkillVariantDisplayName(skillDefinition, castVariant)}：已选择 {resolvedTargetCoords.Count} / {requiredCoordCount} 个地格。"
             );
             return BattleRefreshMode.Overlay;
         }
@@ -697,7 +715,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             CommandKind = BattleCommandKind.Skill,
             unit_id = activeUnit.unit_id,
             skill_id = GetSelectedSkillId(),
-            skill_variant_id = castVariant.variant_id,
+            skill_variant_id = castVariant.VariantId,
             target_coords = DuplicateVector2IArray(resolvedTargetCoords),
             target_coord = targetCoord,
         };
@@ -726,12 +744,13 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         BattleUnitState targetUnit
     )
     {
-        SkillDef skillDef = GetSelectedBattleSkillDef(activeUnit);
-        if (skillDef?.combat_profile == null)
+        SkillDefinition skillDefinition = GetSelectedBattleSkillDefinition(activeUnit);
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (combatProfile == null)
         {
             return BattleRefreshMode.None;
         }
-        string blockReason = GetSkillCastBlockMessage(activeUnit, skillDef);
+        string blockReason = GetSkillCastBlockMessage(activeUnit, skillDefinition);
         if (!string.IsNullOrEmpty(blockReason))
         {
             RefreshBattleSelectionState();
@@ -739,12 +758,12 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             return BattleRefreshMode.Error;
         }
 
-        BattleTargetSelectionMode selectionMode = skillDef.combat_profile.TargetSelectionModeKind;
+        BattleTargetSelectionMode selectionMode = combatProfile.TargetSelectionModeKind;
         if (selectionMode == BattleTargetSelectionMode.MultiUnit)
         {
-            return ToggleSelectedMultiUnitSkillTarget(activeUnit, targetUnit, skillDef);
+            return ToggleSelectedMultiUnitSkillTarget(activeUnit, targetUnit, skillDefinition);
         }
-        if (skillDef.combat_profile.TargetModeKind != BattleTargetMode.Unit)
+        if (combatProfile.TargetModeKind != BattleTargetMode.Unit)
         {
             return BattleRefreshMode.None;
         }
@@ -753,7 +772,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         return skillCommand != null ? IssueBattleCommand(skillCommand) : BattleRefreshMode.None;
     }
 
-    private SkillDef GetSelectedBattleSkillDef(BattleUnitState activeUnit)
+    private SkillDefinition GetSelectedBattleSkillDefinition(BattleUnitState activeUnit)
     {
         if (activeUnit == null || GetSelectedSkillId() == "")
         {
@@ -763,24 +782,28 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             return null;
         }
-        return GetSkillDef(GetSelectedSkillId());
+        return GetSkillDefinition(GetSelectedSkillId());
     }
 
-    private CombatCastVariantDef GetSelectedBattleSkillVariant(BattleUnitState activeUnit)
+    private CombatCastVariantDefinition GetSelectedBattleSkillVariant(BattleUnitState activeUnit)
     {
-        SkillDef skillDef = GetSelectedBattleSkillDef(activeUnit);
-        if (skillDef?.combat_profile == null)
+        SkillDefinition skillDefinition = GetSelectedBattleSkillDefinition(activeUnit);
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (combatProfile == null)
         {
             return null;
         }
-        if (skillDef.combat_profile.cast_variants.Count == 0)
+        if (combatProfile.CastVariants.Count == 0)
         {
-            return skillDef.combat_profile.TargetModeKind == BattleTargetMode.Ground
-                ? BuildImplicitGroundCastVariant(skillDef)
+            return combatProfile.TargetModeKind == BattleTargetMode.Ground
+                ? BuildImplicitGroundCastVariant(skillDefinition)
                 : null;
         }
 
-        GCombatCastVariantDefArray unlockedOptions = GetUnlockedCastVariants(activeUnit, skillDef);
+        IReadOnlyList<CombatCastVariantDefinition> unlockedOptions = GetUnlockedCastVariants(
+            activeUnit,
+            skillDefinition
+        );
         if (unlockedOptions.Count == 0)
         {
             return null;
@@ -789,9 +812,9 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             return unlockedOptions[0];
         }
-        foreach (CombatCastVariantDef castVariant in unlockedOptions)
+        foreach (CombatCastVariantDefinition castVariant in unlockedOptions)
         {
-            if (castVariant != null && castVariant.variant_id == GetSelectedSkillVariantId())
+            if (castVariant != null && castVariant.VariantId == GetSelectedSkillVariantId())
             {
                 return castVariant;
             }
@@ -799,132 +822,152 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         return unlockedOptions[0];
     }
 
-    private GCombatCastVariantDefArray GetUnlockedCastVariants(
+    private IReadOnlyList<CombatCastVariantDefinition> GetUnlockedCastVariants(
         BattleUnitState activeUnit,
-        SkillDef skillDef
+        SkillDefinition skillDefinition
     )
     {
-        if (activeUnit == null || skillDef?.combat_profile == null)
+        if (activeUnit == null || skillDefinition?.CombatProfile == null)
         {
-            return new GCombatCastVariantDefArray();
+            return Array.Empty<CombatCastVariantDefinition>();
         }
-        SkillEffectiveCombatProfile effectiveProfile = GetEffectiveCombatProfileForUnit(
+        SkillEffectiveCombatDefinition effectiveProfile = GetEffectiveCombatProfileForUnit(
             activeUnit,
-            skillDef
+            skillDefinition
         );
-        return SkillEffectiveCombatProfileResolver.ToGodotArray(
-            effectiveProfile.UnlockedCastVariants
-        );
+        return effectiveProfile.UnlockedCastVariants;
     }
 
-    private CombatCastVariantDef BuildImplicitGroundCastVariant(SkillDef skillDef)
+    private static CombatCastVariantDefinition GetCastVariant(
+        CombatSkillDefinition combatProfile,
+        StringName variantId
+    )
     {
+        if (combatProfile == null || variantId == "")
+        {
+            return null;
+        }
+        foreach (CombatCastVariantDefinition castVariant in combatProfile.CastVariants)
+        {
+            if (castVariant != null && castVariant.VariantId == variantId)
+            {
+                return castVariant;
+            }
+        }
+        return null;
+    }
+
+    private CombatCastVariantDefinition BuildImplicitGroundCastVariant(SkillDefinition skillDefinition)
+    {
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (
-            skillDef?.combat_profile == null
-            || skillDef.combat_profile.TargetModeKind != BattleTargetMode.Ground
+            combatProfile == null
+            || combatProfile.TargetModeKind != BattleTargetMode.Ground
         )
         {
             return null;
         }
-        StringName skillId = ProgressionDataUtils.to_string_name(skillDef.skill_id);
+        StringName skillId = ProgressionDataUtils.to_string_name(skillDefinition.SkillId);
         if (
             skillId != ""
             && _implicitGroundCastVariantsBySkillId.TryGetValue(
                 skillId,
-                out CombatCastVariantDef cachedVariant
+                out CombatCastVariantDefinition cachedVariant
             )
         )
         {
             return cachedVariant;
         }
 
-        var variant = new CombatCastVariantDef
-        {
-            variant_id = "",
-            display_name = "",
-            TargetModeKind = BattleTargetMode.Ground,
-            FootprintPatternKind = CombatCastFootprintPattern.Single,
-            required_coord_count = 1,
-            effect_defs = new Godot.Collections.Array<CombatEffectDef>(
-                skillDef.combat_profile.effect_defs
+        var variant = new CombatCastVariantDefinition(
+            "",
+            "",
+            "",
+            0,
+            BattleTypedNames.TargetModeGround,
+            CombatSkillTargetingContentRules.ToFootprintPatternId(
+                CombatCastFootprintPattern.Single
             ),
-        };
-        string derivedKey = skillId == "" ? "anonymous_ground_skill" : skillId.ToString();
-        GodotContentOwnership.RegisterDerivedContent(
-            variant,
-            $"battle_selection:implicit_ground_variant:{derivedKey}",
-            "GameRuntimeBattleSelection.BuildImplicitGroundCastVariant"
+            1,
+            Array.Empty<StringName>(),
+            combatProfile.EffectDefinitions,
+            null
         );
         if (skillId != "")
             _implicitGroundCastVariantsBySkillId[skillId] = variant;
         return variant;
     }
 
-    private SkillDef GetSkillDef(StringName skillId)
+    private SkillDefinition GetSkillDefinition(StringName skillId)
     {
         if (Runtime == null)
         {
             return null;
         }
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = Runtime.GetSkillDefsTyped();
-        if (skillDefs == null || !skillDefs.TryGetValue(skillId, out SkillDef skillDef))
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            Runtime.GetSkillDefinitionsTyped();
+        if (
+            skillDefinitions == null
+            || !skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
+        )
         {
             return null;
         }
-        return skillDef;
+        return skillDefinition;
     }
 
-    private GVector2IArray CollectSelectedBattleSkillValidTargetCoords()
+    private List<Vector2I> CollectSelectedBattleSkillValidTargetCoordsTyped()
     {
         if (!IsBattleActive())
         {
-            return new GVector2IArray();
+            return new List<Vector2I>();
         }
         BattleUnitState activeUnit = GetManualActiveUnit();
-        SkillDef skillDef = GetSelectedBattleSkillDef(activeUnit);
-        if (activeUnit == null || skillDef?.combat_profile == null)
+        SkillDefinition skillDefinition = GetSelectedBattleSkillDefinition(activeUnit);
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (activeUnit == null || combatProfile == null)
         {
-            return new GVector2IArray();
+            return new List<Vector2I>();
         }
-        if (!string.IsNullOrEmpty(GetSkillCastBlockMessage(activeUnit, skillDef)))
+        if (!string.IsNullOrEmpty(GetSkillCastBlockMessage(activeUnit, skillDefinition)))
         {
-            return new GVector2IArray();
+            return new List<Vector2I>();
         }
         if (GetSelectedBattleSkillTargetSelectionModeKind(activeUnit) == BattleTargetSelectionMode.MultiUnit)
         {
             return CollectValidUnitSkillTargetCoords(
                 activeUnit,
-                skillDef,
+                skillDefinition,
                 GetTargetUnitIdsStateTyped()
             );
         }
-        if (skillDef.combat_profile.TargetModeKind == BattleTargetMode.Unit)
+        if (combatProfile.TargetModeKind == BattleTargetMode.Unit)
         {
             return CollectValidUnitSkillTargetCoords(
                 activeUnit,
-                skillDef,
+                skillDefinition,
                 GetTargetUnitIdsStateTyped()
             );
         }
-        CombatCastVariantDef castVariant = GetSelectedBattleSkillVariant(activeUnit);
+        CombatCastVariantDefinition castVariant = GetSelectedBattleSkillVariant(activeUnit);
         if (castVariant == null || castVariant.TargetModeKind != BattleTargetMode.Ground)
         {
-            return new GVector2IArray();
+            return new List<Vector2I>();
         }
-        return CollectValidGroundSkillTargetCoords(activeUnit, skillDef, castVariant);
+        return CollectValidGroundSkillTargetCoords(activeUnit, skillDefinition, castVariant);
     }
 
-    private GVector2IArray CollectValidUnitSkillTargetCoords(
+    private List<Vector2I> CollectValidUnitSkillTargetCoords(
         BattleUnitState activeUnit,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         IEnumerable<StringName> excludedUnitIds
     )
     {
         var coordSet = new HashSet<Vector2I>();
         BattleState battleState = GetBattleState();
-        if (battleState == null || activeUnit == null || skillDef == null)
+        if (battleState == null || activeUnit == null || skillDefinition == null)
         {
-            return new GVector2IArray();
+            return new List<Vector2I>();
         }
 
         var excludedUnitIdSet = new HashSet<StringName>();
@@ -934,14 +977,14 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         }
         bool useAnchorCoords =
             GetSelectedBattleSkillTargetSelectionModeKind(activeUnit) == BattleTargetSelectionMode.MultiUnit;
-        CombatCastVariantDef castVariant = GetSelectedBattleSkillVariant(activeUnit);
+        CombatCastVariantDefinition castVariant = GetSelectedBattleSkillVariant(activeUnit);
         foreach (BattleUnitState targetUnit in battleState.GetUnitsTyped())
         {
             if (targetUnit == null || excludedUnitIdSet.Contains(targetUnit.unit_id))
             {
                 continue;
             }
-            if (!CanSkillTargetUnit(activeUnit, targetUnit, skillDef, castVariant))
+            if (!CanSkillTargetUnit(activeUnit, targetUnit, skillDefinition, castVariant))
             {
                 continue;
             }
@@ -958,24 +1001,29 @@ public sealed class GameRuntimeBattleSelection : IDisposable
                 }
             }
         }
-        return SortCoords(coordSet);
+        return SortCoordsTyped(coordSet);
     }
 
-    private GVector2IArray CollectValidGroundSkillTargetCoords(
+    private List<Vector2I> CollectValidGroundSkillTargetCoords(
         BattleUnitState activeUnit,
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
     )
     {
         var coordSet = new HashSet<Vector2I>();
         BattleState battleState = GetBattleState();
-        if (battleState == null || activeUnit == null || skillDef == null || castVariant == null)
+        if (
+            battleState == null
+            || activeUnit == null
+            || skillDefinition == null
+            || castVariant == null
+        )
         {
-            return new GVector2IArray();
+            return new List<Vector2I>();
         }
-        if (!string.IsNullOrEmpty(GetSkillCastBlockMessage(activeUnit, skillDef)))
+        if (!string.IsNullOrEmpty(GetSkillCastBlockMessage(activeUnit, skillDefinition)))
         {
-            return new GVector2IArray();
+            return new List<Vector2I>();
         }
 
         List<Vector2I> queuedCoords = GetTargetCoordsStateTyped();
@@ -989,7 +1037,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             if (
                 !IsNextGroundTargetCoordSelectable(
                     activeUnit,
-                    skillDef,
+                    skillDefinition,
                     castVariant,
                     queuedCoords,
                     targetCoord
@@ -1000,31 +1048,43 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             }
             coordSet.Add(targetCoord);
         }
-        return DuplicateVector2IArray(SortCoordsTyped(coordSet));
+        return SortCoordsTyped(coordSet);
     }
 
     private bool IsNextGroundTargetCoordSelectable(
         BattleUnitState activeUnit,
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
         IReadOnlyList<Vector2I> queuedCoords,
         Vector2I candidateCoord
     )
     {
-        if (!string.IsNullOrEmpty(GetSkillCastBlockMessage(activeUnit, skillDef)))
+        if (!string.IsNullOrEmpty(GetSkillCastBlockMessage(activeUnit, skillDefinition)))
         {
             return false;
         }
         var nextCoords = new List<Vector2I>(queuedCoords ?? Array.Empty<Vector2I>());
         nextCoords.Add(candidateCoord);
-        if (!AreGroundTargetCoordsIndividuallyValid(activeUnit, skillDef, castVariant, nextCoords))
+        if (
+            !AreGroundTargetCoordsIndividuallyValid(
+                activeUnit,
+                skillDefinition,
+                castVariant,
+                nextCoords
+            )
+        )
         {
             return false;
         }
-        int requiredCoordCount = Math.Max(castVariant.required_coord_count, 1);
+        int requiredCoordCount = Math.Max(castVariant.RequiredCoordCount, 1);
         if (nextCoords.Count >= requiredCoordCount)
         {
-            return IsGroundTargetComboAllowed(activeUnit, skillDef, castVariant, nextCoords);
+            return IsGroundTargetComboAllowed(
+                activeUnit,
+                skillDefinition,
+                castVariant,
+                nextCoords
+            );
         }
         if (castVariant.FootprintPatternKind == CombatCastFootprintPattern.Unordered)
         {
@@ -1035,7 +1095,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             if (
                 !AreGroundTargetCoordsIndividuallyValid(
                     activeUnit,
-                    skillDef,
+                    skillDefinition,
                     castVariant,
                     fullCoords
                 )
@@ -1043,7 +1103,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             {
                 continue;
             }
-            if (IsGroundTargetComboAllowed(activeUnit, skillDef, castVariant, fullCoords))
+            if (IsGroundTargetComboAllowed(activeUnit, skillDefinition, castVariant, fullCoords))
             {
                 return true;
             }
@@ -1053,8 +1113,8 @@ public sealed class GameRuntimeBattleSelection : IDisposable
 
     private bool AreGroundTargetCoordsIndividuallyValid(
         BattleUnitState activeUnit,
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
         IReadOnlyList<Vector2I> targetCoords
     )
     {
@@ -1064,15 +1124,15 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             battleState == null
             || battleGridService == null
             || activeUnit == null
-            || skillDef?.combat_profile == null
+            || skillDefinition?.CombatProfile == null
             || castVariant == null
         )
         {
             return false;
         }
 
-        CombatEffectDef relocationEffectDef = ResolveGroundRelocationEffectDef(
-            skillDef,
+        CombatEffectDefinition relocationEffectDefinition = ResolveGroundRelocationEffectDef(
+            skillDefinition,
             castVariant
         );
         var seenCoords = new HashSet<Vector2I>();
@@ -1083,10 +1143,10 @@ public sealed class GameRuntimeBattleSelection : IDisposable
                 return false;
             }
             int targetDistance =
-                relocationEffectDef != null
+                relocationEffectDefinition != null
                     ? battleGridService.GetChebyshevDistance(activeUnit.coord, coord)
                     : battleGridService.GetDistanceFromUnitToCoord(activeUnit, coord);
-            if (targetDistance > GetEffectiveSkillRange(activeUnit, skillDef))
+            if (targetDistance > GetEffectiveSkillRange(activeUnit, skillDefinition))
             {
                 return false;
             }
@@ -1094,13 +1154,13 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             {
                 return false;
             }
-            if (castVariant.allowed_base_terrains.Count > 0)
+            if (castVariant.AllowedBaseTerrains.Count > 0)
             {
                 bool normalizedAllowed = false;
                 StringName normalizedCellTerrain = BattleTerrainRules.NormalizeTerrainId(
                     cell.base_terrain
                 );
-                foreach (StringName allowedTerrain in castVariant.allowed_base_terrains)
+                foreach (StringName allowedTerrain in castVariant.AllowedBaseTerrains)
                 {
                     if (
                         BattleTerrainRules.NormalizeTerrainId(allowedTerrain)
@@ -1117,20 +1177,20 @@ public sealed class GameRuntimeBattleSelection : IDisposable
                 }
             }
             if (
-                IsCrownBreakSkill(skillDef)
+                IsCrownBreakSkill(skillDefinition)
                 && !IsCrownBreakTargetEligible(activeUnit, GetRuntimeUnitAtCoord(coord))
             )
             {
                 return false;
             }
             if (
-                relocationEffectDef != null
+                relocationEffectDefinition != null
                 && !CanUseGroundRelocation(
                     battleState,
                     battleGridService,
                     activeUnit,
                     coord,
-                    relocationEffectDef
+                    relocationEffectDefinition
                 )
             )
             {
@@ -1140,42 +1200,42 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         return true;
     }
 
-    private static CombatEffectDef ResolveGroundRelocationEffectDef(
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant
+    private static CombatEffectDefinition ResolveGroundRelocationEffectDef(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
     )
     {
         if (castVariant != null)
         {
-            foreach (CombatEffectDef effectDef in castVariant.effect_defs)
+            foreach (CombatEffectDefinition effectDefinition in castVariant.EffectDefinitions)
             {
-                if (IsGroundRelocationEffect(effectDef))
+                if (IsGroundRelocationEffect(effectDefinition))
                 {
-                    return effectDef;
+                    return effectDefinition;
                 }
             }
         }
-        if (skillDef?.combat_profile != null)
+        if (skillDefinition?.CombatProfile != null)
         {
-            foreach (CombatEffectDef effectDef in skillDef.combat_profile.effect_defs)
+            foreach (CombatEffectDefinition effectDefinition in skillDefinition.CombatProfile.EffectDefinitions)
             {
-                if (IsGroundRelocationEffect(effectDef))
+                if (IsGroundRelocationEffect(effectDefinition))
                 {
-                    return effectDef;
+                    return effectDefinition;
                 }
             }
         }
         return null;
     }
 
-    private static bool IsGroundRelocationEffect(CombatEffectDef effectDef)
+    private static bool IsGroundRelocationEffect(CombatEffectDefinition effectDefinition)
     {
-        if (effectDef == null || effectDef.EffectKind != BattleEffectKind.ForcedMove)
+        if (effectDefinition == null || effectDefinition.EffectKind != BattleEffectKind.ForcedMove)
         {
             return false;
         }
-        return effectDef.ForcedMoveModeKind == BattleForcedMoveMode.Jump
-            || effectDef.ForcedMoveModeKind == BattleForcedMoveMode.Blink;
+        return effectDefinition.ForcedMoveModeKind == BattleForcedMoveMode.Jump
+            || effectDefinition.ForcedMoveModeKind == BattleForcedMoveMode.Blink;
     }
 
     private static bool CanUseGroundRelocation(
@@ -1183,32 +1243,32 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         BattleGridService battleGridService,
         BattleUnitState activeUnit,
         Vector2I coord,
-        CombatEffectDef effectDef
+        CombatEffectDefinition effectDefinition
     )
     {
-        if (effectDef == null)
+        if (effectDefinition == null)
         {
             return false;
         }
-        if (effectDef.ForcedMoveModeKind == BattleForcedMoveMode.Jump)
+        if (effectDefinition.ForcedMoveModeKind == BattleForcedMoveMode.Jump)
         {
-            return battleGridService.CanJumpArc(battleState, activeUnit, coord, effectDef);
+            return battleGridService.CanJumpArc(battleState, activeUnit, coord, effectDefinition);
         }
-        if (effectDef.ForcedMoveModeKind == BattleForcedMoveMode.Blink)
+        if (effectDefinition.ForcedMoveModeKind == BattleForcedMoveMode.Blink)
         {
-            return battleGridService.CanBlinkToCoord(battleState, activeUnit, coord, effectDef);
+            return battleGridService.CanBlinkToCoord(battleState, activeUnit, coord, effectDefinition);
         }
         return false;
     }
 
     private bool IsGroundTargetComboAllowed(
         BattleUnitState activeUnit,
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
         IReadOnlyList<Vector2I> targetCoords
     )
     {
-        if (activeUnit == null || skillDef == null || castVariant == null)
+        if (activeUnit == null || skillDefinition == null || castVariant == null)
         {
             return false;
         }
@@ -1217,8 +1277,8 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = activeUnit.unit_id,
-            skill_id = skillDef.skill_id,
-            skill_variant_id = castVariant.variant_id,
+            skill_id = skillDefinition.SkillId,
+            skill_variant_id = castVariant.VariantId,
             target_coords = DuplicateVector2IArray(sortedTargetCoords),
         };
         if (sortedTargetCoords.Count > 0)
@@ -1230,7 +1290,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
     }
 
     private IEnumerable<List<Vector2I>> BuildGroundCompletionSets(
-        CombatCastVariantDef castVariant,
+        CombatCastVariantDefinition castVariant,
         IReadOnlyList<Vector2I> partialCoords
     )
     {
@@ -1238,7 +1298,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             yield break;
         }
-        int requiredCoordCount = Math.Max(castVariant.required_coord_count, 1);
+        int requiredCoordCount = Math.Max(castVariant.RequiredCoordCount, 1);
         if (partialCoords.Count > requiredCoordCount)
         {
             yield break;
@@ -1369,11 +1429,11 @@ public sealed class GameRuntimeBattleSelection : IDisposable
     private bool CanSkillTargetUnit(
         BattleUnitState activeUnit,
         BattleUnitState targetUnit,
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant = null
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant = null
     )
     {
-        if (activeUnit == null || targetUnit == null || skillDef?.combat_profile == null)
+        if (activeUnit == null || targetUnit == null || skillDefinition?.CombatProfile == null)
         {
             return false;
         }
@@ -1381,31 +1441,37 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             return false;
         }
-        return GetUnitSkillTargetAffordance(activeUnit, targetUnit, skillDef, castVariant).Allowed;
+        return GetUnitSkillTargetAffordance(
+                activeUnit,
+                targetUnit,
+                skillDefinition,
+                castVariant
+            )
+            .Allowed;
     }
 
-    private static bool IsCrownBreakSkill(SkillDef skillDef)
+    private static bool IsCrownBreakSkill(SkillDefinition skillDefinition)
     {
-        return skillDef != null
-            && ProgressionDataUtils.to_string_name(skillDef.skill_id) == CrownBreakSkillId;
+        return skillDefinition != null
+            && ProgressionDataUtils.to_string_name(skillDefinition.SkillId) == CrownBreakSkillId;
     }
 
-    private static bool IsDoomSentenceSkill(SkillDef skillDef)
+    private static bool IsDoomSentenceSkill(SkillDefinition skillDefinition)
     {
-        return skillDef != null
-            && ProgressionDataUtils.to_string_name(skillDef.skill_id) == DoomSentenceSkillId;
+        return skillDefinition != null
+            && ProgressionDataUtils.to_string_name(skillDefinition.SkillId) == DoomSentenceSkillId;
     }
 
-    private static bool IsDoomShiftSkill(SkillDef skillDef)
+    private static bool IsDoomShiftSkill(SkillDefinition skillDefinition)
     {
-        return skillDef != null
-            && ProgressionDataUtils.to_string_name(skillDef.skill_id) == DoomShiftSkillId;
+        return skillDefinition != null
+            && ProgressionDataUtils.to_string_name(skillDefinition.SkillId) == DoomShiftSkillId;
     }
 
-    private static bool IsBlackCrownSealSkill(SkillDef skillDef)
+    private static bool IsBlackCrownSealSkill(SkillDefinition skillDefinition)
     {
-        return skillDef != null
-            && ProgressionDataUtils.to_string_name(skillDef.skill_id) == BlackCrownSealSkillId;
+        return skillDefinition != null
+            && ProgressionDataUtils.to_string_name(skillDefinition.SkillId) == BlackCrownSealSkillId;
     }
 
     private static bool IsCrownBreakTargetEligible(
@@ -1470,20 +1536,26 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         );
     }
 
-    private int GetEffectiveSkillRange(BattleUnitState activeUnit, SkillDef skillDef)
+    private int GetEffectiveSkillRange(BattleUnitState activeUnit, SkillDefinition skillDefinition)
     {
         return BattleRangeService.GetEffectiveSkillRange(
             activeUnit,
-            skillDef,
+            skillDefinition,
             GetSkillCatalog()
         );
     }
 
-    private string GetSkillCastBlockMessage(BattleUnitState activeUnit, SkillDef skillDef)
+    private string GetSkillCastBlockMessage(
+        BattleUnitState activeUnit,
+        SkillDefinition skillDefinition
+    )
     {
         if (Runtime != null)
         {
-            return Runtime.GetBattleSkillCastBlockMessage(activeUnit, skillDef);
+            return Runtime.GetBattleSkillCastBlockMessage(
+                activeUnit,
+                skillDefinition?.SkillId ?? ""
+            );
         }
         return "正式技能检查未绑定，无法施放该技能。";
     }
@@ -1499,127 +1571,131 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             return knownSkillLevel;
         }
-        SkillDef skillDef = GetSkillDef(skillId);
-        if (IsLevelLessSkill(skillDef))
+        SkillDefinition skillDefinition = GetSkillDefinition(skillId);
+        if (IsLevelLessSkill(skillDefinition))
         {
             return 0;
         }
         return unitState.known_active_skill_ids.Contains(skillId) ? 1 : 0;
     }
 
-    private SkillEffectiveCombatProfile GetEffectiveCombatProfileForUnit(
+    private SkillEffectiveCombatDefinition GetEffectiveCombatProfileForUnit(
         BattleUnitState unitState,
-        SkillDef skillDef
+        SkillDefinition skillDefinition
     )
     {
-        if (skillDef == null)
+        if (skillDefinition == null)
         {
-            return SkillEffectiveCombatProfileResolver.BuildMissing(0);
+            return SkillEffectiveCombatDefinition.BuildMissing(0);
         }
-        int skillLevel = GetUnitSkillLevel(unitState, skillDef.skill_id);
-        return SkillEffectiveCombatProfileResolver.Resolve(
-            GetSkillCatalog(),
-            skillDef,
-            skillLevel
-        );
+        int skillLevel = GetUnitSkillLevel(unitState, skillDefinition.SkillId);
+        ISkillCatalog skillCatalog = GetSkillCatalog();
+        return skillCatalog != null
+            ? skillCatalog.GetEffectiveCombatDefinition(skillDefinition.SkillId, skillLevel)
+            : SkillEffectiveCombatDefinition.BuildUncached(skillDefinition, skillLevel);
     }
 
-    private static bool IsLevelLessSkill(SkillDef skillDef)
+    private static bool IsLevelLessSkill(SkillDefinition skillDefinition)
     {
-        return skillDef != null
-            && skillDef.max_level == 0
-            && skillDef.dynamic_max_level_stat_id == "";
+        return skillDefinition != null
+            && skillDefinition.MaxLevel == 0
+            && skillDefinition.DynamicMaxLevelStatId == "";
     }
 
-    private string BuildBattleSkillSelectionStatus(SkillDef skillDef, BattleUnitState activeUnit)
+    private string BuildBattleSkillSelectionStatus(
+        SkillDefinition skillDefinition,
+        BattleUnitState activeUnit
+    )
     {
-        if (skillDef == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (skillDefinition == null || combatProfile == null)
         {
             return "当前技能不可用。";
         }
 
-        string blockReason = GetSkillCastBlockMessage(activeUnit, skillDef);
+        string blockReason = GetSkillCastBlockMessage(activeUnit, skillDefinition);
         if (!string.IsNullOrEmpty(blockReason))
         {
             return $"{blockReason}按 Esc 清除选择。";
         }
-        CombatCastVariantDef castVariant = GetSelectedBattleSkillVariant(activeUnit);
+        CombatCastVariantDefinition castVariant = GetSelectedBattleSkillVariant(activeUnit);
         StringName selectionMode = GetSelectedBattleSkillTargetSelectionMode(activeUnit);
         BattleTargetSelectionMode selectionModeKind = GetSelectedBattleSkillTargetSelectionModeKind(
             activeUnit
         );
         if (selectionModeKind == BattleTargetSelectionMode.RandomChain)
         {
-            return $"已选择技能 {skillDef.display_name}，将自动攻击范围内随机敌军。Esc 清除选择。";
+            return $"已选择技能 {skillDefinition.DisplayName}，将自动攻击范围内随机敌军。Esc 清除选择。";
         }
         if (selectionModeKind == BattleTargetSelectionMode.MultiUnit)
         {
-            int minTargetCount = Math.Max(skillDef.combat_profile.min_target_count, 1);
-            SkillEffectiveCombatProfile effectiveProfile = GetEffectiveCombatProfileForUnit(
+            int minTargetCount = Math.Max(combatProfile.MinTargetCount, 1);
+            SkillEffectiveCombatDefinition effectiveProfile = GetEffectiveCombatProfileForUnit(
                 activeUnit,
-                skillDef
+                skillDefinition
             );
             int maxTargetCount = Math.Max(
                 effectiveProfile.MaxTargetCount,
                 minTargetCount
             );
-            return BuildMultiUnitTargetStatus(skillDef, minTargetCount, maxTargetCount);
+            return BuildMultiUnitTargetStatus(skillDefinition, minTargetCount, maxTargetCount);
         }
         if (castVariant == null)
         {
             if (
-                skillDef.combat_profile.TargetModeKind == BattleTargetMode.Unit
+                combatProfile.TargetModeKind == BattleTargetMode.Unit
                 && (
                     selectionMode == SelfSelectionMode
-                    || skillDef.combat_profile.target_team_filter == SelfSelectionMode
+                    || combatProfile.TargetTeamFilter == SelfSelectionMode
                 )
             )
             {
-                return $"已选择技能 {skillDef.display_name}。点击自身即可施放，Esc 清除选择。";
+                return $"已选择技能 {skillDefinition.DisplayName}。点击自身即可施放，Esc 清除选择。";
             }
-            return $"已选择技能 {skillDef.display_name}。左键选择目标单位施放，Esc 清除选择。";
+            return $"已选择技能 {skillDefinition.DisplayName}。左键选择目标单位施放，Esc 清除选择。";
         }
-        if (skillDef.combat_profile.TargetModeKind == BattleTargetMode.Unit)
+        if (combatProfile.TargetModeKind == BattleTargetMode.Unit)
         {
             if (
                 selectionMode == SelfSelectionMode
-                || skillDef.combat_profile.target_team_filter == SelfSelectionMode
+                || combatProfile.TargetTeamFilter == SelfSelectionMode
             )
             {
-                return $"已选择 {BuildSkillVariantDisplayName(skillDef, castVariant)}，点击自身即可施放，Esc 清除选择。";
+                return $"已选择 {BuildSkillVariantDisplayName(skillDefinition, castVariant)}，点击自身即可施放，Esc 清除选择。";
             }
-            return $"已选择 {BuildSkillVariantDisplayName(skillDef, castVariant)}，左键选择目标单位施放，Esc 清除选择。";
+            return $"已选择 {BuildSkillVariantDisplayName(skillDefinition, castVariant)}，左键选择目标单位施放，Esc 清除选择。";
         }
-        return $"已选择 {BuildSkillVariantDisplayName(skillDef, castVariant)}，需目标 {castVariant.required_coord_count} 格。左键逐格选点，Q/E 切换形态，Esc 清除选择。";
+        return $"已选择 {BuildSkillVariantDisplayName(skillDefinition, castVariant)}，需目标 {castVariant.RequiredCoordCount} 格。左键逐格选点，Q/E 切换形态，Esc 清除选择。";
     }
 
     private static string BuildSkillVariantDisplayName(
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
     )
     {
-        if (skillDef == null)
+        if (skillDefinition == null)
         {
             return "技能";
         }
-        if (castVariant == null || string.IsNullOrEmpty(castVariant.display_name))
+        if (castVariant == null || string.IsNullOrEmpty(castVariant.DisplayName))
         {
-            return skillDef.display_name;
+            return skillDefinition.DisplayName;
         }
-        return $"{skillDef.display_name}·{castVariant.display_name}";
+        return $"{skillDefinition.DisplayName}·{castVariant.DisplayName}";
     }
 
     private BattleRefreshMode ToggleSelectedMultiUnitSkillTarget(
         BattleUnitState activeUnit,
         BattleUnitState targetUnit,
-        SkillDef skillDef
+        SkillDefinition skillDefinition
     )
     {
-        if (activeUnit == null || skillDef?.combat_profile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (activeUnit == null || combatProfile == null)
         {
             return BattleRefreshMode.Overlay;
         }
-        string blockReason = GetSkillCastBlockMessage(activeUnit, skillDef);
+        string blockReason = GetSkillCastBlockMessage(activeUnit, skillDefinition);
         if (!string.IsNullOrEmpty(blockReason))
         {
             RefreshBattleSelectionState();
@@ -1627,10 +1703,10 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             return BattleRefreshMode.Overlay;
         }
 
-        int minTargetCount = Math.Max(skillDef.combat_profile.min_target_count, 1);
-        SkillEffectiveCombatProfile effectiveProfile = GetEffectiveCombatProfileForUnit(
+        int minTargetCount = Math.Max(combatProfile.MinTargetCount, 1);
+        SkillEffectiveCombatDefinition effectiveProfile = GetEffectiveCombatProfileForUnit(
             activeUnit,
-            skillDef
+            skillDefinition
         );
         int maxTargetCount = Math.Max(
             effectiveProfile.MaxTargetCount,
@@ -1641,17 +1717,17 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             if (queuedTargetUnitIds.Count >= minTargetCount)
             {
-                return IssueSelectedMultiUnitSkill(activeUnit, skillDef);
+                return IssueSelectedMultiUnitSkill(activeUnit, skillDefinition);
             }
             RefreshBattleSelectionState();
-            UpdateStatus(BuildMultiUnitTargetStatus(skillDef, minTargetCount, maxTargetCount));
+            UpdateStatus(BuildMultiUnitTargetStatus(skillDefinition, minTargetCount, maxTargetCount));
             return BattleRefreshMode.Overlay;
         }
 
         StringName targetUnitId = targetUnit.unit_id;
         int existingIndex = queuedTargetUnitIds.IndexOf(targetUnitId);
-        bool allowRepeat = skillDef.combat_profile.allow_repeat_target;
-        int maxHitsPerTarget = Math.Max(skillDef.combat_profile.max_hits_per_target, 0);
+        bool allowRepeat = combatProfile.AllowRepeatTarget;
+        int maxHitsPerTarget = Math.Max(combatProfile.MaxHitsPerTarget, 0);
         int existingCount = 0;
         foreach (StringName queuedId in queuedTargetUnitIds)
         {
@@ -1668,15 +1744,15 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             RefreshSelectedUnitTargetCoordsFromQueue();
             SyncMultiUnitConfirmFocus(activeUnit, minTargetCount, maxTargetCount);
             RefreshBattleSelectionState();
-            UpdateStatus(BuildMultiUnitTargetStatus(skillDef, minTargetCount, maxTargetCount));
+            UpdateStatus(BuildMultiUnitTargetStatus(skillDefinition, minTargetCount, maxTargetCount));
             return BattleRefreshMode.Overlay;
         }
 
-        CombatCastVariantDef castVariant = GetSelectedBattleSkillVariant(activeUnit);
+        CombatCastVariantDefinition castVariant = GetSelectedBattleSkillVariant(activeUnit);
         BattleUnitSkillTargetAffordance affordance = GetUnitSkillTargetAffordance(
             activeUnit,
             targetUnit,
-            skillDef,
+            skillDefinition,
             castVariant
         );
         if (!affordance.Allowed)
@@ -1686,7 +1762,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
                 && queuedTargetUnitIds.Count >= minTargetCount
             )
             {
-                return IssueSelectedMultiUnitSkill(activeUnit, skillDef);
+                return IssueSelectedMultiUnitSkill(activeUnit, skillDefinition);
             }
             RefreshBattleSelectionState();
             UpdateStatus(
@@ -1713,17 +1789,20 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         RefreshSelectedUnitTargetCoordsFromQueue();
         if (queuedTargetUnitIds.Count >= maxTargetCount)
         {
-            return IssueSelectedMultiUnitSkill(activeUnit, skillDef);
+            return IssueSelectedMultiUnitSkill(activeUnit, skillDefinition);
         }
         SyncMultiUnitConfirmFocus(activeUnit, minTargetCount, maxTargetCount);
         RefreshBattleSelectionState();
-        UpdateStatus(BuildMultiUnitTargetStatus(skillDef, minTargetCount, maxTargetCount));
+        UpdateStatus(BuildMultiUnitTargetStatus(skillDefinition, minTargetCount, maxTargetCount));
         return BattleRefreshMode.Overlay;
     }
 
-    private BattleRefreshMode IssueSelectedMultiUnitSkill(BattleUnitState activeUnit, SkillDef skillDef)
+    private BattleRefreshMode IssueSelectedMultiUnitSkill(
+        BattleUnitState activeUnit,
+        SkillDefinition skillDefinition
+    )
     {
-        if (activeUnit == null || skillDef == null)
+        if (activeUnit == null || skillDefinition == null)
         {
             return BattleRefreshMode.Overlay;
         }
@@ -1780,15 +1859,16 @@ public sealed class GameRuntimeBattleSelection : IDisposable
     }
 
     private string BuildMultiUnitTargetStatus(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         int minTargetCount,
         int maxTargetCount
     )
     {
         int selectedCount = GetTargetUnitIdsStateTyped().Count;
-        string title = skillDef?.display_name ?? "技能";
+        string title = skillDefinition?.DisplayName ?? "技能";
         bool allowRepeat =
-            skillDef?.combat_profile != null && skillDef.combat_profile.allow_repeat_target;
+            skillDefinition?.CombatProfile != null
+            && skillDefinition.CombatProfile.AllowRepeatTarget;
         string cancelHint = allowRepeat ? "点击已选目标可追加" : "点击已选目标可取消";
         if (selectedCount <= 0)
         {
@@ -1826,7 +1906,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         SetTargetCoordsStateTyped(SortCoordsTyped(targetCoords));
     }
 
-    private GVector2IArray CollectSelectedBattleSkillTargetCoords()
+    private List<Vector2I> CollectSelectedBattleSkillTargetCoordsTyped()
     {
         if (GetTargetUnitIdsStateTyped().Count > 0)
         {
@@ -1834,53 +1914,54 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         }
 
         BattleUnitState activeUnit = GetManualActiveUnit();
-        SkillDef skillDef = GetSelectedBattleSkillDef(activeUnit);
+        SkillDefinition skillDefinition = GetSelectedBattleSkillDefinition(activeUnit);
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         List<Vector2I> targetCoords = GetTargetCoordsStateTyped();
-        if (activeUnit == null || skillDef?.combat_profile == null)
+        if (activeUnit == null || combatProfile == null)
         {
-            return DuplicateVector2IArray(targetCoords);
+            return new List<Vector2I>(targetCoords);
         }
 
-        CombatCastVariantDef castVariant = GetSelectedBattleSkillVariant(activeUnit);
-        if (skillDef.combat_profile.TargetModeKind == BattleTargetMode.Ground)
+        CombatCastVariantDefinition castVariant = GetSelectedBattleSkillVariant(activeUnit);
+        if (combatProfile.TargetModeKind == BattleTargetMode.Ground)
         {
             if (castVariant == null || castVariant.TargetModeKind != BattleTargetMode.Ground)
             {
-                return DuplicateVector2IArray(targetCoords);
+                return new List<Vector2I>(targetCoords);
             }
-            if (targetCoords.Count < Math.Max(castVariant.required_coord_count, 1))
+            if (targetCoords.Count < Math.Max(castVariant.RequiredCoordCount, 1))
             {
-                return DuplicateVector2IArray(targetCoords);
+                return new List<Vector2I>(targetCoords);
             }
         }
 
-        int skillLevel = GetUnitSkillLevel(activeUnit, skillDef.skill_id);
+        int skillLevel = GetUnitSkillLevel(activeUnit, skillDefinition.SkillId);
         BattleTargetCollectionResult collectedTargetCoords =
-            _targetCollectionService.CollectSkillTargetCoords(
+            _targetCollectionService.CollectCombatProfileTargetCoords(
                 GetBattleState(),
                 GetBattleGridService(),
                 activeUnit.coord,
-                skillDef,
+                combatProfile,
                 targetCoords,
                 activeUnit,
-                CollectSelectedTargetUnits(activeUnit, skillDef),
-                skillLevel,
-                GetSkillCatalog()
+                CollectSelectedTargetUnits(activeUnit, skillDefinition),
+                skillLevel
             );
         if (collectedTargetCoords.Handled)
         {
-            return DuplicateVector2IArray(SortCoordsTyped(collectedTargetCoords.TargetCoords));
+            return SortCoordsTyped(collectedTargetCoords.TargetCoords);
         }
-        return DuplicateVector2IArray(targetCoords);
+        return new List<Vector2I>(targetCoords);
     }
 
     private List<BattleUnitState> CollectSelectedTargetUnits(
         BattleUnitState activeUnit,
-        SkillDef skillDef
+        SkillDefinition skillDefinition
     )
     {
         var targetUnits = new List<BattleUnitState>();
-        if (activeUnit == null || skillDef?.combat_profile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (activeUnit == null || combatProfile == null)
         {
             return targetUnits;
         }
@@ -1898,8 +1979,8 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         }
         if (
             GetSelectedBattleSkillTargetSelectionMode(activeUnit) == SelfSelectionMode
-            || skillDef.combat_profile.target_team_filter == SelfSelectionMode
-            || skillDef.combat_profile.area_pattern == SelfSelectionMode
+            || combatProfile.TargetTeamFilter == SelfSelectionMode
+            || combatProfile.AreaPattern == SelfSelectionMode
         )
         {
             targetUnits.Add(activeUnit);
@@ -1915,14 +1996,13 @@ public sealed class GameRuntimeBattleSelection : IDisposable
 
     private StringName GetSelectedBattleSkillTargetSelectionMode(BattleUnitState activeUnit)
     {
-        SkillDef skillDef = GetSelectedBattleSkillDef(activeUnit);
-        if (skillDef?.combat_profile == null)
+        SkillDefinition skillDefinition = GetSelectedBattleSkillDefinition(activeUnit);
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (combatProfile == null)
         {
             return BattleTypedNames.TargetSelectionSingleUnit;
         }
-        StringName selectionMode = BattleTypedNames.ToStringName(
-            skillDef.combat_profile.TargetSelectionModeKind
-        );
+        StringName selectionMode = BattleTypedNames.ToStringName(combatProfile.TargetSelectionModeKind);
         return selectionMode == "" ? BattleTypedNames.TargetSelectionSingleUnit : selectionMode;
     }
 
@@ -1978,18 +2058,42 @@ public sealed class GameRuntimeBattleSelection : IDisposable
     private BattleUnitSkillTargetAffordance GetUnitSkillTargetAffordance(
         BattleUnitState activeUnit,
         BattleUnitState targetUnit,
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant = null,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant = null,
         bool requireAp = true
     )
     {
-        return Runtime?.GetBattleUnitSkillTargetAffordance(
-                activeUnit,
-                targetUnit,
-                skillDef,
-                castVariant,
-                requireAp
-            ) ?? BattleUnitSkillTargetAffordance.Denied("正式技能检查未绑定，无法施放该技能。");
+        if (activeUnit == null || targetUnit == null || skillDefinition?.CombatProfile == null)
+        {
+            return BattleUnitSkillTargetAffordance.Denied("技能目标无效。");
+        }
+        string blockReason = requireAp
+            ? GetSkillCastBlockMessage(activeUnit, skillDefinition)
+            : "";
+        if (!string.IsNullOrEmpty(blockReason))
+        {
+            return BattleUnitSkillTargetAffordance.Denied(blockReason);
+        }
+        var command = new BattleCommand
+        {
+            CommandKind = BattleCommandKind.Skill,
+            unit_id = activeUnit.unit_id,
+            skill_id = skillDefinition.SkillId,
+            skill_variant_id =
+                castVariant?.VariantId ?? GetDefaultUnitSkillVariantId(activeUnit, skillDefinition),
+            target_unit_id = targetUnit.unit_id,
+            target_coord = targetUnit.coord,
+        };
+        BattlePreview preview = PreviewBattleCommand(command);
+        if (preview != null && preview.allowed)
+        {
+            return BattleUnitSkillTargetAffordance.AllowedResult();
+        }
+        string reason =
+            preview != null && preview.LogLinesTyped.Count > 0
+                ? preview.LogLinesTyped[preview.LogLinesTyped.Count - 1]
+                : "技能目标无效。";
+        return BattleUnitSkillTargetAffordance.Denied(reason);
     }
 
     private BattleRefreshMode IssueBattleCommand(BattleCommand command)
@@ -2119,38 +2223,11 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         return coords;
     }
 
-    private static GVector2IArray SortCoords(IEnumerable<Vector2I> targetCoords)
-    {
-        return DuplicateVector2IArray(SortCoordsTyped(targetCoords));
-    }
-
     private static GVector2IArray DuplicateVector2IArray(IEnumerable<Vector2I> values)
-    {
-        var result = new GVector2IArray();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (Vector2I value in values)
-        {
-            result.Add(value);
-        }
-        return result;
-    }
+        => new Vector2IList(values).ToGodotArray();
 
     private static GStringNameArray DuplicateStringNameArray(IEnumerable<StringName> values)
-    {
-        var result = new GStringNameArray();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (StringName value in values)
-        {
-            result.Add(value);
-        }
-        return result;
-    }
+        => new StringNameList(values).ToGodotArray();
 
     private static GameRuntimeFacade ResolveWeakRef(WeakReference<GameRuntimeFacade> weakRef)
     {

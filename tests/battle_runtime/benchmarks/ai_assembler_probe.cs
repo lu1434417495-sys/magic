@@ -11,12 +11,16 @@ internal sealed class AiAssemblerProbe
     public BattleAiRuntimeActionPlan BuildUnitActionPlan(
         BattleUnitState unitState,
         EnemyAiBrainDef brain,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
         AiTraceRecorder.Enter("build_unit_action_plan");
         ulong start = Time.GetTicksUsec();
-        BattleAiRuntimeActionPlan result = _assembler.BuildUnitActionPlan(unitState, brain, skillDefs);
+        BattleAiRuntimeActionPlan result = _assembler.BuildUnitActionPlan(
+            unitState,
+            brain,
+            skillDefinitions
+        );
         AiProbeStats.Record(StatsAssemble, (long)(Time.GetTicksUsec() - start));
         AiTraceRecorder.Exit("build_unit_action_plan");
         return result;

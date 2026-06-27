@@ -244,8 +244,9 @@ public partial class run_world_map_data_context_regression : SceneTree
                 "typed settlement state query 应反映公开 world_data 写回后的 visited。"
             );
 
+            GDictionary projectedRootWorldData = context.root_world_data;
             GDictionary settlementRecord =
-                rootWorldData["settlements"].AsGodotArray()[0].AsGodotDictionary();
+                projectedRootWorldData["settlements"].AsGodotArray()[0].AsGodotDictionary();
             GDictionary settlementState = settlementRecord["settlement_state"].AsGodotDictionary();
             _test.True(
                 settlementState["visited"].AsBool(),
@@ -405,8 +406,9 @@ public partial class run_world_map_data_context_regression : SceneTree
             _test.True(enterResult.Ok, "Entering a generated submap should succeed.");
             _test.Eq(enterResult.PlayerCoord, new Vector2I(3, 3), "Submap entry should use saved submap player_coord.");
             _test.Eq(enterResult.TargetDisplayName, "Ash Map", "Submap entry should expose display_name.");
-            _test.Eq(rootWorldData["active_submap_id"].AsString(), "ash_submap", "Submap entry should set active_submap_id.");
-            GArray returnStack = rootWorldData["submap_return_stack"].AsGodotArray();
+            GDictionary enteredRootWorldData = context.root_world_data;
+            _test.Eq(enteredRootWorldData["active_submap_id"].AsString(), "ash_submap", "Submap entry should set active_submap_id.");
+            GArray returnStack = enteredRootWorldData["submap_return_stack"].AsGodotArray();
             _test.Eq(returnStack.Count, 1, "Submap entry should push one return stack record.");
             GDictionary returnEntry = returnStack[0].AsGodotDictionary();
             _test.Eq(returnEntry["map_id"].AsString(), "", "Submap entry should preserve source map id.");
@@ -420,19 +422,21 @@ public partial class run_world_map_data_context_regression : SceneTree
             );
             fogSystem.Setup(new Vector2I(4, 4));
             context.SaveActiveWorldFogState(fogSystem);
+            GDictionary savedRootWorldData = context.root_world_data;
             _test.Eq(
-                serializer.GetWorldDataNestedSchemaValidationError(rootWorldData),
+                serializer.GetWorldDataNestedSchemaValidationError(savedRootWorldData),
                 "",
                 "子地图进入并写回后 mounted_submap entry 应继续满足正式 save schema。"
             );
             WorldMapSubmapReturnResult returnResult = context.ReturnFromActiveSubmap(new Vector2I(4, 4));
+            GDictionary returnedRootWorldData = context.root_world_data;
 
             _test.True(returnResult.Ok, "Returning from an active submap should succeed.");
             _test.Eq(returnResult.TargetMapId, "", "Submap return should restore the source map id.");
             _test.Eq(returnResult.PlayerCoord, new Vector2I(1, 1), "Submap return should restore the source coord.");
-            _test.Eq(rootWorldData["active_submap_id"].AsString(), "", "Submap return should clear active_submap_id.");
-            _test.Eq(rootWorldData["submap_return_stack"].AsGodotArray().Count, 0, "Submap return should pop the return stack.");
-            GDictionary storedSubmap = rootWorldData["mounted_submaps"].AsGodotDictionary()["ash_submap"].AsGodotDictionary();
+            _test.Eq(returnedRootWorldData["active_submap_id"].AsString(), "", "Submap return should clear active_submap_id.");
+            _test.Eq(returnedRootWorldData["submap_return_stack"].AsGodotArray().Count, 0, "Submap return should pop the return stack.");
+            GDictionary storedSubmap = returnedRootWorldData["mounted_submaps"].AsGodotDictionary()["ash_submap"].AsGodotDictionary();
             _test.Eq(
                 storedSubmap["player_coord"].AsVector2I(),
                 new Vector2I(4, 4),
@@ -470,7 +474,8 @@ public partial class run_world_map_data_context_regression : SceneTree
                 "ensure_submap_generated 应成功构建 typed 子地图 world_data。"
             );
 
-            GDictionary generatedEntry = rootWorldData["mounted_submaps"]
+            GDictionary projectedRootWorldData = context.root_world_data;
+            GDictionary generatedEntry = projectedRootWorldData["mounted_submaps"]
                 .AsGodotDictionary()["generated_submap"]
                 .AsGodotDictionary();
             GDictionary generatedWorldData = generatedEntry["world_data"].AsGodotDictionary();
@@ -538,7 +543,7 @@ public partial class run_world_map_data_context_regression : SceneTree
             );
 
             _test.Eq(context.GetActiveMapId(), "", "Sync should clear a stale active submap id.");
-            _test.Eq(rootWorldData["active_submap_id"].AsString(), "", "Sync should write the cleared active submap id back to root world data.");
+            _test.Eq(context.root_world_data["active_submap_id"].AsString(), "", "Sync should write the cleared active submap id back to root world data.");
             _test.Eq(result.SelectedCoord, new Vector2I(1, 2), "Sync should keep an in-bounds selected coord after falling back to root world.");
         }
         finally

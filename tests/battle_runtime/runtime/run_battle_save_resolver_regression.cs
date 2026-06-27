@@ -453,7 +453,7 @@ public partial class run_battle_save_resolver_regression : SceneTree
         source.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.SpellProficiencyBonus), 3);
         BattleUnitState target = MakeUnit("spell_dc_target", "player");
         target.attribute_snapshot.SetValue("agility", 10);
-        CombatEffectDef effect = MakeCasterSpellSaveDamageEffect();
+        CombatEffectDefinition effect = MakeCasterSpellSaveDamageEffect();
 
         BattleSaveResult failedResult = BattleSaveResolver.ResolveSaveResult(
             source,
@@ -480,7 +480,7 @@ public partial class run_battle_save_resolver_regression : SceneTree
         source.known_skill_lock_hit_bonus_map["locked_fire"] = 2;
         BattleUnitState target = MakeUnit("locked_static_target", "player");
         target.attribute_snapshot.SetValue("constitution", 10);
-        CombatEffectDef effect = MakeSaveDamageEffect("fireball", "constitution", 12, false);
+        CombatEffectDefinition effect = MakeSaveDamageEffect("fireball", "constitution", 12, false);
 
         BattleSaveResult result = BattleSaveResolver.ResolveSaveResult(
             source,
@@ -499,7 +499,7 @@ public partial class run_battle_save_resolver_regression : SceneTree
         source.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.SpellProficiencyBonus), 3);
         source.known_skill_lock_hit_bonus_map["locked_spell"] = 2;
         BattleUnitState target = MakeUnit("locked_spell_target", "player");
-        CombatEffectDef effect = MakeCasterSpellSaveDamageEffect();
+        CombatEffectDefinition effect = MakeCasterSpellSaveDamageEffect();
 
         BattleSaveResult result = BattleSaveResolver.ResolveSaveResult(
             source,
@@ -516,13 +516,14 @@ public partial class run_battle_save_resolver_regression : SceneTree
         var resolver = new BattleDamageResolver();
         BattleUnitState source = MakeUnit("breath_source", "enemy");
         BattleUnitState target = MakeUnit("breath_target", "player");
-        CombatEffectDef effect = MakeSaveDamageEffect("dragon_breath", "constitution", 12, true);
-        effect.power = 10;
+        CombatEffectDefinition effect = MakeSaveDamageEffect("dragon_breath", "constitution", 12, true);
         Godot.Collections.Dictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             target,
-            new Godot.Collections.Array { effect },
-            new Godot.Collections.Dictionary { ["save_roll_override"] = 20 }
+            new[] { effect },
+            DamageResolutionContext.FromDictionary(
+                new Godot.Collections.Dictionary { ["save_roll_override"] = 20 }
+            )
         ));
 
         _test.Eq(DictInt(result, "damage", -1), 5, "Successful partial damage save should halve damage.");
@@ -538,12 +539,14 @@ public partial class run_battle_save_resolver_regression : SceneTree
         var resolver = new BattleDamageResolver();
         BattleUnitState source = MakeUnit("status_source", "enemy");
         BattleUnitState successTarget = MakeUnit("status_success_target", "player");
-        CombatEffectDef effect = MakeSaveStatusEffect("sleep", "asleep", "deep_sleep");
+        CombatEffectDefinition effect = MakeSaveStatusEffect("sleep", "asleep", "deep_sleep");
         Godot.Collections.Dictionary successResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             successTarget,
-            new Godot.Collections.Array { effect },
-            new Godot.Collections.Dictionary { ["save_roll_override"] = 20 }
+            new[] { effect },
+            DamageResolutionContext.FromDictionary(
+                new Godot.Collections.Dictionary { ["save_roll_override"] = 20 }
+            )
         ));
         _test.False(successTarget.HasStatusEffect("asleep"), "Successful save should block default status.");
         _test.False(successTarget.HasStatusEffect("deep_sleep"), "Successful save should block failure status.");
@@ -553,8 +556,10 @@ public partial class run_battle_save_resolver_regression : SceneTree
         Godot.Collections.Dictionary failureResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
             source,
             failureTarget,
-            new Godot.Collections.Array { effect },
-            new Godot.Collections.Dictionary { ["save_roll_override"] = 1 }
+            new[] { effect },
+            DamageResolutionContext.FromDictionary(
+                new Godot.Collections.Dictionary { ["save_roll_override"] = 1 }
+            )
         ));
         _test.True(failureTarget.HasStatusEffect("deep_sleep"), "Failed save should apply save_failure_status_id.");
         _test.False(failureTarget.HasStatusEffect("asleep"), "save_failure_status_id should replace default status on failure.");
@@ -565,56 +570,47 @@ public partial class run_battle_save_resolver_regression : SceneTree
         );
     }
 
-    private static CombatEffectDef MakeSaveDamageEffect(
+    private static CombatEffectDefinition MakeSaveDamageEffect(
         StringName saveTag,
         StringName saveAbility,
         int saveDc,
         bool partial
-    )
-    {
-        return new CombatEffectDef
-        {
-            effect_type = "damage",
-            damage_tag = "fire",
-            power = 10,
-            save_dc = saveDc,
-            save_ability = saveAbility,
-            save_tag = saveTag,
-            save_partial_on_success = partial,
-        };
-    }
+    ) =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            damageTag: "fire",
+            power: 10,
+            saveDc: saveDc,
+            saveAbility: saveAbility,
+            saveTag: saveTag,
+            savePartialOnSuccess: partial
+        );
 
-    private static CombatEffectDef MakeSaveStatusEffect(
+    private static CombatEffectDefinition MakeSaveStatusEffect(
         StringName saveTag,
         StringName statusId,
         StringName failureStatusId
-    )
-    {
-        return new CombatEffectDef
-        {
-            effect_type = "status",
-            status_id = statusId,
-            save_failure_status_id = failureStatusId,
-            save_dc = 12,
-            save_ability = "willpower",
-            save_tag = saveTag,
-        };
-    }
+    ) =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "status",
+            statusId: statusId,
+            saveFailureStatusId: failureStatusId,
+            saveDc: 12,
+            saveAbility: "willpower",
+            saveTag: saveTag
+        );
 
-    private static CombatEffectDef MakeCasterSpellSaveDamageEffect()
-    {
-        return new CombatEffectDef
-        {
-            effect_type = "damage",
-            damage_tag = "fire",
-            power = 10,
-            save_dc_mode = BattleSaveContentRules.ToStringName(BattleSaveDcMode.CasterSpell),
-            save_dc_source_ability = "intelligence",
-            save_ability = "agility",
-            save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Fireball),
-            save_partial_on_success = true,
-        };
-    }
+    private static CombatEffectDefinition MakeCasterSpellSaveDamageEffect() =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            damageTag: "fire",
+            power: 10,
+            saveDcMode: BattleSaveContentRules.ToStringName(BattleSaveDcMode.CasterSpell),
+            saveDcSourceAbility: "intelligence",
+            saveAbility: "agility",
+            saveTag: BattleSaveContentRules.ToStringName(BattleSaveTagKind.Fireball),
+            savePartialOnSuccess: true
+        );
 
     private static BattleUnitState MakeUnit(StringName unitId, StringName factionId)
     {

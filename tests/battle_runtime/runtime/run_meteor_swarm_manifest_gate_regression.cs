@@ -15,35 +15,41 @@ public partial class run_meteor_swarm_manifest_gate_regression : SceneTree
     private int Run()
     {
 
-        var progressionRegistry = new ProgressionContentRegistry();
-        IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs =
-            progressionRegistry.GetSkillDefsTyped();
-        SkillDef meteorSkill = GetSkill(typedSkillDefs, "mage_meteor_swarm");
-        _test.True(meteorSkill != null, "陨星雨技能应存在。");
-        _test.True(meteorSkill?.combat_profile != null, "陨星雨应声明 combat_profile。");
-        if (meteorSkill == null || meteorSkill.combat_profile == null)
+        using var progressionRegistry = new ProgressionContentRegistry();
+        IReadOnlyDictionary<StringName, SkillDefinition> typedSkillDefinitions =
+            progressionRegistry.GetSkillDefinitionsTyped();
+        SkillDefinition meteorSkillDefinition = GetSkillDefinition(
+            typedSkillDefinitions,
+            "mage_meteor_swarm"
+        );
+        _test.True(meteorSkillDefinition != null, "陨星雨 DTO 应存在。");
+        _test.True(
+            meteorSkillDefinition?.CombatProfile != null,
+            "陨星雨应声明 combat_profile。"
+        );
+        if (meteorSkillDefinition == null || meteorSkillDefinition.CombatProfile == null)
             return Finish();
 
-        CombatSkillDef combatProfile = meteorSkill.combat_profile;
+        CombatSkillDefinition combatProfile = meteorSkillDefinition.CombatProfile;
         _test.Eq(
-            combatProfile.special_resolution_profile_id.ToString(),
+            combatProfile.SpecialResolutionProfileId.ToString(),
             "meteor_swarm",
             "陨星雨应切到 meteor_swarm special profile。"
         );
         _test.Eq(
-            combatProfile.effect_defs.Count,
+            combatProfile.EffectDefinitions.Count,
             0,
             "陨星雨不应保留 executable effect_defs。"
         );
         _test.Eq(
-            combatProfile.area_pattern.ToString(),
+            combatProfile.AreaPattern.ToString(),
             "radius",
             "陨星雨 shell 应保留 square-radius area metadata。"
         );
-        _test.Eq(combatProfile.area_value, 3, "陨星雨 shell 的最外层应为 7x7。");
+        _test.Eq(combatProfile.AreaValue, 3, "陨星雨 shell 的最外层应为 7x7。");
 
         var registry = new BattleSpecialProfileRegistry();
-        registry.Rebuild(typedSkillDefs);
+        registry.Rebuild(typedSkillDefinitions);
         IReadOnlyList<string> typedErrors = registry.ValidateTyped();
         Godot.Collections.Array<string> errors = registry.Validate();
         _test.Eq(
@@ -86,26 +92,26 @@ public partial class run_meteor_swarm_manifest_gate_regression : SceneTree
             );
         }
 
-        TestManifestValidatorRejectsNonDefaultRequiredTests(typedSkillDefs, profileResource);
+        TestManifestValidatorRejectsNonDefaultRequiredTests(typedSkillDefinitions, profileResource);
         TestManifestValidatorRejectsUnknownSaveProfile(profileResource);
         TestManifestValidatorRejectsDuplicateComponentId(profileResource);
         TestManifestValidatorRejectsComponentRingOutsideRadius(profileResource);
         TestManifestValidatorRejectsTerrainRingOutsideRadius(profileResource);
-        TestRegistryUsesExactSkillDefKeys(meteorSkill);
-        TestGateAllowsValidManifest(meteorSkill, snapshot);
-        TestGateFailsClosedForInvalidManifest(meteorSkill);
+        TestRegistryUsesExactSkillDefinitionKeys(meteorSkillDefinition);
+        TestGateAllowsValidManifest(meteorSkillDefinition, snapshot);
+        TestGateFailsClosedForInvalidManifest(meteorSkillDefinition);
 
         return Finish();
     }
 
-    private void TestRegistryUsesExactSkillDefKeys(SkillDef meteorSkill)
+    private void TestRegistryUsesExactSkillDefinitionKeys(SkillDefinition meteorSkillDefinition)
     {
-        var wrongKeySkillDefs = new Dictionary<StringName, SkillDef>
+        var wrongKeySkillDefinitions = new Dictionary<StringName, SkillDefinition>
         {
-            [new StringName("wrong_meteor_swarm_key")] = meteorSkill,
+            [new StringName("wrong_meteor_swarm_key")] = meteorSkillDefinition,
         };
         var registry = new BattleSpecialProfileRegistry();
-        registry.Rebuild(wrongKeySkillDefs);
+        registry.Rebuild(wrongKeySkillDefinitions);
 
         Godot.Collections.Dictionary snapshot = registry.GetSnapshot();
         Godot.Collections.Dictionary profileIdBySkillId = GetDictionary(
@@ -124,7 +130,7 @@ public partial class run_meteor_swarm_manifest_gate_regression : SceneTree
     }
 
     private void TestManifestValidatorRejectsNonDefaultRequiredTests(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         Resource profileResource
     )
     {
@@ -146,7 +152,7 @@ public partial class run_meteor_swarm_manifest_gate_regression : SceneTree
         var validator = new BattleSpecialProfileManifestValidator();
         Godot.Collections.Array<string> errors = validator.ValidateManifest(
             manifest,
-            ProjectSkillDefs(skillDefs),
+            skillDefinitions,
             ""
         );
         _test.True(errors.Count > 0, $"manifest validator 应拒绝 simulation/docs 等非默认回归入口：{FormatArray(errors)}");
@@ -202,12 +208,15 @@ public partial class run_meteor_swarm_manifest_gate_regression : SceneTree
         _test.True(errors.Count > 0, $"manifest validator 应拒绝越过 7x7 半径的 terrain profile ring：{FormatArray(errors)}");
     }
 
-    private void TestGateAllowsValidManifest(SkillDef meteorSkill, Godot.Collections.Dictionary snapshot)
+    private void TestGateAllowsValidManifest(
+        SkillDefinition meteorSkillDefinition,
+        Godot.Collections.Dictionary snapshot
+    )
     {
         var gate = new BattleSpecialProfileGate();
         gate.Setup(snapshot);
         BattleSpecialProfileGateResult allowedResult = gate.PreviewSkill(
-            meteorSkill,
+            meteorSkillDefinition,
             new BattleCommand(),
             new BattleUnitState(),
             new BattleState()
@@ -220,7 +229,7 @@ public partial class run_meteor_swarm_manifest_gate_regression : SceneTree
         );
     }
 
-    private void TestGateFailsClosedForInvalidManifest(SkillDef meteorSkill)
+    private void TestGateFailsClosedForInvalidManifest(SkillDefinition meteorSkillDefinition)
     {
         var invalidGate = new BattleSpecialProfileGate();
         invalidGate.Setup(
@@ -233,7 +242,7 @@ public partial class run_meteor_swarm_manifest_gate_regression : SceneTree
             }
         );
         BattleSpecialProfileGateResult blockedResult = invalidGate.PreviewSkill(
-            meteorSkill,
+            meteorSkillDefinition,
             new BattleCommand(),
             new BattleUnitState(),
             new BattleState()
@@ -259,14 +268,17 @@ public partial class run_meteor_swarm_manifest_gate_regression : SceneTree
 
     private int Finish() => _test.Finish("Meteor swarm manifest gate regression");
 
-    private static SkillDef GetSkill(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+    private static SkillDefinition GetSkillDefinition(
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         StringName skillId
     )
     {
-        if (skillDefs == null || !skillDefs.TryGetValue(skillId, out SkillDef skillDef))
+        if (
+            skillDefinitions == null
+            || !skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
+        )
             return null;
-        return skillDef;
+        return skillDefinition;
     }
 
     private MeteorSwarmProfile DuplicateProfile(Resource profileResource, string preconditionLabel)
@@ -352,22 +364,6 @@ public partial class run_meteor_swarm_manifest_gate_regression : SceneTree
         if (values == null)
             return "";
         return string.Join(", ", values);
-    }
-
-    private static Godot.Collections.Dictionary ProjectSkillDefs(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
-    )
-    {
-        Godot.Collections.Dictionary result = new();
-        if (skillDefs == null)
-            return result;
-        foreach ((StringName skillId, SkillDef skillDef) in skillDefs)
-        {
-            if (skillDef == null || skillId == "")
-                continue;
-            result[skillId] = skillDef;
-        }
-        return result;
     }
 
 }

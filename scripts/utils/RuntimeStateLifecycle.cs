@@ -54,10 +54,10 @@ internal static class RuntimeStateLifecycle
                 return;
             }
 
-            if (
-                GodotWrapperOwnershipRegistry.IsBorrowedOrDerivedStaticContent(wrapper)
-                || GodotWrapperOwnershipRegistry.IsOwnedTransient(wrapper)
-            )
+            if (GodotWrapperOwnershipRegistry.IsBorrowedOrDerivedStaticContent(wrapper))
+                return;
+
+            if (GodotWrapperOwnershipRegistry.IsOwnedTransient(wrapper))
             {
                 GodotWrapperOwnershipRegistry.SuppressWrapper(wrapper);
                 return;

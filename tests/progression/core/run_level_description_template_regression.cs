@@ -188,45 +188,51 @@ public partial class run_level_description_template_regression : SceneTree
 
     private void TestLevelDescriptionRequiresTemplateConfig()
     {
-        SkillDef skillDef = new()
-        {
-            level_description_template = "模板{val}",
-            level_description_configs = new GDictionary
+        SkillDefinition skillDefinition = TestSkillDefinitionProjection.BuildSkill(
+            "level_description_fixture",
+            levelDescriptionTemplate: "模板{val}",
+            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, Variant>>
             {
-                ["0"] = new GDictionary { ["val"] = "新" },
-                ["1"] = new GDictionary { ["val"] = "新" },
-            },
-        };
+                [0] = new Dictionary<string, Variant> { ["val"] = "新" },
+                [1] = new Dictionary<string, Variant> { ["val"] = "新" },
+            }
+        );
 
         _test.Eq(
-            SkillLevelDescriptionFormatter.BuildLevelDescription(skillDef, 0, new GDictionary()),
+            BuildLevelDescription(skillDefinition, 0, new GDictionary()),
             "模板新",
             "正式模板配置应渲染等级描述"
         );
         _test.Eq(
-            SkillLevelDescriptionFormatter.BuildLevelDescription(skillDef, 1, new GDictionary()),
+            BuildLevelDescription(skillDefinition, 1, new GDictionary()),
             "模板新",
             "正式模板配置应渲染对应等级描述"
         );
         _test.Eq(
-            SkillLevelDescriptionFormatter.BuildLevelDescription(skillDef, 2, new GDictionary()),
+            BuildLevelDescription(skillDefinition, 2, new GDictionary()),
             "",
             "缺少当前等级正式配置时应返回空"
         );
 
-        SkillDef missingTemplate = new()
-        {
-            level_description_configs = new GDictionary { ["0"] = new GDictionary { ["val"] = "新" } },
-        };
+        SkillDefinition missingTemplate = TestSkillDefinitionProjection.BuildSkill(
+            "missing_template_fixture",
+            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, Variant>>
+            {
+                [0] = new Dictionary<string, Variant> { ["val"] = "新" },
+            }
+        );
         _test.Eq(
-            SkillLevelDescriptionFormatter.BuildLevelDescription(missingTemplate, 0, new GDictionary()),
+            BuildLevelDescription(missingTemplate, 0, new GDictionary()),
             "",
             "缺少正式模板时应返回空"
         );
 
-        SkillDef missingConfig = new() { level_description_template = "模板{val}" };
+        SkillDefinition missingConfig = TestSkillDefinitionProjection.BuildSkill(
+            "missing_config_fixture",
+            levelDescriptionTemplate: "模板{val}"
+        );
         _test.Eq(
-            SkillLevelDescriptionFormatter.BuildLevelDescription(missingConfig, 0, new GDictionary()),
+            BuildLevelDescription(missingConfig, 0, new GDictionary()),
             "",
             "缺少正式等级配置时应返回空"
         );
@@ -237,7 +243,7 @@ public partial class run_level_description_template_regression : SceneTree
             level_description_configs = new GDictionary { ["0"] = "旧格式描述" },
         };
         _test.Eq(
-            SkillLevelDescriptionFormatter.BuildLevelDescription(wrongConfigType, 0, new GDictionary()),
+            BuildLevelDescriptionFromResource(wrongConfigType, 0, new GDictionary()),
             "",
             "等级配置不是字典时应返回空"
         );
@@ -245,33 +251,37 @@ public partial class run_level_description_template_regression : SceneTree
 
     private void TestLevelDescriptionHidesZeroProfileDefaultsInOptionalBlocks()
     {
-        SkillDef skillDef = new()
-        {
-            level_description_template =
+        SkillDefinition skillDefinition = TestSkillDefinitionProjection.BuildSkill(
+            "zero_optional_profile_fixture",
+            levelDescriptionTemplate:
                 "基础{{?attack_roll_bonus}}，攻击检定{attack_roll_bonus}{{/attack_roll_bonus}}{{?aura_cost}}，消耗{aura_cost}斗气{{/aura_cost}}",
-            level_description_configs = new GDictionary
+            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, Variant>>
             {
-                ["0"] = new GDictionary { ["marker"] = "configured" },
-                ["1"] = new GDictionary { ["marker"] = "configured" },
+                [0] = new Dictionary<string, Variant> { ["marker"] = "configured" },
+                [1] = new Dictionary<string, Variant> { ["marker"] = "configured" },
             },
-            combat_profile = new CombatSkillDef
-            {
-                attack_roll_bonus = 0,
-                aura_cost = 0,
-                level_overrides = new GDictionary
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                "zero_optional_profile_fixture",
+                attackRollBonus: 0,
+                auraCost: 0,
+                levelOverrides: new Dictionary<int, IReadOnlyDictionary<string, Variant>>
                 {
-                    [1] = new GDictionary { ["attack_roll_bonus"] = 2, ["aura_cost"] = 1 },
-                },
-            },
-        };
+                    [1] = new Dictionary<string, Variant>
+                    {
+                        ["attack_roll_bonus"] = 2,
+                        ["aura_cost"] = 1,
+                    },
+                }
+            )
+        );
 
         _test.Eq(
-            SkillLevelDescriptionFormatter.BuildLevelDescription(skillDef, 0, new GDictionary()),
+            BuildLevelDescription(skillDefinition, 0, new GDictionary()),
             "基础",
             "formatter 不应让 profile 默认 0 撑开 optional 条件块。"
         );
         _test.Eq(
-            SkillLevelDescriptionFormatter.BuildLevelDescription(skillDef, 1, new GDictionary()),
+            BuildLevelDescription(skillDefinition, 1, new GDictionary()),
             "基础，攻击检定2，消耗1斗气",
             "formatter 仍应显示非 0 profile override。"
         );
@@ -279,15 +289,18 @@ public partial class run_level_description_template_regression : SceneTree
 
     private void TestBattleRecoveryDescriptionDerivesDisplayDice()
     {
-        SkillDef skillDef = GD.Load<SkillDef>(BattleRecoverySkillPath);
-        if (skillDef == null)
+        SkillDefinition skillDefinition = TestSkillDefinitionProjection.LoadSkillDefinition(
+            BattleRecoverySkillPath,
+            $"level_description_template:{BattleRecoverySkillPath}"
+        );
+        if (skillDefinition == null)
         {
             _test.Fail("战斗回复技能资源应能加载。");
             return;
         }
 
         string lowStatDescription = SkillLevelDescriptionFormatter.BuildLevelDescription(
-            skillDef,
+            skillDefinition,
             5,
             new GDictionary { ["con_mod"] = -3, ["will_mod"] = -3 }
         );
@@ -300,36 +313,38 @@ public partial class run_level_description_template_regression : SceneTree
 
     private void TestLevelDescriptionDerivesTypedEffectFields()
     {
-        SkillDef skillDef = new()
-        {
-            level_description_template =
+        SkillDefinition skillDefinition = TestSkillDefinitionProjection.BuildSkill(
+            "typed_effect_description_fixture",
+            levelDescriptionTemplate:
                 "造成{dmg}伤害（{damage_save_text}），{shocked_save_text}（{shocked_duration_tu}TU，强度{shocked_power}）。",
-            level_description_configs = new GDictionary { ["0"] = new GDictionary { ["dmg"] = "4D6" } },
-            combat_profile = new CombatSkillDef(),
-        };
-
-        CombatEffectDef damageEffect = new()
-        {
-            effect_type = "damage",
-            save_ability = "agility",
-            save_dc_mode = "caster_spell",
-            save_partial_on_success = true,
-        };
-        skillDef.combat_profile.effect_defs.Add(damageEffect);
-
-        CombatEffectDef statusEffect = new()
-        {
-            effect_type = "status",
-            status_id = "shocked",
-            power = 1,
-            duration_tu = 60,
-            save_ability = "constitution",
-            save_dc_mode = "caster_spell",
-        };
-        skillDef.combat_profile.effect_defs.Add(statusEffect);
+            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, Variant>>
+            {
+                [0] = new Dictionary<string, Variant> { ["dmg"] = "4D6" },
+            },
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                "typed_effect_description_fixture",
+                effects: new[]
+                {
+                    TestSkillDefinitionProjection.BuildEffect(
+                        "damage",
+                        saveAbility: "agility",
+                        saveDcMode: "caster_spell",
+                        savePartialOnSuccess: true
+                    ),
+                    TestSkillDefinitionProjection.BuildEffect(
+                        "status",
+                        statusId: "shocked",
+                        power: 1,
+                        durationTu: 60,
+                        saveAbility: "constitution",
+                        saveDcMode: "caster_spell"
+                    ),
+                }
+            )
+        );
 
         _test.Eq(
-            SkillLevelDescriptionFormatter.BuildLevelDescription(skillDef, 0, new GDictionary()),
+            BuildLevelDescription(skillDefinition, 0, new GDictionary()),
             "造成4D6伤害（敏捷豁免成功时伤害减半），体质豁免失败时附加感电（60TU，强度1）。",
             "等级描述 formatter 应从 typed effect fields 派生豁免、状态名、持续时间和强度。"
         );
@@ -337,41 +352,69 @@ public partial class run_level_description_template_regression : SceneTree
 
     private void TestLevelDescriptionIgnoresLockedCastVariantEffects()
     {
-        SkillDef skillDef = new()
-        {
-            level_description_template = "基础{base}{{?locked_param}}，高阶{locked_param}{{/locked_param}}",
-            level_description_configs = new GDictionary
+        SkillDefinition skillDefinition = TestSkillDefinitionProjection.BuildSkill(
+            "locked_cast_variant_description_fixture",
+            levelDescriptionTemplate: "基础{base}{{?locked_param}}，高阶{locked_param}{{/locked_param}}",
+            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, Variant>>
             {
-                ["0"] = new GDictionary { ["base"] = "可用" },
-                ["3"] = new GDictionary { ["base"] = "可用" },
+                [0] = new Dictionary<string, Variant> { ["base"] = "可用" },
+                [3] = new Dictionary<string, Variant> { ["base"] = "可用" },
             },
-            combat_profile = new CombatSkillDef(),
-        };
-
-        CombatCastVariantDef option = new()
-        {
-            variant_id = "advanced",
-            min_skill_level = 3,
-        };
-        CombatEffectDef optionEffect = new()
-        {
-            effect_type = "damage",
-            @params = new GDictionary { ["locked_param"] = "未锁" },
-        };
-        option.effect_defs.Add(optionEffect);
-        skillDef.combat_profile.cast_variants.Add(option);
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                "locked_cast_variant_description_fixture",
+                castVariants: new[]
+                {
+                    TestSkillDefinitionProjection.BuildCastVariant(
+                        "advanced",
+                        3,
+                        new[]
+                        {
+                            TestSkillDefinitionProjection.BuildEffect(
+                                "damage",
+                                parameters: new Dictionary<string, Variant>
+                                {
+                                    ["locked_param"] = "未锁",
+                                }
+                            ),
+                        }
+                    ),
+                }
+            )
+        );
 
         _test.Eq(
-            SkillLevelDescriptionFormatter.BuildLevelDescription(skillDef, 0, new GDictionary()),
+            BuildLevelDescription(skillDefinition, 0, new GDictionary()),
             "基础可用",
             "低等级描述不应合并未解锁施法形态的 effect params。"
         );
         _test.Eq(
-            SkillLevelDescriptionFormatter.BuildLevelDescription(skillDef, 3, new GDictionary()),
+            BuildLevelDescription(skillDefinition, 3, new GDictionary()),
             "基础可用，高阶未锁",
             "达到施法形态等级后应合并该形态的 effect params。"
         );
     }
+
+    private static string BuildLevelDescription(
+        SkillDefinition skillDefinition,
+        int level,
+        GDictionary runtimeContext
+    ) =>
+        SkillLevelDescriptionFormatter.BuildLevelDescription(
+            skillDefinition,
+            level,
+            runtimeContext
+        );
+
+    private static string BuildLevelDescriptionFromResource(
+        SkillDef skillDef,
+        int level,
+        GDictionary runtimeContext
+    ) =>
+        SkillLevelDescriptionFormatter.BuildLevelDescription(
+            SkillDefinition.FromResource(skillDef),
+            level,
+            runtimeContext
+        );
 
 
 }

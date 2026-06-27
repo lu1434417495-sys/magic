@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 public partial class BattleAiScoreService
 {
@@ -53,14 +51,14 @@ public partial class BattleAiScoreService
         {
             return true;
         }
-        SkillDef skillDef = ResolveScoreInputSkillDef(scoreInput, context);
-        if (skillDef != null)
+        SkillDefinition skillDefinition = ResolveScoreInputSkillDefinition(scoreInput, context);
+        if (skillDefinition != null)
         {
-            if (skillDef.skill_id.ToString().StartsWith("mage_", StringComparison.Ordinal))
+            if (skillDefinition.SkillId.ToString().StartsWith("mage_", StringComparison.Ordinal))
             {
                 return true;
             }
-            foreach (StringName tag in skillDef.TagsTyped)
+            foreach (StringName tag in skillDefinition.Tags)
             {
                 if (ProgressionDataUtils.to_string_name(tag) == "mage")
                 {
@@ -391,7 +389,8 @@ public partial class BattleAiScoreService
         {
             return profile;
         }
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = ContextSkillDefs(context);
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            ContextSkillDefinitions(context);
         foreach (StringName skillId in threatUnit.known_active_skill_ids)
         {
             StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
@@ -399,30 +398,33 @@ public partial class BattleAiScoreService
             {
                 continue;
             }
-            SkillDef skillDef = GetSkillDef(skillDefs, normalizedSkillId);
-            if (skillDef == null || skillDef.combat_profile == null)
+            SkillDefinition skillDefinition = GetSkillDefinition(
+                skillDefinitions,
+                normalizedSkillId
+            );
+            if (skillDefinition == null || skillDefinition.CombatProfile == null)
             {
                 continue;
             }
             if (
-                BattleTypedNames.ToTargetFilter(skillDef.combat_profile.target_team_filter)
-                == BattleTargetFilter.Ally
+                skillDefinition.CombatProfile.TargetFilterKind == BattleTargetFilter.Ally
+                || skillDefinition.CombatProfile.TargetFilterKind == BattleTargetFilter.Self
             )
             {
                 continue;
             }
-            List<CombatEffectDef> effectDefs = CollectRoleThreatEffectDefs(
+            List<CombatEffectDefinition> effectDefinitions = CollectRoleThreatEffectDefinitions(
                 threatUnit,
-                skillDef,
+                skillDefinition,
                 ContextSkillCatalog(context)
             );
-            if (!IsDamageSkill(effectDefs) && !IsControlSkill(effectDefs))
+            if (!IsDamageSkill(effectDefinitions) && !IsControlSkill(effectDefinitions))
             {
                 continue;
             }
             int skillRange = BattleRangeService.GetEffectiveSkillThreatRange(
                 threatUnit,
-                skillDef,
+                skillDefinition,
                 ContextSkillCatalog(context)
             );
             if (skillRange <= 0)
@@ -431,7 +433,7 @@ public partial class BattleAiScoreService
             }
             DamageEstimateResult damageEstimate = EstimateDamageForTargetResult(
                 threatUnit,
-                effectDefs,
+                effectDefinitions,
                 actor,
                 normalizedSkillId
             );

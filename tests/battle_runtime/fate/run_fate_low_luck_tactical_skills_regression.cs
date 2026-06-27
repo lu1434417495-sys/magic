@@ -28,7 +28,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
 
     private readonly TestHarness _test = new();
     private ProgressionContentRegistry _progressionContentRegistry;
-    private IReadOnlyDictionary<StringName, SkillDef> _skillDefs;
+    private IReadOnlyDictionary<StringName, SkillDefinition> _skillDefinitions;
 
     public override void _Initialize()
     {
@@ -176,7 +176,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
             ((BattleUnitState)actionCase["enemy"]).current_hp < 60,
             "黑契推进·行契命中后应对目标造成伤害。"
         );
-        GodotSharpCleanup.DisposeGodotObject(turnStartBatch);
+        GodotSharpCleanup.DisposeBatch(turnStartBatch);
         DisposeBlackContractCase(actionCase);
     }
 
@@ -233,7 +233,9 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         BattleUnitState counterCaster = counterCase.Caster;
         BattleUnitState boss = counterCase.Boss;
         BattleUnitState elite = counterCase.Elite;
-        SkillDef skillDef = GetSkill(counterRuntime.GetSkillDefIndexTyped(), BLACK_CROWN_SEAL_SKILL_ID);
+        SkillDefinition skillDefinition = counterRuntime.GetSkillDefinitionTyped(
+            BLACK_CROWN_SEAL_SKILL_ID
+        );
 
         BattleCommand illegalCommand = BuildUnitSkillCommand(counterCaster.unit_id, BLACK_CROWN_SEAL_SKILL_ID, elite, COUNTERATTACK_LOCK_VARIANT_ID);
         BattlePreview illegalPreview = counterRuntime.PreviewCommand(illegalCommand);
@@ -251,7 +253,9 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         _test.True(counterRuntime.IsUnitCounterattackLocked(boss), "黑冠封印·禁反击应封锁 boss 的反击。");
         counterCaster.current_ap = 1;
         _test.Eq(
-            BattleSkillCastBlockReasonKinds.IsBlocked(counterRuntime.GetSkillCastBlockReason(counterCaster, skillDef)),
+            BattleSkillCastBlockReasonKinds.IsBlocked(
+                counterRuntime.GetSkillCastBlockReason(counterCaster, skillDefinition)
+            ),
             true,
             "黑冠封印成功后应立刻进入每战 1 次的封锁状态并提供反馈。"
         );
@@ -273,8 +277,6 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
     private Dictionary<string, object> IssueBlackContractPushCase(StringName variantId)
     {
         BattleRuntimeModule runtime = BuildRuntime();
-        SkillDef skillDef = GetSkill(runtime.GetSkillDefIndexTyped(), BLACK_CONTRACT_PUSH_SKILL_ID);
-        CombatCastVariantDef castVariant = skillDef?.combat_profile?.GetCastVariant(variantId);
         BattleState state = BuildSkillTestState($"black_contract_{variantId}", new Vector2I(6, 4));
         BattleUnitState caster = BuildUnit("contract_caster", "契约战士", "player", new Vector2I(1, 1), 1, HERO_ID);
         caster.current_hp = 28;
@@ -296,11 +298,24 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         BattlePreview preview = runtime.PreviewCommand(previewCommand);
         _test.True(preview != null && preview.allowed, $"黑契推进 {variantId} 前置：目标应可预览。");
 
+        SkillDefinition skillDefinition = runtime.GetSkillDefinitionTyped(
+            BLACK_CONTRACT_PUSH_SKILL_ID
+        );
+        CombatCastVariantDefinition castVariantDefinition =
+            runtime._skill_resolution_rules.ResolveUnitCastVariantDefinition(
+                skillDefinition,
+                caster,
+                variantId
+            );
         var simulatedTypedResult = runtime._skill_orchestrator.ResolveUnitSkillEffectResult(
             caster,
             enemy,
-            skillDef,
-            runtime._skill_resolution_rules.CollectUnitSkillEffectDefs(skillDef, castVariant)
+            skillDefinition,
+            runtime._skill_resolution_rules.CollectUnitSkillEffectDefinitions(
+                skillDefinition,
+                castVariantDefinition,
+                caster
+            )
         );
         var simulatedResult = AttackEffectResolutionResultReader.BuildGodotPayload(
             simulatedTypedResult.Result
@@ -395,7 +410,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            GetSkillDefsForTests(),
+            GetSkillDefinitionsForTests(),
             new Dictionary<StringName, EnemyTemplateDef>(),
             new Dictionary<StringName, EnemyAiBrainDef>()
         );
@@ -448,19 +463,19 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         testCase.AllyTarget = null;
     }
 
-    private IReadOnlyDictionary<StringName, SkillDef> GetSkillDefsForTests()
+    private IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionsForTests()
     {
-        if (_skillDefs != null)
-            return _skillDefs;
+        if (_skillDefinitions != null)
+            return _skillDefinitions;
         _progressionContentRegistry = new ProgressionContentRegistry();
-        _skillDefs = _progressionContentRegistry.GetSkillDefsTyped();
-        return _skillDefs;
+        _skillDefinitions = _progressionContentRegistry.GetSkillDefinitionsTyped();
+        return _skillDefinitions;
     }
 
     private void DisposeContentRegistry()
     {
         _progressionContentRegistry?.Dispose();
-        _skillDefs = null;
+        _skillDefinitions = null;
         _progressionContentRegistry = null;
     }
 
@@ -596,7 +611,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         partyState.active_member_ids = new GStringNameArray { HERO_ID };
         partyState.SetMemberState(BuildMemberState(hiddenLuckAtBirth));
         var manager = new CharacterManagementModule();
-        manager.setup(partyState, new GDictionary(), new GDictionary(), new GDictionary());
+        manager.setup(partyState);
         var service = new LowLuckEventService();
         service.Setup(manager);
         return new LowLuckContext
@@ -718,13 +733,6 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
             if (seenEvent == eventType)
                 count++;
         return count;
-    }
-
-    private static SkillDef GetSkill(IReadOnlyDictionary<StringName, SkillDef> skillDefs, StringName skillId)
-    {
-        if (skillDefs == null || !skillDefs.TryGetValue(skillId, out SkillDef skillDef))
-            return null;
-        return skillDef;
     }
 
     private sealed class BlackCrownSealCase

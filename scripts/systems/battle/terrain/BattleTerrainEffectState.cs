@@ -102,16 +102,22 @@ public class BattleTerrainEffectState
     public int tick_interval_tu { get; set; }
     public int next_tick_at_tu { get; set; }
     public StringName stack_behavior { get; set; } = "refresh";
-    private readonly RuntimePayloadStore _params = new();
+    private readonly Dictionary<string, object> _params = new(System.StringComparer.Ordinal);
     public GDictionary @params
     {
-        get => _params.ProjectPayload();
-        set => _params.ReplaceWithPayload(value ?? new GDictionary());
+        get => RuntimePlainPayload.ProjectDictionary(
+            _params,
+            "BattleTerrainEffectState.@params"
+        );
+        set => ReplaceParams(value);
     }
 
     internal Dictionary<string, object> GetParamsTyped()
     {
-        return NormalizeDictionary(BuildParamsProjection());
+        return RuntimePlainPayload.NormalizeDictionary(
+            BuildParamsProjection(),
+            "BattleTerrainEffectState.GetParamsTyped"
+        );
     }
 
     internal static GDictionary CopyResidualParams(GDictionary parameters)
@@ -120,6 +126,25 @@ public class BattleTerrainEffectState
             parameters,
             "BattleTerrainEffectState.CopyResidualParams"
         );
+        RemoveFormalParamKeys(residual);
+        return residual;
+    }
+
+    internal static GDictionary CopyResidualParams(
+        IReadOnlyDictionary<string, Variant> parameters
+    )
+    {
+        var residual = new GDictionary();
+        if (parameters != null)
+        {
+            foreach (KeyValuePair<string, Variant> entry in parameters)
+            {
+                if (!string.IsNullOrEmpty(entry.Key))
+                {
+                    residual[entry.Key] = entry.Value;
+                }
+            }
+        }
         RemoveFormalParamKeys(residual);
         return residual;
     }
@@ -311,8 +336,8 @@ public class BattleTerrainEffectState
 
     private GDictionary BuildParamsProjection()
     {
-        GDictionary projected = RuntimePayloadCopy.Dictionary(
-            @params,
+        GDictionary projected = RuntimePlainPayload.ProjectDictionary(
+            _params,
             "BattleTerrainEffectState.BuildParamsProjection"
         );
         projected["lifetime_policy"] = lifetime_policy.ToString();
@@ -346,6 +371,21 @@ public class BattleTerrainEffectState
                 );
         }
         return projected;
+    }
+
+    private void ReplaceParams(GDictionary values)
+    {
+        _params.Clear();
+        foreach (
+            KeyValuePair<string, object> entry in RuntimePlainPayload.NormalizeDictionary(
+                values ?? new GDictionary(),
+                "BattleTerrainEffectState.@params"
+            )
+        )
+        {
+            if (!string.IsNullOrEmpty(entry.Key))
+                _params[entry.Key] = entry.Value;
+        }
     }
 
     private static string GetString(GDictionary payload, string key)
@@ -502,81 +542,6 @@ public class BattleTerrainEffectState
             return new List<StringName>();
         }
         return BuildStringNameList(ProgressionDataUtils.to_string_name_array(values));
-    }
-
-    private static Dictionary<string, object> NormalizeDictionary(GDictionary source)
-    {
-        var result = new Dictionary<string, object>(System.StringComparer.Ordinal);
-        if (source == null)
-        {
-            return result;
-        }
-        foreach (Variant rawKey in source.Keys)
-        {
-            string key = rawKey.VariantType switch
-            {
-                Variant.Type.String => rawKey.AsString(),
-                Variant.Type.StringName => rawKey.AsStringName().ToString(),
-                _ => "",
-            };
-            if (string.IsNullOrEmpty(key))
-            {
-                continue;
-            }
-            result[key] = NormalizeValue(source[rawKey]);
-        }
-        return result;
-    }
-
-    private static List<object> NormalizeArray(GArray source)
-    {
-        var result = new List<object>();
-        if (source == null)
-        {
-            return result;
-        }
-        foreach (object rawValue in source)
-        {
-            result.Add(NormalizeValue(rawValue));
-        }
-        return result;
-    }
-
-    private static object NormalizeValue(object rawValue)
-    {
-        if (rawValue is Variant variantValue)
-        {
-            return NormalizeVariant(variantValue);
-        }
-        if (rawValue is GDictionary dictionaryValue)
-        {
-            return NormalizeDictionary(dictionaryValue);
-        }
-        if (rawValue is GArray arrayValue)
-        {
-            return NormalizeArray(arrayValue);
-        }
-        return rawValue;
-    }
-
-    private static object NormalizeVariant(Variant value)
-    {
-        return value.VariantType switch
-        {
-            Variant.Type.Nil => null,
-            Variant.Type.Bool => value.AsBool(),
-            Variant.Type.Int => value.AsInt64(),
-            Variant.Type.Float => value.AsDouble(),
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.Vector2I => value.AsVector2I(),
-            Variant.Type.Vector2 => value.AsVector2(),
-            Variant.Type.Vector3I => value.AsVector3I(),
-            Variant.Type.Vector3 => value.AsVector3(),
-            Variant.Type.Dictionary => NormalizeDictionary(value.AsGodotDictionary()),
-            Variant.Type.Array => NormalizeArray(value.AsGodotArray()),
-            _ => value.Obj,
-        };
     }
 
     private static List<StringName> BuildStringNameList(IEnumerable<StringName> values)

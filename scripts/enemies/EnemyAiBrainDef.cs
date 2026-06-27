@@ -45,10 +45,10 @@ public partial class EnemyAiBrainDef : Resource
     internal bool HasState(StringName stateId) => GetState(stateId) != null;
 
     public Godot.Collections.Array<string> ValidateSchema(
-        Godot.Collections.Dictionary skillDefs = null
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null
     )
     {
-        skillDefs ??= new Godot.Collections.Dictionary();
+        skillDefinitions ??= new Dictionary<StringName, SkillDefinition>();
 
         var errors = new Godot.Collections.Array<string>();
 
@@ -83,7 +83,7 @@ public partial class EnemyAiBrainDef : Resource
             if (state.state_id == default_state_id)
                 defaultStateFound = true;
 
-            foreach (var e in state.ValidateSchema(brain_id, skillDefs))
+            foreach (var e in state.ValidateSchema(brain_id, skillDefinitions))
                 errors.Add(e);
         }
 

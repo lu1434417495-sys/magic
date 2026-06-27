@@ -6,7 +6,7 @@ internal sealed class MeteorSwarmTargetPlan
     public StringName skill_id { get; set; } = "mage_meteor_swarm";
     public StringName source_unit_id { get; set; } = "";
     public BattleUnitState source_unit { get; set; }
-    public MeteorSwarmProfile profile { get; set; }
+    public MeteorSwarmProfileData profile { get; set; }
     public Vector2I final_anchor_coord { get; set; } = new(-1, -1);
     public Vector2I nominal_anchor_coord { get; set; } = new(-1, -1);
     public StringName coverage_shape_id { get; set; } = "square_7x7";

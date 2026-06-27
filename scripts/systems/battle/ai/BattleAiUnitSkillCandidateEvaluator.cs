@@ -18,12 +18,17 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
 
     internal BattleAiDecision Evaluate(UseUnitSkillAction action, BattleAiContext context)
     {
+        return Evaluate(BattleAiUnitSkillActionSpec.FromAction(action), context);
+    }
+
+    internal BattleAiDecision Evaluate(BattleAiUnitSkillActionSpec action, BattleAiContext context)
+    {
         if (action == null || context == null)
             return null;
 
         EnemyAiDistanceReference distanceReference = action.DistanceReferenceKind;
-        int desiredMinDistance = action.desired_min_distance;
-        int desiredMaxDistance = action.desired_max_distance;
+        int desiredMinDistance = action.DesiredMinDistance;
+        int desiredMaxDistance = action.DesiredMaxDistance;
         if (!HasExplicitDistanceContract(distanceReference, desiredMinDistance, desiredMaxDistance))
             return null;
 
@@ -40,12 +45,12 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
             new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["action_kind"] = "unit_skill",
-                ["target_selector"] = action.target_selector.ToString(),
-                ["minimum_effective_target_count"] = action.minimum_effective_target_count,
+                ["target_selector"] = action.TargetSelector.ToString(),
+                ["minimum_effective_target_count"] = action.MinimumEffectiveTargetCount,
                 ["maximum_friendly_fire_target_count"] =
-                    action.maximum_friendly_fire_target_count,
-                ["allow_friendly_lethal"] = action.allow_friendly_lethal,
-                ["distance_reference"] = action.distance_reference.ToString(),
+                    action.MaximumFriendlyFireTargetCount,
+                ["allow_friendly_lethal"] = action.AllowFriendlyLethal,
+                ["distance_reference"] = action.DistanceReference.ToString(),
                 ["desired_min_distance"] = desiredMinDistance,
                 ["desired_max_distance"] = desiredMaxDistance,
             }
@@ -54,19 +59,18 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
         BattleAiDecision bestDecision = null;
         BattleAiScoreInput bestScoreInput = null;
         BattleAiDecision fallbackDecision = null;
-        List<StringName> knownSkillIds = _helper.ResolveKnownSkillIds(context, action.skill_ids);
+        List<StringName> knownSkillIds = _helper.ResolveKnownSkillIds(context, action.SkillIds);
 
         foreach (StringName skillId in knownSkillIds)
         {
             TraceCountIncrement(actionTrace, "skill_considered_count", 1);
-            SkillDef skillDef = _helper.GetSkillDef(context, skillId);
-            CombatSkillDef combatProfile = skillDef?.combat_profile;
-            if (skillDef == null || combatProfile == null)
+            SkillDefinition skillDefinition = context.GetSkillDefinitionTyped(skillId);
+            if (skillDefinition?.CombatProfile == null)
             {
-                TraceAddBlockReason(actionTrace, "missing_skill_def");
+                TraceAddBlockReason(actionTrace, "missing_skill_definition");
                 continue;
             }
-            if (combatProfile.TargetModeKind != BattleTargetMode.Unit)
+            if (skillDefinition.CombatProfile.TargetModeKind != BattleTargetMode.Unit)
             {
                 TraceAddBlockReason(actionTrace, "non_unit_skill");
                 continue;
@@ -74,7 +78,7 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
 
             BattleSkillCastBlockReasonKind blockReason = _helper.GetSkillCastBlockReason(
                 context,
-                skillDef
+                skillDefinition
             );
             if (BattleSkillCastBlockReasonKinds.IsBlocked(blockReason))
             {
@@ -87,8 +91,8 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
 
             List<BattleUnitState> targets = _helper.SortTargetUnits(
                 context,
-                combatProfile.target_team_filter,
-                action.target_selector
+                skillDefinition.CombatProfile.TargetTeamFilter,
+                action.TargetSelector
             );
             if (targets.Count == 0)
             {
@@ -96,9 +100,9 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
                 continue;
             }
 
-            List<CombatCastVariantDef> castVariants = _helper.GetUnitCastVariants(
+            List<CombatCastVariantDefinition> castVariants = _helper.GetUnitCastVariantDefinitions(
                 context,
-                skillDef
+                skillDefinition
             );
             if (castVariants.Count == 0)
             {
@@ -106,10 +110,10 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
                 continue;
             }
 
-            foreach (CombatCastVariantDef castVariant in castVariants)
+            foreach (CombatCastVariantDefinition castVariant in castVariants)
             {
-                StringName optionId = castVariant?.variant_id ?? EmptyStringName;
-                string optionLabel = FormatSkillVariantLabel(skillDef, castVariant);
+                StringName optionId = castVariant?.VariantId ?? EmptyStringName;
+                string optionLabel = FormatSkillVariantLabel(skillDefinition, castVariant);
 
                 foreach (BattleUnitState target in targets)
                 {
@@ -124,8 +128,7 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
                     );
                     BattlePreview preview = BuildFastUnitSkillPreview(
                         context,
-                        skillDef,
-                        combatProfile,
+                        skillDefinition,
                         command,
                         target,
                         out string previewRejectCounterKey
@@ -141,27 +144,27 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
                         action,
                         context,
                         target,
-                        skillDef
+                        skillDefinition
                     );
                     positionMetadata["action_label"] = optionLabel;
-                    List<CombatEffectDef> effectDefs = _helper.CollectUnitSkillEffectDefs(
-                        skillDef,
+                    List<CombatEffectDefinition> effectDefinitions = _helper.CollectUnitSkillEffectDefinitions(
+                        skillDefinition,
                         castVariant,
                         actor
                     );
                     BattleAiScoreInput scoreInput = BuildSkillScoreInput(
                         action,
                         context,
-                        skillDef,
+                        skillDefinition,
                         command,
                         preview,
-                        effectDefs,
+                        effectDefinitions,
                         positionMetadata
                     );
                     Dictionary<string, object> candidateExtra = BuildCandidateExtra(
                         skillId,
                         optionId,
-                        skillDef,
+                        skillDefinition,
                         castVariant,
                         target
                     );
@@ -185,7 +188,7 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
                         continue;
                     }
 
-                    if (scoreInput.effective_target_count < action.minimum_effective_target_count)
+                    if (scoreInput.effective_target_count < action.MinimumEffectiveTargetCount)
                     {
                         TraceAddBlockReason(actionTrace, "minimum_effective_target_count");
                         continue;
@@ -239,25 +242,25 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
     }
 
     private static string FormatSkillVariantLabel(
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
     )
     {
-        if (skillDef == null)
+        if (skillDefinition == null)
             return "";
-        string optionName = castVariant?.display_name ?? "";
+        string optionName = castVariant?.DisplayName ?? "";
         return string.IsNullOrEmpty(optionName)
-            ? skillDef.display_name
-            : $"{skillDef.display_name}·{optionName}";
+            ? skillDefinition.DisplayName
+            : $"{skillDefinition.DisplayName}·{optionName}";
     }
 
     private static BattleAiScoreInput BuildSkillScoreInput(
-        UseUnitSkillAction action,
+        BattleAiUnitSkillActionSpec action,
         BattleAiContext context,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BattleCommand command,
         BattlePreview preview,
-        IReadOnlyList<CombatEffectDef> effectDefs,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         IReadOnlyDictionary<string, object> metadata
     )
     {
@@ -265,17 +268,20 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
             return null;
 
         Dictionary<string, object> scoringMetadata = CloneTraceMetadata(metadata);
-        scoringMetadata["score_bucket_id"] = action.score_bucket_id;
+        scoringMetadata["score_bucket_id"] = action.ScoreBucketId;
         scoringMetadata["action_kind"] = ReadTraceStringName(
             scoringMetadata,
             "action_kind",
             new StringName("skill")
         );
         StringName defaultActionIntent =
-            BattleAiActionIntent.IsValid(action.action_intent)
-            && action.action_intent != BattleAiActionIntent.Positioning
-                ? action.action_intent
-                : BattleAiActionIntent.InferForSkill(skillDef, effectDefs);
+            BattleAiActionIntent.IsValid(action.ActionIntent)
+            && action.ActionIntent != BattleAiActionIntent.Positioning
+                ? action.ActionIntent
+                : BattleAiActionIntent.InferForSkill(
+                    skillDefinition,
+                    effectDefinitions
+                );
         scoringMetadata["action_intent"] = ReadTraceStringName(
             scoringMetadata,
             "action_intent",
@@ -284,21 +290,21 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
         scoringMetadata["action_label"] = ReadTraceString(
             scoringMetadata,
             "action_label",
-            !string.IsNullOrEmpty(skillDef?.display_name)
-                ? skillDef.display_name
-                : action.action_id.ToString()
+            !string.IsNullOrEmpty(skillDefinition?.DisplayName)
+                ? skillDefinition.DisplayName
+                : action.ActionId.ToString()
         );
         scoringMetadata = context.MergeCurrentActionMetadataTyped(scoringMetadata);
         scoringMetadata["score_bucket_id"] = ReadTraceStringName(
             scoringMetadata,
             "score_bucket_id",
-            action.score_bucket_id
+            action.ScoreBucketId
         );
         return context.BuildSkillScoreInputTyped(
-            skillDef,
+            skillDefinition,
             command,
             preview,
-            effectDefs,
+            effectDefinitions,
             scoringMetadata
         );
     }
@@ -306,8 +312,8 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
     private Dictionary<string, object> BuildCandidateExtra(
         StringName skillId,
         StringName optionId,
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
         BattleUnitState target
     )
     {
@@ -316,14 +322,19 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
             ["skill_id"] = skillId.ToString(),
             ["skill_variant_id"] = optionId.ToString(),
             ["skill_variant_target_mode"] = BattleTypedNames
-                .ToStringName(_helper.GetCastVariantTargetModeKind(skillDef, castVariant))
+                .ToStringName(
+                    _helper.GetCastVariantTargetModeKind(
+                        skillDefinition?.CombatProfile,
+                        castVariant
+                    )
+                )
                 .ToString(),
             ["target_unit_id"] = target?.unit_id.ToString() ?? "",
         };
     }
 
     private static bool PassesFriendlyFireLimits(
-        UseUnitSkillAction action,
+        BattleAiUnitSkillActionSpec action,
         BattleAiScoreInput scoreInput
     )
     {
@@ -331,19 +342,18 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
             return false;
         if (
             scoreInput.estimated_friendly_fire_target_count
-            > action.maximum_friendly_fire_target_count
+            > action.MaximumFriendlyFireTargetCount
         )
         {
             return false;
         }
-        return action.allow_friendly_lethal
+        return action.AllowFriendlyLethal
             || scoreInput.estimated_friendly_lethal_target_count <= 0;
     }
 
     private static BattlePreview BuildFastUnitSkillPreview(
         BattleAiContext context,
-        SkillDef skillDef,
-        CombatSkillDef combatProfile,
+        SkillDefinition skillDefinition,
         BattleCommand command,
         BattleUnitState target,
         out string rejectCounterKey
@@ -356,8 +366,7 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
         if (
             actor == null
             || grid == null
-            || skillDef == null
-            || combatProfile == null
+            || skillDefinition?.CombatProfile == null
             || command == null
         )
         {
@@ -373,7 +382,7 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
             !BattleTargetTeamRules.IsUnitValidForFilter(
                 actor,
                 target,
-                combatProfile.target_team_filter,
+                skillDefinition.CombatProfile.TargetTeamFilter,
                 new BattleTargetTeamRules.TargetFilterOptions(
                     MadnessTargetAnyTeam: actor.ai_blackboard?.madness_target_any_team == true
                 )
@@ -383,7 +392,7 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
             rejectCounterKey = FastPreviewRejectTargetFilter;
             return preview;
         }
-        int effectiveRange = BattleRangeService.GetEffectiveSkillRange(actor, skillDef);
+        int effectiveRange = BattleRangeService.GetEffectiveSkillRange(actor, skillDefinition);
         if (grid.GetDistanceBetweenUnits(actor, target) > effectiveRange)
         {
             rejectCounterKey = FastPreviewRejectOutOfRange;
@@ -408,7 +417,7 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
     }
 
     private static AiActionTrace BeginActionTrace(
-        UseUnitSkillAction action,
+        BattleAiUnitSkillActionSpec action,
         BattleAiContext context,
         bool traceEnabled,
         IReadOnlyDictionary<string, object> metadata
@@ -421,9 +430,9 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
         StringName scoreBucketId = ReadTraceStringName(
             traceMetadata,
             "score_bucket_id",
-            action?.score_bucket_id ?? EmptyStringName
+            action?.ScoreBucketId ?? EmptyStringName
         );
-        StringName actionId = action?.action_id ?? EmptyStringName;
+        StringName actionId = action?.ActionId ?? EmptyStringName;
         StringName traceId = context != null ? context.NextActionTraceId(actionId) : actionId;
         return new AiActionTrace(
             traceId,

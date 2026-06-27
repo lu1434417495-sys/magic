@@ -71,7 +71,10 @@ public partial class run_damage_resistance_regression : SceneTree
         var resolver = new BattleDamageResolver();
         BattleUnitState source = MakeUnit("missing_tag_source", "enemy");
         BattleUnitState target = MakeUnit("missing_tag_target", "player");
-        var effect = new CombatEffectDef { effect_type = "damage", power = 10 };
+        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            power: 10
+        );
 
         int hpBefore = target.current_hp;
         GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { effect }));
@@ -88,12 +91,11 @@ public partial class run_damage_resistance_regression : SceneTree
         BattleUnitState source = MakeUnit("missing_weapon_projection_source", "enemy");
         source.weapon_physical_damage_tag = "";
         BattleUnitState target = MakeUnit("missing_weapon_projection_target", "player");
-        var effect = new CombatEffectDef
-        {
-            effect_type = "damage",
-            power = 10,
-            use_weapon_physical_damage_tag = true,
-        };
+        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            power: 10,
+            useWeaponPhysicalDamageTag: true
+        );
 
         int hpBefore = target.current_hp;
         GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { effect }));
@@ -104,8 +106,12 @@ public partial class run_damage_resistance_regression : SceneTree
         _test.Eq(ReadString(result, "error_code"), "invalid_damage_tag", "武器伤害类型投影缺失应返回 invalid_damage_tag 诊断。");
     }
 
-    private static CombatEffectDef MakeDamageEffect(StringName damageTag, int power) =>
-        new() { effect_type = "damage", damage_tag = damageTag, power = power };
+    private static CombatEffectDefinition MakeDamageEffect(StringName damageTag, int power) =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            damageTag: damageTag,
+            power: power
+        );
 
     private static BattleUnitState MakeUnit(StringName unitId, StringName factionId)
     {
@@ -176,4 +182,3 @@ public partial class run_damage_resistance_regression : SceneTree
     private static string ReadString(GDictionary data, string key) =>
         data.ContainsKey(key) ? data[key].AsString() : "";
 }
-

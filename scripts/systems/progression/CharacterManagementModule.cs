@@ -129,7 +129,8 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
     private PartyState _party_state = new();
     private ProgressionIdentityCatalogData _progression_identity_catalog = new();
     private bool _has_quest_def_catalog;
-    private Dictionary<StringName, SkillDef> _skill_def_index = new();
+    private IReadOnlyDictionary<StringName, SkillDefinition> _skill_definition_index =
+        new Dictionary<StringName, SkillDefinition>();
     private Dictionary<StringName, ProfessionDef> _profession_def_index = new();
     private Dictionary<StringName, AchievementDef> _achievement_def_index = new();
     private Dictionary<StringName, ItemDef> _item_def_index = new();
@@ -175,7 +176,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         _party_state = null;
         _progression_identity_catalog = new ProgressionIdentityCatalogData();
         _has_quest_def_catalog = false;
-        _skill_def_index.Clear();
+        _skill_definition_index = new Dictionary<StringName, SkillDefinition>();
         _profession_def_index.Clear();
         _achievement_def_index.Clear();
         _item_def_index.Clear();
@@ -195,129 +196,17 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
 
     public void setup(
         PartyState party_state,
-        GDictionary skill_defs,
-        GDictionary profession_defs
+        IReadOnlyDictionary<StringName, SkillDefinition> skill_definitions = null,
+        IReadOnlyDictionary<StringName, ProfessionDef> profession_defs = null,
+        IReadOnlyDictionary<StringName, AchievementDef> achievement_defs = null,
+        IReadOnlyDictionary<StringName, ItemDef> item_defs = null,
+        IReadOnlyDictionary<StringName, QuestDef> quest_defs = null,
+        Func<StringName> equipment_instance_id_allocator = null,
+        ProgressionIdentityCatalogData progression_identity_catalog = null
     ) =>
         setup(
             party_state,
-            skill_defs,
-            profession_defs,
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            default,
-            new ProgressionIdentityCatalogData()
-        );
-
-    public void setup(
-        PartyState party_state,
-        GDictionary skill_defs,
-        GDictionary profession_defs,
-        GDictionary achievement_defs
-    ) =>
-        setup(
-            party_state,
-            skill_defs,
-            profession_defs,
-            achievement_defs,
-            new GDictionary(),
-            new GDictionary(),
-            default,
-            new ProgressionIdentityCatalogData()
-        );
-
-    public void setup(
-        PartyState party_state,
-        GDictionary skill_defs,
-        GDictionary profession_defs,
-        GDictionary achievement_defs,
-        GDictionary item_defs
-    ) =>
-        setup(
-            party_state,
-            skill_defs,
-            profession_defs,
-            achievement_defs,
-            item_defs,
-            new GDictionary(),
-            default,
-            new ProgressionIdentityCatalogData()
-        );
-
-    public void setup(
-        PartyState party_state,
-        GDictionary skill_defs,
-        GDictionary profession_defs,
-        GDictionary achievement_defs,
-        GDictionary item_defs,
-        GDictionary quest_defs
-    ) =>
-        setup(
-            party_state,
-            skill_defs,
-            profession_defs,
-            achievement_defs,
-            item_defs,
-            quest_defs,
-            default,
-            new ProgressionIdentityCatalogData()
-        );
-
-    public void setup(
-        PartyState party_state,
-        GDictionary skill_defs,
-        GDictionary profession_defs,
-        GDictionary achievement_defs,
-        GDictionary item_defs,
-        GDictionary quest_defs,
-        Func<StringName> equipment_instance_id_allocator
-    ) =>
-        setup(
-            party_state,
-            skill_defs,
-            profession_defs,
-            achievement_defs,
-            item_defs,
-            quest_defs,
-            equipment_instance_id_allocator,
-            new ProgressionIdentityCatalogData()
-        );
-
-    public void setup(
-        PartyState party_state,
-        GDictionary skill_defs,
-        GDictionary profession_defs,
-        GDictionary achievement_defs,
-        GDictionary item_defs,
-        GDictionary quest_defs,
-        Func<StringName> equipment_instance_id_allocator,
-        ProgressionIdentityCatalogData progression_identity_catalog
-    ) =>
-        setup(
-            party_state,
-            skill_defs,
-            profession_defs,
-            achievement_defs,
-            item_defs,
-            BuildQuestDefIndex(quest_defs),
-            quest_defs != null && quest_defs.Count > 0,
-            equipment_instance_id_allocator,
-            progression_identity_catalog
-        );
-
-    public void setup(
-        PartyState party_state,
-        GDictionary skill_defs,
-        GDictionary profession_defs,
-        GDictionary achievement_defs,
-        GDictionary item_defs,
-        IReadOnlyDictionary<StringName, QuestDef> quest_defs,
-        Func<StringName> equipment_instance_id_allocator,
-        ProgressionIdentityCatalogData progression_identity_catalog
-    ) =>
-        setup(
-            party_state,
-            skill_defs,
+            skill_definitions,
             profession_defs,
             achievement_defs,
             item_defs,
@@ -329,52 +218,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
 
     public void setup(
         PartyState party_state,
-        GDictionary skill_defs,
-        GDictionary profession_defs,
-        GDictionary achievement_defs,
-        GDictionary item_defs,
-        IReadOnlyDictionary<StringName, QuestDef> quest_defs,
-        bool has_quest_def_catalog,
-        Func<StringName> equipment_instance_id_allocator,
-        ProgressionIdentityCatalogData progression_identity_catalog
-    ) =>
-        setup(
-            party_state,
-            IndexContentDefs<SkillDef>(skill_defs, skillDef => skillDef.skill_id),
-            IndexContentDefs<ProfessionDef>(profession_defs, professionDef => professionDef.profession_id),
-            IndexAchievementDefs(achievement_defs),
-            IndexContentDefs<ItemDef>(item_defs, itemDef => itemDef.item_id),
-            quest_defs,
-            has_quest_def_catalog,
-            equipment_instance_id_allocator,
-            progression_identity_catalog
-        );
-
-    public void setup(
-        PartyState party_state,
-        IReadOnlyDictionary<StringName, SkillDef> skill_defs,
-        IReadOnlyDictionary<StringName, ProfessionDef> profession_defs,
-        IReadOnlyDictionary<StringName, AchievementDef> achievement_defs,
-        IReadOnlyDictionary<StringName, ItemDef> item_defs,
-        IReadOnlyDictionary<StringName, QuestDef> quest_defs,
-        Func<StringName> equipment_instance_id_allocator,
-        ProgressionIdentityCatalogData progression_identity_catalog
-    ) =>
-        setup(
-            party_state,
-            skill_defs,
-            profession_defs,
-            achievement_defs,
-            item_defs,
-            quest_defs,
-            quest_defs != null && quest_defs.Count > 0,
-            equipment_instance_id_allocator,
-            progression_identity_catalog
-        );
-
-    public void setup(
-        PartyState party_state,
-        IReadOnlyDictionary<StringName, SkillDef> skill_defs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skill_definitions,
         IReadOnlyDictionary<StringName, ProfessionDef> profession_defs,
         IReadOnlyDictionary<StringName, AchievementDef> achievement_defs,
         IReadOnlyDictionary<StringName, ItemDef> item_defs,
@@ -385,7 +229,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
     ) =>
         setup(
             party_state,
-            skill_defs,
+            skill_definitions,
             profession_defs,
             achievement_defs,
             item_defs,
@@ -398,7 +242,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
 
     public void setup(
         PartyState party_state,
-        IReadOnlyDictionary<StringName, SkillDef> skill_defs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skill_definitions,
         IReadOnlyDictionary<StringName, ProfessionDef> profession_defs,
         IReadOnlyDictionary<StringName, AchievementDef> achievement_defs,
         IReadOnlyDictionary<StringName, ItemDef> item_defs,
@@ -409,7 +253,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
     ) =>
         setup(
             party_state,
-            skill_defs,
+            skill_definitions,
             profession_defs,
             achievement_defs,
             item_defs,
@@ -422,7 +266,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
 
     public void setup(
         PartyState party_state,
-        IReadOnlyDictionary<StringName, SkillDef> skill_defs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skill_definitions,
         IReadOnlyDictionary<StringName, ProfessionDef> profession_defs,
         IReadOnlyDictionary<StringName, AchievementDef> achievement_defs,
         IReadOnlyDictionary<StringName, ItemDef> item_defs,
@@ -435,7 +279,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
     {
         _party_state = party_state ?? new PartyState();
         _progression_identity_catalog = progression_identity_catalog ?? new ProgressionIdentityCatalogData();
-        _skill_def_index = CloneContentDefIndex(skill_defs);
+        _skill_definition_index = CloneContentDefIndex(skill_definitions);
         _profession_def_index = CloneContentDefIndex(profession_defs);
         _achievement_def_index = CloneContentDefIndex(achievement_defs);
         _item_def_index = CloneContentDefIndex(item_defs);
@@ -552,7 +396,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         _party_contingency_setup_service.Setup(
             _party_state,
             _party_warehouse_service,
-            _skill_def_index,
+            _skill_definition_index,
             GetMemberAttributeSnapshot,
             battleMutationBlockedProvider ?? (() => false)
         );
@@ -633,7 +477,9 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
             return context;
 
         context.unit_progress = member_state.progression;
-        context.skill_defs = new Dictionary<StringName, SkillDef>(_skill_def_index);
+        context.skill_definitions = new Dictionary<StringName, SkillDefinition>(
+            _skill_definition_index
+        );
         context.profession_defs = new Dictionary<StringName, ProfessionDef>(_profession_def_index);
         context.race_def = GetRaceDefForMember(member_id);
         context.subrace_def = GetSubraceDefForMember(member_id);
@@ -1344,7 +1190,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
     {
         var member_state = GetMemberState(member_id);
         var service = new LevelGrowthEvaluationService();
-        service.Setup(_skill_def_index);
+        service.Setup(_skill_definition_index);
         var result = service.SetActiveTriggerCoreSkillTyped(member_state, skill_id);
         if (result.Ok && member_state?.progression != null)
             BuildProgressionService(member_state.progression).RefreshRuntimeState();
@@ -1355,7 +1201,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
     {
         var member_state = GetMemberState(member_id);
         var service = new LevelGrowthEvaluationService();
-        service.Setup(_skill_def_index);
+        service.Setup(_skill_definition_index);
         var result = service.ClearActiveTriggerCoreSkillTyped(member_state);
         if (result.Ok && member_state?.progression != null)
             BuildProgressionService(member_state.progression).RefreshRuntimeState();
@@ -2074,13 +1920,13 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         foreach (StringName skill_id in progression.GetSortedSkillIdsTyped())
         {
             var skill_progress = progression.GetSkillProgress(skill_id);
-            var skill_def = GetSkillDef(skill_id);
+            var skill_definition = GetSkillDefinition(skill_id);
             if (
                 skill_progress == null
-                || skill_def == null
+                || skill_definition == null
                 || !skill_progress.is_learned
-                || skill_def.SkillTypeKind != SkillTypeKind.Active
-                || !skill_def.CanUseInCombat()
+                || skill_definition.SkillTypeKind != SkillTypeKind.Active
+                || !skill_definition.CanUseInCombat()
             )
                 continue;
             skill_ids.Add(skill_id);
@@ -2097,12 +1943,12 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         foreach (StringName skill_id in progression.GetSortedSkillIdsTyped())
         {
             var skill_progress = progression.GetSkillProgress(skill_id);
-            var skill_def = GetSkillDef(skill_id);
+            var skill_definition = GetSkillDefinition(skill_id);
             if (
                 skill_progress == null
-                || skill_def == null
+                || skill_definition == null
                 || !skill_progress.is_learned
-                || skill_def.SkillTypeKind != SkillTypeKind.Active
+                || skill_definition.SkillTypeKind != SkillTypeKind.Active
             )
                 continue;
             skill_levels[skill_id] = skill_progress.skill_level;
@@ -2219,7 +2065,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         RacialSkillGrantService.BackfillMember(
             member_state,
             _progression_identity_catalog,
-            _skill_def_index,
+            _skill_definition_index,
             _profession_def_index,
             BuildProgressionService
         );
@@ -2228,7 +2074,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         RacialSkillGrantService.RevokeOrphanMember(
             member_state,
             _progression_identity_catalog,
-            _skill_def_index,
+            _skill_definition_index,
             _profession_def_index,
             BuildProgressionService
         );
@@ -2237,7 +2083,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
     {
         return _progression_service_factory.Build(
             progression,
-            _skill_def_index,
+            _skill_definition_index,
             _profession_def_index
         );
     }
@@ -2245,7 +2091,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
     private PracticeGrowthService _build_practice_growth_service()
     {
         var service = new PracticeGrowthService();
-        service.Setup(_skill_def_index, _profession_def_index);
+        service.Setup(_skill_definition_index, _profession_def_index);
         return service;
     }
 
@@ -2288,13 +2134,13 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
             || trigger_skill_id == ""
         )
             return;
-        var skill_def = GetSkillDef(trigger_skill_id);
-        if (skill_def == null || skill_def.AttributeGrowthProgressTyped.Count == 0)
+        var skill_definition = GetSkillDefinition(trigger_skill_id);
+        if (skill_definition == null || skill_definition.AttributeGrowthProgress.Count == 0)
             return;
         var skill_progress = progression.GetSkillProgress(trigger_skill_id);
         if (skill_progress == null || skill_progress.core_max_growth_claimed)
             return;
-        var growth_entries = _collect_attribute_growth_entries(skill_def);
+        var growth_entries = _collect_attribute_growth_entries(skill_definition);
         if (growth_entries.Count == 0)
             return;
         var attribute_growth_service = new AttributeGrowthService();
@@ -2324,14 +2170,14 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
     }
 
     private List<AttributeGrowthEntryData> _collect_attribute_growth_entries(
-        SkillDef skill_def
+        SkillDefinition skillDefinition
     )
     {
         var entries = new List<AttributeGrowthEntryData>();
-        if (skill_def == null)
+        if (skillDefinition == null)
             return entries;
         var attribute_entries = new List<(string key, int amount)>();
-        foreach (KeyValuePair<StringName, int> entry in skill_def.AttributeGrowthProgressTyped)
+        foreach (KeyValuePair<StringName, int> entry in skillDefinition.AttributeGrowthProgress)
         {
             if (entry.Key != "")
                 attribute_entries.Add((entry.Key.ToString(), entry.Value));
@@ -2347,9 +2193,9 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         return entries;
     }
 
-    private SkillDef GetSkillDef(StringName skillId) =>
-        skillId != "" && _skill_def_index.TryGetValue(skillId, out var skillDef)
-            ? skillDef
+    private SkillDefinition GetSkillDefinition(StringName skillId) =>
+        skillId != "" && _skill_definition_index.TryGetValue(skillId, out var skillDefinition)
+            ? skillDefinition
             : null;
 
     private AchievementDef GetAchievementDef(StringName achievementId) =>
@@ -2792,12 +2638,12 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
                 continue;
             var mastery_source_type = _resolve_mastery_source_type(entry_data.MasterySourceType);
             var skill_progress = progression.GetSkillProgress(skill_id);
-            var skill_def = GetSkillDef(skill_id);
-            if (skill_progress == null || skill_def == null || !skill_progress.is_learned)
+            var skill_definition = GetSkillDefinition(skill_id);
+            if (skill_progress == null || skill_definition == null || !skill_progress.is_learned)
                 continue;
             if (
-                skill_def.MasterySourcesTyped.Count > 0
-                && !HasStringName(skill_def.MasterySourcesTyped, mastery_source_type)
+                skill_definition.MasterySources.Count > 0
+                && !HasStringName(skill_definition.MasterySources, mastery_source_type)
             )
                 continue;
             if (!entry_map.TryGetValue(skill_id, out var reward_entry))
@@ -3681,7 +3527,7 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
         public readonly bool Ok;
         public readonly string ErrorCode;
         public readonly int GoldDelta;
-        private readonly RuntimePayloadList _itemRewards;
+        private readonly List<Dictionary<string, object>> _itemRewards;
         private readonly List<StringName> _warehouseDepositItemIds;
         private readonly List<PendingCharacterReward> _pendingCharacterRewards;
         private readonly List<StringName> _unsupportedRewardTypes;
@@ -3699,7 +3545,10 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
             Ok = ok;
             ErrorCode = errorCode ?? "";
             GoldDelta = Mathf.Max(goldDelta, 0);
-            _itemRewards = new RuntimePayloadList(itemRewards);
+            _itemRewards = RuntimePlainPayload.NormalizeDictionaryArray(
+                itemRewards,
+                "CharacterManagementModule.QuestRewardPreviewData.item_rewards"
+            );
             _warehouseDepositItemIds =
                 warehouseDepositItemIds != null
                     ? CloneStringNameList(warehouseDepositItemIds)
@@ -3711,7 +3560,11 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
                     : new List<StringName>();
         }
 
-        internal GArray CloneItemRewards() => _itemRewards.ToUntypedGodotArray();
+        internal GArray CloneItemRewards() =>
+            RuntimePlainPayload.ProjectDictionaryArray(
+                _itemRewards,
+                "CharacterManagementModule.QuestRewardPreviewData.CloneItemRewards"
+            );
 
         public List<StringName> CloneWarehouseDepositItemIds() =>
             CloneStringNameList(_warehouseDepositItemIds);
@@ -4345,9 +4198,9 @@ public sealed class CharacterManagementModule : IBattleRuntimeCharacterGateway, 
 
     private string _resolve_skill_label(StringName skill_id)
     {
-        var skill_def = GetSkillDef(skill_id);
-        return skill_def != null && !string.IsNullOrEmpty(skill_def.display_name)
-            ? skill_def.display_name
+        var skill_definition = GetSkillDefinition(skill_id);
+        return skill_definition != null && !string.IsNullOrEmpty(skill_definition.DisplayName)
+            ? skill_definition.DisplayName
             : (string)skill_id;
     }
 

@@ -21,7 +21,7 @@ public partial class run_battle_ai_skill_affordance_classifier_regression : Scen
 
     private void TestUnitDamageSkillMapsToHostileUnitAffordance()
     {
-        SkillDef skill = BuildSkill("bolt", "unit", "enemy", Effect("damage"));
+        SkillDefinition skill = BuildSkill("bolt", "unit", "enemy", Effect("damage"));
         BattleAiSkillAffordanceRecord record = Classify(skill);
         _test.True(record.is_generatable, "敌方单体伤害技能应可生成。");
         AssertListHas(record.affordances, "unit_hostile.damage", "敌方单体伤害技能应标为 unit_hostile.damage。");
@@ -30,7 +30,7 @@ public partial class run_battle_ai_skill_affordance_classifier_regression : Scen
 
     private void TestAllyHealSkillMapsToSupportAffordance()
     {
-        SkillDef skill = BuildSkill("mend", "unit", "ally", Effect("heal", "ally"));
+        SkillDefinition skill = BuildSkill("mend", "unit", "ally", Effect("heal", "ally"));
         BattleAiSkillAffordanceRecord record = Classify(skill);
         _test.True(record.is_generatable, "友方治疗技能应可生成。");
         AssertListHas(record.affordances, "ally_heal", "友方治疗技能应标为 ally_heal。");
@@ -39,7 +39,7 @@ public partial class run_battle_ai_skill_affordance_classifier_regression : Scen
 
     private void TestGroundControlSkillMapsToGroundFamily()
     {
-        SkillDef skill = BuildSkill("mud_patch", "ground", "enemy", Effect("terrain", "enemy"));
+        SkillDefinition skill = BuildSkill("mud_patch", "ground", "enemy", Effect("terrain", "enemy"));
         BattleAiSkillAffordanceRecord record = Classify(skill);
         _test.True(record.is_generatable, "地面控制技能应可生成。");
         AssertListHas(record.affordances, "ground_control", "地面控制技能应标为 ground_control。");
@@ -48,10 +48,14 @@ public partial class run_battle_ai_skill_affordance_classifier_regression : Scen
 
     private void TestRandomChainSkillEmitsChainAndPositioningFamilies()
     {
-        SkillDef skill = BuildSkill("chain_arc", "unit", "enemy", Effect("chain_damage"));
-        CombatSkillDef combatProfile = (CombatSkillDef)skill.combat_profile;
-        combatProfile.target_selection_mode = "random_chain";
-        combatProfile.max_hits_per_target = 2;
+        SkillDefinition skill = BuildSkill(
+            "chain_arc",
+            "unit",
+            "enemy",
+            Effect("chain_damage"),
+            targetSelectionMode: BattleTypedNames.ToStringName(BattleTargetSelectionMode.RandomChain),
+            maxHitsPerTarget: 2
+        );
 
         BattleAiSkillAffordanceRecord record = Classify(skill);
         AssertListHas(record.affordances, "random_chain", "随机链技能应标为 random_chain。");
@@ -61,10 +65,14 @@ public partial class run_battle_ai_skill_affordance_classifier_regression : Scen
 
     private void TestMultiUnitSkillEmitsSkillAndPositioningFamilies()
     {
-        SkillDef skill = BuildSkill("wide_shot", "unit", "enemy", Effect("damage"));
-        CombatSkillDef combatProfile = (CombatSkillDef)skill.combat_profile;
-        combatProfile.target_selection_mode = "multi_unit";
-        combatProfile.min_target_count = 2;
+        SkillDefinition skill = BuildSkill(
+            "wide_shot",
+            "unit",
+            "enemy",
+            Effect("damage"),
+            targetSelectionMode: BattleTypedNames.ToStringName(BattleTargetSelectionMode.MultiUnit),
+            minTargetCount: 2
+        );
 
         BattleAiSkillAffordanceRecord record = Classify(skill);
         AssertListHas(record.affordances, "multi_unit", "多目标技能应标为 multi_unit。");
@@ -74,15 +82,20 @@ public partial class run_battle_ai_skill_affordance_classifier_regression : Scen
 
     private void TestChargePathVariantEmitsChargePathFamily()
     {
-        SkillDef skill = BuildSkill("trample", "unit", "enemy", Effect("damage"));
-        var option = new CombatCastVariantDef
-        {
-            variant_id = "charge_line",
-            min_skill_level = 1,
-        };
-        option.effect_defs.Add(Effect("charge"));
-        option.effect_defs.Add(Effect("path_step_aoe"));
-        ((CombatSkillDef)skill.combat_profile).cast_variants.Add(option);
+        SkillDefinition skill = BuildSkill(
+            "trample",
+            "unit",
+            "enemy",
+            Effect("damage"),
+            castVariants: new[]
+            {
+                TestSkillDefinitionProjection.BuildCastVariant(
+                    "charge_line",
+                    1,
+                    new[] { Effect("charge"), Effect("path_step_aoe") }
+                ),
+            }
+        );
 
         BattleAiSkillAffordanceRecord record = Classify(skill);
         AssertListHas(record.affordances, "charge_path_aoe", "带 path_step_aoe 的冲锋变体应标为 charge_path_aoe。");
@@ -91,64 +104,74 @@ public partial class run_battle_ai_skill_affordance_classifier_regression : Scen
 
     private void TestPassiveSkillIsNotGeneratable()
     {
-        SkillDef skill = BuildSkill("passive_aura", "unit", "ally", Effect("status", "ally"));
-        skill.skill_type = "passive";
+        SkillDefinition skill = BuildSkill(
+            "passive_aura",
+            "unit",
+            "ally",
+            Effect("status", "ally"),
+            skillType: "passive"
+        );
 
         BattleAiSkillAffordanceRecord record = Classify(skill);
         _test.True(!record.is_generatable, "被动技能不应进入 AI action 生成。");
         _test.Eq(record.skip_reason, "passive_or_no_combat", "被动技能应给出稳定 skip reason。");
     }
 
-    private static BattleAiSkillAffordanceRecord Classify(SkillDef skillDef)
+    private static BattleAiSkillAffordanceRecord Classify(SkillDefinition skillDefinition)
     {
         var classifier = new BattleAiSkillAffordanceClassifier();
-        return classifier.ClassifySkill(SkillDefinition.FromResource(skillDef), 1);
+        return classifier.ClassifySkill(skillDefinition, 1);
     }
 
-    private static SkillDef BuildSkill(
+    private static SkillDefinition BuildSkill(
         StringName skillId,
         StringName targetMode,
         StringName targetFilter,
-        params CombatEffectDef[] effectDefs
+        CombatEffectDefinition effectDef,
+        StringName targetSelectionMode = default,
+        int minTargetCount = 0,
+        int maxHitsPerTarget = 0,
+        IReadOnlyList<CombatCastVariantDefinition> castVariants = null,
+        StringName skillType = default
     )
     {
-        var skill = new SkillDef
-        {
-            skill_id = skillId,
-            display_name = skillId.ToString(),
-            skill_type = "active",
-        };
-        var combat = new CombatSkillDef
-        {
-            target_mode = targetMode,
-            target_team_filter = targetFilter,
-            range_pattern = "fixed",
-            range_value = 5,
-        };
-        foreach (CombatEffectDef effectDef in effectDefs ?? Array.Empty<CombatEffectDef>())
-        {
-            combat.effect_defs.Add(effectDef);
-        }
-        skill.combat_profile = combat;
-        return TestResourceOwnership.Own(skill, "BattleAiSkillAffordanceClassifier.BuildSkill");
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            skillId.ToString(),
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: new[] { effectDef },
+                targetMode: targetMode,
+                targetTeamFilter: targetFilter,
+                rangePattern: "fixed",
+                rangeValue: 5,
+                targetSelectionMode: targetSelectionMode,
+                minTargetCount: minTargetCount,
+                maxHitsPerTarget: maxHitsPerTarget,
+                castVariants: castVariants
+            ),
+            skillType: skillType == "" ? (StringName)"active" : skillType
+        );
     }
 
-    private static CombatEffectDef Effect(StringName effectType, StringName effectFilter = default)
+    private static CombatEffectDefinition Effect(StringName effectType, StringName effectFilter = default)
     {
-        var effect = new CombatEffectDef
-        {
-            effect_type = effectType,
-            effect_target_team_filter = effectFilter,
-        };
+        StringName statusId = default;
+        StringName terrainEffectId = default;
         if (effectType == new StringName("status"))
         {
-            effect.status_id = "rooted";
+            statusId = "rooted";
         }
         if (effectType == new StringName("terrain"))
         {
-            effect.terrain_effect_id = "mud";
+            terrainEffectId = "mud";
         }
-        return effect;
+        return TestSkillDefinitionProjection.BuildEffect(
+            effectType,
+            effectTargetTeamFilter: effectFilter,
+            statusId: statusId,
+            terrainEffectId: terrainEffectId
+        );
     }
 
     private void AssertListHas(

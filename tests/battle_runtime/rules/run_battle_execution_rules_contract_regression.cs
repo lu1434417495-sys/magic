@@ -7,7 +7,7 @@ public partial class run_battle_execution_rules_contract_regression : SceneTree
 
     public override void _Initialize()
     {
-        TestExecuteFieldsAreParsedAtResourceBoundary();
+        TestExecuteFieldsAreProjectedAtResourceBoundary();
         TestSkillSchemaRejectsPromotedExecuteParamsInLegacyPayload();
         TestThresholdUsesSkillLevelButNotAbility();
         TestZeroOrDeadTargetCannotExecute();
@@ -15,22 +15,26 @@ public partial class run_battle_execution_rules_contract_regression : SceneTree
         Quit(_test.Finish("Battle execution rules contract regression"));
     }
 
-    private void TestExecuteFieldsAreParsedAtResourceBoundary()
+    private void TestExecuteFieldsAreProjectedAtResourceBoundary()
     {
-        var effect = new CombatEffectDef
-        {
-            threshold_base_value = 12,
-            threshold_level_anchor = 3,
-            threshold_level_bonus_per_delta = 4,
-            threshold_max_hp_ratio_percent = 25,
-            threshold_cap_max_hp_ratio_percent = 60,
-            soul_fracture_duration_tu = 90,
-            heal_multiplier_percent = 50,
-            shield_gain_multiplier_percent = 40,
-        };
+        var effect = TestResourceOwnership.Own(
+            new CombatEffectDef
+            {
+                threshold_base_value = 12,
+                threshold_level_anchor = 3,
+                threshold_level_bonus_per_delta = 4,
+                threshold_max_hp_ratio_percent = 25,
+                threshold_cap_max_hp_ratio_percent = 60,
+                soul_fracture_duration_tu = 90,
+                heal_multiplier_percent = 50,
+                shield_gain_multiplier_percent = 40,
+            },
+            "BattleExecutionRulesContract.execute-fields-effect"
+        );
 
+        CombatEffectDefinition effectDefinition = CombatEffectDefinition.FromResource(effect);
         BattleExecutionRuleParams parameters = BattleExecutionRuleParams.FromEffect(
-            effect,
+            effectDefinition,
             "execute_skill"
         );
 
@@ -97,16 +101,16 @@ public partial class run_battle_execution_rules_contract_regression : SceneTree
         BattleUnitState target = MakeUnit("execute_target", 100, 36);
         BattleExecutionRuleParams parameters =
             BattleExecutionRuleParams.FromEffect(
-                new CombatEffectDef
-                {
-                    threshold_max_hp_ratio_percent = 20,
-                    threshold_level_anchor = 17,
-                    threshold_level_bonus_per_delta = 5,
-                    threshold_cap_max_hp_ratio_percent = 50,
-                    soul_fracture_duration_tu = 60,
-                    heal_multiplier_percent = 50,
-                    shield_gain_multiplier_percent = 50,
-                },
+                TestSkillDefinitionProjection.BuildEffect(
+                    "execute",
+                    thresholdMaxHpRatioPercent: 20,
+                    thresholdLevelAnchor: 17,
+                    thresholdLevelBonusPerDelta: 5,
+                    thresholdCapMaxHpRatioPercent: 50,
+                    soulFractureDurationTu: 60,
+                    healMultiplierPercent: 50,
+                    shieldGainMultiplierPercent: 50
+                ),
                 "mage_power_word_kill"
             );
 

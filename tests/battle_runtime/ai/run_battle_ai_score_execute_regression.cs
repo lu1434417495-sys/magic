@@ -6,8 +6,6 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_battle_ai_score_execute_regression : SceneTree
 {
     private readonly TestHarness _test = new();
-    private readonly GodotTransientResourceScope _resourceScope =
-        new("run_battle_ai_score_execute_regression");
 
     public override void _Initialize()
     {
@@ -24,14 +22,13 @@ public partial class run_battle_ai_score_execute_regression : SceneTree
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        _resourceScope.Drain();
         Quit(_test.Finish("Battle AI score execute regression"));
     }
 
     private void TestInvalidHighHpExecuteProducesNoSaveEstimateOrValue()
     {
         Fixture fixture = BuildFixture("ai_execute_high_hp");
-        SkillDef skill = BuildExecuteSkill();
+        SkillDefinition skill = BuildExecuteSkill();
         BattleUnitState source = BuildUnit("execute_source", "hostile", new Vector2I(0, 0), 100, 100);
         BattleUnitState target = BuildUnit("execute_high_hp_target", "player", new Vector2I(1, 0), 100, 21);
         fixture.AddUnit(source);
@@ -52,7 +49,7 @@ public partial class run_battle_ai_score_execute_regression : SceneTree
     private void TestKillProbabilityUsesSaveFailureProbability()
     {
         Fixture fixture = BuildFixture("ai_execute_kill_probability");
-        SkillDef skill = BuildExecuteSkill();
+        SkillDefinition skill = BuildExecuteSkill();
         BattleUnitState source = BuildUnit("execute_source", "hostile", new Vector2I(0, 0), 100, 100);
         BattleUnitState target = BuildUnit("execute_low_hp_target", "player", new Vector2I(1, 0), 100, 20);
         fixture.AddUnit(source);
@@ -72,7 +69,7 @@ public partial class run_battle_ai_score_execute_regression : SceneTree
     private void TestExecuteImmunityZeroesKillProbabilityButKeepsSoulFractureValue()
     {
         Fixture fixture = BuildFixture("ai_execute_immunity");
-        SkillDef skill = BuildExecuteSkill();
+        SkillDefinition skill = BuildExecuteSkill();
         BattleUnitState source = BuildUnit("execute_source", "hostile", new Vector2I(0, 0), 100, 100);
         BattleUnitState target = BuildUnit("execute_immune_target", "player", new Vector2I(1, 0), 100, 20);
         target.save_advantage_tags.Add("execute_immunity");
@@ -90,7 +87,7 @@ public partial class run_battle_ai_score_execute_regression : SceneTree
     private void TestDeathProtectionReducesKillProbability()
     {
         Fixture fixture = BuildFixture("ai_execute_death_protection");
-        SkillDef skill = BuildExecuteSkill();
+        SkillDefinition skill = BuildExecuteSkill();
         BattleUnitState source = BuildUnit("execute_source", "hostile", new Vector2I(0, 0), 100, 100);
         BattleUnitState target = BuildUnit("execute_protected_target", "player", new Vector2I(1, 0), 100, 20);
         target.SetStatusEffect(
@@ -113,7 +110,7 @@ public partial class run_battle_ai_score_execute_regression : SceneTree
     private void TestAiIgnoresPreviewPresentationText()
     {
         Fixture fixture = BuildFixture("ai_execute_ignores_presentation");
-        SkillDef skill = BuildExecuteSkill();
+        SkillDefinition skill = BuildExecuteSkill();
         BattleUnitState source = BuildUnit("execute_source", "hostile", new Vector2I(0, 0), 100, 100);
         BattleUnitState target = BuildUnit("execute_text_poison_target", "player", new Vector2I(1, 0), 100, 20);
         fixture.AddUnit(source);
@@ -137,9 +134,9 @@ public partial class run_battle_ai_score_execute_regression : SceneTree
         BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(source),
             skill,
-            BuildCommand(source, skill.skill_id, target),
+            BuildCommand(source, skill.SkillId, target),
             preview,
-            new[] { skill.combat_profile.effect_defs[0] },
+            new[] { skill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(target)
         );
 
@@ -151,57 +148,54 @@ public partial class run_battle_ai_score_execute_regression : SceneTree
         Fixture fixture,
         BattleUnitState source,
         BattleUnitState target,
-        SkillDef skill
+        SkillDefinition skill
     )
     {
         return fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(source),
             skill,
-            BuildCommand(source, skill.skill_id, target),
+            BuildCommand(source, skill.SkillId, target),
             BuildPreview(target),
-            new[] { skill.combat_profile.effect_defs[0] },
+            new[] { skill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(target)
         );
     }
 
     private static Fixture BuildFixture(string battleId) => new(battleId, new Vector2I(4, 2));
 
-    private SkillDef BuildExecuteSkill()
-    {
-        var skill = new SkillDef
-        {
-            skill_id = "test_ai_power_word_kill",
-            display_name = "AI 测试律令死亡",
-            combat_profile = new CombatSkillDef
-            {
-                skill_id = "test_ai_power_word_kill",
-                target_mode = "unit",
-                target_team_filter = "enemy",
-                target_selection_mode = "single_unit",
-                range_value = 5,
-            },
-        };
-        skill.combat_profile.effect_defs.Add(
-            new CombatEffectDef
-            {
-                effect_type = "execute",
-                effect_target_team_filter = "enemy",
-                save_dc_mode = "static",
-                save_dc = 11,
-                save_ability = "willpower",
-                save_tag = "execute",
-                damage_tag = "negative_energy",
-                threshold_max_hp_ratio_percent = 20,
-                threshold_level_anchor = 17,
-                threshold_level_bonus_per_delta = 5,
-                threshold_cap_max_hp_ratio_percent = 50,
-                soul_fracture_duration_tu = 60,
-                heal_multiplier_percent = 50,
-                shield_gain_multiplier_percent = 50,
-            }
+    private static SkillDefinition BuildExecuteSkill() =>
+        TestSkillDefinitionProjection.BuildSkill(
+            "test_ai_power_word_kill",
+            "AI 测试律令死亡",
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                "test_ai_power_word_kill",
+                effects: new[]
+                {
+                    TestSkillDefinitionProjection.BuildEffect(
+                        "execute",
+                        effectTargetTeamFilter: "enemy",
+                        saveDcMode: "static",
+                        saveDc: 11,
+                        saveAbility: "willpower",
+                        saveTag: "execute",
+                        damageTag: "negative_energy",
+                        thresholdMaxHpRatioPercent: 20,
+                        thresholdLevelAnchor: 17,
+                        thresholdLevelBonusPerDelta: 5,
+                        thresholdCapMaxHpRatioPercent: 50,
+                        soulFractureDurationTu: 60,
+                        healMultiplierPercent: 50,
+                        shieldGainMultiplierPercent: 50
+                    ),
+                },
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                targetSelectionMode: BattleTypedNames.ToStringName(
+                    BattleTargetSelectionMode.SingleUnit
+                ),
+                rangeValue: 5
+            )
         );
-        return _resourceScope.Own(skill, "BuildExecuteSkill");
-    }
 
     private static BattleUnitState BuildUnit(
         StringName unitId,
@@ -304,7 +298,6 @@ public partial class run_battle_ai_score_execute_regression : SceneTree
         public readonly BattleState State;
         public readonly BattleGridService GridService = new();
         public readonly BattleAiScoreService ScoreService = new();
-        private readonly Dictionary<StringName, SkillDef> _skillDefs = new();
 
         public Fixture(string battleId, Vector2I mapSize)
         {
@@ -324,7 +317,7 @@ public partial class run_battle_ai_score_execute_regression : SceneTree
                 grid_service = GridService,
                 unit_state = actor,
             };
-            context.SetSkillDefs(_skillDefs);
+            context.SetSkillDefinitions(new Dictionary<StringName, SkillDefinition>());
             return context;
         }
     }

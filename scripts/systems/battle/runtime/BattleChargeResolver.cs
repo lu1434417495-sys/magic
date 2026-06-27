@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 internal sealed class BattleChargeResolver
 {
@@ -20,28 +19,19 @@ internal sealed class BattleChargeResolver
         bool ResolveAsWeaponAttack
     )
     {
-        public static ChargePathStepAoeParameters FromEffect(CombatEffectDef effectDef)
+        public static ChargePathStepAoeParameters FromEffect(
+            CombatEffectDefinition effectDefinition
+        )
         {
             return new ChargePathStepAoeParameters(
-                effectDef?.allow_repeat_hits_across_steps ?? false,
-                effectDef?.resolve_as_weapon_attack ?? false
+                effectDefinition?.AllowRepeatHitsAcrossSteps ?? false,
+                effectDefinition?.ResolveAsWeaponAttack ?? false
             );
         }
     }
 
     private WeakReference<BattleRuntimeModule> _runtimeRef;
     private BattleSkillMasteryService _skillMasteryService;
-    private readonly GodotTransientResourceScope _transientScope =
-        new("BattleChargeResolver");
-    private readonly RuntimeSkillDefFactory _runtimeSkillFactory;
-
-    internal BattleChargeResolver()
-    {
-        _runtimeSkillFactory = new RuntimeSkillDefFactory(
-            _transientScope,
-            "BattleChargeResolver"
-        );
-    }
 
     private BattleRuntimeModule Runtime
     {
@@ -57,32 +47,14 @@ internal sealed class BattleChargeResolver
 
     internal void DisposeRuntime()
     {
-        _transientScope.Drain();
         Runtime = null;
         _skillMasteryService = null;
     }
 
-    internal bool handle_charge_skill_command(
-        BattleUnitState active_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
-        GDictionary validation,
-        BattleEventBatch batch
-    )
-    {
-        return handle_charge_skill_command_result(
-            active_unit,
-            skill_def,
-            cast_variant,
-            BattleGroundSkillValidationResult.FromDictionary(validation),
-            batch
-        );
-    }
-
     internal bool handle_charge_skill_command_result(
         BattleUnitState active_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
         BattleGroundSkillValidationResult validation,
         BattleEventBatch batch
     )
@@ -90,8 +62,8 @@ internal sealed class BattleChargeResolver
         if (
             !HasRuntime()
             || active_unit == null
-            || skill_def == null
-            || cast_variant == null
+            || skillDefinition == null
+            || castVariantDefinition == null
             || batch == null
         )
         {
@@ -139,7 +111,7 @@ internal sealed class BattleChargeResolver
                 break;
             }
 
-            GVector2IArray previousCoords = DuplicateVector2IArray(active_unit.occupied_coords);
+            List<Vector2I> previousCoords = DuplicateVector2IList(active_unit.occupied_coords);
             if (!GridService.MoveUnit(State, active_unit, nextAnchor))
             {
                 stopReason = "blocked";
@@ -153,8 +125,8 @@ internal sealed class BattleChargeResolver
 
             PathStepResult stepAoeResult = ApplyChargePathStepAoeEffects(
                 active_unit,
-                skill_def,
-                cast_variant,
+                skillDefinition,
+                castVariantDefinition,
                 chargeBatch,
                 pathStepSeenUnitIds
             );
@@ -175,13 +147,15 @@ internal sealed class BattleChargeResolver
             {
                 Vector2I trapCoord = trapResult.Coord;
                 int skillLevel =
-                    skill_def != null && HasRuntime()
-                        ? GetUnitSkillLevel(active_unit, skill_def.skill_id)
+                    skillDefinition != null && HasRuntime()
+                        ? GetUnitSkillLevel(active_unit, skillDefinition.SkillId)
                         : 0;
-                CombatEffectDef chargeEffect = GetChargeEffectDef(cast_variant);
+                CombatEffectDefinition chargeEffect = GetChargeEffectDefinition(
+                    castVariantDefinition
+                );
                 int trapImmunityLevel =
                     chargeEffect != null
-                        ? GetInt(chargeEffect.@params, "trap_immunity_level", 999)
+                        ? GetInt(chargeEffect.Parameters, "trap_immunity_level", 999)
                         : 999;
                 AppendChangedCoord(chargeBatch, trapCoord);
                 if (skillLevel >= trapImmunityLevel)
@@ -204,13 +178,13 @@ internal sealed class BattleChargeResolver
         MergeBatch(batch, chargeBatch);
         if (movedSteps > 0)
         {
-            CombatEffectDef pathStepAoeEffect = GetChargePathStepAoeEffectDef(
-                cast_variant,
-                skill_def,
+            CombatEffectDefinition pathStepAoeEffect = GetChargePathStepAoeEffectDefinition(
+                castVariantDefinition,
+                skillDefinition,
                 active_unit
             );
             batch.AddLogLine(
-                $"{active_unit.display_name} 使用 {FormatSkillVariantLabel(skill_def, cast_variant)}，向{FormatChargeDirection(direction)}冲锋 {movedSteps} 格。"
+                $"{active_unit.display_name} 使用 {FormatSkillVariantLabel(skillDefinition, castVariantDefinition)}，向{FormatChargeDirection(direction)}冲锋 {movedSteps} 格。"
             );
             if (pathStepTriggerCount > 0)
             {
@@ -220,19 +194,22 @@ internal sealed class BattleChargeResolver
             }
             ApplyRepeatHitStatusEffects(
                 active_unit,
-                skill_def,
+                skillDefinition,
                 pathStepAoeEffect,
                 totalUnitHitCounts,
                 batch
             );
-            _skillMasteryService?.RecordMasteryAmount(skill_def, movedSteps);
+            _skillMasteryService?.RecordMasteryAmount(
+                skillDefinition?.SkillId ?? new StringName(""),
+                movedSteps
+            );
             return true;
         }
 
         if (chargeBatch.LogLinesTyped.Count > 0 || !string.IsNullOrEmpty(stopReason))
         {
             batch.AddLogLine(
-                $"{active_unit.display_name} 使用 {FormatSkillVariantLabel(skill_def, cast_variant)}，但在起步时被拦下。"
+                $"{active_unit.display_name} 使用 {FormatSkillVariantLabel(skillDefinition, castVariantDefinition)}，但在起步时被拦下。"
             );
             return true;
         }
@@ -241,17 +218,17 @@ internal sealed class BattleChargeResolver
 
     internal BattleGroundSkillValidationResult ValidateChargeCommandResult(
         BattleUnitState active_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
-        GVector2IArray normalized_coords,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        IReadOnlyList<Vector2I> normalized_coords,
         BattleGroundSkillValidationResult base_result
     )
     {
         if (
             !HasRuntime()
             || active_unit == null
-            || skill_def == null
-            || cast_variant == null
+            || skillDefinition == null
+            || castVariantDefinition == null
             || normalized_coords == null
             || normalized_coords.Count == 0
         )
@@ -271,7 +248,7 @@ internal sealed class BattleChargeResolver
             return base_result with { Message = "冲锋只能选择当前单位同一行或同一列的目标地格。" };
         }
 
-        int maxDistance = GetChargeMaxDistance(active_unit, cast_variant);
+        int maxDistance = GetChargeMaxDistance(active_unit, castVariantDefinition);
         int chargeDistance = targetInfo.Distance;
         if (chargeDistance > maxDistance)
         {
@@ -282,13 +259,13 @@ internal sealed class BattleChargeResolver
         return BattleGroundSkillValidationResult.AllowedResult(
             "可施放；若途中受阻会在当前可达位置停下。",
             new[] { targetCoord },
-            ToVector2IList(BuildChargePreviewCoords(active_unit, chargeDirection, chargeDistance)),
+            BuildChargePreviewCoords(active_unit, chargeDirection, chargeDistance),
             chargeDirection,
             chargeDistance,
             ResolvePreviewChargeAnchor(
                 active_unit,
-                skill_def,
-                cast_variant,
+                skillDefinition,
+                castVariantDefinition,
                 chargeDirection,
                 chargeDistance
             )
@@ -297,17 +274,17 @@ internal sealed class BattleChargeResolver
 
     internal BattleGroundSkillValidationResult ValidateChargeCommandResult(
         BattleUnitReadView active_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
-        GVector2IArray normalized_coords,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        IReadOnlyList<Vector2I> normalized_coords,
         BattleGroundSkillValidationResult base_result
     )
     {
         if (
             !HasRuntime()
             || !active_unit.IsValid
-            || skill_def == null
-            || cast_variant == null
+            || skillDefinition == null
+            || castVariantDefinition == null
             || normalized_coords == null
             || normalized_coords.Count == 0
         )
@@ -327,7 +304,7 @@ internal sealed class BattleChargeResolver
             return base_result with { Message = "冲锋只能选择当前单位同一行或同一列的目标地格。" };
         }
 
-        int maxDistance = GetChargeMaxDistance(active_unit, cast_variant);
+        int maxDistance = GetChargeMaxDistance(active_unit, castVariantDefinition);
         int chargeDistance = targetInfo.Distance;
         if (chargeDistance > maxDistance)
         {
@@ -338,24 +315,24 @@ internal sealed class BattleChargeResolver
         return BattleGroundSkillValidationResult.AllowedResult(
             "可施放；若途中受阻会在当前可达位置停下。",
             new[] { targetCoord },
-            ToVector2IList(BuildChargePreviewCoords(active_unit, chargeDirection, chargeDistance)),
+            BuildChargePreviewCoords(active_unit, chargeDirection, chargeDistance),
             chargeDirection,
             chargeDistance,
             ResolvePreviewChargeAnchor(
                 active_unit,
-                skill_def,
-                cast_variant,
+                skillDefinition,
+                castVariantDefinition,
                 chargeDirection,
                 chargeDistance
             )
         );
     }
 
-    internal GVector2IArray BuildChargeStepAoePreviewCoords(
+    internal List<Vector2I> BuildChargeStepAoePreviewCoords(
         BattleUnitState active_unit,
         Vector2I direction,
         int distance,
-        CombatEffectDef path_step_aoe_effect
+        CombatEffectDefinition pathStepAoeEffect
     )
     {
         var coords = new List<Vector2I>();
@@ -364,10 +341,10 @@ internal sealed class BattleChargeResolver
             || active_unit == null
             || direction == Vector2I.Zero
             || distance <= 0
-            || path_step_aoe_effect == null
+            || pathStepAoeEffect == null
         )
         {
-            return new GVector2IArray();
+            return new List<Vector2I>();
         }
 
         var coordSet = new HashSet<Vector2I>();
@@ -379,7 +356,7 @@ internal sealed class BattleChargeResolver
                 Vector2I effectCoord in BuildChargeStepEffectCoordsForAnchor(
                     active_unit,
                     anchorCoord,
-                    path_step_aoe_effect
+                    pathStepAoeEffect
                 )
             )
             {
@@ -392,11 +369,11 @@ internal sealed class BattleChargeResolver
         return SortCoords(coords);
     }
 
-    internal GVector2IArray BuildChargeStepAoePreviewCoords(
+    internal List<Vector2I> BuildChargeStepAoePreviewCoords(
         BattleUnitReadView active_unit,
         Vector2I direction,
         int distance,
-        CombatEffectDef path_step_aoe_effect
+        CombatEffectDefinition pathStepAoeEffect
     )
     {
         var coords = new List<Vector2I>();
@@ -405,10 +382,10 @@ internal sealed class BattleChargeResolver
             || !active_unit.IsValid
             || direction == Vector2I.Zero
             || distance <= 0
-            || path_step_aoe_effect == null
+            || pathStepAoeEffect == null
         )
         {
-            return new GVector2IArray();
+            return new List<Vector2I>();
         }
 
         var coordSet = new HashSet<Vector2I>();
@@ -420,7 +397,7 @@ internal sealed class BattleChargeResolver
                 Vector2I effectCoord in BuildChargeStepEffectCoordsForAnchor(
                     active_unit,
                     anchorCoord,
-                    path_step_aoe_effect
+                    pathStepAoeEffect
                 )
             )
             {
@@ -433,86 +410,88 @@ internal sealed class BattleChargeResolver
         return SortCoords(coords);
     }
 
-    internal CombatEffectDef GetChargePathStepAoeEffectDef(
-        CombatCastVariantDef cast_variant,
-        SkillDef skill_def,
-        BattleUnitState active_unit
+    internal CombatEffectDefinition GetChargePathStepAoeEffectDefinition(
+        CombatCastVariantDefinition castVariantDefinition,
+        SkillDefinition skillDefinition,
+        BattleUnitState activeUnit
     )
     {
-        if (cast_variant == null)
+        if (castVariantDefinition == null)
         {
             return null;
         }
 
         int skillLevel = -1;
-        if (skill_def != null && active_unit != null && HasRuntime())
+        if (skillDefinition != null && activeUnit != null && HasRuntime())
         {
-            skillLevel = GetUnitSkillLevel(active_unit, skill_def.skill_id);
+            skillLevel = GetUnitSkillLevel(activeUnit, skillDefinition.SkillId);
         }
 
-        foreach (CombatEffectDef effectDef in cast_variant.effect_defs)
+        foreach (CombatEffectDefinition effectDefinition in castVariantDefinition.EffectDefinitions)
         {
-            if (effectDef == null || effectDef.EffectKind != BattleEffectKind.PathStepAoe)
+            if (effectDefinition == null || effectDefinition.EffectKind != BattleEffectKind.PathStepAoe)
             {
                 continue;
             }
-            if (skillLevel >= 0 && !IsEffectUnlockedForSkillLevel(effectDef, skillLevel))
+            if (skillLevel >= 0 && !IsEffectUnlockedForSkillLevel(effectDefinition, skillLevel))
             {
                 continue;
             }
-            return effectDef;
+            return effectDefinition;
         }
         return null;
     }
 
-    internal CombatEffectDef GetChargePathStepAoeEffectDef(
-        CombatCastVariantDef cast_variant,
-        SkillDef skill_def,
-        BattleUnitReadView active_unit
+    internal CombatEffectDefinition GetChargePathStepAoeEffectDefinition(
+        CombatCastVariantDefinition castVariantDefinition,
+        SkillDefinition skillDefinition,
+        BattleUnitReadView activeUnit
     )
     {
-        if (cast_variant == null)
+        if (castVariantDefinition == null)
         {
             return null;
         }
 
         int skillLevel = -1;
-        if (skill_def != null && active_unit.IsValid && HasRuntime())
+        if (skillDefinition != null && activeUnit.IsValid && HasRuntime())
         {
-            skillLevel = active_unit.GetKnownSkillLevel(skill_def.skill_id);
+            skillLevel = activeUnit.GetKnownSkillLevel(skillDefinition.SkillId);
         }
 
-        foreach (CombatEffectDef effectDef in cast_variant.effect_defs)
+        foreach (CombatEffectDefinition effectDefinition in castVariantDefinition.EffectDefinitions)
         {
-            if (effectDef == null || effectDef.EffectKind != BattleEffectKind.PathStepAoe)
+            if (effectDefinition == null || effectDefinition.EffectKind != BattleEffectKind.PathStepAoe)
             {
                 continue;
             }
-            if (skillLevel >= 0 && !IsEffectUnlockedForSkillLevel(effectDef, skillLevel))
+            if (skillLevel >= 0 && !IsEffectUnlockedForSkillLevel(effectDefinition, skillLevel))
             {
                 continue;
             }
-            return effectDef;
+            return effectDefinition;
         }
         return null;
     }
 
-    internal bool IsChargeOption(CombatCastVariantDef cast_variant)
+    internal bool IsChargeOption(CombatCastVariantDefinition castVariantDefinition)
     {
-        return GetChargeEffectDef(cast_variant) != null;
+        return GetChargeEffectDefinition(castVariantDefinition) != null;
     }
 
-    internal CombatEffectDef GetChargeEffectDef(CombatCastVariantDef cast_variant)
+    internal CombatEffectDefinition GetChargeEffectDefinition(
+        CombatCastVariantDefinition castVariantDefinition
+    )
     {
-        if (cast_variant == null)
+        if (castVariantDefinition == null)
         {
             return null;
         }
-        foreach (CombatEffectDef effectDef in cast_variant.effect_defs)
+        foreach (CombatEffectDefinition effectDefinition in castVariantDefinition.EffectDefinitions)
         {
-            if (effectDef != null && effectDef.EffectKind == BattleEffectKind.Charge)
+            if (effectDefinition != null && effectDefinition.EffectKind == BattleEffectKind.Charge)
             {
-                return effectDef;
+                return effectDefinition;
             }
         }
         return null;
@@ -520,18 +499,18 @@ internal sealed class BattleChargeResolver
 
     private void ApplyRepeatHitStatusEffects(
         BattleUnitState activeUnit,
-        SkillDef skillDef,
-        CombatEffectDef pathStepAoeEffect,
+        SkillDefinition skillDefinition,
+        CombatEffectDefinition pathStepAoeEffect,
         Dictionary<StringName, int> totalUnitHitCounts,
         BattleEventBatch batch
     )
     {
-        if (activeUnit == null || skillDef == null || pathStepAoeEffect == null || batch == null)
+        if (activeUnit == null || skillDefinition == null || pathStepAoeEffect == null || batch == null)
         {
             return;
         }
 
-        GDictionary parameters = pathStepAoeEffect.@params ?? new GDictionary();
+        IReadOnlyDictionary<string, Variant> parameters = pathStepAoeEffect.Parameters;
         StringName statusId = GetStringName(parameters, "repeat_hit_status_id");
         if (IsEmpty(statusId))
         {
@@ -542,7 +521,7 @@ internal sealed class BattleChargeResolver
             GetInt(parameters, "repeat_hit_status_min_skill_level"),
             0
         );
-        int skillLevel = HasRuntime() ? GetUnitSkillLevel(activeUnit, skillDef.skill_id) : 0;
+        int skillLevel = HasRuntime() ? GetUnitSkillLevel(activeUnit, skillDefinition.SkillId) : 0;
         if (skillLevel < minSkillLevel)
         {
             return;
@@ -559,10 +538,8 @@ internal sealed class BattleChargeResolver
             return;
         }
 
-        GDictionary extraStatusParams = RuntimePayloadCopy.Dictionary(
-            GetDict(parameters, "repeat_hit_status_params"),
-            "BattleChargeResolver.repeat_hit_status_params"
-        );
+        IReadOnlyDictionary<string, Variant> extraStatusParams =
+            GetVariantDictionary(parameters, "repeat_hit_status_params");
 
         foreach ((StringName unitId, int hitCount) in totalUnitHitCounts)
         {
@@ -580,16 +557,11 @@ internal sealed class BattleChargeResolver
                 continue;
             }
 
-            CombatEffectDef statusEffect = _runtimeSkillFactory.NewEffect(
-                effect =>
-                {
-                    effect.effect_type = StatusEffectType;
-                    effect.status_id = statusId;
-                    effect.power = statusPower;
-                    effect.duration_tu = statusDurationTu;
-                    effect.@params = BattleStatusEffectState.CopyResidualParams(extraStatusParams);
-                },
-                $"repeat_hit_status:{statusId}"
+            CombatEffectDefinition statusEffect = BattleRuntimeEffectDefinitions.Status(
+                statusId,
+                statusPower,
+                statusDurationTu,
+                extraStatusParams
             );
             BattleStatusEffectState statusEntry = BattleStatusSemanticTable.MergeStatus(
                 statusEffect,
@@ -606,7 +578,7 @@ internal sealed class BattleChargeResolver
             string logLine = FormatRepeatHitStatusLog(
                 parameters,
                 targetUnit,
-                skillDef,
+                skillDefinition,
                 hitCount,
                 statusId
             );
@@ -618,14 +590,14 @@ internal sealed class BattleChargeResolver
     }
 
     private string FormatRepeatHitStatusLog(
-        GDictionary parameters,
+        IReadOnlyDictionary<string, Variant> parameters,
         BattleUnitState targetUnit,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         int hitCount,
         StringName statusId
     )
     {
-        if (targetUnit == null || skillDef == null)
+        if (targetUnit == null || skillDefinition == null)
         {
             return "";
         }
@@ -633,36 +605,36 @@ internal sealed class BattleChargeResolver
         string template = GetString(parameters, "repeat_hit_status_log_template", "").StripEdges();
         if (string.IsNullOrEmpty(template))
         {
-            return $"{targetUnit.display_name} 被 {skillDef.display_name} 连续命中 {hitCount} 次，受到 {statusId}。";
+            return $"{targetUnit.display_name} 被 {skillDefinition.DisplayName} 连续命中 {hitCount} 次，受到 {statusId}。";
         }
 
         return template
             .Replace("{target}", targetUnit.display_name)
-            .Replace("{skill}", skillDef.display_name)
+            .Replace("{skill}", skillDefinition.DisplayName)
             .Replace("{hit_count}", hitCount.ToString())
             .Replace("{status_id}", statusId.ToString());
     }
 
-    private string GetPathStepLogLabel(CombatEffectDef pathStepAoeEffect)
+    private string GetPathStepLogLabel(CombatEffectDefinition pathStepAoeEffect)
     {
-        if (pathStepAoeEffect == null || pathStepAoeEffect.@params == null)
-        {
-            return "路径攻击";
-        }
-        string label = GetString(pathStepAoeEffect.@params, "path_step_log_label", "路径攻击")
+        string label = GetString(
+                pathStepAoeEffect?.Parameters,
+                "path_step_log_label",
+                "路径攻击"
+            )
             .StripEdges();
         return string.IsNullOrEmpty(label) ? "路径攻击" : label;
     }
 
-    private string GetPathStepResultLabel(CombatEffectDef pathStepAoeEffect)
+    private string GetPathStepResultLabel(CombatEffectDefinition pathStepAoeEffect)
     {
         return $"沿途{GetPathStepLogLabel(pathStepAoeEffect)}";
     }
 
     private Vector2I ResolvePreviewChargeAnchor(
         BattleUnitState activeUnit,
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
         Vector2I direction,
         int requestedDistance
     )
@@ -671,8 +643,8 @@ internal sealed class BattleChargeResolver
             !HasRuntime()
             || State == null
             || activeUnit == null
-            || skillDef == null
-            || castVariant == null
+            || skillDefinition == null
+            || castVariantDefinition == null
         )
         {
             return activeUnit?.coord ?? new Vector2I(-1, -1);
@@ -704,8 +676,8 @@ internal sealed class BattleChargeResolver
 
     private Vector2I ResolvePreviewChargeAnchor(
         BattleUnitReadView activeUnit,
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
         Vector2I direction,
         int requestedDistance
     )
@@ -714,8 +686,8 @@ internal sealed class BattleChargeResolver
             !HasRuntime()
             || State == null
             || !activeUnit.IsValid
-            || skillDef == null
-            || castVariant == null
+            || skillDefinition == null
+            || castVariantDefinition == null
         )
         {
             return activeUnit.IsValid ? activeUnit.Coord : new Vector2I(-1, -1);
@@ -860,41 +832,39 @@ internal sealed class BattleChargeResolver
 
     private PathStepResult ApplyChargePathStepAoeEffects(
         BattleUnitState activeUnit,
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
         BattleEventBatch batch,
         HashSet<StringName> seenUnitIds
     )
     {
-        CombatEffectDef pathStepAoeEffect = GetChargePathStepAoeEffectDef(
-            castVariant,
-            skillDef,
+        CombatEffectDefinition pathStepAoeEffect = GetChargePathStepAoeEffectDefinition(
+            castVariantDefinition,
+            skillDefinition,
             activeUnit
         );
-        if (activeUnit == null || skillDef == null || pathStepAoeEffect == null)
+        if (activeUnit == null || skillDefinition == null || pathStepAoeEffect == null)
         {
             return new PathStepResult(false);
         }
 
         ChargePathStepAoeParameters pathStepParameters =
             ChargePathStepAoeParameters.FromEffect(pathStepAoeEffect);
-        GVector2IArray effectCoords = BuildChargeStepEffectCoords(activeUnit, pathStepAoeEffect);
+        List<Vector2I> effectCoords = BuildChargeStepEffectCoords(activeUnit, pathStepAoeEffect);
         int hitCount = 0;
         int totalDamage = 0;
         int totalHealing = 0;
         int totalKillCount = 0;
         var unitHitCounts = new Dictionary<StringName, int>();
-        StringName targetFilter = ResolveEffectTargetFilter(skillDef, pathStepAoeEffect);
+        StringName targetFilter = ResolveEffectTargetFilter(skillDefinition, pathStepAoeEffect);
         string pathStepResultLabel = GetPathStepResultLabel(pathStepAoeEffect);
-        CombatEffectDef stageEffect = pathStepAoeEffect.DuplicateForRuntime(
-            _transientScope,
-            "BattleChargeResolver.ApplyChargePathStepAoeEffects"
-        );
+        CombatEffectDefinition stageEffect =
+            pathStepAoeEffect.WithEffectType(DamageEffectType);
         if (stageEffect == null)
         {
             return new PathStepResult(false);
         }
-        stageEffect.effect_type = DamageEffectType;
+        CombatEffectDefinition[] stageEffects = { stageEffect };
 
         foreach (BattleUnitState targetUnit in CollectUnitsInCoords(effectCoords))
         {
@@ -912,20 +882,16 @@ internal sealed class BattleChargeResolver
             seenUnitIds.Add(targetUnit.unit_id);
 
             AttackEffectResolutionResult stageResult;
-            AttackCheckInput attackCheck = new(skillId: skillDef?.skill_id ?? new StringName(""));
-            var stageEffects = _transientScope.OwnWrapper(
-                new GArray { stageEffect },
-                $"path_step_aoe:{pathStepResultLabel}:effects"
-            );
+            AttackCheckInput attackCheck = new(skillId: skillDefinition?.SkillId ?? new StringName(""));
             if (pathStepParameters.ResolveAsWeaponAttack)
             {
                 BattleAttackCheckPolicyService attackPolicy =
                     Runtime.GetAttackCheckPolicyService();
-                BattleAttackCheckPolicyContext attackContext = attackPolicy.BuildAttackContext(
+                BattleAttackCheckPolicyContext attackContext = attackPolicy.BuildSkillDefinitionAttackContext(
                     State,
                     activeUnit,
                     targetUnit,
-                    skillDef,
+                    skillDefinition,
                     SkillAttackCheckMode,
                     ExecuteStage,
                     false
@@ -943,7 +909,7 @@ internal sealed class BattleChargeResolver
                     new AttackContext
                     {
                         BattleState = State,
-                        SkillId = skillDef?.skill_id ?? new StringName(""),
+                        SkillId = skillDefinition?.SkillId ?? new StringName(""),
                     }
                 );
             }
@@ -953,10 +919,7 @@ internal sealed class BattleChargeResolver
                     activeUnit,
                     targetUnit,
                     stageEffects,
-                    _transientScope.OwnWrapper(
-                        new GDictionary { ["skill_id"] = skillDef?.skill_id ?? new StringName("") },
-                        $"path_step_aoe:{pathStepResultLabel}:damage_context"
-                    )
+                    DamageResolutionContext.ForSkill(skillDefinition?.SkillId ?? new StringName(""))
                 );
             }
             if (pathStepParameters.ResolveAsWeaponAttack)
@@ -964,7 +927,7 @@ internal sealed class BattleChargeResolver
                 _skillMasteryService?.RecordTargetResult(
                     activeUnit,
                     targetUnit,
-                    skillDef,
+                    skillDefinition,
                     stageResult
                 );
             }
@@ -992,14 +955,14 @@ internal sealed class BattleChargeResolver
             totalHealing += healing;
             Runtime.AppendDamageResultLogLines(
                 batch,
-                $"{activeUnit.display_name} 的 {skillDef.display_name} {pathStepResultLabel}",
+                $"{activeUnit.display_name} 的 {skillDefinition.DisplayName} {pathStepResultLabel}",
                 targetUnit.display_name,
                 stageResult
             );
             if (healing > 0)
             {
                 batch.AddLogLine(
-                    $"{activeUnit.display_name} 的 {skillDef.display_name} {pathStepResultLabel}为 {targetUnit.display_name} 恢复 {healing} 点生命。"
+                    $"{activeUnit.display_name} 的 {skillDefinition.DisplayName} {pathStepResultLabel}为 {targetUnit.display_name} 恢复 {healing} 点生命。"
                 );
             }
             if (!targetUnit.is_alive)
@@ -1027,23 +990,23 @@ internal sealed class BattleChargeResolver
         return new PathStepResult(true, hitCount, unitHitCounts);
     }
 
-    private GVector2IArray BuildChargeStepEffectCoords(
+    private List<Vector2I> BuildChargeStepEffectCoords(
         BattleUnitState activeUnit,
-        CombatEffectDef pathStepAoeEffect
+        CombatEffectDefinition pathStepAoeEffect
     )
     {
         return activeUnit == null
-            ? new GVector2IArray()
+            ? new List<Vector2I>()
             : BuildChargeStepEffectCoordsForAnchor(activeUnit, activeUnit.coord, pathStepAoeEffect);
     }
 
-    private GVector2IArray BuildChargePathAnchorCoords(
+    private List<Vector2I> BuildChargePathAnchorCoords(
         BattleUnitState activeUnit,
         Vector2I direction,
         int distance
     )
     {
-        var anchorCoords = new GVector2IArray();
+        var anchorCoords = new List<Vector2I>();
         if (activeUnit == null || direction == Vector2I.Zero || distance <= 0)
         {
             return anchorCoords;
@@ -1058,13 +1021,13 @@ internal sealed class BattleChargeResolver
         return anchorCoords;
     }
 
-    private GVector2IArray BuildChargePathAnchorCoords(
+    private List<Vector2I> BuildChargePathAnchorCoords(
         BattleUnitReadView activeUnit,
         Vector2I direction,
         int distance
     )
     {
-        var anchorCoords = new GVector2IArray();
+        var anchorCoords = new List<Vector2I>();
         if (!activeUnit.IsValid || direction == Vector2I.Zero || distance <= 0)
         {
             return anchorCoords;
@@ -1079,19 +1042,19 @@ internal sealed class BattleChargeResolver
         return anchorCoords;
     }
 
-    private GVector2IArray BuildChargeStepEffectCoordsForAnchor(
+    private List<Vector2I> BuildChargeStepEffectCoordsForAnchor(
         BattleUnitState activeUnit,
         Vector2I anchorCoord,
-        CombatEffectDef pathStepAoeEffect
+        CombatEffectDefinition pathStepAoeEffect
     )
     {
         if (!HasRuntime() || activeUnit == null || pathStepAoeEffect == null)
         {
-            return new GVector2IArray();
+            return new List<Vector2I>();
         }
 
-        StringName stepShape = GetStringName(pathStepAoeEffect.@params, "step_shape", "diamond");
-        int stepRadius = Math.Max(GetInt(pathStepAoeEffect.@params, "step_radius", 1), 0);
+        StringName stepShape = GetStringName(pathStepAoeEffect.Parameters, "step_shape", "diamond");
+        int stepRadius = Math.Max(GetInt(pathStepAoeEffect.Parameters, "step_radius", 1), 0);
         var coordSet = new HashSet<Vector2I>();
         var effectCoords = new List<Vector2I>();
         foreach (
@@ -1117,19 +1080,19 @@ internal sealed class BattleChargeResolver
         return SortCoords(effectCoords);
     }
 
-    private GVector2IArray BuildChargeStepEffectCoordsForAnchor(
+    private List<Vector2I> BuildChargeStepEffectCoordsForAnchor(
         BattleUnitReadView activeUnit,
         Vector2I anchorCoord,
-        CombatEffectDef pathStepAoeEffect
+        CombatEffectDefinition pathStepAoeEffect
     )
     {
         if (!HasRuntime() || !activeUnit.IsValid || pathStepAoeEffect == null)
         {
-            return new GVector2IArray();
+            return new List<Vector2I>();
         }
 
-        StringName stepShape = GetStringName(pathStepAoeEffect.@params, "step_shape", "diamond");
-        int stepRadius = Math.Max(GetInt(pathStepAoeEffect.@params, "step_radius", 1), 0);
+        StringName stepShape = GetStringName(pathStepAoeEffect.Parameters, "step_shape", "diamond");
+        int stepRadius = Math.Max(GetInt(pathStepAoeEffect.Parameters, "step_radius", 1), 0);
         var coordSet = new HashSet<Vector2I>();
         var effectCoords = new List<Vector2I>();
         foreach (
@@ -1155,14 +1118,17 @@ internal sealed class BattleChargeResolver
         return SortCoords(effectCoords);
     }
 
-    private static bool IsEffectUnlockedForSkillLevel(CombatEffectDef effectDef, int skillLevel)
+    private static bool IsEffectUnlockedForSkillLevel(
+        CombatEffectDefinition effectDefinition,
+        int skillLevel
+    )
     {
-        if (effectDef == null)
+        if (effectDefinition == null)
         {
             return false;
         }
-        int minLevel = Math.Max(effectDef.min_skill_level, 0);
-        int maxLevel = effectDef.max_skill_level;
+        int minLevel = Math.Max(effectDefinition.MinSkillLevel, 0);
+        int maxLevel = effectDefinition.MaxSkillLevel;
         if (skillLevel < minLevel)
         {
             return false;
@@ -1184,7 +1150,7 @@ internal sealed class BattleChargeResolver
             return false;
         }
 
-        GVector2IArray targetCoords = GridService.GetUnitTargetCoords(activeUnit, targetAnchor);
+        List<Vector2I> targetCoords = GridService.GetUnitTargetCoords(activeUnit, targetAnchor);
         if (!CanChargePlaceFootprintIgnoringOccupants(activeUnit, targetCoords))
         {
             return false;
@@ -1217,7 +1183,7 @@ internal sealed class BattleChargeResolver
 
     private bool CanChargePlaceFootprintIgnoringOccupants(
         BattleUnitState activeUnit,
-        GVector2IArray targetCoords
+        IEnumerable<Vector2I> targetCoords
     )
     {
         var targetLookup = new HashSet<Vector2I>();
@@ -1390,7 +1356,7 @@ internal sealed class BattleChargeResolver
         return new ChargeBlockerResult("continue", "");
     }
 
-    private GVector2IArray GetChargeFrontierCoords(BattleUnitState activeUnit, Vector2I nextAnchor)
+    private List<Vector2I> GetChargeFrontierCoords(BattleUnitState activeUnit, Vector2I nextAnchor)
     {
         var currentCoords = new HashSet<Vector2I>();
         foreach (Vector2I occupiedCoord in activeUnit.occupied_coords)
@@ -1420,7 +1386,7 @@ internal sealed class BattleChargeResolver
         SidePushResult sidePush = PickChargeSidePush(blocker, direction, reservedCoordSet);
         if (sidePush.Available)
         {
-            GVector2IArray previousCoords = DuplicateVector2IArray(blocker.occupied_coords);
+            List<Vector2I> previousCoords = DuplicateVector2IList(blocker.occupied_coords);
             if (GridService.MoveUnitForce(State, blocker, sidePush.Coord))
             {
                 AppendChangedCoords(batch, previousCoords);
@@ -1447,7 +1413,7 @@ internal sealed class BattleChargeResolver
         Vector2I forwardCoord = blocker.coord + direction;
         if (!reservedCoordSet.Contains(forwardCoord))
         {
-            GVector2IArray previousCoords = DuplicateVector2IArray(blocker.occupied_coords);
+            List<Vector2I> previousCoords = DuplicateVector2IList(blocker.occupied_coords);
             if (GridService.MoveUnit(State, blocker, forwardCoord))
             {
                 AppendChangedCoords(batch, previousCoords);
@@ -1826,7 +1792,7 @@ internal sealed class BattleChargeResolver
         return ChargeTargetInfo.Invalid;
     }
 
-    private GVector2IArray BuildChargePreviewCoords(
+    private List<Vector2I> BuildChargePreviewCoords(
         BattleUnitState activeUnit,
         Vector2I direction,
         int distance
@@ -1834,7 +1800,7 @@ internal sealed class BattleChargeResolver
     {
         if (activeUnit == null || direction == Vector2I.Zero || distance <= 0)
         {
-            return new GVector2IArray();
+            return new List<Vector2I>();
         }
 
         var seenCoords = new HashSet<Vector2I>();
@@ -1859,7 +1825,7 @@ internal sealed class BattleChargeResolver
         return SortCoords(previewCoords);
     }
 
-    private GVector2IArray BuildChargePreviewCoords(
+    private List<Vector2I> BuildChargePreviewCoords(
         BattleUnitReadView activeUnit,
         Vector2I direction,
         int distance
@@ -1867,7 +1833,7 @@ internal sealed class BattleChargeResolver
     {
         if (!activeUnit.IsValid || direction == Vector2I.Zero || distance <= 0)
         {
-            return new GVector2IArray();
+            return new List<Vector2I>();
         }
 
         var seenCoords = new HashSet<Vector2I>();
@@ -1892,70 +1858,79 @@ internal sealed class BattleChargeResolver
         return SortCoords(previewCoords);
     }
 
-    private int GetChargeMaxDistance(BattleUnitState activeUnit, CombatCastVariantDef castVariant)
+    private int GetChargeMaxDistance(
+        BattleUnitState activeUnit,
+        CombatCastVariantDefinition castVariant
+    )
     {
-        CombatEffectDef chargeEffect = GetChargeEffectDef(castVariant);
+        CombatEffectDefinition chargeEffect = GetChargeEffectDefinition(castVariant);
         if (chargeEffect == null || !HasRuntime())
         {
             return 0;
         }
 
-        StringName skillId = GetStringName(chargeEffect.@params, "skill_id", "charge");
+        StringName skillId = GetStringName(chargeEffect.Parameters, "skill_id", "charge");
         int skillLevel = GetUnitSkillLevel(activeUnit, skillId);
-        int maxDistance = Math.Max(GetInt(chargeEffect.@params, "base_distance", 3), 0);
-        GDictionary distanceByLevel = GetDict(
-            chargeEffect.@params,
-            "distance_by_level"
+        int maxDistance = Math.Max(GetInt(chargeEffect.Parameters, "base_distance", 3), 0);
+        Variant distanceByLevel = GetVariant(
+            chargeEffect.Parameters,
+            "distance_by_level",
+            default
         );
-        foreach (var breakpointKey in distanceByLevel.Keys)
+        if (distanceByLevel.VariantType == Variant.Type.Dictionary)
         {
-            if (!int.TryParse(breakpointKey.ToString(), out int levelBreakpoint))
+            foreach (var breakpointKey in distanceByLevel.AsGodotDictionary().Keys)
             {
-                continue;
-            }
-            if (skillLevel >= levelBreakpoint)
-            {
-                int breakpointDistance =
-                    breakpointKey.VariantType == Variant.Type.Int
-                        ? GetInt(distanceByLevel, levelBreakpoint, maxDistance)
-                        : GetInt(distanceByLevel, breakpointKey.ToString(), maxDistance);
-                maxDistance = Math.Max(
-                    maxDistance,
-                    breakpointDistance
-                );
+                if (!TryReadInt(breakpointKey, out int levelBreakpoint))
+                {
+                    continue;
+                }
+                if (skillLevel >= levelBreakpoint)
+                {
+                    maxDistance = Math.Max(
+                        maxDistance,
+                        ReadDictionaryInt(distanceByLevel.AsGodotDictionary(), breakpointKey, maxDistance)
+                    );
+                }
             }
         }
         return maxDistance;
     }
 
-    private int GetChargeMaxDistance(BattleUnitReadView activeUnit, CombatCastVariantDef castVariant)
+    private int GetChargeMaxDistance(
+        BattleUnitReadView activeUnit,
+        CombatCastVariantDefinition castVariant
+    )
     {
-        CombatEffectDef chargeEffect = GetChargeEffectDef(castVariant);
+        CombatEffectDefinition chargeEffect = GetChargeEffectDefinition(castVariant);
         if (chargeEffect == null || !HasRuntime())
         {
             return 0;
         }
 
-        StringName skillId = GetStringName(chargeEffect.@params, "skill_id", "charge");
+        StringName skillId = GetStringName(chargeEffect.Parameters, "skill_id", "charge");
         int skillLevel = activeUnit.GetKnownSkillLevel(skillId);
-        int maxDistance = Math.Max(GetInt(chargeEffect.@params, "base_distance", 3), 0);
-        GDictionary distanceByLevel = GetDict(
-            chargeEffect.@params,
-            "distance_by_level"
+        int maxDistance = Math.Max(GetInt(chargeEffect.Parameters, "base_distance", 3), 0);
+        Variant distanceByLevel = GetVariant(
+            chargeEffect.Parameters,
+            "distance_by_level",
+            default
         );
-        foreach (var breakpointKey in distanceByLevel.Keys)
+        if (distanceByLevel.VariantType == Variant.Type.Dictionary)
         {
-            if (!int.TryParse(breakpointKey.ToString(), out int levelBreakpoint))
+            foreach (var breakpointKey in distanceByLevel.AsGodotDictionary().Keys)
             {
-                continue;
-            }
-            if (skillLevel >= levelBreakpoint)
-            {
-                int breakpointDistance =
-                    breakpointKey.VariantType == Variant.Type.Int
-                        ? GetInt(distanceByLevel, levelBreakpoint, maxDistance)
-                        : GetInt(distanceByLevel, breakpointKey.ToString(), maxDistance);
-                maxDistance = Math.Max(maxDistance, breakpointDistance);
+                if (!TryReadInt(breakpointKey, out int levelBreakpoint))
+                {
+                    continue;
+                }
+                if (skillLevel >= levelBreakpoint)
+                {
+                    maxDistance = Math.Max(
+                        maxDistance,
+                        ReadDictionaryInt(distanceByLevel.AsGodotDictionary(), breakpointKey, maxDistance)
+                    );
+                }
             }
         }
         return maxDistance;
@@ -1972,9 +1947,15 @@ internal sealed class BattleChargeResolver
 
     private BattleDamageResolver DamageResolver => Runtime?._damage_resolver;
 
-    private StringName ResolveEffectTargetFilter(SkillDef skillDef, CombatEffectDef effectDef)
+    private StringName ResolveEffectTargetFilter(
+        SkillDefinition skillDefinition,
+        CombatEffectDefinition effectDefinition
+    )
     {
-        return Runtime?.ResolveEffectTargetFilter(skillDef, effectDef) ?? new StringName("");
+        return Runtime?._skill_resolution_rules?.ResolveEffectTargetFilter(
+            skillDefinition,
+            effectDefinition
+        ) ?? new StringName("");
     }
 
     private bool IsUnitValidForEffect(
@@ -1987,7 +1968,7 @@ internal sealed class BattleChargeResolver
             && Runtime.IsUnitValidForEffect(sourceUnit, targetUnit, targetFilter);
     }
 
-    private IEnumerable<BattleUnitState> CollectUnitsInCoords(GVector2IArray effectCoords)
+    private IEnumerable<BattleUnitState> CollectUnitsInCoords(IReadOnlyList<Vector2I> effectCoords)
     {
         if (Runtime == null)
         {
@@ -1995,9 +1976,7 @@ internal sealed class BattleChargeResolver
         }
         Runtime._ensure_sidecars_ready();
         foreach (
-            BattleUnitState unit in Runtime._skill_orchestrator._collect_units_in_coords_typed(
-                effectCoords
-            )
+            BattleUnitState unit in Runtime._skill_orchestrator.CollectUnitsInCoords(effectCoords)
         )
         {
             if (unit != null)
@@ -2012,9 +1991,20 @@ internal sealed class BattleChargeResolver
         return Runtime?.GetUnitSkillLevel(unit, skillId) ?? 0;
     }
 
-    private string FormatSkillVariantLabel(SkillDef skillDef, CombatCastVariantDef castVariant)
+    private string FormatSkillVariantLabel(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
+    )
     {
-        return Runtime?.FormatSkillVariantLabel(skillDef, castVariant) ?? "";
+        if (skillDefinition == null)
+        {
+            return "";
+        }
+        if (castVariant == null || string.IsNullOrEmpty(castVariant.DisplayName))
+        {
+            return skillDefinition.DisplayName;
+        }
+        return $"{skillDefinition.DisplayName}·{castVariant.DisplayName}";
     }
 
     private void MarkAppliedStatusesForTurnTiming(
@@ -2107,9 +2097,9 @@ internal sealed class BattleChargeResolver
         AppendChangedCoords(batch, unitState.occupied_coords);
     }
 
-    private static GVector2IArray DuplicateVector2IArray(IEnumerable<Vector2I> values)
+    private static List<Vector2I> DuplicateVector2IList(IEnumerable<Vector2I> values)
     {
-        var result = new GVector2IArray();
+        var result = new List<Vector2I>();
         if (values == null)
         {
             return result;
@@ -2121,7 +2111,7 @@ internal sealed class BattleChargeResolver
         return result;
     }
 
-    private static GVector2IArray SortCoords(IEnumerable<Vector2I> coords)
+    private static List<Vector2I> SortCoords(IEnumerable<Vector2I> coords)
     {
         var sorted = new List<Vector2I>();
         if (coords != null)
@@ -2129,12 +2119,7 @@ internal sealed class BattleChargeResolver
             sorted.AddRange(coords);
         }
         sorted.Sort((a, b) => a.Y == b.Y ? a.X.CompareTo(b.X) : a.Y.CompareTo(b.Y));
-        var result = new GVector2IArray();
-        foreach (Vector2I coord in sorted)
-        {
-            result.Add(coord);
-        }
-        return result;
+        return sorted;
     }
 
     private static GDictionary GetDict(GDictionary source, string key)
@@ -2144,11 +2129,38 @@ internal sealed class BattleChargeResolver
         return value.AsGodotDictionary();
     }
 
+    private static IReadOnlyDictionary<string, Variant> GetVariantDictionary(
+        IReadOnlyDictionary<string, Variant> source,
+        string key
+    )
+    {
+        if (!TryResolveStringKey(source, key, out Variant value))
+        {
+            return SkillDefinition.CopyVariantMap(null);
+        }
+        return value.VariantType == Variant.Type.Dictionary
+            ? BattleRuntimeEffectDefinitions.CopyVariantDictionary(value.AsGodotDictionary())
+            : SkillDefinition.CopyVariantMap(null);
+    }
+
     private static int GetInt(GDictionary source, string key, int fallback = 0)
     {
         if (!TryResolveStringKey(source, key, out Variant value))
             return fallback;
         return value.AsInt32();
+    }
+
+    private static int GetInt(
+        IReadOnlyDictionary<string, Variant> source,
+        string key,
+        int fallback = 0
+    )
+    {
+        if (!TryResolveStringKey(source, key, out Variant value))
+        {
+            return fallback;
+        }
+        return TryReadInt(value, out int result) ? result : fallback;
     }
 
     private static int GetInt(GDictionary source, int key, int fallback = 0)
@@ -2166,6 +2178,20 @@ internal sealed class BattleChargeResolver
         return string.IsNullOrEmpty(result) || result == "<null>" ? fallback : result;
     }
 
+    private static string GetString(
+        IReadOnlyDictionary<string, Variant> source,
+        string key,
+        string fallback = ""
+    )
+    {
+        if (!TryResolveStringKey(source, key, out Variant value))
+        {
+            return fallback;
+        }
+        string result = value.ToString();
+        return string.IsNullOrEmpty(result) || result == "<null>" ? fallback : result;
+    }
+
     private static StringName GetStringName(GDictionary source, string key, StringName fallback = default)
     {
         if (!TryResolveStringKey(source, key, out Variant value))
@@ -2174,21 +2200,34 @@ internal sealed class BattleChargeResolver
         return result != "" ? result : fallback;
     }
 
+    private static StringName GetStringName(
+        IReadOnlyDictionary<string, Variant> source,
+        string key,
+        StringName fallback = default
+    )
+    {
+        if (!TryResolveStringKey(source, key, out Variant value))
+        {
+            return fallback;
+        }
+        StringName result = ProgressionDataUtils.to_string_name(value);
+        return result != "" ? result : fallback;
+    }
+
+    private static Variant GetVariant(
+        IReadOnlyDictionary<string, Variant> source,
+        string key,
+        Variant fallback = default
+    )
+    {
+        return TryResolveStringKey(source, key, out Variant value) ? value : fallback;
+    }
+
     private static Vector2I GetVector2I(GDictionary source, string key, Vector2I fallback)
     {
         if (!TryResolveStringKey(source, key, out Variant value))
             return fallback;
         return value.AsVector2I();
-    }
-
-    private static List<Vector2I> ToVector2IList(GVector2IArray values)
-    {
-        var result = new List<Vector2I>();
-        foreach (Vector2I coord in values ?? new GVector2IArray())
-        {
-            result.Add(coord);
-        }
-        return result;
     }
 
     private static bool TryResolveStringKey(GDictionary source, string key, out Variant value)
@@ -2204,6 +2243,51 @@ internal sealed class BattleChargeResolver
             return true;
         }
         return false;
+    }
+
+    private static bool TryResolveStringKey(
+        IReadOnlyDictionary<string, Variant> source,
+        string key,
+        out Variant value
+    )
+    {
+        value = default;
+        return source != null
+            && !string.IsNullOrEmpty(key)
+            && source.TryGetValue(key, out value);
+    }
+
+    private static int ReadDictionaryInt(
+        GDictionary source,
+        Variant key,
+        int fallback = 0
+    )
+    {
+        return source != null
+            && source.ContainsKey(key)
+            && TryReadInt(source[key], out int value)
+                ? value
+                : fallback;
+    }
+
+    private static bool TryReadInt(Variant value, out int result)
+    {
+        result = 0;
+        switch (value.VariantType)
+        {
+            case Variant.Type.Int:
+                result = value.AsInt32();
+                return true;
+            case Variant.Type.Float:
+                result = (int)value.AsDouble();
+                return true;
+            case Variant.Type.String:
+                return int.TryParse(value.AsString(), out result);
+            case Variant.Type.StringName:
+                return int.TryParse(value.AsStringName().ToString(), out result);
+            default:
+                return false;
+        }
     }
 
     private static bool TryResolveIntKey(GDictionary source, int key, out Variant value)

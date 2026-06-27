@@ -22,8 +22,8 @@ public partial class EnemyAiAction : Resource
 
     protected readonly BattleSkillResolutionRules _skill_resolution_rules =
         new BattleSkillResolutionRules();
-    private readonly Dictionary<StringName, CombatCastVariantDef> _implicitGroundOptionsBySkillId =
-        new();
+    private readonly Dictionary<StringName, CombatCastVariantDefinition>
+        _implicitGroundOptionDefinitionsBySkillId = new();
 
     internal virtual BattleAiDecision Decide(BattleAiContext context) => null;
 
@@ -52,15 +52,16 @@ public partial class EnemyAiAction : Resource
     }
 
     internal Godot.Collections.Array<string> ValidateSkillReferences(
-        Godot.Collections.Dictionary skillDefs
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
         var e = new Godot.Collections.Array<string>();
+        skillDefinitions ??= new Dictionary<StringName, SkillDefinition>();
         foreach (var sid in GetDeclaredSkillIds())
         {
             if (sid == "")
                 e.Add($"AI action {action_id} references an empty skill_id.");
-            else if (!skillDefs.ContainsKey(sid))
+            else if (!skillDefinitions.ContainsKey(sid))
                 e.Add($"AI action {action_id} references missing skill {sid}.");
         }
         return e;
@@ -154,19 +155,22 @@ public partial class EnemyAiAction : Resource
         return r;
     }
 
-    protected static SkillDef _get_skill_def(BattleAiContext context, StringName skillId) =>
-        context?.GetSkillDefTyped(skillId);
+    protected static SkillDefinition _get_skill_definition(
+        BattleAiContext context,
+        StringName skillId
+    ) =>
+        context?.GetSkillDefinitionTyped(skillId);
 
     protected BattleSkillCastBlockReasonKind _get_skill_cast_block_reason(
         BattleAiContext context,
-        SkillDef skillDef
+        SkillDefinition skillDefinition
     )
     {
-        if (context?.unit_state == null || skillDef?.combat_profile == null)
+        if (context?.unit_state == null || skillDefinition?.CombatProfile == null)
             return BattleSkillCastBlockReasonKind.InvalidSkillOrTarget;
         if (context.skill_cast_block_reason_callback == null)
             return BattleSkillCastBlockReasonKind.SkillCastCheckUnbound;
-        return context.skill_cast_block_reason_callback.Invoke(context.unit_state, skillDef);
+        return context.skill_cast_block_reason_callback.Invoke(context.unit_state, skillDefinition);
     }
 
     protected static BattlePreview _build_fast_typed_move_preview(
@@ -232,8 +236,8 @@ public partial class EnemyAiAction : Resource
 
     protected BattlePreview _build_fast_unit_skill_preview(
         BattleAiContext context,
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
         BattleCommand command,
         BattleUnitState targetUnit = null
     )
@@ -244,21 +248,22 @@ public partial class EnemyAiAction : Resource
         if (
             actor == null
             || state == null
-            || skillDef?.combat_profile == null
+            || skillDefinition?.CombatProfile == null
             || command == null
         )
         {
             return preview;
         }
 
-        CombatSkillDef combatProfile = skillDef.combat_profile as CombatSkillDef;
-        if (combatProfile == null)
-        {
-            return preview;
-        }
+        CombatSkillDefinition combatProfile = skillDefinition.CombatProfile;
         if (combatProfile.TargetSelectionModeKind == BattleTargetSelectionMode.RandomChain)
         {
-            return _build_fast_random_chain_skill_preview(context, skillDef, castVariant, command);
+            return _build_fast_random_chain_skill_preview(
+                context,
+                skillDefinition,
+                castVariant,
+                command
+            );
         }
 
         var targetIds = new Godot.Collections.Array<StringName>();
@@ -288,8 +293,13 @@ public partial class EnemyAiAction : Resource
             if (
                 candidate == null
                 || !candidate.is_alive
-                || !_matches_target_filter(context, candidate, combatProfile.target_team_filter)
-                || !_is_fast_unit_skill_target_in_range(context, actor, candidate, skillDef)
+                || !_matches_target_filter(context, candidate, combatProfile.TargetTeamFilter)
+                || !_is_fast_unit_skill_target_in_range(
+                    context,
+                    actor,
+                    candidate,
+                    skillDefinition
+                )
             )
             {
                 return preview;
@@ -315,31 +325,27 @@ public partial class EnemyAiAction : Resource
 
     protected BattlePreview _build_fast_random_chain_skill_preview(
         BattleAiContext context,
-        SkillDef skillDef,
-        CombatCastVariantDef _castVariant,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition _castVariant,
         BattleCommand _command
     )
     {
         var preview = new BattlePreview();
         BattleUnitState actor = context?.unit_state;
         BattleState state = context?.state;
-        if (actor == null || state == null || skillDef?.combat_profile == null)
+        if (actor == null || state == null || skillDefinition?.CombatProfile == null)
         {
             return preview;
         }
-        CombatSkillDef combatProfile = skillDef.combat_profile as CombatSkillDef;
-        if (combatProfile == null)
-        {
-            return preview;
-        }
+        CombatSkillDefinition combatProfile = skillDefinition.CombatProfile;
         foreach (BattleUnitState candidate in state.GetUnitsTyped())
         {
             if (
                 candidate == null
                 || candidate == actor
                 || !candidate.is_alive
-                || !_matches_target_filter(context, candidate, combatProfile.target_team_filter)
-                || !_is_fast_unit_skill_target_in_range(context, actor, candidate, skillDef)
+                || !_matches_target_filter(context, candidate, combatProfile.TargetTeamFilter)
+                || !_is_fast_unit_skill_target_in_range(context, actor, candidate, skillDefinition)
             )
             {
                 continue;
@@ -400,16 +406,21 @@ public partial class EnemyAiAction : Resource
         BattleAiContext context,
         BattleUnitState actor,
         BattleUnitState targetUnit,
-        SkillDef skillDef
+        SkillDefinition skillDefinition
     )
     {
-        if (context?.grid_service == null || actor == null || targetUnit == null || skillDef == null)
+        if (
+            context?.grid_service == null
+            || actor == null
+            || targetUnit == null
+            || skillDefinition == null
+        )
         {
             return false;
         }
         int effectiveRange = BattleRangeService.GetEffectiveSkillRange(
             actor,
-            skillDef,
+            skillDefinition,
             context.skill_catalog
         );
         return context.grid_service.GetDistanceBetweenUnits(actor, targetUnit) <= effectiveRange;
@@ -431,14 +442,14 @@ public partial class EnemyAiAction : Resource
 
     protected BattleAiScoreInput _build_typed_skill_score_input(
         BattleAiContext context,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BattleCommand command,
         BattlePreview preview,
-        IEnumerable<CombatEffectDef> effectDefs = null,
+        IEnumerable<CombatEffectDefinition> effectDefinitions = null,
         IReadOnlyDictionary<string, object> metadata = null
     )
     {
-        if (context == null)
+        if (context == null || skillDefinition == null)
             return null;
         var scoreMetadata = _clone_metadata_typed(metadata);
         scoreMetadata["score_bucket_id"] = score_bucket_id;
@@ -449,12 +460,14 @@ public partial class EnemyAiAction : Resource
         );
         scoreMetadata["action_intent"] = _resolve_metadata_action_intent_typed(
             scoreMetadata,
-            _resolve_default_skill_action_intent_typed(skillDef, effectDefs)
+            _resolve_default_skill_action_intent_typed(skillDefinition, effectDefinitions)
         );
         scoreMetadata["action_label"] = _read_metadata_string_typed(
             scoreMetadata,
             "action_label",
-            skillDef != null ? skillDef.display_name : action_id.ToString()
+            !string.IsNullOrEmpty(skillDefinition.DisplayName)
+                ? skillDefinition.DisplayName
+                : action_id.ToString()
         );
         scoreMetadata = _merge_runtime_action_trace_metadata_typed(context, scoreMetadata);
         scoreMetadata["score_bucket_id"] = _read_metadata_string_name_typed(
@@ -463,10 +476,10 @@ public partial class EnemyAiAction : Resource
             score_bucket_id
         );
         return context.BuildSkillScoreInputTyped(
-            skillDef,
+            skillDefinition,
             command,
             preview,
-            effectDefs,
+            effectDefinitions,
             scoreMetadata
         );
     }
@@ -651,19 +664,6 @@ public partial class EnemyAiAction : Resource
             skillVariantId
         );
 
-    protected static Godot.Collections.Array ToCombatEffectArray(
-        IEnumerable<CombatEffectDef> effectDefs
-    )
-    {
-        var result = new Godot.Collections.Array();
-        foreach (CombatEffectDef effectDef in effectDefs ?? System.Array.Empty<CombatEffectDef>())
-        {
-            if (effectDef != null)
-                result.Add(effectDef);
-        }
-        return result;
-    }
-
     protected static BattleCommand _build_typed_ground_skill_command(
         BattleAiContext context,
         StringName skillId,
@@ -762,8 +762,8 @@ public partial class EnemyAiAction : Resource
     }
 
     protected virtual StringName _resolve_default_skill_action_intent_typed(
-        SkillDef skillDef,
-        IEnumerable<CombatEffectDef> effectDefs
+        SkillDefinition skillDefinition,
+        IEnumerable<CombatEffectDefinition> effectDefinitions
     )
     {
         if (
@@ -773,7 +773,7 @@ public partial class EnemyAiAction : Resource
         {
             return action_intent;
         }
-        return BattleAiActionIntent.InferForSkill(skillDef, effectDefs);
+        return BattleAiActionIntent.InferForSkill(skillDefinition, effectDefinitions);
     }
 
     protected virtual StringName _resolve_default_action_intent_typed(StringName actionKind)
@@ -1025,13 +1025,20 @@ public partial class EnemyAiAction : Resource
             var sid = ProgressionDataUtils.to_string_name(rsi);
             if (sid == "")
                 continue;
-            SkillDef sd = _get_skill_def(context, sid);
-            if (!_is_hostile_threat_skill(sd))
+            SkillDefinition skillDefinition = _get_skill_definition(context, sid);
+            if (!_is_hostile_threat_skill(skillDefinition))
                 continue;
-            if (!_skill_has_tag(sd, "melee") && !_skill_has_tag(sd, "weapon"))
+            if (
+                !_skill_has_tag(skillDefinition, "melee")
+                && !_skill_has_tag(skillDefinition, "weapon")
+            )
                 continue;
-            int er = BattleRangeService.GetEffectiveSkillRange(tu, sd, context.skill_catalog);
-            if (er <= 0 && _skill_has_tag(sd, "melee"))
+            int er = BattleRangeService.GetEffectiveSkillRange(
+                tu,
+                skillDefinition,
+                context.skill_catalog
+            );
+            if (er <= 0 && _skill_has_tag(skillDefinition, "melee"))
                 er = 1;
             if (er > _profile_int(
                 context,
@@ -1117,7 +1124,7 @@ public partial class EnemyAiAction : Resource
 
     protected int _resolve_effective_attack_range(
         BattleAiContext context,
-        SkillDef skillDef = null,
+        SkillDefinition skillDefinition,
         Godot.Collections.Array<StringName> rangeSkillIds = null
     )
     {
@@ -1125,21 +1132,21 @@ public partial class EnemyAiAction : Resource
         if (context?.unit_state == null)
             return -1;
         BattleUnitState us = context.unit_state;
-        if (skillDef != null)
+        if (skillDefinition != null)
             return BattleRangeService.GetEffectiveSkillDistanceContractRange(
                 us,
-                skillDef,
+                skillDefinition,
                 context.skill_catalog
             );
         int br = -1;
         foreach (var sid in _resolve_known_skill_ids(context, rangeSkillIds))
         {
-            var csd = _get_skill_def(context, sid);
-            if (csd?.combat_profile == null)
+            SkillDefinition candidateSkill = _get_skill_definition(context, sid);
+            if (candidateSkill?.CombatProfile == null)
                 continue;
             if (
                 BattleSkillCastBlockReasonKinds.IsBlocked(
-                    _get_skill_cast_block_reason(context, csd)
+                    _get_skill_cast_block_reason(context, candidateSkill)
                 )
             )
                 continue;
@@ -1147,7 +1154,7 @@ public partial class EnemyAiAction : Resource
                 br,
                 BattleRangeService.GetEffectiveSkillDistanceContractRange(
                     us,
-                    csd,
+                    candidateSkill,
                     context.skill_catalog
                 )
             );
@@ -1157,14 +1164,18 @@ public partial class EnemyAiAction : Resource
 
     protected Dictionary<string, object> _resolve_desired_distance_contract_typed(
         BattleAiContext context,
-        SkillDef skillDef = null,
+        SkillDefinition skillDefinition,
         Godot.Collections.Array<StringName> rangeSkillIds = null
     )
     {
         rangeSkillIds ??= new Godot.Collections.Array<StringName>();
         int configuredMinDistance = Get("desired_min_distance").AsInt32();
         int configuredMaxDistance = Get("desired_max_distance").AsInt32();
-        int effectiveAttackRange = _resolve_effective_attack_range(context, skillDef, rangeSkillIds);
+        int effectiveAttackRange = _resolve_effective_attack_range(
+            context,
+            skillDefinition,
+            rangeSkillIds
+        );
         int resolvedMaxDistance = configuredMaxDistance;
         if (effectiveAttackRange >= 0)
             resolvedMaxDistance = effectiveAttackRange;
@@ -1203,12 +1214,16 @@ public partial class EnemyAiAction : Resource
             var sid = ProgressionDataUtils.to_string_name(rsi);
             if (sid == "")
                 continue;
-            SkillDef sd = _get_skill_def(context, sid);
-            if (!_is_hostile_threat_skill(sd))
+            SkillDefinition skillDefinition = _get_skill_definition(context, sid);
+            if (!_is_hostile_threat_skill(skillDefinition))
                 continue;
             br = Mathf.Max(
                 br,
-                BattleRangeService.GetEffectiveSkillThreatRange(tu, sd, context.skill_catalog)
+                BattleRangeService.GetEffectiveSkillThreatRange(
+                    tu,
+                    skillDefinition,
+                    context.skill_catalog
+                )
             );
         }
         if (br < 0)
@@ -1245,54 +1260,60 @@ public partial class EnemyAiAction : Resource
         return bt;
     }
 
-    protected static bool _is_hostile_threat_skill(SkillDef sd)
+    protected static bool _is_hostile_threat_skill(SkillDefinition skillDefinition)
     {
-        if (sd?.combat_profile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (combatProfile == null)
             return false;
-        var cp = sd.combat_profile as CombatSkillDef;
-        BattleTargetFilter targetFilter = cp.TargetFilterKind;
+        BattleTargetFilter targetFilter = combatProfile.TargetFilterKind;
         if (
             targetFilter == BattleTargetFilter.Ally
             || targetFilter == BattleTargetFilter.Self
         )
             return false;
         if (
-            _skill_has_tag(sd, "output")
-            || _skill_has_tag(sd, "melee")
-            || _skill_has_tag(sd, "bow")
-            || _skill_has_tag(sd, "weapon")
+            _skill_has_tag(skillDefinition, "output")
+            || _skill_has_tag(skillDefinition, "melee")
+            || _skill_has_tag(skillDefinition, "bow")
+            || _skill_has_tag(skillDefinition, "weapon")
         )
             return true;
-        if (_effect_list_has_hostile_threat(cp.effect_defs))
+        if (_effect_list_has_hostile_threat(combatProfile.EffectDefinitions))
             return true;
-        foreach (var cv in cp.cast_variants)
+        foreach (CombatCastVariantDefinition castVariant in combatProfile.CastVariants)
         {
-            if (cv != null && _effect_list_has_hostile_threat(cv.effect_defs))
+            if (
+                castVariant != null
+                && _effect_list_has_hostile_threat(castVariant.EffectDefinitions)
+            )
                 return true;
         }
         return false;
     }
 
-    protected static bool _skill_has_tag(SkillDef sd, StringName et)
+    protected static bool _skill_has_tag(SkillDefinition skillDefinition, StringName expectedTag)
     {
-        if (sd == null || et == "")
+        if (skillDefinition == null || expectedTag == "")
             return false;
-        foreach (StringName tag in sd.TagsTyped)
-            if (tag == et)
+        foreach (StringName tag in skillDefinition.Tags)
+            if (tag == expectedTag)
                 return true;
         return false;
     }
 
     protected static bool _effect_list_has_hostile_threat(
-        Godot.Collections.Array<CombatEffectDef> eds
+        IEnumerable<CombatEffectDefinition> effectDefinitions
     )
     {
-        foreach (var ed in eds)
+        foreach (
+            CombatEffectDefinition effectDefinition in effectDefinitions
+                ?? System.Array.Empty<CombatEffectDefinition>()
+        )
         {
-            if (ed == null)
+            if (effectDefinition == null)
                 continue;
             if (
-                ed.EffectKind
+                effectDefinition.EffectKind
                 is BattleEffectKind.Damage
                     or BattleEffectKind.ChainDamage
                     or BattleEffectKind.Charge
@@ -1305,147 +1326,82 @@ public partial class EnemyAiAction : Resource
         return false;
     }
 
-    protected Godot.Collections.Array _get_ground_options(BattleAiContext context, SkillDef sd)
-    {
-        return ToCastVariantArray(_get_ground_options_typed(context, sd));
-    }
-
-    protected List<CombatCastVariantDef> _get_ground_options_typed(
+    protected List<CombatCastVariantDefinition> _get_ground_option_definitions(
         BattleAiContext context,
-        SkillDef sd
+        SkillDefinition skillDefinition
     )
     {
-        var v = new List<CombatCastVariantDef>();
-        if (
-            sd?.combat_profile == null
-            || (sd.combat_profile as CombatSkillDef).TargetModeKind != BattleTargetMode.Ground
-        )
-            return v;
-        var cp = sd.combat_profile as CombatSkillDef;
-        if (cp.cast_variants.Count == 0)
+        var options = new List<CombatCastVariantDefinition>();
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (combatProfile == null || combatProfile.TargetModeKind != BattleTargetMode.Ground)
+            return options;
+        if (combatProfile.CastVariants.Count == 0)
         {
-            v.Add(_build_implicit_ground_option(sd));
-            return v;
+            options.Add(_build_implicit_ground_option_definition(skillDefinition));
+            return options;
         }
-        int sl = _get_skill_level(
-            context?.unit_state,
-            sd.skill_id
-        );
-        SkillEffectiveCombatProfile effectiveProfile =
-            SkillEffectiveCombatProfileResolver.Resolve(context?.skill_catalog, sd, sl);
-        foreach (var cv in effectiveProfile.UnlockedCastVariants)
+        int skillLevel = _get_skill_level(context?.unit_state, skillDefinition.SkillId);
+        SkillEffectiveCombatDefinition effectiveDefinition =
+            context?.skill_catalog?.GetEffectiveCombatDefinition(
+                skillDefinition.SkillId,
+                skillLevel
+            ) ?? SkillEffectiveCombatDefinition.BuildUncached(skillDefinition, skillLevel);
+        foreach (CombatCastVariantDefinition castVariant in effectiveDefinition.UnlockedCastVariants)
         {
-            if (cv != null)
-                v.Add(cv);
-        }
-        return v;
-    }
-
-    protected static Godot.Collections.Array ToCastVariantArray(
-        IEnumerable<CombatCastVariantDef> castVariants
-    )
-    {
-        var result = new Godot.Collections.Array();
-        if (castVariants == null)
-            return result;
-        foreach (CombatCastVariantDef castVariant in castVariants)
             if (castVariant != null)
-                result.Add(castVariant);
-        return result;
+                options.Add(castVariant);
+        }
+        return options;
     }
 
-    protected CombatCastVariantDef _build_implicit_ground_option(SkillDef sd)
+    protected CombatCastVariantDefinition _build_implicit_ground_option_definition(
+        SkillDefinition skillDefinition
+    )
     {
-        StringName skillId = ProgressionDataUtils.to_string_name(sd?.skill_id ?? "");
+        StringName skillId = ProgressionDataUtils.to_string_name(
+            skillDefinition?.SkillId ?? new StringName("")
+        );
         if (
             skillId != ""
-            && _implicitGroundOptionsBySkillId.TryGetValue(
+            && _implicitGroundOptionDefinitionsBySkillId.TryGetValue(
                 skillId,
-                out CombatCastVariantDef cachedOption
+                out CombatCastVariantDefinition cachedOption
             )
         )
         {
             return cachedOption;
         }
 
-        var effects = new Godot.Collections.Array<CombatEffectDef>();
-        if (sd?.combat_profile is CombatSkillDef profile)
-            foreach (var effect in profile.effect_defs)
-                if (effect != null)
-                    effects.Add(effect);
-        var cv = new CombatCastVariantDef
-        {
-            variant_id = "",
-            display_name = "",
-            TargetModeKind = BattleTargetMode.Ground,
-            FootprintPatternKind = CombatCastFootprintPattern.Single,
-            required_coord_count = 1,
-            effect_defs = effects,
-        };
-        string derivedKey = skillId == "" ? "anonymous_ground_skill" : skillId.ToString();
-        RegisterImplicitGroundOptionOwnership(cv, effects, derivedKey);
-        if (skillId != "")
-            _implicitGroundOptionsBySkillId[skillId] = cv;
-        return cv;
-    }
-
-    private void RegisterImplicitGroundOptionOwnership(
-        CombatCastVariantDef castVariant,
-        Godot.Collections.Array<CombatEffectDef> effects,
-        string derivedKey
-    )
-    {
-        string key = $"enemy_ai_action:{action_id}:implicit_ground_option:{derivedKey}";
-        if (GodotContentOwnership.IsStaticContent(this))
-        {
-            GodotContentOwnership.RegisterDerivedContent(
-                castVariant,
-                key,
-                "EnemyAiAction._build_implicit_ground_option"
-            );
-            return;
-        }
-
-        if (GodotWrapperOwnershipRegistry.IsOwnedTransient(this))
-        {
-            RegisterRuntimeOwnedImplicitGroundWrapper(
-                effects,
-                $"{key}:effects"
-            );
-            RegisterRuntimeOwnedImplicitGroundWrapper(
-                castVariant,
-                key
-            );
-            return;
-        }
-
-        LifecycleViolation.Report(
-            $"EnemyAiAction implicit ground option requires known action ownership. action_id={action_id}, skill={derivedKey}"
+        CombatSkillDefinition profile = skillDefinition?.CombatProfile;
+        var option = new CombatCastVariantDefinition(
+            "",
+            "",
+            "",
+            0,
+            BattleTypedNames.ToStringName(BattleTargetMode.Ground),
+            CombatSkillTargetingContentRules.ToFootprintPatternId(
+                CombatCastFootprintPattern.Single
+            ),
+            1,
+            System.Array.Empty<StringName>(),
+            profile?.EffectDefinitions ?? System.Array.Empty<CombatEffectDefinition>(),
+            null
         );
+        if (skillId != "")
+            _implicitGroundOptionDefinitionsBySkillId[skillId] = option;
+        return option;
     }
 
-    private void RegisterRuntimeOwnedImplicitGroundWrapper(object wrapper, string reason)
+    protected static bool _is_charge_option(CombatCastVariantDefinition castVariant)
     {
-        if (wrapper == null)
-            return;
-        if (
-            GodotWrapperOwnershipRegistry.Register(
-                wrapper,
-                GodotWrapperOwnershipKind.OwnedTransientRuntime,
-                this,
-                $"EnemyAiAction._build_implicit_ground_option:{reason}"
-            )
-        )
-            GodotWrapperOwnershipRegistry.SuppressWrapper(wrapper);
-    }
-
-    protected static bool _is_charge_option(CombatCastVariantDef cv)
-    {
-        if (cv == null)
+        if (castVariant == null)
             return false;
-        foreach (var ed in cv.effect_defs)
+        foreach (
+            CombatEffectDefinition effectDefinition in castVariant.EffectDefinitions
+                ?? System.Array.Empty<CombatEffectDefinition>()
+        )
         {
-            if (ed != null && ed.EffectKind == BattleEffectKind.Charge)
+            if (effectDefinition != null && effectDefinition.EffectKind == BattleEffectKind.Charge)
                 return true;
         }
         return false;
@@ -1453,44 +1409,44 @@ public partial class EnemyAiAction : Resource
 
     protected List<List<Vector2I>> _enumerate_ground_target_coord_sets_typed(
         BattleAiContext context,
-        CombatCastVariantDef cv
+        CombatCastVariantDefinition castVariant
     )
     {
-        var r = new List<List<Vector2I>>();
+        var result = new List<List<Vector2I>>();
         if (
             context?.state == null
             || context?.grid_service == null
-            || cv == null
+            || castVariant == null
         )
-            return r;
+            return result;
         BattleState state = context.state;
-        BattleGridService gs = context.grid_service;
+        BattleGridService gridService = context.grid_service;
         var seen = new HashSet<string>();
-        if (cv.FootprintPatternKind == CombatCastFootprintPattern.Line2)
+        if (castVariant.FootprintPatternKind == CombatCastFootprintPattern.Line2)
         {
             for (int y = 0; y < state.map_size.Y; y++)
             for (int x = 0; x < state.map_size.X; x++)
             {
-                var f = new Vector2I(x, y);
-                foreach (var d in new[] { Vector2I.Right, Vector2I.Down })
+                var first = new Vector2I(x, y);
+                foreach (Vector2I direction in new[] { Vector2I.Right, Vector2I.Down })
                 {
-                    var s = f + d;
-                    if (!gs.IsInside(state, s))
+                    Vector2I second = first + direction;
+                    if (!gridService.IsInside(state, second))
                         continue;
-                    var pair = _sort_coords(new[] { f, s });
-                    var k = _coord_set_key(pair);
-                    if (!seen.Add(k))
+                    List<Vector2I> pair = _sort_coords(new[] { first, second });
+                    string key = _coord_set_key(pair);
+                    if (!seen.Add(key))
                         continue;
-                    r.Add(pair);
+                    result.Add(pair);
                 }
             }
         }
-        else if (cv.FootprintPatternKind == CombatCastFootprintPattern.Square2)
+        else if (castVariant.FootprintPatternKind == CombatCastFootprintPattern.Square2)
         {
             for (int y = 0; y < Mathf.Max(state.map_size.Y - 1, 0); y++)
             for (int x = 0; x < Mathf.Max(state.map_size.X - 1, 0); x++)
             {
-                var coords = _sort_coords(
+                List<Vector2I> coords = _sort_coords(
                     new Vector2I[]
                     {
                         new(x, y),
@@ -1499,19 +1455,19 @@ public partial class EnemyAiAction : Resource
                         new(x + 1, y + 1),
                     }
                 );
-                var k = _coord_set_key(coords);
-                if (!seen.Add(k))
+                string key = _coord_set_key(coords);
+                if (!seen.Add(key))
                     continue;
-                r.Add(coords);
+                result.Add(coords);
             }
         }
         else
         {
             for (int y = 0; y < state.map_size.Y; y++)
             for (int x = 0; x < state.map_size.X; x++)
-                r.Add(new List<Vector2I> { new(x, y) });
+                result.Add(new List<Vector2I> { new(x, y) });
         }
-        return r;
+        return result;
     }
 
     protected static List<Vector2I> _sort_coords(IEnumerable<Vector2I> coords)
@@ -1680,8 +1636,11 @@ public partial class EnemyAiAction : Resource
             extra
         );
 
-    protected static string _format_skill_variant_label(SkillDef sd, CombatCastVariantDef cv) =>
-        EnemyAiActionHelper.FormatSkillVariantLabel(sd, cv);
+    protected static string _format_skill_variant_label(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
+    ) =>
+        EnemyAiActionHelper.FormatSkillVariantLabel(skillDefinition, castVariant);
 
     protected static AiCommandSummary _build_command_summary(BattleCommand command) =>
         EnemyAiActionHelper.BuildCommandSummary(command);

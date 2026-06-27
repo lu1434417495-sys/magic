@@ -28,8 +28,14 @@ public partial class run_battle_effect_category_resolver_contract_regression : S
 
     private void TestCategoryFieldsAreFormalSchema()
     {
-        var combatProfile = new CombatSkillDef();
-        var effect = new CombatEffectDef();
+        var combatProfile = TestResourceOwnership.Own(
+            new CombatSkillDef(),
+            "BattleEffectCategoryResolverContract.combat-profile"
+        );
+        var effect = TestResourceOwnership.Own(
+            new CombatEffectDef(),
+            "BattleEffectCategoryResolverContract.effect"
+        );
 
         _test.True(
             combatProfile.delivery_categories != null,
@@ -43,13 +49,58 @@ public partial class run_battle_effect_category_resolver_contract_regression : S
 
     private void TestResolverUsesExplicitDeliveryAndEffectCategories()
     {
-        SkillDef skill = BuildSkill(
+        SkillDefinition skill = BuildSkill(
             "contract_explicit_categories",
             new[] { new StringName("spell"), new StringName("projectile") }
         );
-        var effect = new CombatEffectDef();
-        effect.effect_categories.Add(new StringName("force_effect"));
-        effect.effect_categories.Add(new StringName("mental_attack"));
+        var effect = new CombatEffectDefinition(
+            effectType: default,
+            effectTargetTeamFilter: default,
+            statusId: default,
+            saveFailureStatusId: default,
+            terrainEffectId: default,
+            terrainReplaceTo: default,
+            heightDelta: 0,
+            requiresWeapon: false,
+            addWeaponDice: false,
+            preventRepeatTarget: false,
+            forcedMoveMode: default,
+            minSkillLevel: 0,
+            maxSkillLevel: -1,
+            damageTag: default,
+            damageRatioPercent: 100,
+            preResistanceDamageMultiplier: 1.0,
+            bonusCondition: default,
+            hpRatioThresholdPercent: 0,
+            damageCategory: default,
+            drBypassTag: default,
+            diceCount: 0,
+            diceSides: 0,
+            diceBonus: 0,
+            bonusDamageDiceCount: 0,
+            bonusDamageDiceSides: 0,
+            bonusDamageDiceBonus: 0,
+            saveDc: 0,
+            saveDcMode: default,
+            saveDcSourceAbility: default,
+            saveAbility: default,
+            savePartialOnSuccess: false,
+            saveTag: default,
+            thresholdBaseValue: 0,
+            thresholdLevelAnchor: 0,
+            thresholdLevelBonusPerDelta: 0,
+            thresholdMaxHpRatioPercent: 0,
+            thresholdCapMaxHpRatioPercent: 0,
+            soulFractureDurationTu: 0,
+            healMultiplierPercent: 0,
+            shieldGainMultiplierPercent: 0,
+            appliedStatusDurationTu: 0,
+            durationTu: 0,
+            tickIntervalTu: 0,
+            effectTags: Array.Empty<StringName>(),
+            parameters: null,
+            effectCategories: new[] { new StringName("force_effect"), new StringName("mental_attack") }
+        );
 
         var categories = BattleEffectCategoryResolver.ResolveCategories(
             skill,
@@ -76,8 +127,11 @@ public partial class run_battle_effect_category_resolver_contract_regression : S
 
     private void TestResolverIgnoresLegacyParamsBarrierCategories()
     {
-        SkillDef skill = BuildSkill("contract_legacy_params", Array.Empty<StringName>());
-        var effect = new CombatEffectDef();
+        SkillDefinition skill = BuildSkill("contract_legacy_params", Array.Empty<StringName>());
+        var effect = TestResourceOwnership.Own(
+            new CombatEffectDef(),
+            "BattleEffectCategoryResolverContract.legacy-params-effect"
+        );
         effect.@params = new Godot.Collections.Dictionary
         {
             ["barrier_categories"] = new Godot.Collections.Array<StringName>
@@ -87,7 +141,10 @@ public partial class run_battle_effect_category_resolver_contract_regression : S
             },
         };
 
-        var categories = BattleEffectCategoryResolver.ResolveCategories(skill, new[] { effect });
+        var categories = BattleEffectCategoryResolver.ResolveCategories(
+            skill,
+            new[] { CombatEffectDefinition.FromResource(effect) }
+        );
 
         _test.False(
             ContainsCategory(categories, "spell"),
@@ -101,14 +158,13 @@ public partial class run_battle_effect_category_resolver_contract_regression : S
 
     private void TestResolverDoesNotGuessFromSkillIdOrTags()
     {
-        var skill = new SkillDef
-        {
-            skill_id = "mage_arcane_missile_detect_breath",
-            display_name = "Misleading Contract Skill",
-            combat_profile = new CombatSkillDef(),
-        };
-        skill.SetTags(
-            new[]
+        SkillDefinition skill = TestSkillDefinitionProjection.BuildSkill(
+            "mage_arcane_missile_detect_breath",
+            displayName: "Misleading Contract Skill",
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                "mage_arcane_missile_detect_breath"
+            ),
+            tags: new[]
             {
                 new StringName("mage"),
                 new StringName("magic"),
@@ -120,7 +176,7 @@ public partial class run_battle_effect_category_resolver_contract_regression : S
 
         var categories = BattleEffectCategoryResolver.ResolveCategories(
             skill,
-            Array.Empty<CombatEffectDef>()
+            Array.Empty<CombatEffectDefinition>()
         );
 
         _test.False(
@@ -141,20 +197,16 @@ public partial class run_battle_effect_category_resolver_contract_regression : S
         );
     }
 
-    private static SkillDef BuildSkill(StringName skillId, StringName[] deliveryCategories)
+    private static SkillDefinition BuildSkill(StringName skillId, StringName[] deliveryCategories)
     {
-        var combatProfile = new CombatSkillDef { skill_id = skillId };
-        foreach (StringName category in deliveryCategories)
-        {
-            combatProfile.delivery_categories.Add(category);
-        }
-
-        return new SkillDef
-        {
-            skill_id = skillId,
-            display_name = skillId.ToString(),
-            combat_profile = combatProfile,
-        };
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: skillId.ToString(),
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                deliveryCategories: deliveryCategories
+            )
+        );
     }
 
     private static bool ContainsCategory(

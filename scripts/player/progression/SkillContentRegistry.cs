@@ -105,7 +105,19 @@ public class SkillContentRegistry : System.IDisposable
     private static readonly StringName[] PracticeTrackTags = { "meditation", "cultivation" };
 
     public Dictionary _skill_defs { get; set; } = new();
-    public Array<string> _validation_errors { get; set; } = new();
+    private readonly List<string> _validationErrors = new();
+    public Array<string> _validation_errors
+    {
+        get => ToGodotStringArray(_validationErrors);
+        set
+        {
+            _validationErrors.Clear();
+            if (value == null)
+                return;
+            foreach (string error in value)
+                _validationErrors.Add(error);
+        }
+    }
     private bool _disposed;
 
     private readonly record struct EquipmentDurabilityDamageValidationParameters(
@@ -157,7 +169,7 @@ public class SkillContentRegistry : System.IDisposable
         }
         _disposed = true;
         _skill_defs.Clear();
-        _validation_errors.Clear();
+        _validationErrors.Clear();
     }
 
     public void Rebuild()
@@ -168,12 +180,17 @@ public class SkillContentRegistry : System.IDisposable
     public void LoadFromDirectory(string directoryPath)
     {
         _skill_defs.Clear();
-        _validation_errors.Clear();
+        _validationErrors.Clear();
         ScanDirectory(directoryPath);
-        AppendArray(_validation_errors, CollectValidationErrors());
+        AppendArray(_validationErrors, CollectValidationErrors());
     }
 
-    internal IReadOnlyDictionary<StringName, SkillDef> GetSkillDefsTyped()
+    internal Dictionary DuplicateSkillResourceBucketForProgressionRegistry()
+    {
+        return _skill_defs.Duplicate();
+    }
+
+    private IReadOnlyDictionary<StringName, SkillDef> BuildSkillDefIndex()
     {
         var result = new System.Collections.Generic.Dictionary<StringName, SkillDef>();
         foreach (Variant key in _skill_defs.Keys)
@@ -191,10 +208,15 @@ public class SkillContentRegistry : System.IDisposable
         return result;
     }
 
+    internal IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionsTyped()
+    {
+        return SkillDefinition.ProjectIndex(BuildSkillDefIndex());
+    }
+
     public Array<string> Validate()
     {
         var copy = new Array<string>();
-        foreach (string error in _validation_errors)
+        foreach (string error in _validationErrors)
             copy.Add(error);
         return copy;
     }
@@ -203,14 +225,14 @@ public class SkillContentRegistry : System.IDisposable
     {
         if (!DirAccess.DirExistsAbsolute(ProjectSettings.GlobalizePath(directoryPath)))
         {
-            _validation_errors.Add($"SkillContentRegistry could not find {directoryPath}.");
+            _validationErrors.Add($"SkillContentRegistry could not find {directoryPath}.");
             return;
         }
 
         DirAccess directory = DirAccess.Open(directoryPath);
         if (directory == null)
         {
-            _validation_errors.Add($"SkillContentRegistry could not open {directoryPath}.");
+            _validationErrors.Add($"SkillContentRegistry could not open {directoryPath}.");
             return;
         }
 
@@ -248,12 +270,12 @@ public class SkillContentRegistry : System.IDisposable
         var resource = GD.Load<Resource>(resourcePath);
         if (resource == null)
         {
-            _validation_errors.Add($"Failed to load skill config {resourcePath}.");
+            _validationErrors.Add($"Failed to load skill config {resourcePath}.");
             return;
         }
         if (resource is not SkillDef skillDef)
         {
-            _validation_errors.Add($"Skill config {resourcePath} is not a SkillDef.");
+            _validationErrors.Add($"Skill config {resourcePath} is not a SkillDef.");
             return;
         }
         GodotContentOwnership.RegisterBorrowedContent(skillDef, resourcePath);
@@ -262,12 +284,12 @@ public class SkillContentRegistry : System.IDisposable
 
         if (skillDef.skill_id == "")
         {
-            _validation_errors.Add($"Skill config {resourcePath} is missing skill_id.");
+            _validationErrors.Add($"Skill config {resourcePath} is missing skill_id.");
             return;
         }
         if (_skill_defs.ContainsKey(skillDef.skill_id))
         {
-            _validation_errors.Add($"Duplicate skill_id registered: {skillDef.skill_id}");
+            _validationErrors.Add($"Duplicate skill_id registered: {skillDef.skill_id}");
             return;
         }
 
@@ -347,6 +369,20 @@ public class SkillContentRegistry : System.IDisposable
             errors.Add($"Skill {skillId} is active but missing combat_profile.");
         AppendPracticeSkillValidationErrors(errors, skillId, skillDef);
         AppendAttributeGrowthValidationErrors(errors, skillId, skillDef);
+        AppendRawIntRequirementEntryErrors(
+            errors,
+            skillId,
+            skillDef.SkillLevelRequirementEntriesTyped,
+            "skill_level_requirements",
+            "skill_id"
+        );
+        AppendRawIntRequirementEntryErrors(
+            errors,
+            skillId,
+            skillDef.AttributeRequirementEntriesTyped,
+            "attribute_requirements",
+            "attribute_id"
+        );
         foreach (
             string error in SkillLevelDescriptionContentRules.CollectValidationErrors(
                 skillId,
@@ -427,6 +463,37 @@ public class SkillContentRegistry : System.IDisposable
             errors.Add(
                 $"Skill {skillId} dynamic_max_level_per_stat must not be 0 when dynamic_max_level_stat_id is set."
             );
+    }
+
+    private static void AppendRawIntRequirementEntryErrors(
+        Array<string> errors,
+        StringName skillId,
+        IReadOnlyList<SkillDef.IntRequirementEntryData> entries,
+        string contextLabel,
+        string idLabel
+    )
+    {
+        foreach (SkillDef.IntRequirementEntryData entry in entries ?? System.Array.Empty<SkillDef.IntRequirementEntryData>())
+        {
+            if (!entry.HasStringLikeKey)
+            {
+                errors.Add(
+                    $"Skill {skillId} has a non-string {idLabel} key {entry.RawKeyLabel} in {contextLabel}."
+                );
+                continue;
+            }
+            if (!entry.HasNonEmptyKey)
+            {
+                errors.Add($"Skill {skillId} has an empty {idLabel} in {contextLabel}.");
+                continue;
+            }
+            if (!entry.HasStrictIntAmount)
+            {
+                errors.Add(
+                    $"Skill {skillId} requires integer value for {entry.RequirementId} in {contextLabel}."
+                );
+            }
+        }
     }
 
     public void AppendAttributeGrowthValidationErrors(
@@ -2197,9 +2264,9 @@ public class SkillContentRegistry : System.IDisposable
             errors.Add(
                 $"Skill {skillId} jump effect in {contextLabel} must have forced_move_distance >= 0 (0 = no max_range cap)."
             );
-        if (effectDef.jump_arc_ratio < CombatEffectDef.MIN_JUMP_ARC_RATIO())
+        if (effectDef.jump_arc_ratio < CombatEffectContentRules.MinJumpArcRatio)
             errors.Add(
-                $"Skill {skillId} jump effect in {contextLabel} requires jump_arc_ratio >= {CombatEffectDef.MIN_JUMP_ARC_RATIO():0.00}; jump must lift the unit."
+                $"Skill {skillId} jump effect in {contextLabel} requires jump_arc_ratio >= {CombatEffectContentRules.MinJumpArcRatio:0.00}; jump must lift the unit."
             );
         if (effectDef.jump_arc_ratio > 1.0)
             errors.Add(
@@ -2758,7 +2825,7 @@ public class SkillContentRegistry : System.IDisposable
         bool hasTemporalRelease = false;
         foreach ((CombatEffectDef effect, string _) in labeledEffects)
         {
-            if (BattleTemporalStatusService.IsTemporalReleaseEffect(effect))
+            if (IsTemporalReleaseEffectResource(effect))
             {
                 hasTemporalRelease = true;
                 break;
@@ -2768,12 +2835,18 @@ public class SkillContentRegistry : System.IDisposable
             return;
         foreach ((CombatEffectDef effect, string label) in labeledEffects)
         {
-            if (effect == null || BattleTemporalStatusService.IsTemporalReleaseEffect(effect))
+            if (effect == null || IsTemporalReleaseEffectResource(effect))
                 continue;
             errors.Add(
                 $"Skill {skillId} {label} cannot mix {effect.effect_type} with temporal release effects; temporal release skills must stay temporal-only."
             );
         }
+    }
+
+    private static bool IsTemporalReleaseEffectResource(CombatEffectDef effectDef)
+    {
+        CombatEffectDefinition effectDefinition = CombatEffectDefinition.FromResource(effectDef);
+        return BattleTemporalStatusService.IsTemporalReleaseEffect(effectDefinition);
     }
 
     private static bool IsIdentityLearnSource(StringName learnSource)
@@ -3033,9 +3106,19 @@ public class SkillContentRegistry : System.IDisposable
         return null;
     }
 
-    private static void AppendArray(Array<string> target, Array<string> source)
+    private static void AppendArray(List<string> target, Array<string> source)
     {
         foreach (string value in source)
             target.Add(value);
+    }
+
+    private static Array<string> ToGodotStringArray(IEnumerable<string> values)
+    {
+        var result = new Array<string>();
+        if (values == null)
+            return result;
+        foreach (string value in values)
+            result.Add(value);
+        return result;
     }
 }

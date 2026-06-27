@@ -30,17 +30,17 @@ public partial class run_battle_terrain_lifetime_regression : SceneTree
         runtime.SetupStateForTests(state);
         var batch = new BattleEventBatch();
 
-        CombatEffectDef coreCrater = BuildTerrainEffect(
+        CombatEffectDefinition coreCrater = BuildTerrainEffect(
             "meteor_swarm_crater_core",
             3,
             "battle",
             0,
             0
         );
-        CombatEffectDef rubble = BuildTerrainEffect("meteor_swarm_rubble", 2, "battle", 0, 0);
-        CombatEffectDef dust = BuildTerrainEffect("meteor_swarm_dust", 1, "timed", 50, 5);
+        CombatEffectDefinition rubble = BuildTerrainEffect("meteor_swarm_rubble", 2, "battle", 0, 0);
+        CombatEffectDefinition dust = BuildTerrainEffect("meteor_swarm_dust", 1, "timed", 50, 5);
         _test.True(
-            runtime._terrain_effect_system.UpsertTimedTerrainEffect(
+            runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
                 new Vector2I(1, 0),
                 unit,
                 null,
@@ -50,7 +50,7 @@ public partial class run_battle_terrain_lifetime_regression : SceneTree
             "battle lifetime crater 应能写入 timed_terrain_effects。"
         );
         _test.True(
-            runtime._terrain_effect_system.UpsertTimedTerrainEffect(
+            runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
                 new Vector2I(1, 0),
                 unit,
                 null,
@@ -60,7 +60,7 @@ public partial class run_battle_terrain_lifetime_regression : SceneTree
             "battle lifetime rubble 应能写入 timed_terrain_effects。"
         );
         _test.True(
-            runtime._terrain_effect_system.UpsertTimedTerrainEffect(
+            runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
                 new Vector2I(2, 0),
                 unit,
                 null,
@@ -121,7 +121,7 @@ public partial class run_battle_terrain_lifetime_regression : SceneTree
         runtime.SetupStateForTests(state);
         state.timeline.current_tu = 0;
 
-        CombatEffectDef burningTerrain = BuildTerrainEffect(
+        CombatEffectDefinition burningTerrain = BuildTerrainEffect(
             "typed_burning_ground",
             0,
             "timed",
@@ -132,7 +132,7 @@ public partial class run_battle_terrain_lifetime_regression : SceneTree
             40
         );
         _test.True(
-            runtime._terrain_effect_system.UpsertTimedTerrainEffect(
+            runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
                 unit.coord,
                 unit,
                 null,
@@ -189,7 +189,7 @@ public partial class run_battle_terrain_lifetime_regression : SceneTree
         return unit;
     }
 
-    private static CombatEffectDef BuildTerrainEffect(
+    private static CombatEffectDefinition BuildTerrainEffect(
         StringName effectId,
         int moveCostDelta,
         StringName lifetimePolicy,
@@ -198,24 +198,21 @@ public partial class run_battle_terrain_lifetime_regression : SceneTree
         StringName tickEffectType = default,
         StringName statusId = default,
         int appliedStatusDurationTu = 0
-    )
-    {
-        return new CombatEffectDef
-        {
-            effect_type = "terrain_effect",
-            tick_effect_type = tickEffectType == default ? "none" : tickEffectType,
-            lifetime_policy = lifetimePolicy == default ? new StringName("timed") : lifetimePolicy,
-            move_cost_delta = moveCostDelta,
-            status_id = statusId == default ? new StringName("") : statusId,
-            applied_status_duration_tu = appliedStatusDurationTu,
-            terrain_effect_id = effectId,
-            display_name = effectId.ToString(),
-            render_overlay_id = effectId,
-            duration_tu = durationTu,
-            tick_interval_tu = tickIntervalTu,
-            effect_target_team_filter = "any",
-        };
-    }
+    ) =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "terrain_effect",
+            effectTargetTeamFilter: "any",
+            tickEffectType: tickEffectType == default ? "none" : tickEffectType,
+            lifetimePolicy: lifetimePolicy == default ? new StringName("timed") : lifetimePolicy,
+            moveCostDelta: moveCostDelta,
+            statusId: statusId == default ? new StringName("") : statusId,
+            appliedStatusDurationTu: appliedStatusDurationTu,
+            terrainEffectId: effectId,
+            displayName: effectId.ToString(),
+            renderOverlayId: effectId,
+            durationTu: durationTu,
+            tickIntervalTu: tickIntervalTu
+        );
 
     private static BattleCellState GetCell(BattleState state, Vector2I coord)
     {

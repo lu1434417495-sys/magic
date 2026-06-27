@@ -71,7 +71,7 @@ public partial class run_game_runtime_party_command_handler_regression : SceneTr
         runtime._world_map_data_context.active_generation_config = runtime._generation_config;
         runtime._character_management.setup(
             partyState,
-            new Dictionary<StringName, SkillDef>(),
+            new Dictionary<StringName, SkillDefinition>(),
             new Dictionary<StringName, ProfessionDef>(),
             new Dictionary<StringName, AchievementDef>(),
             typedItemDefs,
@@ -87,7 +87,7 @@ public partial class run_game_runtime_party_command_handler_regression : SceneTr
         runtime._party_item_use_service.Setup(
             partyState,
             typedItemDefs,
-            new Dictionary<StringName, SkillDef>(),
+            new Dictionary<StringName, SkillDefinition>(),
             runtime._party_warehouse_service,
             runtime._character_management
         );

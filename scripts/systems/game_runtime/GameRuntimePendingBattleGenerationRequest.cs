@@ -4,7 +4,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 internal sealed class GameRuntimePendingBattleGenerationRequest
 {
-    private readonly List<GameRuntimePayloadEntry> _context = new();
+    private readonly Dictionary<string, object> _context = new(System.StringComparer.Ordinal);
 
     public EncounterAnchorData EncounterAnchor { get; private set; }
 
@@ -21,14 +21,10 @@ internal sealed class GameRuntimePendingBattleGenerationRequest
 
     internal GDictionary CloneContext()
     {
-        var result = new GDictionary();
-        foreach (GameRuntimePayloadEntry entry in _context)
-            result[entry.Key] = entry.Value;
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-            result,
+        return RuntimePlainPayload.ProjectDictionary(
+            _context,
             "GameRuntimePendingBattleGenerationRequest.CloneContext"
         );
-        return result;
     }
 
     internal void Clear()
@@ -43,14 +39,17 @@ internal sealed class GameRuntimePendingBattleGenerationRequest
         ClearContextEntries();
         if (context == null)
             return;
-        foreach (Variant key in context.Keys)
-            _context.Add(new GameRuntimePayloadEntry(key, context[key]));
+        Dictionary<string, object> normalized =
+            RuntimePlainPayload.NormalizeDictionary(
+                context,
+                "GameRuntimePendingBattleGenerationRequest.context"
+            );
+        foreach (KeyValuePair<string, object> entry in normalized)
+            _context[entry.Key] = entry.Value;
     }
 
     private void ClearContextEntries()
     {
-        foreach (GameRuntimePayloadEntry entry in _context)
-            entry.SuppressFinalizers();
         _context.Clear();
     }
 }

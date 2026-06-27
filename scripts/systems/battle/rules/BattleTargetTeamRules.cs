@@ -14,14 +14,14 @@ public static class BattleTargetTeamRules
     }
 
     public static StringName ResolveEffectTargetFilter(
-        SkillDef skill_def,
-        CombatEffectDef effect_def
+        SkillDefinition skillDefinition,
+        CombatEffectDefinition effectDefinition
     )
     {
-        if (effect_def != null && !IsEmpty(effect_def.effect_target_team_filter))
-            return effect_def.effect_target_team_filter;
+        if (effectDefinition != null && !IsEmpty(effectDefinition.EffectTargetTeamFilter))
+            return effectDefinition.EffectTargetTeamFilter;
 
-        return skill_def?.combat_profile?.target_team_filter ?? EmptyStringName;
+        return skillDefinition?.CombatProfile?.TargetTeamFilter ?? EmptyStringName;
     }
 
     public static bool IsUnitValidForFilter(

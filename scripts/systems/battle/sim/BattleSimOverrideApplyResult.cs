@@ -4,14 +4,14 @@ using Godot;
 internal sealed class BattleSimOverrideApplyResult
 {
     internal BattleSimOverrideApplyResult(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains,
         BattleAiScoreProfile aiScoreProfile,
         IReadOnlyDictionary<StringName, BattleAiScoreProfile> factionAiScoreProfiles,
         IReadOnlyList<string> errors
     )
     {
-        SkillDefs = skillDefs ?? new Dictionary<StringName, SkillDef>();
+        SkillDefinitions = skillDefinitions ?? new Dictionary<StringName, SkillDefinition>();
         EnemyAiBrains = enemyAiBrains ?? new Dictionary<StringName, EnemyAiBrainDef>();
         AiScoreProfile = aiScoreProfile;
         FactionAiScoreProfiles =
@@ -19,7 +19,7 @@ internal sealed class BattleSimOverrideApplyResult
         Errors = errors ?? System.Array.Empty<string>();
     }
 
-    internal IReadOnlyDictionary<StringName, SkillDef> SkillDefs { get; }
+    internal IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions { get; }
 
     internal IReadOnlyDictionary<StringName, EnemyAiBrainDef> EnemyAiBrains { get; }
 

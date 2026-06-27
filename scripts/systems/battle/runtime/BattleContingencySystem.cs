@@ -1005,7 +1005,9 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
         BattleGridService gridService = _runtime?.GetGridService();
         foreach (ContingencyStoredSpellEntryState spell in instance.Setup?.StoredSpells ?? Array.Empty<ContingencyStoredSpellEntryState>())
         {
-            SkillDef skillDef = _runtime?.GetSkillDefTyped(spell?.StoredSkillId ?? "");
+            SkillDefinition skillDefinition = _runtime?.GetSkillDefinitionTyped(
+                spell?.StoredSkillId ?? ""
+            );
             ContingencyTargetResolutionResult result = _targetResolver.ResolveTarget(
                 new ContingencyTargetResolutionRequest
                 {
@@ -1014,7 +1016,7 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
                     OwnerUnitId = context.OwnerUnitId,
                     ResolverState = spell?.TargetResolver,
                     FrozenFacts = facts ?? ContingencyFrozenTriggerFacts.Empty,
-                    StoredSkillDef = skillDef,
+                    StoredSkillDefinition = skillDefinition,
                 }
             );
             results.Add(new ResolvedStoredSpell(spell, result));

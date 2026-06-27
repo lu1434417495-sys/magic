@@ -53,7 +53,7 @@ public partial class run_battle_sim_override_applier_regression : SceneTree
 
         BattleSimOverrideApplier applier = new();
         BattleSimOverrideApplyResult result = applier.ApplyProfileTyped(
-            new Dictionary<StringName, SkillDef>(),
+            new Dictionary<StringName, SkillDefinition>(),
             new Dictionary<StringName, EnemyAiBrainDef> { [brain.brain_id] = brain },
             profile
         );
@@ -122,7 +122,7 @@ public partial class run_battle_sim_override_applier_regression : SceneTree
 
         BattleSimOverrideApplier applier = new();
         BattleSimOverrideApplyResult result = applier.ApplyProfileTyped(
-            new Dictionary<StringName, SkillDef>(),
+            new Dictionary<StringName, SkillDefinition>(),
             new Dictionary<StringName, EnemyAiBrainDef>(),
             profile
         );
@@ -179,7 +179,7 @@ public partial class run_battle_sim_override_applier_regression : SceneTree
 
         BattleSimOverrideApplier applier = new();
         BattleSimOverrideApplyResult result = applier.ApplyProfileTyped(
-            new Dictionary<StringName, SkillDef>(),
+            new Dictionary<StringName, SkillDefinition>(),
             new Dictionary<StringName, EnemyAiBrainDef> { [brain.brain_id] = brain },
             profile
         );
@@ -210,7 +210,7 @@ public partial class run_battle_sim_override_applier_regression : SceneTree
         {
             BattleSimProfileDef profile = ResourceLoader.Load<BattleSimProfileDef>(profilePath);
             BattleSimOverrideApplyResult result = applier.ApplyProfileTyped(
-                new Dictionary<StringName, SkillDef>(),
+                new Dictionary<StringName, SkillDefinition>(),
                 brains,
                 profile
             );

@@ -97,7 +97,7 @@ public partial class MoveToAdvantagePositionAction : EnemyAiAction
         MoveToAdvantagePositioningMode positioningMode = PositioningModeKind;
         IReadOnlyDictionary<string, object> dc = _resolve_desired_distance_contract_typed(
             context,
-            null,
+            (SkillDefinition)null,
             range_skill_ids
         );
         int resolvedMinDistance = ReadMetadataInt(

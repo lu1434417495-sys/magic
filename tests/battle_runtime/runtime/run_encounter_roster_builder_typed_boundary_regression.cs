@@ -31,7 +31,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
         );
         runtime.setup(
             null,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetSkillDefinitionsTyped(),
             gameSession.GetEnemyTemplatesTyped(),
             gameSession.GetEnemyAiBrainsTyped(),
             builder,
@@ -54,16 +54,16 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
             suppressed_until_step = 0,
         };
 
-        GArray typedUnits = builder.BuildEnemyUnitsTyped(
+        GArray typedUnits = builder.BuildEnemyUnitsFromDefinitionsTyped(
             encounterAnchor,
-            runtime.GetSkillDefIndexTyped(),
+            runtime.GetSkillDefinitionIndexTyped(),
             runtime.GetEnemyTemplateIndexTyped(),
             runtime.GetEnemyAiBrainIndexTyped(),
             runtime.BuildItemDefIndexSnapshotTyped()
         );
         GArray sessionUnits = builder.BuildEnemyUnitsTyped(
             encounterAnchor,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             gameSession.GetEnemyTemplatesTyped(),
             gameSession.GetEnemyAiBrainsTyped(),
             gameSession.GetItemDefsTyped()
@@ -130,7 +130,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
         GArray typedLoot = builder.BuildLootEntriesTyped(encounterAnchor);
         GArray explicitTypedLoot = builder.BuildLootEntriesTyped(
             encounterAnchor,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             gameSession.GetEnemyTemplatesTyped(),
             gameSession.GetEnemyAiBrainsTyped(),
             gameSession.GetItemDefsTyped()
@@ -202,7 +202,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
 
         GArray enemyUnits = builder.BuildEnemyUnitsTyped(
             encounterAnchor,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             gameSession.GetEnemyTemplatesTyped(),
             gameSession.GetEnemyAiBrainsTyped(),
             gameSession.GetItemDefsTyped()
@@ -234,16 +234,6 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
             return result;
         foreach ((StringName brainId, EnemyAiBrainDef brain) in enemyAiBrains)
             result[brainId] = brain;
-        return result;
-    }
-
-    private static GDictionary ProjectSkillDefs(IReadOnlyDictionary<StringName, SkillDef> skillDefs)
-    {
-        GDictionary result = new();
-        if (skillDefs == null)
-            return result;
-        foreach ((StringName skillId, SkillDef skillDef) in skillDefs)
-            result[skillId] = skillDef;
         return result;
     }
 

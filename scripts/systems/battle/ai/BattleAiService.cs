@@ -81,11 +81,7 @@ internal sealed class BattleAiService : IDisposable
             return null;
         }
 
-        _scoreService.BeginDecisionScope(
-            context.state,
-            context.unit_state,
-            ((IBattleAiScoreContext)context).skill_defs
-        );
+        _scoreService.BeginDecisionScope(context.state, context.unit_state);
         context.active_score_profile = _scoreService.GetProfile();
         try
         {
@@ -140,13 +136,13 @@ internal sealed class BattleAiService : IDisposable
     )
     {
         context.skill_score_input_callback ??=
-            (aiContext, skillDef, command, preview, effectDefs, metadata) =>
+            (aiContext, skillDefinition, command, preview, effectDefs, metadata) =>
                 _scoreService.BuildSkillScoreInput(
                     aiContext,
-                    skillDef,
+                    skillDefinition,
                     command,
                     preview,
-                    effectDefs ?? System.Array.Empty<CombatEffectDef>(),
+                    effectDefs ?? System.Array.Empty<CombatEffectDefinition>(),
                     metadata
                 );
         context.action_score_input_callback ??=

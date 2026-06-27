@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_phantasmal_kill_ai_regression : SceneTree
 {
@@ -29,7 +28,7 @@ public partial class run_phantasmal_kill_ai_regression : SceneTree
     private void TestLowHpEnemyExecuteScoresAboveHighHpEnemy()
     {
         Fixture fixture = BuildFixture("pk_ai_execute_value");
-        SkillDef skill = BuildPhantasmalKillSkill(targetMode: "unit");
+        SkillDefinition skill = BuildPhantasmalKillSkill(targetMode: "unit");
         BattleUnitState source = BuildUnit("pk_source", "hostile", new Vector2I(0, 0), 200, 200);
         BattleUnitState highHpEnemy = BuildUnit(
             "high_hp_enemy",
@@ -66,7 +65,7 @@ public partial class run_phantasmal_kill_ai_regression : SceneTree
     private void TestIllusionImmuneTargetContributesNoValue()
     {
         Fixture fixture = BuildFixture("pk_ai_immune_noop");
-        SkillDef skill = BuildPhantasmalKillSkill(targetMode: "unit");
+        SkillDefinition skill = BuildPhantasmalKillSkill(targetMode: "unit");
         BattleUnitState source = BuildUnit("pk_source", "hostile", new Vector2I(0, 0), 200, 200);
         BattleUnitState immuneTarget = BuildUnit(
             "illusion_immune_enemy",
@@ -98,7 +97,7 @@ public partial class run_phantasmal_kill_ai_regression : SceneTree
     private void TestSaveAdvantageAndDisadvantageChangeExpectedValue()
     {
         Fixture fixture = BuildFixture("pk_ai_save_advantage");
-        SkillDef skill = BuildPhantasmalKillSkill(targetMode: "unit");
+        SkillDefinition skill = BuildPhantasmalKillSkill(targetMode: "unit");
         BattleUnitState source = BuildUnit("pk_source", "hostile", new Vector2I(0, 0), 200, 200);
         BattleUnitState normalTarget = BuildUnit("normal_enemy", "player", new Vector2I(1, 0), 200, 120);
         BattleUnitState advantageTarget = BuildUnit(
@@ -144,7 +143,7 @@ public partial class run_phantasmal_kill_ai_regression : SceneTree
     private void TestAffectedAllyUpdatesFriendlyFireAndLethalRiskCounts()
     {
         Fixture fixture = BuildFixture("pk_ai_friendly_counts");
-        SkillDef skill = BuildPhantasmalKillSkill(targetMode: "ground");
+        SkillDefinition skill = BuildPhantasmalKillSkill(targetMode: "ground");
         BattleUnitState source = BuildUnit("pk_source", "hostile", new Vector2I(0, 0), 200, 200);
         BattleUnitState exposedAlly = BuildUnit("exposed_ally", "hostile", new Vector2I(1, 0), 200, 120);
         BattleUnitState lethalAlly = BuildUnit("lethal_ally", "hostile", new Vector2I(2, 0), 200, 40);
@@ -255,9 +254,10 @@ public partial class run_phantasmal_kill_ai_regression : SceneTree
 
     private void TestGradedSaveExecuteClassifiesAsHostileGroundAoeAndOffense()
     {
-        SkillDef groundSkill = BuildPhantasmalKillSkill(targetMode: "ground");
+        SkillDefinition groundSkill = BuildPhantasmalKillSkill(targetMode: "ground");
         BattleAiSkillAffordanceRecord record =
-            new BattleAiSkillAffordanceClassifier().ClassifySkill(groundSkill, 1);
+            new BattleAiSkillAffordanceClassifier()
+                .ClassifySkill(groundSkill, 1);
 
         AssertListHas(record.effect_roles, "damage", "GradedSaveExecute should classify as damage.");
         AssertListHas(record.effect_roles, "control", "GradedSaveExecute should classify as control.");
@@ -282,16 +282,16 @@ public partial class run_phantasmal_kill_ai_regression : SceneTree
     private static BattleAiScoreInput BuildScore(
         Fixture fixture,
         BattleUnitState source,
-        SkillDef skill,
+        SkillDefinition skill,
         BattleUnitState target
     )
     {
         return fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(source),
             skill,
-            BuildCommand(source, skill.skill_id, target.coord, new[] { target.unit_id }),
+            BuildCommand(source, skill.SkillId, target.coord, new[] { target.unit_id }),
             BuildPreview(target.coord, new[] { target.unit_id }),
-            new[] { skill.combat_profile.effect_defs[0] },
+            new[] { skill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(target.coord)
         );
     }
@@ -299,7 +299,7 @@ public partial class run_phantasmal_kill_ai_regression : SceneTree
     private static BattleAiScoreInput BuildGroundScore(
         Fixture fixture,
         BattleUnitState source,
-        SkillDef skill,
+        SkillDefinition skill,
         IReadOnlyList<BattleUnitState> targets
     )
     {
@@ -312,66 +312,62 @@ public partial class run_phantasmal_kill_ai_regression : SceneTree
         return fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(source),
             skill,
-            BuildCommand(source, skill.skill_id, anchor, targetIds),
+            BuildCommand(source, skill.SkillId, anchor, targetIds),
             BuildPreview(anchor, targetIds),
-            new[] { skill.combat_profile.effect_defs[0] },
+            new[] { skill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(anchor)
         );
     }
 
     private static Fixture BuildFixture(string battleId) => new(battleId, new Vector2I(6, 2));
 
-    private static SkillDef BuildPhantasmalKillSkill(StringName targetMode)
-    {
-        var skill = new SkillDef
-        {
-            skill_id = "test_phantasmal_kill_ai",
-            display_name = "Test Phantasmal Kill AI",
-            skill_type = "active",
-            combat_profile = new CombatSkillDef
-            {
-                skill_id = "test_phantasmal_kill_ai",
-                target_mode = targetMode,
-                target_team_filter = "any",
-                target_selection_mode = targetMode == "ground" ? "single_coord" : "single_unit",
-                range_pattern = "fixed",
-                range_value = 5,
-                area_pattern = targetMode == "ground" ? "square" : "",
-                area_value = targetMode == "ground" ? 1 : 0,
-            },
-        };
-        skill.combat_profile.effect_defs.Add(BuildPhantasmalKillEffect());
-        return TestResourceOwnership.Own(skill, "PhantasmalKillAi.BuildPhantasmalKillSkill");
-    }
+    private static SkillDefinition BuildPhantasmalKillSkill(StringName targetMode) =>
+        TestSkillDefinitionProjection.BuildSkill(
+            "test_phantasmal_kill_ai",
+            "Test Phantasmal Kill AI",
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                "test_phantasmal_kill_ai",
+                effects: new[] { BuildPhantasmalKillEffect() },
+                targetMode: targetMode,
+                targetTeamFilter: "any",
+                targetSelectionMode: targetMode == "ground"
+                    ? BattleTypedNames.ToStringName(BattleTargetSelectionMode.SingleCoord)
+                    : BattleTypedNames.ToStringName(BattleTargetSelectionMode.SingleUnit),
+                rangePattern: "fixed",
+                rangeValue: 5,
+                areaPattern: targetMode == "ground" ? (StringName)"square" : default,
+                areaValue: targetMode == "ground" ? 1 : 0
+            )
+        );
 
-    private static CombatEffectDef BuildPhantasmalKillEffect() => new()
-    {
-        effect_type = "graded_save_execute",
-        effect_target_team_filter = "any",
-        damage_tag = "psychic",
-        save_dc_mode = "static",
-        save_dc = 15,
-        save_dc_source_ability = "intelligence",
-        save_ability = "willpower",
-        save_tag = "illusion",
-        save_partial_on_success = false,
-        @params = new GDictionary
-        {
-            ["profile_id"] = "phantasmal_kill",
-            ["failure_execute_threshold_fixed"] = 50,
-            ["failure_execute_threshold_max_hp_percent"] = 25,
-            ["failure_damage_dice_count"] = 6,
-            ["failure_damage_dice_sides"] = 6,
-            ["failure_frightened_duration_tu"] = 60,
-            ["failure_reaction_lock_duration_tu"] = 30,
-            ["critical_failure_execute_threshold_max_hp_percent"] = 35,
-            ["critical_failure_damage_dice_count"] = 10,
-            ["critical_failure_damage_dice_sides"] = 6,
-            ["critical_failure_frightened_duration_tu"] = 90,
-            ["critical_failure_stunned_duration_tu"] = 30,
-            ["success_aftershock_duration_tu"] = 30,
-        },
-    };
+    private static CombatEffectDefinition BuildPhantasmalKillEffect() =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "graded_save_execute",
+            effectTargetTeamFilter: "any",
+            damageTag: "psychic",
+            saveDcMode: "static",
+            saveDc: 15,
+            saveDcSourceAbility: "intelligence",
+            saveAbility: "willpower",
+            saveTag: "illusion",
+            savePartialOnSuccess: false,
+            parameters: new Dictionary<string, Variant>
+            {
+                ["profile_id"] = "phantasmal_kill",
+                ["failure_execute_threshold_fixed"] = 50,
+                ["failure_execute_threshold_max_hp_percent"] = 25,
+                ["failure_damage_dice_count"] = 6,
+                ["failure_damage_dice_sides"] = 6,
+                ["failure_frightened_duration_tu"] = 60,
+                ["failure_reaction_lock_duration_tu"] = 30,
+                ["critical_failure_execute_threshold_max_hp_percent"] = 35,
+                ["critical_failure_damage_dice_count"] = 10,
+                ["critical_failure_damage_dice_sides"] = 6,
+                ["critical_failure_frightened_duration_tu"] = 90,
+                ["critical_failure_stunned_duration_tu"] = 30,
+                ["success_aftershock_duration_tu"] = 30,
+            }
+        );
 
     private static BattleUnitState BuildUnit(
         StringName unitId,
@@ -504,7 +500,6 @@ public partial class run_phantasmal_kill_ai_regression : SceneTree
         public readonly BattleState State;
         public readonly BattleGridService GridService = new();
         public readonly BattleAiScoreService ScoreService = new();
-        private readonly Dictionary<StringName, SkillDef> _skillDefs = new();
 
         public Fixture(string battleId, Vector2I mapSize)
         {
@@ -524,7 +519,7 @@ public partial class run_phantasmal_kill_ai_regression : SceneTree
                 grid_service = GridService,
                 unit_state = actor,
             };
-            context.SetSkillDefs(_skillDefs);
+            context.SetSkillDefinitions(new Dictionary<StringName, SkillDefinition>());
             return context;
         }
     }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -59,7 +60,7 @@ public readonly struct BattleRepeatAttackStageSpec
     }
 
     public static BattleRepeatAttackStageSpec FromRepeatAttackEffect(
-        CombatEffectDef repeat_attack_effect,
+        CombatEffectDefinition repeat_attack_effect,
         int stage_index_value,
         int stage_count_value,
         int skill_level_value,
@@ -67,7 +68,7 @@ public readonly struct BattleRepeatAttackStageSpec
     )
     {
         int stageIndex = Mathf.Max(stage_index_value, 0);
-        GDictionary parameters = repeat_attack_effect?.@params ?? new GDictionary();
+        IReadOnlyDictionary<string, Variant> parameters = repeat_attack_effect?.Parameters;
         if (repeat_attack_effect == null || parameters == null || parameters.Count == 0)
         {
             return new BattleRepeatAttackStageSpec(
@@ -197,7 +198,10 @@ public readonly struct BattleRepeatAttackStageSpec
         );
     }
 
-    private static int ResolvePenaltyFreeStages(GDictionary parameters, int skillLevel)
+    private static int ResolvePenaltyFreeStages(
+        IReadOnlyDictionary<string, Variant> parameters,
+        int skillLevel
+    )
     {
         GDictionary levelStagesMap = ReadDictionary(parameters, "penalty_free_stages_by_level");
         if (levelStagesMap.Count == 0)
@@ -209,32 +213,26 @@ public readonly struct BattleRepeatAttackStageSpec
         int bestLevel = -1;
         foreach (var levelKey in levelStagesMap.Keys)
         {
-            int levelValue = levelKey.AsInt32();
+            int levelValue = ReadInt(levelKey, -1);
             if (levelValue <= skillLevel && levelValue > bestLevel)
             {
                 bestLevel = levelValue;
-                resolvedStages = ReadInt(levelStagesMap, levelKey.AsInt32());
+                resolvedStages = ReadInt(levelStagesMap, levelKey);
             }
         }
         return Mathf.Max(resolvedStages, 0);
     }
 
-    private static GDictionary ReadDictionary(GDictionary data, string key)
+    private static GDictionary ReadDictionary(
+        IReadOnlyDictionary<string, Variant> data,
+        string key
+    )
     {
-        if (data == null)
+        if (data == null || !data.TryGetValue(key, out Variant value))
             return new GDictionary();
-        if (data.ContainsKey(key))
-            return data[key].AsGodotDictionary();
-        return new GDictionary();
-    }
-
-    private static int ReadInt(GDictionary data, string key, int fallback = 0)
-    {
-        if (data == null)
-            return fallback;
-        if (data.ContainsKey(key))
-            return data[key].AsInt32();
-        return fallback;
+        return value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
     }
 
     private static int ReadInt(GDictionary data, int key, int fallback = 0)
@@ -244,34 +242,82 @@ public readonly struct BattleRepeatAttackStageSpec
         return data[key].AsInt32();
     }
 
-    private static double ReadFloat(GDictionary data, string key, double fallback = 0.0)
+    private static int ReadInt(GDictionary data, Variant key, int fallback = 0)
     {
-        if (data == null)
+        if (data == null || !data.ContainsKey(key))
             return fallback;
-        if (data.ContainsKey(key))
-            return data[key].AsDouble();
-        return fallback;
+        return ReadInt(data[key], fallback);
     }
 
-    private static bool ReadBool(GDictionary data, string key, bool fallback = false)
+    private static int ReadInt(Variant value, int fallback = 0)
     {
-        if (data == null)
+        return value.VariantType switch
+        {
+            Variant.Type.Int => value.AsInt32(),
+            Variant.Type.Float => Mathf.RoundToInt((float)value.AsDouble()),
+            Variant.Type.String => int.TryParse(value.AsString(), out int parsed)
+                ? parsed
+                : fallback,
+            Variant.Type.StringName => int.TryParse(value.AsStringName().ToString(), out int parsed)
+                ? parsed
+                : fallback,
+            _ => fallback,
+        };
+    }
+
+    private static int ReadInt(
+        IReadOnlyDictionary<string, Variant> data,
+        string key,
+        int fallback = 0
+    )
+    {
+        if (data == null || !data.TryGetValue(key, out Variant value))
             return fallback;
-        if (data.ContainsKey(key))
-            return data[key].AsBool();
-        return fallback;
+        return value.VariantType switch
+        {
+            Variant.Type.Int => value.AsInt32(),
+            Variant.Type.Float => Mathf.RoundToInt((float)value.AsDouble()),
+            _ => fallback,
+        };
+    }
+
+    private static double ReadFloat(
+        IReadOnlyDictionary<string, Variant> data,
+        string key,
+        double fallback = 0.0
+    )
+    {
+        if (data == null || !data.TryGetValue(key, out Variant value))
+            return fallback;
+        return value.VariantType switch
+        {
+            Variant.Type.Int => value.AsInt64(),
+            Variant.Type.Float => value.AsDouble(),
+            _ => fallback,
+        };
+    }
+
+    private static bool ReadBool(
+        IReadOnlyDictionary<string, Variant> data,
+        string key,
+        bool fallback = false
+    )
+    {
+        if (data == null || !data.TryGetValue(key, out Variant value))
+            return fallback;
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
     }
 
     private static StringName ReadStringName(
-        GDictionary data,
+        IReadOnlyDictionary<string, Variant> data,
         string key,
         StringName fallback = default
     )
     {
         if (data == null)
             return fallback ?? new StringName("");
-        if (data.ContainsKey(key))
-            return ProgressionDataUtils.to_string_name(data[key]);
+        if (data.TryGetValue(key, out Variant value))
+            return ProgressionDataUtils.to_string_name(value);
         return fallback ?? new StringName("");
     }
 }
