@@ -22,6 +22,15 @@ public partial class BattleMapPanel : Control
     public delegate void battle_skill_slot_selectedEventHandler(int index);
 
     [Signal]
+    public delegate void battle_resolve_pressedEventHandler();
+
+    [Signal]
+    public delegate void battle_cycle_variant_pressedEventHandler(int step);
+
+    [Signal]
+    public delegate void battle_clear_skill_pressedEventHandler();
+
+    [Signal]
     public delegate void battle_equipment_equip_requestedEventHandler(
         StringName slot_id,
         StringName item_id,
@@ -146,6 +155,17 @@ public partial class BattleMapPanel : Control
     public GridContainer skill_grid;
     public BattleHoverPreviewOverlay hover_overlay;
 
+    // Command dock (A2): rebuilt button band + info column, created in code so the
+    // enable states / signals live next to each other. See _create_command_dock.
+    public Button resolve_button;
+    public Button clear_skill_button;
+    public Button prev_variant_button;
+    public Button next_variant_button;
+    public Label variant_name_label;
+    public Label command_summary_label;
+    public Label hint_label;
+    public Label log_label;
+
     private Vector2I _hover_preview_coord = InvalidHoverCoord;
     private GVector2IArray _hover_preview_valid_coords = new();
     private StringName _hover_preview_selected_skill_id = "";
@@ -192,6 +212,7 @@ public partial class BattleMapPanel : Control
         skill_grid.Resized += _update_skill_grid_columns;
         hover_overlay = GetNode<BattleHoverPreviewOverlay>("%HoverPreviewOverlay");
 
+        _create_command_dock();
         _ensure_battle_board();
         map_viewport_container.GuiInput += _on_map_viewport_container_gui_input;
         _apply_static_skin();
@@ -1094,6 +1115,7 @@ public partial class BattleMapPanel : Control
         _rebuild_fate_badges(new GArray());
         _rebuild_skill_grid(new GArray());
         _rebuild_timeline_row(new GArray());
+        _apply_command_dock(new GDictionary());
         _refresh_battle_equipment_ui();
     }
 
@@ -1122,7 +1144,150 @@ public partial class BattleMapPanel : Control
             ""
         );
         _rebuild_fate_badges(DictArray(snapshot, "selected_skill_fate_badges"));
+        _apply_command_dock(snapshot);
         _refresh_battle_equipment_ui();
+    }
+
+    // Region A — resolve button in the TopBar right cell; regions B/C — the command
+    // band and the hint/log info rows inside the skill panel column. Built in code so
+    // each button's enable state and emitted signal stay together. The panel stays a
+    // pure renderer: buttons emit panel-level signals, WorldMapSystem routes them.
+    private void _create_command_dock()
+    {
+        if (mode_chip?.GetParent() is HBoxContainer rightCell)
+        {
+            resolve_button = _create_dock_button("ResolveBattleButton", "结算 ⏎");
+            resolve_button.Pressed += _on_resolve_pressed;
+            rightCell.AddChild(resolve_button);
+            rightCell.MoveChild(resolve_button, 0);
+        }
+
+        if (skill_grid?.GetParent() is not VBoxContainer skillLayout)
+            return;
+
+        var dockRow = new HBoxContainer { Name = "CommandDock" };
+        dockRow.AddThemeConstantOverride("separation", 8);
+
+        clear_skill_button = _create_dock_button("ClearSkillButton", "取消 Esc");
+        clear_skill_button.Pressed += _on_clear_skill_pressed;
+        prev_variant_button = _create_dock_button("PrevVariantButton", "◀ Q");
+        prev_variant_button.Pressed += _on_prev_variant_pressed;
+        variant_name_label = new Label
+        {
+            Name = "VariantNameLabel",
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        next_variant_button = _create_dock_button("NextVariantButton", "E ▶");
+        next_variant_button.Pressed += _on_next_variant_pressed;
+        command_summary_label = new Label
+        {
+            Name = "CommandSummaryLabel",
+            HorizontalAlignment = HorizontalAlignment.Right,
+            SizeFlagsHorizontal = SizeFlags.ExpandFill,
+        };
+
+        dockRow.AddChild(clear_skill_button);
+        dockRow.AddChild(prev_variant_button);
+        dockRow.AddChild(variant_name_label);
+        dockRow.AddChild(next_variant_button);
+        dockRow.AddChild(command_summary_label);
+        skillLayout.AddChild(dockRow);
+        skillLayout.MoveChild(dockRow, 1);
+
+        hint_label = new Label
+        {
+            Name = "HintLabel",
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+        };
+        hint_label.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_SECONDARY());
+        log_label = new Label
+        {
+            Name = "LogLabel",
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+        };
+        log_label.AddThemeFontSizeOverride("font_size", 11);
+        log_label.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_SECONDARY());
+        skillLayout.AddChild(hint_label);
+        skillLayout.AddChild(log_label);
+    }
+
+    private static Button _create_dock_button(string name, string text)
+    {
+        return new Button
+        {
+            Name = name,
+            Text = text,
+            FocusMode = FocusModeEnum.None,
+            Disabled = true,
+        };
+    }
+
+    private void _on_resolve_pressed() => EmitSignal(SignalName.battle_resolve_pressed);
+
+    private void _on_clear_skill_pressed() => EmitSignal(SignalName.battle_clear_skill_pressed);
+
+    private void _on_prev_variant_pressed() =>
+        EmitSignal(SignalName.battle_cycle_variant_pressed, -1);
+
+    private void _on_next_variant_pressed() =>
+        EmitSignal(SignalName.battle_cycle_variant_pressed, 1);
+
+    private void _apply_command_dock(GDictionary snapshot)
+    {
+        GDictionary dock = DictDictionary(snapshot, "command_dock");
+        if (resolve_button != null)
+        {
+            resolve_button.Disabled = !DictBool(dock, "resolve_enabled", false);
+            // A1 residual: light up the resolve button when a multi-target cast has
+            // reached its minimum and is ready to confirm.
+            _set_resolve_highlight(DictBool(snapshot, "selected_skill_confirm_ready", false));
+        }
+        if (clear_skill_button != null)
+            clear_skill_button.Disabled = !DictBool(dock, "clear_skill_enabled", false);
+        if (prev_variant_button != null)
+            prev_variant_button.Disabled = !DictBool(dock, "prev_variant_enabled", false);
+        if (next_variant_button != null)
+            next_variant_button.Disabled = !DictBool(dock, "next_variant_enabled", false);
+        if (variant_name_label != null)
+            variant_name_label.Text = DictString(snapshot, "selected_skill_variant_name", "");
+        if (command_summary_label != null)
+            command_summary_label.Text = _build_command_summary(snapshot);
+        if (hint_label != null)
+            hint_label.Text = DictString(snapshot, "hint_text", "");
+        if (log_label != null)
+            log_label.Text = _join_recent_log_lines(snapshot);
+    }
+
+    private void _set_resolve_highlight(bool highlighted)
+    {
+        if (resolve_button == null)
+            return;
+        if (highlighted)
+            resolve_button.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_ACCENT());
+        else
+            resolve_button.RemoveThemeColorOverride("font_color");
+    }
+
+    private static string _build_command_summary(GDictionary snapshot)
+    {
+        if (DictString(snapshot, "selected_skill_target_selection_mode", "single_unit") != "multi_unit")
+            return "";
+        int count = DictInt(snapshot, "selected_skill_target_count", 0);
+        int maxCount = Mathf.Max(DictInt(snapshot, "selected_skill_target_max_count", 1), 1);
+        return $"已选 {count}/{maxCount} 目标";
+    }
+
+    private static string _join_recent_log_lines(GDictionary snapshot)
+    {
+        GArray lines = DictArray(snapshot, "recent_battle_log_lines");
+        var parts = new List<string>();
+        foreach (Variant line in lines)
+        {
+            string text = line.AsString();
+            if (!string.IsNullOrEmpty(text))
+                parts.Add(text);
+        }
+        return string.Join("\n", parts);
     }
 
     private void _refresh_focus_unit_card(GDictionary focus_unit)

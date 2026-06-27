@@ -12,6 +12,7 @@ public sealed class BattleHudAdapter : IDisposable
 {
     private const int QUEUE_ENTRY_LIMIT = 7;
     private const int SKILL_GRID_SIZE = 20;
+    private const int RECENT_BATTLE_LOG_LINE_LIMIT = 3;
     private const int CHANGE_EQUIPMENT_AP_COST = 2;
     private const string EquipmentPreviewDefaultFailureMessage = "该实例当前不能装备。";
 
@@ -119,6 +120,7 @@ public sealed class BattleHudAdapter : IDisposable
             ["queue_entries"] = BuildQueueEntries(battle_state),
             ["focus_unit"] = BuildFocusUnitSnapshot(focusUnit, battle_state),
             ["skill_title"] = BuildSkillTitle(selected_skill_name, selected_skill_variant_name),
+            ["selected_skill_variant_name"] = selected_skill_variant_name ?? "",
             ["skill_subtitle"] = BuildSkillSubtitle(
                 activeUnit,
                 selected_skill_name,
@@ -165,6 +167,20 @@ public sealed class BattleHudAdapter : IDisposable
             ["selected_skill_target_count"] = selectedTargetCount,
             ["selected_skill_confirm_ready"] = DictBool(selectionInfo, "confirm_ready"),
             ["selected_skill_auto_cast_ready"] = DictBool(selectionInfo, "auto_cast_ready"),
+            ["command_dock"] = BuildCommandDock(
+                battle_state,
+                activeUnit,
+                selected_skill_id,
+                selectedTargetCount
+            ),
+            ["hint_text"] = BuildHintText(
+                battle_state,
+                activeUnit,
+                selected_skill_id,
+                selectedTargetCount,
+                selectionInfo
+            ),
+            ["recent_battle_log_lines"] = BuildRecentBattleLogLines(battle_state),
             ["equipment_panel"] = BuildEquipmentPanelSnapshot(
                 battle_state,
                 activeUnit
@@ -1716,6 +1732,116 @@ public sealed class BattleHudAdapter : IDisposable
         if (successRate <= 0)
             return "";
         return $"命中 {Mathf.Clamp(successRate, 0, 100)}%";
+    }
+
+    // Source of truth for command-dock button enable states. The risk note in the
+    // A2 rebuild plan requires this to live ONLY here so the panel never shows a
+    // button as enabled while the facade would reject the command. Definitions
+    // mirror facade gating (manual active unit, UnitActing phase, no modal flow).
+    private GDictionary BuildCommandDock(
+        BattleState battleState,
+        BattleUnitState activeUnit,
+        StringName selectedSkillId,
+        int selectedTargetCount
+    )
+    {
+        bool unitActing = IsManualUnitActing(battleState, activeUnit);
+        bool hasSkill = !IsEmpty(selectedSkillId);
+        // Cast variants cycle with wraparound (CycleSelectedBattleSkillOption uses
+        // PosMod), so prev/next share one enable condition: more than one unlocked
+        // option to switch between. Keeping both keys lets the panel label them
+        // independently while staying faithful to the keyboard Q/E behaviour.
+        bool canCycleVariant = unitActing && hasSkill && GetUnlockedVariantCount(activeUnit, selectedSkillId) > 1;
+        return new GDictionary
+        {
+            ["resolve_enabled"] = unitActing,
+            ["clear_skill_enabled"] = unitActing && hasSkill,
+            ["prev_variant_enabled"] = canCycleVariant,
+            ["next_variant_enabled"] = canCycleVariant,
+        };
+    }
+
+    // One-line "what can I do now" hint, covering the five states called out in the
+    // A2 plan: modal block / no manual unit / auto mode / no skill selected /
+    // multi-target selection progress / single-target ready.
+    private string BuildHintText(
+        BattleState battleState,
+        BattleUnitState activeUnit,
+        StringName selectedSkillId,
+        int selectedTargetCount,
+        GDictionary selectionInfo
+    )
+    {
+        if (battleState == null)
+            return "";
+        if (!IsEmpty(battleState.modal_state))
+            return "战斗结算中…请稍候";
+        if (activeUnit == null || battleState.PhaseKind != BattlePhaseKind.UnitActing)
+            return "等待行动单位";
+        if (activeUnit.ControlModeKind != BattleUnitControlMode.Manual)
+            return "自动模式：等待 AI 行动";
+        if (IsEmpty(selectedSkillId))
+            return "点选技能或移动；Enter 结束行动";
+        if (DictBool(selectionInfo, "is_multi_unit"))
+        {
+            if (DictBool(selectionInfo, "auto_cast_ready"))
+                return "已达目标上限，将自动施放";
+            if (DictBool(selectionInfo, "confirm_ready"))
+                return "已达最少目标；点击自己或空地结算，或继续点选";
+            int remaining = Mathf.Max(
+                DictInt(selectionInfo, "min_target_count", 1) - selectedTargetCount,
+                0
+            );
+            return $"继续点选目标，还需 {remaining} 个；Esc 取消";
+        }
+        return "左键选择目标格释放；Esc 取消，Q/E 切换形态";
+    }
+
+    // Tail of the battle log, same source as RuntimeLogDock's battle view
+    // (battle_state.log_entries), trimmed to the most recent N non-empty lines for
+    // the in-panel LogLabel. Oldest-first so the panel can append top-to-bottom.
+    private static GStringArray BuildRecentBattleLogLines(BattleState battleState)
+    {
+        var lines = new GStringArray();
+        StringList logEntries = battleState?.log_entries;
+        if (logEntries == null)
+            return lines;
+        var collected = new List<string>();
+        for (
+            int index = logEntries.Count - 1;
+            index >= 0 && collected.Count < RECENT_BATTLE_LOG_LINE_LIMIT;
+            index--
+        )
+        {
+            string message = (logEntries[index] ?? "").StripEdges();
+            if (string.IsNullOrEmpty(message))
+                continue;
+            collected.Add(message);
+        }
+        for (int index = collected.Count - 1; index >= 0; index--)
+            lines.Add(collected[index]);
+        return lines;
+    }
+
+    private bool IsManualUnitActing(BattleState battleState, BattleUnitState activeUnit)
+    {
+        return battleState != null
+            && activeUnit != null
+            && battleState.active_unit_id == activeUnit.unit_id
+            && battleState.PhaseKind == BattlePhaseKind.UnitActing
+            && IsEmpty(battleState.modal_state)
+            && activeUnit.ControlModeKind == BattleUnitControlMode.Manual;
+    }
+
+    private int GetUnlockedVariantCount(BattleUnitState activeUnit, StringName selectedSkillId)
+    {
+        if (activeUnit == null || IsEmpty(selectedSkillId))
+            return 0;
+        SkillDefinition skillDefinition = GetSkillDefinition(GetSkillDefinitions(), selectedSkillId);
+        if (skillDefinition?.CombatProfile == null)
+            return 0;
+        int skillLevel = GetUnitSkillLevel(activeUnit, skillDefinition.SkillId);
+        return GetEffectiveCombatDefinition(skillDefinition, skillLevel).UnlockedCastVariants.Count;
     }
 
     private GDictionary BuildSkillTargetSelectionInfo(

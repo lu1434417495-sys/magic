@@ -491,19 +491,9 @@ public partial class WorldMapSystem : Control
     {
         switch (key_event.Keycode)
         {
-            case Key.Key1:
-            case Key.Key2:
-            case Key.Key3:
-            case Key.Key4:
-            case Key.Key5:
-            case Key.Key6:
-            case Key.Key7:
-            case Key.Key8:
-            case Key.Key9:
-                _runtime_proxy.CommandBattleSelectSkill(
-                    (int)key_event.Keycode - (int)Key.Key1
-                );
-                break;
+            // Skill slots are mouse-click only (A2): combat is a deliberate strategy
+            // pace, so the 1-9 keyboard skill binding was removed. Variant/clear/
+            // resolve keep keyboard shortcuts as high-frequency tactical controls.
             case Key.Q:
                 _runtime_proxy.CommandBattleCycleVariant(-1);
                 break;
@@ -693,6 +683,24 @@ public partial class WorldMapSystem : Control
     {
         if (_runtime != null && !_runtime_proxy.IsModalWindowOpen())
             _runtime_proxy.CommandBattleSelectSkill(index);
+    }
+
+    public void _on_battle_resolve_pressed()
+    {
+        if (_runtime != null && !_runtime_proxy.IsModalWindowOpen())
+            _runtime_proxy.CommandBattleWaitOrResolve();
+    }
+
+    public void _on_battle_cycle_variant_pressed(int step)
+    {
+        if (_runtime != null && !_runtime_proxy.IsModalWindowOpen())
+            _runtime_proxy.CommandBattleCycleVariant(step);
+    }
+
+    public void _on_battle_clear_skill_pressed()
+    {
+        if (_runtime != null && !_runtime_proxy.IsModalWindowOpen())
+            _runtime_proxy.CommandBattleClearSkill();
     }
 
     public void _on_settlement_action_requested(
@@ -1147,6 +1155,9 @@ public partial class WorldMapSystem : Control
         battle_map_panel.battle_cell_right_clicked += _on_battle_cell_right_clicked;
         battle_map_panel.battle_cell_hovered += _on_battle_cell_hovered;
         battle_map_panel.battle_skill_slot_selected += _on_battle_skill_slot_selected;
+        battle_map_panel.battle_resolve_pressed += _on_battle_resolve_pressed;
+        battle_map_panel.battle_cycle_variant_pressed += _on_battle_cycle_variant_pressed;
+        battle_map_panel.battle_clear_skill_pressed += _on_battle_clear_skill_pressed;
     }
 
     private void DisconnectSignals()
@@ -1231,6 +1242,9 @@ public partial class WorldMapSystem : Control
             battle_map_panel.battle_cell_right_clicked -= _on_battle_cell_right_clicked;
             battle_map_panel.battle_cell_hovered -= _on_battle_cell_hovered;
             battle_map_panel.battle_skill_slot_selected -= _on_battle_skill_slot_selected;
+            battle_map_panel.battle_resolve_pressed -= _on_battle_resolve_pressed;
+            battle_map_panel.battle_cycle_variant_pressed -= _on_battle_cycle_variant_pressed;
+            battle_map_panel.battle_clear_skill_pressed -= _on_battle_clear_skill_pressed;
         }
     }
 

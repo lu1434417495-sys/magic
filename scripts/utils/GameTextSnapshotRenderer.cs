@@ -727,7 +727,15 @@ public static class GameTextSnapshotRenderer
             ? GetString(hud, "command_text")
             : GetString(hud, "skill_subtitle");
         lines.Add($"hud_command={commandText}");
-        lines.Add($"hud_log={GetString(hud, "log_text")}");
+        lines.Add($"hud_hint={GetString(hud, "hint_text")}");
+        var commandDock = GetDictionary(hud, "command_dock");
+        lines.Add(
+            $"hud_dock=resolve={FormatBool(ReadExactBool(commandDock, "resolve_enabled"))} | clear={FormatBool(ReadExactBool(commandDock, "clear_skill_enabled"))} | prev_variant={FormatBool(ReadExactBool(commandDock, "prev_variant_enabled"))} | next_variant={FormatBool(ReadExactBool(commandDock, "next_variant_enabled"))}"
+        );
+        string logText = HasArray(hud, "recent_battle_log_lines")
+            ? FormatArray(GetArray(hud, "recent_battle_log_lines"))
+            : GetString(hud, "log_text");
+        lines.Add($"hud_log={logText}");
     }
 
     private static void AppendReportLines(List<string> lines, GArray reportEntries)
