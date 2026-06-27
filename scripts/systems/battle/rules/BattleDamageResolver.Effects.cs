@@ -9,7 +9,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 public partial class BattleDamageResolver
 {
     private static readonly StringName PhantasmalKillExecuteDeathSource =
-        "phantasmal_kill_execute";
+        BattleDeathResolutionRules.PhantasmalKillExecuteDeathSource;
     private static readonly StringName PhantasmalKillDamageTag = "psychic";
     private static readonly StringName PhantasmalKillAftershockStatus = "aftershock";
     private static readonly StringName PhantasmalKillReactionLockStatus = "reaction_lock";
@@ -458,10 +458,7 @@ public partial class BattleDamageResolver
 
     private static DeathResolutionContext PhantasmalKillExecuteContext()
     {
-        return new DeathResolutionContext(
-            PhantasmalKillExecuteDeathSource,
-            BattleDeathResolutionRules.PowerWordKillExecuteContext().DeathSourcePriority
-        );
+        return BattleDeathResolutionRules.PhantasmalKillExecuteContext();
     }
 
     private static bool IsTargetWithinExecuteThreshold(

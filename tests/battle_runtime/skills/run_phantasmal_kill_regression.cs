@@ -8,6 +8,7 @@ public partial class run_phantasmal_kill_regression : SceneTree
 {
     private static readonly StringName SkillId = "test_phantasmal_kill";
     private static readonly StringName PhantasmalKillDeathSource = "phantasmal_kill_execute";
+    private const int PhantasmalKillDeathPriority = 300;
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
@@ -247,7 +248,7 @@ public partial class run_phantasmal_kill_regression : SceneTree
         );
         BattleUnitState source = MakeUnit("ward_source", "player", 200, 200);
         BattleUnitState target = MakeUnit("ward_target", "enemy", 200, 49);
-        SetLastStandDeathWard(target, priority: 900);
+        SetLastStandDeathWard(target, priority: PhantasmalKillDeathPriority);
 
         AttackEffectResolutionResult result = resolver.ResolveEffects(
             source,
@@ -258,7 +259,7 @@ public partial class run_phantasmal_kill_regression : SceneTree
             )
         );
 
-        _test.True(target.is_alive, "same-priority death ward should intercept execute damage.");
+        _test.True(target.is_alive, "matching-priority death ward should intercept execute damage.");
         _test.True(target.current_hp > 0, "death ward interception should leave positive HP.");
         _test.False(target.HasStatusEffect("death_ward"), "triggered death ward should be consumed.");
         _test.True(target.HasStatusEffect("last_stand_active"), "last stand should add its active status.");
@@ -566,6 +567,11 @@ public partial class run_phantasmal_kill_regression : SceneTree
             damageEvent.DeathSource,
             BattleDeathResolutionRules.PowerWordKillExecuteDeathSource,
             "execute death source should not reuse Power Word Kill."
+        );
+        _test.Eq(
+            damageEvent.DeathSourcePriority,
+            PhantasmalKillDeathPriority,
+            "Phantasmal Kill is an area execute and should use lower death authority than Power Word Kill."
         );
     }
 
