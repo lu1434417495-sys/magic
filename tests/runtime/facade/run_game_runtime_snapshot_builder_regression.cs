@@ -580,8 +580,13 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         _test.True(HasTextLine(lines, "entry= | state=状态：旧字段 | cost=价格：旧字段"), "shop 条目缺 display_name 时应渲染空正式 label 字段。");
         _test.True(HasTextLine(lines, "entry=old_contract_entry_id"), "contract board 条目应渲染 entry_id。");
         _test.True(HasTextLine(lines, "  display_name="), "contract board 条目缺 display_name 时应渲染空正式 label 字段。");
+        _test.True(HasTextLine(lines, "  provider_kind="), "contract board 条目缺 provider_kind 时应渲染空正式字段。");
+        _test.True(HasTextLine(lines, "  listing_channels="), "contract board 条目缺 listing_channels 时应渲染空正式字段。");
         _test.True(HasTextLine(lines, "  state_label=状态：旧字段"), "contract board 条目应渲染 state_label。");
         _test.True(HasTextLine(lines, "  cost_label=奖励：旧字段"), "contract board 条目应渲染 cost_label。");
+        _test.True(HasTextLine(lines, "  is_enabled=false"), "contract board 条目缺 is_enabled 时应渲染 false 默认值。");
+        _test.True(HasTextLine(lines, "  disabled_reason="), "contract board 条目缺 disabled_reason 时应渲染空正式字段。");
+        _test.True(HasTextLine(lines, "  accept_dialogue_text="), "contract board 条目缺 accept_dialogue_text 时应渲染空正式字段。");
         _test.True(HasTextLine(lines, "route= | state=状态：旧字段 | cost=车费：旧字段"), "stagecoach 条目缺 display_name 时应渲染空正式 label 字段。");
         _test.True(HasTextLine(lines, "entry= | state=状态：旧字段 | cost=材料：旧字段"), "forge 条目缺 display_name 时应渲染空正式 label 字段。");
         _test.True(
@@ -669,20 +674,44 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
                 ["title"] = "春泉村 · 任务板",
                 ["settlement_id"] = "spring_village_01",
                 ["provider_interaction_id"] = "service_contract_board",
+                ["state_summary_text"] = "当前有 2 则契约可查看。",
                 ["entries"] = new GArray
                 {
-                    BuildWindowEntry("contract_first_hunt", "contract_first_hunt", "首轮狩猎", "状态：可查看", "奖励：80 金"),
-                    BuildWindowEntry("contract_manual_drill", "contract_manual_drill", "训练记录", "状态：可查看", "奖励：30 金"),
+                    BuildWindowEntry(
+                        "contract_first_hunt",
+                        "contract_first_hunt",
+                        "首轮狩猎",
+                        "状态：可查看",
+                        "奖励：80 金",
+                        providerKind: "guild",
+                        listingChannels: new[] { "board", "rumor" },
+                        isEnabled: true,
+                        disabledReason: "",
+                        acceptDialogueText: "接受这份狩猎契约？"
+                    ),
+                    BuildWindowEntry(
+                        "contract_manual_drill",
+                        "contract_manual_drill",
+                        "训练记录",
+                        "状态：已锁定",
+                        "奖励：30 金",
+                        providerKind: "military",
+                        listingChannels: new[] { "board" },
+                        isEnabled: false,
+                        disabledReason: "需要先完成前置契约。",
+                        acceptDialogueText: ""
+                    ),
                 },
             },
         };
 
-        GDictionary snapshot = BuildSnapshot(runtime, out _);
+        GDictionary snapshot = BuildSnapshot(runtime, out string textSnapshot);
         GDictionary contractBoardSnapshot = Dict(snapshot, "contract_board");
         List<string> entryIds = ExtractWindowEntryValueStrings(
             ArrayValue(Dict(contractBoardSnapshot, "window_data"), "entries"),
             "quest_id"
         );
+        List<string> lines = TextSnapshotLines(textSnapshot);
 
         _test.True(BoolValue(contractBoardSnapshot, "visible"), "contract board modal 激活时快照应暴露 contract_board.visible。");
         _test.Eq(
@@ -694,6 +723,46 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
             entryIds,
             new[] { "contract_first_hunt", "contract_manual_drill" },
             "contract board 快照应稳定暴露当前任务板条目列表。"
+        );
+        _test.True(
+            HasTextLine(lines, "state_summary_text=当前有 2 则契约可查看。"),
+            "contract board 文本快照应渲染 state_summary_text。"
+        );
+        _test.True(
+            HasTextLine(lines, "  provider_kind=guild"),
+            "contract board 文本快照应渲染条目的 provider_kind。"
+        );
+        _test.True(
+            HasTextLine(lines, "  listing_channels=board rumor"),
+            "contract board 文本快照应渲染条目的 listing_channels。"
+        );
+        _test.True(
+            HasTextLine(lines, "  is_enabled=true"),
+            "contract board 文本快照应渲染条目的 is_enabled。"
+        );
+        _test.True(
+            HasTextLine(lines, "  disabled_reason="),
+            "contract board 文本快照应渲染条目的 disabled_reason（可为空）。"
+        );
+        _test.True(
+            HasTextLine(lines, "  accept_dialogue_text=接受这份狩猎契约？"),
+            "contract board 文本快照应渲染条目的 accept_dialogue_text。"
+        );
+        _test.True(
+            HasTextLine(lines, "  provider_kind=military"),
+            "contract board 文本快照应渲染第二个条目的 provider_kind。"
+        );
+        _test.True(
+            HasTextLine(lines, "  listing_channels=board"),
+            "contract board 文本快照应渲染第二个条目的 listing_channels。"
+        );
+        _test.True(
+            HasTextLine(lines, "  is_enabled=false"),
+            "contract board 文本快照应渲染第二个条目的 is_enabled。"
+        );
+        _test.True(
+            HasTextLine(lines, "  disabled_reason=需要先完成前置契约。"),
+            "contract board 文本快照应渲染第二个条目的 disabled_reason。"
         );
     }
 
@@ -951,9 +1020,22 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         string questId,
         string displayName,
         string stateLabel,
-        string costLabel
+        string costLabel,
+        string providerKind = "",
+        string[] listingChannels = null,
+        bool isEnabled = true,
+        string disabledReason = "",
+        string acceptDialogueText = ""
     )
     {
+        var channels = new GArray();
+        if (listingChannels != null)
+        {
+            foreach (string channel in listingChannels)
+            {
+                channels.Add(channel);
+            }
+        }
         return new GDictionary
         {
             ["entry_id"] = entryId,
@@ -961,6 +1043,11 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
             ["display_name"] = displayName,
             ["state_label"] = stateLabel,
             ["cost_label"] = costLabel,
+            ["provider_kind"] = providerKind,
+            ["listing_channels"] = channels,
+            ["is_enabled"] = isEnabled,
+            ["disabled_reason"] = disabledReason,
+            ["accept_dialogue_text"] = acceptDialogueText,
         };
     }
 

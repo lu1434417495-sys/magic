@@ -2282,7 +2282,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                     ["entry_id"] = "placeholder",
                     ["display_name"] = "当前暂无可展示契约",
                     ["provider_kind"] = "",
-                    ["listing_channels"] = new Godot.Collections.Array(),
+                    ["listing_channels"] = new Godot.Collections.Array<string>(),
                     ["summary_text"] = "任务定义尚未挂到这块任务板上。",
                     ["details_text"] = missingProviderText,
                     ["state_id"] = "empty",
@@ -2340,10 +2340,12 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             ["entry_id"] = questData.QuestId.ToString(),
             ["quest_id"] = questData.QuestId.ToString(),
             ["provider_interaction_id"] = providerInteractionId,
-            ["provider_kind"] = quest_def.provider_kind,
-            ["listing_channels"] = quest_def.listing_channels != null
-                ? quest_def.listing_channels
-                : new Godot.Collections.Array<StringName>(),
+            ["provider_kind"] = quest_def.provider_kind.ToString(),
+            ["listing_channels"] = new Godot.Collections.Array<string>(
+                quest_def.listing_channels != null
+                    ? quest_def.listing_channels.Select(c => c.ToString())
+                    : System.Array.Empty<string>()
+            ),
             ["display_name"] = questData.DisplayName,
             ["summary_text"] = _build_contract_board_objective_summary(questData),
             ["details_text"] = _build_contract_board_entry_details(questData),
