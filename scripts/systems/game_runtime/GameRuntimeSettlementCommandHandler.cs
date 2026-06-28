@@ -2281,6 +2281,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                 {
                     ["entry_id"] = "placeholder",
                     ["display_name"] = "当前暂无可展示契约",
+                    ["provider_kind"] = "",
+                    ["listing_channels"] = new Godot.Collections.Array(),
                     ["summary_text"] = "任务定义尚未挂到这块任务板上。",
                     ["details_text"] = missingProviderText,
                     ["state_id"] = "empty",
@@ -2288,6 +2290,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                     ["cost_label"] = "奖励：无",
                     ["is_enabled"] = false,
                     ["disabled_reason"] = "暂无可查看任务。",
+                    ["accept_dialogue_text"] = "",
                 }
             );
         }
@@ -2337,6 +2340,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             ["entry_id"] = questData.QuestId.ToString(),
             ["quest_id"] = questData.QuestId.ToString(),
             ["provider_interaction_id"] = providerInteractionId,
+            ["provider_kind"] = quest_def.provider_kind,
+            ["listing_channels"] = quest_def.listing_channels != null
+                ? quest_def.listing_channels
+                : new Godot.Collections.Array<StringName>(),
             ["display_name"] = questData.DisplayName,
             ["summary_text"] = _build_contract_board_objective_summary(questData),
             ["details_text"] = _build_contract_board_entry_details(questData),

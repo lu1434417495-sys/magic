@@ -1,6 +1,6 @@
 # 当前 Godot 项目的上下文装载单元
 
-更新日期：`2026-06-26`
+更新日期：`2026-06-28`
 
 ## 文档定位
 
@@ -120,6 +120,21 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 - 适合：save schema、序列化、内容接入、全局注册表问题。
 - 邻接单元：CU-01、CU-03、CU-04、CU-10、CU-11、CU-13、CU-20、CU-21。
 
+#### Quest Content（任务内容）
+
+- Source: `data/configs/quests/*.tres`
+- Loader: `QuestContentRegistry` (called from `ProgressionContentRegistry.Build`)
+- Schema owner: `QuestDef`
+- Validator: `QuestContentValidator`
+- Accept requirement evaluator: `QuestAcceptRequirementEvaluator`
+- Recommended reads before changes:
+  - `scripts/player/progression/QuestDef.cs`
+  - `scripts/player/progression/QuestContentRegistry.cs`
+  - `scripts/player/progression/ProgressionContentRegistry.cs`
+  - `scripts/player/progression/QuestContentValidator.cs`
+  - `scripts/player/progression/QuestProviderContentRules.cs`
+  - `scripts/systems/progression/QuestAcceptRequirementEvaluator.cs`
+
 ### CU-03 世界配置资源与预设数据
 
 - 文件：
@@ -187,6 +202,15 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 - ViewModel 约束：世界 UI/proxy 的基础只读状态应优先通过 typed `WorldRuntimeViewModel` 读取（status、modal、player/selected coord、active map、附近 encounter/world event 摘要），`WorldMapSystem.RenderFromRuntime(...)` 不应继续为这些基础字段新增多处散读 runtime getter；需要 Godot payload 的窗口/日志/地图数据仍留在各自 projection/window 边界。
 - 适合：runtime 接线、模式切换、世界场景同步、据点/仓库/奖励/任务命令入口。
 - 邻接单元：CU-02、CU-04、CU-05、CU-07、CU-08、CU-09、CU-10、CU-12、CU-15、CU-18、CU-21。
+
+#### Settlement Runtime Commands（据点运行时命令）
+
+- Contract board modal: `GameRuntimeSettlementCommandHandler` + `ShopWindow`
+- Accept availability: `QuestAcceptRequirementEvaluator` invoked by handler
+- Confirmation state: modal context `pending_confirmation_quest_id/text/source`
+- Recommended reads before changes:
+  - `scripts/systems/game_runtime/GameRuntimeSettlementCommandHandler.cs`
+  - `scripts/ui/ShopWindow.cs`
 
 ### CU-07 世界地图渲染叶子单元
 

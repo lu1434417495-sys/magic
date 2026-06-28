@@ -495,15 +495,22 @@ public static class GameTextSnapshotRenderer
             $"title={GetExactString(windowData, "title")}",
             $"settlement_id={GetExactString(windowData, "settlement_id")}",
             $"provider_interaction_id={GetExactString(windowData, "provider_interaction_id")}",
+            $"state_summary_text={GetExactString(windowData, "state_summary_text")}",
         };
-        AppendEntryLines(
-            lines,
-            GetArray(windowData, "entries"),
-            "entry",
-            "display_name",
-            "state_label",
-            "cost_label"
-        );
+
+        foreach (GDictionary entry in Dictionaries(GetArray(windowData, "entries")))
+        {
+            lines.Add($"entry={GetExactString(entry, "entry_id")}");
+            lines.Add($"  display_name={GetExactString(entry, "display_name")}");
+            lines.Add($"  provider_kind={GetExactString(entry, "provider_kind")}");
+            lines.Add($"  listing_channels={FormatArray(GetArray(entry, "listing_channels"))}");
+            lines.Add($"  state_label={GetExactString(entry, "state_label")}");
+            lines.Add($"  cost_label={GetExactString(entry, "cost_label")}");
+            lines.Add($"  is_enabled={FormatBool(ReadExactBool(entry, "is_enabled"))}");
+            lines.Add($"  disabled_reason={GetExactString(entry, "disabled_reason")}");
+            lines.Add($"  accept_dialogue_text={GetExactString(entry, "accept_dialogue_text")}");
+        }
+
         return lines;
     }
 

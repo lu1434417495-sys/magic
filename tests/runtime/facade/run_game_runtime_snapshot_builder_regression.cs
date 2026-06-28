@@ -578,7 +578,10 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
 
         _test.True(HasTextLine(lines, "provider_interaction_id="), "缺 provider_interaction_id 时文本快照只应渲染空正式字段。");
         _test.True(HasTextLine(lines, "entry= | state=状态：旧字段 | cost=价格：旧字段"), "shop 条目缺 display_name 时应渲染空正式 label 字段。");
-        _test.True(HasTextLine(lines, "entry= | state=状态：旧字段 | cost=奖励：旧字段"), "contract board 条目缺 display_name 时应渲染空正式 label 字段。");
+        _test.True(HasTextLine(lines, "entry=old_contract_entry_id"), "contract board 条目应渲染 entry_id。");
+        _test.True(HasTextLine(lines, "  display_name="), "contract board 条目缺 display_name 时应渲染空正式 label 字段。");
+        _test.True(HasTextLine(lines, "  state_label=状态：旧字段"), "contract board 条目应渲染 state_label。");
+        _test.True(HasTextLine(lines, "  cost_label=奖励：旧字段"), "contract board 条目应渲染 cost_label。");
         _test.True(HasTextLine(lines, "route= | state=状态：旧字段 | cost=车费：旧字段"), "stagecoach 条目缺 display_name 时应渲染空正式 label 字段。");
         _test.True(HasTextLine(lines, "entry= | state=状态：旧字段 | cost=材料：旧字段"), "forge 条目缺 display_name 时应渲染空正式 label 字段。");
         _test.True(
