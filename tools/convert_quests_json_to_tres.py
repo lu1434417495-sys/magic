@@ -57,17 +57,16 @@ def quest_to_tres(quest: dict) -> str:
     provider_kind = str(quest.get("provider_kind", ""))
     listing_channels = quest.get("listing_channels")
 
-    # Auto-fill new schema fields from provider_interaction_id when absent.
+    # Live quest content must explicitly contain the new schema fields.
+    # This converter is a one-time transitional tool and should not auto-infer.
     if not provider_kind:
-        provider_kind = {
-            "service_bounty_registry": "service_bounty_registry",
-        }.get(provider_interaction_id, "service_contract_board")
+        raise ValueError(
+            f"Quest {quest['quest_id']} is missing required provider_kind."
+        )
 
     if listing_channels is None:
-        listing_channels = (
-            ["bounty_registry"]
-            if provider_interaction_id == "service_bounty_registry"
-            else ["contract_board"]
+        raise ValueError(
+            f"Quest {quest['quest_id']} is missing required listing_channels."
         )
 
     lines = [
@@ -117,7 +116,9 @@ def main() -> None:
             "quest_id": "contract_manual_drill",
             "display_name": "训练记录",
             "description": "在训练场完成两次记录，用于验证任务命令与状态推进链。",
+            "provider_kind": "service_contract_board",
             "provider_interaction_id": "service_contract_board",
+            "listing_channels": ["contract_board"],
             "tags": [],
             "accept_requirements": [],
             "objective_defs": [
@@ -137,7 +138,9 @@ def main() -> None:
             "quest_id": "contract_settlement_warehouse",
             "display_name": "据点仓储巡查",
             "description": "前往据点服务台完成一次仓储交接。",
+            "provider_kind": "service_contract_board",
             "provider_interaction_id": "service_contract_board",
+            "listing_channels": ["contract_board"],
             "tags": [],
             "accept_requirements": [],
             "objective_defs": [
@@ -157,7 +160,9 @@ def main() -> None:
             "quest_id": "contract_first_hunt",
             "display_name": "首轮狩猎",
             "description": "击败任意一组敌对遭遇，证明队伍已具备外出作战能力。",
+            "provider_kind": "service_contract_board",
             "provider_interaction_id": "service_contract_board",
+            "listing_channels": ["contract_board"],
             "tags": [],
             "accept_requirements": [],
             "objective_defs": [
@@ -177,7 +182,9 @@ def main() -> None:
             "quest_id": "contract_regional_bounty",
             "display_name": "地区悬赏",
             "description": "由悬赏署单独发放的区域通缉，用来验证多 provider 任务板的过滤边界。",
+            "provider_kind": "service_bounty_registry",
             "provider_interaction_id": "service_bounty_registry",
+            "listing_channels": ["bounty_registry"],
             "tags": ["contract", "bounty"],
             "accept_requirements": [],
             "objective_defs": [

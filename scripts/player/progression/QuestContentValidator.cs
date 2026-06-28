@@ -16,17 +16,11 @@ public static class QuestContentValidator
 
         const string label = "quest_defs";
         if (itemDefs == null || itemDefs.Count == 0)
-            errors.Add(
-                $"{label} validation requires non-empty item_defs (pass allow_missing_reference_tables=true to skip)."
-            );
+            errors.Add($"{label} validation requires non-empty item_defs.");
         if (skillDefinitions == null || skillDefinitions.Count == 0)
-            errors.Add(
-                $"{label} validation requires non-empty skill_defs (pass allow_missing_reference_tables=true to skip)."
-            );
+            errors.Add($"{label} validation requires non-empty skill_defs.");
         if (enemyTemplates == null || enemyTemplates.Count == 0)
-            errors.Add(
-                $"{label} validation requires non-empty enemy_templates (pass allow_missing_reference_tables=true to skip)."
-            );
+            errors.Add($"{label} validation requires non-empty enemy_templates.");
 
         var seenQuestIds = new HashSet<StringName>();
         var supportedProviderIds = ResolveProviderIdsTyped();
@@ -57,6 +51,7 @@ public static class QuestContentValidator
             AppendProviderReferenceErrors(errors, questDef, supportedProviderIds);
             AppendProviderKindErrors(errors, questDef);
             AppendListingChannelErrors(errors, questDef);
+            AppendAcceptRequirementErrors(errors, questDef, questDefs);
             AppendObjectiveReferenceErrors(errors, questDef, itemDefs, enemyTemplates);
             AppendRewardReferenceErrors(errors, questDef, itemDefs, skillDefinitions);
         }
@@ -134,6 +129,64 @@ public static class QuestContentValidator
             if (channel == QuestListingChannel.Unknown)
                 errors.Add($"Quest {questDef.quest_id}: listing_channels 包含未知渠道。");
         }
+    }
+
+    public static void AppendAcceptRequirementErrors(
+        List<string> errors,
+        QuestDef questDef,
+        IReadOnlyDictionary<StringName, QuestDef> questDefs
+    )
+    {
+        if (questDef.accept_requirements == null || questDef.accept_requirements.Count == 0)
+            return;
+
+        foreach (Godot.Collections.Dictionary requirement in questDef.accept_requirements)
+        {
+            StringName requirementType = ReadRequirementStringName(requirement, "requirement_type");
+            if (
+                requirementType != "quest_completed"
+                && requirementType != "quest_active"
+                && requirementType != "quest_not_completed"
+            )
+            {
+                errors.Add(
+                    $"Quest {questDef.quest_id}: accept_requirements 包含不支持的 requirement_type '{requirementType}'。"
+                );
+                continue;
+            }
+
+            StringName requiredQuestId = ReadRequirementStringName(requirement, "quest_id");
+            if (requiredQuestId == "")
+            {
+                errors.Add(
+                    $"Quest {questDef.quest_id}: accept_requirements 中 '{requirementType}' 缺少 quest_id。"
+                );
+                continue;
+            }
+
+            if (questDefs == null || !questDefs.ContainsKey(requiredQuestId))
+            {
+                errors.Add(
+                    $"Quest {questDef.quest_id}: accept_requirements 引用了不存在的 quest_id '{requiredQuestId}'。"
+                );
+            }
+        }
+    }
+
+    private static StringName ReadRequirementStringName(
+        Godot.Collections.Dictionary requirement,
+        string key
+    )
+    {
+        if (requirement == null || !requirement.ContainsKey(key))
+            return "";
+        Variant value = requirement[key];
+        return value.VariantType switch
+        {
+            Variant.Type.StringName => value.AsStringName(),
+            Variant.Type.String => new StringName(value.AsString()),
+            _ => new StringName(""),
+        };
     }
 
     private static void AppendObjectiveReferenceErrors(

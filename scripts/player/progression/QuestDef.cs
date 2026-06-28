@@ -283,13 +283,13 @@ public partial class QuestDef : Resource
         if (display_name.StripEdges().Length == 0)
             errors.Add($"QuestDef {(string)quest_id} 缺少 display_name。");
         if (provider_kind == "")
-            errors.Add("provider_kind 不能为空。");
+            errors.Add($"QuestDef {(string)quest_id} 的 provider_kind 不能为空。");
         if (listing_channels == null || listing_channels.Count == 0)
-            errors.Add("listing_channels 不能为空数组。");
+            errors.Add($"QuestDef {(string)quest_id} 的 listing_channels 不能为空数组。");
         foreach (StringName channel in listing_channels)
         {
             if (channel == "")
-                errors.Add("listing_channels 包含空值。");
+                errors.Add($"QuestDef {(string)quest_id} 的 listing_channels 包含空值。");
         }
         if (objective_defs.Count == 0)
             errors.Add($"QuestDef {(string)quest_id} 至少需要一个 objective_def。");

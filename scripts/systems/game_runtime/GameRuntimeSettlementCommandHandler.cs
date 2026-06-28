@@ -1137,6 +1137,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             CopyIfPresent(payload, overrides, "quest_id");
             CopyIfPresent(payload, overrides, "provider_interaction_id");
+            CopyIfPresent(payload, overrides, "confirm_accept");
         }
         else if (source == SettlementSubmissionSource.Forge)
         {
@@ -2315,6 +2316,28 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             return new GDictionary();
         }
+
+        QuestProviderKind providerKind = QuestProviderContentRules.ToProviderKind(quest_def);
+        if (!QuestProviderContentRules.IsSupportedProviderKind(providerKind))
+        {
+            return new GDictionary();
+        }
+
+        bool isContractBoard = interaction_script_id == "service_contract_board";
+        bool matchesProviderKind = isContractBoard
+            ? providerKind == QuestProviderKind.ServiceContractBoard
+            : providerKind == QuestProviderKind.ServiceBountyRegistry;
+        Godot.Collections.Array<QuestListingChannel> listingChannels =
+            QuestProviderContentRules.ToListingChannels(quest_def);
+        bool matchesChannel = isContractBoard
+            ? listingChannels.Contains(QuestListingChannel.ContractBoard)
+            : listingChannels.Contains(QuestListingChannel.BountyRegistry);
+
+        if (!matchesProviderKind && !matchesChannel)
+        {
+            return new GDictionary();
+        }
+
         string stateId = _resolve_contract_board_quest_state_id(
             questData.QuestId,
             questData.IsRepeatable
@@ -3610,10 +3633,31 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         bool isConfirmationSubmission = ReadBool(payload, "confirm_accept", false);
         bool hasPendingConfirmation = ReadStringName(GetActiveContractBoardContext(), "pending_confirmation_quest_id") == questId;
 
-        if (!string.IsNullOrEmpty(questData.AcceptConfirmationText) && !isConfirmationSubmission && !hasPendingConfirmation)
+        if (!string.IsNullOrEmpty(questData.AcceptConfirmationText))
         {
-            _set_contract_board_confirmation_context(questId, questData.AcceptConfirmationText);
-            return CommandOk("请确认是否接取该契约。");
+            if (!isConfirmationSubmission && !hasPendingConfirmation)
+            {
+                _set_contract_board_confirmation_context(questId, questData.AcceptConfirmationText);
+                return CommandOk("请确认是否接取该契约。");
+            }
+
+            if (isConfirmationSubmission && !hasPendingConfirmation)
+            {
+                string bypassMessage = "该契约需要先在面板中确认。";
+                _refresh_active_contract_board_context(bypassMessage);
+                SetSettlementFeedbackText(bypassMessage);
+                UpdateStatus(bypassMessage);
+                return CommandError(bypassMessage);
+            }
+
+            if (!isConfirmationSubmission && hasPendingConfirmation)
+            {
+                string pendingMessage = "请确认是否接取该契约。";
+                _refresh_active_contract_board_context(pendingMessage);
+                SetSettlementFeedbackText(pendingMessage);
+                UpdateStatus(pendingMessage);
+                return CommandOk(pendingMessage);
+            }
         }
 
         if (hasPendingConfirmation)

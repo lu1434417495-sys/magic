@@ -651,6 +651,26 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             _test.Eq(DictString(confirmationEntry, "accept_feedback_success", ""), "已确认接取确认契约。", "accept_feedback_success 字段应原样暴露。");
             _test.Eq(DictString(confirmationEntry, "accept_confirmation_text", ""), "确认要接取这个契约吗？", "accept_confirmation_text 字段应原样暴露。");
 
+            GameRuntimeFacade.RuntimeCommandResult confirmationBypassResult =
+                handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:contract_board",
+                    new GDictionary
+                    {
+                        ["submission_source"] = "contract_board",
+                        ["quest_id"] = "contract_confirmation_quest",
+                        ["provider_interaction_id"] = "service_contract_board",
+                        ["confirm_accept"] = true,
+                    }
+                );
+            _test.False(
+                confirmationBypassResult.Ok,
+                "未进入确认态时提交 confirm_accept=true 应被拒绝。"
+            );
+            _test.False(
+                runtime._party_state.HasActiveQuest("contract_confirmation_quest"),
+                "确认态绕过不应接取任务。"
+            );
+
             GameRuntimeFacade.RuntimeCommandResult lockedSubmitResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:contract_board",
@@ -1382,12 +1402,25 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
 
     private static QuestDef BuildQuestDef(string questId, string displayName, string description, string providerInteractionId, GArray objectiveDefs, GArray rewardEntries, bool isRepeatable = false, string acceptDialogueText = "", string acceptFeedbackSuccess = "", string acceptFeedbackFailure = "", string acceptConfirmationText = "")
     {
+        string providerKind = providerInteractionId;
+        Godot.Collections.Array<StringName> listingChannels = new();
+        if (providerInteractionId == "service_contract_board")
+        {
+            listingChannels = new Godot.Collections.Array<StringName> { "contract_board" };
+        }
+        else if (providerInteractionId == "service_bounty_registry")
+        {
+            listingChannels = new Godot.Collections.Array<StringName> { "bounty_registry" };
+        }
+
         var quest = new QuestDef
         {
             quest_id = questId,
             display_name = displayName,
             description = description,
+            provider_kind = providerKind,
             provider_interaction_id = providerInteractionId,
+            listing_channels = listingChannels,
             is_repeatable = isRepeatable,
             accept_dialogue_text = acceptDialogueText,
             accept_feedback_success = acceptFeedbackSuccess,

@@ -18,6 +18,7 @@ public partial class run_quest_content_validator_typed_regression : SceneTree
         TestNpcProviderAcceptsNonServiceInteractionId();
         TestProviderKindValidationNegativeBoundary();
         TestListingChannelValidationNegativeBoundary();
+        TestAcceptRequirementValidation();
 
         Quit(_test.Finish("Quest content validator typed regression"));
     }
@@ -205,6 +206,69 @@ public partial class run_quest_content_validator_typed_regression : SceneTree
         _test.True(
             unknownChannelErrors[0].Contains("listing_channels 包含未知渠道"),
             $"未知 listing_channels 错误消息应包含提示。 actual={unknownChannelErrors[0]}"
+        );
+    }
+
+    private void TestAcceptRequirementValidation()
+    {
+        using QuestDef validTargetQuest = BuildValidQuestDef("accept_req_target");
+        validTargetQuest.accept_requirements = new Godot.Collections.Array<GDictionary>
+        {
+            new GDictionary
+            {
+                ["requirement_type"] = "quest_completed",
+                ["quest_id"] = "accept_req_prereq",
+            },
+        };
+        using QuestDef validPrereqQuest = BuildValidQuestDef("accept_req_prereq");
+
+        var questDefs = new Dictionary<StringName, QuestDef>
+        {
+            [validTargetQuest.quest_id] = validTargetQuest,
+            [validPrereqQuest.quest_id] = validPrereqQuest,
+        };
+
+        List<string> validErrors = new();
+        QuestContentValidator.AppendAcceptRequirementErrors(validErrors, validTargetQuest, questDefs);
+        _test.Eq(validErrors.Count, 0, "有效的 accept_requirements 引用不应报错。");
+
+        using QuestDef unknownTypeQuest = BuildValidQuestDef("unknown_req_type");
+        unknownTypeQuest.accept_requirements = new Godot.Collections.Array<GDictionary>
+        {
+            new GDictionary { ["requirement_type"] = "gold_min", ["quest_id"] = "accept_req_prereq" },
+        };
+        List<string> unknownTypeErrors = new();
+        QuestContentValidator.AppendAcceptRequirementErrors(unknownTypeErrors, unknownTypeQuest, questDefs);
+        _test.Eq(unknownTypeErrors.Count, 1, "不支持的 requirement_type 应产生一条错误。");
+        _test.True(
+            unknownTypeErrors[0].Contains("不支持的 requirement_type"),
+            $"错误消息应提示不支持的类型。 actual={unknownTypeErrors[0]}"
+        );
+
+        using QuestDef missingIdQuest = BuildValidQuestDef("missing_req_id");
+        missingIdQuest.accept_requirements = new Godot.Collections.Array<GDictionary>
+        {
+            new GDictionary { ["requirement_type"] = "quest_completed" },
+        };
+        List<string> missingIdErrors = new();
+        QuestContentValidator.AppendAcceptRequirementErrors(missingIdErrors, missingIdQuest, questDefs);
+        _test.Eq(missingIdErrors.Count, 1, "缺少 quest_id 的 requirement 应产生一条错误。");
+        _test.True(
+            missingIdErrors[0].Contains("缺少 quest_id"),
+            $"错误消息应提示缺少 quest_id。 actual={missingIdErrors[0]}"
+        );
+
+        using QuestDef danglingRefQuest = BuildValidQuestDef("dangling_req_ref");
+        danglingRefQuest.accept_requirements = new Godot.Collections.Array<GDictionary>
+        {
+            new GDictionary { ["requirement_type"] = "quest_completed", ["quest_id"] = "non_existent_quest" },
+        };
+        List<string> danglingErrors = new();
+        QuestContentValidator.AppendAcceptRequirementErrors(danglingErrors, danglingRefQuest, questDefs);
+        _test.Eq(danglingErrors.Count, 1, "引用不存在 quest_id 的 requirement 应产生一条错误。");
+        _test.True(
+            danglingErrors[0].Contains("不存在的 quest_id"),
+            $"错误消息应提示引用不存在。 actual={danglingErrors[0]}"
         );
     }
 
