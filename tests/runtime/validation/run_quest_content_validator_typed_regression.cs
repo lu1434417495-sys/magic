@@ -84,7 +84,9 @@ public partial class run_quest_content_validator_typed_regression : SceneTree
             quest_id = "typed_missing_reference_quest",
             display_name = "Typed Missing Reference Quest",
             description = "Regression quest for typed quest validation boundary.",
-            provider_interaction_id = "quest_board",
+            provider_kind = "service_contract_board",
+            provider_interaction_id = "service_contract_board",
+            listing_channels = new Godot.Collections.Array<StringName> { "contract_board" },
             objective_defs = new Godot.Collections.Array<GDictionary>
             {
                 new GDictionary

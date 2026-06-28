@@ -55,6 +55,8 @@ public static class QuestContentValidator
                 errors.Add($"Quest {questDef.quest_id}: {schemaError}");
 
             AppendProviderReferenceErrors(errors, questDef, supportedProviderIds);
+            AppendProviderKindErrors(errors, questDef);
+            AppendListingChannelErrors(errors, questDef);
             AppendObjectiveReferenceErrors(errors, questDef, itemDefs, enemyTemplates);
             AppendRewardReferenceErrors(errors, questDef, itemDefs, skillDefinitions);
         }
@@ -78,6 +80,56 @@ public static class QuestContentValidator
             errors.Add(
                 $"Quest {questDef.quest_id} references missing provider_interaction_id {questDef.provider_interaction_id}."
             );
+    }
+
+    public static void AppendProviderKindErrors(
+        List<string> errors,
+        QuestDef questDef
+    )
+    {
+        QuestProviderKind kind = QuestProviderContentRules.ToProviderKind(questDef);
+        if (kind == QuestProviderKind.Unknown)
+        {
+            errors.Add($"Quest {questDef.quest_id}: 未知 provider_kind '{questDef.provider_kind}'。");
+            return;
+        }
+
+        StringName expectedInteractionId = kind switch
+        {
+            QuestProviderKind.ServiceContractBoard => "service_contract_board",
+            QuestProviderKind.ServiceBountyRegistry => "service_bounty_registry",
+            QuestProviderKind.Npc => questDef.provider_interaction_id,
+            _ => "",
+        };
+
+        if (kind == QuestProviderKind.ServiceContractBoard || kind == QuestProviderKind.ServiceBountyRegistry)
+        {
+            if (questDef.provider_interaction_id != expectedInteractionId)
+                errors.Add($"Quest {questDef.quest_id}: provider_kind '{questDef.provider_kind}' 要求 provider_interaction_id 为 '{expectedInteractionId}'。");
+        }
+        else if (kind == QuestProviderKind.Npc)
+        {
+            if (questDef.provider_interaction_id == "")
+                errors.Add($"Quest {questDef.quest_id}: provider_kind 'npc' 需要非空的 provider_interaction_id。");
+        }
+    }
+
+    public static void AppendListingChannelErrors(
+        List<string> errors,
+        QuestDef questDef
+    )
+    {
+        if (questDef.listing_channels == null || questDef.listing_channels.Count == 0)
+        {
+            errors.Add($"Quest {questDef.quest_id}: listing_channels 不能为空。");
+            return;
+        }
+
+        foreach (QuestListingChannel channel in QuestProviderContentRules.ToListingChannels(questDef))
+        {
+            if (channel == QuestListingChannel.Unknown)
+                errors.Add($"Quest {questDef.quest_id}: listing_channels 包含未知渠道。");
+        }
     }
 
     private static void AppendObjectiveReferenceErrors(

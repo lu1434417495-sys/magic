@@ -679,7 +679,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                     new GDictionary { ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold), ["amount"] = 30 },
                 },
                 null,
-                "contract_board",
+                "service_contract_board",
                 new GStringNameArray { "contract_board" }
             )
         );
@@ -705,7 +705,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                     new GDictionary { ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold), ["amount"] = 60 },
                 },
                 null,
-                "contract_board",
+                "service_contract_board",
                 new GStringNameArray { "contract_board" }
             )
         );
@@ -731,7 +731,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                     new GDictionary { ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold), ["amount"] = 80 },
                 },
                 null,
-                "contract_board",
+                "service_contract_board",
                 new GStringNameArray { "contract_board" }
             )
         );
@@ -757,7 +757,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                     new GDictionary { ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold), ["amount"] = 120 },
                 },
                 new GStringNameArray { "contract", "bounty" },
-                "bounty_registry",
+                "service_bounty_registry",
                 new GStringNameArray { "bounty_registry" }
             )
         );
