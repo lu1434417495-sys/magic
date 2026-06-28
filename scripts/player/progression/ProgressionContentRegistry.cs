@@ -642,7 +642,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
 
     private void _register_seed_achievements()
     {
-    {
         _register_achievement(
             _build_achievement(
                 "battle_won_first",
@@ -660,7 +659,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 )
             )
         );
-    }
 
         _register_achievement(
             _build_achievement(
@@ -1012,11 +1010,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             _questRegistrationErrors.Add($"Duplicate quest_id registered: {questDef.quest_id}");
             return;
         }
-        GodotContentOwnership.RegisterDerivedContent(
-            questDef,
-            $"quest:{(string)questDef.quest_id}",
-            "ProgressionContentRegistry._register_quest"
-        );
+
         _questDefs[questDef.quest_id] = questDef;
         _questDefIndex[questDef.quest_id] = questDef;
     }
