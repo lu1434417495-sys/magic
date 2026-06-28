@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """One-time converter: JSON quest configs -> individual QuestDef .tres files."""
 import json
-import os
 from pathlib import Path
 
 CONFIG_DIR = Path("data/configs/quests")

@@ -198,29 +198,43 @@
 
 ```
 data/configs/quests/
-  ├── main_world_quests.json      # 主世界任务
-  ├── ashen_intersection_quests.json  # 灰烬交界任务
-  └── bounty_quests.json          # 悬赏任务（可重复）
+  ├── tutorial_first_blood.tres
+  ├── tutorial_wolf_alpha.tres
+  ├── main_border_patrol.tres
+  ├── main_mist_investigation.tres
+  ├── main_crack_seal.tres
+  ├── main_ashen_gate.tres
+  ├── ashen_awakening.tres
+  ├── ashen_mist_weaver.tres
+  ├── ...
+  └── bounty_wolf_pack.tres
 ```
+
+每个任务对应一个 Godot `.tres` Resource 文件，由 `QuestDef` 脚本类定义。
 
 ### 7.2 加载方式
 
-QuestDef 支持 `from_dict()` 方法，可将 JSON 中的字典数组批量转换为 QuestDef 资源。建议在 `ProgressionContentRegistry` 或 `GameSession` 初始化时加载：
+任务资源由 `QuestContentRegistry` 在 `ProgressionContentRegistry.Rebuild()` 时通过 `ResourceLoader` 统一加载：
 
 ```csharp
-// 伪代码示例
-var questJson = LoadJson("res://data/configs/quests/main_world_quests.json");
-foreach (var questDict in questJson["quests"].AsGodotArray())
+// scripts/player/progression/QuestContentRegistry.cs
+internal void LoadFromDirectory(string directoryPath)
 {
-    var questDef = QuestDef.from_dict(questDict.AsGodotDictionary());
-    if (questDef != null)
-        questDefs[questDef.quest_id] = questDef;
+    // DirAccess 遍历 *.tres
+    // ResourceLoader.Load<QuestDef>(resourcePath)
+    // 注册到内部 quest catalog
 }
 ```
 
-> **重要**：Godot 的 `JSON.parse()` 会把所有数字解析为 `float`（`Variant.Type.Float`），但 `QuestDef.validate_schema()` 对 `target_value`、`amount` 等字段要求严格的 `int`（`Variant.Type.Int`）。加载时必须递归地将 float 转换为 int，否则 `from_dict()` 会返回 `null`。
->
-> 参考实现见 `tests/runtime/validation/run_quest_config_validation.cs` 中的 `ConvertFloatsToInts()` 函数。
+`ProgressionContentRegistry` 在 `Rebuild()` 中调用：
+
+```csharp
+_questContentRegistry.Rebuild();
+foreach (QuestDef questDef in _questContentRegistry.GetQuestDefsTyped().Values)
+    _register_quest(questDef);
+```
+
+> **注意**：旧版的 `data/configs/quests/*.json` 文件已被移除，任务内容现在完全来自 `.tres` Resource 文件。
 
 ### 7.3 若要扩展灰烬交界 NPC 发布任务
 

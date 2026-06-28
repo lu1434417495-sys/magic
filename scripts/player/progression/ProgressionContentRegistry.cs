@@ -258,13 +258,12 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             _stageAdvancementContentRegistry.GetStageAdvancementDefsTyped()
         );
 
-        _register_seed_achievements();
-        _questContentRegistry.LoadFromDirectory("res://data/configs/quests");
+        _questContentRegistry.Rebuild();
         foreach (string error in _questContentRegistry.GetValidationErrors())
             _validationErrors.Add(error);
         foreach (QuestDef questDef in _questContentRegistry.GetQuestDefsTyped().Values)
             _register_quest(questDef);
-        _register_seed_quests();
+        _register_seed_achievements();
         SyncTypedDefinitionIndexes();
 
         AppendArray(_validationErrors, _professionContentRegistry.Validate());
@@ -643,6 +642,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
 
     private void _register_seed_achievements()
     {
+    {
         _register_achievement(
             _build_achievement(
                 "battle_won_first",
@@ -662,8 +662,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         );
     }
 
-    private void _register_seed_quests()
-    {
         _register_achievement(
             _build_achievement(
                 "settlement_wayfarer",
@@ -887,6 +885,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 1
             )
         );
+    
     }
 
     private AchievementDef _build_achievement(

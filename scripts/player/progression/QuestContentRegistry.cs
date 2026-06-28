@@ -8,11 +8,6 @@ internal sealed class QuestContentRegistry
     private readonly Dictionary<StringName, QuestDef> _questDefs = new();
     private readonly List<string> _validationErrors = new();
 
-    public QuestContentRegistry()
-    {
-        Rebuild();
-    }
-
     public void Rebuild()
     {
         LoadFromDirectory(QuestConfigDirectory);
