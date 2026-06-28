@@ -113,6 +113,9 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetWorldData() ?? new Dictionary();
     }
 
+    internal WorldRuntimeData GetWorldRuntimeData() =>
+        _runtime?.GetActiveWorldRuntimeData() ?? WorldRuntimeData.Empty();
+
     public Vector2I GetPlayerCoord()
     {
         return _runtime?.GetPlayerCoord() ?? Vector2I.Zero;
@@ -221,6 +224,11 @@ internal sealed class WorldMapRuntimeProxy
     public Dictionary GetContractBoardWindowData()
     {
         return _runtime?.GetContractBoardWindowData() ?? new Dictionary();
+    }
+
+    public Dictionary GetNpcQuestOfferWindowData()
+    {
+        return _runtime?.GetNpcQuestOfferWindowData() ?? new Dictionary();
     }
 
     public Dictionary GetForgeWindowData()

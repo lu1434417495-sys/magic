@@ -462,6 +462,19 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         );
     }
 
+    internal GDictionary GetNpcQuestOfferWindowData()
+    {
+        GDictionary context = GetActiveNpcQuestOfferContext();
+        if (context.Count == 0)
+        {
+            return new GDictionary();
+        }
+        return RuntimePayloadCopy.Dictionary(
+            context,
+            "GameRuntimeSettlementCommandHandler.GetNpcQuestOfferWindowData"
+        );
+    }
+
     internal GDictionary GetForgeWindowData()
     {
         GDictionary context = GetActiveForgeContext();
@@ -4139,6 +4152,11 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     internal GDictionary GetActiveContractBoardContext()
     {
         return _has_runtime() ? Runtime.GetActiveContractBoardContext() : new GDictionary();
+    }
+
+    internal GDictionary GetActiveNpcQuestOfferContext()
+    {
+        return _has_runtime() ? Runtime.GetActiveNpcQuestOfferContext() : new GDictionary();
     }
 
     internal GDictionary GetActiveForgeContext()

@@ -190,6 +190,8 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
     internal string _active_settlement_feedback_text = "";
     internal readonly Dictionary<string, object> _active_contract_board_context =
         new(StringComparer.Ordinal);
+    internal readonly Dictionary<string, object> _active_npc_quest_offer_context =
+        new(StringComparer.Ordinal);
     internal readonly Dictionary<string, object> _active_shop_context = new(StringComparer.Ordinal);
     internal readonly Dictionary<string, object> _active_forge_context = new(StringComparer.Ordinal);
     internal readonly Dictionary<string, object> _active_stagecoach_context =
@@ -344,6 +346,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
         _active_settlement_feedback_text = "";
         _ClearSettlementEntryContext();
         _active_contract_board_context.Clear();
+        _active_npc_quest_offer_context.Clear();
         _active_shop_context.Clear();
         _active_forge_context.Clear();
         _active_stagecoach_context.Clear();
@@ -448,6 +451,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
         _active_character_info_context.Clear();
         _active_game_over_context.Clear();
         _active_contract_board_context.Clear();
+        _active_npc_quest_offer_context.Clear();
         _active_shop_context.Clear();
         _active_forge_context.Clear();
         _active_stagecoach_context.Clear();
@@ -686,6 +690,11 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
 
     public GDictionary GetWorldData() => _world_map_data_context.GetActiveWorldData();
 
+    // Typed handle to the already-parsed active world data, so the world-map view
+    // can render without round-tripping through ToDictionary/FromDictionary.
+    internal WorldRuntimeData GetActiveWorldRuntimeData() =>
+        _world_map_data_context.ActiveRuntimeData;
+
     internal WorldMapGenerationConfig GetGenerationConfig() =>
         _world_map_data_context.GetActiveGenerationConfig();
 
@@ -794,6 +803,9 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
     public GDictionary GetContractBoardWindowData() =>
         _settlement_command_handler.GetContractBoardWindowData();
 
+    public GDictionary GetNpcQuestOfferWindowData() =>
+        _settlement_command_handler.GetNpcQuestOfferWindowData();
+
     public GDictionary GetForgeWindowData() =>
         _settlement_command_handler.GetForgeWindowData();
 
@@ -802,6 +814,13 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
             _active_contract_board_context,
             context,
             "GameRuntimeFacade.active_contract_board_context"
+        );
+
+    internal void SetActiveNpcQuestOfferContext(GDictionary context) =>
+        ReplacePlainPayload(
+            _active_npc_quest_offer_context,
+            context,
+            "GameRuntimeFacade.active_npc_quest_offer_context"
         );
 
     internal void SetActiveShopContext(GDictionary context) =>
@@ -816,6 +835,8 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
 
     internal void ClearActiveContractBoardContext() => _active_contract_board_context.Clear();
 
+    internal void ClearActiveNpcQuestOfferContext() => _active_npc_quest_offer_context.Clear();
+
     internal void ClearActiveShopContext() => _active_shop_context.Clear();
 
     internal void ClearActiveForgeContext() => _active_forge_context.Clear();
@@ -824,6 +845,12 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
         ProjectPlainPayload(
             _active_contract_board_context,
             "GameRuntimeFacade.active_contract_board_context"
+        );
+
+    public GDictionary GetActiveNpcQuestOfferContext() =>
+        ProjectPlainPayload(
+            _active_npc_quest_offer_context,
+            "GameRuntimeFacade.active_npc_quest_offer_context"
         );
 
     public GDictionary GetActiveShopContext() =>
@@ -1943,7 +1970,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
         else
         {
             _game_session.SetBattleSaveLock(false);
-            flushError = _game_session.FlushGameState();
+            flushError = _flush_game_state_with_world_sync();
             if (flushError != (int)Error.Ok)
             {
                 UpdateStatusInternal(
@@ -2096,7 +2123,7 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
         )
         {
             _game_session.SetPartyState(_party_state);
-            _game_session.FlushGameState();
+            _flush_game_state_with_world_sync();
         }
         return unlockedIds;
     }
@@ -3153,13 +3180,8 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
             _activate_settlement_entry_context(sourceCoord, targetCoord);
             if (_try_open_settlement_at(targetCoord, false))
             {
-                int persistError = _game_session.SetWorldData(
-                    _world_map_data_context.root_world_data
-                );
-                if (persistError != (int)Error.Ok)
-                    UpdateStatusInternal(
-                        $"已打开 {targetSettlement.DisplayNameOrFallback("据点")} 的据点窗口，但世界状态持久化失败。"
-                    );
+                // World state syncs to the save layer lazily at flush
+                // (_flush_game_state_with_world_sync), not via a full inline push here.
                 return;
             }
             _ClearSettlementEntryContext();
@@ -3178,13 +3200,10 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
         if (triggeredEvent != null)
         {
             int playerPersistError = _game_session.SetPlayerCoord(_player_coord);
-            int worldPersistError = _game_session.SetWorldData(
-                _world_map_data_context.root_world_data
-            );
             OpenWorldEventPrompt(triggeredEvent);
-            if (playerPersistError != (int)Error.Ok || worldPersistError != (int)Error.Ok)
+            if (playerPersistError != (int)Error.Ok)
                 UpdateStatusInternal(
-                    $"{ResolveWorldEventDisplayName(triggeredEvent, "事件入口")} 已显现，但当前位置或世界状态持久化失败。"
+                    $"{ResolveWorldEventDisplayName(triggeredEvent, "事件入口")} 已显现，但当前位置持久化失败。"
                 );
             return;
         }
@@ -3194,18 +3213,15 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
         {
             _game_session.SetBattleSaveLock(true);
             int playerPersistError = _game_session.SetPlayerCoord(_player_coord);
-            int worldPersistError = _game_session.SetWorldData(
-                _world_map_data_context.root_world_data
-            );
+            // No inline world push: saves are locked through the battle, and the
+            // post-battle flush below (or on resolution) syncs current world data.
             _StartBattle(encounterAnchor);
             if (!IsBattleActive() && !HasPendingBattleGenerationRequest())
             {
                 _game_session.SetBattleSaveLock(false);
-                int flushError = _game_session.FlushGameState();
+                int flushError = _flush_game_state_with_world_sync();
                 UpdateStatusInternal(
-                    playerPersistError != (int)Error.Ok
-                    || worldPersistError != (int)Error.Ok
-                    || flushError != (int)Error.Ok
+                    playerPersistError != (int)Error.Ok || flushError != (int)Error.Ok
                         ? "遭遇战未能开始，且玩家位置或世界时间持久化失败。"
                         : "遭遇战未能开始，已保留玩家当前位置与世界时间。"
                 );
@@ -3214,12 +3230,23 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
         }
 
         int playerError = _game_session.SetPlayerCoord(_player_coord);
-        int worldError = _game_session.SetWorldData(_world_map_data_context.root_world_data);
+        // World data is no longer pushed to the save layer on every step (that did a
+        // full ToDictionary + NormalizeWorldData/Duplicate per move). The typed data
+        // context is the live source of truth; it is synced into the save layer only
+        // just before a flush via _flush_game_state_with_world_sync().
         UpdateStatusInternal(
-            playerError == (int)Error.Ok && worldError == (int)Error.Ok
+            playerError == (int)Error.Ok
                 ? $"玩家移动到 {FormatCoordInternal(_player_coord)}，视野与世界时间已刷新。"
-                : $"玩家移动到 {FormatCoordInternal(_player_coord)}，但大地图位置或世界时间持久化失败。"
+                : $"玩家移动到 {FormatCoordInternal(_player_coord)}，但大地图位置持久化失败。"
         );
+    }
+
+    // Sync the typed world data into the save layer immediately before flushing, so
+    // deferring the per-move SetWorldData never persists stale world state.
+    private int _flush_game_state_with_world_sync()
+    {
+        _game_session.SetWorldData(_world_map_data_context.root_world_data);
+        return _game_session.FlushGameState();
     }
 
     private void _AdvanceWorldTimeBySteps(int delta_steps)
@@ -3239,7 +3266,9 @@ public sealed class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
             _wild_encounter_roster_defs
         );
         if (encounterGrowthChanged)
-            _world_map_data_context.SyncActiveWorldPayloadFromTypedState();
+            // Growth only changed anchor growth_stage (positions unchanged), so skip
+            // the O(all markers) coord-lookup rebuild.
+            _world_map_data_context.SyncActiveWorldPayloadFromTypedState(rebuildLookups: false);
         int daysElapsed = advanceResult.days_elapsed;
         if (daysElapsed > 0 && _character_management != null)
         {
