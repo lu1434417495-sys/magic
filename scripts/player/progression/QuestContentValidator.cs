@@ -76,6 +76,10 @@ public static class QuestContentValidator
             return;
         }
 
+        // NPC provider_interaction_id values are interaction_script_ids, not service-modal IDs.
+        if (QuestProviderContentRules.ToProviderKind(questDef) == QuestProviderKind.Npc)
+            return;
+
         if (!supportedProviderIds.Contains(questDef.provider_interaction_id))
             errors.Add(
                 $"Quest {questDef.quest_id} references missing provider_interaction_id {questDef.provider_interaction_id}."
