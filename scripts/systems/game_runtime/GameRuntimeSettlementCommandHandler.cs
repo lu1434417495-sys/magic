@@ -61,6 +61,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     private SettlementShopService _shop_service = new();
     private SettlementForgeService _forge_service = new();
     private SettlementResearchService _research_service = new();
+    private readonly QuestAcceptRequirementEvaluator _quest_accept_evaluator = new();
 
     private sealed class SettlementActionValidationResult
     {
@@ -105,6 +106,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         public IReadOnlyList<QuestDef.ObjectiveEntryData> ObjectiveEntries { get; }
         public IReadOnlyList<QuestDef.RewardEntryData> RewardEntries { get; }
         public bool IsRepeatable { get; }
+        public string AcceptDialogueText { get; }
+        public string AcceptFeedbackSuccess { get; }
+        public string AcceptFeedbackFailure { get; }
+        public string AcceptConfirmationText { get; }
 
         internal ContractBoardQuestData(
             QuestDef questDef,
@@ -124,6 +129,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                 objectiveEntries ?? System.Array.Empty<QuestDef.ObjectiveEntryData>();
             RewardEntries = rewardEntries ?? System.Array.Empty<QuestDef.RewardEntryData>();
             IsRepeatable = questDef?.is_repeatable ?? false;
+            AcceptDialogueText = questDef?.accept_dialogue_text ?? "";
+            AcceptFeedbackSuccess = questDef?.accept_feedback_success ?? "";
+            AcceptFeedbackFailure = questDef?.accept_feedback_failure ?? "";
+            AcceptConfirmationText = questDef?.accept_confirmation_text ?? "";
         }
     }
 
@@ -337,6 +346,31 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     {
         Runtime = null;
         DisposeServiceInstances(recreate: true);
+    }
+
+    private QuestAcceptContext _build_quest_accept_context()
+    {
+        return new QuestAcceptContext
+        {
+            PartyState = GetPartyState(),
+            WarehouseService = GetPartyWarehouseService(),
+            PartyGold = GetPartyGold(),
+            WorldStep = GetWorldStep(),
+            SettlementId = GetActiveSettlementId(),
+            SettlementTier = GetSettlementTier(),
+            QuestDefs = GetQuestDefsTyped(),
+        };
+    }
+
+    private int GetSettlementTier()
+    {
+        string settlementId = GetActiveSettlementId();
+        if (settlementId == "")
+            return 0;
+        GDictionary settlement = GetSettlementRecord(settlementId);
+        if (settlement == null)
+            return 0;
+        return ReadInt(settlement, "tier", 0);
     }
 
     internal GDictionary GetSettlementWindowData(string settlement_id = "")
@@ -2176,6 +2210,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             summaryText =
                 "选择契约后会按当前状态执行接取或领奖；重复接取、待领奖励和可重复任务都会返回明确反馈。";
         }
+        string feedbackText = ReadString(payload, "feedback_text", "");
+        string stateSummaryText = !string.IsNullOrEmpty(feedbackText)
+            ? feedbackText
+            : _build_contract_board_state_summary(entries);
         return new GDictionary
         {
             ["title"] =
@@ -2183,7 +2221,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             ["meta"] =
                 $"{ReadString(payload, "facility_name", "任务板")} · {ReadString(payload, "npc_name", "值守人员")} · {ReadString(payload, "service_type", "契约")}",
             ["summary_text"] = summaryText,
-            ["state_summary_text"] = _build_contract_board_state_summary(entries),
+            ["state_summary_text"] = stateSummaryText,
             ["service_name"] = ReadString(payload, "service_type", "任务板"),
             ["settlement_id"] = settlement_id,
             ["action_id"] = ReadString(payload, "action_id"),
@@ -2278,6 +2316,22 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             questData.QuestId,
             questData.IsRepeatable
         );
+
+        string disabledReason = "";
+        StringName lockReasonId = "";
+        bool isEnabled = true;
+
+        if (stateId is "available" or "repeatable")
+        {
+            QuestAcceptAvailabilityResult availability = _quest_accept_evaluator.Evaluate(
+                quest_def,
+                _build_quest_accept_context()
+            );
+            isEnabled = availability.CanAccept;
+            disabledReason = availability.DisabledReason;
+            lockReasonId = availability.LockReasonId;
+        }
+
         return new GDictionary
         {
             ["entry_id"] = questData.QuestId.ToString(),
@@ -2289,9 +2343,14 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             ["state_id"] = stateId,
             ["state_label"] = _build_contract_board_state_label(stateId),
             ["cost_label"] = _build_contract_board_reward_label(questData.RewardEntries),
-            ["is_enabled"] = true,
-            ["disabled_reason"] = "",
+            ["is_enabled"] = isEnabled,
+            ["disabled_reason"] = disabledReason,
+            ["lock_reason_id"] = lockReasonId,
             ["is_repeatable"] = questData.IsRepeatable,
+            ["accept_dialogue_text"] = quest_def.accept_dialogue_text,
+            ["accept_feedback_success"] = quest_def.accept_feedback_success,
+            ["accept_feedback_failure"] = quest_def.accept_feedback_failure,
+            ["accept_confirmation_text"] = quest_def.accept_confirmation_text,
         };
     }
 
@@ -2400,6 +2459,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             _build_contract_board_objective_summary(quest_data),
             _build_contract_board_reward_label(quest_data.RewardEntries),
         };
+        if (!string.IsNullOrEmpty(quest_data.AcceptDialogueText))
+        {
+            lines.Add($"接取对话：{quest_data.AcceptDialogueText}");
+        }
         if (quest_data.IsRepeatable)
         {
             lines.Add("说明：该契约完成后可再次接取。");
@@ -2643,6 +2706,24 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         }
         GDictionary nextContext = _build_contract_board_window_data(settlementId, nextPayload);
         SetActiveContractBoardContext(nextContext);
+    }
+
+    private void _set_contract_board_confirmation_context(StringName quest_id, string confirmation_text)
+    {
+        GDictionary context = GetActiveContractBoardContext();
+        context["pending_confirmation_quest_id"] = quest_id.ToString();
+        context["pending_confirmation_text"] = confirmation_text;
+        context["pending_confirmation_source"] = "contract_board";
+        SetActiveContractBoardContext(context);
+    }
+
+    private void _clear_contract_board_confirmation_context()
+    {
+        GDictionary context = GetActiveContractBoardContext();
+        context.Remove("pending_confirmation_quest_id");
+        context.Remove("pending_confirmation_text");
+        context.Remove("pending_confirmation_source");
+        SetActiveContractBoardContext(context);
     }
 
     private void _refresh_active_forge_context(string feedback_text = "")
@@ -3500,11 +3581,41 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             UpdateStatus(providerMismatchMessage);
             return CommandError(providerMismatchMessage);
         }
+
+        QuestAcceptAvailabilityResult availability = _quest_accept_evaluator.Evaluate(
+            questData.QuestDef,
+            _build_quest_accept_context()
+        );
+
+        if (!availability.CanAccept)
+        {
+            string feedback = !string.IsNullOrEmpty(questData.AcceptFeedbackFailure)
+                ? questData.AcceptFeedbackFailure
+                : $"不满足接取条件：{availability.DisabledReason}";
+            _refresh_active_contract_board_context(feedback);
+            SetSettlementFeedbackText(feedback);
+            UpdateStatus(feedback);
+            return CommandError(feedback);
+        }
+
+        bool isConfirmationSubmission = ReadBool(payload, "confirm_accept", false);
+        bool hasPendingConfirmation = ReadStringName(GetActiveContractBoardContext(), "pending_confirmation_quest_id") == questId;
+
+        if (!string.IsNullOrEmpty(questData.AcceptConfirmationText) && !isConfirmationSubmission && !hasPendingConfirmation)
+        {
+            _set_contract_board_confirmation_context(questId, questData.AcceptConfirmationText);
+            return CommandOk("请确认是否接取该契约。");
+        }
+
+        if (hasPendingConfirmation)
+            _clear_contract_board_confirmation_context();
+
         string stateId = _resolve_contract_board_quest_state_id(
             questData.QuestId,
             questData.IsRepeatable
         );
         GameRuntimeFacade.RuntimeCommandResult commandResult;
+        bool isAcceptAction = false;
         if (stateId == "claimable")
         {
             commandResult = Runtime.CommandClaimQuestTyped(questId);
@@ -3528,15 +3639,28 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             else
             {
                 commandResult = Runtime.CommandAcceptQuestTyped(questId, questData.IsRepeatable);
+                isAcceptAction = true;
             }
         }
         else
         {
             commandResult = Runtime.CommandAcceptQuestTyped(questId, questData.IsRepeatable);
+            isAcceptAction = true;
         }
-        string message = string.IsNullOrEmpty(commandResult.Message)
-            ? "任务处理失败。"
-            : commandResult.Message;
+
+        string message;
+        if (commandResult.Ok && isAcceptAction)
+        {
+            message = !string.IsNullOrEmpty(questData.AcceptFeedbackSuccess)
+                ? questData.AcceptFeedbackSuccess
+                : $"已接取契约 {questData.DisplayName}。";
+        }
+        else
+        {
+            message = string.IsNullOrEmpty(commandResult.Message)
+                ? "任务处理失败。"
+                : commandResult.Message;
+        }
         SetActiveSettlementId(settlement_id);
         SetActiveModalKind(RuntimeModalKind.ContractBoard);
         SetSettlementFeedbackText(message);

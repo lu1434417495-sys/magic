@@ -21,6 +21,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         await TestFacadeUsesSettlementHandlerSurface();
         await TestSettlementHandlerRoutesResearchService();
         await TestSettlementHandlerRoutesActionsAndModalState();
+        await TestContractBoardEvaluatorAndFeedback();
         await TestSettlementHandlerRejectsStringNameSubmissionFields();
         TestSettlementShopServiceRejectsBadEntrySchema();
         await TestSettlementHandlerRejectsInvalidOrSpoofedActions();
@@ -611,6 +612,130 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         }
     }
 
+    private async Task TestContractBoardEvaluatorAndFeedback()
+    {
+        GDictionary questDefs = BuildEvaluatorQuestDefs();
+        RuntimeFixture fixture = await BuildRuntimeFixture(
+            "evaluator",
+            BuildPartyState(20, 200),
+            new[]
+            {
+                BuildSettlementRecord("spring_village_01", "春泉村", Vector2I.Zero, BuildBasicSettlementServices(false)),
+            },
+            questDefs
+        );
+        try
+        {
+            GameRuntimeSettlementCommandHandler handler = fixture.Handler;
+            GameRuntimeFacade runtime = fixture.Runtime;
+
+            GameRuntimeFacade.RuntimeCommandResult openResult =
+                handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:contract_board",
+                    new GDictionary()
+                );
+            _test.True(openResult.Ok, "测试前置：任务板应能打开。");
+            GDictionary windowData = handler.GetContractBoardWindowData();
+
+            GDictionary lockedEntry = FindContractBoardEntry(DictArray(windowData, "entries"), "contract_locked_hunt");
+            _test.False(DictBool(lockedEntry, "is_enabled", true), "未满足前置任务时，契约条目应被禁用。");
+            _test.Eq(DictString(lockedEntry, "lock_reason_id", ""), "quest_not_completed", "禁用条目的 lock_reason_id 应来自 evaluator。");
+            _test.True(!string.IsNullOrEmpty(DictString(lockedEntry, "disabled_reason", "")), "禁用条目应包含 disabled_reason。");
+
+            GDictionary dialogueEntry = FindContractBoardEntry(DictArray(windowData, "entries"), "contract_dialogue_quest");
+            string detailsText = DictString(dialogueEntry, "details_text", "");
+            _test.True(detailsText.Contains("这是接取对话文案。"), "details_text 应展示 accept_dialogue_text。");
+            _test.Eq(DictString(dialogueEntry, "accept_dialogue_text", ""), "这是接取对话文案。", "accept_dialogue_text 字段应原样暴露。");
+
+            GDictionary confirmationEntry = FindContractBoardEntry(DictArray(windowData, "entries"), "contract_confirmation_quest");
+            _test.Eq(DictString(confirmationEntry, "accept_feedback_success", ""), "已确认接取确认契约。", "accept_feedback_success 字段应原样暴露。");
+            _test.Eq(DictString(confirmationEntry, "accept_confirmation_text", ""), "确认要接取这个契约吗？", "accept_confirmation_text 字段应原样暴露。");
+
+            GameRuntimeFacade.RuntimeCommandResult lockedSubmitResult =
+                handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:contract_board",
+                    new GDictionary
+                    {
+                        ["submission_source"] = "contract_board",
+                        ["quest_id"] = "contract_locked_hunt",
+                        ["provider_interaction_id"] = "service_contract_board",
+                    }
+                );
+            _test.False(lockedSubmitResult.Ok, "未满足前置任务时提交接取应失败。");
+            _test.Eq(runtime._active_settlement_feedback_text, "当前无法接取该前置契约。", "提交失败时应使用 accept_feedback_failure 更新据点反馈。");
+
+            GDictionary refreshedData = handler.GetContractBoardWindowData();
+            _test.Eq(DictString(refreshedData, "state_summary_text", ""), "当前无法接取该前置契约。", "feedback_text 应保留在 state_summary_text 中。");
+            _test.Eq(DictString(refreshedData, "summary_text", ""), "当前无法接取该前置契约。", "feedback_text 应保留在 summary_text 中。");
+
+            GameRuntimeFacade.RuntimeCommandResult confirmationResult =
+                handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:contract_board",
+                    new GDictionary
+                    {
+                        ["submission_source"] = "contract_board",
+                        ["quest_id"] = "contract_confirmation_quest",
+                        ["provider_interaction_id"] = "service_contract_board",
+                    }
+                );
+            _test.True(confirmationResult.Ok, "首次提交带确认文案的契约应返回确认状态而不是错误。");
+            _test.False(runtime._party_state.HasActiveQuest("contract_confirmation_quest"), "确认弹窗期间不应接取任务。");
+            GDictionary confirmationContext = handler.GetContractBoardWindowData();
+            _test.Eq(DictString(confirmationContext, "pending_confirmation_quest_id", ""), "contract_confirmation_quest", "应写入 pending_confirmation_quest_id。");
+            _test.Eq(DictString(confirmationContext, "pending_confirmation_text", ""), "确认要接取这个契约吗？", "应写入 pending_confirmation_text。");
+            _test.Eq(DictString(confirmationContext, "pending_confirmation_source", ""), "contract_board", "应写入 pending_confirmation_source。");
+
+            GameRuntimeFacade.RuntimeCommandResult confirmedAcceptResult =
+                handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:contract_board",
+                    new GDictionary
+                    {
+                        ["submission_source"] = "contract_board",
+                        ["quest_id"] = "contract_confirmation_quest",
+                        ["provider_interaction_id"] = "service_contract_board",
+                        ["confirm_accept"] = true,
+                    }
+                );
+            _test.True(confirmedAcceptResult.Ok, "带 confirm_accept=true 的提交应成功接取。");
+            _test.True(runtime._party_state.HasActiveQuest("contract_confirmation_quest"), "确认后应把任务写入 active_quests。");
+            _test.Eq(runtime._active_settlement_feedback_text, "已确认接取确认契约。", "确认接取后应使用 accept_feedback_success 更新据点反馈。");
+            _test.Eq(DictString(handler.GetContractBoardWindowData(), "summary_text", ""), "已确认接取确认契约。", "确认接取后 summary_text 应使用 accept_feedback_success。");
+            _test.Eq(DictString(handler.GetContractBoardWindowData(), "state_summary_text", ""), "已确认接取确认契约。", "确认接取后 state_summary_text 应使用 accept_feedback_success。");
+            _test.Eq(DictString(handler.GetContractBoardWindowData(), "pending_confirmation_quest_id", ""), "", "确认后应清空 pending_confirmation_quest_id。");
+
+            runtime._party_state.AddCompletedQuestId("contract_prerequisite_hunt");
+            runtime._character_management.SetPartyState(runtime._party_state);
+            runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
+            GameRuntimeFacade.RuntimeCommandResult reopenResult =
+                handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:contract_board",
+                    new GDictionary()
+                );
+            _test.True(reopenResult.Ok, $"前置任务完成后重新打开任务板应成功。message={reopenResult.Message}");
+            GDictionary unlockedEntry = FindContractBoardEntry(DictArray(handler.GetContractBoardWindowData(), "entries"), "contract_locked_hunt");
+            _test.True(DictBool(unlockedEntry, "is_enabled", false), "前置任务完成后，被锁定的契约应变为可用。");
+            _test.Eq(DictString(unlockedEntry, "lock_reason_id", ""), "", "可用条目的 lock_reason_id 应为空。");
+            _test.Eq(DictString(unlockedEntry, "disabled_reason", ""), "", "可用条目的 disabled_reason 应为空。");
+
+            GameRuntimeFacade.RuntimeCommandResult unlockedAcceptResult =
+                handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:contract_board",
+                    new GDictionary
+                    {
+                        ["submission_source"] = "contract_board",
+                        ["quest_id"] = "contract_locked_hunt",
+                        ["provider_interaction_id"] = "service_contract_board",
+                    }
+                );
+            _test.True(unlockedAcceptResult.Ok, "解锁后应能正常接取。");
+            _test.True(runtime._party_state.HasActiveQuest("contract_locked_hunt"), "解锁接取后应把任务写入 active_quests。");
+        }
+        finally
+        {
+            await DisposeFixture(fixture);
+        }
+    }
+
     private void TestSettlementShopServiceRejectsBadEntrySchema()
     {
         var shopService = new SettlementShopService();
@@ -1191,7 +1316,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
     {
         var questDefs = new GDictionary();
         AddQuestDef(questDefs, BuildQuestDef("contract_first_hunt", "首轮狩猎", "击败任意一组敌对遭遇。", "service_contract_board", new GArray { BuildObjective("defeat_enemy_once", "defeat_enemy", "", 1) }, new GArray { BuildGoldReward(80) }));
-        AddQuestDef(questDefs, BuildQuestDef("contract_manual_drill", "训练记录", "在训练场完成两次记录。", "service_contract_board", new GArray { BuildObjective("train_once", "settlement_action", "service:training", 2) }, new GArray { BuildGoldReward(30) }));
+        AddQuestDef(questDefs, BuildQuestDef("contract_manual_drill", "训练记录", "在训练场完成两次记录。", "service_contract_board", new GArray { BuildObjective("train_once", "settlement_action", "service:training", 2) }, new GArray { BuildGoldReward(30) }, false, "", "已接取任务《训练记录》。"));
         AddQuestDef(questDefs, BuildQuestDef("contract_repeatable_patrol", "巡路值守", "完成一次例行巡路，随后可再次接取。", "service_contract_board", new GArray { BuildObjective("warehouse_visit", "settlement_action", "service:warehouse", 1) }, new GArray { BuildGoldReward(15) }, true));
         AddQuestDef(questDefs, BuildQuestDef("contract_warehouse_visit", "仓储访问追踪", "据点仓储动作进度测试。", "service_warehouse_hidden", new GArray { BuildObjective("warehouse_visit", "settlement_action", "service:warehouse", 1) }, new GArray { BuildGoldReward(1) }));
         AddQuestDef(questDefs, BuildQuestDef("contract_regional_bounty", "地区悬赏", "仅应出现在悬赏署任务板。", "service_bounty_registry", new GArray { BuildObjective("submit_report", "settlement_action", "service:report_bounty", 1) }, new GArray { BuildGoldReward(120) }));
@@ -1207,6 +1332,23 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         questDefs["contract_string_key_only"] = BuildQuest("contract_string_key_only", "旧 String key 契约", "用于验证任务板不再按 String key 恢复契约。", "service_contract_board", new GArray { BuildObjective("string_key_objective", "settlement_action", "service:training", 1) }, new GArray { BuildGoldReward(1) });
         AddQuestDef(questDefs, BuildQuestDef("contract_supply_drop", "物资缴纳", "向任务板提交两份铁矿石。", "service_contract_board", new GArray { BuildObjective("deliver_ore", "submit_item", "iron_ore", 2) }, new GArray { BuildGoldReward(18) }));
         AddQuestDef(questDefs, BuildQuestDef("contract_training", "训练追踪", "据点训练进度测试。", "service_training_hidden", new GArray { BuildObjective("train_once", "settlement_action", "service:training", 1) }, new GArray { BuildGoldReward(1) }));
+        return questDefs;
+    }
+
+    private static GDictionary BuildEvaluatorQuestDefs()
+    {
+        var questDefs = new GDictionary();
+        AddQuestDef(questDefs, BuildQuestDef("contract_prerequisite_hunt", "前置狩猎", "完成前置狩猎任务。", "service_contract_board", new GArray { BuildObjective("defeat_enemy_once", "defeat_enemy", "", 1) }, new GArray { BuildGoldReward(10) }));
+        QuestDef lockedQuest = BuildQuestDef("contract_locked_hunt", "锁定狩猎", "需要前置任务完成后才能接取。", "service_contract_board", new GArray { BuildObjective("defeat_enemy_locked", "defeat_enemy", "", 1) }, new GArray { BuildGoldReward(20) });
+        lockedQuest.accept_requirements.Add(new GDictionary
+        {
+            ["requirement_type"] = "quest_completed",
+            ["quest_id"] = "contract_prerequisite_hunt",
+        });
+        lockedQuest.accept_feedback_failure = "当前无法接取该前置契约。";
+        AddQuestDef(questDefs, lockedQuest);
+        AddQuestDef(questDefs, BuildQuestDef("contract_dialogue_quest", "对话契约", "展示接取对话文案。", "service_contract_board", new GArray { BuildObjective("dialogue_objective", "defeat_enemy", "", 1) }, new GArray { BuildGoldReward(5) }, false, "这是接取对话文案。"));
+        AddQuestDef(questDefs, BuildQuestDef("contract_confirmation_quest", "确认契约", "需要确认才能接取。", "service_contract_board", new GArray { BuildObjective("confirmation_objective", "defeat_enemy", "", 1) }, new GArray { BuildGoldReward(7) }, false, "", "已确认接取确认契约。", "", "确认要接取这个契约吗？"));
         return questDefs;
     }
 
@@ -1238,7 +1380,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         return quest;
     }
 
-    private static QuestDef BuildQuestDef(string questId, string displayName, string description, string providerInteractionId, GArray objectiveDefs, GArray rewardEntries, bool isRepeatable = false)
+    private static QuestDef BuildQuestDef(string questId, string displayName, string description, string providerInteractionId, GArray objectiveDefs, GArray rewardEntries, bool isRepeatable = false, string acceptDialogueText = "", string acceptFeedbackSuccess = "", string acceptFeedbackFailure = "", string acceptConfirmationText = "")
     {
         var quest = new QuestDef
         {
@@ -1247,6 +1389,10 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             description = description,
             provider_interaction_id = providerInteractionId,
             is_repeatable = isRepeatable,
+            accept_dialogue_text = acceptDialogueText,
+            accept_feedback_success = acceptFeedbackSuccess,
+            accept_feedback_failure = acceptFeedbackFailure,
+            accept_confirmation_text = acceptConfirmationText,
         };
         foreach (GDictionary objective in Dictionaries(objectiveDefs))
         {
