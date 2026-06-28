@@ -42,6 +42,7 @@ public partial class ShopWindow : Control
     private int _selectedEntryIndex = -1;
     private StringName _selectedMemberId = "";
     private readonly List<StringName> _memberOptionIds = new();
+    private bool _isShowingConfirmation = false;
 
     public override void _Ready()
     {
@@ -150,6 +151,7 @@ public partial class ShopWindow : Control
     public void HideWindow()
     {
         Visible = false;
+        _isShowingConfirmation = false;
         _windowData = ShopWindowData.Empty();
         _settlementId = "";
         _actionId = "";
@@ -198,8 +200,6 @@ public partial class ShopWindow : Control
         title_label.Text = _windowData.Title;
         meta_label.Text = _build_meta_text();
         summary_label.Text = _windowData.SummaryText;
-        confirm_button.Text = _windowData.ConfirmLabel;
-        cancel_button.Text = _windowData.CancelLabel;
         _apply_section_titles();
         _rebuild_entry_list();
         _build_member_selector();
@@ -207,6 +207,10 @@ public partial class ShopWindow : Control
         _refresh_member_state();
         _refresh_details();
         _refresh_controls();
+        if (_windowData.PendingConfirmationQuestId != (StringName)"")
+            _show_confirmation_panel();
+        else
+            _hide_confirmation_panel();
     }
 
     private string _build_meta_text()
@@ -463,11 +467,39 @@ public partial class ShopWindow : Control
         _refresh_controls();
     }
 
+    private void _show_confirmation_panel()
+    {
+        _isShowingConfirmation = true;
+        confirm_button.Text = "确认";
+        cancel_button.Text = "返回";
+        details_label.Text = _windowData.PendingConfirmationText;
+    }
+
+    private void _hide_confirmation_panel()
+    {
+        _isShowingConfirmation = false;
+        confirm_button.Text = _windowData.ConfirmLabel;
+        cancel_button.Text = _windowData.CancelLabel;
+        _refresh_details();
+    }
+
     private void _on_confirm_button_pressed()
     {
         if (confirm_button.Disabled)
             return;
+        if (
+            _windowData.PendingConfirmationQuestId != (StringName)""
+            && !_isShowingConfirmation
+        )
+        {
+            _show_confirmation_panel();
+            return;
+        }
+
         GDictionary payload = _build_confirm_payload();
+        if (_windowData.PendingConfirmationQuestId != (StringName)"")
+            payload["confirm_accept"] = true;
+
         string settlementId = _settlementId;
         string actionId = _actionId;
         HideWindow();
@@ -478,6 +510,11 @@ public partial class ShopWindow : Control
     {
         if (!Visible)
             return;
+        if (_isShowingConfirmation)
+        {
+            _hide_confirmation_panel();
+            return;
+        }
         HideWindow();
         EmitSignal(SignalName.closed);
     }
@@ -546,6 +583,9 @@ public partial class ShopWindow : Control
         public Dictionary<StringName, MemberOption> MemberOptionMap { get; private init; } = new();
         public StringName ExplicitDefaultMemberId { get; private init; } = "";
         public StringName SelectedMemberId { get; private init; } = "";
+        public StringName PendingConfirmationQuestId { get; private init; } = "";
+        public string PendingConfirmationText { get; private init; } = "";
+        public string PendingConfirmationSource { get; private init; } = "";
 
         public static ShopWindowData Empty() => new();
 
@@ -614,6 +654,9 @@ public partial class ShopWindow : Control
                 MemberOptionMap = memberMap,
                 ExplicitDefaultMemberId = DictStringName(data, "default_member_id"),
                 SelectedMemberId = DictStringName(data, "selected_member_id"),
+                PendingConfirmationQuestId = DictStringName(data, "pending_confirmation_quest_id"),
+                PendingConfirmationText = DictString(data, "pending_confirmation_text", ""),
+                PendingConfirmationSource = DictString(data, "pending_confirmation_source", ""),
             };
         }
 

@@ -25,6 +25,7 @@ public partial class run_settlement_shop_window_schema_regression : SceneTree
         await TestShopWindowRejectsStringNameTopLevelFields();
         await TestShopWindowRejectsStringNameEntryFields();
         await TestShopWindowRejectsStringNameMemberOptionFields();
+        await TestShopWindowConfirmationFlow();
         Quit(_test.Finish("Settlement/shop window schema regression"));
     }
 
@@ -247,6 +248,72 @@ public partial class run_settlement_shop_window_schema_regression : SceneTree
                 },
             },
         };
+
+    private async Task TestShopWindowConfirmationFlow()
+    {
+        ShopWindow window = await CreateShopWindow();
+        GDictionary capturedPayload = null;
+        bool actionRequested = false;
+        string capturedSettlementId = null;
+        string capturedActionId = null;
+        window.action_requested += (settlement_id, action_id, payload) =>
+        {
+            actionRequested = true;
+            capturedSettlementId = settlement_id;
+            capturedActionId = action_id;
+            capturedPayload = payload;
+        };
+
+        window.ShowShop(MakeConfirmationShopPayload());
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+
+        _test.True(window.Visible, "带 pending_confirmation 的 payload 应正常显示 ShopWindow。");
+        _test.Eq(window.confirm_button.Text, "确认", "确认面板应把确认按钮文案改为 确认。");
+        _test.Eq(window.cancel_button.Text, "返回", "确认面板应把取消按钮文案改为 返回。");
+        _test.True(
+            window.details_label.Text.Contains("确认要接取这个契约吗？"),
+            "确认面板应显示 pending_confirmation_text。"
+        );
+
+        window.confirm_button.EmitSignal(BaseButton.SignalName.Pressed);
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+
+        _test.True(actionRequested, "确认面板下再次点击确认应发射 action_requested 信号。");
+        _test.Eq(capturedSettlementId, "graystone_town_01", "payload 应保留 settlement_id。");
+        _test.Eq(capturedActionId, "service:basic_supply", "payload 应保留 action_id。");
+        _test.True(capturedPayload.ContainsKey("confirm_accept"), "确认后的 payload 应包含 confirm_accept。");
+        _test.True((bool)capturedPayload["confirm_accept"], "confirm_accept 应为 true。");
+        _test.False(window.Visible, "确认接取后应隐藏窗口。");
+
+        actionRequested = false;
+        capturedPayload = null;
+        capturedSettlementId = null;
+        capturedActionId = null;
+        window.ShowShop(MakeConfirmationShopPayload());
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+        window.cancel_button.EmitSignal(BaseButton.SignalName.Pressed);
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+
+        _test.False(actionRequested, "确认面板下点击取消不应发射 action_requested。");
+        _test.True(window.Visible, "确认面板下点击取消应保持窗口可见。");
+        _test.Eq(window.confirm_button.Text, "购买", "取消后确认按钮应恢复原始文案。");
+        _test.Eq(window.cancel_button.Text, "关闭", "取消后取消按钮应恢复原始文案。");
+        _test.False(
+            window.details_label.Text.Contains("确认要接取这个契约吗？"),
+            "取消后详情文本应恢复条目详情。"
+        );
+
+        await DisposeWindow(window);
+    }
+
+    private static GDictionary MakeConfirmationShopPayload()
+    {
+        GDictionary payload = MakeShopPayload().Duplicate(true);
+        payload["pending_confirmation_quest_id"] = "contract_confirmation_quest";
+        payload["pending_confirmation_text"] = "确认要接取这个契约吗？";
+        payload["pending_confirmation_source"] = "contract_board";
+        return payload;
+    }
 
     private static GDictionary MakeShopPayload() =>
         new()
