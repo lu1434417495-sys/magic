@@ -677,7 +677,10 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 new GArray
                 {
                     new GDictionary { ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold), ["amount"] = 30 },
-                }
+                },
+                null,
+                "contract_board",
+                new GStringNameArray { "contract_board" }
             )
         );
 
@@ -700,7 +703,10 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 new GArray
                 {
                     new GDictionary { ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold), ["amount"] = 60 },
-                }
+                },
+                null,
+                "contract_board",
+                new GStringNameArray { "contract_board" }
             )
         );
 
@@ -723,7 +729,10 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 new GArray
                 {
                     new GDictionary { ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold), ["amount"] = 80 },
-                }
+                },
+                null,
+                "contract_board",
+                new GStringNameArray { "contract_board" }
             )
         );
 
@@ -747,7 +756,9 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 {
                     new GDictionary { ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold), ["amount"] = 120 },
                 },
-                new GStringNameArray { "contract", "bounty" }
+                new GStringNameArray { "contract", "bounty" },
+                "bounty_registry",
+                new GStringNameArray { "bounty_registry" }
             )
         );
 
@@ -1014,7 +1025,13 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         StringName providerInteractionId,
         GArray objectiveDefs,
         GArray rewardEntries,
-        GStringNameArray tags = null
+        GStringNameArray tags = null,
+        StringName providerKind = null,
+        GStringNameArray listingChannels = null,
+        string acceptDialogueText = "",
+        string acceptFeedbackSuccess = "",
+        string acceptFeedbackFailure = "",
+        string acceptConfirmationText = ""
     )
     {
         var questDef = new QuestDef
@@ -1024,6 +1041,14 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             description = description,
             provider_interaction_id = providerInteractionId,
             tags = tags != null ? DuplicateStringNameArray(tags) : new GStringNameArray(),
+            provider_kind = providerKind ?? new StringName(""),
+            listing_channels = listingChannels != null
+                ? DuplicateStringNameArray(listingChannels)
+                : new GStringNameArray(),
+            accept_dialogue_text = acceptDialogueText,
+            accept_feedback_success = acceptFeedbackSuccess,
+            accept_feedback_failure = acceptFeedbackFailure,
+            accept_confirmation_text = acceptConfirmationText,
         };
         foreach (GDictionary objectiveValue in ReadDictionaryItems(objectiveDefs))
         {
