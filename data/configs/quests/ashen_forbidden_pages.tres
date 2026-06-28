@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/QuestDef.cs" id="1_questdef"]
+
+[resource]
+script = ExtResource("1_questdef")
+quest_id = &"ashen_forbidden_pages"
+display_name = "禁书残页"
+description = "书库里的禁书被水泡烂了，但有些文字还在。用月蕨吸收水分，也许能读出被禁止的知识。"
+provider_kind = &"service_contract_board"
+provider_interaction_id = &"service_contract_board"
+listing_channels = Array[StringName]([&"contract_board"])
+tags = Array[StringName]([&"ashen_intersection", &"library"])
+accept_requirements = Array[Dictionary]([])
+accept_dialogue_text = ""
+accept_feedback_success = ""
+accept_feedback_failure = ""
+accept_confirmation_text = ""
+objective_defs = Array[Dictionary]([{&"objective_id": &"gather_moonfern", &"objective_type": &"submit_item", &"target_id": &"moonfern_sample", &"target_value": 3}])
+reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 350}, {&"reward_type": &"pending_character_reward", &"member_id": &"hero", &"entries": Array[Dictionary]([{&"entry_type": &"skill_unlock", &"target_id": &"mage_dispel_magic", &"amount": 1}])}])
+is_repeatable = false

@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/QuestDef.cs" id="1_questdef"]
+
+[resource]
+script = ExtResource("1_questdef")
+quest_id = &"side_iron_delivery"
+display_name = "铁矿运送"
+description = "村里的铁匠急需原料。帮他收集一些铁矿，他会给你一把像样的武器。"
+provider_kind = &"service_contract_board"
+provider_interaction_id = &"service_contract_board"
+listing_channels = Array[StringName]([&"contract_board"])
+tags = Array[StringName]([&"contract", &"side"])
+accept_requirements = Array[Dictionary]([])
+accept_dialogue_text = ""
+accept_feedback_success = ""
+accept_feedback_failure = ""
+accept_confirmation_text = ""
+objective_defs = Array[Dictionary]([{&"objective_id": &"deliver_iron", &"objective_type": &"submit_item", &"target_id": &"iron_ore", &"target_value": 5}])
+reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 100}, {&"reward_type": &"item", &"item_id": &"bronze_sword", &"quantity": 1}])
+is_repeatable = false

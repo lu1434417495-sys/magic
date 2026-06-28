@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/QuestDef.cs" id="1_questdef"]
+
+[resource]
+script = ExtResource("1_questdef")
+quest_id = &"bounty_wolf_raider"
+display_name = "骑兵清剿"
+description = "狼骑兵的机动性让它们成为商队最大的噩梦。悬赏不限量。"
+provider_kind = &"service_bounty_registry"
+provider_interaction_id = &"service_bounty_registry"
+listing_channels = Array[StringName]([&"bounty_registry"])
+tags = Array[StringName]([&"bounty", &"repeatable", &"main_world"])
+accept_requirements = Array[Dictionary]([])
+accept_dialogue_text = ""
+accept_feedback_success = ""
+accept_feedback_failure = ""
+accept_confirmation_text = ""
+objective_defs = Array[Dictionary]([{&"objective_id": &"defeat_raiders", &"objective_type": &"defeat_enemy", &"target_id": &"wolf_raider", &"target_value": 6}])
+reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 300}, {&"reward_type": &"item", &"item_id": &"bandit_insignia", &"quantity": 2}])
+is_repeatable = true

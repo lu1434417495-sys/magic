@@ -54,6 +54,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private readonly BloodlineContentRegistry _bloodlineContentRegistry = new();
     private readonly AscensionContentRegistry _ascensionContentRegistry = new();
     private readonly StageAdvancementContentRegistry _stageAdvancementContentRegistry = new();
+    private readonly QuestContentRegistry _questContentRegistry = new();
 
     private GStringArray _validationErrors = new();
     private readonly List<string> _questRegistrationErrors = new();
@@ -258,6 +259,11 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         );
 
         _register_seed_achievements();
+        _questContentRegistry.LoadFromDirectory("res://data/configs/quests");
+        foreach (string error in _questContentRegistry.GetValidationErrors())
+            _validationErrors.Add(error);
+        foreach (QuestDef questDef in _questContentRegistry.GetQuestDefsTyped().Values)
+            _register_quest(questDef);
         _register_seed_quests();
         SyncTypedDefinitionIndexes();
 
@@ -658,110 +664,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
 
     private void _register_seed_quests()
     {
-        _register_quest(
-            _build_quest(
-                "contract_manual_drill",
-                "训练记录",
-                "在训练场完成两次记录，用于验证任务命令与状态推进链。",
-                "service_contract_board",
-                new GArray
-                {
-                    new GDictionary
-                    {
-                        ["objective_id"] = "train_once",
-                        ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
-                        ["target_id"] = "service:training",
-                        ["target_value"] = 2,
-                    },
-                },
-                new GArray
-                {
-                    new GDictionary { ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold), ["amount"] = 30 },
-                },
-                null,
-                "service_contract_board",
-                new GStringNameArray { "contract_board" }
-            )
-        );
-
-        _register_quest(
-            _build_quest(
-                "contract_settlement_warehouse",
-                "据点仓储巡查",
-                "前往据点服务台完成一次仓储交接。",
-                "service_contract_board",
-                new GArray
-                {
-                    new GDictionary
-                    {
-                        ["objective_id"] = "warehouse_visit",
-                        ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
-                        ["target_id"] = "service:warehouse",
-                        ["target_value"] = 1,
-                    },
-                },
-                new GArray
-                {
-                    new GDictionary { ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold), ["amount"] = 60 },
-                },
-                null,
-                "service_contract_board",
-                new GStringNameArray { "contract_board" }
-            )
-        );
-
-        _register_quest(
-            _build_quest(
-                "contract_first_hunt",
-                "首轮狩猎",
-                "击败任意一组敌对遭遇，证明队伍已具备外出作战能力。",
-                "service_contract_board",
-                new GArray
-                {
-                    new GDictionary
-                    {
-                        ["objective_id"] = "defeat_enemy_once",
-                        ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.DefeatEnemy),
-                        ["target_id"] = "",
-                        ["target_value"] = 1,
-                    },
-                },
-                new GArray
-                {
-                    new GDictionary { ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold), ["amount"] = 80 },
-                },
-                null,
-                "service_contract_board",
-                new GStringNameArray { "contract_board" }
-            )
-        );
-
-        _register_quest(
-            _build_quest(
-                "contract_regional_bounty",
-                "地区悬赏",
-                "由悬赏署单独发放的区域通缉，用来验证多 provider 任务板的过滤边界。",
-                "service_bounty_registry",
-                new GArray
-                {
-                    new GDictionary
-                    {
-                        ["objective_id"] = "defeat_enemy_once",
-                        ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.DefeatEnemy),
-                        ["target_id"] = "",
-                        ["target_value"] = 1,
-                    },
-                },
-                new GArray
-                {
-                    new GDictionary { ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold), ["amount"] = 120 },
-                },
-                new GStringNameArray { "contract", "bounty" },
-                "service_bounty_registry",
-                new GStringNameArray { "bounty_registry" }
-            )
-        );
-
         _register_achievement(
             _build_achievement(
                 "settlement_wayfarer",

@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/QuestDef.cs" id="1_questdef"]
+
+[resource]
+script = ExtResource("1_questdef")
+quest_id = &"bounty_wolf_shaman"
+display_name = "萨满猎杀"
+description = "狼萨满会用奇怪的仪式强化其他荒狼。优先解决它们，战斗会轻松很多。"
+provider_kind = &"service_bounty_registry"
+provider_interaction_id = &"service_bounty_registry"
+listing_channels = Array[StringName]([&"bounty_registry"])
+tags = Array[StringName]([&"bounty", &"repeatable", &"main_world"])
+accept_requirements = Array[Dictionary]([])
+accept_dialogue_text = ""
+accept_feedback_success = ""
+accept_feedback_failure = ""
+accept_confirmation_text = ""
+objective_defs = Array[Dictionary]([{&"objective_id": &"defeat_shamans", &"objective_type": &"defeat_enemy", &"target_id": &"wolf_shaman", &"target_value": 2}])
+reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 450}])
+is_repeatable = true

@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/QuestDef.cs" id="1_questdef"]
+
+[resource]
+script = ExtResource("1_questdef")
+quest_id = &"contract_manual_drill"
+display_name = "训练记录"
+description = "在训练场完成两次记录，用于验证任务命令与状态推进链。"
+provider_kind = &"service_contract_board"
+provider_interaction_id = &"service_contract_board"
+listing_channels = Array[StringName]([&"contract_board"])
+tags = Array[StringName]([])
+accept_requirements = Array[Dictionary]([])
+accept_dialogue_text = ""
+accept_feedback_success = ""
+accept_feedback_failure = ""
+accept_confirmation_text = ""
+objective_defs = Array[Dictionary]([{&"objective_id": &"train_once", &"objective_type": &"settlement_action", &"target_id": &"service:training", &"target_value": 2}])
+reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 30}])
+is_repeatable = false

@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/QuestDef.cs" id="1_questdef"]
+
+[resource]
+script = ExtResource("1_questdef")
+quest_id = &"ashen_abyss_survival"
+display_name = "裂界生存"
+description = "深渊裂界是灰烬交界最危险的区域。地面不稳定，迷雾最浓——但最大的危险是那些适应了这里的生物。"
+provider_kind = &"service_bounty_registry"
+provider_interaction_id = &"service_bounty_registry"
+listing_channels = Array[StringName]([&"bounty_registry"])
+tags = Array[StringName]([&"ashen_intersection", &"abyss", &"bounty"])
+accept_requirements = Array[Dictionary]([])
+accept_dialogue_text = ""
+accept_feedback_success = ""
+accept_feedback_failure = ""
+accept_confirmation_text = ""
+objective_defs = Array[Dictionary]([{&"objective_id": &"defeat_mist_beasts", &"objective_type": &"defeat_enemy", &"target_id": &"mist_beast", &"target_value": 5}])
+reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 1000}, {&"reward_type": &"item", &"item_id": &"black_star_wedge", &"quantity": 1}])
+is_repeatable = false

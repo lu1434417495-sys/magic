@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/QuestDef.cs" id="1_questdef"]
+
+[resource]
+script = ExtResource("1_questdef")
+quest_id = &"ashen_drowned_index"
+display_name = "溺水的索引"
+description = "沉钟书库的中庭被水淹没。需要木材搭建通道——但水里的东西不喜欢被打扰。"
+provider_kind = &"service_contract_board"
+provider_interaction_id = &"service_contract_board"
+listing_channels = Array[StringName]([&"contract_board"])
+tags = Array[StringName]([&"ashen_intersection", &"library"])
+accept_requirements = Array[Dictionary]([])
+accept_dialogue_text = ""
+accept_feedback_success = ""
+accept_feedback_failure = ""
+accept_confirmation_text = ""
+objective_defs = Array[Dictionary]([{&"objective_id": &"gather_lumber", &"objective_type": &"submit_item", &"target_id": &"hardwood_lumber", &"target_value": 5}, {&"objective_id": &"defeat_harriers", &"objective_type": &"defeat_enemy", &"target_id": &"mist_harrier", &"target_value": 3}])
+reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 500}, {&"reward_type": &"pending_character_reward", &"member_id": &"hero", &"entries": Array[Dictionary]([{&"entry_type": &"attribute_progress", &"target_id": &"intelligence", &"amount": 25}])}])
+is_repeatable = false
