@@ -126,6 +126,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         }
 
         StringName skillId = activeUnit.known_active_skill_ids[index];
+        StringName skillEntryId = BattleSkillEntryIds.KnownSkill(skillId);
         SkillDefinition skillDefinition = GetSkillDefinition(skillId);
         CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (combatProfile == null)
@@ -134,7 +135,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             return SelectionErrorTyped("该技能当前不可用于战斗。");
         }
 
-        if (GetSelectedSkillId() == skillId)
+        if (GetSelectedSkillEntryId() == skillEntryId)
         {
             ClearBattleSkillSelection(true);
             return SelectionOkTyped();
@@ -148,6 +149,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             return SelectionErrorTyped(blockReason);
         }
 
+        SetSelectedSkillEntryId(skillEntryId);
         SetSelectedSkillId(skillId);
         SetSelectedSkillVariantId("");
         ClearBattleSkillTargetSelection();
@@ -158,6 +160,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             {
                 CommandKind = BattleCommandKind.Skill,
                 unit_id = activeUnit.unit_id,
+                skill_entry_id = skillEntryId,
                 skill_id = skillId,
                 skill_variant_id = GetDefaultUnitSkillVariantId(activeUnit, skillDefinition),
                 target_unit_ids = new StringNameList(),
@@ -245,6 +248,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
 
     internal void ClearBattleSkillSelection(bool announce = false)
     {
+        SetSelectedSkillEntryId("");
         SetSelectedSkillId("");
         SetSelectedSkillVariantId("");
         ClearBattleSkillTargetSelection();
@@ -265,17 +269,32 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         StringName activeUnitId = activeUnit?.unit_id ?? new StringName("");
         if (activeUnitId != GetLastManualUnitId())
         {
+            SetSelectedSkillEntryId("");
             SetSelectedSkillId("");
             SetSelectedSkillVariantId("");
             ClearBattleSkillTargetSelection();
         }
         SetLastManualUnitId(activeUnitId);
-        if (activeUnit == null || GetSelectedSkillId() == "")
+        if (activeUnit == null)
         {
+            SetSelectedSkillEntryId("");
+            SetSelectedSkillId("");
+            SetSelectedSkillVariantId("");
+            ClearBattleSkillTargetSelection();
+            return;
+        }
+        if (GetSelectedSkillId() == "")
+        {
+            if (GetSelectedSkillEntryId() != "")
+            {
+                SetSelectedSkillEntryId("");
+                ClearBattleSkillTargetSelection();
+            }
             return;
         }
         if (!activeUnit.known_active_skill_ids.Contains(GetSelectedSkillId()))
         {
+            SetSelectedSkillEntryId("");
             SetSelectedSkillId("");
             SetSelectedSkillVariantId("");
             ClearBattleSkillTargetSelection();
@@ -286,11 +305,13 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (combatProfile == null)
         {
+            SetSelectedSkillEntryId("");
             SetSelectedSkillId("");
             SetSelectedSkillVariantId("");
             ClearBattleSkillTargetSelection();
             return;
         }
+        SetSelectedSkillEntryId(BattleSkillEntryIds.KnownSkill(GetSelectedSkillId()));
         if (combatProfile.CastVariants.Count == 0)
         {
             SetSelectedSkillVariantId("");
@@ -299,6 +320,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         CombatCastVariantDefinition castVariant = GetSelectedBattleSkillVariant(activeUnit);
         if (castVariant == null)
         {
+            SetSelectedSkillEntryId("");
             SetSelectedSkillId("");
             SetSelectedSkillVariantId("");
             ClearBattleSkillTargetSelection();
@@ -453,6 +475,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             {
                 CommandKind = BattleCommandKind.Skill,
                 unit_id = activeUnit.unit_id,
+                skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId),
                 skill_id = skillId,
                 skill_variant_id = GetDefaultUnitSkillVariantId(activeUnit, skillDefinition),
                 target_unit_id = targetUnit.unit_id,
@@ -491,6 +514,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = activeUnit.unit_id,
+            skill_entry_id = GetSelectedSkillEntryIdOrKnown(),
             skill_id = GetSelectedSkillId(),
             skill_variant_id = GetSelectedSkillVariantId(),
             target_unit_id = targetUnit.unit_id,
@@ -516,6 +540,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = activeUnit.unit_id,
+            skill_entry_id = GetSelectedSkillEntryIdOrKnown(),
             skill_id = GetSelectedSkillId(),
             skill_variant_id = castVariant?.VariantId ?? GetSelectedSkillVariantId(),
             target_coord = coord,
@@ -714,6 +739,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = activeUnit.unit_id,
+            skill_entry_id = GetSelectedSkillEntryIdOrKnown(),
             skill_id = GetSelectedSkillId(),
             skill_variant_id = castVariant.VariantId,
             target_coords = DuplicateVector2IArray(resolvedTargetCoords),
@@ -1277,6 +1303,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = activeUnit.unit_id,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill(skillDefinition.SkillId),
             skill_id = skillDefinition.SkillId,
             skill_variant_id = castVariant.VariantId,
             target_coords = DuplicateVector2IArray(sortedTargetCoords),
@@ -1811,6 +1838,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = activeUnit.unit_id,
+            skill_entry_id = GetSelectedSkillEntryIdOrKnown(),
             skill_id = GetSelectedSkillId(),
             skill_variant_id = GetSelectedSkillVariantId(),
             target_unit_ids = DuplicateStringNameArray(GetTargetUnitIdsStateTyped()),
@@ -2078,6 +2106,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = activeUnit.unit_id,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill(skillDefinition.SkillId),
             skill_id = skillDefinition.SkillId,
             skill_variant_id =
                 castVariant?.VariantId ?? GetDefaultUnitSkillVariantId(activeUnit, skillDefinition),
@@ -2124,6 +2153,22 @@ public sealed class GameRuntimeBattleSelection : IDisposable
     private StringName GetSelectedSkillId()
     {
         return Runtime?.GetSelectedBattleSkillId() ?? new StringName("");
+    }
+
+    private StringName GetSelectedSkillEntryId()
+    {
+        return Runtime?.GetSelectedBattleSkillEntryId() ?? new StringName("");
+    }
+
+    private StringName GetSelectedSkillEntryIdOrKnown()
+    {
+        StringName skillEntryId = GetSelectedSkillEntryId();
+        return skillEntryId != "" ? skillEntryId : BattleSkillEntryIds.KnownSkill(GetSelectedSkillId());
+    }
+
+    private void SetSelectedSkillEntryId(StringName skillEntryId)
+    {
+        Runtime?.SetBattleSelectionSkillEntryId(skillEntryId);
     }
 
     private void SetSelectedSkillId(StringName skillId)

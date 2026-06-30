@@ -52,6 +52,7 @@ public interface IGameRuntimeSnapshotSource
     BattleState GetBattleState();
     BattleRuntimeModule GetBattleRuntime();
     Vector2I GetBattleSelectedCoord();
+    StringName GetSelectedBattleSkillEntryId();
     StringName GetSelectedBattleSkillId();
     StringName GetSelectedBattleSkillVariantId();
     string GetSelectedBattleSkillName();

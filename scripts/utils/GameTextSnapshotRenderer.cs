@@ -708,6 +708,7 @@ public static class GameTextSnapshotRenderer
             $"modal_state={GetString(battle, "modal_state")}",
             $"winner_faction_id={GetString(battle, "winner_faction_id")}",
             $"selected_coord={FormatCoord(GetDictionary(battle, "selected_coord"))}",
+            $"selected_skill_entry_id={GetString(battle, "selected_skill_entry_id")}",
             $"selected_skill_id={GetString(battle, "selected_skill_id")}",
             $"selected_skill_variant_id={GetString(battle, "selected_skill_variant_id")}",
             $"selected_target_coords={FormatCoordArray(GetArray(battle, "selected_target_coords"))}",

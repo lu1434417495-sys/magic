@@ -5,6 +5,8 @@ public sealed class GameRuntimeBattleSelectionState
 {
     public Vector2I battle_selected_coord { get; set; } = new Vector2I(-1, -1);
 
+    public StringName selected_skill_entry_id { get; set; } = "";
+
     public StringName selected_skill_id { get; set; } = "";
 
     public StringName selected_skill_variant_id { get; set; } = "";
@@ -50,6 +52,8 @@ public sealed class GameRuntimeBattleSelectionState
 
     public void ClearSkillSelection(bool reset_last_manual = false)
     {
+        selected_skill_entry_id = "";
+
         selected_skill_id = "";
 
         selected_skill_variant_id = "";

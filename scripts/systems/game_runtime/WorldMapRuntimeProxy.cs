@@ -156,6 +156,11 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetSelectedBattleSkillId() ?? new StringName("");
     }
 
+    public StringName GetSelectedBattleSkillEntryId()
+    {
+        return _runtime?.GetSelectedBattleSkillEntryId() ?? new StringName("");
+    }
+
     public string GetSelectedBattleSkillName()
     {
         return _runtime?.GetSelectedBattleSkillName() ?? "";

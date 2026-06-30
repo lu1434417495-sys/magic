@@ -867,6 +867,7 @@ public sealed class GameRuntimeSnapshotBuilder
             ["selected_coord"] = CoordToDict(
                 _runtime.GetBattleSelectedCoord()
             ),
+            ["selected_skill_entry_id"] = _runtime.GetSelectedBattleSkillEntryId().ToString(),
             ["selected_skill_id"] = _runtime.GetSelectedBattleSkillId().ToString(),
             ["selected_skill_variant_id"] = _runtime
                 .GetSelectedBattleSkillVariantId()

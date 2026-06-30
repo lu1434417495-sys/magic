@@ -222,6 +222,12 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         set => _battle_selection_state.selected_skill_id = value;
     }
 
+    internal StringName _selected_battle_skill_entry_id
+    {
+        get => _battle_selection_state.selected_skill_entry_id;
+        set => _battle_selection_state.selected_skill_entry_id = value;
+    }
+
     internal StringName _selected_battle_skill_variant_id
     {
         get => _battle_selection_state.selected_skill_variant_id;
@@ -935,7 +941,12 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
 
     public StringName GetSelectedBattleSkillId() => _selected_battle_skill_id;
 
+    public StringName GetSelectedBattleSkillEntryId() => _selected_battle_skill_entry_id;
+
     public StringName GetSelectedBattleSkillVariantId() => _selected_battle_skill_variant_id;
+
+    internal void SetBattleSelectionSkillEntryId(StringName skillEntryId) =>
+        _selected_battle_skill_entry_id = skillEntryId;
 
     internal void SetBattleSelectionSkillId(StringName skill_id) =>
         _selected_battle_skill_id = skill_id;

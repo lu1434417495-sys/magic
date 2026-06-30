@@ -5,6 +5,7 @@ public class BattleCommand
 {
     public StringName command_type = "";
     public StringName unit_id = "";
+    public StringName skill_entry_id = "";
     public StringName skill_id = "";
     public StringName skill_variant_id = "";
     public StringName target_unit_id = "";

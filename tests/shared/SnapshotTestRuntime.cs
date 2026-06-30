@@ -122,6 +122,8 @@ public sealed class SnapshotTestRuntime : IGameRuntimeSnapshotSource
 
     public Vector2I GetBattleSelectedCoord() => BattleSelectedCoord;
 
+    public StringName GetSelectedBattleSkillEntryId() => "";
+
     public StringName GetSelectedBattleSkillId() => "";
 
     public StringName GetSelectedBattleSkillVariantId() => "";

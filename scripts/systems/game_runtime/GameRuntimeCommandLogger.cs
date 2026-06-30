@@ -357,6 +357,7 @@ public sealed class GameRuntimeCommandLogger
             ["active_unit_id"] = battleState.active_unit_id.ToString(),
             ["active_unit_name"] = _runtime._get_battle_active_unit_name(),
             ["selected_coord"] = _runtime._battle_selected_coord.ToString(),
+            ["selected_skill_entry_id"] = _runtime._selected_battle_skill_entry_id.ToString(),
             ["selected_skill_id"] = _runtime._selected_battle_skill_id.ToString(),
             ["selected_skill_variant_id"] = _runtime._selected_battle_skill_variant_id.ToString(),
             ["selected_target_coord_count"] = _runtime._queued_battle_skill_target_coords.Count,
