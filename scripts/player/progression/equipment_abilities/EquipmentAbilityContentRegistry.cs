@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -13,6 +14,8 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         EquipmentAbilityBuiltInHandlerSpecs.BuildConditionSpecs();
     private readonly IReadOnlyDictionary<StringName, EquipmentAbilityHandlerSpec> _actionSpecs =
         EquipmentAbilityBuiltInHandlerSpecs.BuildActionSpecs();
+    private readonly IReadOnlyDictionary<EquipmentAbilityTriggerKind, EquipmentAbilityTriggerTimingSpec> _triggerTimingSpecs =
+        EquipmentAbilityBuiltInHandlerSpecs.BuildTriggerTimingSpecs();
 
     private EquipmentAbilityRegistryBuildResult _lastBuildResult = new()
     {
@@ -51,6 +54,9 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
 
     public IReadOnlyDictionary<StringName, EquipmentAbilityHandlerSpec> GetActionHandlerSpecsTyped() =>
         _actionSpecs;
+
+    public IReadOnlyDictionary<EquipmentAbilityTriggerKind, EquipmentAbilityTriggerTimingSpec> GetTriggerTimingSpecsTyped() =>
+        _triggerTimingSpecs;
 
     public EquipmentAbilityRegistryBuildResult Rebuild(
         IReadOnlyList<EquipmentAbilityContentPackDef> packs,
@@ -321,7 +327,7 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         {
             AddError(errors, "EQA_BINDING_MISSING_ID", path, "binding_id is required");
         }
-        if (binding.trait_id == "" || !ContainsKey(context.TraitDefs, binding.trait_id))
+        if (binding.trait_id == "" || !ContainsValue(context.KnownTraitIds, binding.trait_id))
         {
             AddError(
                 errors,
@@ -372,12 +378,27 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 $"replace_binding target {binding.replaces_binding_id} must already be loaded"
             );
         }
+        else if (
+            binding.binding_id != ""
+            && binding.binding_id != binding.replaces_binding_id
+            && loadedBindings.ContainsKey(binding.binding_id)
+        )
+        {
+            AddError(
+                errors,
+                "EQA_BINDING_REPLACE_ID_COLLISION",
+                path,
+                $"replace_binding binding_id {binding.binding_id} collides with an unrelated loaded binding"
+            );
+        }
 
         ValidateSourceKinds(binding, errors);
         HashSet<StringName> declaredStateKeys = ValidateStateSchemas(binding, errors);
-        ValidateSourceTraces(binding, errors);
+        ValidateSourceTraces(binding, context, errors);
         ValidateReactions(binding, context, declaredStateKeys, errors);
         ValidateGrantedActions(binding, context, errors);
+        ValidateWeaponProfileOverlays(binding, context, errors);
+        ValidateWorldEffects(binding, context, declaredStateKeys, errors);
     }
 
     private static void ValidateSourceKinds(
@@ -449,6 +470,7 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
 
     private static void ValidateSourceTraces(
         EquipmentAbilityBindingDef binding,
+        EquipmentAbilityContentValidationContext context,
         List<string> errors
     )
     {
@@ -464,6 +486,7 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             {
                 valid = valid
                     && trace.item_id != ""
+                    && (!HasKnownValues(context.KnownItemIds) || context.KnownItemIds.Contains(trace.item_id))
                     && !string.IsNullOrWhiteSpace(trace.source_file)
                     && !trace.source_file.Contains("..", StringComparison.Ordinal)
                     && !trace.source_file.StartsWith("/", StringComparison.Ordinal)
@@ -493,7 +516,9 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             if (reaction == null)
                 continue;
             string path = $"{BindingPath(binding)}.reactions[{ReactionLabel(reaction)}]";
-            if (!TryParseTrigger(reaction.trigger, out EquipmentAbilityTriggerKind trigger))
+            bool triggerParsed = TryParseTrigger(reaction.trigger, out EquipmentAbilityTriggerKind trigger);
+            bool timingParsed = TryParseTiming(reaction.timing, out EquipmentAbilityTimingKind timing);
+            if (!triggerParsed)
             {
                 AddError(
                     errors,
@@ -502,7 +527,7 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                     $"trigger {reaction.trigger} is not registered"
                 );
             }
-            if (!TryParseTiming(reaction.timing, out _))
+            if (!timingParsed)
             {
                 AddError(
                     errors,
@@ -511,6 +536,8 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                     $"timing {reaction.timing} is not registered"
                 );
             }
+            if (triggerParsed && timingParsed)
+                ValidateTriggerTiming(trigger, timing, path, errors);
             if (reaction.requires_player_confirmation)
             {
                 AddError(
@@ -531,6 +558,14 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             {
                 ValidateAction(action, path, context, declaredStateKeys, trigger, errors);
             }
+            ValidateOutcomeTable(
+                reaction.outcome_table,
+                $"{path}.outcome_table",
+                context,
+                declaredStateKeys,
+                trigger,
+                errors
+            );
         }
     }
 
@@ -614,6 +649,7 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             );
             return;
         }
+        ValidateStateAccessContracts(spec.StateAccess, action.payload, declaredStateKeys, path, errors);
         if (trigger == EquipmentAbilityTriggerKind.OnBattleEnd && spec.MutationPolicy == EquipmentAbilityMutationPolicyKind.Mutating)
         {
             AddError(
@@ -637,12 +673,10 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             case ModifyAbilityStateActionPayloadDef payload:
                 if (payload.target_selector == "" || payload.state_key == "")
                     AddError(errors, "EQA_ACTION_REQUIRED_FIELD_MISSING", path, "modify_ability_state requires target_selector and state_key");
-                ValidateDeclaredStateKey(payload.state_key, declaredStateKeys, path, errors);
                 break;
             case MarkTargetActionPayloadDef payload:
                 if (payload.target_selector == "" || payload.state_key == "")
                     AddError(errors, "EQA_ACTION_REQUIRED_FIELD_MISSING", path, "mark_target requires target_selector and state_key");
-                ValidateDeclaredStateKey(payload.state_key, declaredStateKeys, path, errors);
                 break;
             case GrantSkillActionPayloadDef payload:
                 ValidateSkillReference(payload.skill_id, context, $"{path}.payload.skill_id", errors);
@@ -654,6 +688,89 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 break;
         }
         ValidateConditionGroup(action.condition_group, $"{path}.condition_group", context, errors);
+    }
+
+    private void ValidateOutcomeTable(
+        EquipmentOutcomeTableDef table,
+        string path,
+        EquipmentAbilityContentValidationContext context,
+        HashSet<StringName> declaredStateKeys,
+        EquipmentAbilityTriggerKind trigger,
+        List<string> errors
+    )
+    {
+        if (table == null)
+            return;
+        int index = 0;
+        foreach (EquipmentOutcomeEntryDef entry in table.entries)
+        {
+            if (entry == null)
+            {
+                index++;
+                continue;
+            }
+            string entryPath = $"{path}.entries[{index}]";
+            foreach (EquipmentAbilityActionDef action in entry.actions)
+                ValidateAction(action, entryPath, context, declaredStateKeys, trigger, errors);
+            index++;
+        }
+    }
+
+    private static void ValidateStateAccessContracts(
+        EquipmentAbilityStateAccessSpec stateAccess,
+        Resource payload,
+        HashSet<StringName> declaredStateKeys,
+        string path,
+        List<string> errors
+    )
+    {
+        if (stateAccess == null)
+            return;
+        ValidateStateAccessContracts(stateAccess.Reads, payload, declaredStateKeys, path, errors);
+        ValidateStateAccessContracts(stateAccess.Writes, payload, declaredStateKeys, path, errors);
+        ValidateStateAccessContracts(stateAccess.Creates, payload, declaredStateKeys, path, errors);
+        ValidateStateAccessContracts(stateAccess.Clears, payload, declaredStateKeys, path, errors);
+    }
+
+    private static void ValidateStateAccessContracts(
+        IReadOnlyList<EquipmentAbilityStateContract> contracts,
+        Resource payload,
+        HashSet<StringName> declaredStateKeys,
+        string path,
+        List<string> errors
+    )
+    {
+        if (contracts == null || contracts.Count == 0)
+            return;
+        foreach (EquipmentAbilityStateContract contract in contracts)
+        {
+            if (contract == null || !contract.StateKeyMustBeDeclaredInBinding)
+                continue;
+            StringName stateKey = contract.StateKey;
+            if (stateKey == "" && !string.IsNullOrWhiteSpace(contract.StateKeyPayloadMemberName))
+                stateKey = ReadStringNamePayloadMember(payload, contract.StateKeyPayloadMemberName);
+            ValidateDeclaredStateKey(stateKey, declaredStateKeys, path, errors);
+        }
+    }
+
+    private static StringName ReadStringNamePayloadMember(Resource payload, string memberName)
+    {
+        if (payload == null || string.IsNullOrWhiteSpace(memberName))
+            return "";
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public;
+        Type type = payload.GetType();
+        PropertyInfo property = type.GetProperty(memberName, flags);
+        object raw = property != null ? property.GetValue(payload) : null;
+        if (raw == null)
+        {
+            FieldInfo field = type.GetField(memberName, flags);
+            raw = field != null ? field.GetValue(payload) : null;
+        }
+        if (raw is StringName name)
+            return name;
+        if (raw is string text)
+            return new StringName(text);
+        return "";
     }
 
     private static void ValidateAddDamageDicePayload(
@@ -762,7 +879,7 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         );
     }
 
-    private static void ValidateGrantedActions(
+    private void ValidateGrantedActions(
         EquipmentAbilityBindingDef binding,
         EquipmentAbilityContentValidationContext context,
         List<string> errors
@@ -784,6 +901,15 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                     "granted_action_id must be non-empty and unique for stable SkillEntryId composition"
                 );
             }
+            if (!TryParseGrantedKind(grant.granted_kind, out _))
+            {
+                AddError(
+                    errors,
+                    "EQA_GRANTED_KIND_UNSUPPORTED",
+                    $"{grantPath}.granted_kind",
+                    $"granted_kind {grant.granted_kind} is not supported in V1"
+                );
+            }
             ValidateSkillReference(grant.skill_id, context, $"{grantPath}.skill_id", errors);
             if (grant.skill_id == "" || grant.skill_level <= 0)
             {
@@ -794,6 +920,79 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                     "equipment granted skills require skill_id and positive skill_level"
                 );
             }
+            ValidateConditionGroup(
+                grant.availability_conditions,
+                $"{grantPath}.availability_conditions",
+                context,
+                errors
+            );
+        }
+    }
+
+    private void ValidateWeaponProfileOverlays(
+        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityContentValidationContext context,
+        List<string> errors
+    )
+    {
+        string path = BindingPath(binding);
+        foreach (EquipmentWeaponProfileOverlayDef overlay in binding.weapon_profile_overlays)
+        {
+            if (overlay == null)
+                continue;
+            string overlayPath = $"{path}.weapon_profile_overlays[{overlay.overlay_id}]";
+            ValidateConditionGroup(
+                overlay.condition_group,
+                $"{overlayPath}.condition_group",
+                context,
+                errors
+            );
+        }
+    }
+
+    private void ValidateWorldEffects(
+        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityContentValidationContext context,
+        HashSet<StringName> declaredStateKeys,
+        List<string> errors
+    )
+    {
+        string path = BindingPath(binding);
+        foreach (EquipmentWorldEffectDef effect in binding.world_effects)
+        {
+            if (effect == null)
+                continue;
+            string effectPath = $"{path}.world_effects[{effect.world_effect_id}]";
+            bool triggerParsed = TryParseTrigger(effect.trigger, out EquipmentAbilityTriggerKind trigger);
+            bool timingParsed = TryParseTiming(effect.timing, out EquipmentAbilityTimingKind timing);
+            if (!triggerParsed)
+            {
+                AddError(
+                    errors,
+                    "EQA_TRIGGER_UNKNOWN_ID",
+                    $"{effectPath}.trigger",
+                    $"trigger {effect.trigger} is not registered"
+                );
+            }
+            if (!timingParsed)
+            {
+                AddError(
+                    errors,
+                    "EQA_TIMING_UNKNOWN_ID",
+                    $"{effectPath}.timing",
+                    $"timing {effect.timing} is not registered"
+                );
+            }
+            if (triggerParsed && timingParsed)
+                ValidateTriggerTiming(trigger, timing, effectPath, errors);
+            ValidateConditionGroup(
+                effect.condition_group,
+                $"{effectPath}.condition_group",
+                context,
+                errors
+            );
+            foreach (EquipmentAbilityActionDef action in effect.actions)
+                ValidateAction(action, effectPath, context, declaredStateKeys, trigger, errors);
         }
     }
 
@@ -822,7 +1021,7 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         List<string> errors
     )
     {
-        if (skillId == "" || (context.SkillDefs != null && context.SkillDefs.Count > 0 && !context.SkillDefs.ContainsKey(skillId)))
+        if (skillId == "" || (HasKnownValues(context.KnownSkillIds) && !context.KnownSkillIds.Contains(skillId)))
         {
             AddError(
                 errors,
@@ -886,7 +1085,7 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             if (kind == TraitSourceKind.EquipmentFixed || kind == TraitSourceKind.EquipmentRoll)
                 result.Add(TraitContentRules.ToStringName(kind));
         }
-        return result;
+        return EquipmentAbilityReadOnlySet<StringName>.From(result);
     }
 
     private static IReadOnlyList<EquipmentAbilitySourceTraceDefinition> ProjectSourceTraces(
@@ -1216,7 +1415,9 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 new EquipmentGrantedActionDefinition
                 {
                     GrantedActionId = value.granted_action_id,
-                    GrantedKind = EquipmentGrantedActionKind.Skill,
+                    GrantedKind = TryParseGrantedKind(value.granted_kind, out var grantedKind)
+                        ? grantedKind
+                        : EquipmentGrantedActionKind.Skill,
                     SkillId = value.skill_id,
                     SkillLevel = value.skill_level,
                     DisplayCategory = value.display_category,
@@ -1327,13 +1528,13 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
     {
         var result = new HashSet<StringName>();
         if (values == null)
-            return result;
+            return EquipmentAbilityReadOnlySet<StringName>.Empty;
         foreach (StringName value in values)
         {
             if (value != "")
                 result.Add(value);
         }
-        return result;
+        return EquipmentAbilityReadOnlySet<StringName>.From(result);
     }
 
     private static IReadOnlyDictionary<StringName, int> CopyStringNameIntMap(GDictionary values)
@@ -1427,13 +1628,47 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         return false;
     }
 
+    private static bool TryParseGrantedKind(
+        StringName value,
+        out EquipmentGrantedActionKind grantedKind
+    )
+    {
+        if (value == "skill")
+        {
+            grantedKind = EquipmentGrantedActionKind.Skill;
+            return true;
+        }
+        grantedKind = EquipmentGrantedActionKind.Skill;
+        return false;
+    }
+
+    private void ValidateTriggerTiming(
+        EquipmentAbilityTriggerKind trigger,
+        EquipmentAbilityTimingKind timing,
+        string path,
+        List<string> errors
+    )
+    {
+        if (
+            _triggerTimingSpecs.TryGetValue(trigger, out EquipmentAbilityTriggerTimingSpec spec)
+            && spec.AllowedTimings.Contains(timing)
+        )
+        {
+            return;
+        }
+        AddError(
+            errors,
+            "EQA_TRIGGER_TIMING_UNSUPPORTED",
+            path,
+            $"trigger {trigger} does not support timing {timing}"
+        );
+    }
+
     private static bool HasKnownValues(IReadOnlySet<StringName> values) =>
         values != null && values.Count > 0;
 
-    private static bool ContainsKey<T>(IReadOnlyDictionary<StringName, T> source, StringName key)
-    {
-        return source != null && source.ContainsKey(key);
-    }
+    private static bool ContainsValue(IReadOnlySet<StringName> source, StringName key) =>
+        source != null && source.Contains(key);
 
     private static bool IsSubset<T>(IReadOnlySet<T> required, HashSet<T> available)
     {

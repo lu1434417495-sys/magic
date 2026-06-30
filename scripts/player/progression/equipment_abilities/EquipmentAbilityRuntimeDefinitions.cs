@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using Godot;
@@ -129,12 +130,13 @@ public sealed class EquipmentAbilityBindingDefinition
     public EquipmentAbilityBindingOverrideMode OverrideMode { get; init; }
     public StringName ReplacesBindingId { get; init; } = "";
     public IReadOnlySet<StringName> AllowedSourceKinds { get; init; } =
-        new HashSet<StringName>();
+        EquipmentAbilityReadOnlySet<StringName>.Empty;
     public IReadOnlySet<StringName> RequiredTraitCategories { get; init; } =
-        new HashSet<StringName>();
-    public IReadOnlySet<StringName> RequiredItemTags { get; init; } = new HashSet<StringName>();
+        EquipmentAbilityReadOnlySet<StringName>.Empty;
+    public IReadOnlySet<StringName> RequiredItemTags { get; init; } =
+        EquipmentAbilityReadOnlySet<StringName>.Empty;
     public IReadOnlySet<StringName> SupportedEquipmentTypeIds { get; init; } =
-        new HashSet<StringName>();
+        EquipmentAbilityReadOnlySet<StringName>.Empty;
     public IReadOnlyList<EquipmentAbilitySourceTraceDefinition> SourceTraces { get; init; } =
         Array.Empty<EquipmentAbilitySourceTraceDefinition>();
     public IReadOnlyList<EquipmentAbilityStateSchemaDefinition> StateSchemas { get; init; } =
@@ -345,9 +347,9 @@ public sealed class EquipmentWeaponProfileOverlayDefinition
     public EquipmentConditionGroupDefinition ConditionGroup { get; init; }
     public bool RequireEquippedWeapon { get; init; }
     public IReadOnlySet<StringName> RequiredWeaponFamilies { get; init; } =
-        new HashSet<StringName>();
+        EquipmentAbilityReadOnlySet<StringName>.Empty;
     public IReadOnlySet<StringName> RequiredWeaponTypeIds { get; init; } =
-        new HashSet<StringName>();
+        EquipmentAbilityReadOnlySet<StringName>.Empty;
     public int AttackRangeDelta { get; init; }
     public int MinAttackRange { get; init; }
     public int MaxAttackRange { get; init; }
@@ -424,20 +426,26 @@ public sealed class EquipmentAbilityRegistryBuildResult
 
 public sealed class EquipmentAbilityContentValidationContext
 {
-    public IReadOnlyDictionary<StringName, TraitDef> TraitDefs { get; init; } =
-        new ReadOnlyDictionary<StringName, TraitDef>(new Dictionary<StringName, TraitDef>());
-    public IReadOnlyDictionary<StringName, ItemDef> ItemDefs { get; init; } =
-        new ReadOnlyDictionary<StringName, ItemDef>(new Dictionary<StringName, ItemDef>());
-    public IReadOnlyDictionary<StringName, SkillDefinition> SkillDefs { get; init; } =
-        new ReadOnlyDictionary<StringName, SkillDefinition>(
-            new Dictionary<StringName, SkillDefinition>()
+    public IReadOnlySet<StringName> KnownTraitIds { get; init; } =
+        EquipmentAbilityReadOnlySet<StringName>.Empty;
+    public IReadOnlySet<StringName> KnownItemIds { get; init; } =
+        EquipmentAbilityReadOnlySet<StringName>.Empty;
+    public IReadOnlySet<StringName> KnownSkillIds { get; init; } =
+        EquipmentAbilityReadOnlySet<StringName>.Empty;
+    public IReadOnlyDictionary<StringName, IReadOnlySet<StringName>> TraitCategoriesByTraitId { get; init; } =
+        new ReadOnlyDictionary<StringName, IReadOnlySet<StringName>>(
+            new Dictionary<StringName, IReadOnlySet<StringName>>()
         );
-    public IReadOnlySet<StringName> KnownCreatureTypeTags { get; init; } = new HashSet<StringName>();
+    public IReadOnlySet<StringName> KnownCreatureTypeTags { get; init; } =
+        EquipmentAbilityReadOnlySet<StringName>.Empty;
     public IReadOnlySet<StringName> KnownBattleEnvironmentTags { get; init; } =
-        new HashSet<StringName>();
-    public IReadOnlySet<StringName> KnownStatusIds { get; init; } = new HashSet<StringName>();
-    public IReadOnlySet<StringName> KnownDamageTypes { get; init; } = new HashSet<StringName>();
-    public IReadOnlySet<StringName> KnownEquipmentSlotIds { get; init; } = new HashSet<StringName>();
+        EquipmentAbilityReadOnlySet<StringName>.Empty;
+    public IReadOnlySet<StringName> KnownStatusIds { get; init; } =
+        EquipmentAbilityReadOnlySet<StringName>.Empty;
+    public IReadOnlySet<StringName> KnownDamageTypes { get; init; } =
+        EquipmentAbilityReadOnlySet<StringName>.Empty;
+    public IReadOnlySet<StringName> KnownEquipmentSlotIds { get; init; } =
+        EquipmentAbilityReadOnlySet<StringName>.Empty;
 }
 
 public sealed class EquipmentAbilityHandlerSpec
@@ -457,6 +465,13 @@ public sealed class EquipmentAbilityHandlerSpec
         >(new Dictionary<EquipmentAbilityConsumerKind, EquipmentAbilityConsumerSupportSpec>());
     public EquipmentAbilityStateAccessSpec StateAccess { get; init; } =
         EquipmentAbilityStateAccessSpec.Empty;
+}
+
+public sealed class EquipmentAbilityTriggerTimingSpec
+{
+    public EquipmentAbilityTriggerKind Trigger { get; init; }
+    public IReadOnlySet<EquipmentAbilityTimingKind> AllowedTimings { get; init; } =
+        EquipmentAbilityReadOnlySet<EquipmentAbilityTimingKind>.Empty;
 }
 
 public sealed class EquipmentAbilityConsumerSupportSpec
@@ -487,6 +502,41 @@ public sealed class EquipmentAbilityStateContract
     public EquipmentAbilityStateValueKind ValueKind { get; init; }
     public EquipmentAbilityStateLifetimeKind LifetimeKind { get; init; }
     public StringName StateKey { get; init; } = "";
+    public string StateKeyPayloadMemberName { get; init; } = "";
     public bool StateKeyMustBeDeclaredInBinding { get; init; }
     public bool SourceLifecycleCleanupRequired { get; init; }
+}
+
+internal sealed class EquipmentAbilityReadOnlySet<T> : IReadOnlySet<T>
+{
+    public static readonly EquipmentAbilityReadOnlySet<T> Empty = new(Array.Empty<T>());
+
+    private readonly HashSet<T> _values;
+
+    public EquipmentAbilityReadOnlySet(IEnumerable<T> values)
+    {
+        _values = values != null ? new HashSet<T>(values) : new HashSet<T>();
+    }
+
+    public int Count => _values.Count;
+
+    public bool Contains(T item) => _values.Contains(item);
+
+    public bool IsProperSubsetOf(IEnumerable<T> other) => _values.IsProperSubsetOf(other);
+
+    public bool IsProperSupersetOf(IEnumerable<T> other) => _values.IsProperSupersetOf(other);
+
+    public bool IsSubsetOf(IEnumerable<T> other) => _values.IsSubsetOf(other);
+
+    public bool IsSupersetOf(IEnumerable<T> other) => _values.IsSupersetOf(other);
+
+    public bool Overlaps(IEnumerable<T> other) => _values.Overlaps(other);
+
+    public bool SetEquals(IEnumerable<T> other) => _values.SetEquals(other);
+
+    public IEnumerator<T> GetEnumerator() => _values.GetEnumerator();
+
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+    public static EquipmentAbilityReadOnlySet<T> From(IEnumerable<T> values) => new(values);
 }

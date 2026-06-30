@@ -70,6 +70,33 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
         );
     }
 
+    internal static IReadOnlyDictionary<EquipmentAbilityTriggerKind, EquipmentAbilityTriggerTimingSpec> BuildTriggerTimingSpecs()
+    {
+        return ReadOnly(
+            new Dictionary<EquipmentAbilityTriggerKind, EquipmentAbilityTriggerTimingSpec>
+            {
+                [EquipmentAbilityTriggerKind.OnHit] = new()
+                {
+                    Trigger = EquipmentAbilityTriggerKind.OnHit,
+                    AllowedTimings = EquipmentAbilityReadOnlySet<EquipmentAbilityTimingKind>.From(
+                        new[]
+                        {
+                            EquipmentAbilityTimingKind.BeforeHit,
+                            EquipmentAbilityTimingKind.AfterHit,
+                        }
+                    ),
+                },
+                [EquipmentAbilityTriggerKind.OnBattleEnd] = new()
+                {
+                    Trigger = EquipmentAbilityTriggerKind.OnBattleEnd,
+                    AllowedTimings = EquipmentAbilityReadOnlySet<EquipmentAbilityTimingKind>.From(
+                        new[] { EquipmentAbilityTimingKind.AfterBattle }
+                    ),
+                },
+            }
+        );
+    }
+
     private static EquipmentAbilityHandlerSpec Condition(
         StringName handlerId,
         System.Type payloadResourceType,
@@ -121,6 +148,7 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
                     OwnerKind = EquipmentAbilityStateOwnerKind.BindingState,
                     ValueKind = EquipmentAbilityStateValueKind.Int,
                     LifetimeKind = EquipmentAbilityStateLifetimeKind.Battle,
+                    StateKeyPayloadMemberName = "state_key",
                     StateKeyMustBeDeclaredInBinding = true,
                     SourceLifecycleCleanupRequired = true,
                 },
@@ -139,6 +167,7 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
                     OwnerKind = EquipmentAbilityStateOwnerKind.TargetMark,
                     ValueKind = EquipmentAbilityStateValueKind.Int,
                     LifetimeKind = EquipmentAbilityStateLifetimeKind.Battle,
+                    StateKeyPayloadMemberName = "state_key",
                     StateKeyMustBeDeclaredInBinding = true,
                     SourceLifecycleCleanupRequired = true,
                 },
@@ -212,6 +241,16 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
         return new ReadOnlyDictionary<
             EquipmentAbilityConsumerKind,
             EquipmentAbilityConsumerSupportSpec
+        >(source);
+    }
+
+    private static IReadOnlyDictionary<EquipmentAbilityTriggerKind, EquipmentAbilityTriggerTimingSpec> ReadOnly(
+        Dictionary<EquipmentAbilityTriggerKind, EquipmentAbilityTriggerTimingSpec> source
+    )
+    {
+        return new ReadOnlyDictionary<
+            EquipmentAbilityTriggerKind,
+            EquipmentAbilityTriggerTimingSpec
         >(source);
     }
 }

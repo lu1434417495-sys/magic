@@ -19,7 +19,9 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
         TestBuiltInHandlerSpecsExposeStaticValidationMetadata();
         TestEmptyAndMinimalValidPacksBuildAndFindBindings();
         TestDependencyOrderedReplaceBinding();
+        TestReplaceBindingRejectsUnrelatedBindingIdCollision();
         TestLifecycleSnapshotDoesNotRetainResourceMutations();
+        TestFailedRebuildKeepsLastSuccessfulSnapshot();
         TestInvalidContentFailsFastWithStableCodesAndPaths();
 
         Quit(_test.Finish("Equipment ability content registry regression"));
@@ -305,6 +307,32 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
             ),
             "durability action spec should expose preview support metadata."
         );
+        _test.Eq(
+            modifyState.StateAccess.Writes[0].StateKeyPayloadMemberName,
+            "state_key",
+            "state access metadata should identify the payload field carrying the binding state key."
+        );
+
+        IReadOnlyDictionary<EquipmentAbilityTriggerKind, EquipmentAbilityTriggerTimingSpec> triggerSpecs =
+            registry.GetTriggerTimingSpecsTyped();
+        _test.True(
+            triggerSpecs[EquipmentAbilityTriggerKind.OnHit].AllowedTimings.Contains(
+                EquipmentAbilityTimingKind.AfterHit
+            )
+                && !triggerSpecs[EquipmentAbilityTriggerKind.OnHit].AllowedTimings.Contains(
+                    EquipmentAbilityTimingKind.AfterBattle
+                ),
+            "on_hit trigger metadata should reject after_battle timing."
+        );
+        _test.True(
+            triggerSpecs[EquipmentAbilityTriggerKind.OnBattleEnd].AllowedTimings.Contains(
+                EquipmentAbilityTimingKind.AfterBattle
+            )
+                && !triggerSpecs[EquipmentAbilityTriggerKind.OnBattleEnd].AllowedTimings.Contains(
+                    EquipmentAbilityTimingKind.AfterHit
+                ),
+            "on_battle_end trigger metadata should only allow after_battle timing."
+        );
     }
 
     private void TestEmptyAndMinimalValidPacksBuildAndFindBindings()
@@ -385,6 +413,37 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
         );
     }
 
+    private void TestReplaceBindingRejectsUnrelatedBindingIdCollision()
+    {
+        var registry = new EquipmentAbilityContentRegistry();
+        EquipmentAbilityContentPackDef basePack = BuildValidPack("base_pack", "base.binding", loadOrder: 0);
+        EquipmentAbilityContentPackDef otherPack =
+            BuildValidPack("other_pack", "other.binding", loadOrder: 1);
+        EquipmentAbilityContentPackDef replacementPack =
+            BuildValidPack("mod_pack", "other.binding", loadOrder: 2);
+        replacementPack.dependencies.Add("base_pack");
+        replacementPack.dependencies.Add("other_pack");
+        replacementPack.bindings[0].override_mode = "replace_binding";
+        replacementPack.bindings[0].replaces_binding_id = "base.binding";
+
+        EquipmentAbilityRegistryBuildResult result =
+            registry.Rebuild(new[] { replacementPack, otherPack, basePack }, BuildValidationContext());
+
+        _test.False(
+            result.Success,
+            "replace_binding should reject a replacement binding_id that collides with an unrelated loaded binding."
+        );
+        AssertErrorContains(
+            result.Errors,
+            "EQA_BINDING_REPLACE_ID_COLLISION",
+            "other.binding"
+        );
+        _test.False(
+            registry.GetBindingDefinitionsTyped().ContainsKey("other.binding"),
+            "failed replacement rebuild should not publish a partially overwritten binding index."
+        );
+    }
+
     private void TestLifecycleSnapshotDoesNotRetainResourceMutations()
     {
         var registry = new EquipmentAbilityContentRegistry();
@@ -416,6 +475,10 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
             snapshot.RequiredItemTags.Contains("blade"),
             "binding DTO should retain copied required item tags after Resource mutation."
         );
+        _test.False(
+            snapshot.RequiredItemTags is ISet<StringName>,
+            "binding DTO required item tags should not expose a mutable set implementation."
+        );
         _test.Eq(
             snapshot.SourceTraces[0].ItemId,
             new StringName("test_blade"),
@@ -430,6 +493,42 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
             ).Count,
             1,
             "registry lookup should keep using DTO snapshots, not mutated authoring Resources."
+        );
+    }
+
+    private void TestFailedRebuildKeepsLastSuccessfulSnapshot()
+    {
+        var registry = new EquipmentAbilityContentRegistry();
+        EquipmentAbilityRegistryBuildResult validResult =
+            registry.Rebuild(new[] { BuildValidPack() }, BuildValidationContext());
+        _test.True(validResult.Success, $"valid pack should build: {FormatErrors(validResult.Errors)}");
+        int successfulRevision = registry.GetRevision();
+
+        EquipmentAbilityRegistryBuildResult failedResult =
+            registry.Rebuild(new[] { BuildInvalidPack() }, BuildValidationContext());
+
+        _test.False(failedResult.Success, "invalid rebuild should fail.");
+        _test.True(
+            failedResult.Revision > successfulRevision,
+            "failed rebuild should still advance the registry build revision."
+        );
+        _test.True(
+            registry.GetBindingDefinitionsTyped().ContainsKey("binding.weapon.flame"),
+            "failed rebuild should preserve the previous successful binding snapshot."
+        );
+        _test.False(
+            registry.GetBindingDefinitionsTyped().ContainsKey("bad.unknown_action"),
+            "failed rebuild should not publish invalid partial bindings."
+        );
+        _test.Eq(
+            registry.FindBindings(
+                "trait.weapon.flame",
+                TraitSourceKind.EquipmentFixed,
+                new HashSet<StringName> { "weapon_feat" },
+                BuildSourceItem("test_blade", "blade", "weapon")
+            ).Count,
+            1,
+            "failed rebuild should keep lookup behavior on the last successful snapshot."
         );
     }
 
@@ -484,6 +583,46 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
             result.Errors,
             "EQA_BATTLE_END_MUTATION_UNSUPPORTED",
             "bad.battle_end"
+        );
+        AssertErrorContains(
+            result.Errors,
+            "EQA_TRIGGER_TIMING_UNSUPPORTED",
+            "bad.hit_after_battle"
+        );
+        AssertErrorContains(
+            result.Errors,
+            "EQA_TRIGGER_TIMING_UNSUPPORTED",
+            "bad.battle_end_after_hit"
+        );
+        AssertErrorContains(
+            result.Errors,
+            "EQA_HANDLER_UNKNOWN_ID",
+            "bad.outcome_unknown_action"
+        );
+        AssertErrorContains(
+            result.Errors,
+            "EQA_HANDLER_UNKNOWN_ID",
+            "bad.grant_availability_condition"
+        );
+        AssertErrorContains(
+            result.Errors,
+            "EQA_HANDLER_UNKNOWN_ID",
+            "bad.overlay_unknown_condition"
+        );
+        AssertErrorContains(
+            result.Errors,
+            "EQA_TRIGGER_UNKNOWN_ID",
+            "bad.world_unknown_trigger"
+        );
+        AssertErrorContains(
+            result.Errors,
+            "EQA_HANDLER_UNKNOWN_ID",
+            "bad.world_unknown_action"
+        );
+        AssertErrorContains(
+            result.Errors,
+            "EQA_GRANTED_KIND_UNSUPPORTED",
+            "bad.invalid_grant_kind"
         );
     }
 
@@ -867,6 +1006,178 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
             )
         );
 
+        pack.bindings.Add(
+            BuildBinding(
+                "bad.hit_after_battle",
+                reaction: new EquipmentAbilityReactionDef
+                {
+                    reaction_id = "reaction.hit_after_battle",
+                    trigger = "on_hit",
+                    timing = "after_battle",
+                }
+            )
+        );
+
+        pack.bindings.Add(
+            BuildBinding(
+                "bad.battle_end_after_hit",
+                reaction: new EquipmentAbilityReactionDef
+                {
+                    reaction_id = "reaction.battle_end_after_hit",
+                    trigger = "on_battle_end",
+                    timing = "after_hit",
+                }
+            )
+        );
+
+        EquipmentAbilityReactionDef outcomeUnknownAction = new()
+        {
+            reaction_id = "reaction.outcome_unknown_action",
+            trigger = "on_hit",
+            timing = "after_hit",
+            outcome_table = new EquipmentOutcomeTableDef
+            {
+                table_id = "outcome.unknown_action",
+                entries =
+                {
+                    new EquipmentOutcomeEntryDef
+                    {
+                        min_roll = 1,
+                        max_roll = 1,
+                        actions =
+                        {
+                            new EquipmentAbilityActionDef
+                            {
+                                action_id = "action.outcome_unknown",
+                                kind = "unknown_action",
+                            },
+                        },
+                    },
+                },
+            },
+        };
+        pack.bindings.Add(BuildBinding("bad.outcome_unknown_action", outcomeUnknownAction));
+
+        EquipmentAbilityBindingDef badGrantAvailability =
+            BuildBinding(
+                "bad.grant_availability_condition",
+                reaction: ReactionWithAction(
+                    "reaction.valid_grant_availability",
+                    BuildValidAddDamageAction("action.valid_grant_availability")
+                )
+            );
+        badGrantAvailability.granted_actions.Add(
+            new EquipmentGrantedActionDef
+            {
+                granted_action_id = "grant.bad_availability",
+                granted_kind = "skill",
+                skill_id = "known_skill",
+                skill_level = 1,
+                availability_conditions = new EquipmentAbilityConditionGroupDef
+                {
+                    conditions =
+                    {
+                        new EquipmentAbilityConditionDef
+                        {
+                            condition_id = "condition.bad_grant_availability",
+                            kind = "unknown_condition",
+                        },
+                    },
+                },
+            }
+        );
+        pack.bindings.Add(badGrantAvailability);
+
+        EquipmentAbilityBindingDef badOverlay =
+            BuildBinding(
+                "bad.overlay_unknown_condition",
+                reaction: ReactionWithAction(
+                    "reaction.valid_overlay_probe",
+                    BuildValidAddDamageAction("action.valid_overlay_probe")
+                )
+            );
+        badOverlay.weapon_profile_overlays.Add(
+            new EquipmentWeaponProfileOverlayDef
+            {
+                overlay_id = "overlay.bad_condition",
+                condition_group = new EquipmentAbilityConditionGroupDef
+                {
+                    conditions =
+                    {
+                        new EquipmentAbilityConditionDef
+                        {
+                            condition_id = "condition.bad_overlay",
+                            kind = "unknown_condition",
+                        },
+                    },
+                },
+            }
+        );
+        pack.bindings.Add(badOverlay);
+
+        EquipmentAbilityBindingDef badWorldTrigger =
+            BuildBinding(
+                "bad.world_unknown_trigger",
+                reaction: ReactionWithAction(
+                    "reaction.valid_world_trigger_probe",
+                    BuildValidAddDamageAction("action.valid_world_trigger_probe")
+                )
+            );
+        badWorldTrigger.world_effects.Add(
+            new EquipmentWorldEffectDef
+            {
+                world_effect_id = "world.bad_trigger",
+                trigger = "on_world_weather",
+                timing = "after_hit",
+            }
+        );
+        pack.bindings.Add(badWorldTrigger);
+
+        EquipmentAbilityBindingDef badWorldAction =
+            BuildBinding(
+                "bad.world_unknown_action",
+                reaction: ReactionWithAction(
+                    "reaction.valid_world_action_probe",
+                    BuildValidAddDamageAction("action.valid_world_action_probe")
+                )
+            );
+        badWorldAction.world_effects.Add(
+            new EquipmentWorldEffectDef
+            {
+                world_effect_id = "world.bad_action",
+                trigger = "on_hit",
+                timing = "after_hit",
+                actions =
+                {
+                    new EquipmentAbilityActionDef
+                    {
+                        action_id = "action.world_unknown",
+                        kind = "unknown_action",
+                    },
+                },
+            }
+        );
+        pack.bindings.Add(badWorldAction);
+
+        EquipmentAbilityBindingDef badGrantKind =
+            BuildBinding(
+                "bad.invalid_grant_kind",
+                reaction: ReactionWithAction(
+                    "reaction.valid_grant_kind_probe",
+                    BuildValidAddDamageAction("action.valid_grant_kind_probe")
+                )
+            );
+        badGrantKind.granted_actions.Add(
+            new EquipmentGrantedActionDef
+            {
+                granted_action_id = "grant.invalid_kind",
+                granted_kind = "spell_like_power",
+                skill_id = "known_skill",
+                skill_level = 1,
+            }
+        );
+        pack.bindings.Add(badGrantKind);
+
         return pack;
     }
 
@@ -934,28 +1245,12 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
     {
         return new EquipmentAbilityContentValidationContext
         {
-            TraitDefs = new Dictionary<StringName, TraitDef>
+            KnownTraitIds = new HashSet<StringName> { "trait.weapon.flame" },
+            KnownSkillIds = new HashSet<StringName> { "known_skill" },
+            KnownItemIds = new HashSet<StringName> { "test_blade" },
+            TraitCategoriesByTraitId = new Dictionary<StringName, IReadOnlySet<StringName>>
             {
-                ["trait.weapon.flame"] = new TraitDef
-                {
-                    trait_id = "trait.weapon.flame",
-                    display_name = "Flame Trait",
-                    effect_type = "brave",
-                    trigger_type = "passive",
-                    stack_policy = "unique_by_trait",
-                    charge_scope = "none",
-                    charge_reset_timing = "none",
-                    categories = { "weapon_feat" },
-                    allowed_source_kinds = { "equipment_fixed", "equipment_roll" },
-                },
-            },
-            ItemDefs = new Dictionary<StringName, ItemDef>
-            {
-                ["test_blade"] = BuildSourceItem("test_blade", "blade", "weapon"),
-            },
-            SkillDefs = new Dictionary<StringName, SkillDefinition>
-            {
-                ["known_skill"] = BuildSkillDefinition("known_skill"),
+                ["trait.weapon.flame"] = new HashSet<StringName> { "weapon_feat" },
             },
             KnownStatusIds = new HashSet<StringName> { "burning" },
             KnownDamageTypes = new HashSet<StringName> { "physical_slash" },
@@ -983,40 +1278,6 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
         return item;
     }
 
-    private static SkillDefinition BuildSkillDefinition(StringName skillId) =>
-        new(
-            skillId,
-            "Known Skill",
-            "",
-            "",
-            "active",
-            1,
-            1,
-            "",
-            0,
-            0,
-            Array.Empty<int>(),
-            Array.Empty<StringName>(),
-            "",
-            Array.Empty<StringName>(),
-            "",
-            Array.Empty<StringName>(),
-            new Dictionary<StringName, int>(),
-            new Dictionary<StringName, int>(),
-            Array.Empty<StringName>(),
-            Array.Empty<StringName>(),
-            false,
-            "",
-            Array.Empty<StringName>(),
-            "",
-            new Dictionary<StringName, int>(),
-            "",
-            Array.Empty<AttributeModifierDefinition>(),
-            "",
-            new Dictionary<int, IReadOnlyDictionary<string, Variant>>(),
-            null
-        );
-
     private void AssertRuntimeTypeHasNoResourceOrGodotDictionaryMembers(Type type)
     {
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public;
@@ -1028,14 +1289,36 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
 
     private void AssertRuntimeMemberType(Type owner, string memberName, Type memberType)
     {
-        _test.True(
-            !typeof(Resource).IsAssignableFrom(memberType),
-            $"{owner.Name}.{memberName} should not retain a live Resource."
-        );
-        _test.True(
-            !IsGodotDictionaryType(memberType),
-            $"{owner.Name}.{memberName} should not retain a Godot.Collections.Dictionary."
-        );
+        foreach (Type inspected in EnumerateRuntimeMemberTypeGraph(memberType))
+        {
+            _test.True(
+                !typeof(Resource).IsAssignableFrom(inspected),
+                $"{owner.Name}.{memberName} should not retain Resource type {inspected.FullName}."
+            );
+            _test.True(
+                !IsGodotDictionaryType(inspected),
+                $"{owner.Name}.{memberName} should not retain Godot.Collections.Dictionary type {inspected.FullName}."
+            );
+        }
+    }
+
+    private static IEnumerable<Type> EnumerateRuntimeMemberTypeGraph(Type root)
+    {
+        var seen = new HashSet<Type>();
+        var pending = new Stack<Type>();
+        pending.Push(root);
+        while (pending.Count > 0)
+        {
+            Type type = pending.Pop();
+            if (type == null || !seen.Add(type))
+                continue;
+            yield return type;
+
+            if (type.HasElementType)
+                pending.Push(type.GetElementType());
+            foreach (Type argument in type.GetGenericArguments())
+                pending.Push(argument);
+        }
     }
 
     private static bool IsGodotDictionaryType(Type type)

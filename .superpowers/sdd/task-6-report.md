@@ -2,7 +2,7 @@
 
 ## Status
 
-DONE_WITH_CONCERNS
+DONE_AFTER_REVIEW_FIX
 
 Task 6 was implemented in the current branch/worktree. No separate worktree was created.
 
@@ -80,3 +80,33 @@ Additional RED after adding strict timing coverage:
 ## Concerns
 
 - Final Godot headless runs pass with exit code `0`, but two runners emit existing-style Godot shutdown leak warnings. I did not expand this task into fixture ownership cleanup because assertions pass and the warnings are outside the static content ABI/registry scope.
+
+## Review Fix
+
+An external Task 6 review rejected the initial commit. The follow-up fix addressed the blocking points:
+
+- Replaced `EquipmentAbilityContentValidationContext` Resource dictionaries with plain id/fact sets and added recursive generic ABI guards.
+- Validates all condition/action-bearing surfaces recursively, including outcome tables, granted action availability conditions, weapon overlay condition groups, and world effects.
+- Added structured trigger/timing metadata and made state access metadata identify the payload field carrying binding-local state keys.
+- Changed projected DTO sets to a non-`ISet` read-only implementation so callers cannot mutate active registry snapshots by downcasting.
+- Rejects `replace_binding` id collisions against unrelated loaded bindings.
+- Validates `granted_kind` and rejects unsupported V1 grant kinds instead of silently projecting them as skills.
+- Added a lifecycle regression that failed rebuilds advance the build result while preserving the last successful active snapshot and not publishing partial invalid bindings.
+
+Review after the fix returned `APPROVE`.
+
+## Review Fix Verification
+
+- Command: `dotnet build magic.csproj`
+- Result: exited `0`; `0` warnings, `0` errors.
+
+- Command: `godot --headless -s res://tests/progression/schema/run_equipment_ability_content_registry_regression.cs`
+- Result: exited `0`; `Equipment ability content registry regression: PASS`.
+- Note: Godot emitted `ObjectDB instances leaked at exit` warning after PASS.
+
+- Command: `godot --headless -s res://tests/runtime/validation/run_progression_content_registry_typed_regression.cs`
+- Result: exited `0`; `Progression content registry typed regression: PASS`.
+
+- Command: `godot --headless -s res://tests/runtime/validation/run_game_root_content_catalog_regression.cs`
+- Result: exited `0`; `Game root content catalog regression: PASS`.
+- Note: Godot emitted exit-time unsafe reference/resource leak warnings after PASS.
