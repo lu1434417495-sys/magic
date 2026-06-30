@@ -79,6 +79,8 @@ public partial class run_party_equipment_regression : SceneTree
         TestWeaponProfileEquipmentEntryRoundTrip();
         TestEquippedInstanceFieldsSurviveRoundTripAndUnequip();
         TestEquipmentInstanceRarityRoundTripAndStrictSchema();
+        TestEquipmentAbilityPersistentStateRoundTripAndDuplicate();
+        TestEquipmentAbilityPersistentStateStrictSchema();
         TestDuplicateSameItemInstanceIdSelection();
         TestPartyStateRejectsDuplicateEquipmentInstanceIds();
 
@@ -903,6 +905,121 @@ public partial class run_party_equipment_regression : SceneTree
         AssertEquipmentInstanceValidationError(zeroDurabilityPayload, "Zero durability should be rejected.");
     }
 
+    private void TestEquipmentAbilityPersistentStateRoundTripAndDuplicate()
+    {
+        PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
+        EquipmentInstanceState instance = EquipmentInstanceState.CreateInstance("bronze_sword", "eq_ability_state_bronze_sword");
+        instance.ability_usage_periods.Add(
+            new EquipmentAbilityUsagePeriodState
+            {
+                AbilityId = "blade_flash",
+                PeriodKind = "per_world_day",
+                PeriodIndex = 12,
+                UsedCount = 1,
+            }
+        );
+        instance.ability_usage_periods.Add(
+            new EquipmentAbilityUsagePeriodState
+            {
+                AbilityId = "moon_guard",
+                PeriodKind = "per_world_month",
+                PeriodIndex = 2,
+                UsedCount = 3,
+            }
+        );
+        instance.ability_persistent_counters.Add(
+            new EquipmentAbilityPersistentCounterState
+            {
+                CounterId = "kill_count",
+                Value = 9,
+            }
+        );
+        partyState.warehouse_state.equipment_instances = new List<EquipmentInstanceState> { instance };
+
+        PartyState restoredPartyState = PartyState.FromDictionary(partyState.ToDictionary());
+        _test.True(restoredPartyState != null, "Equipment ability state should round-trip through PartyState.");
+        if (restoredPartyState == null)
+            return;
+
+        var restoredInstances = restoredPartyState.warehouse_state.GetNonEmptyEquipmentInstancesTyped();
+        _test.Eq(restoredInstances.Count, 1, "Ability state round-trip should preserve one equipment instance.");
+        if (restoredInstances.Count > 0)
+        {
+            EquipmentInstanceState restoredInstance = restoredInstances[0];
+            _test.Eq(restoredInstance.ability_usage_periods.Count, 2, "Ability usage periods should round-trip.");
+            _test.Eq(restoredInstance.ability_usage_periods[0].AbilityId, "blade_flash", "Daily usage ability id should round-trip.");
+            _test.Eq(restoredInstance.ability_usage_periods[0].PeriodKind, "per_world_day", "Daily usage period kind should round-trip.");
+            _test.Eq(restoredInstance.ability_usage_periods[0].PeriodIndex, 12, "Daily usage period index should round-trip.");
+            _test.Eq(restoredInstance.ability_usage_periods[0].UsedCount, 1, "Daily usage used count should round-trip.");
+            _test.Eq(restoredInstance.ability_usage_periods[1].AbilityId, "moon_guard", "Monthly usage ability id should round-trip.");
+            _test.Eq(restoredInstance.ability_usage_periods[1].PeriodKind, "per_world_month", "Monthly usage period kind should round-trip.");
+            _test.Eq(restoredInstance.ability_usage_periods[1].PeriodIndex, 2, "Monthly usage period index should round-trip.");
+            _test.Eq(restoredInstance.ability_usage_periods[1].UsedCount, 3, "Monthly usage used count should round-trip.");
+            _test.Eq(restoredInstance.ability_persistent_counters.Count, 1, "Persistent counters should round-trip.");
+            _test.Eq(restoredInstance.ability_persistent_counters[0].CounterId, "kill_count", "Counter id should round-trip.");
+            _test.Eq(restoredInstance.ability_persistent_counters[0].Value, 9L, "Counter value should round-trip.");
+        }
+
+        EquipmentInstanceState duplicate = instance.DuplicateState();
+        _test.False(object.ReferenceEquals(instance.ability_usage_periods, duplicate.ability_usage_periods), "DuplicateState should copy usage period list.");
+        _test.False(object.ReferenceEquals(instance.ability_usage_periods[0], duplicate.ability_usage_periods[0]), "DuplicateState should deep-copy usage period entries.");
+        _test.False(object.ReferenceEquals(instance.ability_persistent_counters, duplicate.ability_persistent_counters), "DuplicateState should copy counter list.");
+        _test.False(object.ReferenceEquals(instance.ability_persistent_counters[0], duplicate.ability_persistent_counters[0]), "DuplicateState should deep-copy counter entries.");
+
+        instance.ability_usage_periods[0].UsedCount = 7;
+        instance.ability_persistent_counters[0].Value = 21;
+        _test.Eq(duplicate.ability_usage_periods[0].UsedCount, 1, "Duplicate usage state should not share mutable entries.");
+        _test.Eq(duplicate.ability_persistent_counters[0].Value, 9L, "Duplicate counter state should not share mutable entries.");
+    }
+
+    private void TestEquipmentAbilityPersistentStateStrictSchema()
+    {
+        GDictionary validPayload = MakeEquipmentInstancePayload("eq_ability_schema_valid");
+        DictArray(validPayload, "ability_usage_periods").Add(MakeUsagePeriodPayload());
+        DictArray(validPayload, "ability_persistent_counters").Add(MakePersistentCounterPayload());
+        string validError = EquipmentInstanceState.GetPayloadValidationError(validPayload, false);
+        AssertStringEq(validError, "", "Current equipment ability state schema should validate.");
+
+        GDictionary oldFiveFieldPayload = MakeOldFiveFieldEquipmentInstancePayload("eq_old_five_field");
+        AssertEquipmentInstanceValidationError(oldFiveFieldPayload, "Old five-field equipment instance payload should be rejected.");
+
+        GDictionary extraUsageFieldPayload = MakeEquipmentInstancePayload("eq_schema_extra_usage_field");
+        GDictionary extraUsage = MakeUsagePeriodPayload();
+        extraUsage["unsupported"] = 1;
+        DictArray(extraUsageFieldPayload, "ability_usage_periods").Add(extraUsage);
+        AssertEquipmentInstanceValidationError(extraUsageFieldPayload, "Unsupported usage record field should be rejected.");
+
+        GDictionary extraCounterFieldPayload = MakeEquipmentInstancePayload("eq_schema_extra_counter_field");
+        GDictionary extraCounter = MakePersistentCounterPayload();
+        extraCounter["unsupported"] = 1;
+        DictArray(extraCounterFieldPayload, "ability_persistent_counters").Add(extraCounter);
+        AssertEquipmentInstanceValidationError(extraCounterFieldPayload, "Unsupported counter record field should be rejected.");
+
+        GDictionary emptyAbilityIdPayload = MakeEquipmentInstancePayload("eq_schema_empty_ability_id");
+        DictArray(emptyAbilityIdPayload, "ability_usage_periods").Add(MakeUsagePeriodPayload(abilityId: ""));
+        AssertEquipmentInstanceValidationError(emptyAbilityIdPayload, "Empty usage ability id should be rejected.");
+
+        GDictionary invalidPeriodKindPayload = MakeEquipmentInstancePayload("eq_schema_invalid_period_kind");
+        DictArray(invalidPeriodKindPayload, "ability_usage_periods").Add(MakeUsagePeriodPayload(periodKind: "per_rest"));
+        AssertEquipmentInstanceValidationError(invalidPeriodKindPayload, "Invalid period kind should be rejected.");
+
+        GDictionary negativePeriodIndexPayload = MakeEquipmentInstancePayload("eq_schema_negative_period_index");
+        DictArray(negativePeriodIndexPayload, "ability_usage_periods").Add(MakeUsagePeriodPayload(periodIndex: -1));
+        AssertEquipmentInstanceValidationError(negativePeriodIndexPayload, "Negative period index should be rejected.");
+
+        GDictionary negativeUsedCountPayload = MakeEquipmentInstancePayload("eq_schema_negative_used_count");
+        DictArray(negativeUsedCountPayload, "ability_usage_periods").Add(MakeUsagePeriodPayload(usedCount: -1));
+        AssertEquipmentInstanceValidationError(negativeUsedCountPayload, "Negative used count should be rejected.");
+
+        GDictionary emptyCounterIdPayload = MakeEquipmentInstancePayload("eq_schema_empty_counter_id");
+        DictArray(emptyCounterIdPayload, "ability_persistent_counters").Add(MakePersistentCounterPayload(counterId: ""));
+        AssertEquipmentInstanceValidationError(emptyCounterIdPayload, "Empty counter id should be rejected.");
+
+        GDictionary negativeCounterValuePayload = MakeEquipmentInstancePayload("eq_schema_negative_counter_value");
+        DictArray(negativeCounterValuePayload, "ability_persistent_counters").Add(MakePersistentCounterPayload(value: -1));
+        AssertEquipmentInstanceValidationError(negativeCounterValuePayload, "Negative counter value should be rejected.");
+    }
+
     private void TestDuplicateSameItemInstanceIdSelection()
     {
         GDictionary itemDefs = ItemDefs();
@@ -1041,6 +1158,43 @@ public partial class run_party_equipment_regression : SceneTree
             ["item_id"] = itemId,
             ["rarity"] = (int)EquipmentInstanceState.RarityTier.COMMON,
             ["current_durability"] = DefaultCurrentDurabilityForRarity((int)EquipmentInstanceState.RarityTier.COMMON),
+            ["trait_instances"] = new GArray(),
+            ["ability_usage_periods"] = new GArray(),
+            ["ability_persistent_counters"] = new GArray(),
+        };
+
+    private static GDictionary MakeOldFiveFieldEquipmentInstancePayload(string instanceId, string itemId = "bronze_sword") =>
+        new()
+        {
+            ["instance_id"] = instanceId,
+            ["item_id"] = itemId,
+            ["rarity"] = (int)EquipmentInstanceState.RarityTier.COMMON,
+            ["current_durability"] = DefaultCurrentDurabilityForRarity((int)EquipmentInstanceState.RarityTier.COMMON),
+            ["trait_instances"] = new GArray(),
+        };
+
+    private static GDictionary MakeUsagePeriodPayload(
+        string abilityId = "blade_flash",
+        string periodKind = "per_world_day",
+        int periodIndex = 12,
+        int usedCount = 1
+    ) =>
+        new()
+        {
+            ["ability_id"] = abilityId,
+            ["period_kind"] = periodKind,
+            ["period_index"] = periodIndex,
+            ["used_count"] = usedCount,
+        };
+
+    private static GDictionary MakePersistentCounterPayload(
+        string counterId = "kill_count",
+        long value = 9
+    ) =>
+        new()
+        {
+            ["counter_id"] = counterId,
+            ["value"] = value,
         };
 
     private static GDictionary MakeEquipmentEntryPayload(

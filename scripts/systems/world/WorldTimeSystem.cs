@@ -3,10 +3,16 @@ using System;
 public sealed class WorldTimeSystem
 {
     private const int StepsPerDay = 15;
+    private const int DaysPerMonth = 30;
 
     public static int StepToDay(int world_step)
     {
         return world_step < 0 ? -1 : world_step / StepsPerDay;
+    }
+
+    public static int StepToMonth(int world_step)
+    {
+        return world_step < 0 ? -1 : world_step / (StepsPerDay * DaysPerMonth);
     }
 
     internal static WorldTimeAdvanceResult AdvanceWorldStep(int oldStep, int deltaSteps)

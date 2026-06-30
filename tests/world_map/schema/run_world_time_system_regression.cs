@@ -14,6 +14,7 @@ public partial class run_world_time_system_regression : SceneTree
     private int Run()
     {
         TestStepAndDayAccessors();
+        TestStepToMonthBoundaries();
         TestAdvanceReportsDayCrossing();
         TestAdvanceRejectsInvalidWorldStep();
 
@@ -29,6 +30,15 @@ public partial class run_world_time_system_regression : SceneTree
             2,
             "typed step 推进应按 STEPS_PER_DAY 派生新 day。"
         );
+    }
+
+    private void TestStepToMonthBoundaries()
+    {
+        _test.Eq(WorldTimeSystem.StepToMonth(-1), -1, "负 world_step 不应兼容为第 0 月。");
+        _test.Eq(WorldTimeSystem.StepToMonth(0), 0, "第 0 step 应属于第 0 个 world month。");
+        _test.Eq(WorldTimeSystem.StepToMonth(449), 0, "第 449 step 仍应属于第 0 个 world month。");
+        _test.Eq(WorldTimeSystem.StepToMonth(450), 1, "第 450 step 应进入第 1 个 world month。");
+        _test.Eq(WorldTimeSystem.StepToMonth(900), 2, "第 900 step 应进入第 2 个 world month。");
     }
 
     private void TestAdvanceReportsDayCrossing()
