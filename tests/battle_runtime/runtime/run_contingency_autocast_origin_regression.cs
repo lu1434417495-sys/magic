@@ -17,6 +17,7 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
         try
         {
             TestBurstAutoCastBypassesTurnAndCostsButCommitsEffects();
+            TestNonPlayerLearnedSourceDoesNotCreateBattleInstance();
             TestSequentialReleaseQueuesAtReleaseTimeAndDrainsOnePerOwnerTurn();
             TestInvalidTargetResolutionSkipAndAbortGateExecution();
             TestSpecialProfileAutoCastUsesFormalCommitWithoutCostsOrProgression();
@@ -45,7 +46,13 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
             )
         );
         using TrackingBattleGateway gateway = new(partyState);
-        BattleUnitState caster = Unit("caster", "player", Vector2I.Zero, "hero");
+        BattleUnitState caster = Unit(
+            "caster",
+            "player",
+            Vector2I.Zero,
+            "hero",
+            knowsStoredSkill: false
+        );
         BattleUnitState activeAlly = Unit("active_ally", "player", new Vector2I(0, 1), "ally");
         BattleUnitState target = Unit("enemy", "enemy", new Vector2I(2, 0), "");
 
@@ -73,6 +80,14 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
         int casterMpBefore = caster.current_mp;
         int casterStaminaBefore = caster.current_stamina;
         int casterAuraBefore = caster.current_aura;
+        _test.False(
+            caster.KnowsActiveSkill("contingency_bolt"),
+            "fixture should prove the stored spell is absent from caster known_active_skill_ids."
+        );
+        _test.False(
+            caster.HasKnownSkillLevelTyped("contingency_bolt"),
+            "fixture should prove the scoped auto-cast level does not come from known_skill_level_map."
+        );
 
         BattleContingencySystem sidecar = runtime.GetContingencySystemTyped();
         using BattleEventBatch batch = new();
@@ -133,10 +148,82 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
             HasSuppressedOrigin(batch),
             "damage/status report facts from auto-cast should carry CanTriggerContingencies=false."
         );
+        _test.True(
+            HasAutoCastOriginSkillEntryId(
+                batch,
+                "scoped_auto:hero:combat_burst:contingency_bolt"
+            ),
+            "auto-cast effect origin should expose the scoped skill_entry_id."
+        );
+        _test.False(
+            caster.KnowsActiveSkill("contingency_bolt"),
+            "auto-cast should not leave the stored spell in known_active_skill_ids."
+        );
+        _test.False(
+            caster.HasKnownSkillLevelTyped("contingency_bolt"),
+            "auto-cast should not leave the scoped level in known_skill_level_map."
+        );
         _test.Eq(
             sidecar.GetQueuedReleaseContextsTyped().Count,
             0,
             "contingency scanner should not enqueue nested releases from suppressed auto-cast facts."
+        );
+
+        runtime.SetupStateForTests(null);
+    }
+
+    private void TestNonPlayerLearnedSourceDoesNotCreateBattleInstance()
+    {
+        SkillDefinition storedSkill = StoredBoltSkill();
+        PartyState partyState = BuildPartyState(
+            ChargedSetup(
+                "race_source",
+                "combat_started",
+                "burst_release",
+                new GArray
+                {
+                    StoredSpell("contingency_bolt", 1, Resolver("nearest_enemy_to_owner")),
+                }
+            ),
+            sourceGrantType: UnitSkillGrantSourceType.Race
+        );
+        using TrackingBattleGateway gateway = new(partyState);
+        BattleUnitState caster = Unit("race_source_caster", "player", Vector2I.Zero, "hero");
+        BattleUnitState target = Unit("race_source_enemy", "enemy", new Vector2I(2, 0), "");
+
+        BattleRuntimeModule runtime = Track(new BattleRuntimeModule());
+        runtime.setup(
+            character_gateway: gateway,
+            skill_definitions: new Dictionary<StringName, SkillDefinition> { [storedSkill.SkillId] = storedSkill }
+        );
+        BattleState state = Track(BattleTestFixture.BuildFlatState("race_source_gate", new Vector2I(4, 3)));
+        BattleTestFixture.InstallUnits(state, new[] { caster }, new[] { target });
+        state.active_unit_id = caster.unit_id;
+        state.phase = "unit_acting";
+        runtime.SetupStateForTests(state);
+        BattleTestFixture.ConfigureDamageResolverForTests(
+            runtime,
+            new FixedSuccessOneDamageResolver()
+        );
+
+        BattleContingencySystem sidecar = runtime.GetContingencySystemTyped();
+        _test.False(
+            sidecar.HasInstanceForSetup("hero", "race_source"),
+            "battle setup should not create contingency instances for non-player-learned source skills."
+        );
+
+        using BattleEventBatch batch = new();
+        runtime.OnBattleConfirmed(batch);
+
+        _test.Eq(
+            target.current_hp,
+            30,
+            "non-player-learned contingency source should not execute stored spells."
+        );
+        _test.Eq(
+            CountNonContingencyReports(batch),
+            0,
+            "blocked non-player source should not emit auto-cast effect reports."
         );
 
         runtime.SetupStateForTests(null);
@@ -416,6 +503,24 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
         return false;
     }
 
+    private static bool HasAutoCastOriginSkillEntryId(BattleEventBatch batch, string expectedSkillEntryId)
+    {
+        foreach (GDictionary reportEntry in batch?.ReportEntriesTyped ?? Array.Empty<GDictionary>())
+        {
+            if (!reportEntry.ContainsKey("effect_origin"))
+                continue;
+            GDictionary origin = reportEntry["effect_origin"].AsGodotDictionary();
+            if (
+                origin.ContainsKey("origin_kind")
+                && origin["origin_kind"].AsString() == "contingency_auto_cast"
+                && origin.ContainsKey("skill_entry_id")
+                && origin["skill_entry_id"].AsString() == expectedSkillEntryId
+            )
+                return true;
+        }
+        return false;
+    }
+
     private static bool HasReportEntryKind(BattleEventBatch batch, string entryKind)
     {
         foreach (GDictionary reportEntry in batch?.ReportEntriesTyped ?? Array.Empty<GDictionary>())
@@ -577,7 +682,8 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
         StringName unitId,
         StringName factionId,
         Vector2I coord,
-        StringName sourceMemberId
+        StringName sourceMemberId,
+        bool knowsStoredSkill = true
     )
     {
         BattleUnitState unit = BattleTestFixture.BuildUnit(unitId, factionId, coord, currentAp: 2);
@@ -594,8 +700,11 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
         unit.UnlockCombatResource("mp");
         unit.UnlockCombatResource("stamina");
         unit.UnlockCombatResource("aura");
-        unit.AddKnownActiveSkill("contingency_bolt");
-        unit.known_skill_level_map[new StringName("contingency_bolt")] = 3;
+        if (knowsStoredSkill)
+        {
+            unit.AddKnownActiveSkill("contingency_bolt");
+            unit.known_skill_level_map[new StringName("contingency_bolt")] = 3;
+        }
         return unit;
     }
 
@@ -627,7 +736,10 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
         }
     }
 
-    private static PartyState BuildPartyState(ContingencyMatrixSetupState setup)
+    private static PartyState BuildPartyState(
+        ContingencyMatrixSetupState setup,
+        UnitSkillGrantSourceType sourceGrantType = UnitSkillGrantSourceType.Player
+    )
     {
         PartyState partyState = new()
         {
@@ -637,12 +749,16 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
             reserve_member_ids = new GStringNameArray(),
             warehouse_state = new WarehouseState(),
         };
-        partyState.SetMemberState(Member("hero", setup));
+        partyState.SetMemberState(Member("hero", setup, sourceGrantType));
         partyState.SetMemberState(Member("ally", null));
         return partyState;
     }
 
-    private static PartyMemberState Member(StringName memberId, ContingencyMatrixSetupState setup)
+    private static PartyMemberState Member(
+        StringName memberId,
+        ContingencyMatrixSetupState setup,
+        UnitSkillGrantSourceType sourceGrantType = UnitSkillGrantSourceType.Player
+    )
     {
         PartyMemberState member = new()
         {
@@ -661,10 +777,27 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
         member.progression.unit_base_attributes.SetAttributeValue(AttributeService.MP_MAX, 200);
         member.progression.unit_base_attributes.SetAttributeValue(AttributeService.STAMINA_MAX, 10);
         member.progression.unit_base_attributes.SetAttributeValue(AttributeService.AURA_MAX, 10);
+        member.progression.SetSkillProgress(LearnedSkill("mage_chain_contingency", 5, sourceGrantType));
         return setup != null
             ? member.WithContingencySetupsForMutation(new[] { setup })
             : member;
     }
+
+    private static UnitSkillProgress LearnedSkill(
+        StringName skillId,
+        int level,
+        UnitSkillGrantSourceType grantSourceType = UnitSkillGrantSourceType.Player
+    ) =>
+        new()
+        {
+            skill_id = skillId,
+            is_learned = true,
+            skill_level = level,
+            current_mastery = 0,
+            total_mastery_earned = 0,
+            is_core = false,
+            granted_source_type = UnitSkillProgress.ToStringName(grantSourceType),
+        };
 
     private static ContingencyMatrixSetupState ChargedSetup(
         string setupId,

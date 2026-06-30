@@ -9,6 +9,7 @@ internal sealed class BattleEffectOrigin
         StringName ownerMemberId = default,
         StringName setupId = default,
         StringName instanceId = default,
+        StringName skillEntryId = default,
         StringName storedSkillId = default,
         StringName triggerType = default
     )
@@ -18,6 +19,7 @@ internal sealed class BattleEffectOrigin
         OwnerMemberId = Normalize(ownerMemberId);
         SetupId = Normalize(setupId);
         InstanceId = Normalize(instanceId);
+        SkillEntryId = Normalize(skillEntryId);
         StoredSkillId = Normalize(storedSkillId);
         TriggerType = Normalize(triggerType);
     }
@@ -27,6 +29,7 @@ internal sealed class BattleEffectOrigin
     internal StringName OwnerMemberId { get; }
     internal StringName SetupId { get; }
     internal StringName InstanceId { get; }
+    internal StringName SkillEntryId { get; }
     internal StringName StoredSkillId { get; }
     internal StringName TriggerType { get; }
 
@@ -40,6 +43,7 @@ internal sealed class BattleEffectOrigin
             request?.OwnerMemberId ?? "",
             request?.SetupId ?? "",
             request?.InstanceId ?? "",
+            request?.SkillEntryId ?? "",
             request?.StoredSkillId ?? "",
             request?.ReleaseContext?.TriggerType ?? ""
         );
@@ -52,6 +56,7 @@ internal sealed class BattleEffectOrigin
             ["owner_member_id"] = OwnerMemberId.ToString(),
             ["setup_id"] = SetupId.ToString(),
             ["instance_id"] = InstanceId.ToString(),
+            ["skill_entry_id"] = SkillEntryId.ToString(),
             ["stored_skill_id"] = StoredSkillId.ToString(),
             ["trigger_type"] = TriggerType.ToString(),
         };

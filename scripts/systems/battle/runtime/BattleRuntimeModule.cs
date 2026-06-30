@@ -1732,8 +1732,26 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _ensure_sidecars_ready();
         if (request?.IsValid != true || _state == null)
             return false;
+        if (!IsContingencyAutoCastSourcePlayerLearned(request))
+            return false;
         using IDisposable originScope = PushEffectOrigin(BattleEffectOrigin.AutoCast(request));
         return _skill_orchestrator.ExecuteAutoCast(request, batch ?? _new_batch());
+    }
+
+    internal bool IsContingencyAutoCastSourcePlayerLearned(AutoCastRequest request)
+    {
+        if (request == null || request.OwnerMemberId == "" || request.SourceSkillId == "")
+            return false;
+        PartyMemberState memberState = _characterGateway
+            ?.GetPartyState()
+            ?.GetMemberState(request.OwnerMemberId);
+        UnitSkillProgress progress = memberState?.progression?.GetSkillProgress(
+            request.SourceSkillId
+        );
+        return progress != null
+            && progress.is_learned
+            && progress.skill_level > 0
+            && progress.GrantedSourceTypeKind == UnitSkillGrantSourceType.Player;
     }
 
     internal IReadOnlyList<ContingencyTargetResolutionResult> ResolveContingencyStoredSpellTargetsForRelease(

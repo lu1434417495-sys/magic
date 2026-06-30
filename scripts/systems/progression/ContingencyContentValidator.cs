@@ -81,6 +81,10 @@ public static class ContingencyContentValidator
         UnitSkillProgress sourceProgress = GetKnownSkillProgress(memberState, setup.SourceSkillId);
         if (sourceProgress == null)
             errors.Add($"{setupPath}.source_skill_id: source_skill_not_known:{setup.SourceSkillId}");
+        else if (sourceProgress.GrantedSourceTypeKind != UnitSkillGrantSourceType.Player)
+            errors.Add(
+                $"{setupPath}.source_skill_id: source_skill_not_player_learned:{setup.SourceSkillId}"
+            );
         else if (setup.SourceSkillLevel > sourceProgress.skill_level)
             errors.Add(
                 $"{setupPath}.source_skill_level: source_skill_level_exceeds_known_level:{setup.SourceSkillLevel}>{sourceProgress.skill_level}"

@@ -2854,6 +2854,15 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 runtimeEffectDefinitions,
                 DamageResolutionContext
                     .ForSkill(skillDefinition?.SkillId ?? new StringName(""))
+                    .WithSourceSkillLevel(
+                        Math.Max(
+                            _get_unit_skill_level(
+                                active_unit,
+                                skillDefinition?.SkillId ?? new StringName("")
+                            ),
+                            1
+                        )
+                    )
                     .WithDamageApplicationHookContext(
                         batch,
                         Runtime?.CurrentEffectOriginForContingency

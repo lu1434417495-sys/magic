@@ -71,6 +71,8 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
             {
                 if (setup == null || !setup.Enabled || !setup.Charged || setup.SetupId == "")
                     continue;
+                if (!IsPlayerLearnedSourceSkill(memberState, setup))
+                    continue;
                 AddInstance(memberId, unitState.unit_id, setup);
             }
         }
@@ -194,6 +196,8 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
     )
     {
         List<AutoCastRequest> requests = new();
+        if (context == null || !_instancesById.TryGetValue(context.InstanceId, out BattleContingencyInstance instance))
+            return requests;
         foreach (ResolvedStoredSpell resolved in ResolveStoredSpellEntriesForRelease(context, facts, batch))
         {
             if (resolved.TargetResolution?.Ok != true || resolved.StoredSpell == null)
@@ -206,6 +210,9 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
                     OwnerUnitId = context.OwnerUnitId,
                     SetupId = context.SetupId,
                     InstanceId = context.InstanceId,
+                    SourceSkillId = instance.Setup?.SourceSkillId ?? "",
+                    SourceSkillLevel = instance.Setup?.SourceSkillLevel ?? 0,
+                    SourceSkillGrantSourceType = ResolveSourceSkillGrantSourceType(instance),
                     StoredSkillId = resolved.StoredSpell.StoredSkillId,
                     CastLevel = resolved.StoredSpell.CastLevel,
                     TargetResolution = resolved.TargetResolution,
@@ -539,6 +546,34 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
         }
         instanceIds.Add(instanceId);
         AddTriggerIndexEntry(setup.Trigger?.Type ?? "", instanceId);
+    }
+
+    private static bool IsPlayerLearnedSourceSkill(
+        PartyMemberState memberState,
+        ContingencyMatrixSetupState setup
+    )
+    {
+        UnitSkillProgress progress = memberState?.progression?.GetSkillProgress(
+            setup?.SourceSkillId ?? ""
+        );
+        return progress != null
+            && progress.is_learned
+            && progress.skill_level > 0
+            && progress.GrantedSourceTypeKind == UnitSkillGrantSourceType.Player;
+    }
+
+    private UnitSkillGrantSourceType ResolveSourceSkillGrantSourceType(
+        BattleContingencyInstance instance
+    )
+    {
+        if (instance == null)
+            return UnitSkillGrantSourceType.Unknown;
+        PartyState partyState = _runtime?.GetCharacterGatewayTyped()?.GetPartyState();
+        PartyMemberState memberState = partyState?.GetMemberState(instance.OwnerMemberId);
+        UnitSkillProgress progress = memberState?.progression?.GetSkillProgress(
+            instance.Setup?.SourceSkillId ?? ""
+        );
+        return progress?.GrantedSourceTypeKind ?? UnitSkillGrantSourceType.Unknown;
     }
 
     private IEnumerable<BattleContingencyInstance> GetInstancesForMember(StringName memberId)

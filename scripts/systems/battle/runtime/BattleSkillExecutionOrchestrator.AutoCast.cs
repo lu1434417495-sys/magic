@@ -11,6 +11,9 @@ using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 // Pure physical split: same class, no behavior change. See BattleSkillExecutionOrchestrator.cs.
 internal sealed partial class BattleSkillExecutionOrchestrator
 {
+    private StringName _scopedAutoCastUnitId = "";
+    private StringName _scopedAutoCastSkillId = "";
+    private int _scopedAutoCastSkillLevel;
 
     internal bool ExecuteAutoCast(AutoCastRequest request, BattleEventBatch batch)
     {
@@ -27,81 +30,138 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         if (command == null)
             return false;
 
-        IReadOnlyList<StringName> previousKnownSkillIds = caster.GetKnownActiveSkillIdsTyped();
-        bool hadKnownLevel = caster.HasKnownSkillLevelTyped(skillDefinition.SkillId);
-        int previousLevel = caster.GetKnownSkillLevelTyped(skillDefinition.SkillId);
-        caster.AddKnownActiveSkill(skillDefinition.SkillId);
-        caster.SetKnownSkillLevelTyped(skillDefinition.SkillId, Math.Max(request.CastLevel, 1));
-        try
+        using IDisposable scopedAutoCastLevel = PushScopedAutoCastSkillLevel(
+            caster,
+            skillDefinition.SkillId,
+            request.CastLevel
+        );
+        using IDisposable scopedResolutionLevel = Runtime?._skill_resolution_rules?.PushScopedSkillLevel(
+            caster,
+            skillDefinition.SkillId,
+            request.CastLevel
+        );
+        bool allowRepeat = skillDefinition.CombatProfile.AllowRepeatTarget;
+        BattleSkillResolutionPolicy policy = Runtime?._skill_resolution_rules
+            ?.BuildSkillResolutionPolicy(
+                skillDefinition,
+                caster,
+                command.skill_variant_id,
+                _normalize_target_unit_ids(command, allowRepeat)
+            );
+        if (policy == null || !policy.OptionAllowed)
         {
-            bool allowRepeat = skillDefinition.CombatProfile.AllowRepeatTarget;
-            BattleSkillResolutionPolicy policy = Runtime?._skill_resolution_rules
-                ?.BuildSkillResolutionPolicy(
-                    skillDefinition,
-                    caster,
-                    command.skill_variant_id,
-                    _normalize_target_unit_ids(command, allowRepeat)
-                );
-            if (policy == null || !policy.OptionAllowed)
-            {
-                return false;
-            }
-
-            bool routesToUnitTargeting = policy.RoutesToUnitTargeting;
-            bool isMeteorSwarm =
-                skillDefinition.CombatProfile.SpecialResolutionProfileId
-                == new StringName("meteor_swarm");
-            Runtime?._skill_mastery_service.Clear();
-            if (CanHandleUnitSkillCommandFromDefinitions(skillDefinition, policy))
-            {
-                bool definitionApplied = ExecuteAutoUnitSkill(
-                    caster,
-                    command,
-                    skillDefinition,
-                    policy.UnitExecutionCastVariantDefinition,
-                    policy.EffectDefinitions,
-                    batch
-                );
-                Runtime?._skill_mastery_service.Clear();
-                return definitionApplied;
-            }
-
-            if (isMeteorSwarm)
-            {
-                bool meteorApplied = ExecuteAutoMeteorSwarmSkill(
-                    caster,
-                    command,
-                    skillDefinition,
-                    policy.GroundCastVariantDefinition,
-                    batch
-                );
-                Runtime?._skill_mastery_service.Clear();
-                return meteorApplied;
-            }
-
-            if (!routesToUnitTargeting && policy.GroundCastVariantDefinition != null)
-            {
-                bool groundApplied = ExecuteAutoGroundSkill(
-                    caster,
-                    command,
-                    skillDefinition,
-                    policy.GroundCastVariantDefinition,
-                    batch
-                );
-                Runtime?._skill_mastery_service.Clear();
-                return groundApplied;
-            }
-
-            Runtime?._skill_mastery_service.Clear();
             return false;
         }
-        finally
+
+        bool routesToUnitTargeting = policy.RoutesToUnitTargeting;
+        bool isMeteorSwarm =
+            skillDefinition.CombatProfile.SpecialResolutionProfileId
+            == new StringName("meteor_swarm");
+        Runtime?._skill_mastery_service.Clear();
+        if (CanHandleUnitSkillCommandFromDefinitions(skillDefinition, policy))
         {
-            caster.SetKnownActiveSkillIds(previousKnownSkillIds);
-            if (hadKnownLevel)
-                caster.SetKnownSkillLevelTyped(skillDefinition.SkillId, previousLevel);
-            else
-                caster.RemoveKnownSkillLevelTyped(skillDefinition.SkillId);
+            bool definitionApplied = ExecuteAutoUnitSkill(
+                caster,
+                command,
+                skillDefinition,
+                policy.UnitExecutionCastVariantDefinition,
+                policy.EffectDefinitions,
+                batch
+            );
+            Runtime?._skill_mastery_service.Clear();
+            return definitionApplied;
+        }
+
+        if (isMeteorSwarm)
+        {
+            bool meteorApplied = ExecuteAutoMeteorSwarmSkill(
+                caster,
+                command,
+                skillDefinition,
+                policy.GroundCastVariantDefinition,
+                batch
+            );
+            Runtime?._skill_mastery_service.Clear();
+            return meteorApplied;
+        }
+
+        if (!routesToUnitTargeting && policy.GroundCastVariantDefinition != null)
+        {
+            bool groundApplied = ExecuteAutoGroundSkill(
+                caster,
+                command,
+                skillDefinition,
+                policy.GroundCastVariantDefinition,
+                batch
+            );
+            Runtime?._skill_mastery_service.Clear();
+            return groundApplied;
+        }
+
+        Runtime?._skill_mastery_service.Clear();
+        return false;
+    }
+
+    private IDisposable PushScopedAutoCastSkillLevel(
+        BattleUnitState unitState,
+        StringName skillId,
+        int skillLevel
+    )
+    {
+        StringName previousUnitId = _scopedAutoCastUnitId;
+        StringName previousSkillId = _scopedAutoCastSkillId;
+        int previousSkillLevel = _scopedAutoCastSkillLevel;
+        _scopedAutoCastUnitId = ProgressionDataUtils.to_string_name(unitState?.unit_id ?? "");
+        _scopedAutoCastSkillId = ProgressionDataUtils.to_string_name(skillId);
+        _scopedAutoCastSkillLevel = Math.Max(skillLevel, 0);
+        return new ScopedAutoCastSkillLevelScope(
+            this,
+            previousUnitId,
+            previousSkillId,
+            previousSkillLevel
+        );
+    }
+
+    private void RestoreScopedAutoCastSkillLevel(
+        StringName unitId,
+        StringName skillId,
+        int skillLevel
+    )
+    {
+        _scopedAutoCastUnitId = unitId;
+        _scopedAutoCastSkillId = skillId;
+        _scopedAutoCastSkillLevel = skillLevel;
+    }
+
+    private sealed class ScopedAutoCastSkillLevelScope : IDisposable
+    {
+        private BattleSkillExecutionOrchestrator _owner;
+        private readonly StringName _previousUnitId;
+        private readonly StringName _previousSkillId;
+        private readonly int _previousSkillLevel;
+
+        internal ScopedAutoCastSkillLevelScope(
+            BattleSkillExecutionOrchestrator owner,
+            StringName previousUnitId,
+            StringName previousSkillId,
+            int previousSkillLevel
+        )
+        {
+            _owner = owner;
+            _previousUnitId = previousUnitId;
+            _previousSkillId = previousSkillId;
+            _previousSkillLevel = previousSkillLevel;
+        }
+
+        public void Dispose()
+        {
+            BattleSkillExecutionOrchestrator owner = _owner;
+            _owner = null;
+            owner?.RestoreScopedAutoCastSkillLevel(
+                _previousUnitId,
+                _previousSkillId,
+                _previousSkillLevel
+            );
         }
     }
 
@@ -417,6 +477,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         {
             command_type = "skill",
             unit_id = request.CasterUnitId,
+            skill_entry_id = request.SkillEntryId,
             skill_id = request.StoredSkillId,
             target_unit_id = target.TargetUnitId,
             target_coord = target.TargetCell,

@@ -58,6 +58,9 @@ public sealed class BattleSkillResolutionRules : IDisposable
     private static readonly StringName FatePreviewModeNone = "";
     private static readonly StringName FatePreviewModeStandard = "standard";
     private static readonly StringName FatePreviewModeForceHitNoCritName = "force_hit_no_crit";
+    private StringName _scopedSkillUnitId = "";
+    private StringName _scopedSkillId = "";
+    private int _scopedSkillLevel;
     public static StringName FatePreviewModeForceHitNoCrit => FatePreviewModeForceHitNoCritName;
 
     public BattleSkillResolutionRules()
@@ -66,6 +69,27 @@ public sealed class BattleSkillResolutionRules : IDisposable
 
     public void Dispose()
     {
+        ClearScopedSkillLevel();
+    }
+
+    internal IDisposable PushScopedSkillLevel(
+        BattleUnitState unitState,
+        StringName skillId,
+        int skillLevel
+    )
+    {
+        StringName previousUnitId = _scopedSkillUnitId;
+        StringName previousSkillId = _scopedSkillId;
+        int previousSkillLevel = _scopedSkillLevel;
+        _scopedSkillUnitId = ProgressionDataUtils.to_string_name(unitState?.unit_id ?? "");
+        _scopedSkillId = ProgressionDataUtils.to_string_name(skillId);
+        _scopedSkillLevel = Math.Max(skillLevel, 0);
+        return new ScopedSkillLevelScope(
+            this,
+            previousUnitId,
+            previousSkillId,
+            previousSkillLevel
+        );
     }
 
     public BattleSkillResolutionPolicy BuildSkillResolutionPolicy(
@@ -1075,11 +1099,19 @@ public sealed class BattleSkillResolutionRules : IDisposable
         return skillLevel >= minLevel && (maxLevel < 0 || skillLevel <= maxLevel);
     }
 
-    private static int GetUnitSkillLevel(BattleUnitState activeUnit, StringName skillId)
+    private int GetUnitSkillLevel(BattleUnitState activeUnit, StringName skillId)
     {
         if (activeUnit == null || IsEmpty(skillId))
         {
             return 0;
+        }
+        if (
+            activeUnit.unit_id == _scopedSkillUnitId
+            && skillId == _scopedSkillId
+            && _scopedSkillLevel > 0
+        )
+        {
+            return _scopedSkillLevel;
         }
         return Math.Max(activeUnit.GetKnownSkillLevelTyped(skillId), 0);
     }
@@ -1128,5 +1160,55 @@ public sealed class BattleSkillResolutionRules : IDisposable
     private static bool IsEmpty(StringName value)
     {
         return value == null || string.IsNullOrEmpty(value.ToString());
+    }
+
+    private void ClearScopedSkillLevel()
+    {
+        _scopedSkillUnitId = "";
+        _scopedSkillId = "";
+        _scopedSkillLevel = 0;
+    }
+
+    private void RestoreScopedSkillLevel(
+        StringName unitId,
+        StringName skillId,
+        int skillLevel
+    )
+    {
+        _scopedSkillUnitId = unitId;
+        _scopedSkillId = skillId;
+        _scopedSkillLevel = skillLevel;
+    }
+
+    private sealed class ScopedSkillLevelScope : IDisposable
+    {
+        private BattleSkillResolutionRules _owner;
+        private readonly StringName _previousUnitId;
+        private readonly StringName _previousSkillId;
+        private readonly int _previousSkillLevel;
+
+        internal ScopedSkillLevelScope(
+            BattleSkillResolutionRules owner,
+            StringName previousUnitId,
+            StringName previousSkillId,
+            int previousSkillLevel
+        )
+        {
+            _owner = owner;
+            _previousUnitId = previousUnitId;
+            _previousSkillId = previousSkillId;
+            _previousSkillLevel = previousSkillLevel;
+        }
+
+        public void Dispose()
+        {
+            BattleSkillResolutionRules owner = _owner;
+            _owner = null;
+            owner?.RestoreScopedSkillLevel(
+                _previousUnitId,
+                _previousSkillId,
+                _previousSkillLevel
+            );
+        }
     }
 }

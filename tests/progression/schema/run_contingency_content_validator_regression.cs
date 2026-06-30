@@ -23,6 +23,7 @@ public partial class run_contingency_content_validator_regression : SceneTree
         TestCatalogContainsV1StorableAutomationProfiles();
         TestStoredSkillWithoutAutomationProfileIsRejected();
         TestCanBeStoredFalseIsRejected();
+        TestNonPlayerLearnedSourceSkillIsRejected();
         TestMinSkillLevelGreaterThanSourceSkillLevelIsRejected();
         TestSourceSkillLevelAboveKnownLevelIsRejected();
         TestStoredCastLevelAboveKnownLevelIsRejected();
@@ -153,6 +154,32 @@ public partial class run_contingency_content_validator_regression : SceneTree
             errors,
             "not_storable",
             "can_be_stored_in_contingency=false should be rejected."
+        );
+    }
+
+    private void TestNonPlayerLearnedSourceSkillIsRejected()
+    {
+        GDictionary setup = BuildSetupPayload(storedSkillId: "storable_skill");
+        PartyState partyState = BuildPartyStateWithSetup(
+            setup,
+            LearnedSkill("mage_chain_contingency", 5, UnitSkillGrantSourceType.Race),
+            LearnedSkill("storable_skill", 5)
+        );
+        IReadOnlyList<string> errors = ContingencyContentValidator.ValidateAllSetupsForSaveLoad(
+            partyState,
+            BuildSyntheticSkillDefinitions(
+                SyntheticSkill("mage_chain_contingency", tags: new[] { "contingency", "meta_spell" }),
+                SyntheticSkill(
+                    "storable_skill",
+                    BuildAutomation(canBeStored: true, minLevel: 1, allowedResolver: "self")
+                )
+            )
+        );
+
+        ExpectErrorContains(
+            errors,
+            "source_skill_not_player_learned",
+            "Contingency source skill granted by race should be rejected."
         );
     }
 
@@ -580,7 +607,11 @@ public partial class run_contingency_content_validator_regression : SceneTree
         };
     }
 
-    private static UnitSkillProgress LearnedSkill(string skillId, int level)
+    private static UnitSkillProgress LearnedSkill(
+        string skillId,
+        int level,
+        UnitSkillGrantSourceType grantSourceType = UnitSkillGrantSourceType.Player
+    )
     {
         return new UnitSkillProgress
         {
@@ -590,7 +621,10 @@ public partial class run_contingency_content_validator_regression : SceneTree
             current_mastery = 0,
             total_mastery_earned = 0,
             is_core = false,
-            granted_source_type = "player",
+            granted_source_type = UnitSkillProgress.ToStringName(grantSourceType),
+            granted_source_id = grantSourceType == UnitSkillGrantSourceType.Player
+                ? new StringName("")
+                : new StringName("test_grant_source"),
         };
     }
 
