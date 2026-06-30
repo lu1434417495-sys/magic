@@ -173,7 +173,7 @@ public partial class run_contingency_setup_schema_regression : SceneTree
 
         _test.True(
             PartyState.FromDictionary(partyPayload) == null,
-            "Current PartyState.version 6 member payload should require contingency_matrix_setups."
+            "Current PartyState.version 7 member payload should require contingency_matrix_setups."
         );
     }
 
@@ -267,14 +267,14 @@ public partial class run_contingency_setup_schema_regression : SceneTree
             )
         );
         GDictionary oldPartyPayload = (GDictionary)partyPayload.Duplicate(true);
-        oldPartyPayload["version"] = 5;
+        oldPartyPayload["version"] = 6;
         _test.True(
             PartyState.FromDictionary(oldPartyPayload) == null,
-            "PartyState.version 5 should fail without migration."
+            "PartyState.version 6 should fail without migration."
         );
 
         var serializer = new SaveSerializer();
-        serializer.Setup(10, 3, 4);
+        serializer.Setup(11, 3, 4);
         GDictionary saveMeta = serializer.BuildSaveMeta(
             "save_contingency_schema",
             "Schema Test",
@@ -295,7 +295,7 @@ public partial class run_contingency_setup_schema_regression : SceneTree
             PartyState.FromDictionary(partyPayload),
             100
         );
-        payload["version"] = 9;
+        payload["version"] = 10;
         GDictionary decoded = serializer.DecodePayload(
             payload,
             "res://data/configs/world_map/default_world_generation.tres",
@@ -304,7 +304,7 @@ public partial class run_contingency_setup_schema_regression : SceneTree
         );
         _test.True(
             decoded["error"].AsInt32() != (int)Error.Ok,
-            "Root save version 9 should fail without migration."
+            "Root save version 10 should fail without migration."
         );
     }
 
@@ -406,7 +406,7 @@ public partial class run_contingency_setup_schema_regression : SceneTree
 
         PartyState partyState = new()
         {
-            version = 6,
+            version = 7,
             gold = 25,
             leader_member_id = "hero_001",
             main_character_member_id = "hero_001",
@@ -414,7 +414,7 @@ public partial class run_contingency_setup_schema_regression : SceneTree
         partyState.SetMemberState(memberState);
         partyState.active_member_ids.Add("hero_001");
         GDictionary partyPayload = partyState.ToDictionary();
-        partyPayload["version"] = 6;
+        partyPayload["version"] = 7;
         partyPayload["member_states"] = new GDictionary { ["hero_001"] = memberPayload };
         return partyPayload;
     }

@@ -1,4 +1,5 @@
 using Godot;
+using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_save_serializer_quest_round_trip_regression : SceneTree
@@ -16,6 +17,7 @@ public partial class run_save_serializer_quest_round_trip_regression : SceneTree
     {
         TestSaveSerializerRoundTripPreservesPartyQuestSchema();
         TestDecodePayloadRejectsMissingPartySchemaFields();
+        TestRootVersion10PartyVersion6OldEquipmentPayloadIsRejectedByVersionGate();
         TestExtractSaveMetaRejectsMissingSlotFields();
         Quit(_test.Finish("Save serializer quest round trip regression"));
     }
@@ -54,8 +56,8 @@ public partial class run_save_serializer_quest_round_trip_regression : SceneTree
         GDictionary payload = BuildSavePayloadForSession(gameSession, partyState);
         _test.Eq(
             DictInt(payload, "version", -1),
-            10,
-            "Typed state owner schema should bump top-level save version to 10."
+            11,
+            "Typed state owner schema should bump top-level save version to 11."
         );
         GDictionary decodeResult = serializer.DecodePayload(
             payload,
@@ -75,8 +77,8 @@ public partial class run_save_serializer_quest_round_trip_regression : SceneTree
         {
             _test.Eq(
                 restoredPartyState.version,
-                6,
-                "Typed state owner schema should bump PartyState.version to 6."
+                7,
+                "Typed state owner schema should bump PartyState.version to 7."
             );
             _test.Eq(restoredPartyState.main_character_member_id, partyState.main_character_member_id, "完整 save round-trip 后应保留 main_character_member_id。");
             _test.True(restoredPartyState.HasActiveQuest("contract_wolf_pack"), "SaveSerializer 往返后应保留 active_quests。");
@@ -97,6 +99,49 @@ public partial class run_save_serializer_quest_round_trip_regression : SceneTree
             if (restoredClaimableQuest != null)
                 _test.Eq(restoredClaimableQuest.completed_at_world_step, 11, "待领奖励 QuestState 完成时间应穿过 save payload 保持稳定。");
         }
+
+        CleanupTestSession(gameSession);
+    }
+
+    private void TestRootVersion10PartyVersion6OldEquipmentPayloadIsRejectedByVersionGate()
+    {
+        var gameSession = new GameSession();
+        Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
+        _test.Eq(createError, Error.Ok, "旧装备存档 version gate 回归需要可创建的测试世界。");
+        if (createError != Error.Ok)
+        {
+            CleanupTestSession(gameSession);
+            return;
+        }
+
+        SaveSerializer serializer = gameSession._save_serializer;
+        GDictionary payload = BuildSavePayloadForSession(gameSession, gameSession.GetPartyState());
+        payload["version"] = 10;
+
+        GDictionary partyPayload = payload["party_state"].AsGodotDictionary();
+        partyPayload["version"] = 6;
+        GDictionary warehousePayload = partyPayload["warehouse_state"].AsGodotDictionary();
+        warehousePayload["equipment_instances"] = new GArray
+        {
+            MakeOldFiveFieldEquipmentInstancePayload("eq_old_version_gate")
+        };
+
+        _test.True(
+            serializer.ExtractSaveMetaFromPayload(payload).Count == 0,
+            "Root save version 10 should be rejected by the top-level version gate before party/equipment parsing."
+        );
+
+        GDictionary decodeResult = serializer.DecodePayload(
+            payload,
+            gameSession.GetGenerationConfigPath(),
+            gameSession.GetGenerationConfig(),
+            gameSession.GetActiveSaveMeta()
+        );
+        _test.Eq(
+            DictInt(decodeResult, "error", (int)Error.Ok),
+            (int)Error.InvalidData,
+            "Root version 10 / PartyState version 6 / five-field equipment save should reject as old schema."
+        );
 
         CleanupTestSession(gameSession);
     }
@@ -179,6 +224,18 @@ public partial class run_save_serializer_quest_round_trip_regression : SceneTree
             (int)Time.GetUnixTimeFromSystem()
         );
     }
+
+    private static GDictionary MakeOldFiveFieldEquipmentInstancePayload(string instanceId) =>
+        new()
+        {
+            ["instance_id"] = instanceId,
+            ["item_id"] = "bronze_sword",
+            ["rarity"] = (int)EquipmentInstanceState.RarityTier.COMMON,
+            ["current_durability"] = EquipmentDurabilityRules.GetDefaultCurrentDurability(
+                (int)EquipmentInstanceState.RarityTier.COMMON
+            ),
+            ["trait_instances"] = new GArray(),
+        };
 
     private static void CleanupTestSession(GameSession gameSession)
     {

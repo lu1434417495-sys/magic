@@ -563,7 +563,7 @@ public partial class run_contingency_content_validator_regression : SceneTree
 
         PartyState partyState = new()
         {
-            version = 6,
+            version = 7,
             gold = 25,
             leader_member_id = "hero_001",
             main_character_member_id = "hero_001",
@@ -571,7 +571,7 @@ public partial class run_contingency_content_validator_regression : SceneTree
         partyState.SetMemberState(memberState);
         partyState.active_member_ids.Add("hero_001");
         GDictionary partyPayload = partyState.ToDictionary();
-        partyPayload["version"] = 6;
+        partyPayload["version"] = 7;
         partyPayload["member_states"] = new GDictionary { ["hero_001"] = memberPayload };
         return PartyState.FromDictionary(partyPayload);
     }

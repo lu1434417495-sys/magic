@@ -22,7 +22,7 @@ public partial class PartyState
         "warehouse_state",
     };
 
-    public int version = 6;
+    public int version = 7;
     public int gold;
     public StringName leader_member_id = "",
         main_character_member_id = "";
@@ -467,7 +467,7 @@ public partial class PartyState
             return null;
         if (!_has_exact_fields(data, TO_DICT_FIELDS))
             return null;
-        if (data["version"].VariantType != Variant.Type.Int || data["version"].AsInt32() != 6)
+        if (data["version"].VariantType != Variant.Type.Int || data["version"].AsInt32() != 7)
             return null;
         if (data["warehouse_state"].VariantType != Variant.Type.Dictionary)
             return null;
