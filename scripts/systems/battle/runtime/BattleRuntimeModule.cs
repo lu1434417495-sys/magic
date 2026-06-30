@@ -236,6 +236,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
     private readonly Dictionary<StringName, EnemyTemplateDef> _enemyTemplateIndex = new();
     private readonly Dictionary<StringName, EnemyAiBrainDef> _enemyAiBrainIndex = new();
     private readonly Dictionary<StringName, ItemDef> _itemDefIndex = new();
+    private readonly Dictionary<StringName, TraitDef> _traitDefIndex = new();
+    private readonly Dictionary<StringName, EquipmentAbilityBindingDefinition> _equipmentAbilityBindingIndex = new();
     internal EncounterRosterBuilder _encounter_builder = new EncounterRosterBuilder();
     public BattleState _state;
     public BattleGridService _grid_service = new();
@@ -363,7 +365,9 @@ public sealed partial class BattleRuntimeModule : IDisposable
         Func<StringName> equipment_instance_id_allocator = null,
         GDictionary battle_special_profile_registry_snapshot = null,
         ISkillCatalog skill_catalog = null,
-        IBattleSpecialProfileView battle_special_profile_view = null
+        IBattleSpecialProfileView battle_special_profile_view = null,
+        IReadOnlyDictionary<StringName, TraitDef> trait_defs = null,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipment_ability_bindings = null
     )
     {
         _characterGateway = character_gateway;
@@ -387,6 +391,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
             resolvedItemDefs = _characterGateway.GetItemDefsTyped();
         }
         ApplyItemDefsTyped(resolvedItemDefs);
+        ApplyTraitDefsTyped(trait_defs);
+        ApplyEquipmentAbilityBindingsTyped(equipment_ability_bindings);
 
         ApplyEnemyTemplatesTyped(enemy_templates);
         ApplyEnemyAiBrainsTyped(enemy_ai_brains);
@@ -513,7 +519,9 @@ public sealed partial class BattleRuntimeModule : IDisposable
                     GetSkillDefinitionIndexTyped(),
                     GetEnemyTemplateIndexTyped(),
                     GetEnemyAiBrainIndexTyped(),
-                    GetItemDefIndexTyped()
+                    GetItemDefIndexTyped(),
+                    GetTraitDefIndexTyped(),
+                    GetEquipmentAbilityBindingIndexTyped()
                 )
             );
         }

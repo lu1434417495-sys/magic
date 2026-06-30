@@ -175,6 +175,37 @@ internal sealed class BattleUnitFactory
         return itemDefs;
     }
 
+    private IReadOnlyDictionary<StringName, TraitDef> GetTraitDefIndex() =>
+        _runtime?.GetTraitDefIndexTyped() ?? new Dictionary<StringName, TraitDef>();
+
+    private IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> GetEquipmentAbilityBindingIndex() =>
+        _runtime?.GetEquipmentAbilityBindingIndexTyped()
+        ?? new Dictionary<StringName, EquipmentAbilityBindingDefinition>();
+
+    private Dictionary<StringName, ItemDef> BuildItemDefIndexSnapshotWithEquipmentView(
+        EquipmentState equipmentView
+    )
+    {
+        Dictionary<StringName, ItemDef> itemDefs =
+            _runtime?.BuildItemDefIndexSnapshotTyped() ?? new Dictionary<StringName, ItemDef>();
+        if (equipmentView == null)
+            return itemDefs;
+        foreach (StringName entrySlotId in equipmentView.GetEntrySlotIdsTyped())
+        {
+            EquipmentEntryState entry = equipmentView.GetEntry(entrySlotId);
+            if (entry == null || entry.item_id == "")
+                continue;
+            ItemDef gatewayItemDef = GetCharacterGateway()?.GetItemDef(entry.item_id);
+            if (gatewayItemDef == null)
+                continue;
+            itemDefs[entry.item_id] = gatewayItemDef;
+            StringName defItemId = ProgressionDataUtils.to_string_name(gatewayItemDef.item_id);
+            if (defItemId != "")
+                itemDefs[defItemId] = gatewayItemDef;
+        }
+        return itemDefs;
+    }
+
     private PartyMemberState GetMemberState(StringName memberId)
     {
         IBattleRuntimeCharacterGateway gateway = GetCharacterGateway();
@@ -287,6 +318,7 @@ internal sealed class BattleUnitFactory
         _apply_member_identity_projection(us, ms);
         us.attribute_snapshot = snap;
         _apply_member_effective_trait_projection(us, us.source_member_id, ev);
+        _apply_player_equipment_ability_projection(us);
         RefreshWeaponProjection(us);
         int hpMax = Mathf.Max(snap.GetValue(AttributeService.HP_MAX), 1);
         int mpMax = Mathf.Max(snap.GetValue(AttributeService.MP_MAX), 0);
@@ -374,6 +406,7 @@ internal sealed class BattleUnitFactory
         );
         us.attribute_snapshot = snap;
         _apply_member_effective_trait_projection(us, us.source_member_id, us.GetEquipmentView());
+        _apply_player_equipment_ability_projection(us);
         TraitTriggerHooks.ReconcileChargesAfterEffectiveTraitProjection(
             us,
             previousEffectiveTraitInstances
@@ -562,6 +595,7 @@ internal sealed class BattleUnitFactory
         us.attribute_snapshot = snap;
         _apply_member_weapon_projection(us, mid, us.GetEquipmentView());
         _apply_member_effective_trait_projection(us, mid, us.GetEquipmentView());
+        _apply_player_equipment_ability_projection(us);
         int hpMax = Mathf.Max(snap.GetValue(AttributeService.HP_MAX), 1),
             mpMax = Mathf.Max(snap.GetValue(AttributeService.MP_MAX), 0);
         int stamMax = Mathf.Max(snap.GetValue(AttributeService.STAMINA_MAX), 0),
@@ -953,6 +987,19 @@ internal sealed class BattleUnitFactory
         us.effective_trait_ids = BattleUnitState.DeriveEffectiveTraitIdsFromInstances(
             us.effective_trait_instances
         );
+    }
+
+    private void _apply_player_equipment_ability_projection(BattleUnitState us)
+    {
+        if (us == null)
+            return;
+        us.equipment_ability_sources =
+            BattleEquipmentAbilityProjectionService.ProjectPlayerPersistentSources(
+                us,
+                GetEquipmentAbilityBindingIndex(),
+                GetTraitDefIndex(),
+                BuildItemDefIndexSnapshotWithEquipmentView(us.GetEquipmentView())
+            );
     }
 
     private static void _apply_member_identity_projection(BattleUnitState us, PartyMemberState ms)

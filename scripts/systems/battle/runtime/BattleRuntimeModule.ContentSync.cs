@@ -32,7 +32,9 @@ public sealed partial class BattleRuntimeModule
 
     internal void SyncContentCatalogsTyped(
         IReadOnlyDictionary<StringName, ItemDef> itemDefs,
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null,
+        IReadOnlyDictionary<StringName, TraitDef> traitDefs = null,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null
     )
     {
         IReadOnlyDictionary<StringName, SkillDefinition> catalogSkillDefinitions =
@@ -42,6 +44,8 @@ public sealed partial class BattleRuntimeModule
             ?? catalogSkillDefinitions;
         ApplySkillDefinitionsTyped(resolvedSkillDefinitions);
         ApplyItemDefsTyped(itemDefs);
+        ApplyTraitDefsTyped(traitDefs);
+        ApplyEquipmentAbilityBindingsTyped(equipmentAbilityBindings);
     }
 
     internal IReadOnlyDictionary<StringName, EnemyTemplateDef> GetEnemyTemplateIndexTyped() =>
@@ -176,6 +180,42 @@ public sealed partial class BattleRuntimeModule
         }
     }
 
+    private void ApplyTraitDefsTyped(IReadOnlyDictionary<StringName, TraitDef> traitDefs)
+    {
+        _traitDefIndex.Clear();
+        if (traitDefs == null || traitDefs.Count == 0)
+        {
+            return;
+        }
+        foreach ((StringName traitId, TraitDef traitDef) in traitDefs)
+        {
+            if (traitId == "" || traitDef == null || traitDef.trait_id == "")
+            {
+                continue;
+            }
+            _traitDefIndex[traitDef.trait_id] = traitDef;
+        }
+    }
+
+    private void ApplyEquipmentAbilityBindingsTyped(
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindings
+    )
+    {
+        _equipmentAbilityBindingIndex.Clear();
+        if (bindings == null || bindings.Count == 0)
+        {
+            return;
+        }
+        foreach ((StringName bindingId, EquipmentAbilityBindingDefinition binding) in bindings)
+        {
+            if (bindingId == "" || binding == null || binding.BindingId == "")
+            {
+                continue;
+            }
+            _equipmentAbilityBindingIndex[binding.BindingId] = binding;
+        }
+    }
+
     private EnemyAiBrainDef GetEnemyAiBrainTyped(StringName brainId)
     {
         if (IsEmpty(brainId))
@@ -191,6 +231,11 @@ public sealed partial class BattleRuntimeModule
         _enemyAiBrainIndex;
 
     internal IReadOnlyDictionary<StringName, ItemDef> GetItemDefIndexTyped() => _itemDefIndex;
+
+    internal IReadOnlyDictionary<StringName, TraitDef> GetTraitDefIndexTyped() => _traitDefIndex;
+
+    internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> GetEquipmentAbilityBindingIndexTyped() =>
+        _equipmentAbilityBindingIndex;
 
     internal void _append_special_profile_gate_block(
         BattleEventBatch batch,
@@ -210,6 +255,18 @@ public sealed partial class BattleRuntimeModule
     internal Dictionary<StringName, ItemDef> BuildItemDefIndexSnapshotTyped()
     {
         return new Dictionary<StringName, ItemDef>(_itemDefIndex);
+    }
+
+    internal Dictionary<StringName, TraitDef> BuildTraitDefIndexSnapshotTyped()
+    {
+        return new Dictionary<StringName, TraitDef>(_traitDefIndex);
+    }
+
+    internal Dictionary<StringName, EquipmentAbilityBindingDefinition> BuildEquipmentAbilityBindingIndexSnapshotTyped()
+    {
+        return new Dictionary<StringName, EquipmentAbilityBindingDefinition>(
+            _equipmentAbilityBindingIndex
+        );
     }
 
     internal int GetMinBattleSurfaceHeight() => MIN_BATTLE_SURFACE_HEIGHT;

@@ -97,6 +97,8 @@ public sealed class EncounterRosterBuilder : IDisposable
             IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
             IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains,
             IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+            IReadOnlyDictionary<StringName, TraitDef> traitDefs,
+            IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings,
             int growthStage,
             int? enemyUnitCountOverride
         )
@@ -106,6 +108,10 @@ public sealed class EncounterRosterBuilder : IDisposable
             EnemyTemplates = enemyTemplates ?? new Dictionary<StringName, EnemyTemplateDef>();
             EnemyAiBrains = enemyAiBrains ?? new Dictionary<StringName, EnemyAiBrainDef>();
             ItemDefs = itemDefs ?? new Dictionary<StringName, ItemDef>();
+            TraitDefs = traitDefs ?? new Dictionary<StringName, TraitDef>();
+            EquipmentAbilityBindings =
+                equipmentAbilityBindings
+                ?? new Dictionary<StringName, EquipmentAbilityBindingDefinition>();
             GrowthStage = Mathf.Max(growthStage, 0);
             EnemyUnitCountOverride = enemyUnitCountOverride;
         }
@@ -114,6 +120,8 @@ public sealed class EncounterRosterBuilder : IDisposable
         public IReadOnlyDictionary<StringName, EnemyTemplateDef> EnemyTemplates { get; }
         public IReadOnlyDictionary<StringName, EnemyAiBrainDef> EnemyAiBrains { get; }
         public IReadOnlyDictionary<StringName, ItemDef> ItemDefs { get; }
+        public IReadOnlyDictionary<StringName, TraitDef> TraitDefs { get; }
+        public IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> EquipmentAbilityBindings { get; }
         public int GrowthStage { get; }
         public int? EnemyUnitCountOverride { get; }
     }
@@ -140,6 +148,8 @@ public sealed class EncounterRosterBuilder : IDisposable
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
         IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains,
         IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, TraitDef> traitDefs = null,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null,
         int? growthStageOverride = null,
         int? enemyUnitCountOverride = null
     )
@@ -150,6 +160,8 @@ public sealed class EncounterRosterBuilder : IDisposable
             enemyTemplates,
             enemyAiBrains,
             itemDefs,
+            traitDefs,
+            equipmentAbilityBindings,
             growthStageOverride,
             enemyUnitCountOverride
         );
@@ -161,6 +173,8 @@ public sealed class EncounterRosterBuilder : IDisposable
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
         IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains,
         IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, TraitDef> traitDefs = null,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null,
         int? growthStageOverride = null,
         int? enemyUnitCountOverride = null
     )
@@ -171,6 +185,8 @@ public sealed class EncounterRosterBuilder : IDisposable
             enemyTemplates,
             enemyAiBrains,
             itemDefs,
+            traitDefs,
+            equipmentAbilityBindings,
             growthStageOverride,
             enemyUnitCountOverride,
             allowSetupEnemyTemplateFallback: false
@@ -215,6 +231,8 @@ public sealed class EncounterRosterBuilder : IDisposable
             enemyTemplates,
             enemyAiBrains,
             itemDefs,
+            null,
+            null,
             growthStageOverride,
             enemyUnitCountOverride,
             allowSetupEnemyTemplateFallback: true
@@ -621,6 +639,16 @@ public sealed class EncounterRosterBuilder : IDisposable
             };
             unitState.SetBodySizeProjection(Mathf.Max(template != null ? template.body_size : 1, 1));
             ApplyEnemyWeaponProjection(unitState, template, buildContext.ItemDefs);
+            unitState.creature_type_tags =
+                BattleEquipmentAbilityProjectionService.ProjectCreatureTypeTags(template);
+            unitState.equipment_ability_sources =
+                BattleEquipmentAbilityProjectionService.ProjectEnemyBattleOnlySources(
+                    unitState,
+                    template,
+                    buildContext.EquipmentAbilityBindings,
+                    buildContext.TraitDefs,
+                    buildContext.ItemDefs
+                );
             unitState.attribute_snapshot = BuildEnemySnapshotFromTemplate(template);
             var snapshot = unitState.attribute_snapshot as AttributeSnapshot;
             unitState.SetCombatResources(
@@ -1047,6 +1075,8 @@ public sealed class EncounterRosterBuilder : IDisposable
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
         IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains,
         IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, TraitDef> traitDefs,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings,
         int? growthStageOverride,
         int? enemyUnitCountOverride,
         bool allowSetupEnemyTemplateFallback
@@ -1059,6 +1089,8 @@ public sealed class EncounterRosterBuilder : IDisposable
                 ?? (allowSetupEnemyTemplateFallback ? _enemyTemplateIndex : null),
             enemyAiBrains,
             itemDefs,
+            traitDefs,
+            equipmentAbilityBindings,
             growthStage,
             enemyUnitCountOverride
         );

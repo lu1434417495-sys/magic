@@ -16,6 +16,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
             TestBattleUnitFactoryProjectsPlayerWeaponProfiles();
             TestBattleUnitFactoryProjectsEffectiveTraits();
             TestBattleUnitFactoryRefreshesEffectiveTraitsFromBattleLocalEquipment();
+            TestBattleUnitFactoryProjectsPlayerEquipmentAbilitySources();
             TestBattleUnitFactoryRefreshUsesBattleLocalEquipmentView();
             Quit(_test.Finish("Battle unit factory weapon projection regression"));
         }
@@ -430,6 +431,67 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
         );
     }
 
+    private void TestBattleUnitFactoryProjectsPlayerEquipmentAbilitySources()
+    {
+        ItemDef flameSword = MakeWeapon(
+            "flame_sword",
+            "shortsword",
+            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            1,
+            MakeWeaponDice(1, 6, 0),
+            null,
+            Array.Empty<StringName>()
+        );
+        flameSword.trait_ids = new GStringNameArray { "trait.weapon.flame" };
+        flameSword.tags = new GStringNameArray { "blade" };
+
+        using BattleRuntimeScope runtimeScope = BuildRuntimeWithEquipmentAbilityBinding(flameSword);
+        BattleUnitFactory factory = runtimeScope.Runtime._unit_factory;
+        PartyMemberState memberState = runtimeScope.PartyState.GetMemberState("hero");
+        memberState.equipment_state = new EquipmentState();
+        memberState.equipment_state.SetEquippedEntry(
+            "main_hand",
+            flameSword.item_id,
+            SlotIds("main_hand"),
+            MakeEquipmentInstance(flameSword.item_id, "eq_flame_sword")
+        );
+
+        BattleUnitState unit = BuildSingleAllyUnit(factory, runtimeScope.PartyState, "equipment-ability");
+        _test.Eq(
+            unit.equipment_ability_sources.Count,
+            1,
+            "BattleUnitFactory should project matching player equipment ability source."
+        );
+        BattleEquipmentAbilitySourceState source = unit.equipment_ability_sources[0];
+        _test.Eq(
+            source.SourceKind,
+            EquipmentAbilitySourceKind.PlayerPersistentEquipment,
+            "player equipment ability source should be marked persistent."
+        );
+        _test.Eq(
+            source.SourceEquipmentInstanceId,
+            new StringName("eq_flame_sword"),
+            "player equipment ability source should retain equipment instance id for writeback."
+        );
+        _test.Eq(
+            source.EquipmentDefId,
+            flameSword.item_id,
+            "player equipment ability source should preserve source item id."
+        );
+        _test.True(
+            source.AbilityIds.Contains("binding.weapon.flame"),
+            "player equipment ability source should list matching binding id."
+        );
+
+        unit.GetEquipmentView().ClearSlot("main_hand");
+        factory.RefreshEquipmentProjection(unit);
+        _test.Eq(
+            unit.equipment_ability_sources.Count,
+            0,
+            "refresh_equipment_projection should clear ability sources after equipment removal."
+        );
+    }
+
     private void TestBattleUnitFactoryUsesTypedSkillLevelsAndResourceCosts()
     {
     }
@@ -557,6 +619,66 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
             characterManagement,
             progressionRegistry.GetSkillDefinitionsTyped(),
             item_defs: itemDefs
+        );
+        return new BattleRuntimeScope(runtime, partyState);
+    }
+
+    private static BattleRuntimeScope BuildRuntimeWithEquipmentAbilityBinding(ItemDef itemDef)
+    {
+        PartyState partyState = BuildPartyState("hero");
+        var progressionRegistry = new ProgressionContentRegistry();
+        var itemDefs = new Dictionary<StringName, ItemDef>();
+        if (itemDef != null)
+            itemDefs[itemDef.item_id] = itemDef;
+        var traitDefs = new Dictionary<StringName, TraitDef>
+        {
+            ["trait.weapon.flame"] = new TraitDef
+            {
+                trait_id = "trait.weapon.flame",
+                display_name = "Flame Weapon",
+                description = "Fixture equipment ability trait.",
+                categories = new GStringNameArray { "weapon_feat" },
+                allowed_source_kinds = new GStringNameArray { "equipment_fixed" },
+                effect_type = "halfling_luck",
+                trigger_type = "on_natural_one",
+                stack_policy = "stack_by_instance",
+                charge_scope = "none",
+                charge_reset_timing = "none",
+            },
+        };
+        var bindings = new Dictionary<StringName, EquipmentAbilityBindingDefinition>
+        {
+            ["binding.weapon.flame"] = new EquipmentAbilityBindingDefinition
+            {
+                BindingId = "binding.weapon.flame",
+                TraitId = "trait.weapon.flame",
+                AllowedSourceKinds = new HashSet<StringName> { "equipment_fixed" },
+                RequiredTraitCategories = new HashSet<StringName> { "weapon_feat" },
+                RequiredItemTags = new HashSet<StringName> { "blade" },
+                SupportedEquipmentTypeIds = new HashSet<StringName> { "weapon" },
+            },
+        };
+
+        var characterManagement = new CharacterManagementModule();
+        characterManagement.setup(
+            partyState,
+            progressionRegistry.GetSkillDefinitionsTyped(),
+            progressionRegistry.GetProfessionDefsTyped(),
+            new Dictionary<StringName, AchievementDef>(),
+            itemDefs,
+            new Dictionary<StringName, QuestDef>(),
+            traitDefs,
+            null,
+            new ProgressionIdentityCatalogData()
+        );
+
+        var runtime = new BattleRuntimeModule();
+        runtime.setup(
+            characterManagement,
+            progressionRegistry.GetSkillDefinitionsTyped(),
+            item_defs: itemDefs,
+            trait_defs: traitDefs,
+            equipment_ability_bindings: bindings
         );
         return new BattleRuntimeScope(runtime, partyState);
     }

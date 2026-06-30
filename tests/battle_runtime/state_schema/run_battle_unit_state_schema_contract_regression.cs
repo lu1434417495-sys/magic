@@ -14,6 +14,7 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
         TestValidRoundtripPreservesCurrentPayload();
         TestClonePreservesEphemeralChargeState();
         TestEffectiveTraitPayloadRoundtripAndClone();
+        TestEquipmentAbilitySourcePayloadRoundtripAndClone();
         TestClonePreservesPendingCastRuntimeStateWithoutSerialization();
         TestTypedChargeAndFumbleHelpers();
         TestExtendedBodySizeCategoriesRoundtrip();
@@ -23,6 +24,7 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
         TestRejectsBadStringNameArrays();
         TestRejectsBadIdentityProjectionFields();
         TestRejectsBadEffectiveTraitPayloads();
+        TestRejectsBadEquipmentAbilitySourcePayloads();
         TestRejectsBadCombatResourceUnlocks();
         TestRejectsBadStatusEffectEntries();
         TestOwnerInternalStatusMapIgnoresMalformedRawKeys();
@@ -130,6 +132,77 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
             unit.effective_trait_instances[0].trait_id,
             new StringName("halfling_luck"),
             "clone 不应共享 effective trait state。"
+        );
+    }
+
+    private void TestEquipmentAbilitySourcePayloadRoundtripAndClone()
+    {
+        BattleUnitState unit = BuildMinimalUnit();
+        unit.creature_type_tags = new GStringNameArray { "undead", "construct" };
+        unit.equipment_ability_sources = new List<BattleEquipmentAbilitySourceState>
+        {
+            new()
+            {
+                EffectiveInstanceKey = "equipment_fixed::eq_000001::trait.weapon.flame",
+                EquipmentDefId = "test_blade",
+                SourceEquipmentInstanceId = "eq_000001",
+                SourceKind = EquipmentAbilitySourceKind.PlayerPersistentEquipment,
+                AbilityIds = new List<StringName> { "binding.weapon.flame" },
+            },
+        };
+
+        GDictionary payload = unit.ToDictionary();
+        BattleUnitState restored = BattleUnitState.FromDictionary(payload);
+        _test.True(restored != null, "equipment ability source payload 应可 round-trip。");
+        _test.Eq(
+            restored?.equipment_ability_sources.Count ?? -1,
+            1,
+            "equipment ability source 数量应保留。"
+        );
+        BattleEquipmentAbilitySourceState restoredSource =
+            restored?.equipment_ability_sources.Count > 0
+                ? restored.equipment_ability_sources[0]
+                : null;
+        _test.Eq(
+            restoredSource?.EffectiveInstanceKey ?? "",
+            "equipment_fixed::eq_000001::trait.weapon.flame",
+            "equipment ability source 应保留 effective instance key。"
+        );
+        _test.Eq(
+            restoredSource?.SourceEquipmentInstanceId ?? "",
+            "eq_000001",
+            "player equipment ability source 应保留持久装备 instance id。"
+        );
+        _test.Eq(
+            restoredSource?.SourceKind ?? EquipmentAbilitySourceKind.Unknown,
+            EquipmentAbilitySourceKind.PlayerPersistentEquipment,
+            "player equipment ability source 应保留 source kind。"
+        );
+        _test.True(
+            restoredSource != null && restoredSource.AbilityIds.Contains("binding.weapon.flame"),
+            "equipment ability source 应保留 ability/binding id。"
+        );
+        _test.True(
+            restored != null && restored.creature_type_tags.Contains("undead"),
+            "creature_type_tags 应随 unit payload round-trip。"
+        );
+
+        BattleUnitState cloned = unit.clone();
+        _test.Eq(
+            cloned.equipment_ability_sources.Count,
+            1,
+            "clone 应保留 equipment ability source payload。"
+        );
+        cloned.equipment_ability_sources[0].AbilityIds[0] = "mutated.binding";
+        cloned.creature_type_tags.Add("mutated_creature");
+        _test.Eq(
+            unit.equipment_ability_sources[0].AbilityIds[0],
+            new StringName("binding.weapon.flame"),
+            "clone 不应共享 equipment ability source ability id list。"
+        );
+        _test.True(
+            !unit.creature_type_tags.Contains("mutated_creature"),
+            "clone 不应共享 creature_type_tags。"
         );
     }
 
@@ -430,6 +503,65 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
         AssertRejected(extraField, "effective trait payload entry 额外字段应拒绝。");
     }
 
+    private void TestRejectsBadEquipmentAbilitySourcePayloads()
+    {
+        GDictionary badSourceKind = Payload();
+        badSourceKind["equipment_ability_sources"] = new GArray
+        {
+            EquipmentAbilitySourcePayload(
+                "equipment_fixed::eq_000001::trait.weapon.flame",
+                "test_blade",
+                "eq_000001",
+                "legacy_source",
+                new GArray { "binding.weapon.flame" }
+            ),
+        };
+        AssertRejected(badSourceKind, "equipment ability source 非法 source_kind 应拒绝。");
+
+        GDictionary missingPlayerInstance = Payload();
+        missingPlayerInstance["equipment_ability_sources"] = new GArray
+        {
+            EquipmentAbilitySourcePayload(
+                "equipment_fixed::eq_000001::trait.weapon.flame",
+                "test_blade",
+                "",
+                "player_persistent_equipment",
+                new GArray { "binding.weapon.flame" }
+            ),
+        };
+        AssertRejected(missingPlayerInstance, "player equipment ability source 缺 instance id 应拒绝。");
+
+        GDictionary enemyWithPersistentInstance = Payload();
+        enemyWithPersistentInstance["equipment_ability_sources"] = new GArray
+        {
+            EquipmentAbilitySourcePayload(
+                "enemy_battle_only_equipment::enemy_01::test_blade::trait.weapon.flame",
+                "test_blade",
+                "eq_000001",
+                "enemy_battle_only_equipment",
+                new GArray { "binding.weapon.flame" }
+            ),
+        };
+        AssertRejected(enemyWithPersistentInstance, "enemy battle-only equipment source 不应携带持久 instance id。");
+
+        GDictionary duplicateAbilityIds = Payload();
+        duplicateAbilityIds["equipment_ability_sources"] = new GArray
+        {
+            EquipmentAbilitySourcePayload(
+                "equipment_fixed::eq_000001::trait.weapon.flame",
+                "test_blade",
+                "eq_000001",
+                "player_persistent_equipment",
+                new GArray { "binding.weapon.flame", "binding.weapon.flame" }
+            ),
+        };
+        AssertRejected(duplicateAbilityIds, "equipment ability source ability_ids 重复应拒绝。");
+
+        GDictionary badCreatureTag = Payload();
+        badCreatureTag["creature_type_tags"] = new GArray { "undead", "" };
+        AssertRejected(badCreatureTag, "creature_type_tags 空元素应拒绝。");
+    }
+
     private void TestRejectsBadCombatResourceUnlocks()
     {
         GDictionary missingHp = Payload();
@@ -638,6 +770,22 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
             ["rank"] = 1,
             ["stacks"] = 1,
             ["roll_values"] = rollValues ?? new GDictionary(),
+        };
+
+    private static GDictionary EquipmentAbilitySourcePayload(
+        StringName effectiveInstanceKey,
+        StringName equipmentDefId,
+        StringName sourceEquipmentInstanceId,
+        StringName sourceKind,
+        GArray abilityIds
+    ) =>
+        new()
+        {
+            ["effective_instance_key"] = effectiveInstanceKey.ToString(),
+            ["equipment_def_id"] = equipmentDefId.ToString(),
+            ["source_equipment_instance_id"] = sourceEquipmentInstanceId.ToString(),
+            ["source_kind"] = sourceKind.ToString(),
+            ["ability_ids"] = abilityIds ?? new GArray(),
         };
 
     private static BattleUnitState BuildMinimalUnit() =>

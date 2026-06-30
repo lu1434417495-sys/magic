@@ -871,7 +871,9 @@ public sealed class HeadlessGameTestSession : IDisposable
 
         battleRuntime.SyncContentCatalogsTyped(
             _gameSession.GetItemDefsTyped(),
-            _gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped()
+            _gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
+            _gameSession.GetTraitDefsTyped(),
+            _gameSession.GetEquipmentAbilityBindingDefinitionsTyped()
         );
     }
 

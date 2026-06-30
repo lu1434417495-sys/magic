@@ -107,6 +107,8 @@ public partial class BattleUnitState
         "damage_resistances",
         "effective_trait_instances",
         "effective_trait_ids",
+        "equipment_ability_sources",
+        "creature_type_tags",
         "versatility_pick",
         "weapon_profile_kind",
         "weapon_item_id",
@@ -231,6 +233,8 @@ public partial class BattleUnitState
     public BattleStringNameMap damage_resistances = new();
     public List<BattleEffectiveTraitInstanceState> effective_trait_instances = new();
     public StringNameList effective_trait_ids = new();
+    public List<BattleEquipmentAbilitySourceState> equipment_ability_sources = new();
+    public StringNameList creature_type_tags = new();
     internal BattleUnitControlMode ControlModeKind
     {
         get => BattleTypedNames.ToControlMode(control_mode);
@@ -1281,6 +1285,8 @@ public partial class BattleUnitState
             damage_resistances = damage_resistances?.Clone() ?? new BattleStringNameMap(),
             effective_trait_instances = DuplicateEffectiveTraitInstances(effective_trait_instances),
             effective_trait_ids = DeriveEffectiveTraitIdsFromInstances(effective_trait_instances),
+            equipment_ability_sources = DuplicateEquipmentAbilitySources(equipment_ability_sources),
+            creature_type_tags = creature_type_tags?.Duplicate() ?? new StringNameList(),
             versatility_pick = versatility_pick,
             weapon_profile_kind = weapon_profile_kind,
             weapon_item_id = weapon_item_id,
@@ -1391,6 +1397,10 @@ public partial class BattleUnitState
             ["effective_trait_ids"] = StringNameArrayToStrings(
                 DeriveEffectiveTraitIdsFromInstances(effective_trait_instances)
             ),
+            ["equipment_ability_sources"] = EquipmentAbilitySourcesToPayloadArray(
+                equipment_ability_sources
+            ),
+            ["creature_type_tags"] = StringNameArrayToStrings(creature_type_tags),
             ["versatility_pick"] = versatility_pick.ToString(),
             ["weapon_profile_kind"] = weapon_profile_kind.ToString(),
             ["weapon_item_id"] = weapon_item_id.ToString(),
@@ -1700,6 +1710,19 @@ public partial class BattleUnitState
         {
             return null;
         }
+        List<BattleEquipmentAbilitySourceState> parsedEquipmentAbilitySources =
+            EquipmentAbilitySourcesFromPayloadArray(GetArray(payload, "equipment_ability_sources"));
+        if (parsedEquipmentAbilitySources == null)
+        {
+            return null;
+        }
+        StringNameList parsedCreatureTypeTags = _unique_string_name_array_from_payload(
+            GetArray(payload, "creature_type_tags")
+        );
+        if (parsedCreatureTypeTags == null)
+        {
+            return null;
+        }
         BattleStringNameMap parsedDamageResistances = _damage_resistance_map_from_dict(
             payload["damage_resistances"].AsGodotDictionary()
         );
@@ -1805,6 +1828,8 @@ public partial class BattleUnitState
             damage_resistances = parsedDamageResistances,
             effective_trait_instances = parsedEffectiveTraitInstances,
             effective_trait_ids = parsedEffectiveTraitIds,
+            equipment_ability_sources = parsedEquipmentAbilitySources,
+            creature_type_tags = parsedCreatureTypeTags,
             versatility_pick = ToStringName(payload["versatility_pick"]),
             weapon_profile_kind = parsedWeaponProfileKind,
             weapon_item_id = ToStringName(payload["weapon_item_id"]),
@@ -2041,6 +2066,58 @@ public partial class BattleUnitState
         if (source == null)
             return result;
         foreach (BattleEffectiveTraitInstanceState entry in source)
+            if (entry != null)
+                result.Add(entry.ToDictionary());
+        return result;
+    }
+
+    internal static List<BattleEquipmentAbilitySourceState> EquipmentAbilitySourcesFromPayloadArray(
+        GArray values
+    )
+    {
+        if (values == null)
+            return null;
+
+        List<BattleEquipmentAbilitySourceState> result = new();
+        List<StringName> seenKeys = new();
+        foreach (Variant entry in values)
+        {
+            if (entry.VariantType != Variant.Type.Dictionary)
+                return null;
+
+            BattleEquipmentAbilitySourceState parsed =
+                BattleEquipmentAbilitySourceState.FromDictionary(entry.AsGodotDictionary());
+            if (parsed == null)
+                return null;
+            if (ContainsStringName(seenKeys, parsed.EffectiveInstanceKey))
+                return null;
+            seenKeys.Add(parsed.EffectiveInstanceKey);
+            result.Add(parsed);
+        }
+        return result;
+    }
+
+    internal static List<BattleEquipmentAbilitySourceState> DuplicateEquipmentAbilitySources(
+        IEnumerable<BattleEquipmentAbilitySourceState> source
+    )
+    {
+        List<BattleEquipmentAbilitySourceState> result = new();
+        if (source == null)
+            return result;
+        foreach (BattleEquipmentAbilitySourceState entry in source)
+            if (entry != null)
+                result.Add(entry.DuplicateState());
+        return result;
+    }
+
+    internal static GArray EquipmentAbilitySourcesToPayloadArray(
+        IEnumerable<BattleEquipmentAbilitySourceState> source
+    )
+    {
+        GArray result = new();
+        if (source == null)
+            return result;
+        foreach (BattleEquipmentAbilitySourceState entry in source)
             if (entry != null)
                 result.Add(entry.ToDictionary());
         return result;

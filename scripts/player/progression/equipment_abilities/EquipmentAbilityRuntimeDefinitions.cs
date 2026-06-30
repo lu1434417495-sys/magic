@@ -507,6 +507,65 @@ public sealed class EquipmentAbilityStateContract
     public bool SourceLifecycleCleanupRequired { get; init; }
 }
 
+internal static class EquipmentAbilityBindingMatcher
+{
+    public static IReadOnlyList<EquipmentAbilityBindingDefinition> FindBindings(
+        IEnumerable<EquipmentAbilityBindingDefinition> candidates,
+        StringName traitId,
+        TraitSourceKind sourceKind,
+        IReadOnlySet<StringName> traitCategories,
+        ItemDef sourceItem
+    )
+    {
+        if (traitId == "" || sourceKind == TraitSourceKind.Unknown || candidates == null)
+            return Array.Empty<EquipmentAbilityBindingDefinition>();
+
+        var result = new List<EquipmentAbilityBindingDefinition>();
+        HashSet<StringName> categories = traitCategories != null
+            ? new HashSet<StringName>(traitCategories)
+            : new HashSet<StringName>();
+        HashSet<StringName> itemTags = sourceItem != null
+            ? new HashSet<StringName>(sourceItem.GetTagsTyped())
+            : new HashSet<StringName>();
+        StringName equipmentType = sourceItem?.GetEquipmentTypeIdNormalized() ?? "";
+
+        foreach (EquipmentAbilityBindingDefinition binding in candidates)
+        {
+            if (binding == null || binding.TraitId != traitId)
+                continue;
+            if (!binding.AllowedSourceKinds.Contains(TraitContentRules.ToStringName(sourceKind)))
+                continue;
+            if (!IsSubset(binding.RequiredTraitCategories, categories))
+                continue;
+            if (!IsSubset(binding.RequiredItemTags, itemTags))
+                continue;
+            if (binding.SupportedEquipmentTypeIds.Count > 0)
+            {
+                if (equipmentType == "" || !binding.SupportedEquipmentTypeIds.Contains(equipmentType))
+                    continue;
+            }
+            result.Add(binding);
+        }
+
+        return result;
+    }
+
+    private static bool IsSubset(
+        IReadOnlySet<StringName> required,
+        IReadOnlySet<StringName> actual
+    )
+    {
+        if (required == null || required.Count == 0)
+            return true;
+        if (actual == null || actual.Count == 0)
+            return false;
+        foreach (StringName value in required)
+            if (!actual.Contains(value))
+                return false;
+        return true;
+    }
+}
+
 internal sealed class EquipmentAbilityReadOnlySet<T> : IReadOnlySet<T>
 {
     public static readonly EquipmentAbilityReadOnlySet<T> Empty = new(Array.Empty<T>());

@@ -156,32 +156,13 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             return Array.Empty<EquipmentAbilityBindingDefinition>();
         if (!_bindingsByTraitId.TryGetValue(traitId, out List<EquipmentAbilityBindingDefinition> candidates))
             return Array.Empty<EquipmentAbilityBindingDefinition>();
-
-        var result = new List<EquipmentAbilityBindingDefinition>();
-        HashSet<StringName> categories = traitCategories != null
-            ? new HashSet<StringName>(traitCategories)
-            : new HashSet<StringName>();
-        HashSet<StringName> itemTags = sourceItem != null
-            ? new HashSet<StringName>(sourceItem.GetTagsTyped())
-            : new HashSet<StringName>();
-        StringName equipmentType = sourceItem?.GetEquipmentTypeIdNormalized() ?? "";
-
-        foreach (EquipmentAbilityBindingDefinition binding in candidates)
-        {
-            if (!binding.AllowedSourceKinds.Contains(TraitContentRules.ToStringName(sourceKind)))
-                continue;
-            if (!IsSubset(binding.RequiredTraitCategories, categories))
-                continue;
-            if (!IsSubset(binding.RequiredItemTags, itemTags))
-                continue;
-            if (binding.SupportedEquipmentTypeIds.Count > 0)
-            {
-                if (equipmentType == "" || !binding.SupportedEquipmentTypeIds.Contains(equipmentType))
-                    continue;
-            }
-            result.Add(binding);
-        }
-        return result;
+        return EquipmentAbilityBindingMatcher.FindBindings(
+            candidates,
+            traitId,
+            sourceKind,
+            traitCategories,
+            sourceItem
+        );
     }
 
     private void Clear()
@@ -1669,18 +1650,6 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
 
     private static bool ContainsValue(IReadOnlySet<StringName> source, StringName key) =>
         source != null && source.Contains(key);
-
-    private static bool IsSubset<T>(IReadOnlySet<T> required, HashSet<T> available)
-    {
-        if (required == null || required.Count == 0)
-            return true;
-        foreach (T value in required)
-        {
-            if (!available.Contains(value))
-                return false;
-        }
-        return true;
-    }
 
     private static bool IsAllowed(StringName value, params string[] allowed)
     {

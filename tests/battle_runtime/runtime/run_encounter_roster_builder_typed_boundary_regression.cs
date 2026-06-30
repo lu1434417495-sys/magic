@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
+using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_encounter_roster_builder_typed_boundary_regression : SceneTree
 {
@@ -16,6 +17,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
     {
         TestTypedEnemyUnitBuildMatchesPublicBoundary();
         TestEncounterBuilderUnlocksCasterMpResources();
+        TestEnemyAttackEquipmentProjectsAbilitySourceAndCreatureTags();
         TestTypedLootPreviewMatchesPublicBoundary();
         Quit(_test.Finish("Encounter roster builder typed boundary regression"));
     }
@@ -101,6 +103,101 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
                 $"{templateId} 通过 EncounterRosterBuilder 入场时应解锁 MP 资源显示。"
             );
         }
+    }
+
+    private void TestEnemyAttackEquipmentProjectsAbilitySourceAndCreatureTags()
+    {
+        using EncounterRosterBuilder builder = new();
+        ItemDef weapon = MakeWeapon("enemy_flame_blade");
+        weapon.trait_ids = new GStringNameArray { "trait.weapon.flame" };
+        weapon.tags = new GStringNameArray { "blade" };
+        var itemDefs = new Dictionary<StringName, ItemDef> { [weapon.item_id] = weapon };
+        var traitDefs = new Dictionary<StringName, TraitDef>
+        {
+            ["trait.weapon.flame"] = new TraitDef
+            {
+                trait_id = "trait.weapon.flame",
+                categories = new GStringNameArray { "weapon_feat" },
+                allowed_source_kinds = new GStringNameArray { "equipment_fixed" },
+                effect_type = "halfling_luck",
+                trigger_type = "on_natural_one",
+                stack_policy = "stack_by_instance",
+            },
+        };
+        var bindings = new Dictionary<StringName, EquipmentAbilityBindingDefinition>
+        {
+            ["binding.weapon.flame"] = new EquipmentAbilityBindingDefinition
+            {
+                BindingId = "binding.weapon.flame",
+                TraitId = "trait.weapon.flame",
+                AllowedSourceKinds = new HashSet<StringName> { "equipment_fixed" },
+                RequiredTraitCategories = new HashSet<StringName> { "weapon_feat" },
+                RequiredItemTags = new HashSet<StringName> { "blade" },
+                SupportedEquipmentTypeIds = new HashSet<StringName> { "weapon" },
+            },
+        };
+        EnemyTemplateDef template = BuildEnemyTemplate("flame_enemy", weapon.item_id);
+        template.tags = new GStringNameArray { "undead" };
+        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDef>
+        {
+            [template.template_id] = template,
+        };
+
+        GArray enemyUnits = builder.BuildEnemyUnitsFromDefinitionsTyped(
+            BuildEncounterAnchor("flame_enemy_encounter", template.template_id),
+            new Dictionary<StringName, SkillDefinition>(),
+            enemyTemplates,
+            new Dictionary<StringName, EnemyAiBrainDef>(),
+            itemDefs,
+            traitDefs: traitDefs,
+            equipmentAbilityBindings: bindings
+        );
+
+        _test.Eq(enemyUnits.Count, 1, "enemy template fixture 应生成一个敌方单位。");
+        BattleUnitState unit = enemyUnits.Count > 0
+            && BattleUnitState.TryReadUnitPayload(enemyUnits[0], out BattleUnitState parsed)
+                ? parsed
+                : null;
+        _test.True(unit != null, "enemy template fixture 生成的 payload 应能读取为 BattleUnitState。");
+        if (unit == null)
+        {
+            return;
+        }
+
+        template.tags = new GStringNameArray { "construct" };
+        _test.True(
+            BattleEquipmentAbilityProjectionService.UnitHasCreatureTypeTag(unit, "undead"),
+            "creature type check 应读取 BattleUnitState.creature_type_tags，而不是回查敌人模板。"
+        );
+        _test.True(
+            !BattleEquipmentAbilityProjectionService.UnitHasCreatureTypeTag(unit, "construct"),
+            "模板后续变化不应改变已投影单位的 creature type check。"
+        );
+        _test.Eq(
+            unit.equipment_ability_sources.Count,
+            1,
+            "enemy attack equipment 应投影 battle-only equipment ability source。"
+        );
+        BattleEquipmentAbilitySourceState source = unit.equipment_ability_sources[0];
+        _test.Eq(
+            source.SourceKind,
+            EquipmentAbilitySourceKind.EnemyBattleOnlyEquipment,
+            "enemy equipment ability source 应标记为 battle-only。"
+        );
+        _test.Eq(
+            source.SourceEquipmentInstanceId,
+            new StringName(""),
+            "enemy battle-only equipment source 不应携带持久装备 instance id。"
+        );
+        _test.Eq(
+            source.EquipmentDefId,
+            weapon.item_id,
+            "enemy equipment ability source 应保留攻击装备 item id。"
+        );
+        _test.True(
+            source.AbilityIds.Contains("binding.weapon.flame"),
+            "enemy equipment ability source 应列出匹配绑定 id。"
+        );
     }
 
     private void TestTypedLootPreviewMatchesPublicBoundary()
@@ -211,6 +308,79 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
             && BattleUnitState.TryReadUnitPayload(enemyUnits[0], out BattleUnitState unit)
                 ? unit
                 : null;
+    }
+
+    private static EncounterAnchorData BuildEncounterAnchor(StringName encounterId, StringName templateId)
+    {
+        return new EncounterAnchorData
+        {
+            entity_id = encounterId,
+            display_name = templateId.ToString(),
+            world_coord = new Vector2I(3, 3),
+            faction_id = "hostile",
+            enemy_roster_template_id = templateId,
+            region_tag = "typed_tests",
+            vision_range = 2,
+            encounter_kind = EncounterAnchorData.ToStringName(EncounterAnchorKind.Single),
+            encounter_profile_id = "",
+            growth_stage = 0,
+            suppressed_until_step = 0,
+        };
+    }
+
+    private static EnemyTemplateDef BuildEnemyTemplate(
+        StringName templateId,
+        StringName attackEquipmentItemId
+    )
+    {
+        return new EnemyTemplateDef
+        {
+            template_id = templateId,
+            display_name = templateId.ToString(),
+            brain_id = "",
+            enemy_count = 1,
+            body_size = BattleUnitState.BodySizeMedium,
+            action_threshold = BattleUnitState.DefaultActionThreshold,
+            attack_equipment_item_id = attackEquipmentItemId,
+            skill_ids = new GStringNameArray(),
+            base_attribute_overrides = new GDictionary
+            {
+                ["strength"] = 10,
+                ["agility"] = 10,
+                ["constitution"] = 10,
+                ["perception"] = 10,
+                ["intelligence"] = 10,
+                ["willpower"] = 10,
+            },
+        };
+    }
+
+    private static ItemDef MakeWeapon(StringName itemId)
+    {
+        return new ItemDef
+        {
+            item_id = itemId,
+            CategoryKind = ItemCategoryKind.Equipment,
+            EquipmentTypeKind = ItemEquipmentTypeKind.Weapon,
+            equipment_slot_ids = new Godot.Collections.Array<string> { "main_hand" },
+            is_stackable = false,
+            max_stack = 1,
+            weapon_profile = new WeaponProfileDef
+            {
+                weapon_type_id = "shortsword",
+                training_group = "martial",
+                range_type = "melee",
+                family = "sword",
+                damage_tag = ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+                attack_range = 1,
+                one_handed_dice = new WeaponDamageDiceDef
+                {
+                    dice_count = 1,
+                    dice_sides = 6,
+                    flat_bonus = 0,
+                },
+            },
+        };
     }
 
     private static GDictionary ProjectEnemyTemplates(

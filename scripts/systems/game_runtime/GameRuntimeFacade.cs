@@ -322,6 +322,8 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             encounter_builder: _encounter_roster_builder,
             equipment_drop_service: _equipment_drop_service,
             item_defs: _content_catalog.GetItemDefsTyped(),
+            trait_defs: _content_catalog.GetTraitDefsTyped(),
+            equipment_ability_bindings: _content_catalog.GetEquipmentAbilityBindingDefinitionsTyped(),
             equipment_instance_id_allocator: GetEquipmentInstanceIdAllocator(),
             battle_special_profile_registry_snapshot: _content_catalog.GetBattleSpecialProfileRegistryRuntimeSnapshot(),
             skill_catalog: _content_catalog.GetSkillCatalogTyped(),
