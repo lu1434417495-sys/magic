@@ -71,6 +71,11 @@ public partial class run_battle_ai_ground_reposition_behavior_regression : Scene
             BattleCommandKind.Skill,
             "blink reposition should remain a skill command."
         );
+        _test.Eq(
+            decision?.command?.skill_entry_id ?? new StringName(""),
+            BattleSkillEntryIds.KnownSkill("mage_blink"),
+            "blink reposition should stamp the known skill entry id for runtime access."
+        );
         BattlePreview preview = runtime.PreviewCommand(decision?.command);
         _test.True(
             preview?.allowed == true,
