@@ -91,11 +91,17 @@ public partial class UseGroundRepositionSkillAction : EnemyAiAction
         }
         BattleAiDecision bestDecision = null;
         BattleAiScoreInput bestScoreInput = null;
-        foreach (var sidV in _resolve_known_skill_ids(context, skill_ids))
+        foreach (BattleAvailableSkillEntry skillEntry in _resolve_available_skill_entries(
+            context,
+            skill_ids
+        ))
         {
-            var sid = sidV;
+            StringName sid = skillEntry?.EntryRef.SkillId ?? "";
+            if (sid == "")
+                continue;
             _trace_count_increment(actionTrace, "skill_considered_count", 1);
-            SkillDefinition skillDefinition = _get_skill_definition(context, sid);
+            SkillDefinition skillDefinition =
+                skillEntry.SkillDefinition ?? _get_skill_definition(context, sid);
             if (
                 skillDefinition?.CombatProfile == null
                 || skillDefinition.CombatProfile.TargetModeKind != BattleTargetMode.Ground
@@ -124,7 +130,8 @@ public partial class UseGroundRepositionSkillAction : EnemyAiAction
             foreach (
                 CombatCastVariantDefinition cv in _get_ground_option_definitions(
                     context,
-                    skillDefinition
+                    skillDefinition,
+                    skillEntry.SkillLevel
                 )
             )
             {
@@ -162,7 +169,7 @@ public partial class UseGroundRepositionSkillAction : EnemyAiAction
                     _trace_count_increment(actionTrace, "evaluation_count", 1);
                     var command = _build_typed_ground_skill_command(
                         context,
-                        sid,
+                        skillEntry,
                         cv.VariantId,
                         new[] { landingCoord }
                     );

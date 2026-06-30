@@ -136,23 +136,59 @@ public partial class EnemyAiAction : Resource
     )
     {
         var r = new Godot.Collections.Array<StringName>();
-        if (context?.unit_state == null)
-            return r;
-        var seen = new HashSet<StringName>();
-        BattleUnitState us = context.unit_state;
-        IEnumerable<StringName> srcIds =
-            preferredSkillIds != null && preferredSkillIds.Count > 0
-                ? preferredSkillIds
-                : us.known_active_skill_ids;
-        foreach (var rsi in srcIds)
+        foreach (BattleAvailableSkillEntry entry in _resolve_available_skill_entries(
+            context,
+            preferredSkillIds
+        ))
         {
-            var sid = new StringName(rsi.ToString());
-            if (sid == "" || !seen.Add(sid))
-                continue;
-            if (us.known_active_skill_ids.Contains(sid))
-                r.Add(sid);
+            StringName skillId = entry?.EntryRef.SkillId ?? "";
+            if (skillId != "")
+                r.Add(skillId);
         }
         return r;
+    }
+
+    private protected List<BattleAvailableSkillEntry> _resolve_available_skill_entries(
+        BattleAiContext context,
+        IEnumerable<StringName> preferredSkillIds = null
+    )
+    {
+        var results = new List<BattleAvailableSkillEntry>();
+        BattleUnitState unitState = context?.unit_state;
+        if (unitState == null)
+            return results;
+
+        BattleSkillAvailabilityView availabilityView =
+            _build_ai_planning_skill_availability_view(context, unitState);
+
+        List<StringName> preferred = new();
+        foreach (StringName rawSkillId in preferredSkillIds ?? System.Array.Empty<StringName>())
+        {
+            StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
+            if (skillId != "")
+                preferred.Add(skillId);
+        }
+        if (preferred.Count == 0)
+        {
+            results.AddRange(availabilityView.SkillEntries);
+            return results;
+        }
+
+        var seen = new HashSet<StringName>();
+        foreach (StringName skillId in preferred)
+        {
+            if (!seen.Add(skillId))
+                continue;
+            foreach (BattleAvailableSkillEntry entry in availabilityView.SkillEntries)
+            {
+                if (entry?.EntryRef.SkillId == skillId)
+                {
+                    results.Add(entry);
+                    break;
+                }
+            }
+        }
+        return results;
     }
 
     protected static SkillDefinition _get_skill_definition(
@@ -659,7 +695,20 @@ public partial class EnemyAiAction : Resource
     ) =>
         EnemyAiActionHelper.BuildUnitSkillCommand(
             context,
-            skillId,
+            _resolve_available_skill_entry_for_command(context, skillId),
+            targetUnit,
+            skillVariantId
+        );
+
+    private protected static BattleCommand _build_unit_skill_command(
+        BattleAiContext context,
+        BattleAvailableSkillEntry entry,
+        BattleUnitState targetUnit,
+        StringName skillVariantId = default
+    ) =>
+        EnemyAiActionHelper.BuildUnitSkillCommand(
+            context,
+            entry,
             targetUnit,
             skillVariantId
         );
@@ -669,27 +718,64 @@ public partial class EnemyAiAction : Resource
         StringName skillId,
         StringName skillVariantId,
         IEnumerable<Vector2I> targetCoords
+    ) =>
+        EnemyAiActionHelper.BuildGroundSkillCommand(
+            context,
+            _resolve_available_skill_entry_for_command(context, skillId),
+            skillVariantId,
+            targetCoords
+        );
+
+    private protected static BattleCommand _build_typed_ground_skill_command(
+        BattleAiContext context,
+        BattleAvailableSkillEntry entry,
+        StringName skillVariantId,
+        IEnumerable<Vector2I> targetCoords
+    ) =>
+        EnemyAiActionHelper.BuildGroundSkillCommand(
+            context,
+            entry,
+            skillVariantId,
+            targetCoords
+        );
+
+    private static BattleAvailableSkillEntry _resolve_available_skill_entry_for_command(
+        BattleAiContext context,
+        StringName skillId
     )
     {
-        if (context?.unit_state == null)
+        StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
+        if (context?.unit_state == null || normalizedSkillId == "")
             return null;
-        var command = new BattleCommand
+        BattleSkillAvailabilityView availabilityView =
+            _build_ai_planning_skill_availability_view(context, context.unit_state);
+        foreach (BattleAvailableSkillEntry entry in availabilityView.SkillEntries)
         {
-            CommandKind = BattleCommandKind.Skill,
-            unit_id = context.unit_state.unit_id,
-            skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId),
-            skill_id = skillId,
-            skill_variant_id = skillVariantId,
-        };
-        foreach (Vector2I coord in targetCoords ?? System.Array.Empty<Vector2I>())
-        {
-            command.AddTargetCoord(coord);
-            if (command.target_coord == new Vector2I(-1, -1))
-            {
-                command.target_coord = coord;
-            }
+            if (entry?.EntryRef.SkillId == normalizedSkillId)
+                return entry;
         }
-        return command;
+        return null;
+    }
+
+    private static BattleSkillAvailabilityView _build_ai_planning_skill_availability_view(
+        BattleAiContext context,
+        BattleUnitState unitState
+    )
+    {
+        BattleSkillAvailabilityService availabilityService = new(
+            context?.skill_catalog,
+            context?.GetSkillDefinitionIndexTyped()
+        );
+        return availabilityService.BuildView(
+            new BattleSkillAvailabilityQuery
+            {
+                User = unitState,
+                Consumer = BattleSkillAvailabilityConsumer.AiPlanning,
+                IncludeKnownSkills = true,
+                IncludeEquipmentSkills = false,
+                IncludeScopedAutoCast = false,
+            }
+        );
     }
 
     protected List<BattleUnitState> _collect_units_by_filter_typed(
@@ -1332,6 +1418,16 @@ public partial class EnemyAiAction : Resource
         SkillDefinition skillDefinition
     )
     {
+        int skillLevel = _get_skill_level(context?.unit_state, skillDefinition?.SkillId ?? "");
+        return _get_ground_option_definitions(context, skillDefinition, skillLevel);
+    }
+
+    protected List<CombatCastVariantDefinition> _get_ground_option_definitions(
+        BattleAiContext context,
+        SkillDefinition skillDefinition,
+        int skillLevel
+    )
+    {
         var options = new List<CombatCastVariantDefinition>();
         CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (combatProfile == null || combatProfile.TargetModeKind != BattleTargetMode.Ground)
@@ -1341,7 +1437,6 @@ public partial class EnemyAiAction : Resource
             options.Add(_build_implicit_ground_option_definition(skillDefinition));
             return options;
         }
-        int skillLevel = _get_skill_level(context?.unit_state, skillDefinition.SkillId);
         SkillEffectiveCombatDefinition effectiveDefinition =
             context?.skill_catalog?.GetEffectiveCombatDefinition(
                 skillDefinition.SkillId,

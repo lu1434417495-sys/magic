@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
 using Godot;
 using GStringArray = Godot.Collections.Array<string>;
@@ -13,8 +14,9 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : S
         try
         {
             TestEvaluatorIsPlainCSharpHelper();
-            TestEnemyAiActionHelperSkillCommandsCarryKnownEntryIds();
+            TestEnemyAiActionHelperSkillCommandsCarrySelectedEntryIds();
             TestResolveAvailableSkillEntriesFiltersUnavailablePreferredSkills();
+            TestAuthoredEnemyActionsResolveAvailabilityEntriesBeforeBuildingSkillCommands();
             TestEvaluatorGeneratedCommandCarriesAvailableEntryId();
             TestFastPreviewRejectsExposeOutOfRangeCounter();
         }
@@ -35,19 +37,30 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : S
         );
     }
 
-    private void TestEnemyAiActionHelperSkillCommandsCarryKnownEntryIds()
+    private void TestEnemyAiActionHelperSkillCommandsCarrySelectedEntryIds()
     {
         StringName skillId = "ai_helper_entry_probe";
+        StringName skillEntryId = "equipment:ai_helper_entry_probe";
         BattleUnitState actor = BuildUnit("helper_actor", "hostile", new Vector2I(0, 0));
         BattleUnitState target = BuildUnit("helper_target", "player", new Vector2I(1, 0));
         BattleAiContext context = new()
         {
             unit_state = actor,
         };
+        BattleAvailableSkillEntry entry = new()
+        {
+            EntryRef = new BattleSkillEntryRef(
+                skillEntryId,
+                skillId,
+                BattleSkillEntrySourceKind.EquipmentSkill,
+                "probe_source"
+            ),
+            SkillLevel = 3,
+        };
 
         BattleCommand unitCommand = EnemyAiActionHelper.BuildUnitSkillCommand(
             context,
-            skillId,
+            entry,
             target,
             "main"
         );
@@ -57,14 +70,14 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : S
             _test.Eq(unitCommand.skill_id, skillId, "unit command should preserve skill_id.");
             _test.Eq(
                 unitCommand.skill_entry_id,
-                BattleSkillEntryIds.KnownSkill(skillId),
-                "unit command should carry the known-skill entry id."
+                skillEntryId,
+                "unit command should carry the selected skill entry id."
             );
         }
 
         BattleCommand groundCommand = EnemyAiActionHelper.BuildGroundSkillCommand(
             context,
-            skillId,
+            entry,
             "ground",
             new[] { new Vector2I(3, 1), new Vector2I(2, 1) }
         );
@@ -74,8 +87,8 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : S
             _test.Eq(groundCommand.skill_id, skillId, "ground command should preserve skill_id.");
             _test.Eq(
                 groundCommand.skill_entry_id,
-                BattleSkillEntryIds.KnownSkill(skillId),
-                "ground command should carry the known-skill entry id."
+                skillEntryId,
+                "ground command should carry the selected skill entry id."
             );
         }
     }
@@ -138,6 +151,35 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : S
             "Available entry should carry the known-skill entry id."
         );
         _test.Eq(entries[0].SkillLevel, 2, "Available entry should preserve known skill level.");
+    }
+
+    private void TestAuthoredEnemyActionsResolveAvailabilityEntriesBeforeBuildingSkillCommands()
+    {
+        AssertSourceDoesNotContain(
+            "scripts/enemies/actions/UseGroundRepositionSkillAction.cs",
+            "_resolve_known_skill_ids",
+            "UseGroundRepositionSkillAction should resolve BattleAvailableSkillEntry values, not raw known skill ids."
+        );
+        AssertSourceDoesNotContain(
+            "scripts/enemies/actions/UseGroundRepositionSkillAction.cs",
+            "_build_typed_ground_skill_command(\n                        context,\n                        sid,",
+            "UseGroundRepositionSkillAction should build ground commands from the selected skill entry."
+        );
+        AssertSourceDoesNotContain(
+            "scripts/enemies/actions/WaitAction.cs",
+            "foreach (var rsi in us.known_active_skill_ids)",
+            "WaitAction should evaluate acting-unit skills through availability entries."
+        );
+        AssertSourceDoesNotContain(
+            "scripts/enemies/actions/WaitAction.cs",
+            "_build_unit_skill_command(\n                context,\n                skillDefinition.SkillId,",
+            "WaitAction should build preview commands from the selected skill entry."
+        );
+        AssertSourceDoesNotContain(
+            "scripts/enemies/EnemyAiAction.cs",
+            "skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId)",
+            "EnemyAiAction raw skill-id command helpers should validate through availability before stamping entries."
+        );
     }
 
     private void TestEvaluatorGeneratedCommandCarriesAvailableEntryId()
@@ -282,6 +324,21 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : S
         unit.RefreshFootprint();
         return unit;
     }
+
+    private void AssertSourceDoesNotContain(
+        string virtualPath,
+        string forbiddenSnippet,
+        string message
+    )
+    {
+        string absolutePath = ProjectSettings.GlobalizePath($"res://{virtualPath}");
+        string source = NormalizeNewlines(File.ReadAllText(absolutePath));
+        string snippet = NormalizeNewlines(forbiddenSnippet);
+        _test.True(!source.Contains(snippet, StringComparison.Ordinal), message);
+    }
+
+    private static string NormalizeNewlines(string text) =>
+        (text ?? "").Replace("\r\n", "\n", StringComparison.Ordinal);
 
     private static SkillDefinition BuildUnitSkill(StringName skillId, int rangeValue) =>
         TestSkillDefinitionProjection.BuildSkill(

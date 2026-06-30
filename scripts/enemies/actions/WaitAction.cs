@@ -139,11 +139,11 @@ public partial class WaitAction : EnemyAiAction
     {
         if (context?.unit_state == null)
             return false;
-        var us = context.unit_state;
-        foreach (var rsi in us.known_active_skill_ids)
+        foreach (BattleAvailableSkillEntry skillEntry in _resolve_available_skill_entries(context))
         {
-            var sid = ProgressionDataUtils.to_string_name(rsi);
-            SkillDefinition skillDefinition = _get_skill_definition(context, sid);
+            SkillDefinition skillDefinition =
+                skillEntry?.SkillDefinition
+                ?? _get_skill_definition(context, skillEntry?.EntryRef.SkillId ?? "");
             if (
                 skillDefinition?.CombatProfile == null
                 || !_is_hostile_threat_skill(skillDefinition)
@@ -151,7 +151,7 @@ public partial class WaitAction : EnemyAiAction
                 continue;
             if (!_can_cast_skill(context, skillDefinition))
                 continue;
-            if (_has_legal_unit_skill_target(context, skillDefinition))
+            if (_has_legal_unit_skill_target(context, skillEntry, skillDefinition))
                 return true;
         }
         return false;
@@ -159,10 +159,11 @@ public partial class WaitAction : EnemyAiAction
 
     private bool _has_legal_unit_skill_target(
         BattleAiContext context,
+        BattleAvailableSkillEntry skillEntry,
         SkillDefinition skillDefinition
     )
     {
-        if (context == null || skillDefinition?.CombatProfile == null)
+        if (context == null || skillEntry == null || skillDefinition?.CombatProfile == null)
             return false;
         if (skillDefinition.CombatProfile.TargetModeKind != BattleTargetMode.Unit)
             return false;
@@ -174,7 +175,7 @@ public partial class WaitAction : EnemyAiAction
         {
             var cmd = _build_unit_skill_command(
                 context,
-                skillDefinition.SkillId,
+                skillEntry,
                 targetUnit
             );
             BattlePreview preview = _build_fast_unit_skill_preview(
@@ -203,18 +204,18 @@ public partial class WaitAction : EnemyAiAction
     {
         if (context?.unit_state == null)
             return 0;
-        var us = context.unit_state;
         int dc = _get_skill_stamina_cost(context, "basic_attack");
-        foreach (var rsi in us.known_active_skill_ids)
+        foreach (BattleAvailableSkillEntry skillEntry in _resolve_available_skill_entries(context))
         {
-            var sid = ProgressionDataUtils.to_string_name(rsi);
-            SkillDefinition skillDefinition = _get_skill_definition(context, sid);
+            SkillDefinition skillDefinition =
+                skillEntry?.SkillDefinition
+                ?? _get_skill_definition(context, skillEntry?.EntryRef.SkillId ?? "");
             if (
                 skillDefinition?.CombatProfile == null
                 || !_is_hostile_threat_skill(skillDefinition)
             )
                 continue;
-            int sc = _get_skill_stamina_cost(context, sid);
+            int sc = _get_skill_stamina_cost(context, skillEntry, skillDefinition);
             if (sc <= 0)
                 continue;
             dc = dc <= 0 ? sc : Mathf.Min(dc, sc);
@@ -231,6 +232,24 @@ public partial class WaitAction : EnemyAiAction
         SkillEffectiveCombatDefinition effectiveDefinition =
             context?.skill_catalog?.GetEffectiveCombatDefinition(sid, Mathf.Max(sl, 1))
             ?? SkillEffectiveCombatDefinition.BuildUncached(skillDefinition, Mathf.Max(sl, 1));
+        CombatSkillResourceCosts costs = effectiveDefinition.ResourceCosts;
+        return Mathf.Max(costs.StaminaCost, 0);
+    }
+
+    private int _get_skill_stamina_cost(
+        BattleAiContext context,
+        BattleAvailableSkillEntry skillEntry,
+        SkillDefinition skillDefinition
+    )
+    {
+        if (skillEntry == null || skillDefinition?.CombatProfile == null)
+            return 0;
+        int skillLevel = Mathf.Max(skillEntry.SkillLevel, 1);
+        SkillEffectiveCombatDefinition effectiveDefinition =
+            context?.skill_catalog?.GetEffectiveCombatDefinition(
+                skillEntry.EntryRef.SkillId,
+                skillLevel
+            ) ?? SkillEffectiveCombatDefinition.BuildUncached(skillDefinition, skillLevel);
         CombatSkillResourceCosts costs = effectiveDefinition.ResourceCosts;
         return Mathf.Max(costs.StaminaCost, 0);
     }
