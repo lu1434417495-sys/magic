@@ -67,10 +67,34 @@ internal static class EnemyAiActionHelper
         StringName skillId,
         BattleUnitState targetUnit,
         StringName skillVariantId = default
+    ) => BuildUnitSkillCommand(
+        context,
+        new BattleSkillEntryRef(
+            BattleSkillEntryIds.KnownSkill(skillId),
+            ProgressionDataUtils.to_string_name(skillId),
+            BattleSkillEntrySourceKind.KnownSkill,
+            ""
+        ),
+        targetUnit,
+        skillVariantId
+    );
+
+    internal static BattleCommand BuildUnitSkillCommand(
+        BattleAiContext context,
+        BattleAvailableSkillEntry entry,
+        BattleUnitState targetUnit,
+        StringName skillVariantId = default
+    ) => BuildUnitSkillCommand(context, entry?.EntryRef ?? default, targetUnit, skillVariantId);
+
+    internal static BattleCommand BuildUnitSkillCommand(
+        BattleAiContext context,
+        BattleSkillEntryRef entryRef,
+        BattleUnitState targetUnit,
+        StringName skillVariantId = default
     )
     {
         BattleUnitState unitState = context?.unit_state;
-        if (unitState == null || targetUnit == null)
+        if (unitState == null || targetUnit == null || IsEmpty(entryRef.SkillId))
         {
             return null;
         }
@@ -78,7 +102,8 @@ internal static class EnemyAiActionHelper
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = unitState.unit_id,
-            skill_id = skillId,
+            skill_entry_id = entryRef.SkillEntryId,
+            skill_id = entryRef.SkillId,
             skill_variant_id = skillVariantId,
             target_unit_id = targetUnit.unit_id,
             target_coord = targetUnit.coord,
@@ -90,10 +115,34 @@ internal static class EnemyAiActionHelper
         StringName skillId,
         StringName skillVariantId,
         IEnumerable<Vector2I> targetCoords
+    ) => BuildGroundSkillCommand(
+        context,
+        new BattleSkillEntryRef(
+            BattleSkillEntryIds.KnownSkill(skillId),
+            ProgressionDataUtils.to_string_name(skillId),
+            BattleSkillEntrySourceKind.KnownSkill,
+            ""
+        ),
+        skillVariantId,
+        targetCoords
+    );
+
+    internal static BattleCommand BuildGroundSkillCommand(
+        BattleAiContext context,
+        BattleAvailableSkillEntry entry,
+        StringName skillVariantId,
+        IEnumerable<Vector2I> targetCoords
+    ) => BuildGroundSkillCommand(context, entry?.EntryRef ?? default, skillVariantId, targetCoords);
+
+    internal static BattleCommand BuildGroundSkillCommand(
+        BattleAiContext context,
+        BattleSkillEntryRef entryRef,
+        StringName skillVariantId,
+        IEnumerable<Vector2I> targetCoords
     )
     {
         BattleUnitState unitState = context?.unit_state;
-        if (unitState == null)
+        if (unitState == null || IsEmpty(entryRef.SkillId))
         {
             return null;
         }
@@ -102,7 +151,8 @@ internal static class EnemyAiActionHelper
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = unitState.unit_id,
-            skill_id = skillId,
+            skill_entry_id = entryRef.SkillEntryId,
+            skill_id = entryRef.SkillId,
             skill_variant_id = skillVariantId,
             target_coords = new Vector2IList(sortedCoords),
         };
@@ -223,4 +273,7 @@ internal static class EnemyAiActionHelper
 
     internal static AiCommandSummary BuildCommandSummary(BattleCommand command) =>
         AiCommandSummary.FromCommand(command);
+
+    private static bool IsEmpty(StringName value) =>
+        value == null || string.IsNullOrEmpty(value.ToString());
 }

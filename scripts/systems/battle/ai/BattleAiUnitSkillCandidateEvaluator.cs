@@ -59,12 +59,16 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
         BattleAiDecision bestDecision = null;
         BattleAiScoreInput bestScoreInput = null;
         BattleAiDecision fallbackDecision = null;
-        List<StringName> knownSkillIds = _helper.ResolveKnownSkillIds(context, action.SkillIds);
+        List<BattleAvailableSkillEntry> skillEntries = _helper.ResolveAvailableSkillEntries(
+            context,
+            action.SkillIds
+        );
 
-        foreach (StringName skillId in knownSkillIds)
+        foreach (BattleAvailableSkillEntry skillEntry in skillEntries)
         {
+            StringName skillId = skillEntry.EntryRef.SkillId;
             TraceCountIncrement(actionTrace, "skill_considered_count", 1);
-            SkillDefinition skillDefinition = context.GetSkillDefinitionTyped(skillId);
+            SkillDefinition skillDefinition = _helper.GetSkillDefinition(context, skillEntry);
             if (skillDefinition?.CombatProfile == null)
             {
                 TraceAddBlockReason(actionTrace, "missing_skill_definition");
@@ -102,7 +106,8 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
 
             List<CombatCastVariantDefinition> castVariants = _helper.GetUnitCastVariantDefinitions(
                 context,
-                skillDefinition
+                skillDefinition,
+                skillEntry.SkillLevel
             );
             if (castVariants.Count == 0)
             {
@@ -122,7 +127,7 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
                     TraceCountIncrement(actionTrace, "evaluation_count", 1);
                     BattleCommand command = _helper.BuildUnitSkillCommand(
                         context,
-                        skillId,
+                        skillEntry,
                         target,
                         optionId
                     );
@@ -150,7 +155,7 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
                     List<CombatEffectDefinition> effectDefinitions = _helper.CollectUnitSkillEffectDefinitions(
                         skillDefinition,
                         castVariant,
-                        actor
+                        skillEntry.SkillLevel
                     );
                     BattleAiScoreInput scoreInput = BuildSkillScoreInput(
                         action,

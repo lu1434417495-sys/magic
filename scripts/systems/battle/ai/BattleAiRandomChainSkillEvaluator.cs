@@ -56,10 +56,11 @@ internal sealed class BattleAiRandomChainSkillEvaluator
         BattleAiDecision bestDecision = null;
         BattleAiScoreInput bestScoreInput = null;
         BattleAiDecision fallbackDecision = null;
-        foreach (StringName skillId in _helper.ResolveKnownSkillIds(context, action.SkillIds))
+        foreach (BattleAvailableSkillEntry skillEntry in _helper.ResolveAvailableSkillEntries(context, action.SkillIds))
         {
+            StringName skillId = skillEntry.EntryRef.SkillId;
             TraceCountIncrement(actionTrace, "skill_considered_count", 1);
-            SkillDefinition skillDefinition = _helper.GetSkillDefinition(context, skillId);
+            SkillDefinition skillDefinition = _helper.GetSkillDefinition(context, skillEntry);
             if (!IsRandomChainSkill(skillDefinition))
             {
                 TraceAddBlockReason(
@@ -86,11 +87,12 @@ internal sealed class BattleAiRandomChainSkillEvaluator
 
             foreach (CombatCastVariantDefinition castVariant in GetRandomChainCastVariants(
                 context,
-                skillDefinition
+                skillDefinition,
+                skillEntry.SkillLevel
             ))
             {
                 TraceCountIncrement(actionTrace, "evaluation_count", 1);
-                BattleCommand command = BuildRandomChainSkillCommand(context, skillId, castVariant);
+                BattleCommand command = BuildRandomChainSkillCommand(context, skillEntry, castVariant);
                 BattlePreview preview = BuildFastRandomChainSkillPreview(
                     context,
                     skillDefinition,
@@ -207,7 +209,8 @@ internal sealed class BattleAiRandomChainSkillEvaluator
 
     private static List<CombatCastVariantDefinition> GetRandomChainCastVariants(
         BattleAiContext context,
-        SkillDefinition skillDefinition
+        SkillDefinition skillDefinition,
+        int skillLevel
     )
     {
         var result = new List<CombatCastVariantDefinition>();
@@ -220,8 +223,6 @@ internal sealed class BattleAiRandomChainSkillEvaluator
             return result;
         }
 
-        BattleUnitState actor = context?.unit_state;
-        int skillLevel = actor != null ? GetSkillLevel(actor, skillDefinition.SkillId) : 0;
         SkillEffectiveCombatDefinition effectiveDefinition =
             context?.skill_catalog?.GetEffectiveCombatDefinition(
                 skillDefinition.SkillId,
@@ -237,18 +238,18 @@ internal sealed class BattleAiRandomChainSkillEvaluator
 
     private static BattleCommand BuildRandomChainSkillCommand(
         BattleAiContext context,
-        StringName skillId,
+        BattleAvailableSkillEntry skillEntry,
         CombatCastVariantDefinition castVariant
     )
     {
-        if (context?.unit_state == null)
+        if (context?.unit_state == null || skillEntry == null)
             return null;
         return new BattleCommand
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = context.unit_state.unit_id,
-            skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId),
-            skill_id = skillId,
+            skill_entry_id = skillEntry.EntryRef.SkillEntryId,
+            skill_id = skillEntry.EntryRef.SkillId,
             skill_variant_id = castVariant?.VariantId ?? EmptyStringName,
         };
     }

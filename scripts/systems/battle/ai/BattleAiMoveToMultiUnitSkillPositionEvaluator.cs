@@ -67,10 +67,11 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
 
         BattleAiDecision bestDecision = null;
         BattleAiScoreInput bestScoreInput = null;
-        foreach (StringName skillId in _helper.ResolveKnownSkillIds(context, action.SkillIds))
+        foreach (BattleAvailableSkillEntry skillEntry in _helper.ResolveAvailableSkillEntries(context, action.SkillIds))
         {
+            StringName skillId = skillEntry.EntryRef.SkillId;
             TraceCountIncrement(actionTrace, "skill_considered_count", 1);
-            SkillDefinition skillDefinition = _helper.GetSkillDefinition(context, skillId);
+            SkillDefinition skillDefinition = _helper.GetSkillDefinition(context, skillEntry);
             if (!IsMultiUnitSkill(skillDefinition))
             {
                 TraceAddBlockReason(
@@ -106,7 +107,8 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
 
             foreach (CombatCastVariantDefinition castVariant in GetMultiUnitCastVariants(
                 context,
-                skillDefinition
+                skillDefinition,
+                skillEntry.SkillLevel
             ))
             {
                 if (castVariant != null && IsChargeOption(castVariant))
@@ -115,6 +117,7 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
                 List<BattleUnitState> currentGroup = BuildAnchorTargetGroup(
                     context,
                     action,
+                    skillEntry.SkillLevel,
                     skillDefinition,
                     sortedTargets,
                     actor.coord
@@ -126,6 +129,7 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
                     List<BattleUnitState> targetGroup = BuildAnchorTargetGroup(
                         context,
                         action,
+                        skillEntry.SkillLevel,
                         skillDefinition,
                         sortedTargets,
                         destination
@@ -205,6 +209,7 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
     private List<BattleUnitState> BuildAnchorTargetGroup(
         BattleAiContext context,
         BattleAiMoveToMultiUnitSkillPositionActionSpec action,
+        int skillLevel,
         SkillDefinition skillDefinition,
         IReadOnlyList<BattleUnitState> sortedTargets,
         Vector2I anchor
@@ -215,7 +220,6 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
             return group;
 
         CombatSkillDefinition combatProfile = skillDefinition.CombatProfile;
-        int skillLevel = GetSkillLevel(context.unit_state, skillDefinition.SkillId);
         SkillEffectiveCombatDefinition effectiveDefinition =
             context?.skill_catalog?.GetEffectiveCombatDefinition(
                 skillDefinition.SkillId,
@@ -548,7 +552,8 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
 
     private static List<CombatCastVariantDefinition> GetMultiUnitCastVariants(
         BattleAiContext context,
-        SkillDefinition skillDefinition
+        SkillDefinition skillDefinition,
+        int skillLevel
     )
     {
         var result = new List<CombatCastVariantDefinition>();
@@ -561,8 +566,6 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
             return result;
         }
 
-        BattleUnitState actor = context?.unit_state;
-        int skillLevel = actor != null ? GetSkillLevel(actor, skillDefinition.SkillId) : 0;
         SkillEffectiveCombatDefinition effectiveDefinition =
             context?.skill_catalog?.GetEffectiveCombatDefinition(skillDefinition.SkillId, skillLevel)
             ?? SkillEffectiveCombatDefinition.BuildUncached(skillDefinition, skillLevel);

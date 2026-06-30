@@ -166,10 +166,11 @@ internal sealed class BattleAiGroundSkillActionEvaluator
                 ? _collect_units_by_filter_from_list(context, livingUnits, "ally")
                 : new List<BattleUnitState>();
 
-        foreach (StringName skillId in ResolveKnownSkillIds(context, skill_ids))
+        foreach (BattleAvailableSkillEntry skillEntry in ResolveAvailableSkillEntries(context, skill_ids))
         {
+            StringName skillId = skillEntry.EntryRef.SkillId;
             TraceCountIncrement(actionTrace, "skill_considered_count");
-            SkillDefinition skillDefinition = GetSkillDefinition(context, skillId);
+            SkillDefinition skillDefinition = GetSkillDefinition(context, skillEntry);
             CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
             if (skillDefinition == null || combatProfile == null)
             {
@@ -197,7 +198,8 @@ internal sealed class BattleAiGroundSkillActionEvaluator
 
             foreach (CombatCastVariantDefinition castVariant in GetGroundOptionDefinitions(
                 context,
-                skillDefinition
+                skillDefinition,
+                skillEntry.SkillLevel
             ))
             {
                 if (castVariant == null || IsChargeOption(castVariant))
@@ -253,6 +255,7 @@ internal sealed class BattleAiGroundSkillActionEvaluator
                             castVariant,
                             targetCoords,
                             effectDefs,
+                            skillEntry.SkillLevel,
                             livingUnits,
                             allyUnits
                         );
@@ -278,7 +281,7 @@ internal sealed class BattleAiGroundSkillActionEvaluator
                     TraceCountIncrement(actionTrace, "evaluation_count");
                     BattleCommand command = BuildTypedGroundSkillCommand(
                         context,
-                        skillId,
+                        skillEntry,
                         castVariant.VariantId,
                         targetCoords.ToSortedList()
                     );
@@ -485,6 +488,7 @@ internal sealed class BattleAiGroundSkillActionEvaluator
         CombatCastVariantDefinition castVariant,
         GroundTargetCoordSet targetCoords,
         GroundSkillEffectSet effectDefs,
+        int skillLevel,
         IReadOnlyList<BattleUnitState> livingUnits,
         IReadOnlyList<BattleUnitState> allyUnits
     )
@@ -504,6 +508,7 @@ internal sealed class BattleAiGroundSkillActionEvaluator
         List<Vector2I> effectCoords = _build_prefilter_effect_coords(
             context,
             skillDefinition,
+            skillLevel,
             targetCoords
         );
         result.EffectCoords = effectCoords;
@@ -588,6 +593,7 @@ internal sealed class BattleAiGroundSkillActionEvaluator
     private List<Vector2I> _build_prefilter_effect_coords(
         BattleAiContext context,
         SkillDefinition skillDefinition,
+        int skillLevel,
         GroundTargetCoordSet targetCoords
     )
     {
@@ -597,7 +603,6 @@ internal sealed class BattleAiGroundSkillActionEvaluator
         {
             return result;
         }
-        int skillLevel = GetSkillLevel(context.unit_state, skillDefinition.SkillId);
         SkillEffectiveCombatDefinition effectiveDefinition =
             context?.skill_catalog?.GetEffectiveCombatDefinition(
                 skillDefinition.SkillId,
@@ -1097,13 +1102,18 @@ internal sealed class BattleAiGroundSkillActionEvaluator
     private EnemyAiDistanceReference DistanceReferenceKind =>
         _action?.DistanceReferenceKind ?? EnemyAiDistanceReference.None;
 
-    private IEnumerable<StringName> ResolveKnownSkillIds(
+    private IEnumerable<BattleAvailableSkillEntry> ResolveAvailableSkillEntries(
         BattleAiContext context,
         IEnumerable<StringName> preferredSkillIds
-    ) => _helper.ResolveKnownSkillIds(context, preferredSkillIds);
+    ) => _helper.ResolveAvailableSkillEntries(context, preferredSkillIds);
 
     private SkillDefinition GetSkillDefinition(BattleAiContext context, StringName skillId) =>
         _helper.GetSkillDefinition(context, skillId);
+
+    private SkillDefinition GetSkillDefinition(
+        BattleAiContext context,
+        BattleAvailableSkillEntry entry
+    ) => _helper.GetSkillDefinition(context, entry);
 
     private BattleSkillCastBlockReasonKind GetSkillCastBlockReason(
         BattleAiContext context,
@@ -1112,19 +1122,19 @@ internal sealed class BattleAiGroundSkillActionEvaluator
 
     private static BattleCommand BuildTypedGroundSkillCommand(
         BattleAiContext context,
-        StringName skillId,
+        BattleAvailableSkillEntry skillEntry,
         StringName skillVariantId,
         IEnumerable<Vector2I> targetCoords
     )
     {
-        if (context?.unit_state == null)
+        if (context?.unit_state == null || skillEntry == null)
             return null;
         var command = new BattleCommand
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = context.unit_state.unit_id,
-            skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId),
-            skill_id = skillId,
+            skill_entry_id = skillEntry.EntryRef.SkillEntryId,
+            skill_id = skillEntry.EntryRef.SkillId,
             skill_variant_id = skillVariantId,
         };
         foreach (Vector2I coord in targetCoords ?? Array.Empty<Vector2I>())
@@ -1458,7 +1468,8 @@ internal sealed class BattleAiGroundSkillActionEvaluator
 
     private List<CombatCastVariantDefinition> GetGroundOptionDefinitions(
         BattleAiContext context,
-        SkillDefinition skillDefinition
+        SkillDefinition skillDefinition,
+        int skillLevel
     )
     {
         var options = new List<CombatCastVariantDefinition>();
@@ -1470,7 +1481,6 @@ internal sealed class BattleAiGroundSkillActionEvaluator
             options.Add(BuildImplicitGroundOptionDefinition(skillDefinition));
             return options;
         }
-        int skillLevel = GetSkillLevel(context?.unit_state, skillDefinition.SkillId);
         SkillEffectiveCombatDefinition effectiveDefinition =
             context?.skill_catalog?.GetEffectiveCombatDefinition(skillDefinition.SkillId, skillLevel)
             ?? SkillEffectiveCombatDefinition.BuildUncached(skillDefinition, skillLevel);

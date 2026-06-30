@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Godot;
 using GStringArray = Godot.Collections.Array<string>;
 
@@ -12,6 +13,9 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : S
         try
         {
             TestEvaluatorIsPlainCSharpHelper();
+            TestEnemyAiActionHelperSkillCommandsCarryKnownEntryIds();
+            TestResolveAvailableSkillEntriesFiltersUnavailablePreferredSkills();
+            TestEvaluatorGeneratedCommandCarriesAvailableEntryId();
             TestFastPreviewRejectsExposeOutOfRangeCounter();
         }
         catch (Exception exception)
@@ -28,6 +32,169 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : S
         _test.True(
             evaluatorType.IsSealed,
             "BattleAiUnitSkillCandidateEvaluator 应是 sealed helper。"
+        );
+    }
+
+    private void TestEnemyAiActionHelperSkillCommandsCarryKnownEntryIds()
+    {
+        StringName skillId = "ai_helper_entry_probe";
+        BattleUnitState actor = BuildUnit("helper_actor", "hostile", new Vector2I(0, 0));
+        BattleUnitState target = BuildUnit("helper_target", "player", new Vector2I(1, 0));
+        BattleAiContext context = new()
+        {
+            unit_state = actor,
+        };
+
+        BattleCommand unitCommand = EnemyAiActionHelper.BuildUnitSkillCommand(
+            context,
+            skillId,
+            target,
+            "main"
+        );
+        _test.True(unitCommand != null, "unit skill command should be created.");
+        if (unitCommand != null)
+        {
+            _test.Eq(unitCommand.skill_id, skillId, "unit command should preserve skill_id.");
+            _test.Eq(
+                unitCommand.skill_entry_id,
+                BattleSkillEntryIds.KnownSkill(skillId),
+                "unit command should carry the known-skill entry id."
+            );
+        }
+
+        BattleCommand groundCommand = EnemyAiActionHelper.BuildGroundSkillCommand(
+            context,
+            skillId,
+            "ground",
+            new[] { new Vector2I(3, 1), new Vector2I(2, 1) }
+        );
+        _test.True(groundCommand != null, "ground skill command should be created.");
+        if (groundCommand != null)
+        {
+            _test.Eq(groundCommand.skill_id, skillId, "ground command should preserve skill_id.");
+            _test.Eq(
+                groundCommand.skill_entry_id,
+                BattleSkillEntryIds.KnownSkill(skillId),
+                "ground command should carry the known-skill entry id."
+            );
+        }
+    }
+
+    private void TestResolveAvailableSkillEntriesFiltersUnavailablePreferredSkills()
+    {
+        StringName availableSkillId = "ai_available_skill";
+        StringName unavailableSkillId = "ai_unavailable_skill";
+        BattleUnitState actor = BuildUnit("availability_actor", "hostile", new Vector2I(0, 0));
+        actor.known_active_skill_ids.Add(availableSkillId);
+        actor.SetKnownSkillLevelTyped(availableSkillId, 2);
+
+        BattleAiContext context = new()
+        {
+            unit_state = actor,
+        };
+        context.SetSkillDefinitions(
+            new Dictionary<StringName, SkillDefinition>
+            {
+                [availableSkillId] = BuildUnitSkill(availableSkillId, rangeValue: 4),
+                [unavailableSkillId] = BuildUnitSkill(unavailableSkillId, rangeValue: 4),
+            }
+        );
+
+        MethodInfo method = typeof(BattleAiTypedActionHelper).GetMethod(
+            "ResolveAvailableSkillEntries",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+        );
+        _test.True(
+            method != null,
+            "BattleAiTypedActionHelper should expose ResolveAvailableSkillEntries for AI planning."
+        );
+        if (method == null)
+            return;
+
+        var entries = method.Invoke(
+            new BattleAiTypedActionHelper(),
+            new object[]
+            {
+                context,
+                new List<StringName> { unavailableSkillId, availableSkillId },
+            }
+        ) as List<BattleAvailableSkillEntry>;
+
+        _test.True(entries != null, "ResolveAvailableSkillEntries should return typed entries.");
+        if (entries == null)
+            return;
+
+        _test.Eq(entries.Count, 1, "Unavailable preferred skills should be filtered out.");
+        if (entries.Count == 0)
+            return;
+        _test.Eq(
+            entries[0].EntryRef.SkillId,
+            availableSkillId,
+            "Available preferred skill should be preserved."
+        );
+        _test.Eq(
+            entries[0].EntryRef.SkillEntryId,
+            BattleSkillEntryIds.KnownSkill(availableSkillId),
+            "Available entry should carry the known-skill entry id."
+        );
+        _test.Eq(entries[0].SkillLevel, 2, "Available entry should preserve known skill level.");
+    }
+
+    private void TestEvaluatorGeneratedCommandCarriesAvailableEntryId()
+    {
+        StringName skillId = "ai_entry_unit_skill";
+        BattleUnitState actor = BuildUnit("entry_actor", "hostile", new Vector2I(0, 0));
+        BattleUnitState target = BuildUnit("entry_target", "player", new Vector2I(1, 0));
+        actor.known_active_skill_ids.Add(skillId);
+        actor.SetKnownSkillLevelTyped(skillId, 1);
+
+        SkillDefinition skill = BuildUnitSkill(skillId, rangeValue: 4);
+        BattleState state = new()
+        {
+            battle_id = "unit_skill_entry_regression",
+            phase = "unit_acting",
+            map_size = new Vector2I(8, 2),
+            timeline = new BattleTimelineState(),
+            active_unit_id = actor.unit_id,
+        };
+        state.SetUnit(actor);
+        state.SetUnit(target);
+
+        BattleAiContext context = new()
+        {
+            state = state,
+            unit_state = actor,
+            grid_service = new BattleGridService(),
+            skill_cast_block_reason_callback = (_, _) => BattleSkillCastBlockReasonKind.None,
+        };
+        context.SetSkillDefinitions(
+            new Dictionary<StringName, SkillDefinition>
+            {
+                [skill.SkillId] = skill,
+            }
+        );
+
+        UseUnitSkillAction action = new()
+        {
+            action_id = "entry_unit_action",
+            score_bucket_id = "test",
+            target_selector = "nearest_enemy",
+            desired_min_distance = 0,
+            desired_max_distance = 4,
+            distance_reference = "target_unit",
+        };
+        action.skill_ids.Add(skillId);
+
+        BattleAiDecision decision = new BattleAiUnitSkillCandidateEvaluator().Evaluate(action, context);
+        BattleCommand command = decision?.command;
+        _test.True(command != null, "Available unit skill should produce a command.");
+        if (command == null)
+            return;
+        _test.Eq(command.skill_id, skillId, "Candidate command should preserve skill_id.");
+        _test.Eq(
+            command.skill_entry_id,
+            BattleSkillEntryIds.KnownSkill(skillId),
+            "Candidate command should carry the selected availability entry id."
         );
     }
 

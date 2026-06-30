@@ -41,10 +41,11 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
         BattleAiDecision bestDecision = null;
         BattleAiScoreInput bestScoreInput = null;
         BattleAiDecision fallbackDecision = null;
-        foreach (StringName skillId in _helper.ResolveKnownSkillIds(context, action.SkillIds))
+        foreach (BattleAvailableSkillEntry skillEntry in _helper.ResolveAvailableSkillEntries(context, action.SkillIds))
         {
+            StringName skillId = skillEntry.EntryRef.SkillId;
             TraceCountIncrement(actionTrace, "skill_considered_count", 1);
-            SkillDefinition skillDefinition = _helper.GetSkillDefinition(context, skillId);
+            SkillDefinition skillDefinition = _helper.GetSkillDefinition(context, skillEntry);
             if (!IsMultiUnitSkill(skillDefinition))
             {
                 TraceAddBlockReason(
@@ -80,7 +81,8 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
 
             foreach (CombatCastVariantDefinition castVariant in GetMultiUnitCastVariants(
                 context,
-                skillDefinition
+                skillDefinition,
+                skillEntry.SkillLevel
             ))
             {
                 if (castVariant != null && IsChargeOption(castVariant))
@@ -89,6 +91,7 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
                 List<List<BattleUnitState>> targetGroups = BuildTargetGroups(
                     context,
                     action,
+                    skillEntry,
                     skillDefinition,
                     castVariant,
                     sortedTargets
@@ -104,7 +107,7 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
                     TraceCountIncrement(actionTrace, "evaluation_count", 1);
                     BattleCommand command = BuildMultiUnitSkillCommand(
                         context,
-                        skillId,
+                        skillEntry,
                         castVariant,
                         targetGroup
                     );
@@ -225,7 +228,8 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
 
     private static List<CombatCastVariantDefinition> GetMultiUnitCastVariants(
         BattleAiContext context,
-        SkillDefinition skillDefinition
+        SkillDefinition skillDefinition,
+        int skillLevel
     )
     {
         var result = new List<CombatCastVariantDefinition>();
@@ -237,8 +241,6 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
             result.Add(null);
             return result;
         }
-        BattleUnitState actor = context?.unit_state;
-        int skillLevel = actor != null ? GetSkillLevel(actor, skillDefinition.SkillId) : 0;
         SkillEffectiveCombatDefinition effectiveDefinition =
             context?.skill_catalog?.GetEffectiveCombatDefinition(skillDefinition.SkillId, skillLevel)
             ?? SkillEffectiveCombatDefinition.BuildUncached(skillDefinition, skillLevel);
@@ -253,6 +255,7 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
     private List<List<BattleUnitState>> BuildTargetGroups(
         BattleAiContext context,
         BattleAiMultiUnitSkillActionSpec action,
+        BattleAvailableSkillEntry skillEntry,
         SkillDefinition skillDefinition,
         CombatCastVariantDefinition castVariant,
         IReadOnlyList<BattleUnitState> sortedTargets
@@ -262,6 +265,7 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
         List<BattleUnitState> pool = BuildCandidatePool(
             context,
             action,
+            skillEntry,
             skillDefinition,
             castVariant,
             sortedTargets
@@ -270,7 +274,7 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
             return groups;
 
         CombatSkillDefinition combatProfile = skillDefinition.CombatProfile;
-        int skillLevel = GetSkillLevel(context.unit_state, skillDefinition.SkillId);
+        int skillLevel = skillEntry?.SkillLevel ?? GetSkillLevel(context.unit_state, skillDefinition.SkillId);
         int minCount = Mathf.Max(combatProfile.MinTargetCount, 1);
         SkillEffectiveCombatDefinition effectiveDefinition =
             context?.skill_catalog?.GetEffectiveCombatDefinition(skillDefinition.SkillId, skillLevel)
@@ -309,6 +313,7 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
     private List<BattleUnitState> BuildCandidatePool(
         BattleAiContext context,
         BattleAiMultiUnitSkillActionSpec action,
+        BattleAvailableSkillEntry skillEntry,
         SkillDefinition skillDefinition,
         CombatCastVariantDefinition castVariant,
         IEnumerable<BattleUnitState> sortedTargets
@@ -324,7 +329,7 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
             {
                 BattleCommand singleCommand = BuildMultiUnitSkillCommand(
                     context,
-                    skillDefinition.SkillId,
+                    skillEntry,
                     castVariant,
                     new List<BattleUnitState> { target }
                 );
@@ -369,19 +374,19 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
 
     private static BattleCommand BuildMultiUnitSkillCommand(
         BattleAiContext context,
-        StringName skillId,
+        BattleAvailableSkillEntry skillEntry,
         CombatCastVariantDefinition castVariant,
         IReadOnlyList<BattleUnitState> targetGroup
     )
     {
-        if (context?.unit_state == null)
+        if (context?.unit_state == null || skillEntry == null)
             return null;
         var command = new BattleCommand
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = context.unit_state.unit_id,
-            skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId),
-            skill_id = skillId,
+            skill_entry_id = skillEntry.EntryRef.SkillEntryId,
+            skill_id = skillEntry.EntryRef.SkillId,
             skill_variant_id = castVariant?.VariantId ?? EmptyStringName,
         };
         foreach (BattleUnitState target in targetGroup ?? Array.Empty<BattleUnitState>())

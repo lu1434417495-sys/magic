@@ -776,27 +776,33 @@ internal sealed class BattleAiRuntimeActionPlan : System.IDisposable
             return "";
         }
         var entries = new List<string>();
-        foreach (StringName rawSkillId in unitState.known_active_skill_ids)
+        BattleSkillAvailabilityService availabilityService = new(
+            (IReadOnlyDictionary<StringName, SkillDefinition>)null
+        );
+        BattleSkillAvailabilityView availabilityView = availabilityService.BuildView(
+            new BattleSkillAvailabilityQuery
+            {
+                User = unitState,
+                Consumer = BattleSkillAvailabilityConsumer.AiPlanning,
+                IncludeKnownSkills = true,
+                IncludeEquipmentSkills = false,
+                IncludeScopedAutoCast = false,
+            }
+        );
+        foreach (BattleAvailableSkillEntry entry in availabilityView.SkillEntries)
         {
-            StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
-            if (skillId == "")
+            StringName skillEntryId = ProgressionDataUtils.to_string_name(
+                entry.EntryRef.SkillEntryId
+            );
+            StringName skillId = ProgressionDataUtils.to_string_name(entry.EntryRef.SkillId);
+            if (skillEntryId == "" || skillId == "")
             {
                 continue;
             }
-            int level = GetKnownSkillLevel(unitState, skillId);
-            entries.Add($"{skillId}:{level}");
+            entries.Add($"{skillEntryId}:{skillId}:{entry.SkillLevel}");
         }
         entries.Sort(System.StringComparer.Ordinal);
         return string.Join(",", entries);
-    }
-
-    private static int GetKnownSkillLevel(BattleUnitState unitState, StringName skillId)
-    {
-        if (unitState == null)
-        {
-            return 1;
-        }
-        return unitState.GetKnownSkillLevelTyped(skillId);
     }
 
     private static string BuildBrainShapeSignature(EnemyAiBrainDef brain)

@@ -69,8 +69,9 @@ public partial class BattleAiScoreService
         BattleUnitState actor = ContextUnitState(context);
         if (actor != null)
         {
-            foreach (StringName skillId in actor.known_active_skill_ids)
+            foreach (BattleAvailableSkillEntry entry in BuildActorAvailabilityEntries(context, actor))
             {
+                StringName skillId = entry.EntryRef.SkillId;
                 if (
                     skillId.ToString().StartsWith("mage_", StringComparison.Ordinal)
                     && scoreInput.action_kind == "ground_reposition_skill"
@@ -81,6 +82,28 @@ public partial class BattleAiScoreService
             }
         }
         return false;
+    }
+
+    private static IReadOnlyList<BattleAvailableSkillEntry> BuildActorAvailabilityEntries(
+        IBattleAiScoreContext context,
+        BattleUnitState actor
+    )
+    {
+        BattleSkillAvailabilityService availabilityService = new(
+            context?.skill_catalog,
+            ContextSkillDefinitions(context)
+        );
+        BattleSkillAvailabilityView availabilityView = availabilityService.BuildView(
+            new BattleSkillAvailabilityQuery
+            {
+                User = actor,
+                Consumer = BattleSkillAvailabilityConsumer.AiScoring,
+                IncludeKnownSkills = true,
+                IncludeEquipmentSkills = false,
+                IncludeScopedAutoCast = false,
+            }
+        );
+        return availabilityView.SkillEntries;
     }
 
     private ThreatProjection GetCurrentActorThreatProjection(IBattleAiScoreContext context)

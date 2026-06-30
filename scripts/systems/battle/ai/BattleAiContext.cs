@@ -72,6 +72,8 @@ public class BattleAiContext : IBattleAiScoreContext
     private readonly BattleAiSkillAffordanceClassifier _skill_affordance_classifier = new();
     private readonly Dictionary<StringName, BattleAiSkillAffordanceRecord> _skill_affordance_records_by_skill_id =
         new();
+    private readonly Dictionary<StringName, BattleAiSkillAffordanceRecord> _skill_affordance_records_by_skill_entry_id =
+        new();
     private readonly Dictionary<TargetSortCacheKey, List<BattleUnitState>> _sorted_target_units_cache =
         new();
 
@@ -493,6 +495,7 @@ public class BattleAiContext : IBattleAiScoreContext
         _action_trace_entries.Clear();
         _mutation_guard_violation_entries.Clear();
         _skill_affordance_records_by_skill_id.Clear();
+        _skill_affordance_records_by_skill_entry_id.Clear();
         _sorted_target_units_cache.Clear();
     }
 
@@ -773,11 +776,27 @@ public class BattleAiContext : IBattleAiScoreContext
         {
             return null;
         }
+        BattleAvailableSkillEntry availabilityEntry = ResolveAvailableSkillEntry(normalizedSkillId);
+        if (availabilityEntry == null)
+        {
+            return null;
+        }
+        StringName skillEntryId = availabilityEntry.EntryRef.SkillEntryId;
+        if (
+            !IsEmpty(skillEntryId)
+            && _skill_affordance_records_by_skill_entry_id.TryGetValue(
+                skillEntryId,
+                out BattleAiSkillAffordanceRecord cachedEntryRecord
+            )
+        )
+        {
+            _skill_affordance_records_by_skill_id[normalizedSkillId] = cachedEntryRecord;
+            return cachedEntryRecord;
+        }
 
-        int skillLevel =
-            unit_state != null ? Math.Max(unit_state.GetKnownSkillLevelTyped(normalizedSkillId), 1) : 1;
+        int skillLevel = availabilityEntry.SkillLevel;
         BattleAiSkillAffordanceRecord record = _skill_affordance_classifier.ClassifySkill(
-            skillDefinition,
+            availabilityEntry.SkillDefinition ?? skillDefinition,
             skillLevel,
             skill_catalog
         );
@@ -786,6 +805,10 @@ public class BattleAiContext : IBattleAiScoreContext
             record.skill_id = normalizedSkillId;
         }
         _skill_affordance_records_by_skill_id[normalizedSkillId] = record;
+        if (!IsEmpty(skillEntryId))
+        {
+            _skill_affordance_records_by_skill_entry_id[skillEntryId] = record;
+        }
         return record;
     }
 
@@ -802,9 +825,9 @@ public class BattleAiContext : IBattleAiScoreContext
             return false;
         }
 
-        foreach (StringName rawSkillId in unit_state.known_active_skill_ids)
+        foreach (BattleAvailableSkillEntry entry in ResolveAvailableSkillEntries(null))
         {
-            StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
+            StringName skillId = ProgressionDataUtils.to_string_name(entry.EntryRef.SkillId);
             if (IsEmpty(skillId))
             {
                 continue;
@@ -852,6 +875,73 @@ public class BattleAiContext : IBattleAiScoreContext
         return resolvedRecord != null
             ? resolvedRecord.affordances
             : (IReadOnlyList<StringName>)System.Array.Empty<StringName>();
+    }
+
+    private List<BattleAvailableSkillEntry> ResolveAvailableSkillEntries(
+        IEnumerable<StringName> preferredSkillIds
+    )
+    {
+        var results = new List<BattleAvailableSkillEntry>();
+        if (unit_state == null)
+        {
+            return results;
+        }
+
+        BattleSkillAvailabilityService availabilityService = new(
+            skill_catalog,
+            _skillDefinitionsById
+        );
+        BattleSkillAvailabilityView availabilityView = availabilityService.BuildView(
+            new BattleSkillAvailabilityQuery
+            {
+                User = unit_state,
+                Consumer = BattleSkillAvailabilityConsumer.AiPlanning,
+                IncludeKnownSkills = true,
+                IncludeEquipmentSkills = false,
+                IncludeScopedAutoCast = false,
+            }
+        );
+
+        List<StringName> preferred = new();
+        foreach (StringName value in preferredSkillIds ?? System.Array.Empty<StringName>())
+        {
+            StringName normalized = ProgressionDataUtils.to_string_name(value);
+            if (!IsEmpty(normalized))
+            {
+                preferred.Add(normalized);
+            }
+        }
+        if (preferred.Count == 0)
+        {
+            results.AddRange(availabilityView.SkillEntries);
+            return results;
+        }
+
+        var seen = new HashSet<StringName>();
+        foreach (StringName skillId in preferred)
+        {
+            if (!seen.Add(skillId))
+            {
+                continue;
+            }
+            foreach (BattleAvailableSkillEntry entry in availabilityView.SkillEntries)
+            {
+                if (entry?.EntryRef.SkillId == skillId)
+                {
+                    results.Add(entry);
+                    break;
+                }
+            }
+        }
+        return results;
+    }
+
+    private BattleAvailableSkillEntry ResolveAvailableSkillEntry(StringName skillId)
+    {
+        List<BattleAvailableSkillEntry> entries = ResolveAvailableSkillEntries(
+            new[] { skillId }
+        );
+        return entries.Count > 0 ? entries[0] : null;
     }
 
     internal IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionIndexTyped() =>

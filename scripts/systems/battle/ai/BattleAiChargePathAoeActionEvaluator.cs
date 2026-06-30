@@ -108,10 +108,11 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
         BattleAiDecision fallbackDecision = null;
         BattleUnitState actor = context.unit_state;
         BattleState state = context.state;
-        foreach (StringName skillId in _helper.ResolveKnownSkillIds(context, action.SkillIds))
+        foreach (BattleAvailableSkillEntry skillEntry in _helper.ResolveAvailableSkillEntries(context, action.SkillIds))
         {
+            StringName skillId = skillEntry.EntryRef.SkillId;
             TraceCountIncrement(actionTrace, "skill_considered_count", 1);
-            SkillDefinition skillDefinition = _helper.GetSkillDefinition(context, skillId);
+            SkillDefinition skillDefinition = _helper.GetSkillDefinition(context, skillEntry);
             if (
                 skillDefinition?.CombatProfile == null
                 || skillDefinition.CombatProfile.TargetModeKind != BattleTargetMode.Ground
@@ -139,7 +140,8 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
 
             foreach (CombatCastVariantDefinition castVariant in GetGroundOptionDefinitions(
                 context,
-                skillDefinition
+                skillDefinition,
+                skillEntry.SkillLevel
             ))
             {
                 if (castVariant == null || !IsChargeOption(castVariant))
@@ -166,7 +168,7 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
 
                     BattleCommand command = BuildGroundSkillCommand(
                         context,
-                        skillId,
+                        skillEntry,
                         castVariant.VariantId,
                         new[] { targetCoord }
                     );
@@ -485,7 +487,8 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
 
     private static List<CombatCastVariantDefinition> GetGroundOptionDefinitions(
         BattleAiContext context,
-        SkillDefinition skillDefinition
+        SkillDefinition skillDefinition,
+        int skillLevel
     )
     {
         var options = new List<CombatCastVariantDefinition>();
@@ -498,7 +501,6 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
             return options;
         }
 
-        int skillLevel = GetSkillLevel(context?.unit_state, skillDefinition.SkillId);
         SkillEffectiveCombatDefinition effectiveDefinition =
             context?.skill_catalog?.GetEffectiveCombatDefinition(skillDefinition.SkillId, skillLevel)
             ?? SkillEffectiveCombatDefinition.BuildUncached(skillDefinition, skillLevel);
@@ -548,19 +550,19 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
 
     private static BattleCommand BuildGroundSkillCommand(
         BattleAiContext context,
-        StringName skillId,
+        BattleAvailableSkillEntry skillEntry,
         StringName skillVariantId,
         IEnumerable<Vector2I> targetCoords
     )
     {
-        if (context?.unit_state == null)
+        if (context?.unit_state == null || skillEntry == null)
             return null;
         var command = new BattleCommand
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = context.unit_state.unit_id,
-            skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId),
-            skill_id = skillId,
+            skill_entry_id = skillEntry.EntryRef.SkillEntryId,
+            skill_id = skillEntry.EntryRef.SkillId,
             skill_variant_id = skillVariantId,
         };
         foreach (Vector2I coord in targetCoords ?? Array.Empty<Vector2I>())

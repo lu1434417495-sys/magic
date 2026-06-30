@@ -505,21 +505,32 @@ internal sealed class BattleAiActionAssembler
     )
     {
         var records = new List<BattleAiSkillAffordanceRecord>();
-        foreach (StringName rawSkillId in unitState.known_active_skill_ids)
+        BattleSkillAvailabilityService availabilityService = new(skillDefinitions);
+        BattleSkillAvailabilityView availabilityView = availabilityService.BuildView(
+            new BattleSkillAvailabilityQuery
+            {
+                User = unitState,
+                Consumer = BattleSkillAvailabilityConsumer.AiPlanning,
+                IncludeKnownSkills = true,
+                IncludeEquipmentSkills = false,
+                IncludeScopedAutoCast = false,
+            }
+        );
+        foreach (BattleAvailableSkillEntry entry in availabilityView.SkillEntries)
         {
-            StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
+            StringName skillId = entry.EntryRef.SkillId;
             if (skillId == "")
             {
                 continue;
             }
-            SkillDefinition skillDefinition = GetSkillDefinition(skillDefinitions, skillId);
+            SkillDefinition skillDefinition = entry.SkillDefinition ?? GetSkillDefinition(skillDefinitions, skillId);
             if (skillDefinition == null)
             {
                 continue;
             }
             BattleAiSkillAffordanceRecord record = _classifier.ClassifySkill(
                 skillDefinition,
-                GetSkillLevel(unitState, skillId)
+                entry.SkillLevel
             );
             if (record.skill_id == "")
             {

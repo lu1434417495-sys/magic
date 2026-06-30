@@ -407,19 +407,20 @@ internal sealed class BattleAiQueryService
             hash = Mix(hash, HashStringName(actor.weapon_physical_damage_tag));
             hash = Mix(hash, actor.weapon_attack_range);
 
-            var activeSkillIds = new List<StringName>();
-            foreach (StringName skillId in actor.known_active_skill_ids)
-            {
-                StringName normalized = ProgressionDataUtils.to_string_name(skillId);
-                if (!IsEmpty(normalized))
-                    activeSkillIds.Add(normalized);
-            }
-            activeSkillIds.Sort(
-                (left, right) => string.CompareOrdinal(left.ToString(), right.ToString())
+            var activeSkillEntries = new List<BattleAvailableSkillEntry>(
+                BuildActorAvailabilityEntries(actor, skillDefinitions)
             );
-            foreach (StringName skillId in activeSkillIds)
+            activeSkillEntries.Sort(
+                (left, right) => string.CompareOrdinal(
+                    left.EntryRef.SkillEntryId.ToString(),
+                    right.EntryRef.SkillEntryId.ToString()
+                )
+            );
+            foreach (BattleAvailableSkillEntry entry in activeSkillEntries)
             {
-                hash = Mix(hash, HashStringName(skillId));
+                hash = Mix(hash, HashStringName(entry.EntryRef.SkillEntryId));
+                hash = Mix(hash, HashStringName(entry.EntryRef.SkillId));
+                hash = Mix(hash, entry.SkillLevel);
             }
 
             var skillLevels = new List<(StringName SkillId, int Level)>();
@@ -459,6 +460,25 @@ internal sealed class BattleAiQueryService
 
             return new SkillRecordCacheKey(hash, skillDefinitions?.Count ?? 0);
         }
+    }
+
+    private static IReadOnlyList<BattleAvailableSkillEntry> BuildActorAvailabilityEntries(
+        BattleUnitState actor,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
+    )
+    {
+        BattleSkillAvailabilityService availabilityService = new(skillDefinitions);
+        BattleSkillAvailabilityView availabilityView = availabilityService.BuildView(
+            new BattleSkillAvailabilityQuery
+            {
+                User = actor,
+                Consumer = BattleSkillAvailabilityConsumer.AiScoring,
+                IncludeKnownSkills = true,
+                IncludeEquipmentSkills = false,
+                IncludeScopedAutoCast = false,
+            }
+        );
+        return availabilityView.SkillEntries;
     }
 
     private static long Mix(long hash, int value)

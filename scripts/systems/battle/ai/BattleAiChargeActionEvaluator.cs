@@ -70,7 +70,8 @@ internal sealed class BattleAiChargeActionEvaluator
             }
         );
 
-        SkillDefinition skillDefinition = _helper.GetSkillDefinition(context, action.SkillId);
+        BattleAvailableSkillEntry skillEntry = ResolveSingleSkillEntry(context, action.SkillId);
+        SkillDefinition skillDefinition = _helper.GetSkillDefinition(context, skillEntry);
         if (
             skillDefinition?.CombatProfile == null
             || skillDefinition.CombatProfile.TargetModeKind != BattleTargetMode.Ground
@@ -142,7 +143,8 @@ internal sealed class BattleAiChargeActionEvaluator
         AiTraceRecorder.Enter("charge:get_ground_options");
         List<CombatCastVariantDefinition> groundOptions = GetGroundOptionDefinitions(
             context,
-            skillDefinition
+            skillDefinition,
+            skillEntry.SkillLevel
         );
         AiTraceRecorder.Exit("charge:get_ground_options");
         foreach (CombatCastVariantDefinition castVariant in groundOptions)
@@ -188,7 +190,7 @@ internal sealed class BattleAiChargeActionEvaluator
 
                 BattleCommand command = BuildGroundSkillCommand(
                     context,
-                    action.SkillId,
+                    skillEntry,
                     castVariant.VariantId,
                     new[] { targetCoord }
                 );
@@ -522,7 +524,8 @@ internal sealed class BattleAiChargeActionEvaluator
 
     private static List<CombatCastVariantDefinition> GetGroundOptionDefinitions(
         BattleAiContext context,
-        SkillDefinition skillDefinition
+        SkillDefinition skillDefinition,
+        int skillLevel
     )
     {
         var options = new List<CombatCastVariantDefinition>();
@@ -535,7 +538,6 @@ internal sealed class BattleAiChargeActionEvaluator
             return options;
         }
 
-        int skillLevel = GetSkillLevel(context?.unit_state, skillDefinition.SkillId);
         SkillEffectiveCombatDefinition effectiveDefinition =
             context?.skill_catalog?.GetEffectiveCombatDefinition(skillDefinition.SkillId, skillLevel)
             ?? SkillEffectiveCombatDefinition.BuildUncached(skillDefinition, skillLevel);
@@ -545,6 +547,18 @@ internal sealed class BattleAiChargeActionEvaluator
                 options.Add(castVariant);
         }
         return options;
+    }
+
+    private BattleAvailableSkillEntry ResolveSingleSkillEntry(
+        BattleAiContext context,
+        StringName skillId
+    )
+    {
+        List<BattleAvailableSkillEntry> entries = _helper.ResolveAvailableSkillEntries(
+            context,
+            new[] { skillId }
+        );
+        return entries.Count > 0 ? entries[0] : null;
     }
 
     private static CombatCastVariantDefinition BuildImplicitGroundOptionDefinition(
@@ -588,19 +602,19 @@ internal sealed class BattleAiChargeActionEvaluator
 
     private static BattleCommand BuildGroundSkillCommand(
         BattleAiContext context,
-        StringName skillId,
+        BattleAvailableSkillEntry skillEntry,
         StringName skillVariantId,
         IEnumerable<Vector2I> targetCoords
     )
     {
-        if (context?.unit_state == null)
+        if (context?.unit_state == null || skillEntry == null)
             return null;
         var command = new BattleCommand
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = context.unit_state.unit_id,
-            skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId),
-            skill_id = skillId,
+            skill_entry_id = skillEntry.EntryRef.SkillEntryId,
+            skill_id = skillEntry.EntryRef.SkillId,
             skill_variant_id = skillVariantId,
         };
         foreach (Vector2I coord in targetCoords ?? Array.Empty<Vector2I>())
