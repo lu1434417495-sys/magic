@@ -30,6 +30,9 @@ public sealed class GameContentCatalog
     private IReadOnlyDictionary<StringName, ProfessionDef> _professionDefs;
     private IReadOnlyDictionary<StringName, AchievementDef> _achievementDefs;
     private IReadOnlyDictionary<StringName, QuestDef> _questDefs;
+    private int _equipmentAbilityContentRevision;
+    private IReadOnlyDictionary<StringName, EquipmentAbilityContentPackDefinition> _equipmentAbilityPacks;
+    private IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> _equipmentAbilityBindings;
     private IReadOnlyDictionary<StringName, ItemDef> _itemDefs;
     private IReadOnlyDictionary<StringName, RecipeDef> _recipeDefs;
     private IReadOnlyDictionary<StringName, EnemyTemplateDef> _enemyTemplates;
@@ -85,6 +88,11 @@ public sealed class GameContentCatalog
         _professionDefs = SnapshotTyped(session.GetProfessionDefsTyped());
         _achievementDefs = SnapshotTyped(session.GetAchievementDefsTyped());
         _questDefs = SnapshotTyped(session.GetQuestDefsTyped());
+        _equipmentAbilityContentRevision = session.GetEquipmentAbilityContentRevision();
+        _equipmentAbilityPacks = SnapshotTyped(session.GetEquipmentAbilityPackDefinitionsTyped());
+        _equipmentAbilityBindings = SnapshotTyped(
+            session.GetEquipmentAbilityBindingDefinitionsTyped()
+        );
         _itemDefs = SnapshotTyped(session.GetItemDefsTyped());
         _recipeDefs = SnapshotTyped(session.GetRecipeDefsTyped());
         _enemyTemplates = SnapshotTyped(session.GetEnemyTemplatesTyped());
@@ -112,6 +120,9 @@ public sealed class GameContentCatalog
         _professionDefs = EmptyTyped<ProfessionDef>();
         _achievementDefs = EmptyTyped<AchievementDef>();
         _questDefs = EmptyTyped<QuestDef>();
+        _equipmentAbilityContentRevision = 0;
+        _equipmentAbilityPacks = EmptyTyped<EquipmentAbilityContentPackDefinition>();
+        _equipmentAbilityBindings = EmptyTyped<EquipmentAbilityBindingDefinition>();
         _itemDefs = EmptyTyped<ItemDef>();
         _recipeDefs = EmptyTyped<RecipeDef>();
         _enemyTemplates = EmptyTyped<EnemyTemplateDef>();
@@ -172,6 +183,14 @@ public sealed class GameContentCatalog
         _achievementDefs;
 
     public IReadOnlyDictionary<StringName, QuestDef> GetQuestDefsTyped() => _questDefs;
+
+    public int GetEquipmentAbilityContentRevision() => _equipmentAbilityContentRevision;
+
+    public IReadOnlyDictionary<StringName, EquipmentAbilityContentPackDefinition> GetEquipmentAbilityPackDefinitionsTyped() =>
+        _equipmentAbilityPacks;
+
+    public IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> GetEquipmentAbilityBindingDefinitionsTyped() =>
+        _equipmentAbilityBindings;
 
     public QuestDef GetQuestDefTyped(StringName questId)
     {

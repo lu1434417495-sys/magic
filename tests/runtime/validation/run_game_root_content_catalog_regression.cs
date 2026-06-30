@@ -74,6 +74,16 @@ public partial class run_game_root_content_catalog_regression : SceneTree
                 "content catalog trait defs 应与 GameSession 正式内容缓存一致。"
             );
             _test.Eq(
+                gameSession.GetEquipmentAbilityBindingDefinitionsTyped().Count,
+                catalog.GetEquipmentAbilityBindingDefinitionsTyped().Count,
+                "content catalog equipment ability bindings 应与 GameSession 正式内容缓存一致。"
+            );
+            _test.Eq(
+                gameSession.GetEquipmentAbilityContentRevision(),
+                catalog.GetEquipmentAbilityContentRevision(),
+                "content catalog equipment ability revision 应与 GameSession 正式内容缓存一致。"
+            );
+            _test.Eq(
                 gameSession.GetItemDefsTyped().Count,
                 catalog.GetItemDefsTyped().Count,
                 "content catalog item defs 应与 GameSession 正式内容缓存一致。"
@@ -430,6 +440,11 @@ public partial class run_game_root_content_catalog_regression : SceneTree
                 catalog.GetTraitDefsTyped().Count,
                 0,
                 "dispose 后旧 catalog 不应再读到 stale typed trait 快照。"
+            );
+            _test.Eq(
+                catalog.GetEquipmentAbilityBindingDefinitionsTyped().Count,
+                0,
+                "dispose 后旧 catalog 不应再读到 stale equipment ability binding 快照。"
             );
             _test.True(
                 catalog.GetProgressionContentRegistryTyped() == null,

@@ -976,6 +976,34 @@ public partial class GameSession : Node
             ?? new Dictionary<StringName, TraitDef>();
     }
 
+    public EquipmentAbilityRegistryBuildResult GetEquipmentAbilityLastBuildResultTyped()
+    {
+        return _progression_content_registry?.GetEquipmentAbilityLastBuildResultTyped()
+            ?? new EquipmentAbilityRegistryBuildResult
+            {
+                Success = true,
+                Revision = 0,
+                Errors = Array.Empty<string>(),
+            };
+    }
+
+    public int GetEquipmentAbilityContentRevision()
+    {
+        return _progression_content_registry?.GetEquipmentAbilityContentRevision() ?? 0;
+    }
+
+    public IReadOnlyDictionary<StringName, EquipmentAbilityContentPackDefinition> GetEquipmentAbilityPackDefinitionsTyped()
+    {
+        return _progression_content_registry?.GetEquipmentAbilityPackDefinitionsTyped()
+            ?? new Dictionary<StringName, EquipmentAbilityContentPackDefinition>();
+    }
+
+    public IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> GetEquipmentAbilityBindingDefinitionsTyped()
+    {
+        return _progression_content_registry?.GetEquipmentAbilityBindingDefinitionsTyped()
+            ?? new Dictionary<StringName, EquipmentAbilityBindingDefinition>();
+    }
+
     public GDictionary GetBattleSpecialProfileRegistrySnapshot() =>
         _battle_special_profile_registry != null
             ? _battle_special_profile_registry.GetSnapshot()

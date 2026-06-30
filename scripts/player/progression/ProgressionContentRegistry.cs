@@ -11,6 +11,8 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private static readonly StringName HpMax = "hp_max";
     private static readonly StringName PracticeMeditation = "meditation";
     private static readonly StringName PracticeCultivation = "cultivation";
+    private const string EquipmentAbilityConfigDirectory =
+        "res://data/configs/equipment_abilities";
 
     private static readonly StringName[] PracticeTrackTags =
     {
@@ -55,6 +57,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private readonly AscensionContentRegistry _ascensionContentRegistry = new();
     private readonly StageAdvancementContentRegistry _stageAdvancementContentRegistry = new();
     private readonly QuestContentRegistry _questContentRegistry = new();
+    private readonly EquipmentAbilityContentRegistry _equipmentAbilityContentRegistry = new();
 
     private GStringArray _validationErrors = new();
     private readonly List<string> _questRegistrationErrors = new();
@@ -239,6 +242,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         _bloodlineContentRegistry.Dispose();
         _ascensionContentRegistry.Dispose();
         _stageAdvancementContentRegistry.Dispose();
+        _equipmentAbilityContentRegistry.Dispose();
     }
 
     public void Rebuild()
@@ -285,6 +289,14 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             _register_quest(questDef);
         _register_seed_achievements();
         SyncTypedDefinitionIndexes();
+
+        EquipmentAbilityRegistryBuildResult equipmentAbilityResult =
+            _equipmentAbilityContentRegistry.Rebuild(
+                LoadEquipmentAbilityContentPacks(),
+                BuildEquipmentAbilityValidationContext()
+            );
+        foreach (string error in equipmentAbilityResult.Errors)
+            _validationErrors.Add(error);
 
         AppendArray(_validationErrors, _professionContentRegistry.Validate());
         AppendArray(_validationErrors, _raceContentRegistry.Validate());
@@ -374,6 +386,21 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         SyncTypedDefinitionIndexes();
         return CloneTypedDictionary(_traitDefIndex);
     }
+
+    public EquipmentAbilityRegistryBuildResult GetEquipmentAbilityLastBuildResultTyped() =>
+        _equipmentAbilityContentRegistry.GetLastBuildResultTyped();
+
+    public int GetEquipmentAbilityContentRevision() =>
+        _equipmentAbilityContentRegistry.GetRevision();
+
+    public IReadOnlyDictionary<StringName, EquipmentAbilityContentPackDefinition> GetEquipmentAbilityPackDefinitionsTyped() =>
+        _equipmentAbilityContentRegistry.GetPackDefinitionsTyped();
+
+    public IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> GetEquipmentAbilityBindingDefinitionsTyped() =>
+        _equipmentAbilityContentRegistry.GetBindingDefinitionsTyped();
+
+    internal EquipmentAbilityContentRegistry GetEquipmentAbilityContentRegistryTyped() =>
+        _equipmentAbilityContentRegistry;
 
     public IReadOnlyDictionary<StringName, AgeProfileDef> GetAgeProfileDefsTyped()
     {
@@ -660,6 +687,70 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         _stageAdvancementDefIndex.Clear();
         _validationErrors.Clear();
         _typedIndexesDirty = true;
+    }
+
+    private static IReadOnlyList<EquipmentAbilityContentPackDef> LoadEquipmentAbilityContentPacks()
+    {
+        var packs = new List<EquipmentAbilityContentPackDef>();
+        string globalPath = ProjectSettings.GlobalizePath(EquipmentAbilityConfigDirectory);
+        if (!DirAccess.DirExistsAbsolute(globalPath))
+            return packs;
+
+        ScanEquipmentAbilityContentDirectory(EquipmentAbilityConfigDirectory, packs);
+        return packs;
+    }
+
+    private static void ScanEquipmentAbilityContentDirectory(
+        string directoryPath,
+        List<EquipmentAbilityContentPackDef> packs
+    )
+    {
+        DirAccess directory = DirAccess.Open(directoryPath);
+        if (directory == null)
+            return;
+
+        try
+        {
+            directory.ListDirBegin();
+            while (true)
+            {
+                string entryName = directory.GetNext();
+                if (string.IsNullOrEmpty(entryName))
+                    break;
+                if (entryName == "." || entryName == "..")
+                    continue;
+
+                string entryPath = $"{directoryPath}/{entryName}";
+                if (directory.CurrentIsDir())
+                {
+                    ScanEquipmentAbilityContentDirectory(entryPath, packs);
+                    continue;
+                }
+                if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
+                    continue;
+
+                Resource resource = ResourceLoader.Load<Resource>(entryPath);
+                if (resource is not EquipmentAbilityContentPackDef pack)
+                    continue;
+                GodotContentOwnership.RegisterBorrowedContent(pack, entryPath);
+                packs.Add(pack);
+            }
+            directory.ListDirEnd();
+        }
+        finally
+        {
+            GodotObjectLifecycle.DisposeGodotObject(directory);
+        }
+    }
+
+    private EquipmentAbilityContentValidationContext BuildEquipmentAbilityValidationContext()
+    {
+        SyncTypedDefinitionIndexes();
+        return new EquipmentAbilityContentValidationContext
+        {
+            TraitDefs = CloneTypedDictionary(_traitDefIndex),
+            SkillDefs = CloneTypedDictionary(_skillDefinitionIndex),
+        };
     }
 
     private void _register_seed_achievements()
