@@ -1201,8 +1201,43 @@ public sealed partial class BattleRuntimeModule : IDisposable
             AiTraceRecorder.Exit("preview:skill");
             return;
         }
+        BattleSkillAccessResult accessResult = ValidateSkillCommandEntryAccess(
+            command,
+            BattleSkillAvailabilityConsumer.PreviewExecution
+        );
+        if (!accessResult.Allowed)
+        {
+            preview.AddLogLine(accessResult.Message);
+            AiTraceRecorder.Exit("preview:skill");
+            return;
+        }
         _preview_skill_command(activeUnit, command, preview);
         AiTraceRecorder.Exit("preview:skill");
+    }
+
+    private BattleSkillAccessResult ValidateSkillCommandEntryAccess(
+        BattleCommand command,
+        BattleSkillAvailabilityConsumer consumer
+    )
+    {
+        if (command == null)
+        {
+            return BattleSkillAccessResult.Deny("missing_command", "技能命令无效。");
+        }
+        if (_state == null || !_state.TryGetUnitTyped(command.unit_id, out BattleUnitState unit))
+        {
+            return BattleSkillAccessResult.Deny("missing_unit", "当前单位无效。");
+        }
+        BattleSkillAvailabilityService service = new(_skillCatalog, _skillDefinitionIndex);
+        return service.ValidateSkillEntryAccess(
+            new BattleSkillAvailabilityQuery
+            {
+                User = unit,
+                Consumer = consumer,
+            },
+            command.skill_entry_id,
+            command.skill_id
+        );
     }
 
     private static void PreviewWaitCommand(BattleUnitReadView activeUnit, BattlePreview preview)

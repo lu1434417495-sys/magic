@@ -247,6 +247,7 @@ internal sealed class BattleAiTypedActionHelper
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = actor.unit_id,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId),
             skill_id = skillId,
             skill_variant_id = skillVariantId,
             target_unit_id = targetUnit.unit_id,

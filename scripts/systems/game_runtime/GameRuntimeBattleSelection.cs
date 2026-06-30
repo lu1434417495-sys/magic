@@ -119,15 +119,22 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             UpdateStatus("当前没有可手动操作的单位。");
             return SelectionErrorTyped("当前没有可手动操作的单位。");
         }
-        if (index < 0 || index >= activeUnit.known_active_skill_ids.Count)
+        if (
+            !TryGetAvailableSkillEntryBySlot(
+                activeUnit,
+                index,
+                BattleSkillAvailabilityConsumer.ManualSelection,
+                out BattleAvailableSkillEntry skillEntry
+            )
+        )
         {
             UpdateStatus("该技能栏当前没有技能。");
             return SelectionErrorTyped("该技能栏当前没有技能。");
         }
 
-        StringName skillId = activeUnit.known_active_skill_ids[index];
-        StringName skillEntryId = BattleSkillEntryIds.KnownSkill(skillId);
-        SkillDefinition skillDefinition = GetSkillDefinition(skillId);
+        StringName skillId = skillEntry.EntryRef.SkillId;
+        StringName skillEntryId = skillEntry.EntryRef.SkillEntryId;
+        SkillDefinition skillDefinition = skillEntry.SkillDefinition;
         CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (combatProfile == null)
         {
@@ -292,7 +299,14 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             }
             return;
         }
-        if (!activeUnit.known_active_skill_ids.Contains(GetSelectedSkillId()))
+        if (
+            !TryResolveAvailableSkillEntry(
+                activeUnit,
+                GetSelectedSkillEntryId(),
+                BattleSkillAvailabilityConsumer.ManualSelection,
+                out BattleAvailableSkillEntry selectedEntry
+            )
+        )
         {
             SetSelectedSkillEntryId("");
             SetSelectedSkillId("");
@@ -300,8 +314,9 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             ClearBattleSkillTargetSelection();
             return;
         }
+        SetSelectedSkillId(selectedEntry.EntryRef.SkillId);
 
-        SkillDefinition skillDefinition = GetSelectedBattleSkillDefinition(activeUnit);
+        SkillDefinition skillDefinition = selectedEntry.SkillDefinition;
         CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (combatProfile == null)
         {
@@ -311,7 +326,6 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             ClearBattleSkillTargetSelection();
             return;
         }
-        SetSelectedSkillEntryId(BattleSkillEntryIds.KnownSkill(GetSelectedSkillId()));
         if (combatProfile.CastVariants.Count == 0)
         {
             SetSelectedSkillVariantId("");
@@ -451,9 +465,18 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             return null;
         }
 
-        foreach (StringName skillId in activeUnit.known_active_skill_ids)
+        BattleSkillAvailabilityView availabilityView = BuildSkillAvailabilityView(
+            activeUnit,
+            BattleSkillAvailabilityConsumer.ManualSelection
+        );
+        foreach (BattleAvailableSkillEntry skillEntry in availabilityView.SkillEntries)
         {
-            SkillDefinition skillDefinition = GetSkillDefinition(skillId);
+            if (skillEntry == null || !skillEntry.IsSelectable)
+            {
+                continue;
+            }
+            StringName skillId = skillEntry.EntryRef.SkillId;
+            SkillDefinition skillDefinition = skillEntry.SkillDefinition;
             CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
             if (combatProfile == null)
             {
@@ -475,7 +498,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             {
                 CommandKind = BattleCommandKind.Skill,
                 unit_id = activeUnit.unit_id,
-                skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId),
+                skill_entry_id = skillEntry.EntryRef.SkillEntryId,
                 skill_id = skillId,
                 skill_variant_id = GetDefaultUnitSkillVariantId(activeUnit, skillDefinition),
                 target_unit_id = targetUnit.unit_id,
@@ -514,7 +537,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = activeUnit.unit_id,
-            skill_entry_id = GetSelectedSkillEntryIdOrKnown(),
+            skill_entry_id = GetSelectedSkillEntryId(),
             skill_id = GetSelectedSkillId(),
             skill_variant_id = GetSelectedSkillVariantId(),
             target_unit_id = targetUnit.unit_id,
@@ -540,7 +563,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = activeUnit.unit_id,
-            skill_entry_id = GetSelectedSkillEntryIdOrKnown(),
+            skill_entry_id = GetSelectedSkillEntryId(),
             skill_id = GetSelectedSkillId(),
             skill_variant_id = castVariant?.VariantId ?? GetSelectedSkillVariantId(),
             target_coord = coord,
@@ -739,7 +762,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = activeUnit.unit_id,
-            skill_entry_id = GetSelectedSkillEntryIdOrKnown(),
+            skill_entry_id = GetSelectedSkillEntryId(),
             skill_id = GetSelectedSkillId(),
             skill_variant_id = castVariant.VariantId,
             target_coords = DuplicateVector2IArray(resolvedTargetCoords),
@@ -804,11 +827,18 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             return null;
         }
-        if (!activeUnit.known_active_skill_ids.Contains(GetSelectedSkillId()))
+        if (
+            !TryResolveAvailableSkillEntry(
+                activeUnit,
+                GetSelectedSkillEntryId(),
+                BattleSkillAvailabilityConsumer.ManualSelection,
+                out BattleAvailableSkillEntry selectedEntry
+            )
+        )
         {
             return null;
         }
-        return GetSkillDefinition(GetSelectedSkillId());
+        return selectedEntry.SkillDefinition;
     }
 
     private CombatCastVariantDefinition GetSelectedBattleSkillVariant(BattleUnitState activeUnit)
@@ -1838,7 +1868,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = activeUnit.unit_id,
-            skill_entry_id = GetSelectedSkillEntryIdOrKnown(),
+            skill_entry_id = GetSelectedSkillEntryId(),
             skill_id = GetSelectedSkillId(),
             skill_variant_id = GetSelectedSkillVariantId(),
             target_unit_ids = DuplicateStringNameArray(GetTargetUnitIdsStateTyped()),
@@ -2078,6 +2108,59 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         return Runtime?.GetSkillCatalogTyped();
     }
 
+    private BattleSkillAvailabilityView BuildSkillAvailabilityView(
+        BattleUnitState activeUnit,
+        BattleSkillAvailabilityConsumer consumer
+    )
+    {
+        BattleSkillAvailabilityService service = new(GetSkillCatalog());
+        return service.BuildView(
+            new BattleSkillAvailabilityQuery
+            {
+                User = activeUnit,
+                Consumer = consumer,
+            }
+        );
+    }
+
+    private bool TryGetAvailableSkillEntryBySlot(
+        BattleUnitState activeUnit,
+        int index,
+        BattleSkillAvailabilityConsumer consumer,
+        out BattleAvailableSkillEntry entry
+    )
+    {
+        BattleSkillAvailabilityService service = new(GetSkillCatalog());
+        return service.TryGetSkillEntryBySlot(
+            new BattleSkillAvailabilityQuery
+            {
+                User = activeUnit,
+                Consumer = consumer,
+            },
+            index,
+            out entry
+        );
+    }
+
+    private bool TryResolveAvailableSkillEntry(
+        BattleUnitState activeUnit,
+        StringName skillEntryId,
+        BattleSkillAvailabilityConsumer consumer,
+        out BattleAvailableSkillEntry entry
+    )
+    {
+        BattleSkillAvailabilityService service = new(GetSkillCatalog());
+        return service.TryResolveSkillEntry(
+            new BattleSkillAvailabilityQuery
+            {
+                User = activeUnit,
+                Consumer = consumer,
+            },
+            skillEntryId,
+            out entry
+        );
+    }
+
     private BattlePreview PreviewBattleCommand(BattleCommand command)
     {
         return Runtime?.PreviewBattleCommand(command);
@@ -2158,12 +2241,6 @@ public sealed class GameRuntimeBattleSelection : IDisposable
     private StringName GetSelectedSkillEntryId()
     {
         return Runtime?.GetSelectedBattleSkillEntryId() ?? new StringName("");
-    }
-
-    private StringName GetSelectedSkillEntryIdOrKnown()
-    {
-        StringName skillEntryId = GetSelectedSkillEntryId();
-        return skillEntryId != "" ? skillEntryId : BattleSkillEntryIds.KnownSkill(GetSelectedSkillId());
     }
 
     private void SetSelectedSkillEntryId(StringName skillEntryId)

@@ -247,6 +247,7 @@ internal sealed class BattleAiRandomChainSkillEvaluator
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = context.unit_state.unit_id,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId),
             skill_id = skillId,
             skill_variant_id = castVariant?.VariantId ?? EmptyStringName,
         };

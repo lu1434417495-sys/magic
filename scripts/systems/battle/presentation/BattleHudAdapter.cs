@@ -61,10 +61,12 @@ public sealed class BattleHudAdapter : IDisposable
         GStringNameArray selected_skill_target_unit_ids,
         StringName selected_skill_variant_id,
         string encounter_display_name,
-        BattlePreview selected_skill_runtime_preview
+        BattlePreview selected_skill_runtime_preview,
+        StringName selected_skill_entry_id = default
     )
     {
         selected_skill_id = NormalizeStringName(selected_skill_id);
+        selected_skill_entry_id = NormalizeStringName(selected_skill_entry_id);
         selected_skill_variant_id = NormalizeStringName(selected_skill_variant_id);
         if (battle_state == null)
             return new GDictionary();
@@ -132,7 +134,7 @@ public sealed class BattleHudAdapter : IDisposable
                 damagePreview,
                 saveBranchPreview
             ),
-            ["skill_slots"] = BuildSkillSlots(activeUnit, selected_skill_id),
+            ["skill_slots"] = BuildSkillSlots(activeUnit, selected_skill_entry_id),
             ["tile_text"] = BuildTileText(selected_coord, selectedCell, selectedUnit),
             ["selected_skill_hit_preview_text"] = hitPreview?.SummaryText ?? "",
             ["selected_skill_hit_preview_payload"] = ProjectHitPreview(hitPreview),
@@ -634,7 +636,7 @@ public sealed class BattleHudAdapter : IDisposable
         if (activeUnit == null)
             return "无可行动单位";
         if (string.IsNullOrEmpty(selectedSkillName))
-            return $"当前单位 {FormatUnitName(activeUnit, "单位")}  ·  已装备技能 {activeUnit.known_active_skill_ids.Count}";
+            return $"当前单位 {FormatUnitName(activeUnit, "单位")}  ·  已装备技能 {BuildSkillAvailabilityView(activeUnit).SkillEntries.Count}";
         string title = BuildSkillTitle(selectedSkillName, selectedSkillVariantName);
         if (DictBool(selectionInfo, "is_multi_unit"))
         {
@@ -670,17 +672,20 @@ public sealed class BattleHudAdapter : IDisposable
         return $"当前技能 {title}  ·  选点 {selectedCount}/{requiredCount}";
     }
 
-    private GArray BuildSkillSlots(BattleUnitState activeUnit, StringName selectedSkillId)
+    private GArray BuildSkillSlots(BattleUnitState activeUnit, StringName selectedSkillEntryId)
     {
         var skillSlots = new GArray();
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = GetSkillDefinitions();
         if (activeUnit != null)
         {
-            int count = Mathf.Min(activeUnit.known_active_skill_ids.Count, SKILL_GRID_SIZE);
+            BattleSkillAvailabilityView availabilityView = BuildSkillAvailabilityView(activeUnit);
+            int count = Mathf.Min(availabilityView.SkillEntries.Count, SKILL_GRID_SIZE);
             for (int index = 0; index < count; index++)
             {
-                StringName skillId = activeUnit.known_active_skill_ids[index];
-                SkillDefinition skillDefinition = GetSkillDefinition(skillDefinitions, skillId);
+                BattleAvailableSkillEntry entry = availabilityView.SkillEntries[index];
+                if (entry == null)
+                    continue;
+                StringName skillId = entry.EntryRef.SkillId;
+                SkillDefinition skillDefinition = entry.SkillDefinition;
                 string displayName = GetSkillDisplayName(skillDefinition, skillId);
                 string iconKey = GetSkillIconKey(skillDefinition, skillId);
                 Color accentColor = BuildSkillColor(iconKey, displayName);
@@ -692,13 +697,21 @@ public sealed class BattleHudAdapter : IDisposable
                     {
                         ["index"] = index,
                         ["is_empty"] = false,
+                        ["skill_entry_id"] = entry.EntryRef.SkillEntryId.ToString(),
+                        ["skill_id"] = skillId.ToString(),
+                        ["source_kind"] = FormatSkillEntrySourceKind(entry.EntryRef.SourceKind),
+                        ["source_label_key"] = FormatSkillEntrySourceLabelKey(entry.EntryRef.SourceKind),
+                        ["skill_level"] = entry.SkillLevel,
+                        ["is_battle_only"] =
+                            entry.EntryRef.SourceKind != BattleSkillEntrySourceKind.KnownSkill,
+                        ["suppressed_source_keys"] = ToUntypedStringNameArray(entry.SuppressedSourceKeys),
                         ["display_name"] = displayName,
                         ["short_name"] = BuildSkillShortName(displayName),
                         ["description"] = description,
                         ["icon_key"] = iconKey,
                         ["hotkey"] = index < 9 ? (index + 1).ToString() : "",
                         ["footer_text"] = DictString(slotState, "footer_text"),
-                        ["is_selected"] = skillId == selectedSkillId,
+                        ["is_selected"] = entry.EntryRef.SkillEntryId == selectedSkillEntryId,
                         ["is_disabled"] = DictBool(slotState, "is_disabled"),
                         ["accent_color"] = accentColor,
                         ["accent_dark"] = accentColor.Darkened(0.48f),
@@ -713,6 +726,40 @@ public sealed class BattleHudAdapter : IDisposable
         for (int index = skillSlots.Count; index < SKILL_GRID_SIZE; index++)
             skillSlots.Add(new GDictionary { ["index"] = index, ["is_empty"] = true });
         return skillSlots;
+    }
+
+    private BattleSkillAvailabilityView BuildSkillAvailabilityView(BattleUnitState activeUnit)
+    {
+        BattleSkillAvailabilityService service = new(GetSkillCatalog(), GetSkillDefinitions());
+        return service.BuildView(
+            new BattleSkillAvailabilityQuery
+            {
+                User = activeUnit,
+                Consumer = BattleSkillAvailabilityConsumer.Hud,
+            }
+        );
+    }
+
+    private static string FormatSkillEntrySourceKind(BattleSkillEntrySourceKind sourceKind)
+    {
+        return sourceKind switch
+        {
+            BattleSkillEntrySourceKind.KnownSkill => "known_skill",
+            BattleSkillEntrySourceKind.EquipmentSkill => "equipment_skill",
+            BattleSkillEntrySourceKind.ScopedAutoCast => "scoped_auto_cast",
+            _ => "",
+        };
+    }
+
+    private static string FormatSkillEntrySourceLabelKey(BattleSkillEntrySourceKind sourceKind)
+    {
+        return sourceKind switch
+        {
+            BattleSkillEntrySourceKind.KnownSkill => "skill_source.known",
+            BattleSkillEntrySourceKind.EquipmentSkill => "skill_source.equipment",
+            BattleSkillEntrySourceKind.ScopedAutoCast => "skill_source.scoped_auto_cast",
+            _ => "",
+        };
     }
 
     private GDictionary BuildEquipmentPanelSnapshot(
@@ -2198,6 +2245,17 @@ public sealed class BattleHudAdapter : IDisposable
     }
 
     private static GArray ToUntypedStringNameArray(GStringNameArray source)
+    {
+        var result = new GArray();
+        if (source == null)
+            return result;
+        foreach (StringName id in source)
+            if (!IsEmpty(id))
+                result.Add(id);
+        return result;
+    }
+
+    private static GArray ToUntypedStringNameArray(IEnumerable<StringName> source)
     {
         var result = new GArray();
         if (source == null)

@@ -817,7 +817,8 @@ public sealed class GameRuntimeSnapshotBuilder
             _runtime.GetSelectedBattleSkillTargetUnitIds(),
             _runtime.GetSelectedBattleSkillVariantId(),
             _runtime.GetActiveBattleEncounterName(),
-            _runtime.GetSelectedBattleSkillPreview()
+            _runtime.GetSelectedBattleSkillPreview(),
+            _runtime.GetSelectedBattleSkillEntryId()
         );
 
         var units = new Godot.Collections.Array();

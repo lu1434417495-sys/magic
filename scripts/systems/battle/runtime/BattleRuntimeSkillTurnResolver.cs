@@ -240,6 +240,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
             BattleCommand command = NewBattleCommand();
             command.CommandKind = BattleCommandKind.Skill;
             command.unit_id = activeUnit.unit_id;
+            command.skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId);
             command.skill_id = skillId;
             command.target_unit_id = targetUnit.unit_id;
             command.target_coord = targetUnit.coord;
