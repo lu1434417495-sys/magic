@@ -23,7 +23,9 @@
 │  └─ 接取方式: 查看详情后接取                                    │
 │                                                                 │
 │  层级3: NPC剧情任务 (NPC Quest Giver)                            │
-│  ├─ provider_id: npc_<npc_id>                                   │
+│  ├─ provider_kind: "npc"                                        │
+│  ├─ provider_interaction_id: npc_<npc_id>                       │
+│  ├─ listing_channels: ["npc_offer"]                             │
 │  ├─ 任务特征: 不可重复、强剧情、有抉择分支、有接取对话          │
 │  ├─ 展示方式: 世界地图/战斗地图内的NPC，靠近交互               │
 │  └─ 接取方式: 交互→对话面板→条件检查→确认→接取               │
@@ -107,10 +109,12 @@
 5. 若任务含不可逆抉择，弹出 `accept_confirmation_text` 确认
 6. 接取后NPC可能消失、改变位置、或记住你的选择
 
-### 3.2 Provider ID 命名规范
+### 3.2 NPC Provider 配置规范
 
 ```
-npc_<npc_id>
+provider_kind = "npc"
+provider_interaction_id = "npc_<npc_id>"
+listing_channels = ["npc_offer"]
 ```
 
 `npc_id` 与 `interaction_script_id` 共用同一命名空间。例如：
@@ -120,7 +124,7 @@ npc_<npc_id>
 - `npc_dragon_cultist` — 龙巫教徒
 - `npc_fallen_angel` — 堕落天使
 
-**注册方式**：在 `QuestProviderContentRules.SUPPORTED_PROVIDER_IDS` 中动态注册，或通过 `tags` 中的 `"npc_quest"` 标签自动识别。
+**注册方式**：NPC provider **不**加入 `QuestProviderContentRules.SUPPORTED_PROVIDER_IDS()`。 settlement dispatch 在 generic service-provider 分支之前执行独立的 `_try_open_npc_quest_offer(...)` 分支，匹配 `provider_kind == "npc"`、`provider_interaction_id` 与当前 `interaction_script_id`、且 `listing_channels` 包含 `"npc_offer"` 的任务。
 
 ### 3.3 NPC 在世界中的存在方式
 
@@ -132,9 +136,9 @@ npc_<npc_id>
 | 隐藏NPC | 需要特定物品/条件才能看到 | 只有持有 `dead_road_lantern` 才能看到的幽灵 |
 | 随机遭遇NPC | 世界地图移动时概率出现 | 迷路的商人、逃兵 |
 
-### 3.4 NPC 任务板的 UI 差异
+### 3.4 NPC 任务面板的 UI 差异
 
-与城镇告示板不同，NPC任务交互是**一对一**的：
+NPC 委托使用独立的 `NpcQuestOfferDialog` 场景（`scripts/ui/NpcQuestOfferDialog.cs`），与城镇告示板不同，NPC 任务交互是**一对一**的：
 
 ```
 ┌─────────────────────────────────────┐
@@ -378,7 +382,7 @@ bool ShouldShowOnContractBoard(QuestDef quest)
 bool IsNpcQuest(QuestDef quest)
 {
     return !quest.is_repeatable
-        && (quest.provider_interaction_id.StartsWith("npc_")
+        && (quest.provider_kind == "npc"
             || quest.tags.Contains("npc_quest")
             || quest.tags.Contains("main_story")
             || quest.accept_confirmation_text != "");

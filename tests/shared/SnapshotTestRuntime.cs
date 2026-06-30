@@ -9,6 +9,7 @@ public sealed class SnapshotTestRuntime : IGameRuntimeSnapshotSource
     public PartyState PartyState { get; set; }
     public RuntimeModalKind ActiveModalKind { get; set; } = RuntimeModalKind.None;
     public GDictionary ContractBoardWindowData { get; set; } = new();
+    public GDictionary NpcQuestOfferWindowData { get; set; } = new();
     public GDictionary ForgeWindowData { get; set; } = new();
     public GDictionary ActiveShopContext { get; set; } = new();
     public GDictionary WarehouseWindowData { get; set; } = new();
@@ -93,6 +94,12 @@ public sealed class SnapshotTestRuntime : IGameRuntimeSnapshotSource
 
     public GDictionary GetActiveContractBoardContext() =>
         ContractBoardWindowData.Duplicate(true);
+
+    public GDictionary GetNpcQuestOfferWindowData() =>
+        NpcQuestOfferWindowData.Duplicate(true);
+
+    public GDictionary GetActiveNpcQuestOfferContext() =>
+        NpcQuestOfferWindowData.Duplicate(true);
 
     public GDictionary GetActiveShopContext() => ActiveShopContext.Duplicate(true);
 

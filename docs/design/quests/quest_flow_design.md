@@ -22,7 +22,7 @@
 - **状态流转**：`inactive → active → completed → rewarded`（或 `failed`）
 - **任务来源**：`provider_interaction_id` 绑定到 NPC 服务功能
 
-> **注意**：当前系统仅有 `service_contract_board`（委托板）和 `service_bounty_registry`（悬赏登记处）两个合法 provider。若要让灰烬交界的特殊 NPC（如余火守望者、灰烬铁匠）发布任务，需先扩展 `QuestProviderContentRules.SUPPORTED_PROVIDER_IDS`。
+> **注意**：当前合法 `provider_kind` 包括 `service_contract_board`（委托板）、`service_bounty_registry`（悬赏登记处）和 `npc`（NPC 委托）。任务显示渠道由 `listing_channels` 决定（`contract_board` / `bounty_registry` / `npc_offer`）。`npc` provider **不**加入 `QuestProviderContentRules.SUPPORTED_PROVIDER_IDS`；NPC 委托在 settlement dispatch 中由独立分支处理。
 
 ### 1.3 设计原则
 

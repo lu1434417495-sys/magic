@@ -16,7 +16,6 @@ public partial class RuntimeLogDock : PanelContainer
 
     private const int PanelCornerRadius = 4;
     private const int PanelBorderWidth = 1;
-    private const float LogScrollFollowThreshold = 18.0f;
     private const float LockedPanelWidth = 412.0f;
     private const float DesignPanelHeight = 600.0f;
     private const float CollapsedPanelHeight = 56.0f;
@@ -294,22 +293,25 @@ public partial class RuntimeLogDock : PanelContainer
     {
         title_label.Text = title_text;
         meta_label.Text = meta_text;
-        bool shouldFollowTail = _should_follow_tail();
         int entryCount = display_entries.Count;
         string lastEntryKey = _get_last_entry_key(display_entries);
+        bool changed = false;
 
         if (source_id != _feed_source_id)
         {
             _reset_feed(source_id);
             _rebuild_feed(display_entries, empty_text);
+            changed = true;
         }
         else if (entryCount < _feed_entry_count)
         {
             _rebuild_feed(display_entries, empty_text);
+            changed = true;
         }
         else if (entryCount == _feed_entry_count && lastEntryKey != _feed_last_entry_key)
         {
             _rebuild_feed(display_entries, empty_text);
+            changed = true;
         }
         else if (entryCount > _feed_entry_count)
         {
@@ -317,9 +319,13 @@ public partial class RuntimeLogDock : PanelContainer
                 _append_line(display_entries[index].Text);
             _feed_entry_count = entryCount;
             _feed_last_entry_key = lastEntryKey;
+            changed = true;
         }
 
-        if (shouldFollowTail && (source_id != _feed_source_id || entryCount > 0))
+        // 用户要求日志框始终展示最新信息。旧的 follow-tail 判定靠滚动条位置推断,
+        // 内容一超出可视区就恒判为"不跟随",新条目堆在折叠线以下、视图停在顶部。
+        // 改为:只要内容有变化就滚到底,确保最新一条始终可见。
+        if (changed && entryCount > 0)
             CallDeferred(MethodName._scroll_to_bottom);
     }
 
@@ -402,16 +408,6 @@ public partial class RuntimeLogDock : PanelContainer
     private static string _build_default_battle_meta_text()
     {
         return $"上限 {BattleState.LogEntryLimit} 条 / {BattleState.LogTextByteLimit / (1024 * 1024)} MiB";
-    }
-
-    private bool _should_follow_tail()
-    {
-        if (log_output == null)
-            return false;
-        VScrollBar scrollBar = log_output.GetVScrollBar();
-        if (scrollBar == null)
-            return true;
-        return scrollBar.MaxValue - scrollBar.Value <= LogScrollFollowThreshold;
     }
 
     private void _scroll_to_bottom()

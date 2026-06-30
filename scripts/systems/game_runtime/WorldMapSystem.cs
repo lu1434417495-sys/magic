@@ -46,6 +46,8 @@ public partial class WorldMapSystem : Control
     public ShopWindow shop_service_modal;
     public ShopWindow forge_service_modal;
     public ShopWindow stagecoach_service_modal;
+    // Dedicated modal for NPC quest offers; driven by RuntimeModalKind.NpcQuestOffer.
+    public NpcQuestOfferDialog npc_quest_offer_dialog;
     public CharacterInfoWindow character_info_window;
     public PartyManagementWindow party_management_window;
     public ContingencySetupWindow contingency_setup_window;
@@ -156,6 +158,7 @@ public partial class WorldMapSystem : Control
         SuppressGodotFinalizer(shop_service_modal);
         SuppressGodotFinalizer(forge_service_modal);
         SuppressGodotFinalizer(stagecoach_service_modal);
+        SuppressGodotFinalizer(npc_quest_offer_dialog);
         SuppressGodotFinalizer(character_info_window);
         SuppressGodotFinalizer(party_management_window);
         SuppressGodotFinalizer(contingency_setup_window);
@@ -232,7 +235,11 @@ public partial class WorldMapSystem : Control
     {
         if (_runtime == null)
             return;
-        WorldRuntimeViewModel worldViewModel = _runtime_proxy.GetWorldRuntimeViewModel();
+        // nearbyLimit:0 — RenderFromRuntime only reads status/coords/modal from the
+        // view model, never NearbyEncounters/NearbyWorldEvents (those feed the text
+        // snapshot via a separate path). Passing 0 skips an O(all anchors) scan+sort
+        // that otherwise ran on every render of both world and battle maps.
+        WorldRuntimeViewModel worldViewModel = _runtime_proxy.GetWorldRuntimeViewModel(0);
         // 裸节点（未进场景树、UI 子节点未装配）上的渲染是 no-op；
         // headless 测试经 proxy 自动渲染时不应 NRE 吞掉 Quit。
         if (world_map_view == null || battle_map_panel == null)
@@ -312,7 +319,7 @@ public partial class WorldMapSystem : Control
             battle_map_panel.HideBattle();
             _set_battle_loading_overlay(modalId == BATTLE_LOADING_MODAL_ID, 0.0f);
             if (refresh_world)
-                world_map_view.RefreshWorld(_runtime_proxy.GetWorldData());
+                world_map_view.RefreshWorld(_runtime_proxy.GetWorldRuntimeData());
             world_map_view.SetRuntimeState(
                 worldViewModel.PlayerCoord,
                 worldViewModel.SelectedCoord,
@@ -778,6 +785,22 @@ public partial class WorldMapSystem : Control
             _runtime_proxy.CommandCloseActiveModal();
     }
 
+    public void _on_npc_quest_offer_dialog_action_requested(
+        string settlement_id,
+        string action_id,
+        GDictionary payload
+    )
+    {
+        if (_runtime != null)
+            _runtime_proxy.CommandExecuteSettlementAction(action_id, payload);
+    }
+
+    public void _on_npc_quest_offer_dialog_closed()
+    {
+        if (_runtime != null)
+            _runtime_proxy.CommandCloseActiveModal();
+    }
+
     public void _on_shop_service_modal_action_requested(
         string _settlement_id,
         string _action_id,
@@ -1090,6 +1113,7 @@ public partial class WorldMapSystem : Control
         shop_service_modal = GetNode<ShopWindow>("ShopServiceModal");
         forge_service_modal = GetNode<ShopWindow>("ForgeServiceModal");
         stagecoach_service_modal = GetNode<ShopWindow>("StagecoachServiceModal");
+        npc_quest_offer_dialog = GetNode<NpcQuestOfferDialog>("NpcQuestOfferDialog");
         character_info_window = GetNode<CharacterInfoWindow>("CharacterInfoWindow");
         party_management_window = GetNode<PartyManagementWindow>("PartyManagementWindow");
         contingency_setup_window = GetNodeOrNull<ContingencySetupWindow>("ContingencySetupWindow");
@@ -1126,6 +1150,8 @@ public partial class WorldMapSystem : Control
         forge_service_modal.closed += _on_forge_service_modal_closed;
         stagecoach_service_modal.action_requested += _on_stagecoach_service_modal_action_requested;
         stagecoach_service_modal.closed += _on_stagecoach_service_modal_closed;
+        npc_quest_offer_dialog.action_requested += _on_npc_quest_offer_dialog_action_requested;
+        npc_quest_offer_dialog.closed += _on_npc_quest_offer_dialog_closed;
         character_info_window.closed += _on_character_info_window_closed;
         party_management_window.leader_change_requested += _on_party_leader_change_requested;
         party_management_window.roster_change_requested += _on_party_roster_change_requested;
@@ -1192,6 +1218,11 @@ public partial class WorldMapSystem : Control
         {
             stagecoach_service_modal.action_requested -= _on_stagecoach_service_modal_action_requested;
             stagecoach_service_modal.closed -= _on_stagecoach_service_modal_closed;
+        }
+        if (npc_quest_offer_dialog != null)
+        {
+            npc_quest_offer_dialog.action_requested -= _on_npc_quest_offer_dialog_action_requested;
+            npc_quest_offer_dialog.closed -= _on_npc_quest_offer_dialog_closed;
         }
         if (character_info_window != null)
             character_info_window.closed -= _on_character_info_window_closed;
@@ -1261,6 +1292,7 @@ public partial class WorldMapSystem : Control
         shop_service_modal = null;
         forge_service_modal = null;
         stagecoach_service_modal = null;
+        npc_quest_offer_dialog = null;
         character_info_window = null;
         party_management_window = null;
         contingency_setup_window = null;
@@ -1307,6 +1339,11 @@ public partial class WorldMapSystem : Control
             stagecoach_service_modal.ShowStagecoach(_runtime_proxy.GetStagecoachWindowData());
         else
             stagecoach_service_modal.HideWindow();
+        // NPC quest offer modal lifecycle is tied to RuntimeModalKind.NpcQuestOffer.
+        if (modalId == "npc_quest_offer")
+            npc_quest_offer_dialog.ShowDialog(_runtime_proxy.GetNpcQuestOfferWindowDataTyped());
+        else
+            npc_quest_offer_dialog.HideDialog();
         if (modalId == "character_info")
             character_info_window.ShowCharacter(_runtime_proxy.GetCharacterInfoContext());
         else

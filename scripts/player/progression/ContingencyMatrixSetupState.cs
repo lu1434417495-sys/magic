@@ -47,7 +47,63 @@ public class ContingencyMatrixSetupState
     public IReadOnlyList<ContingencyStoredSpellEntryState> StoredSpells => _storedSpells;
     public IReadOnlyList<ContingencyMaterialCostState> MaterialCosts => _materialCosts;
 
-    public ContingencyMatrixSetupState DuplicateState() => FromDictionary(ToDictionary());
+    internal ContingencyMatrixSetupState WithChargeState(
+        bool charged,
+        int reservedMpMax,
+        IReadOnlyList<ContingencyMaterialCostState> materialCosts
+    )
+    {
+        if (!Enabled && charged)
+            return null;
+        if (!charged && reservedMpMax != 0)
+            return null;
+        if (charged && reservedMpMax <= 0)
+            return null;
+
+        var costCopies = new List<ContingencyMaterialCostState>();
+        foreach (
+            ContingencyMaterialCostState cost in materialCosts
+                ?? System.Array.Empty<ContingencyMaterialCostState>()
+        )
+        {
+            ContingencyMaterialCostState copy = cost?.DuplicateState();
+            if (copy == null)
+                return null;
+            costCopies.Add(copy);
+        }
+        if (!charged && costCopies.Count != 0)
+            return null;
+
+        ContingencyMatrixSetupState state = DuplicateState();
+        state.Charged = charged;
+        state.ReservedMpMax = reservedMpMax;
+        state._materialCosts.Clear();
+        state._materialCosts.AddRange(costCopies);
+        return state;
+    }
+
+    public ContingencyMatrixSetupState DuplicateState()
+    {
+        var state = new ContingencyMatrixSetupState
+        {
+            SetupId = SetupId,
+            DisplayName = DisplayName,
+            Enabled = Enabled,
+            Charged = Charged,
+            SourceSkillId = SourceSkillId,
+            SourceSkillLevel = SourceSkillLevel,
+            MatrixLoad = MatrixLoad,
+            ReservedMpMax = ReservedMpMax,
+            Trigger = Trigger?.DuplicateState(),
+            ReleaseModeKind = ReleaseModeKind,
+            ReleaseMode = ReleaseMode,
+        };
+        foreach (ContingencyMaterialCostState cost in _materialCosts)
+            state._materialCosts.Add(cost?.DuplicateState());
+        foreach (ContingencyStoredSpellEntryState spell in _storedSpells)
+            state._storedSpells.Add(spell?.DuplicateState());
+        return state;
+    }
 
     public GDictionary ToDictionary()
     {

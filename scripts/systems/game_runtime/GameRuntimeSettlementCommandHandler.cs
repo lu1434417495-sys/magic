@@ -240,6 +240,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             new(StringComparer.Ordinal);
         private readonly Dictionary<string, object> _activeStagecoachContext =
             new(StringComparer.Ordinal);
+        private NpcQuestOfferWindowData _activeNpcQuestOfferContext;
         public RuntimeTransactionRollbackState RuntimeState { get; }
         public RuntimeModalKind ActiveModalKind { get; }
         public string ActiveSettlementId { get; }
@@ -268,6 +269,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                 _activeStagecoachContext,
                 "GameRuntimeSettlementCommandHandler.RollbackSnapshot.activeStagecoachContext"
             );
+        internal NpcQuestOfferWindowData ActiveNpcQuestOfferContext => _activeNpcQuestOfferContext;
 
         internal SettlementCommandRollbackSnapshot(
             RuntimeTransactionRollbackState runtimeState,
@@ -281,7 +283,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             GDictionary activeShopContext,
             GDictionary activeContractBoardContext,
             GDictionary activeForgeContext,
-            GDictionary activeStagecoachContext
+            GDictionary activeStagecoachContext,
+            NpcQuestOfferWindowData activeNpcQuestOfferContext
         )
         {
             RuntimeState = runtimeState;
@@ -312,6 +315,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                 activeStagecoachContext,
                 "GameRuntimeSettlementCommandHandler.RollbackSnapshot.activeStagecoachContext"
             );
+            _activeNpcQuestOfferContext = activeNpcQuestOfferContext;
         }
     }
 
@@ -464,15 +468,20 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     internal GDictionary GetNpcQuestOfferWindowData()
     {
-        GDictionary context = GetActiveNpcQuestOfferContext();
-        if (context.Count == 0)
+        NpcQuestOfferWindowData data = GetActiveNpcQuestOfferContextTyped();
+        if (data == null)
         {
             return new GDictionary();
         }
         return RuntimePayloadCopy.Dictionary(
-            context,
+            data.ToDictionary(),
             "GameRuntimeSettlementCommandHandler.GetNpcQuestOfferWindowData"
         );
+    }
+
+    internal NpcQuestOfferWindowData GetActiveNpcQuestOfferContextTyped()
+    {
+        return _has_runtime() ? Runtime.GetActiveNpcQuestOfferData() : null;
     }
 
     internal GDictionary GetForgeWindowData()
@@ -543,6 +552,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         if (
             source == SettlementSubmissionSource.ContractBoard
             || source == SettlementSubmissionSource.Forge
+            || source == SettlementSubmissionSource.NpcQuestOffer
         )
         {
             return CommandExecuteSettlementModalActionRuntimeTyped(action_id, payloadData);
@@ -552,7 +562,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             settlementId,
             action_id,
             payloadData,
-            SettlementSubmissionSource.None
+            source
         );
         return CommandExecuteSettlementActionRuntimeTyped(request);
     }
@@ -942,6 +952,18 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             UpdateStatus(warehouseMessage);
             return CommandOk(warehouseMessage);
         }
+        // NPC quest offer branch must run before the generic QuestProviderContentRules service-provider
+        // branch so that `provider_kind == "npc"` quests are handled by NpcQuestOfferDialog rather than
+        // swallowed by the contract-board modal. `npc` is intentionally absent from
+        // QuestProviderContentRules.SupportedProviderIds().
+        if (_try_open_npc_quest_offer(settlement_id, action_id, payload, out GDictionary npcResult))
+        {
+            return npcResult;
+        }
+        if (_is_npc_quest_offer_modal_submission(payload))
+        {
+            return _submit_npc_quest_offer_action(settlement_id, action_id, payload);
+        }
         if (QuestProviderContentRules.IsSupportedProviderId(interactionScriptId))
         {
             if (_is_contract_board_modal_submission(payload))
@@ -1036,6 +1058,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         ClearActiveShopContext();
         ClearActiveForgeContext();
         ClearActiveStagecoachContext();
+        ClearActiveNpcQuestOfferContext();
         SetActiveModalKind(RuntimeModalKind.None);
         UpdateStatus("已关闭据点窗口，返回世界地图。");
         PresentPendingRewardIfReady();
@@ -1053,6 +1076,13 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         ClearActiveContractBoardContext();
         SetActiveModalKind(RuntimeModalKind.Settlement);
         UpdateStatus("已关闭任务板，返回据点服务。");
+    }
+
+    internal void OnNpcQuestOfferWindowClosed()
+    {
+        ClearActiveNpcQuestOfferContext();
+        SetActiveModalKind(RuntimeModalKind.Settlement);
+        UpdateStatus("已关闭 NPC 委托面板，返回据点服务。");
     }
 
     internal void OnForgeWindowClosed()
@@ -1132,6 +1162,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         if (
             source != SettlementSubmissionSource.ContractBoard
             && source != SettlementSubmissionSource.Forge
+            && source != SettlementSubmissionSource.NpcQuestOffer
         )
         {
             return new GDictionary();
@@ -1155,6 +1186,11 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         else if (source == SettlementSubmissionSource.Forge)
         {
             CopyIfPresent(payload, overrides, "recipe_id");
+        }
+        else if (source == SettlementSubmissionSource.NpcQuestOffer)
+        {
+            CopyIfPresent(payload, overrides, "quest_id");
+            CopyIfPresent(payload, overrides, "confirm_accept");
         }
         return payload;
     }
@@ -1360,6 +1396,19 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             }
             return SettlementActionValidationResult.Success();
         }
+        if (_is_npc_quest_offer_modal_submission(payload))
+        {
+            if (GetActiveModalKind() != RuntimeModalKind.NpcQuestOffer)
+            {
+                return SettlementActionValidationResult.Failure("当前没有打开 NPC 委托面板。");
+            }
+            NpcQuestOfferWindowData npcContext = GetActiveNpcQuestOfferContextTyped();
+            if (npcContext == null || npcContext.SettlementId.Trim() != settlement_id)
+            {
+                return SettlementActionValidationResult.Failure("当前 NPC 委托面板与请求的据点不一致。");
+            }
+            return SettlementActionValidationResult.Success();
+        }
         if (GetActiveModalKind() != RuntimeModalKind.Settlement)
         {
             return SettlementActionValidationResult.Failure("当前没有打开对应的据点窗口。");
@@ -1391,7 +1440,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     private bool _settlement_action_requires_enabled_service(GDictionary payload)
     {
         return !_is_contract_board_modal_submission(payload)
-            && !_is_forge_modal_submission(payload);
+            && !_is_forge_modal_submission(payload)
+            && !_is_npc_quest_offer_modal_submission(payload);
     }
 
     private SettlementServiceEntryResolution ResolveSettlementServiceEntryTyped(
@@ -2265,6 +2315,102 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         };
     }
 
+    private bool _try_open_npc_quest_offer(
+        string settlement_id,
+        string action_id,
+        GDictionary payload,
+        out GDictionary result
+    )
+    {
+        result = new GDictionary();
+        if (_is_npc_quest_offer_modal_submission(payload))
+            return false;
+        string interactionScriptId = ReadString(payload, "interaction_script_id");
+        if (interactionScriptId == "")
+            return false;
+
+        var npcQuests = new List<QuestDef>();
+        foreach (QuestDef questDef in GetQuestDefsTyped().Values)
+        {
+            if (questDef.provider_kind != "npc")
+                continue;
+            if (questDef.provider_interaction_id != interactionScriptId)
+                continue;
+            if (!questDef.listing_channels.Contains("npc_offer"))
+                continue;
+            npcQuests.Add(questDef);
+        }
+
+        if (npcQuests.Count == 0)
+            return false;
+
+        NpcQuestOfferWindowData windowData = _build_npc_quest_offer_window_data(
+            settlement_id,
+            interactionScriptId,
+            npcQuests
+        );
+        SetActiveNpcQuestOfferContext(windowData);
+        SetActiveModalKind(RuntimeModalKind.NpcQuestOffer);
+        UpdateStatus($"已打开 {_resolve_npc_display_name(interactionScriptId)} 的委托。");
+        result = CommandOk($"已打开 {interactionScriptId} 的委托。");
+        return true;
+    }
+
+    private NpcQuestOfferWindowData _build_npc_quest_offer_window_data(
+        string settlement_id,
+        string npcInteractionId,
+        List<QuestDef> npcQuests
+    )
+    {
+        var windowData = new NpcQuestOfferWindowData
+        {
+            SettlementId = settlement_id,
+            ActionId = "",
+            NpcInteractionId = npcInteractionId,
+            NpcName = _resolve_npc_display_name(npcInteractionId),
+            SelectedQuestId = npcQuests[0].quest_id.ToString(),
+        };
+
+        foreach (QuestDef questDef in npcQuests)
+        {
+            ContractBoardQuestData questData = _build_contract_board_quest_data(questDef);
+            QuestAcceptAvailabilityResult availability = _quest_accept_evaluator.Evaluate(
+                questDef,
+                _build_quest_accept_context()
+            );
+            windowData.Entries.Add(
+                new NpcQuestOfferEntryData
+                {
+                    QuestId = questDef.quest_id.ToString(),
+                    DisplayName = questDef.display_name,
+                    Description = questDef.description,
+                    AcceptDialogueText = questDef.accept_dialogue_text,
+                    SummaryText = questData != null
+                        ? _build_contract_board_objective_summary(questData)
+                        : "",
+                    CostLabel = questData != null
+                        ? _build_contract_board_reward_label(questData.RewardEntries)
+                        : "奖励：无",
+                    IsEnabled = availability.CanAccept,
+                    DisabledReason = availability.DisabledReason,
+                    LockReasonId = availability.LockReasonId,
+                    AcceptFeedbackSuccess = questDef.accept_feedback_success,
+                    AcceptFeedbackFailure = questDef.accept_feedback_failure,
+                    AcceptConfirmationText = questDef.accept_confirmation_text,
+                }
+            );
+        }
+
+        return windowData;
+    }
+
+    private static string _resolve_npc_display_name(string npcInteractionId)
+    {
+        if (npcInteractionId.StartsWith("npc_"))
+            npcInteractionId = npcInteractionId.Substring(4);
+        return npcInteractionId.Replace("_", " ");
+    }
+
     private GDictArray _build_contract_board_entries(string interaction_script_id)
     {
         var entries = new GDictArray();
@@ -2346,7 +2492,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             ? listingChannels.Contains(QuestListingChannel.ContractBoard)
             : listingChannels.Contains(QuestListingChannel.BountyRegistry);
 
-        if (!matchesProviderKind && !matchesChannel)
+        if (!matchesProviderKind || !matchesChannel)
         {
             return new GDictionary();
         }
@@ -3208,7 +3354,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             GetActiveShopContext(),
             GetActiveContractBoardContext(),
             GetActiveForgeContext(),
-            GetActiveStagecoachContext()
+            GetActiveStagecoachContext(),
+            GetActiveNpcQuestOfferContextTyped()
         );
     }
 
@@ -3224,6 +3371,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         SetActiveContractBoardContext(snapshot.ActiveContractBoardContext);
         SetActiveForgeContext(snapshot.ActiveForgeContext);
         SetActiveStagecoachContext(snapshot.ActiveStagecoachContext);
+        if (snapshot.ActiveNpcQuestOfferContext != null)
+            SetActiveNpcQuestOfferContext(snapshot.ActiveNpcQuestOfferContext);
         if (snapshot.SettlementEntryActive)
             Runtime.SetSettlementEntryContext(
                 snapshot.SettlementEntrySourceCoord,
@@ -3883,6 +4032,217 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return state_id == "claimable" || state_id == "completed" || state_id == "repeatable";
     }
 
+    private bool _is_npc_quest_offer_modal_submission(GDictionary payload) =>
+        ReadString(payload, "submission_source") == "npc_quest_offer";
+
+    private sealed class NpcQuestOfferActionRequest
+    {
+        internal StringName QuestId { get; init; } = "";
+        internal bool ConfirmAccept { get; init; }
+
+        internal static bool TryParse(GDictionary payload, out NpcQuestOfferActionRequest request)
+        {
+            request = null;
+            if (payload == null)
+                return false;
+            StringName questId = ReadStringName(payload, "quest_id");
+            if (questId == "")
+                return false;
+            request = new NpcQuestOfferActionRequest
+            {
+                QuestId = questId,
+                ConfirmAccept = ReadBool(payload, "confirm_accept", false),
+            };
+            return true;
+        }
+    }
+
+    private GDictionary _submit_npc_quest_offer_action(
+        string settlement_id,
+        string action_id,
+        GDictionary payload
+    )
+    {
+        if (!_has_runtime())
+        {
+            return CommandError("运行时尚未初始化。");
+        }
+        if (GetActiveModalKind() != RuntimeModalKind.NpcQuestOffer)
+        {
+            string notOpenMessage = "当前没有打开 NPC 委托面板。";
+            UpdateStatus(notOpenMessage);
+            return CommandError(notOpenMessage);
+        }
+
+        if (!NpcQuestOfferActionRequest.TryParse(payload, out NpcQuestOfferActionRequest request))
+        {
+            string missingIdMessage = "NPC 委托提交缺少 quest_id。";
+            UpdateStatus(missingIdMessage);
+            return CommandError(missingIdMessage);
+        }
+
+        NpcQuestOfferWindowData npcContext = GetActiveNpcQuestOfferContextTyped();
+        if (npcContext == null || npcContext.SettlementId.Trim() != settlement_id)
+        {
+            string settlementMismatchMessage = "当前 NPC 委托面板与请求的据点不一致。";
+            UpdateStatus(settlementMismatchMessage);
+            return CommandError(settlementMismatchMessage);
+        }
+
+        StringName questId = request.QuestId;
+        QuestDef questDef = Runtime.GetQuestDef(questId);
+        if (questDef == null || questDef.provider_kind != "npc")
+        {
+            string notNpcMessage = "该任务不是 NPC 委托。";
+            UpdateStatus(notNpcMessage);
+            return CommandError(notNpcMessage);
+        }
+
+        if (questDef.provider_interaction_id != npcContext.NpcInteractionId)
+        {
+            string wrongNpcMessage = "该任务不属于当前 NPC。";
+            UpdateStatus(wrongNpcMessage);
+            return CommandError(wrongNpcMessage);
+        }
+
+        if (!questDef.listing_channels.Contains("npc_offer"))
+        {
+            string notOfferMessage = "该任务未配置为 NPC 委托。";
+            UpdateStatus(notOfferMessage);
+            return CommandError(notOfferMessage);
+        }
+
+        QuestAcceptAvailabilityResult availability = _quest_accept_evaluator.Evaluate(
+            questDef,
+            _build_quest_accept_context()
+        );
+
+        if (!availability.CanAccept)
+        {
+            string feedback = !string.IsNullOrEmpty(questDef.accept_feedback_failure)
+                ? questDef.accept_feedback_failure
+                : $"不满足接取条件：{availability.DisabledReason}";
+            _refresh_active_npc_quest_offer_context(feedback);
+            UpdateStatus(feedback);
+            return CommandError(feedback);
+        }
+
+        bool isConfirmationSubmission = request.ConfirmAccept;
+        bool hasPendingConfirmation = npcContext.PendingConfirmationQuestId == questId.ToString();
+
+        if (!string.IsNullOrEmpty(questDef.accept_confirmation_text))
+        {
+            if (!isConfirmationSubmission && !hasPendingConfirmation)
+            {
+                _set_npc_quest_offer_confirmation_context(
+                    questId,
+                    questDef.accept_confirmation_text
+                );
+                return CommandOk("请确认是否接受该委托。");
+            }
+
+            if (isConfirmationSubmission && !hasPendingConfirmation)
+            {
+                string bypassMessage = "该委托需要先在面板中确认。";
+                _refresh_active_npc_quest_offer_context(bypassMessage);
+                UpdateStatus(bypassMessage);
+                return CommandError(bypassMessage);
+            }
+
+            if (!isConfirmationSubmission && hasPendingConfirmation)
+            {
+                string pendingMessage = "请确认是否接受该委托。";
+                _refresh_active_npc_quest_offer_context(pendingMessage);
+                UpdateStatus(pendingMessage);
+                return CommandOk(pendingMessage);
+            }
+        }
+
+        if (hasPendingConfirmation)
+            _clear_npc_quest_offer_confirmation_context();
+
+        GameRuntimeFacade.RuntimeCommandResult commandResult = Runtime.CommandAcceptQuestTyped(
+            questId,
+            questDef.is_repeatable
+        );
+        if (!commandResult.Ok)
+        {
+            _refresh_active_npc_quest_offer_context(commandResult.Message);
+            UpdateStatus(commandResult.Message);
+            return CommandError(commandResult.Message);
+        }
+
+        string successFeedback = !string.IsNullOrEmpty(questDef.accept_feedback_success)
+            ? questDef.accept_feedback_success
+            : $"已接受委托 {questDef.display_name}。";
+        _refresh_active_npc_quest_offer_context(successFeedback);
+        UpdateStatus(successFeedback);
+        return CommandOk(successFeedback);
+    }
+
+    private void _refresh_active_npc_quest_offer_context(string feedback_text)
+    {
+        NpcQuestOfferWindowData context = GetActiveNpcQuestOfferContextTyped();
+        if (context == null)
+            return;
+
+        string settlementId = context.SettlementId;
+        string npcInteractionId = context.NpcInteractionId;
+        var npcQuests = new List<QuestDef>();
+        foreach (QuestDef questDef in GetQuestDefsTyped().Values)
+        {
+            if (questDef.provider_kind != "npc")
+                continue;
+            if (questDef.provider_interaction_id != npcInteractionId)
+                continue;
+            if (!questDef.listing_channels.Contains("npc_offer"))
+                continue;
+            npcQuests.Add(questDef);
+        }
+
+        if (npcQuests.Count == 0)
+            return;
+
+        NpcQuestOfferWindowData refreshed = _build_npc_quest_offer_window_data(
+            settlementId,
+            npcInteractionId,
+            npcQuests
+        );
+        refreshed.FeedbackText = feedback_text;
+        refreshed.SelectedQuestId = context.SelectedQuestId;
+        if (!npcQuests.Exists(q => q.quest_id.ToString() == refreshed.SelectedQuestId))
+            refreshed.SelectedQuestId = npcQuests[0].quest_id.ToString();
+        refreshed.PendingConfirmationQuestId = context.PendingConfirmationQuestId;
+        refreshed.PendingConfirmationText = context.PendingConfirmationText;
+        refreshed.PendingConfirmationSource = context.PendingConfirmationSource;
+        SetActiveNpcQuestOfferContext(refreshed);
+    }
+
+    private void _set_npc_quest_offer_confirmation_context(
+        StringName questId,
+        string confirmationText
+    )
+    {
+        NpcQuestOfferWindowData context = GetActiveNpcQuestOfferContextTyped();
+        if (context == null)
+            return;
+        context.PendingConfirmationQuestId = questId.ToString();
+        context.PendingConfirmationText = confirmationText;
+        context.PendingConfirmationSource = "npc_quest_offer";
+        SetActiveNpcQuestOfferContext(context);
+    }
+
+    private void _clear_npc_quest_offer_confirmation_context()
+    {
+        NpcQuestOfferWindowData context = GetActiveNpcQuestOfferContextTyped();
+        if (context == null)
+            return;
+        context.PendingConfirmationQuestId = "";
+        context.PendingConfirmationText = "";
+        context.PendingConfirmationSource = "";
+        SetActiveNpcQuestOfferContext(context);
+    }
+
     private bool _is_forge_interaction(string interaction_script_id)
     {
         return _forge_service != null
@@ -4112,6 +4472,14 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         }
     }
 
+    internal void SetActiveNpcQuestOfferContext(NpcQuestOfferWindowData data)
+    {
+        if (_has_runtime())
+        {
+            Runtime.SetActiveNpcQuestOfferContext(data);
+        }
+    }
+
     internal void SetActiveForgeContext(GDictionary context)
     {
         if (_has_runtime())
@@ -4133,6 +4501,14 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         if (_has_runtime())
         {
             Runtime.ClearActiveContractBoardContext();
+        }
+    }
+
+    internal void ClearActiveNpcQuestOfferContext()
+    {
+        if (_has_runtime())
+        {
+            Runtime.ClearActiveNpcQuestOfferContext();
         }
     }
 

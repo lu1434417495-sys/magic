@@ -59,16 +59,25 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private GStringArray _validationErrors = new();
     private readonly List<string> _questRegistrationErrors = new();
     private bool _disposed;
+    private bool _typedIndexesDirty = true;
 
     public GDictionary _skill_defs
     {
         get => _skillDefs;
-        set => _skillDefs = RegisterDefinitionBucket(value, "_skill_defs.set");
+        set
+        {
+            _skillDefs = RegisterDefinitionBucket(value, "_skill_defs.set");
+            _typedIndexesDirty = true;
+        }
     }
     public GDictionary _profession_defs
     {
         get => _professionDefs;
-        set => _professionDefs = RegisterDefinitionBucket(value, "_profession_defs.set");
+        set
+        {
+            _professionDefs = RegisterDefinitionBucket(value, "_profession_defs.set");
+            _typedIndexesDirty = true;
+        }
     }
     public GDictionary _achievement_defs
     {
@@ -76,6 +85,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         set
         {
             _achievementDefs = RegisterDefinitionBucket(value, "_achievement_defs.set");
+            _typedIndexesDirty = true;
             SyncTypedDefinitionIndexes();
         }
     }
@@ -85,6 +95,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         set
         {
             _questDefs = RegisterDefinitionBucket(value, "_quest_defs.set");
+            _typedIndexesDirty = true;
             SyncTypedDefinitionIndexes();
         }
     }
@@ -94,6 +105,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         set
         {
             _raceDefs = RegisterDefinitionBucket(value, "_race_defs.set");
+            _typedIndexesDirty = true;
             SyncTypedDefinitionIndexes();
         }
     }
@@ -103,6 +115,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         set
         {
             _subraceDefs = RegisterDefinitionBucket(value, "_subrace_defs.set");
+            _typedIndexesDirty = true;
             SyncTypedDefinitionIndexes();
         }
     }
@@ -112,6 +125,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         set
         {
             _traitDefs = RegisterDefinitionBucket(value, "_trait_defs.set");
+            _typedIndexesDirty = true;
             SyncTypedDefinitionIndexes();
         }
     }
@@ -121,6 +135,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         set
         {
             _ageProfileDefs = RegisterDefinitionBucket(value, "_age_profile_defs.set");
+            _typedIndexesDirty = true;
             SyncTypedDefinitionIndexes();
         }
     }
@@ -130,6 +145,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         set
         {
             _bloodlineDefs = RegisterDefinitionBucket(value, "_bloodline_defs.set");
+            _typedIndexesDirty = true;
             SyncTypedDefinitionIndexes();
         }
     }
@@ -139,6 +155,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         set
         {
             _bloodlineStageDefs = RegisterDefinitionBucket(value, "_bloodline_stage_defs.set");
+            _typedIndexesDirty = true;
             SyncTypedDefinitionIndexes();
         }
     }
@@ -148,6 +165,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         set
         {
             _ascensionDefs = RegisterDefinitionBucket(value, "_ascension_defs.set");
+            _typedIndexesDirty = true;
             SyncTypedDefinitionIndexes();
         }
     }
@@ -157,6 +175,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         set
         {
             _ascensionStageDefs = RegisterDefinitionBucket(value, "_ascension_stage_defs.set");
+            _typedIndexesDirty = true;
             SyncTypedDefinitionIndexes();
         }
     }
@@ -166,6 +185,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         set
         {
             _stageAdvancementDefs = RegisterDefinitionBucket(value, "_stage_advancement_defs.set");
+            _typedIndexesDirty = true;
             SyncTypedDefinitionIndexes();
         }
     }
@@ -459,6 +479,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             GetDictionary(sources, "stage_advancement_defs"),
             "stage_advancement_defs"
         );
+        _typedIndexesDirty = true;
         SyncTypedDefinitionIndexes();
     }
 
@@ -638,6 +659,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         _ascensionStageDefIndex.Clear();
         _stageAdvancementDefIndex.Clear();
         _validationErrors.Clear();
+        _typedIndexesDirty = true;
     }
 
     private void _register_seed_achievements()
@@ -996,6 +1018,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         }
         _achievementDefs[achievementDef.achievement_id] = achievementDef.ToDictionary();
         _achievementDefIndex[achievementDef.achievement_id] = achievementDef;
+        _typedIndexesDirty = true;
     }
 
     private void _register_quest(QuestDef questDef)
@@ -1013,6 +1036,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
 
         _questDefs[questDef.quest_id] = questDef;
         _questDefIndex[questDef.quest_id] = questDef;
+        _typedIndexesDirty = true;
     }
 
     private void _append_race_phase2_errors(List<string> errors, StringName raceId, RaceDef raceDef)
@@ -2137,6 +2161,11 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
 
     private void SyncTypedDefinitionIndexes()
     {
+        if (!_typedIndexesDirty)
+        {
+            return;
+        }
+        _typedIndexesDirty = false;
         _skillDefinitionIndex.Clear();
         foreach (
             (StringName skillId, SkillDefinition skillDefinition) in SkillDefinition.ProjectIndex(

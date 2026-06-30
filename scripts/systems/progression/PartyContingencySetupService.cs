@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 public sealed class PartyContingencySetupService
@@ -62,7 +61,7 @@ public sealed class PartyContingencySetupService
             setup,
             charged: false,
             reservedMpMax: 0,
-            MaterialCostsArray(Array.Empty<ContingencyMaterialCostState>())
+            Array.Empty<ContingencyMaterialCostState>()
         );
         if (uncharged == null)
             return Fail("invalid_setup", normalizedMemberId, setup.SetupId);
@@ -101,7 +100,7 @@ public sealed class PartyContingencySetupService
             setup,
             charged: true,
             reservedMpMax,
-            MaterialCostsArray(costs)
+            costs
         );
         if (chargedCandidate == null)
             return Fail("invalid_setup", normalizedMemberId, normalizedSetupId);
@@ -192,7 +191,7 @@ public sealed class PartyContingencySetupService
             setup,
             charged: false,
             reservedMpMax: 0,
-            MaterialCostsArray(Array.Empty<ContingencyMaterialCostState>())
+            Array.Empty<ContingencyMaterialCostState>()
         );
         if (cleared == null)
             return Fail("invalid_setup", normalizedMemberId, normalizedSetupId);
@@ -318,16 +317,14 @@ public sealed class PartyContingencySetupService
         ContingencyMatrixSetupState setup,
         bool charged,
         int reservedMpMax,
-        GArray materialCosts
+        IReadOnlyList<ContingencyMaterialCostState> materialCosts
     )
     {
-        GDictionary payload = setup?.ToDictionary();
-        if (payload == null)
-            return null;
-        payload["charged"] = charged;
-        payload["reserved_mp_max"] = Mathf.Max(reservedMpMax, 0);
-        payload["material_costs"] = materialCosts ?? new GArray();
-        return ContingencyMatrixSetupState.FromDictionary(payload);
+        return setup?.WithChargeState(
+            charged,
+            Mathf.Max(reservedMpMax, 0),
+            materialCosts ?? Array.Empty<ContingencyMaterialCostState>()
+        );
     }
 
     private static List<ContingencyMaterialCostState> BuildChargeCosts() =>
@@ -344,15 +341,6 @@ public sealed class PartyContingencySetupService
         foreach (ContingencyMaterialCostState cost in costs ?? Array.Empty<ContingencyMaterialCostState>())
             if (cost != null)
                 result.Add(new WarehouseBatchQuantityEntry(cost.ItemId, cost.Quantity));
-        return result;
-    }
-
-    private static GArray MaterialCostsArray(IReadOnlyList<ContingencyMaterialCostState> costs)
-    {
-        GArray result = new();
-        foreach (ContingencyMaterialCostState cost in costs ?? Array.Empty<ContingencyMaterialCostState>())
-            if (cost != null)
-                result.Add(cost.ToDictionary());
         return result;
     }
 

@@ -25,6 +25,11 @@ public class BattleBoardController
     private const int OVERLAY_LAYER_Z_OFFSET = 6;
     private const int MARKER_LAYER_Z_OFFSET = OVERLAY_LAYER_Z_OFFSET + 1;
     private const int DYNAMIC_LAYER_Z_OFFSET = MARKER_LAYER_Z_OFFSET + 1;
+
+    // 单位身上的信息层(血条、名字)用"绝对 z"(ZAsRelative=false)钉到固定高层。
+    // token 在 y_sort 的 UnitLayer 里,相对 z 会被 y-sort 扁平化吃掉(Control 子节点尤甚),
+    // 导致血条被自己/邻近单位的贴图盖住;绝对 z 直接跳到所有贴图之上、仅低于目标高亮(1300)。
+    private const int UNIT_OVERLAY_ABSOLUTE_Z = 1200;
     private const int PROP_LAYER_Z = 0;
     private const int UNIT_LAYER_Z = 0;
     private const int TARGET_HIGHLIGHT_LAYER_Z = 1300;
@@ -38,6 +43,9 @@ public class BattleBoardController
     private const int UNIT_SPRITE_ELLIPSE_SEGMENT_COUNT = 28;
     private static readonly Vector2 UNIT_HEALTH_BAR_SIZE = new(56.0f, 14.0f);
     private const float UNIT_HEALTH_BAR_Y_OFFSET = -50.0f;
+
+    // 贴图单位的血条要落在贴图实际顶部之上(贴图很高,固定 -50 会压在身体中部)。
+    private const float UNIT_SPRITE_OVERLAY_GAP = 4.0f;
     private static readonly Color UNIT_HEALTH_BAR_BG_COLOR = new(0.14f, 0.09f, 0.06f, 0.92f);
     private static readonly Color UNIT_HEALTH_BAR_BORDER_COLOR = new(0.95f, 0.91f, 0.8f, 0.9f);
     private static readonly Color UNIT_HEALTH_BAR_HIGH_COLOR = new(0.3f, 0.86f, 0.42f, 0.96f);
@@ -545,6 +553,8 @@ public class BattleBoardController
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
             MouseFilter = Control.MouseFilterEnum.Ignore,
+            ZIndex = UNIT_OVERLAY_ABSOLUTE_Z,
+            ZAsRelative = false,
         };
         label.AddThemeFontSizeOverride("font_size", 15);
         label.AddThemeColorOverride("font_color", new Color(0.98f, 0.96f, 0.9f, 0.98f));
@@ -554,7 +564,19 @@ public class BattleBoardController
         token.AddChild(label);
         Control healthBar = _create_unit_health_bar(unit_state);
         if (healthBar != null)
+        {
+            healthBar.ZIndex = UNIT_OVERLAY_ABSOLUTE_Z;
+            healthBar.ZAsRelative = false;
+            if (spriteTexture != null)
+            {
+                // 高贴图:把血条抬到贴图顶部之上,而不是落在身体中部
+                float barTop = _get_unit_sprite_top_y(spriteTexture)
+                    - UNIT_SPRITE_OVERLAY_GAP
+                    - UNIT_HEALTH_BAR_SIZE.Y;
+                healthBar.Position = new Vector2(healthBar.Position.X, barTop);
+            }
             token.AddChild(healthBar);
+        }
         return token;
     }
 
@@ -615,6 +637,26 @@ public class BattleBoardController
     {
         string path = unitState?.battle_sprite_texture_path ?? "";
         return string.IsNullOrEmpty(path) ? null : _load_texture_from_png(path);
+    }
+
+    // 贴图缩放后的可见高度(像素,token 本地坐标)。与 _attach_unit_sprite_visuals 的
+    // 缩放算法一致:宽度按格宽比缩放,等比得到高度。
+    private float _get_unit_sprite_scaled_height(Vector2 textureSize)
+    {
+        if (textureSize.X <= 0.0f || textureSize.Y <= 0.0f)
+            return 0.0f;
+        Vector2I tileSize = _get_board_tile_size();
+        float targetWidth = Mathf.Max((float)tileSize.X * UNIT_SPRITE_TILE_WIDTH_RATIO, 1.0f);
+        float spriteScale = targetWidth / textureSize.X;
+        return textureSize.Y * spriteScale;
+    }
+
+    // 贴图顶部在 token 本地坐标的 Y(脚底锚点为基准,向上为负)。
+    private float _get_unit_sprite_top_y(Texture2D spriteTexture)
+    {
+        float groundY = -_get_unit_anchor_bias().Y;
+        float scaledHeight = _get_unit_sprite_scaled_height(spriteTexture.GetSize());
+        return groundY - UNIT_SPRITE_GROUND_ANCHOR_RATIO * scaledHeight;
     }
 
     private Vector2[] _build_unit_ellipse_polygon(Vector2 half_size)
@@ -1246,18 +1288,14 @@ public class BattleBoardController
     private Vector2 _get_cell_plane_position(Vector2I coord) =>
         _input_layer == null ? Vector2.Zero : _input_layer.MapToLocal(coord);
 
+    // 单位/道具的层级深度只按"高度分档"(height×stride + 偏移),不再叠加随屏幕 Y
+    // 增长的 planeY 项。这样动态对象与地形高度层正确交织:更高一级的前方地形/南墙
+    // 会盖住单位;而同高度的多个单位/道具靠 Unit/PropLayer 自身的 y_sort 按真实 Y
+    // 排前后(逐格 planeY 一旦写进 ZIndex 会压过 y_sort,反而让单位恒压地形)。
     private int _get_cell_render_depth(Vector2I coord, int height_value)
     {
-        Vector2 planePosition = _get_cell_plane_position(coord);
         int clampedHeight = Mathf.Clamp(height_value, 0, MAX_HEIGHT_LAYERS - 1);
-        float heightStep = Mathf.Max(_get_visual_height_step(), 1.0f);
-        float planeDepth = planePosition.Y / heightStep * (float)LAYER_Z_STRIDE;
-        return (int)
-            Mathf.Round(
-                planeDepth
-                    + (float)clampedHeight * (float)LAYER_Z_STRIDE
-                    + (float)DYNAMIC_LAYER_Z_OFFSET
-            );
+        return clampedHeight * LAYER_Z_STRIDE + DYNAMIC_LAYER_Z_OFFSET;
     }
 
     private int _get_cell_height_index(Vector2I coord)

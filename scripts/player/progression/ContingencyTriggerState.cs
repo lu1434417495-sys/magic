@@ -41,7 +41,21 @@ public class ContingencyTriggerState
             "ContingencyTriggerState.Payload"
         );
 
-    public ContingencyTriggerState DuplicateState() => FromDictionary(ToDictionary());
+    public ContingencyTriggerState DuplicateState()
+    {
+        var state = new ContingencyTriggerState
+        {
+            TriggerKind = TriggerKind,
+            Type = Type,
+        };
+        foreach (
+            KeyValuePair<string, object> entry in RuntimePlainPayload.CloneDictionary(_payload)
+        )
+        {
+            state._payload[entry.Key] = entry.Value;
+        }
+        return state;
+    }
 
     public GDictionary ToDictionary() => Payload;
 

@@ -446,76 +446,182 @@ public partial class BattleDamageResolver
         {
             return EquipmentDurabilityDamageEffectResult.Empty;
         }
-        EquipmentDurabilitySelection selection = SelectEquipmentForDurabilityDamage(
-            targetUnit,
-            effectDefinition,
-            resolvedContext
+        EquipmentDurabilitySelectionResult selectionResult = SelectEquipmentForDurabilityDamage(
+            BuildEquipmentDurabilitySelectionQueryFromEffect(
+                targetUnit,
+                effectDefinition,
+                resolvedContext
+            )
         );
-        if (!selection.IsValid)
+        if (!selectionResult.HasSelection)
         {
             return EquipmentDurabilityDamageEffectResult.Empty;
         }
+        EquipmentDurabilityCommitResult commitResult = ApplyEquipmentDurabilityDamageToSelection(
+            new EquipmentDurabilityCommitRequest
+            {
+                SourceUnit = sourceUnit,
+                TargetUnit = targetUnit,
+                TargetEquipment = selectionResult.SelectedTarget,
+                EffectDefinition = effectDefinition,
+                DamageContext = resolvedContext,
+                TotalDamage = totalDamage,
+                TotalShieldAbsorbed = totalShieldAbsorbed,
+                SourceKey = effectDefinition.EffectType,
+                ActionId = effectDefinition.EffectType,
+            }
+        );
+        return BuildEquipmentDurabilityDamageEffectResult(commitResult);
+    }
+
+    internal EquipmentDurabilityCommitResult ApplyEquipmentDurabilityDamageToSelection(
+        EquipmentDurabilityCommitRequest request
+    )
+    {
+        if (request == null || request.EffectDefinition == null || request.TargetEquipment == null)
+        {
+            return EquipmentDurabilityCommitResult.NoOp("invalid_request");
+        }
+        DamageResolutionContext resolvedContext = request.DamageContext ?? DamageResolutionContext.Empty();
+        DamageEffectRuntimeParameters parameters = DamageEffectRuntimeParameters.FromEffect(
+            request.EffectDefinition
+        );
+        if (
+            parameters.RequireDamageApplied
+            && !resolvedContext.AttackSuccess
+            && request.TotalDamage <= 0
+            && request.TotalShieldAbsorbed <= 0
+        )
+        {
+            return EquipmentDurabilityCommitResult.NoOp("attack_not_successful");
+        }
+        if (
+            !TryBuildDurabilityCommitSelection(
+                request,
+                out EquipmentDurabilitySelection selection,
+                out StringName noOpReason
+            )
+        )
+        {
+            return EquipmentDurabilityCommitResult.NoOp(noOpReason);
+        }
+        return ApplyEquipmentDurabilityDamageToSelection(request, selection, resolvedContext);
+    }
+
+    private EquipmentDurabilityCommitResult ApplyEquipmentDurabilityDamageToSelection(
+        EquipmentDurabilityCommitRequest request,
+        EquipmentDurabilitySelection selection,
+        DamageResolutionContext resolvedContext
+    )
+    {
+        BattleUnitState targetUnit = request.TargetUnit;
         EquipmentState equipmentView = targetUnit.GetEquipmentView();
         StringName entrySlotId = selection.EntrySlotId;
         EquipmentInstanceState equipmentInstance = selection.EquipmentInstance;
-        if (equipmentView == null || entrySlotId == "" || equipmentInstance == null)
+        if (equipmentView == null || !selection.IsValid || equipmentInstance == null)
         {
-            return EquipmentDurabilityDamageEffectResult.Empty;
+            return EquipmentDurabilityCommitResult.NoOp("target_equipment_missing");
         }
         int before = Math.Max(equipmentInstance.current_durability, 0);
         if (before <= 0)
         {
-            equipmentView.ClearEntrySlot(entrySlotId);
-            return EquipmentDurabilityDamageEffectResult.Empty;
+            return EquipmentDurabilityCommitResult.NoOp("already_destroyed");
         }
         int rarity = equipmentInstance.rarity;
         EquipmentDurabilitySaveResolution saveResult = ResolveEquipmentDurabilitySave(
-            sourceUnit,
+            request.SourceUnit,
             targetUnit,
-            effectDefinition,
+            request.EffectDefinition,
             resolvedContext,
             rarity
         );
-        EquipmentDurabilityEventResult @event = new()
-        {
-            EffectType = EffectEquipmentDurabilityDamage,
-            TargetUnitId = targetUnit.unit_id,
-            EntrySlotId = entrySlotId,
-            SlotId = selection.SlotId == "" ? entrySlotId : selection.SlotId,
-            ItemId = equipmentInstance.item_id,
-            EquipmentInstanceId = equipmentInstance.instance_id,
-            Rarity = rarity,
-            DurabilityBefore = before,
-            DurabilityAfter = before,
-            DurabilityLoss = 0,
-            Destroyed = false,
-            SaveResult = saveResult.Result,
-        };
+        StringName resolvedSlotId = selection.SlotId == "" ? entrySlotId : selection.SlotId;
         if (saveResult.HasSave && saveResult.Success)
         {
-            return new EquipmentDurabilityDamageEffectResult(@event, true, 0, false, saveResult);
+            return new EquipmentDurabilityCommitResult
+            {
+                Resolved = true,
+                TargetUnitId = targetUnit.unit_id,
+                EntrySlotId = entrySlotId,
+                SlotId = resolvedSlotId,
+                ItemId = selection.ItemId,
+                EquipmentInstanceId = selection.EquipmentInstanceId,
+                Rarity = rarity,
+                DurabilityBefore = before,
+                DurabilityAfter = before,
+                DurabilityLoss = 0,
+                Destroyed = false,
+                HasSave = saveResult.HasSave,
+                SaveResult = saveResult.Result,
+            };
         }
-        int durabilityLoss = Math.Min(Math.Max(effectDefinition.Power, 0), before);
+        int durabilityLoss = Math.Min(Math.Max(request.EffectDefinition.Power, 0), before);
         int after = before - durabilityLoss;
-        @event.DurabilityLoss = durabilityLoss;
-        @event.DurabilityAfter = Math.Max(after, 0);
         if (after <= 0)
         {
             equipmentView.ClearEntrySlot(entrySlotId);
-            @event.Destroyed = true;
         }
         else
         {
             equipmentInstance.current_durability = after;
         }
+        return new EquipmentDurabilityCommitResult
+        {
+            Resolved = true,
+            TargetUnitId = targetUnit.unit_id,
+            EntrySlotId = entrySlotId,
+            SlotId = resolvedSlotId,
+            ItemId = selection.ItemId,
+            EquipmentInstanceId = selection.EquipmentInstanceId,
+            Rarity = rarity,
+            DurabilityBefore = before,
+            DurabilityAfter = Math.Max(after, 0),
+            DurabilityLoss = durabilityLoss,
+            Destroyed = after <= 0,
+            HasSave = saveResult.HasSave,
+            SaveResult = saveResult.Result,
+        };
+    }
+
+    private static EquipmentDurabilityDamageEffectResult BuildEquipmentDurabilityDamageEffectResult(
+        EquipmentDurabilityCommitResult result
+    )
+    {
+        if (result == null || !result.Resolved)
+        {
+            return EquipmentDurabilityDamageEffectResult.Empty;
+        }
         return new EquipmentDurabilityDamageEffectResult(
-            @event,
+            BuildEquipmentDurabilityEventResult(result),
             true,
-            durabilityLoss,
-            after <= 0,
-            saveResult
+            result.DurabilityLoss,
+            result.Destroyed,
+            new EquipmentDurabilitySaveResolution(
+                result.SaveResult,
+                result.HasSave,
+                result.SaveResult.Success
+            )
         );
     }
+
+    private static EquipmentDurabilityEventResult BuildEquipmentDurabilityEventResult(
+        EquipmentDurabilityCommitResult result
+    ) =>
+        new()
+        {
+            EffectType = EffectEquipmentDurabilityDamage,
+            TargetUnitId = result.TargetUnitId,
+            EntrySlotId = result.EntrySlotId,
+            SlotId = result.SlotId == "" ? result.EntrySlotId : result.SlotId,
+            ItemId = result.ItemId,
+            EquipmentInstanceId = result.EquipmentInstanceId,
+            Rarity = result.Rarity,
+            DurabilityBefore = result.DurabilityBefore,
+            DurabilityAfter = result.DurabilityAfter,
+            DurabilityLoss = result.DurabilityLoss,
+            Destroyed = result.Destroyed,
+            SaveResult = result.SaveResult,
+        };
 
     private static EquipmentDurabilitySaveResolution ResolveEquipmentDurabilitySave(
         BattleUnitState sourceUnit,
@@ -562,83 +668,128 @@ public partial class BattleDamageResolver
         return new EquipmentDurabilitySaveResolution(saveResult, true, success);
     }
 
-    private EquipmentDurabilitySelection SelectEquipmentForDurabilityDamage(
+    private static EquipmentDurabilitySelectionQuery BuildEquipmentDurabilitySelectionQueryFromEffect(
         BattleUnitState targetUnit,
         CombatEffectDefinition effectDefinition,
         DamageResolutionContext damageContext
     )
     {
-        if (targetUnit == null)
-        {
-            return EquipmentDurabilitySelection.Empty;
-        }
-        EquipmentState equipmentView = targetUnit.GetEquipmentView();
-        if (equipmentView == null)
-        {
-            return EquipmentDurabilitySelection.Empty;
-        }
         StringName overrideSlot =
             damageContext?.EquipmentSlotOverride ?? new StringName("");
         if (overrideSlot == "" && effectDefinition != null)
         {
             overrideSlot = effectDefinition.GetStringNameParamTyped("equipment_slot_override");
         }
-        if (overrideSlot != "")
+        return new EquipmentDurabilitySelectionQuery
+        {
+            TargetUnit = targetUnit,
+            TargetSlots = GetEquipmentDurabilityTargetSlots(effectDefinition),
+            SlotWeightMap =
+                effectDefinition?.GetStringNameIntMapParamTyped("slot_weight_map")
+                ?? new Dictionary<StringName, int>(),
+            ExplicitSlotOverride = overrideSlot,
+            ConsumeRandom = true,
+        };
+    }
+
+    internal EquipmentDurabilitySelectionResult SelectEquipmentForDurabilityDamage(
+        EquipmentDurabilitySelectionQuery query
+    )
+    {
+        if (query == null || query.TargetUnit == null)
+        {
+            return EquipmentDurabilitySelectionResult.NoTarget("target_unit_missing");
+        }
+        EquipmentState equipmentView = query.TargetUnit.GetEquipmentView();
+        if (equipmentView == null)
+        {
+            return EquipmentDurabilitySelectionResult.NoTarget("target_equipment_missing");
+        }
+        if (query.ExplicitSlotOverride != "")
         {
             StringName overrideEntrySlot = ProgressionDataUtils.to_string_name(
-                equipmentView.GetEntrySlotForSlot(overrideSlot)
+                equipmentView.GetEntrySlotForSlot(query.ExplicitSlotOverride)
             );
-            return BuildEquipmentDurabilitySelection(
+            EquipmentAbilityEquipmentTargetRef selectedTarget = BuildEquipmentDurabilityTargetRef(
                 equipmentView,
+                query.TargetUnit,
                 overrideEntrySlot,
-                overrideSlot
+                query.ExplicitSlotOverride
             );
+            return selectedTarget != null
+                ? EquipmentDurabilitySelectionResult.Selected(selectedTarget, roll: 0)
+                : EquipmentDurabilitySelectionResult.NoTarget("target_equipment_missing");
         }
 
-        IReadOnlyList<StringName> allowedSlots = GetEquipmentDurabilityTargetSlots(
-            effectDefinition
-        );
+        IReadOnlyList<StringName> allowedSlots = query.TargetSlots ?? Array.Empty<StringName>();
         IReadOnlyDictionary<StringName, int> slotWeightMap =
-            effectDefinition?.GetStringNameIntMapParamTyped("slot_weight_map")
-            ?? (IReadOnlyDictionary<StringName, int>)new Dictionary<StringName, int>();
-        var candidates = new List<EquipmentDurabilitySelectionCandidate>();
-        int totalWeight = 0;
-        foreach (StringName entrySlotId in equipmentView.GetEntrySlotIdsTyped())
+            query.SlotWeightMap ?? new Dictionary<StringName, int>();
+        var candidatesByEntrySlot = new Dictionary<StringName, EquipmentDurabilitySelectionCandidate>();
+        IReadOnlyList<StringName> selectorSlots =
+            allowedSlots.Count > 0 ? allowedSlots : equipmentView.GetEntrySlotIdsTyped();
+        foreach (StringName selectorSlotId in selectorSlots)
         {
-            EquipmentDurabilitySelection selection = BuildEquipmentDurabilitySelection(
+            StringName entrySlotId =
+                allowedSlots.Count > 0
+                    ? ProgressionDataUtils.to_string_name(
+                        equipmentView.GetEntrySlotForSlot(selectorSlotId)
+                    )
+                    : ProgressionDataUtils.to_string_name(selectorSlotId);
+            EquipmentAbilityEquipmentTargetRef targetRef = BuildEquipmentDurabilityTargetRef(
                 equipmentView,
+                query.TargetUnit,
                 entrySlotId,
-                entrySlotId
+                selectorSlotId
             );
-            if (!selection.IsValid)
+            if (targetRef == null)
             {
                 continue;
             }
-            if (
-                !IsEquipmentDurabilityEntryAllowed(
-                    entrySlotId,
-                    selection.OccupiedSlotIds,
+            int weight =
+                slotWeightMap.Count == 0
+                    ? 1
+                    : GetEquipmentDurabilityWeightForSlot(slotWeightMap, selectorSlotId);
+            if (weight <= 0 && allowedSlots.Count == 0)
+            {
+                weight = GetEquipmentDurabilitySlotWeight(
+                    slotWeightMap,
+                    targetRef.EntrySlotId,
+                    targetRef.OccupiedSlotIds,
                     allowedSlots
-                )
-            )
-            {
-                continue;
+                );
             }
-            int weight = GetEquipmentDurabilitySlotWeight(
-                slotWeightMap,
-                entrySlotId,
-                selection.OccupiedSlotIds
-            );
             if (weight <= 0)
             {
                 continue;
             }
-            totalWeight += weight;
-            candidates.Add(new EquipmentDurabilitySelectionCandidate(selection, weight));
+            if (
+                candidatesByEntrySlot.TryGetValue(
+                    targetRef.EntrySlotId,
+                    out EquipmentDurabilitySelectionCandidate existing
+                )
+                && existing.Weight >= weight
+            )
+            {
+                continue;
+            }
+            candidatesByEntrySlot[targetRef.EntrySlotId] =
+                new EquipmentDurabilitySelectionCandidate(targetRef, weight);
+        }
+        var candidates = new List<EquipmentDurabilitySelectionCandidate>(
+            candidatesByEntrySlot.Values
+        );
+        int totalWeight = 0;
+        foreach (EquipmentDurabilitySelectionCandidate candidate in candidates)
+        {
+            totalWeight += candidate.Weight;
         }
         if (candidates.Count == 0 || totalWeight <= 0)
         {
-            return EquipmentDurabilitySelection.Empty;
+            return EquipmentDurabilitySelectionResult.NoTarget("target_equipment_missing");
+        }
+        if (!query.ConsumeRandom)
+        {
+            return EquipmentDurabilitySelectionResult.CandidatesOnly(candidates, totalWeight);
         }
         int roll = TrueRandomSeedService.RandiRange(1, totalWeight);
         int cursor = 0;
@@ -647,10 +798,20 @@ public partial class BattleDamageResolver
             cursor += candidate.Weight;
             if (roll <= cursor)
             {
-                return candidate.Selection;
+                return EquipmentDurabilitySelectionResult.Selected(
+                    candidate.Target,
+                    roll,
+                    candidates,
+                    totalWeight
+                );
             }
         }
-        return candidates[^1].Selection;
+        return EquipmentDurabilitySelectionResult.Selected(
+            candidates[^1].Target,
+            roll,
+            candidates,
+            totalWeight
+        );
     }
 
     private static IReadOnlyList<StringName> GetEquipmentDurabilityTargetSlots(
@@ -672,8 +833,62 @@ public partial class BattleDamageResolver
         return result;
     }
 
-    private readonly record struct EquipmentDurabilitySelectionCandidate(
-        EquipmentDurabilitySelection Selection,
+    internal sealed class EquipmentDurabilitySelectionQuery
+    {
+        public BattleUnitState TargetUnit { get; init; }
+        public IReadOnlyList<StringName> TargetSlots { get; init; } = Array.Empty<StringName>();
+        public IReadOnlyDictionary<StringName, int> SlotWeightMap { get; init; } =
+            new Dictionary<StringName, int>();
+        public StringName ExplicitSlotOverride { get; init; } = "";
+        public bool ConsumeRandom { get; init; } = true;
+    }
+
+    internal sealed class EquipmentDurabilitySelectionResult
+    {
+        public bool HasSelection { get; init; }
+        public EquipmentAbilityEquipmentTargetRef SelectedTarget { get; init; }
+        public IReadOnlyList<EquipmentDurabilitySelectionCandidate> Candidates { get; init; } =
+            Array.Empty<EquipmentDurabilitySelectionCandidate>();
+        public int TotalWeight { get; init; }
+        public int Roll { get; init; }
+        public StringName NoTargetReason { get; init; } = "";
+
+        public static EquipmentDurabilitySelectionResult NoTarget(StringName reason) =>
+            new()
+            {
+                HasSelection = false,
+                NoTargetReason = reason,
+            };
+
+        public static EquipmentDurabilitySelectionResult Selected(
+            EquipmentAbilityEquipmentTargetRef target,
+            int roll,
+            IReadOnlyList<EquipmentDurabilitySelectionCandidate> candidates = null,
+            int totalWeight = 0
+        ) =>
+            new()
+            {
+                HasSelection = target != null,
+                SelectedTarget = target,
+                Candidates = candidates ?? Array.Empty<EquipmentDurabilitySelectionCandidate>(),
+                TotalWeight = totalWeight,
+                Roll = roll,
+            };
+
+        public static EquipmentDurabilitySelectionResult CandidatesOnly(
+            IReadOnlyList<EquipmentDurabilitySelectionCandidate> candidates,
+            int totalWeight
+        ) =>
+            new()
+            {
+                HasSelection = false,
+                Candidates = candidates ?? Array.Empty<EquipmentDurabilitySelectionCandidate>(),
+                TotalWeight = totalWeight,
+            };
+    }
+
+    internal readonly record struct EquipmentDurabilitySelectionCandidate(
+        EquipmentAbilityEquipmentTargetRef Target,
         int Weight
     );
 

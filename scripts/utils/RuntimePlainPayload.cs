@@ -31,6 +31,46 @@ internal static class RuntimePlainPayload
         return result;
     }
 
+    internal static Dictionary<string, object> CloneDictionary(
+        IReadOnlyDictionary<string, object> source
+    )
+    {
+        var result = new Dictionary<string, object>(System.StringComparer.Ordinal);
+        if (source == null)
+            return result;
+
+        foreach (KeyValuePair<string, object> entry in source)
+        {
+            if (!string.IsNullOrEmpty(entry.Key))
+                result[entry.Key] = CloneValue(entry.Value);
+        }
+        return result;
+    }
+
+    internal static object CloneValue(object value)
+    {
+        return value switch
+        {
+            null => null,
+            Dictionary<string, object> dictionaryValue => CloneDictionary(dictionaryValue),
+            IReadOnlyDictionary<string, object> dictionaryValue => CloneDictionary(dictionaryValue),
+            List<object> listValue => CloneList(listValue),
+            IReadOnlyList<object> listValue => CloneList(listValue),
+            _ => value,
+        };
+    }
+
+    private static List<object> CloneList(IReadOnlyList<object> source)
+    {
+        var result = new List<object>();
+        if (source == null)
+            return result;
+
+        for (int index = 0; index < source.Count; index++)
+            result.Add(CloneValue(source[index]));
+        return result;
+    }
+
     internal static GDictionary ProjectDictionary(
         IReadOnlyDictionary<string, object> source,
         string reason

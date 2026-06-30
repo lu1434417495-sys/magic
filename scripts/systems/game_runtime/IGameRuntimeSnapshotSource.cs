@@ -40,6 +40,8 @@ public interface IGameRuntimeSnapshotSource
     GDictionary GetShopWindowData();
     GDictionary GetContractBoardWindowData();
     GDictionary GetActiveContractBoardContext();
+    GDictionary GetNpcQuestOfferWindowData();
+    GDictionary GetActiveNpcQuestOfferContext();
     GDictionary GetActiveShopContext();
     GDictionary GetForgeWindowData();
     GDictionary GetStagecoachWindowData();

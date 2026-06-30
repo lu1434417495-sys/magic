@@ -60,6 +60,7 @@ public sealed class GameRuntimeSnapshotBuilder
             ["party"] = BuildPartySnapshot(),
             ["settlement"] = BuildSettlementSnapshot(),
             ["contract_board"] = BuildContractBoardSnapshot(),
+            ["npc_quest_offer"] = BuildNpcQuestOfferSnapshot(),
             ["shop"] = BuildShopSnapshot(),
             ["forge"] = BuildForgeSnapshot(),
             ["stagecoach"] = BuildStagecoachSnapshot(),
@@ -739,6 +740,28 @@ public sealed class GameRuntimeSnapshotBuilder
         };
     }
 
+    private Dictionary BuildNpcQuestOfferSnapshot()
+    {
+        var windowData = ResolveNpcQuestOfferWindowData();
+        windowData.Remove("party_state");
+        return new Dictionary
+        {
+            ["visible"] = _runtime.GetActiveModalKind() == RuntimeModalKind.NpcQuestOffer,
+            ["window_data"] = RuntimePayloadCopy.Dictionary(
+                windowData,
+                "GameRuntimeSnapshotBuilder.BuildNpcQuestOfferSnapshot.window_data"
+            ),
+        };
+    }
+
+    private Dictionary ResolveNpcQuestOfferWindowData()
+    {
+        var windowData = GetWindowDataFromRuntime("GetNpcQuestOfferWindowData");
+        if (windowData.Count > 0)
+            return windowData;
+        return GetWindowDataFromRuntime("GetActiveNpcQuestOfferContext");
+    }
+
     private Dictionary BuildCharacterInfoSnapshot()
     {
         var context = _runtime.GetCharacterInfoContext();
@@ -991,6 +1014,14 @@ public sealed class GameRuntimeSnapshotBuilder
             "GetShopWindowData" => RuntimePayloadCopy.Dictionary(
                 _runtime.GetShopWindowData(),
                 "GameRuntimeSnapshotBuilder.GetShopWindowData"
+            ),
+            "GetNpcQuestOfferWindowData" => RuntimePayloadCopy.Dictionary(
+                _runtime.GetNpcQuestOfferWindowData(),
+                "GameRuntimeSnapshotBuilder.GetNpcQuestOfferWindowData"
+            ),
+            "GetActiveNpcQuestOfferContext" => RuntimePayloadCopy.Dictionary(
+                _runtime.GetActiveNpcQuestOfferContext(),
+                "GameRuntimeSnapshotBuilder.GetActiveNpcQuestOfferContext"
             ),
             _ => new Dictionary(),
         };

@@ -47,6 +47,11 @@ public static class GameTextSnapshotRenderer
             "CONTRACT_BOARD",
             BuildContractBoardLines(GetDictionary(snapshot, "contract_board"))
         );
+        AppendSection(
+            sections,
+            "NPC_QUEST_OFFER",
+            BuildNpcQuestOfferLines(GetDictionary(snapshot, "npc_quest_offer"))
+        );
         AppendSection(sections, "SHOP", BuildShopLines(GetDictionary(snapshot, "shop")));
         AppendSection(sections, "FORGE", BuildForgeLines(GetDictionary(snapshot, "forge")));
         AppendSection(
@@ -506,6 +511,31 @@ public static class GameTextSnapshotRenderer
             lines.Add($"  listing_channels={FormatArray(GetArray(entry, "listing_channels"))}");
             lines.Add($"  state_label={GetExactString(entry, "state_label")}");
             lines.Add($"  cost_label={GetExactString(entry, "cost_label")}");
+            lines.Add($"  is_enabled={FormatBool(ReadExactBool(entry, "is_enabled"))}");
+            lines.Add($"  disabled_reason={GetExactString(entry, "disabled_reason")}");
+            lines.Add($"  accept_dialogue_text={GetExactString(entry, "accept_dialogue_text")}");
+        }
+
+        return lines;
+    }
+
+    private static List<string> BuildNpcQuestOfferLines(GDictionary npcQuestOfferSnapshot)
+    {
+        if (IsEmpty(npcQuestOfferSnapshot))
+            return new List<string>();
+        var windowData = GetDictionary(npcQuestOfferSnapshot, "window_data");
+        var lines = new List<string>
+        {
+            $"visible={FormatBool(ReadExactBool(npcQuestOfferSnapshot, "visible"))}",
+            $"npc_name={GetExactString(windowData, "npc_name")}",
+            $"selected_quest_id={GetExactString(windowData, "selected_quest_id")}",
+            $"feedback_text={GetExactString(windowData, "feedback_text")}",
+        };
+
+        foreach (GDictionary entry in Dictionaries(GetArray(windowData, "entries")))
+        {
+            lines.Add($"entry={GetExactString(entry, "quest_id")}");
+            lines.Add($"  display_name={GetExactString(entry, "display_name")}");
             lines.Add($"  is_enabled={FormatBool(ReadExactBool(entry, "is_enabled"))}");
             lines.Add($"  disabled_reason={GetExactString(entry, "disabled_reason")}");
             lines.Add($"  accept_dialogue_text={GetExactString(entry, "accept_dialogue_text")}");

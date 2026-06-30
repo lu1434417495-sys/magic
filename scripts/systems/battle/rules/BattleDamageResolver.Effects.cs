@@ -24,76 +24,229 @@ public partial class BattleDamageResolver
 
 
 
-    private static EquipmentDurabilitySelection BuildEquipmentDurabilitySelection(
+    private static EquipmentAbilityEquipmentTargetRef BuildEquipmentDurabilityTargetRef(
         EquipmentState equipmentView,
+        BattleUnitState targetUnit,
         StringName entrySlotId,
         StringName slotId
     )
     {
         StringName normalizedEntrySlot = ProgressionDataUtils.to_string_name(entrySlotId);
-        if (equipmentView == null || normalizedEntrySlot == "")
+        if (equipmentView == null || targetUnit == null || normalizedEntrySlot == "")
         {
-            return EquipmentDurabilitySelection.Empty;
+            return null;
         }
         EquipmentEntryState entry = equipmentView.GetEntry(normalizedEntrySlot);
         if (entry == null || entry.IsEmpty())
         {
-            return EquipmentDurabilitySelection.Empty;
+            return null;
         }
         EquipmentInstanceState equipmentInstance = entry.GetEquipmentInstance();
         if (equipmentInstance == null || equipmentInstance.current_durability <= 0)
         {
-            return EquipmentDurabilitySelection.Empty;
+            return null;
         }
-        return new EquipmentDurabilitySelection(
-            normalizedEntrySlot,
-            ProgressionDataUtils.to_string_name(slotId),
+        return new EquipmentAbilityEquipmentTargetRef
+        {
+            UnitId = targetUnit.unit_id,
+            EntrySlotId = normalizedEntrySlot,
+            SlotId = ProgressionDataUtils.to_string_name(slotId),
+            ItemId = entry.item_id,
+            EquipmentInstanceId = entry.instance_id,
+            OccupiedSlotIds = new List<StringName>(entry.occupied_slot_ids),
+            CurrentDurability = equipmentInstance.current_durability,
+        };
+    }
+
+    private static bool TryBuildDurabilityCommitSelection(
+        EquipmentDurabilityCommitRequest request,
+        out EquipmentDurabilitySelection selection,
+        out StringName noOpReason
+    )
+    {
+        selection = EquipmentDurabilitySelection.Empty;
+        noOpReason = "";
+        if (
+            request == null
+            || request.EffectDefinition == null
+            || request.TargetEquipment == null
+        )
+        {
+            noOpReason = "invalid_request";
+            return false;
+        }
+        BattleUnitState targetUnit = request.TargetUnit;
+        EquipmentAbilityEquipmentTargetRef targetEquipment = request.TargetEquipment;
+        if (targetUnit == null || targetUnit.unit_id != targetEquipment.UnitId)
+        {
+            noOpReason = "target_unit_missing";
+            return false;
+        }
+        EquipmentState equipmentView = targetUnit.GetEquipmentView();
+        if (equipmentView == null)
+        {
+            noOpReason = "target_equipment_missing";
+            return false;
+        }
+
+        StringName entrySlotId = ProgressionDataUtils.to_string_name(
+            targetEquipment.EntrySlotId
+        );
+        StringName slotId = ProgressionDataUtils.to_string_name(targetEquipment.SlotId);
+        if (entrySlotId == "" || slotId == "")
+        {
+            noOpReason = "invalid_request";
+            return false;
+        }
+
+        EquipmentEntryState entry = equipmentView.GetEntry(entrySlotId);
+        if (entry == null || entry.IsEmpty())
+        {
+            noOpReason = "target_equipment_missing";
+            return false;
+        }
+
+        if (
+            entry.item_id != targetEquipment.ItemId
+            || entry.instance_id != targetEquipment.EquipmentInstanceId
+            || !HasStringName(entry.occupied_slot_ids, slotId)
+        )
+        {
+            noOpReason = "target_equipment_changed";
+            return false;
+        }
+
+        foreach (StringName occupiedSlotId in targetEquipment.OccupiedSlotIds ?? Array.Empty<StringName>())
+        {
+            StringName normalizedOccupiedSlotId = ProgressionDataUtils.to_string_name(
+                occupiedSlotId
+            );
+            if (
+                normalizedOccupiedSlotId == ""
+                || equipmentView.GetEntrySlotForSlot(normalizedOccupiedSlotId) != entrySlotId
+            )
+            {
+                noOpReason = "target_equipment_changed";
+                return false;
+            }
+        }
+
+        EquipmentInstanceState equipmentInstance = entry.GetEquipmentInstance();
+        if (equipmentInstance == null)
+        {
+            noOpReason = "target_equipment_missing";
+            return false;
+        }
+        if (
+            equipmentInstance.item_id != targetEquipment.ItemId
+            || equipmentInstance.instance_id != targetEquipment.EquipmentInstanceId
+        )
+        {
+            noOpReason = "target_equipment_changed";
+            return false;
+        }
+        if (equipmentInstance.current_durability <= 0)
+        {
+            noOpReason = "already_destroyed";
+            return false;
+        }
+
+        selection = new EquipmentDurabilitySelection(
+            targetUnit.unit_id,
+            entrySlotId,
+            slotId,
             new List<StringName>(entry.occupied_slot_ids),
+            entry.item_id,
+            entry.instance_id,
             equipmentInstance
         );
+        return true;
     }
 
 
 
-    private static bool IsEquipmentDurabilityEntryAllowed(
+    private static int GetEquipmentDurabilitySlotWeight(
+        IReadOnlyDictionary<StringName, int> weightMap,
         StringName entrySlotId,
         IReadOnlyList<StringName> occupiedSlots,
         IReadOnlyList<StringName> allowedSlots
     )
     {
-        if (allowedSlots.Count == 0 || HasStringName(allowedSlots, entrySlotId))
-        {
-            return true;
-        }
-        foreach (StringName occupiedSlotId in occupiedSlots)
-        {
-            if (HasStringName(allowedSlots, occupiedSlotId))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static int GetEquipmentDurabilitySlotWeight(
-        IReadOnlyDictionary<StringName, int> weightMap,
-        StringName entrySlotId,
-        IReadOnlyList<StringName> occupiedSlots
-    )
-    {
-        if (weightMap.Count == 0)
+        if (weightMap == null || weightMap.Count == 0)
         {
             return 1;
         }
-        int weight = GetEquipmentDurabilityWeightForSlot(weightMap, entrySlotId);
-        foreach (StringName occupiedSlotId in occupiedSlots)
+        int weight = 0;
+        foreach (
+            StringName slotId in GetEquipmentDurabilityCoveredSelectionSlots(
+                entrySlotId,
+                occupiedSlots,
+                allowedSlots
+            )
+        )
         {
-            weight = Math.Max(
-                weight,
-                GetEquipmentDurabilityWeightForSlot(weightMap, occupiedSlotId)
-            );
+            weight = Math.Max(weight, GetEquipmentDurabilityWeightForSlot(weightMap, slotId));
         }
-        return Math.Max(weight, 1);
+        return weight;
+    }
+
+    private static IReadOnlyList<StringName> GetEquipmentDurabilityCoveredSelectionSlots(
+        StringName entrySlotId,
+        IReadOnlyList<StringName> occupiedSlots,
+        IReadOnlyList<StringName> allowedSlots
+    )
+    {
+        var coveredSlots = new List<StringName>();
+        if (allowedSlots != null && allowedSlots.Count > 0)
+        {
+            foreach (StringName allowedSlotId in allowedSlots)
+            {
+                if (
+                    IsEquipmentDurabilityCoveredSlot(
+                        entrySlotId,
+                        occupiedSlots,
+                        allowedSlotId
+                    )
+                    && !HasStringName(coveredSlots, allowedSlotId)
+                )
+                {
+                    coveredSlots.Add(allowedSlotId);
+                }
+            }
+            return coveredSlots;
+        }
+
+        StringName normalizedEntrySlotId = ProgressionDataUtils.to_string_name(entrySlotId);
+        if (normalizedEntrySlotId != "")
+        {
+            coveredSlots.Add(normalizedEntrySlotId);
+        }
+        foreach (StringName occupiedSlotId in occupiedSlots ?? Array.Empty<StringName>())
+        {
+            StringName normalizedOccupiedSlotId = ProgressionDataUtils.to_string_name(
+                occupiedSlotId
+            );
+            if (normalizedOccupiedSlotId != "" && !HasStringName(coveredSlots, normalizedOccupiedSlotId))
+            {
+                coveredSlots.Add(normalizedOccupiedSlotId);
+            }
+        }
+        return coveredSlots;
+    }
+
+    private static bool IsEquipmentDurabilityCoveredSlot(
+        StringName entrySlotId,
+        IReadOnlyList<StringName> occupiedSlots,
+        StringName slotId
+    )
+    {
+        StringName normalizedSlotId = ProgressionDataUtils.to_string_name(slotId);
+        if (normalizedSlotId == "")
+        {
+            return false;
+        }
+        return normalizedSlotId == ProgressionDataUtils.to_string_name(entrySlotId)
+            || HasStringName(occupiedSlots, normalizedSlotId);
     }
 
     private static int GetEquipmentDurabilityWeightForSlot(
@@ -113,9 +266,12 @@ public partial class BattleDamageResolver
     }
 
     private readonly record struct EquipmentDurabilitySelection(
+        StringName TargetUnitId,
         StringName EntrySlotId,
         StringName SlotId,
         IReadOnlyList<StringName> OccupiedSlotIds,
+        StringName ItemId,
+        StringName EquipmentInstanceId,
         EquipmentInstanceState EquipmentInstance
     )
     {
@@ -123,11 +279,19 @@ public partial class BattleDamageResolver
             new(
                 new StringName(""),
                 new StringName(""),
+                new StringName(""),
                 Array.Empty<StringName>(),
+                new StringName(""),
+                new StringName(""),
                 null
             );
 
-        public bool IsValid => EntrySlotId != "" && EquipmentInstance != null;
+        public bool IsValid =>
+            TargetUnitId != ""
+            && EntrySlotId != ""
+            && ItemId != ""
+            && EquipmentInstanceId != ""
+            && EquipmentInstance != null;
     }
 
 

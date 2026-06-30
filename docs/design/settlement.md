@@ -290,6 +290,9 @@ interaction_script_id 路由表：
 ├── "service_village_rumor"  → 新增：执行传闻揭示
 ├── "service_contract_board" → 新增：打开委托面板
 ├── "service_stagecoach"     → 新增：打开驿站传送选择
+├── "npc_<interaction_id>"   → 新增：若存在 provider_kind = "npc" 且 listing_channels 含 "npc_offer" 的任务，
+│                                打开 NPC 委托面板（`_try_open_npc_quest_offer`）；该分支在 generic
+│                                `QuestProviderContentRules` service-provider 分支之前执行
 ├── (默认)                   → 现有逻辑：通用反馈 + pending reward
 ```
 

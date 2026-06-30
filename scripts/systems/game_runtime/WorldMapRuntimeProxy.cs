@@ -231,6 +231,11 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetNpcQuestOfferWindowData() ?? new Dictionary();
     }
 
+    internal NpcQuestOfferWindowData GetNpcQuestOfferWindowDataTyped()
+    {
+        return _runtime?.GetActiveNpcQuestOfferData();
+    }
+
     public Dictionary GetForgeWindowData()
     {
         return _runtime?.GetForgeWindowData() ?? new Dictionary();

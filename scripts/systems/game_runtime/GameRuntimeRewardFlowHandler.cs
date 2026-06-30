@@ -121,6 +121,9 @@ public sealed class GameRuntimeRewardFlowHandler
             case RuntimeModalKind.ContractBoard:
                 CloseContractBoardModal();
                 return CommandOkTyped();
+            case RuntimeModalKind.NpcQuestOffer:
+                CloseNpcQuestOfferModal();
+                return CommandOkTyped();
             case RuntimeModalKind.Shop:
                 CloseShopModal();
                 return CommandOkTyped();
@@ -381,6 +384,7 @@ public sealed class GameRuntimeRewardFlowHandler
         if (
             activeModalKind == RuntimeModalKind.Settlement
             || activeModalKind == RuntimeModalKind.ContractBoard
+            || activeModalKind == RuntimeModalKind.NpcQuestOffer
             || activeModalKind == RuntimeModalKind.Shop
             || activeModalKind == RuntimeModalKind.Forge
             || activeModalKind == RuntimeModalKind.Stagecoach
@@ -589,6 +593,12 @@ public sealed class GameRuntimeRewardFlowHandler
     {
         if (HasRuntime())
             _runtime.CloseContractBoardModal();
+    }
+
+    private void CloseNpcQuestOfferModal()
+    {
+        if (HasRuntime())
+            _runtime.CloseNpcQuestOfferModal();
     }
 
     private void CloseShopModal()

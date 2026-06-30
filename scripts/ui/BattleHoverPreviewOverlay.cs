@@ -6,11 +6,15 @@ using GDictionary = Godot.Collections.Dictionary;
 [GlobalClass]
 public partial class BattleHoverPreviewOverlay : PanelContainer
 {
-    private const int HitStageSegmentWidth = 28;
-    private const int HitStageSegmentHeight = 8;
-    private const int HitStageSegmentSeparation = 4;
-    private const int HpBarHeight = 6;
-    private const int HpBarMinWidth = 140;
+    private const int HitStageSegmentWidth = 50;
+    private const int HitStageSegmentHeight = 16;
+    private const int HitStageSegmentSeparation = 6;
+    private const int HpBarHeight = 14;
+    private const int HpBarMinWidth = 280;
+
+    // 本地放大字号(仅此 hover 预览浮层,不动全局 BattleUiTheme),目标是一眼看清
+    private const int PreviewFontLabel = 20;
+    private const int PreviewFontCaption = 16;
 
     private VBoxContainer _layout;
     private HBoxContainer _targetHeader;
@@ -28,7 +32,7 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
     {
         MouseFilter = MouseFilterEnum.Ignore;
         Visible = false;
-        CustomMinimumSize = new Vector2(180, 0);
+        CustomMinimumSize = new Vector2(340, 0);
         AddThemeStyleboxOverride("panel", _build_panel_style());
         _build_layout();
     }
@@ -79,11 +83,11 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
     private void _build_layout()
     {
         _layout = new VBoxContainer { Name = "HoverLayout" };
-        _layout.AddThemeConstantOverride("separation", 6);
+        _layout.AddThemeConstantOverride("separation", 10);
         AddChild(_layout);
 
         _targetHeader = new HBoxContainer { Name = "TargetHeader" };
-        _targetHeader.AddThemeConstantOverride("separation", 8);
+        _targetHeader.AddThemeConstantOverride("separation", 12);
         _layout.AddChild(_targetHeader);
 
         _targetNameLabel = new Label
@@ -91,12 +95,12 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
             Name = "TargetNameLabel",
             SizeFlagsHorizontal = SizeFlags.ExpandFill,
         };
-        _targetNameLabel.AddThemeFontSizeOverride("font_size", BattleUiTheme.FONT_LABEL());
+        _targetNameLabel.AddThemeFontSizeOverride("font_size", PreviewFontLabel);
         _targetNameLabel.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_PRIMARY());
         _targetHeader.AddChild(_targetNameLabel);
 
         _targetFactionLabel = new Label { Name = "TargetFactionLabel" };
-        _targetFactionLabel.AddThemeFontSizeOverride("font_size", BattleUiTheme.FONT_CAPTION());
+        _targetFactionLabel.AddThemeFontSizeOverride("font_size", PreviewFontCaption);
         _targetFactionLabel.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_SECONDARY());
         _targetHeader.AddChild(_targetFactionLabel);
 
@@ -114,7 +118,7 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         _layout.AddChild(_targetHpBar);
 
         _targetHpLabel = new Label { Name = "TargetHpLabel" };
-        _targetHpLabel.AddThemeFontSizeOverride("font_size", BattleUiTheme.FONT_CAPTION());
+        _targetHpLabel.AddThemeFontSizeOverride("font_size", PreviewFontCaption);
         _targetHpLabel.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_SECONDARY());
         _layout.AddChild(_targetHpLabel);
 
@@ -123,7 +127,7 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         _layout.AddChild(_hitStageRow);
 
         _hitSummaryLabel = new Label { Name = "HitSummaryLabel" };
-        _hitSummaryLabel.AddThemeFontSizeOverride("font_size", BattleUiTheme.FONT_LABEL());
+        _hitSummaryLabel.AddThemeFontSizeOverride("font_size", PreviewFontLabel);
         _hitSummaryLabel.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_PRIMARY());
         _layout.AddChild(_hitSummaryLabel);
 
@@ -133,7 +137,7 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         _layout.AddChild(_fateBadgeRow);
 
         _damageLabel = new Label { Name = "DamageRangeLabel" };
-        _damageLabel.AddThemeFontSizeOverride("font_size", BattleUiTheme.FONT_LABEL());
+        _damageLabel.AddThemeFontSizeOverride("font_size", PreviewFontLabel);
         _damageLabel.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_PRIMARY());
         _layout.AddChild(_damageLabel);
 
@@ -143,7 +147,7 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
             Text = "不可达",
             Visible = false,
         };
-        _invalidLabel.AddThemeFontSizeOverride("font_size", BattleUiTheme.FONT_CAPTION());
+        _invalidLabel.AddThemeFontSizeOverride("font_size", PreviewFontCaption);
         _invalidLabel.AddThemeColorOverride("font_color", BattleUiTheme.FATE_DANGER());
         _layout.AddChild(_invalidLabel);
     }
@@ -261,7 +265,7 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         );
 
         var label = new Label { Text = DictString(badge, "text", "") };
-        label.AddThemeFontSizeOverride("font_size", BattleUiTheme.FONT_CAPTION());
+        label.AddThemeFontSizeOverride("font_size", PreviewFontCaption);
         label.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_PRIMARY());
         container.AddChild(label);
 
@@ -295,10 +299,10 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
             CornerRadiusTopRight = BattleUiTheme.PANEL_RADIUS_SMALL(),
             CornerRadiusBottomLeft = BattleUiTheme.PANEL_RADIUS_SMALL(),
             CornerRadiusBottomRight = BattleUiTheme.PANEL_RADIUS_SMALL(),
-            ContentMarginLeft = 10,
-            ContentMarginRight = 10,
-            ContentMarginTop = 8,
-            ContentMarginBottom = 8,
+            ContentMarginLeft = 16,
+            ContentMarginRight = 16,
+            ContentMarginTop = 12,
+            ContentMarginBottom = 12,
         };
     }
 

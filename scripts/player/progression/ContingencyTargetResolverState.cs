@@ -29,7 +29,16 @@ public class ContingencyTargetResolverState
     public StringName Preference { get; private set; } = "";
     public int MaxDistance { get; private set; }
 
-    public ContingencyTargetResolverState DuplicateState() => FromDictionary(ToDictionary());
+    public ContingencyTargetResolverState DuplicateState()
+    {
+        return new ContingencyTargetResolverState
+        {
+            ResolverKind = ResolverKind,
+            Type = Type,
+            Preference = Preference,
+            MaxDistance = MaxDistance,
+        };
+    }
 
     public GDictionary ToDictionary()
     {

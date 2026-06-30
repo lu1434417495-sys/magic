@@ -1,7 +1,8 @@
-[gd_resource type="Resource" script_class="EnemyTemplateDef" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="EnemyTemplateDef" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="1_template"]
 [ext_resource type="Script" path="res://scripts/enemies/DropEntryDef.cs" id="2_dropdef"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/units/enemy/wolf_board.png" id="3_wolf_sprite"]
 
 [sub_resource type="Resource" id="Resource_drop_wolf_hide"]
 script = ExtResource("2_dropdef")
@@ -14,6 +15,7 @@ quantity = 1
 script = ExtResource("1_template")
 template_id = &"wolf_raider"
 display_name = "荒狼"
+battle_sprite_texture = ExtResource("3_wolf_sprite")
 brain_id = &"melee_aggressor"
 initial_state_id = &"engage"
 action_threshold = 35

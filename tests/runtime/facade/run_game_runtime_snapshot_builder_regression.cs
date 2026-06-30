@@ -28,6 +28,7 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         TestTextSnapshotRejectsLegacyWindowAndReportFields();
         TestSnapshotBuilderCrossReferencesQuestItemsInTextSnapshot();
         TestSnapshotBuilderExposesContractBoardModalSnapshot();
+        TestSnapshotBuilderExposesNpcQuestOfferModalSnapshot();
         TestSnapshotBuilderExposesForgeModalSnapshot();
         TestSnapshotBuilderExposesGenericForgeModalSnapshot();
         TestSnapshotBuilderRequiresPanelKindForForgeModal();
@@ -763,6 +764,91 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         _test.True(
             HasTextLine(lines, "  disabled_reason=需要先完成前置契约。"),
             "contract board 文本快照应渲染第二个条目的 disabled_reason。"
+        );
+    }
+
+    private void TestSnapshotBuilderExposesNpcQuestOfferModalSnapshot()
+    {
+        var runtime = new SnapshotTestRuntime
+        {
+            ActiveModalKind = RuntimeModalKind.NpcQuestOffer,
+            NpcQuestOfferWindowData = new GDictionary
+            {
+                ["npc_name"] = "blacksmith hrothgar",
+                ["npc_interaction_id"] = "npc_blacksmith_hrothgar",
+                ["selected_quest_id"] = "npc_blacksmith_hrothgar_cave_beasts",
+                ["feedback_text"] = "",
+                ["entries"] = new GArray
+                {
+                    new GDictionary
+                    {
+                        ["quest_id"] = "npc_blacksmith_hrothgar_cave_beasts",
+                        ["display_name"] = "洞穴野兽",
+                        ["is_enabled"] = true,
+                        ["disabled_reason"] = "",
+                        ["accept_dialogue_text"] = "峡谷北面的野兽又在骚扰商队，帮我清理一下。",
+                    },
+                },
+            },
+        };
+
+        _test.Eq(
+            runtime.GetActiveModalId(),
+            "npc_quest_offer",
+            "RuntimeModalKind.NpcQuestOffer 应映射为 npc_quest_offer。"
+        );
+        _test.False(
+            RuntimeModalKinds.IsSettlementServiceModal(RuntimeModalKind.NpcQuestOffer),
+            "NpcQuestOffer 不应被归类为据点服务面板。"
+        );
+
+        GDictionary windowData = runtime.GetNpcQuestOfferWindowData();
+        _test.Eq(
+            StringValue(windowData, "npc_name"),
+            "blacksmith hrothgar",
+            "GetNpcQuestOfferWindowData() 应暴露 NPC 名称。"
+        );
+        _test.Eq(
+            StringValue(runtime.GetActiveNpcQuestOfferContext(), "selected_quest_id"),
+            "npc_blacksmith_hrothgar_cave_beasts",
+            "GetActiveNpcQuestOfferContext() 应暴露当前选中的 quest_id。"
+        );
+
+        GDictionary snapshot = BuildSnapshot(runtime, out string textSnapshot);
+        List<string> lines = TextSnapshotLines(textSnapshot);
+        _test.Eq(
+            StringValue(Dict(snapshot, "modal"), "id"),
+            "npc_quest_offer",
+            "快照应暴露当前 modal id 为 npc_quest_offer。"
+        );
+        _test.True(
+            BoolValue(Dict(snapshot, "npc_quest_offer"), "visible", false),
+            "NpcQuestOffer 激活时快照应暴露 npc_quest_offer.visible=true。"
+        );
+        _test.Eq(
+            StringValue(Dict(Dict(snapshot, "npc_quest_offer"), "window_data"), "npc_name"),
+            "blacksmith hrothgar",
+            "npc_quest_offer 快照应包含 window_data.npc_name。"
+        );
+        _test.False(
+            BoolValue(Dict(snapshot, "contract_board"), "visible", true),
+            "NpcQuestOffer 激活时不应暴露 contract_board.visible。"
+        );
+        _test.False(
+            BoolValue(Dict(snapshot, "shop"), "visible", true),
+            "NpcQuestOffer 激活时不应暴露 shop.visible。"
+        );
+        _test.False(
+            BoolValue(Dict(snapshot, "forge"), "visible", true),
+            "NpcQuestOffer 激活时不应暴露 forge.visible。"
+        );
+        _test.True(
+            HasTextLine(lines, "[NPC_QUEST_OFFER]"),
+            "文本快照应渲染 [NPC_QUEST_OFFER] 区块。"
+        );
+        _test.True(
+            HasTextLine(lines, "  display_name=洞穴野兽"),
+            "文本快照应渲染 NPC offer 条目 display_name。"
         );
     }
 

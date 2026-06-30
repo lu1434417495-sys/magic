@@ -101,7 +101,7 @@ public partial class WorldMapView : Control
     {
         _gridSystem = grid_system;
         _fogSystem = fog_system;
-        _worldData = WorldRuntimeData.FromDictionary(world_data) ?? WorldRuntimeData.Empty();
+        _set_world_data(WorldRuntimeData.FromDictionary(world_data));
         _playerCoord = player_coord;
         _selectedCoord = selected_coord;
         _playerVisibleOnMap = player_visible_on_map;
@@ -121,10 +121,15 @@ public partial class WorldMapView : Control
         QueueRedraw();
     }
 
-    public void RefreshWorld(GDictionary world_data)
+    internal void RefreshWorld(WorldRuntimeData world_data)
     {
-        _worldData = WorldRuntimeData.FromDictionary(world_data) ?? WorldRuntimeData.Empty();
+        _set_world_data(world_data);
         QueueRedraw();
+    }
+
+    private void _set_world_data(WorldRuntimeData world_data)
+    {
+        _worldData = world_data ?? WorldRuntimeData.Empty();
     }
 
     public override void _Notification(int what)
@@ -161,13 +166,11 @@ public partial class WorldMapView : Control
     {
         if (_gridSystem == null || _fogSystem == null)
             return;
-
         Vector2 cameraOrigin = _get_camera_origin_cells();
         Rect2I visibleRect = _get_visible_world_rect(cameraOrigin);
-        GDictionary worldData = WorldMapDataProjection.Project(_worldData);
         _draw_cells(cameraOrigin, visibleRect);
-        _draw_settlements(cameraOrigin, visibleRect, worldData);
-        _draw_mobile_entities(cameraOrigin, visibleRect, worldData);
+        _draw_settlements(cameraOrigin, visibleRect);
+        _draw_mobile_entities(cameraOrigin, visibleRect);
         _draw_player(cameraOrigin);
         _draw_selection(cameraOrigin);
     }
@@ -223,24 +226,21 @@ public partial class WorldMapView : Control
         DrawTextureRectRegion(cell_background_texture, rect, sourceRect, Colors.White, false);
     }
 
-    private void _draw_settlements(
-        Vector2 cameraOrigin,
-        Rect2I visibleRect,
-        GDictionary worldData
-    )
+    private void _draw_settlements(Vector2 cameraOrigin, Rect2I visibleRect)
     {
-        GArray settlements = DictArray(worldData, "settlements");
         Font font = GetThemeDefaultFont();
         const int fontSize = 16;
         bool canDrawLabels = font != null;
 
-        foreach (GDictionary settlement in ReadDictionaryItems(settlements))
+        foreach (WorldMapSettlementRecordData settlement in _worldData.Settlements)
         {
-            Vector2I origin = DictVector2I(settlement, "origin", Vector2I.Zero);
-            Vector2I footprintSize = DictVector2I(settlement, "footprint_size", Vector2I.One);
+            if (settlement == null)
+                continue;
+            Vector2I origin = settlement.Origin;
+            Vector2I footprintSize = settlement.FootprintSize;
             if (!new Rect2I(origin, footprintSize).Intersects(visibleRect))
                 continue;
-            int tier = DictInt(settlement, "tier", 0);
+            int tier = settlement.Tier;
             Color color = _get_settlement_color(tier);
             int visibleCells = _draw_settlement_footprint_cells(
                 origin,
@@ -260,7 +260,7 @@ public partial class WorldMapView : Control
                 continue;
 
             Rect2 rect = _get_cell_rect_for_origin(origin, cameraOrigin).Grow(-3.0f);
-            string label = DictString(settlement, "display_name", "据点");
+            string label = string.IsNullOrEmpty(settlement.DisplayName) ? "据点" : settlement.DisplayName;
             Vector2 labelPos = rect.Position + new Vector2(8, Mathf.Min(24, rect.Size.Y - 6));
             DrawString(
                 font,
@@ -331,17 +331,13 @@ public partial class WorldMapView : Control
         DrawRect(rect, color);
     }
 
-    private void _draw_mobile_entities(
-        Vector2 cameraOrigin,
-        Rect2I visibleRect,
-        GDictionary worldData
-    )
+    private void _draw_mobile_entities(Vector2 cameraOrigin, Rect2I visibleRect)
     {
-        foreach (GDictionary worldEvent in ReadDictionaryItems(DictArray(worldData, "world_events")))
+        foreach (WorldMapEventData worldEvent in _worldData.WorldEvents)
         {
-            if (!DictBool(worldEvent, "is_discovered", false))
+            if (worldEvent == null || !worldEvent.IsDiscovered)
                 continue;
-            Vector2I eventCoord = DictVector2I(worldEvent, "world_coord", Vector2I.Zero);
+            Vector2I eventCoord = worldEvent.WorldCoord;
             if (
                 !visibleRect.HasPoint(eventCoord)
                 || !_fogSystem.IsVisible(eventCoord, _playerFactionId)
@@ -352,12 +348,8 @@ public partial class WorldMapView : Control
             );
         }
 
-        foreach (var encounterValue in DictArray(worldData, "encounter_anchors"))
+        foreach (EncounterAnchorData encounterAnchor in _worldData.EncounterAnchors)
         {
-            EncounterAnchorData encounterAnchor =
-                encounterValue.VariantType == Variant.Type.Dictionary
-                    ? EncounterAnchorData.FromDictionary(encounterValue.AsGodotDictionary())
-                    : null;
             if (encounterAnchor == null)
                 continue;
             Vector2I coord = encounterAnchor.world_coord;
@@ -368,9 +360,11 @@ public partial class WorldMapView : Control
             DrawCircle(center, cell_size * 0.12f, encounter_marker_inner_color);
         }
 
-        foreach (GDictionary npc in ReadDictionaryItems(DictArray(worldData, "world_npcs")))
+        foreach (WorldMapNpcData npc in _worldData.WorldNpcs)
         {
-            Vector2I coord = DictVector2I(npc, "coord", Vector2I.Zero);
+            if (npc == null)
+                continue;
+            Vector2I coord = npc.Coord;
             if (!visibleRect.HasPoint(coord) || !_fogSystem.IsVisible(coord, _playerFactionId))
                 continue;
             Vector2 center = _get_cell_rect_for_origin(coord, cameraOrigin).GetCenter();

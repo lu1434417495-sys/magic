@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 
 internal sealed class ContingencyConsumedCommitResult
 {
@@ -186,13 +185,11 @@ internal sealed class CharacterBattleWritebackService
         ContingencyMatrixSetupState setup
     )
     {
-        if (setup == null)
-            return null;
-        Godot.Collections.Dictionary payload = setup.ToDictionary();
-        payload["charged"] = false;
-        payload["reserved_mp_max"] = 0;
-        payload["material_costs"] = new GArray();
-        return ContingencyMatrixSetupState.FromDictionary(payload);
+        return setup?.WithChargeState(
+            charged: false,
+            reservedMpMax: 0,
+            Array.Empty<ContingencyMaterialCostState>()
+        );
     }
 
     private void SalvageMemberEquipment(PartyMemberState memberState)

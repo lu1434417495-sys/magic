@@ -38,7 +38,27 @@ public class ContingencyStoredSpellEntryState
         ContingencyFallbackPolicyKind.Unknown;
     public StringName FallbackPolicy { get; private set; } = "";
 
-    public ContingencyStoredSpellEntryState DuplicateState() => FromDictionary(ToDictionary());
+    public ContingencyStoredSpellEntryState DuplicateState()
+    {
+        var state = new ContingencyStoredSpellEntryState
+        {
+            StoredSkillId = StoredSkillId,
+            CastLevel = CastLevel,
+            Order = Order,
+            TargetResolver = TargetResolver?.DuplicateState(),
+            FallbackPolicyKind = FallbackPolicyKind,
+            FallbackPolicy = FallbackPolicy,
+        };
+        foreach (
+            KeyValuePair<string, object> entry in RuntimePlainPayload.CloneDictionary(
+                _parameterBindings
+            )
+        )
+        {
+            state._parameterBindings[entry.Key] = entry.Value;
+        }
+        return state;
+    }
 
     public GDictionary ToDictionary()
     {

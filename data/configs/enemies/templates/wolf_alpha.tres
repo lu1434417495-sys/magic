@@ -1,11 +1,13 @@
 [gd_resource type="Resource" script_class="EnemyTemplateDef" format=3]
 
 [ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="1_template"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/units/enemy/wolf_alpha_board.png" id="2_wolf_alpha_sprite"]
 
 [resource]
 script = ExtResource("1_template")
 template_id = &"wolf_alpha"
 display_name = "荒狼头目"
+battle_sprite_texture = ExtResource("2_wolf_alpha_sprite")
 brain_id = &"melee_aggressor"
 initial_state_id = &"engage"
 action_threshold = 30

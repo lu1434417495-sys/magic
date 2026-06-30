@@ -32,6 +32,8 @@ internal sealed class WorldRuntimeData
 
     public IReadOnlyList<WorldMapSettlementRecordData> Settlements => _settlements;
     public IReadOnlyList<EncounterAnchorData> EncounterAnchors => _encounterAnchors;
+    public IReadOnlyList<WorldMapEventData> WorldEvents => _worldEvents;
+    public IReadOnlyList<WorldMapNpcData> WorldNpcs => _worldNpcs;
 
     private WorldRuntimeData() { }
 
@@ -124,6 +126,51 @@ internal sealed class WorldRuntimeData
                 RuntimePlainPayload.ProjectDictionary(_fogStates, "WorldRuntimeData.fog_states");
         }
         return result;
+    }
+
+    // Write fog states straight into the typed payload, so saving fog after a move
+    // doesn't have to ToDictionary/FromDictionary the whole world.
+    internal void SetFogStates(GDictionary fogStates)
+    {
+        _fogStates.Clear();
+        HasFogStates = fogStates != null;
+        if (fogStates == null)
+        {
+            return;
+        }
+        Dictionary<string, object> normalized = RuntimePlainPayload.NormalizeDictionary(
+            fogStates,
+            "WorldRuntimeData.fog_states"
+        );
+        foreach (KeyValuePair<string, object> entry in normalized)
+        {
+            _fogStates[entry.Key] = entry.Value;
+        }
+    }
+
+    // Flip a world event to discovered in place. WorldMapEventData is immutable, so
+    // rebuild just the one record from its source payload; runs only on an actual
+    // discovery transition (rare), not on every move.
+    internal bool MarkWorldEventDiscovered(StringName eventId)
+    {
+        for (int index = 0; index < _worldEvents.Count; index++)
+        {
+            WorldMapEventData worldEvent = _worldEvents[index];
+            if (worldEvent == null || worldEvent.EventId != eventId || worldEvent.IsDiscovered)
+            {
+                continue;
+            }
+            GDictionary payload = worldEvent.DuplicateSourcePayload();
+            payload["is_discovered"] = true;
+            WorldMapEventData updated = WorldMapEventData.FromDictionary(payload);
+            if (updated == null)
+            {
+                return false;
+            }
+            _worldEvents[index] = updated;
+            return true;
+        }
+        return false;
     }
 
     internal bool TrySetSettlementState(string settlementId, WorldMapSettlementStateData state)

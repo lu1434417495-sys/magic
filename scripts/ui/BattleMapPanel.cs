@@ -165,6 +165,7 @@ public partial class BattleMapPanel : Control
     public Label command_summary_label;
     public Label hint_label;
     public Label log_label;
+    private string _last_skill_grid_signature = "";
 
     private Vector2I _hover_preview_coord = InvalidHoverCoord;
     private GVector2IArray _hover_preview_valid_coords = new();
@@ -824,42 +825,19 @@ public partial class BattleMapPanel : Control
         _position_hover_overlay(_hover_preview_coord);
     }
 
+    // 放大后的 preview 跟随悬停会压住战场单位贴图,改为固定钉在地图视口左侧居中
+    // (右上角已被战斗日志占用),不再随光标移动。hover_coord 保留参数以兼容调用点。
     private void _position_hover_overlay(Vector2I hover_coord)
     {
-        if (hover_overlay == null || _battle_board == null || map_viewport_container == null)
+        if (hover_overlay == null || map_viewport_container == null)
             return;
-        if (!_battle_board.IsCoordInViewport(hover_coord))
-        {
-            hover_overlay.Visible = false;
-            return;
-        }
-        Vector2 viewportPosition = _battle_board.CoordToViewportPosition(hover_coord);
-        if (
-            float.IsNegativeInfinity(viewportPosition.X)
-            || float.IsNegativeInfinity(viewportPosition.Y)
-        )
-        {
-            hover_overlay.Visible = false;
-            return;
-        }
         hover_overlay.ResetSize();
         Vector2 overlaySize = hover_overlay.Size;
-        Vector2 anchorScreenPosition = map_viewport_container.Position + viewportPosition;
-        Vector2 overlayPosition =
-            anchorScreenPosition
-            - new Vector2(overlaySize.X * 0.5f, overlaySize.Y + HOVER_OVERLAY_ANCHOR_OFFSET_Y);
-        Vector2 panelSize = Size;
-        if (overlayPosition.Y < HOVER_OVERLAY_EDGE_MARGIN)
-            overlayPosition.Y = anchorScreenPosition.Y + HOVER_OVERLAY_ANCHOR_OFFSET_Y;
-        if (overlayPosition.X < HOVER_OVERLAY_EDGE_MARGIN)
-            overlayPosition.X = HOVER_OVERLAY_EDGE_MARGIN;
-        float maxX = panelSize.X - overlaySize.X - HOVER_OVERLAY_EDGE_MARGIN;
-        if (overlayPosition.X > maxX)
-            overlayPosition.X = Mathf.Max(maxX, HOVER_OVERLAY_EDGE_MARGIN);
-        float maxY = panelSize.Y - overlaySize.Y - HOVER_OVERLAY_EDGE_MARGIN;
-        if (overlayPosition.Y > maxY)
-            overlayPosition.Y = Mathf.Max(maxY, HOVER_OVERLAY_EDGE_MARGIN);
-        hover_overlay.Position = overlayPosition;
+        Vector2 mapPosition = map_viewport_container.Position;
+        Vector2 mapSize = map_viewport_container.Size;
+        float x = mapPosition.X + HOVER_OVERLAY_EDGE_MARGIN;
+        float y = mapPosition.Y + Mathf.Max((mapSize.Y - overlaySize.Y) * 0.5f, HOVER_OVERLAY_EDGE_MARGIN);
+        hover_overlay.Position = new Vector2(x, y);
     }
 
     private void _on_map_viewport_container_gui_input(InputEvent @event)
@@ -2239,6 +2217,15 @@ public partial class BattleMapPanel : Control
 
     private void _rebuild_skill_grid(GArray slots)
     {
+        // Rebuilding 20 slot nodes (panels + margins + glyphs + labels + styleboxes)
+        // on every battle snapshot apply is expensive. The slot set/state usually
+        // doesn't change between ticks, so skip the teardown+recreate when the
+        // render-affecting data is identical to the last build.
+        string signature = _build_skill_grid_signature(slots);
+        if (skill_grid.GetChildCount() > 0 && signature == _last_skill_grid_signature)
+            return;
+        _last_skill_grid_signature = signature;
+
         _clear_container(skill_grid);
         if (slots.Count == 0)
         {
@@ -2253,6 +2240,29 @@ public partial class BattleMapPanel : Control
             skill_grid.AddChild(_create_skill_slot(slot));
         }
         _update_skill_grid_columns();
+    }
+
+    private static string _build_skill_grid_signature(GArray slots)
+    {
+        var builder = new System.Text.StringBuilder();
+        foreach (GDictionary slot in ReadDictionaryItems(slots))
+        {
+            builder.Append(DictInt(slot, "index", -1)).Append('|');
+            if (DictBool(slot, "is_empty", false))
+            {
+                builder.Append("e;");
+                continue;
+            }
+            builder
+                .Append(DictString(slot, "short_name", "")).Append('|')
+                .Append(DictString(slot, "footer_text", "")).Append('|')
+                .Append(DictString(slot, "icon_key", "")).Append('|')
+                .Append(DictBool(slot, "is_selected", false) ? '1' : '0')
+                .Append(DictBool(slot, "is_disabled", false) ? '1' : '0')
+                .Append(DictInt(slot, "cooldown", 0))
+                .Append(';');
+        }
+        return builder.ToString();
     }
 
     private void _update_skill_grid_columns()

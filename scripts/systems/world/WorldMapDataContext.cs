@@ -72,20 +72,13 @@ public sealed class WorldMapDataContext
 
     public bool IsSubmapActive() => active_map_id.Length > 0;
 
-    public int GetWorldStep()
-    {
-        GDictionary activeWorldData = ActiveWorldDataPayload();
-        return activeWorldData.ContainsKey("world_step")
-            ? activeWorldData["world_step"].AsInt32()
-            : 0;
-    }
+    public int GetWorldStep() => _activeRuntimeData?.WorldStep ?? 0;
 
     internal void SetWorldStep(int worldStep)
     {
+        // _activeRuntimeData is the source of truth and payloads project from it on
+        // demand, so a typed write suffices — no whole-world round-trip needed.
         _activeRuntimeData.SetWorldStep(worldStep);
-        GDictionary activeWorldData = ActiveWorldDataPayload();
-        activeWorldData["world_step"] = worldStep;
-        ReplaceActiveWorldDataPayload(activeWorldData);
     }
 
     internal string GetPlayerStartSettlementName() =>
@@ -105,32 +98,29 @@ public sealed class WorldMapDataContext
 
     public bool SaveActiveWorldFogState(WorldMapFogSystem fogSystem)
     {
-        if (
-            ActiveWorldDataPayload().Count == 0
-            || active_generation_config == null
-            || fogSystem == null
-        )
+        if (active_generation_config == null || fogSystem == null || _activeRuntimeData == null)
             return false;
-        GDictionary activeWorldData = ActiveWorldDataPayload();
-        activeWorldData[WorldMapFogSystem.WorldDataFogStatesKey] =
-            fogSystem.ExportPersistentState();
-        ReplaceActiveWorldDataPayload(activeWorldData);
-        _activeRuntimeData =
-            WorldRuntimeData.FromDictionary(activeWorldData) ?? WorldRuntimeData.Empty();
+        GDictionary fogStates = fogSystem.ExportPersistentState();
+        // Write fog directly into the typed active world data — no whole-world
+        // ToDictionary/FromDictionary round-trip. On the root map _activeRuntimeData
+        // and _rootRuntimeData are the same instance, so this updates root too.
+        _activeRuntimeData.SetFogStates(fogStates);
         if (IsSubmapActive())
         {
+            // The mounted-submap entry keeps a dict snapshot; sync just its fog key
+            // (submaps are entered rarely, so this targeted update is cheap).
             var submapEntry = GetMountedSubmapEntry(active_map_id);
-            if (submapEntry.Count > 0)
+            if (
+                submapEntry.Count > 0
+                && submapEntry.ContainsKey("world_data")
+                && submapEntry["world_data"].VariantType == Variant.Type.Dictionary
+            )
             {
-                submapEntry["world_data"] = activeWorldData;
+                GDictionary submapWorldData = submapEntry["world_data"].AsGodotDictionary();
+                submapWorldData[WorldMapFogSystem.WorldDataFogStatesKey] = fogStates;
+                submapEntry["world_data"] = submapWorldData;
                 SetMountedSubmapEntry(active_map_id, submapEntry);
             }
-        }
-        else
-        {
-            _rootRuntimeData = _activeRuntimeData;
-            ReplaceRootWorldDataPayload(activeWorldData);
-            UseRootWorldDataAsActive();
         }
         return true;
     }
@@ -357,10 +347,18 @@ public sealed class WorldMapDataContext
         _rebuild_world_coord_lookups();
     }
 
-    internal void SyncActiveWorldPayloadFromTypedState()
+    internal void SyncActiveWorldPayloadFromTypedState() =>
+        SyncActiveWorldPayloadFromTypedState(rebuildLookups: true);
+
+    internal void SyncActiveWorldPayloadFromTypedState(bool rebuildLookups)
     {
         _sync_active_world_payload_from_typed();
-        _rebuild_world_coord_lookups();
+        // Coord lookups only need rebuilding when entity positions/existence change
+        // (settlement state, anchor add/remove). Encounter growth only mutates an
+        // anchor's growth_stage in place, so the caller can skip the O(all markers)
+        // rebuild.
+        if (rebuildLookups)
+            _rebuild_world_coord_lookups();
     }
 
     internal void RefreshWorldEventDiscovery() => _refresh_world_event_discovery();
@@ -539,10 +537,11 @@ public sealed class WorldMapDataContext
         _worldNpcByCoord.Clear();
         _encounterAnchorByCoord.Clear();
         _worldEventByCoord.Clear();
-        GDictionary activeWorldData = ActiveWorldDataPayload();
-        foreach (GDictionary sd in Dictionaries(GetArray(activeWorldData, "settlements")))
+        // Iterate the typed source of truth directly — no ActiveWorldDataPayload()
+        // ToDictionary and no per-item FromDictionary. Lookups are read-only, so
+        // sharing the typed record references is safe.
+        foreach (WorldMapSettlementRecordData settlement in _activeRuntimeData.Settlements)
         {
-            WorldMapSettlementRecordData settlement = WorldMapSettlementRecordData.FromDictionary(sd);
             if (settlement == null || settlement.SettlementId.Length == 0)
                 continue;
             _settlementsById[settlement.SettlementId] = settlement;
@@ -552,20 +551,20 @@ public sealed class WorldMapDataContext
             for (int x = 0; x < size.X; x++)
                 _settlementByCoord[origin + new Vector2I(x, y)] = settlement;
         }
-        foreach (GDictionary nd in Dictionaries(GetArray(activeWorldData, "world_npcs")))
+        foreach (WorldMapNpcData worldNpc in _activeRuntimeData.WorldNpcs)
         {
-            WorldMapNpcData worldNpc = WorldMapNpcData.FromDictionary(nd);
-            if (!worldNpc.Exists)
+            if (worldNpc == null || !worldNpc.Exists)
                 continue;
             _worldNpcByCoord[worldNpc.Coord] = worldNpc;
         }
-        foreach (EncounterAnchorData ea in GetActiveEncounterAnchors())
+        foreach (EncounterAnchorData ea in _activeRuntimeData.EncounterAnchors)
         {
+            if (ea == null)
+                continue;
             _encounterAnchorByCoord[ea.world_coord] = ea;
         }
-        foreach (GDictionary wed in Dictionaries(GetArray(activeWorldData, "world_events")))
+        foreach (WorldMapEventData worldEvent in _activeRuntimeData.WorldEvents)
         {
-            WorldMapEventData worldEvent = WorldMapEventData.FromDictionary(wed);
             if (worldEvent == null || !worldEvent.IsDiscovered)
                 continue;
             _worldEventByCoord[worldEvent.WorldCoord] = worldEvent;
@@ -620,30 +619,27 @@ public sealed class WorldMapDataContext
 
     private void _refresh_world_event_discovery()
     {
-        GDictionary activeWorldData = ActiveWorldDataPayload();
-        var arr = GetArray(activeWorldData, "world_events");
-        if (arr.Count == 0)
-            return;
-        bool changed = false;
-        for (int i = 0; i < arr.Count; i++)
+        // Scan the typed events directly — no whole-world ToDictionary every move.
+        // Collect ids to mark first, then mutate, to avoid modifying while iterating.
+        List<StringName> toDiscover = null;
+        foreach (WorldMapEventData worldEvent in _activeRuntimeData.WorldEvents)
         {
-            if (!TryAsDictionary(arr[i], out var we))
-                continue;
-            WorldMapEventData worldEvent = WorldMapEventData.FromDictionary(we);
             if (worldEvent == null || worldEvent.IsDiscovered)
                 continue;
             if (!_is_world_event_discovery_condition_met(worldEvent))
                 continue;
-            we["is_discovered"] = true;
-            arr[i] = we;
-            changed = true;
+            (toDiscover ??= new List<StringName>()).Add(worldEvent.EventId);
+        }
+        if (toDiscover == null)
+            return;
+        bool changed = false;
+        foreach (StringName eventId in toDiscover)
+        {
+            if (_activeRuntimeData.MarkWorldEventDiscovered(eventId))
+                changed = true;
         }
         if (changed)
         {
-            activeWorldData["world_events"] = arr;
-            ReplaceActiveWorldDataPayload(activeWorldData);
-            _activeRuntimeData =
-                WorldRuntimeData.FromDictionary(activeWorldData) ?? WorldRuntimeData.Empty();
             _sync_active_world_payload_from_typed();
             _rebuild_world_coord_lookups();
         }
@@ -651,19 +647,19 @@ public sealed class WorldMapDataContext
 
     private void _sync_active_world_payload_from_typed()
     {
-        GDictionary activeWorldData = WorldMapDataProjection.Project(_activeRuntimeData);
-        ReplaceActiveWorldDataPayload(activeWorldData);
         if (active_map_id.Length == 0)
         {
+            // Root map: _activeRuntimeData is already the mutated source of truth and
+            // is the same instance as _rootRuntimeData, and payloads project from it
+            // on demand — so there is nothing to round-trip.
             _rootRuntimeData = _activeRuntimeData ?? WorldRuntimeData.Empty();
-            ReplaceRootWorldDataPayload(activeWorldData);
-            UseRootWorldDataAsActive();
             return;
         }
+        // Submap (entered rarely): keep the mounted-entry dict snapshot in sync.
         GDictionary submapEntry = GetMountedSubmapEntry(active_map_id);
         if (submapEntry.Count > 0)
         {
-            submapEntry["world_data"] = activeWorldData;
+            submapEntry["world_data"] = WorldMapDataProjection.Project(_activeRuntimeData);
             SetMountedSubmapEntry(active_map_id, submapEntry);
         }
     }
@@ -1038,6 +1034,7 @@ public sealed class WorldMapSettlementRecordData
     public readonly string DisplayName;
     public readonly Vector2I Origin;
     public readonly Vector2I FootprintSize;
+    public readonly int Tier;
     private readonly Dictionary<string, object> _sourceData = new(StringComparer.Ordinal);
 
     private WorldMapSettlementRecordData(
@@ -1046,6 +1043,7 @@ public sealed class WorldMapSettlementRecordData
         string displayName,
         Vector2I origin,
         Vector2I footprintSize,
+        int tier,
         GDictionary sourceData
     )
     {
@@ -1054,6 +1052,7 @@ public sealed class WorldMapSettlementRecordData
         DisplayName = displayName ?? "";
         Origin = origin;
         FootprintSize = footprintSize;
+        Tier = tier;
         WorldMapPlainPayload.Replace(
             _sourceData,
             RuntimePayloadCopy.Dictionary(
@@ -1086,6 +1085,7 @@ public sealed class WorldMapSettlementRecordData
             WorldMapDictionaryReaders.ReadString(data, "display_name"),
             WorldMapDictionaryReaders.ReadVector2I(data, "origin", Vector2I.Zero),
             WorldMapDictionaryReaders.ReadVector2I(data, "footprint_size", Vector2I.One),
+            WorldMapDictionaryReaders.ReadInt(data, "tier", 0),
             data
         );
     }
@@ -1458,6 +1458,14 @@ internal static class WorldMapDictionaryReaders
             return fallback;
         Variant value = data[key];
         return value.VariantType == Variant.Type.Vector2I ? value.AsVector2I() : fallback;
+    }
+
+    internal static int ReadInt(GDictionary data, string key, int fallback = 0)
+    {
+        if (data == null || !data.ContainsKey(key))
+            return fallback;
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
     }
 
     internal static GDictionary ReadDictionary(GDictionary data, string key)
