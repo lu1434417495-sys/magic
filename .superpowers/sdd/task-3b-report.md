@@ -67,3 +67,35 @@ See final response. The exact commit hash cannot be embedded in the committed re
 
 - Several Godot headless runners printed exit-time leaked-resource warnings while still exiting 0 and printing PASS. The static analysis runner and build were clean.
 - `git diff --check` passed, but Git warned that `scripts/systems/battle/ai/BattleAiGroundSkillActionEvaluator.cs` will normalize CRLF to LF when touched.
+
+## Review Fix: Authored Enemy Action Availability Routing
+
+Commit: `b747c1b7 fix: route authored ai actions through availability`
+
+The first task review rejected the implementation because authored enemy actions still bypassed `BattleSkillAvailabilityService`:
+
+- `UseGroundRepositionSkillAction` iterated raw known skill ids and built ground commands from `skill_id`.
+- `WaitAction` scanned `unit_state.known_active_skill_ids` and built preview commands from `skillDefinition.SkillId`.
+- `EnemyAiAction` raw skill-id command helpers directly stamped `BattleSkillEntryIds.KnownSkill(skillId)`.
+
+Fix applied:
+
+- Added `EnemyAiAction._resolve_available_skill_entries(...)` backed by `BattleSkillAvailabilityService` with `Consumer = AiPlanning`.
+- Routed `UseGroundRepositionSkillAction` through `BattleAvailableSkillEntry`, using `entry.SkillLevel` for ground option unlocks and `entry.EntryRef` for command construction.
+- Routed `WaitAction` active-rest hostile-skill checks and preview commands through `BattleAvailableSkillEntry`.
+- Changed raw `EnemyAiAction` skill-id command helpers to validate through availability before building commands, returning null if the skill id is stale/unavailable.
+- Strengthened `run_battle_ai_unit_skill_candidate_evaluator_regression.cs` with entry-preservation assertions and source guards for the authored-action old paths.
+
+Additional verification run after the fix:
+
+```bash
+dotnet build magic.csproj
+godot --headless -s res://tests/battle_runtime/ai/run_battle_ai_unit_skill_candidate_evaluator_regression.cs
+godot --headless -s res://tests/battle_runtime/ai/run_battle_ai_ground_reposition_behavior_regression.cs
+godot --headless -s res://tests/battle_runtime/ai/run_battle_ai_wait_behavior_regression.cs
+godot --headless -s res://tests/battle_runtime/ai/run_battle_ai_action_assembler_plan_regression.cs
+godot --headless -s res://tests/battle_runtime/runtime/run_contingency_autocast_origin_regression.cs
+godot --headless -s res://tests/static_analysis/run_contingency_autocast_no_known_spoof_regression.cs
+```
+
+All commands above exited 0. The Godot runners for ground reposition, wait behavior, and contingency origin still print existing Resource ownership/leak diagnostics at process exit while reporting PASS.
