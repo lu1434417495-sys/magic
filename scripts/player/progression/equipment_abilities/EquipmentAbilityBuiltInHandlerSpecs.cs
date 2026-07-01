@@ -121,7 +121,7 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
         System.Type payloadResourceType,
         System.Type payloadDefinitionType,
         EquipmentAbilityStateAccessSpec stateAccess = null,
-        IReadOnlyDictionary<EquipmentAbilityConsumerKind, EquipmentAbilityConsumerSupportSpec> consumerSupport = null
+        IReadOnlyList<EquipmentAbilityConsumerSupportSpec> consumerSupport = null
     )
     {
         return new EquipmentAbilityHandlerSpec
@@ -175,39 +175,45 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
         };
     }
 
-    private static IReadOnlyDictionary<EquipmentAbilityConsumerKind, EquipmentAbilityConsumerSupportSpec> ConsumerSupport(
+    private static IReadOnlyList<EquipmentAbilityConsumerSupportSpec> ConsumerSupport(
         bool includePreview
     )
     {
-        var support = new Dictionary<EquipmentAbilityConsumerKind, EquipmentAbilityConsumerSupportSpec>
+        var support = new List<EquipmentAbilityConsumerSupportSpec>
         {
-            [EquipmentAbilityConsumerKind.Execution] = Support(
+            Support(
                 EquipmentAbilityConsumerKind.Execution,
                 EquipmentAbilityConsumerSupportKind.Exact
             ),
-            [EquipmentAbilityConsumerKind.Trace] = Support(
+            Support(
                 EquipmentAbilityConsumerKind.Trace,
                 EquipmentAbilityConsumerSupportKind.TraceOnly
             ),
         };
         if (includePreview)
         {
-            support[EquipmentAbilityConsumerKind.Preview] = Support(
-                EquipmentAbilityConsumerKind.Preview,
-                EquipmentAbilityConsumerSupportKind.Approximate,
-                EquipmentAbilityPreviewRollPolicyKind.ExpectedValue
+            support.Add(
+                Support(
+                    EquipmentAbilityConsumerKind.Preview,
+                    EquipmentAbilityConsumerSupportKind.Approximate,
+                    EquipmentAbilityPreviewRollPolicyKind.ExpectedValue
+                )
             );
-            support[EquipmentAbilityConsumerKind.AiScoring] = Support(
-                EquipmentAbilityConsumerKind.AiScoring,
-                EquipmentAbilityConsumerSupportKind.Approximate,
-                EquipmentAbilityPreviewRollPolicyKind.ExpectedValue
+            support.Add(
+                Support(
+                    EquipmentAbilityConsumerKind.AiScoring,
+                    EquipmentAbilityConsumerSupportKind.Approximate,
+                    EquipmentAbilityPreviewRollPolicyKind.ExpectedValue
+                )
             );
-            support[EquipmentAbilityConsumerKind.Snapshot] = Support(
-                EquipmentAbilityConsumerKind.Snapshot,
-                EquipmentAbilityConsumerSupportKind.TraceOnly
+            support.Add(
+                Support(
+                    EquipmentAbilityConsumerKind.Snapshot,
+                    EquipmentAbilityConsumerSupportKind.TraceOnly
+                )
             );
         }
-        return ReadOnly(support);
+        return new ReadOnlyCollection<EquipmentAbilityConsumerSupportSpec>(support);
     }
 
     private static EquipmentAbilityConsumerSupportSpec Support(
@@ -232,16 +238,6 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
     )
     {
         return new ReadOnlyDictionary<StringName, EquipmentAbilityHandlerSpec>(source);
-    }
-
-    private static IReadOnlyDictionary<EquipmentAbilityConsumerKind, EquipmentAbilityConsumerSupportSpec> ReadOnly(
-        Dictionary<EquipmentAbilityConsumerKind, EquipmentAbilityConsumerSupportSpec> source
-    )
-    {
-        return new ReadOnlyDictionary<
-            EquipmentAbilityConsumerKind,
-            EquipmentAbilityConsumerSupportSpec
-        >(source);
     }
 
     private static IReadOnlyDictionary<EquipmentAbilityTriggerKind, EquipmentAbilityTriggerTimingSpec> ReadOnly(

@@ -369,7 +369,7 @@ public partial class EquipmentAbilityBindingDef : Resource
 | `ModifyAbilityStateActionPayloadDef` | `target_selector`、`state_key`、`operation`、`int_delta` |
 | `MarkTargetActionPayloadDef` | `target_selector`、`state_key`、`stack_delta`、`remove_on_source_missing` |
 | `GrantSkillActionPayloadDef` | `skill_id`、`skill_level`、`availability_state_key` |
-| `EquipmentDurabilityDamageActionPayloadDef` | `target_selector`、`target_slots`、`slot_weight_map`、`required_item_tags`、`required_equipment_type_ids`、`durability_loss`、`save_tag`、`save_dc`、`require_attack_success`、`max_damaged_items` |
+| `EquipmentDurabilityDamageActionPayloadDef` | `target_selector`、`target_slots`、`slot_weights`、`required_item_tags`、`required_equipment_type_ids`、`durability_loss`、`save_tag`、`save_dc`、`require_attack_success`、`max_damaged_items` |
 | `EquipmentAttackDefenseModifierDef` | `modifier_id`、`ignored_ac_components`、`ac_component_multipliers`、`lock_dodge_bonus`、`required_target_equipment_selector`、`required_target_item_tags`、`required_target_equipment_type_ids`、`cover_policy`、`projectile_obstacle_policy`、`trace_label` |
 | `EquipmentAcComponentMultiplierDef` | `ac_component_id`、`multiplier_percent`、`stack_mode` |
 | `EquipmentWeaponProfileOverlayDef` | `overlay_id`、`priority`、`condition_group`、`require_equipped_weapon`、`required_weapon_families`、`required_weapon_type_ids`、`attack_range_delta`、`min_attack_range`、`max_attack_range`、`one_handed_dice_overlay`、`two_handed_dice_overlay`、`physical_damage_tag_override`、`grip_override`、`uses_two_hands_override`、`is_versatile_override` |
@@ -1046,7 +1046,7 @@ equipment selector 只返回 `EquipmentAbilityEquipmentTargetRef`，不能把可
 `random_target_equipment` 的随机必须发生在 selector resolver 内，不能发生在 `EquipmentMutationAdapter`。规则：
 
 - 候选来自目标单位当前 `EquipmentState`，先按 `target_slots`、item tag、equipment type 过滤，再排除 `CurrentDurability <= 0` 的装备。
-- `slot_weight_map` 控制候选权重；未配置权重但合法的候选默认权重为 `1`；配置的权重必须是正整数，`<= 0` 在内容校验阶段报错。
+- `slot_weights` 控制候选权重；它必须是 typed `EquipmentSlotWeightDef` 列表，不得使用 `Godot.Collections.Dictionary` 作为装备能力 ABI；未配置权重但合法的候选默认权重为 `1`；配置的权重必须是正整数，`<= 0` 在内容校验阶段报错。
 - 多槽位装备只生成一个候选，以 entry slot 为稳定 identity；若 occupied slot 和 entry slot 都出现在权重表中，取最高正权重。
 - execution consumer 使用正式 battle RNG 在 `[1, TotalWeight]` 内选择一个候选，并把 roll、候选和选中 instance 写入 trace。实现时可以复用现有 `BattleDamageResolver` 的 candidate/weight helper，但 selector 只能返回 `EquipmentDurabilitySelection` / `EquipmentAbilityEquipmentTargetRef`，真正扣耐久必须进入 selected-target commit。
 - preview / AI / snapshot consumer 不消费 RNG；结果保留 `EquipmentCandidates` 和 `TotalWeight`，由 preview/AI 计算期望耐久损失或威胁，不产生 selected target。
@@ -1158,6 +1158,16 @@ public partial class GrantSkillActionPayloadDef : Resource
 }
 
 [GlobalClass]
+public partial class EquipmentSlotWeightDef : Resource
+{
+    [Export]
+    public StringName slot_id { get; set; } = "";
+
+    [Export]
+    public int weight { get; set; }
+}
+
+[GlobalClass]
 public partial class EquipmentDurabilityDamageActionPayloadDef : Resource
 {
     [Export]
@@ -1167,7 +1177,7 @@ public partial class EquipmentDurabilityDamageActionPayloadDef : Resource
     public Godot.Collections.Array<StringName> target_slots { get; set; } = new();
 
     [Export]
-    public Godot.Collections.Dictionary slot_weight_map { get; set; } = new();
+    public Godot.Collections.Array<EquipmentSlotWeightDef> slot_weights { get; set; } = new();
 
     [Export]
     public Godot.Collections.Array<StringName> required_item_tags { get; set; } = new();
@@ -1197,7 +1207,7 @@ public partial class EquipmentDurabilityDamageActionPayloadDef : Resource
 字段规则：
 
 - `target_slots`、`required_item_tags`、`required_equipment_type_ids` 只定义候选过滤，不代表最终一定命中；selector 结果为空时 action 输出 no-op trace。
-- `slot_weight_map` 只服务 `random_target_equipment`。key 必须是合法 `EquipmentRules` slot，value 必须是正整数；未配置但合法的候选默认权重为 `1`，显式 `<= 0` 的权重在内容校验阶段报错。
+- `slot_weights` 只服务 `random_target_equipment`。每个 entry 的 `slot_id` 必须是合法 `EquipmentRules` slot，`weight` 必须是正整数；同一 slot 不允许重复；未配置但合法的候选默认权重为 `1`，显式 `<= 0` 的权重在内容校验阶段报错。
 - `max_damaged_items` 在 V1 固定只允许 `1`。多件装备同时损坏需要先设计 multi-target event、log 聚合、save 次数和 changed-unit report。
 - `save_tag`、`save_dc`、`require_attack_success` 沿用现有 `equipment_durability_damage` 解释规则；装备稀有度、抗性或其它 save modifier 也必须由现有耐久伤害链路处理。
 - 持久化写回沿用现有装备耐久事实 owner：adapter 只能提交到现有 battle result / durability resolver，不能新增 sidecar writeback 或直接改仓库实例。
@@ -2661,13 +2671,13 @@ private readonly BattleEquipmentAbilityMarkStore _equipmentAbilityMarks = new();
 
 internal IReadOnlyList<BattleEquipmentAbilityMarkState> GetEquipmentAbilityMarksTyped();
 internal void ReplaceEquipmentAbilityMarksTyped(IEnumerable<BattleEquipmentAbilityMarkState> marks);
-internal Godot.Collections.Array<Godot.Collections.Dictionary> ProjectEquipmentAbilityMarks();
-internal void ReplaceEquipmentAbilityMarksPayload(Godot.Collections.Array<Godot.Collections.Dictionary> payload);
+internal IReadOnlyList<BattleEquipmentAbilityMarkSnapshot> ProjectEquipmentAbilityMarksSnapshotTyped();
+internal void ReplaceEquipmentAbilityMarksSnapshotTyped(IEnumerable<BattleEquipmentAbilityMarkSnapshot> marks);
 internal void UpsertEquipmentAbilityMark(BattleEquipmentAbilityMarkState mark);
 internal int RemoveEquipmentAbilityMarks(EquipmentAbilityMarkQuery query);
 ```
 
-store 必须拥有 `DuplicateState()`、`ToDictionaryArray()`、`FromDictionaryArray()` 和 stable projection helper。V1 中这些 payload projection 只服务 headless/runtime snapshot、AI mutation guard 和测试，不作为普通存档字段写入 save。
+store 必须拥有 `DuplicateState()` 和 typed snapshot import/export helper。V1 中这些 snapshot 只服务 headless/runtime snapshot、AI mutation guard 和测试；如果 Godot/headless 输出需要 dictionary，由 snapshot adapter 在边界投影，store 本身不得暴露 `Godot.Collections.Dictionary` / `Array<Dictionary>` API，也不作为普通存档字段写入 save。
 
 #### Battle-level ability state
 
@@ -2700,14 +2710,14 @@ private readonly BattleEquipmentAbilityStateStore _equipmentAbilityStates = new(
 
 internal IReadOnlyList<BattleEquipmentAbilityState> GetEquipmentAbilityStatesTyped();
 internal void ReplaceEquipmentAbilityStatesTyped(IEnumerable<BattleEquipmentAbilityState> states);
-internal Godot.Collections.Array<Godot.Collections.Dictionary> ProjectEquipmentAbilityStates();
-internal void ReplaceEquipmentAbilityStatesPayload(Godot.Collections.Array<Godot.Collections.Dictionary> payload);
+internal IReadOnlyList<BattleEquipmentAbilityStateSnapshot> ProjectEquipmentAbilityStatesSnapshotTyped();
+internal void ReplaceEquipmentAbilityStatesSnapshotTyped(IEnumerable<BattleEquipmentAbilityStateSnapshot> states);
 internal bool TryGetEquipmentAbilityState(StringName stateInstanceKey, out BattleEquipmentAbilityState state);
 internal void PutEquipmentAbilityState(BattleEquipmentAbilityState state);
 internal int RemoveEquipmentAbilityStates(EquipmentAbilityStateQuery query);
 ```
 
-V1 中 `BattleEquipmentAbilityState` payload projection 只服务 headless/runtime snapshot、AI mutation guard 和测试，不作为普通存档字段写入 save。
+V1 中 `BattleEquipmentAbilityState` typed snapshot 只服务 headless/runtime snapshot、AI mutation guard 和测试；Godot payload 只能在 snapshot adapter 边界生成，不作为普通存档字段写入 save。
 
 #### Mandatory integration points
 
@@ -4169,7 +4179,7 @@ PresentationAndCommands：
 - `source_traces` 若存在，只做字段合法性与 enum 转换：未知 `source_kind`、未知 `coverage_status`、未知 `phase`、非法 by_family 相对路径或缺 `item_id` 报错。
 - V1 框架期不做全量 by_family bullet completeness check；validator 不扫描“哪些 bullet 缺 trace”。`source_traces` 不能让未支持能力绕过正式 handler / owner 校验。
 - `EquipmentDurabilityDamageActionPayloadDef` 只允许 equipment target result，未知 slot、未知 shield tag、非法 durability loss 报错。
-- `EquipmentDurabilityDamageActionPayloadDef.random_target_equipment` 的 `target_slots`、`slot_weight_map`、`required_item_tags`、`required_equipment_type_ids` 必须能被 selector 解释；未知 slot、重复 slot、非正权重、静态上必然为空的过滤组合和 `max_damaged_items != 1` 必须报 blocking diagnostic。
+- `EquipmentDurabilityDamageActionPayloadDef.random_target_equipment` 的 `target_slots`、`slot_weights`、`required_item_tags`、`required_equipment_type_ids` 必须能被 selector 解释；未知 slot、重复 slot、非正权重、静态上必然为空的过滤组合和 `max_damaged_items != 1` 必须报 blocking diagnostic。
 - `EquipmentDurabilityDamageActionPayloadDef` 的 `save_tag/save_dc/require_attack_success` 必须满足现有 `equipment_durability_damage` 校验；不允许为装备能力另开 save schema 或 writeback schema。
 - `trigger = on_battle_end` 时，mutating action 必须声明 `BattleEndCommitStage` 和 commit owner；缺 stage、缺 adapter、stage 与 owner 不匹配或缺回归覆盖时必须 blocking diagnostic。V1 已支持的 battle-end action 必须完整提交；未支持的 loot/reward/resource/death/status/world/quest/pending-cast/auto-cast 等 action 不能降级为 trace/no-op。
 - 声明多射行动经济、reload/load 装填、bonus action/reaction slot、射后移动/disengage、同动作攻击+施法、连续使用疲劳、死亡前免费攻击、卡壳/修理动作或其它 V2 action-economy handler 的 binding，在 V1 必须报 owner-missing / unsupported diagnostic。
@@ -4255,7 +4265,7 @@ PresentationAndCommands：
 - `required_target_equipment_selector = target_armor` 且 required tag 为 `metal` 时，目标没有 metal armor 会产生 no-op trace，不 fallback 成普通 `+hit`。
 - `cover_policy = ignore_cover_bonus` / `projectile_obstacle_policy = ignore_projectile_obstacle_for_attack_check` 在 owner 未实现时被内容校验挡住；owner 实现后必须在 preview/execution/AI 中使用同一 gate。
 - target selector 缺少 context 时给出 trace，不产生 fallback 目标。
-- `random_target_equipment` 按 `slot_weight_map` 生成候选和 `TotalWeight`，execution 只随机一次，并把 roll、候选和选中 `EquipmentInstanceId` 写入 trace。
+- `random_target_equipment` 按 typed `slot_weights` 生成候选和 `TotalWeight`，execution 只随机一次，并把 roll、候选和选中 `EquipmentInstanceId` 写入 trace。
 - preview/AI/snapshot 调用 `random_target_equipment` 不消费 RNG、不产生 selected target，只暴露候选、权重和期望耐久损失。
 - granted combat skill 出现在可用技能入口中。
 - 换装后 granted skill entry 和 state 正确清理。

@@ -15,6 +15,12 @@ public sealed class EquipmentAbilityEquipmentTargetRef
     public int CurrentDurability { get; init; }
 }
 
+public sealed class EquipmentSlotWeightDefinition
+{
+    public StringName SlotId { get; init; } = "";
+    public int Weight { get; init; }
+}
+
 internal sealed class EquipmentDurabilityCommitRequest
 {
     public BattleUnitState SourceUnit { get; init; }

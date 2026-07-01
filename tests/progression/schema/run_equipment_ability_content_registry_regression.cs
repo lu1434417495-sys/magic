@@ -124,12 +124,13 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
                 new[] { "target_selector", "state_key", "stack_delta", "remove_on_source_missing" },
             [typeof(GrantSkillActionPayloadDef)] =
                 new[] { "skill_id", "skill_level", "availability_state_key" },
+            [typeof(EquipmentSlotWeightDef)] = new[] { "slot_id", "weight" },
             [typeof(EquipmentDurabilityDamageActionPayloadDef)] =
                 new[]
                 {
                     "target_selector",
                     "target_slots",
-                    "slot_weight_map",
+                    "slot_weights",
                     "required_item_tags",
                     "required_equipment_type_ids",
                     "durability_loss",
@@ -302,7 +303,7 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
             "mark_target should declare binding-local state writes."
         );
         _test.True(
-            actionSpecs["equipment_durability_damage"].ConsumerSupport.ContainsKey(
+            actionSpecs["equipment_durability_damage"].SupportsConsumer(
                 EquipmentAbilityConsumerKind.Preview
             ),
             "durability action spec should expose preview support metadata."
@@ -561,6 +562,17 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
         );
         AssertErrorContains(result.Errors, "EQA_REFERENCE_UNKNOWN_STATUS", "bad.unknown_status");
         AssertErrorContains(result.Errors, "EQA_REFERENCE_UNKNOWN_SLOT", "bad.unknown_slot");
+        AssertErrorContains(result.Errors, "EQA_SLOT_WEIGHT_INVALID", "bad.invalid_slot_weight");
+        AssertErrorContains(
+            result.Errors,
+            "EQA_REFERENCE_UNKNOWN_SLOT",
+            "bad.unknown_slot_weight"
+        );
+        AssertErrorContains(
+            result.Errors,
+            "EQA_SLOT_WEIGHT_DUPLICATE",
+            "bad.duplicate_slot_weight"
+        );
         AssertErrorContains(result.Errors, "EQA_STATE_KEY_UNDECLARED", "bad.undeclared_state");
         AssertErrorContains(
             result.Errors,
@@ -878,6 +890,95 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
                         {
                             target_selector = "target_weapon",
                             target_slots = { "left_ear" },
+                            durability_loss = 1,
+                            max_damaged_items = 1,
+                        },
+                    }
+                )
+            )
+        );
+
+        pack.bindings.Add(
+            BuildBinding(
+                "bad.invalid_slot_weight",
+                reaction: ReactionWithAction(
+                    "reaction.invalid_slot_weight",
+                    new EquipmentAbilityActionDef
+                    {
+                        action_id = "action.durability",
+                        kind = "equipment_durability_damage",
+                        payload = new EquipmentDurabilityDamageActionPayloadDef
+                        {
+                            target_selector = "target_weapon",
+                            slot_weights =
+                            {
+                                new EquipmentSlotWeightDef
+                                {
+                                    slot_id = "main_hand",
+                                    weight = 0,
+                                },
+                            },
+                            durability_loss = 1,
+                            max_damaged_items = 1,
+                        },
+                    }
+                )
+            )
+        );
+
+        pack.bindings.Add(
+            BuildBinding(
+                "bad.unknown_slot_weight",
+                reaction: ReactionWithAction(
+                    "reaction.unknown_slot_weight",
+                    new EquipmentAbilityActionDef
+                    {
+                        action_id = "action.durability",
+                        kind = "equipment_durability_damage",
+                        payload = new EquipmentDurabilityDamageActionPayloadDef
+                        {
+                            target_selector = "target_weapon",
+                            slot_weights =
+                            {
+                                new EquipmentSlotWeightDef
+                                {
+                                    slot_id = "left_ear",
+                                    weight = 1,
+                                },
+                            },
+                            durability_loss = 1,
+                            max_damaged_items = 1,
+                        },
+                    }
+                )
+            )
+        );
+
+        pack.bindings.Add(
+            BuildBinding(
+                "bad.duplicate_slot_weight",
+                reaction: ReactionWithAction(
+                    "reaction.duplicate_slot_weight",
+                    new EquipmentAbilityActionDef
+                    {
+                        action_id = "action.durability",
+                        kind = "equipment_durability_damage",
+                        payload = new EquipmentDurabilityDamageActionPayloadDef
+                        {
+                            target_selector = "target_weapon",
+                            slot_weights =
+                            {
+                                new EquipmentSlotWeightDef
+                                {
+                                    slot_id = "main_hand",
+                                    weight = 1,
+                                },
+                                new EquipmentSlotWeightDef
+                                {
+                                    slot_id = "main_hand",
+                                    weight = 2,
+                                },
+                            },
                             durability_loss = 1,
                             max_damaged_items = 1,
                         },
@@ -1248,10 +1349,6 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
             KnownTraitIds = new HashSet<StringName> { "trait.weapon.flame" },
             KnownSkillIds = new HashSet<StringName> { "known_skill" },
             KnownItemIds = new HashSet<StringName> { "test_blade" },
-            TraitCategoriesByTraitId = new Dictionary<StringName, IReadOnlySet<StringName>>
-            {
-                ["trait.weapon.flame"] = new HashSet<StringName> { "weapon_feat" },
-            },
             KnownStatusIds = new HashSet<StringName> { "burning" },
             KnownDamageTypes = new HashSet<StringName> { "physical_slash" },
             KnownEquipmentSlotIds = new HashSet<StringName> { "main_hand", "off_hand", "body" },

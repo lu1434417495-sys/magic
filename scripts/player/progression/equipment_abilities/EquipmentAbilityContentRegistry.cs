@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Reflection;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 internal sealed class EquipmentAbilityContentRegistry : IDisposable
 {
@@ -841,6 +840,45 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 }
             }
         }
+        HashSet<StringName> weightedSlots = new();
+        if (payload.slot_weights != null)
+        {
+            for (int index = 0; index < payload.slot_weights.Count; index++)
+            {
+                EquipmentSlotWeightDef weight = payload.slot_weights[index];
+                if (weight == null || weight.slot_id == "" || weight.weight <= 0)
+                {
+                    AddError(
+                        errors,
+                        "EQA_SLOT_WEIGHT_INVALID",
+                        $"{path}.payload.slot_weights[{index}]",
+                        "slot_weights entries require slot_id and positive weight"
+                    );
+                    continue;
+                }
+                if (!weightedSlots.Add(weight.slot_id))
+                {
+                    AddError(
+                        errors,
+                        "EQA_SLOT_WEIGHT_DUPLICATE",
+                        $"{path}.payload.slot_weights[{weight.slot_id}]",
+                        $"slot_weight for {weight.slot_id} is duplicated"
+                    );
+                }
+                if (
+                    HasKnownValues(context.KnownEquipmentSlotIds)
+                    && !context.KnownEquipmentSlotIds.Contains(weight.slot_id)
+                )
+                {
+                    AddError(
+                        errors,
+                        "EQA_REFERENCE_UNKNOWN_SLOT",
+                        $"{path}.payload.slot_weights[{weight.slot_id}]",
+                        $"equipment slot {weight.slot_id} is not known"
+                    );
+                }
+            }
+        }
     }
 
     private static void ValidateDeclaredStateKey(
@@ -1285,7 +1323,7 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 {
                     TargetSelector = durability.target_selector,
                     TargetSlots = CopyStringNames(durability.target_slots),
-                    SlotWeightMap = CopyStringNameIntMap(durability.slot_weight_map),
+                    SlotWeights = ProjectSlotWeights(durability.slot_weights),
                     RequiredItemTags = CopyStringNames(durability.required_item_tags),
                     RequiredEquipmentTypeIds = CopyStringNames(durability.required_equipment_type_ids),
                     DurabilityLoss = durability.durability_loss,
@@ -1503,6 +1541,38 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         return result.Count > 0 ? new ReadOnlyCollection<StringName>(result) : Array.Empty<StringName>();
     }
 
+    private static IReadOnlyList<EquipmentSlotWeightDefinition> ProjectSlotWeights(
+        Godot.Collections.Array<EquipmentSlotWeightDef> values
+    )
+    {
+        if (values == null || values.Count == 0)
+            return Array.Empty<EquipmentSlotWeightDefinition>();
+        var result = new List<EquipmentSlotWeightDefinition>();
+        HashSet<StringName> seen = new();
+        foreach (EquipmentSlotWeightDef value in values)
+        {
+            if (
+                value == null
+                || value.slot_id == ""
+                || value.weight <= 0
+                || !seen.Add(value.slot_id)
+            )
+            {
+                continue;
+            }
+            result.Add(
+                new EquipmentSlotWeightDefinition
+                {
+                    SlotId = value.slot_id,
+                    Weight = value.weight,
+                }
+            );
+        }
+        return result.Count > 0
+            ? new ReadOnlyCollection<EquipmentSlotWeightDefinition>(result)
+            : Array.Empty<EquipmentSlotWeightDefinition>();
+    }
+
     private static IReadOnlySet<StringName> CopyStringNameSet(
         Godot.Collections.Array<StringName> values
     )
@@ -1516,23 +1586,6 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 result.Add(value);
         }
         return EquipmentAbilityReadOnlySet<StringName>.From(result);
-    }
-
-    private static IReadOnlyDictionary<StringName, int> CopyStringNameIntMap(GDictionary values)
-    {
-        var result = new Dictionary<StringName, int>();
-        if (values == null)
-            return new ReadOnlyDictionary<StringName, int>(result);
-        foreach (Variant rawKey in values.Keys)
-        {
-            StringName key = ProgressionDataUtils.to_string_name(rawKey);
-            if (key == "")
-                continue;
-            Variant rawValue = values[rawKey];
-            if (rawValue.VariantType == Variant.Type.Int)
-                result[key] = rawValue.AsInt32();
-        }
-        return new ReadOnlyDictionary<StringName, int>(result);
     }
 
     private static EquipmentAbilityCoverageStatus ParseCoverageStatus(StringName value)

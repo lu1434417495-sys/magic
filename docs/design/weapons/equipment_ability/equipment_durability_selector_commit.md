@@ -122,7 +122,7 @@ internal sealed class EquipmentDurabilitySelectionQuery
     public EquipmentAbilityConsumerKind Consumer { get; init; }
     public StringName SelectorId { get; init; }
     public IReadOnlyList<StringName> TargetSlots { get; init; }
-    public IReadOnlyDictionary<StringName, int> SlotWeightMap { get; init; }
+    public IReadOnlyList<EquipmentSlotWeightDefinition> SlotWeights { get; init; }
     public IReadOnlySet<StringName> RequiredItemTags { get; init; }
     public IReadOnlySet<StringName> RequiredEquipmentTypeIds { get; init; }
     public StringName ExplicitSlotOverride { get; init; }
@@ -134,8 +134,8 @@ internal sealed class EquipmentDurabilitySelectionQuery
 
 构造来源：
 
-- `BuildEquipmentDurabilitySelectionQueryFromEffect(...)` 从旧 `CombatEffectDefinition` 读取 `target_slots`、`slot_weight_map` 和 `DamageResolutionContext.EquipmentSlotOverride` / `"equipment_slot_override"`。
-- `BuildEquipmentDurabilitySelectionQueryFromAbilityPayload(...)` 从 `EquipmentDurabilityDamageActionPayloadDef` 读取 `target_selector`、`target_slots`、`slot_weight_map`、`required_item_tags`、`required_equipment_type_ids`。
+- `BuildEquipmentDurabilitySelectionQueryFromEffect(...)` 从旧 `CombatEffectDefinition` 读取 `target_slots`、`slot_weight_map` 和 `DamageResolutionContext.EquipmentSlotOverride` / `"equipment_slot_override"`，但进入 query 前必须投成 typed `SlotWeights` 列表；旧 effect params 是历史技能边界，不作为装备能力 ABI。
+- `BuildEquipmentDurabilitySelectionQueryFromAbilityPayload(...)` 从 `EquipmentDurabilityDamageActionPayloadDef` 读取 `target_selector`、`target_slots`、typed `slot_weights`、`required_item_tags`、`required_equipment_type_ids`。
 - `target_weapon`、`target_shield`、`target_armor`、`target_slot` 可以用同一 query，只是 `ConsumeRandom = false` 且通过 fixed selector 规则限制候选。
 - `random_target_equipment` 在 execution 中 `ConsumeRandom = true`；preview / AI / snapshot 中 `ConsumeRandom = false`。
 
@@ -161,7 +161,7 @@ internal sealed class EquipmentDurabilitySelectionCandidate
 - `RequiredItemTags` 非空时，item tags 必须全部满足；item tag 只来自 content catalog / `ItemDef` 只读事实。
 - `RequiredEquipmentTypeIds` 非空时，item equipment type 必须命中。
 - 多槽位装备只生成一个 candidate，identity 为 `EntrySlotId`。
-- `SlotWeightMap` 权重按 entry slot 与 occupied slots 取最高正权重；未配置时默认 `1`。
+- `SlotWeights` 权重按 entry slot 与 occupied slots 取最高正权重；未配置时默认 `1`；selector 内部允许为计算临时构建 typed key/value 索引，但 query / ABI 不暴露 dictionary。
 - 内容校验阶段必须拒绝未知 slot、重复 slot、非正权重和静态上必然为空的过滤组合。
 
 ### Selection Result
@@ -387,7 +387,7 @@ AI 建议评分：
 | `run_spell_disjunction_equipment_durability_regression.cs` | 旧 spell effect 行为不变 |
 | 新增 selected-target commit regression | explicit ref 只扣选中 instance，禁止二次随机 |
 | 新增 stale ref regression | item/instance/slot 变化后 no-op，不 fallback |
-| 新增 weighted selector regression | `slot_weight_map`、occupied slot 最高权重、默认权重一致 |
+| 新增 weighted selector regression | typed `slot_weights`、occupied slot 最高权重、默认权重一致 |
 | 新增 preview/AI candidate regression | 不消费 RNG，不产生 durability event，不改 `current_durability` |
 | 新增 adapter regression | action payload 走 existing event/log/refresh/writeback 语义 |
 

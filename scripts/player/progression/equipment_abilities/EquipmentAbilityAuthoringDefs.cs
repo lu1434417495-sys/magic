@@ -189,11 +189,19 @@ public sealed partial class GrantSkillActionPayloadDef : Resource
 }
 
 [GlobalClass]
+public sealed partial class EquipmentSlotWeightDef : Resource
+{
+    [Export] public StringName slot_id { get; set; } = "";
+    [Export] public int weight { get; set; }
+}
+
+[GlobalClass]
 public sealed partial class EquipmentDurabilityDamageActionPayloadDef : Resource
 {
     [Export] public StringName target_selector { get; set; } = "";
     [Export] public Godot.Collections.Array<StringName> target_slots { get; set; } = new();
-    [Export] public Godot.Collections.Dictionary slot_weight_map { get; set; } = new();
+    [Export] public Godot.Collections.Array<EquipmentSlotWeightDef> slot_weights { get; set; } =
+        new();
     [Export] public Godot.Collections.Array<StringName> required_item_tags { get; set; } = new();
     [Export] public Godot.Collections.Array<StringName> required_equipment_type_ids { get; set; } = new();
     [Export] public int durability_loss { get; set; }

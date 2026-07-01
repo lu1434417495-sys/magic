@@ -299,8 +299,8 @@ public sealed class EquipmentDurabilityDamageActionPayloadDefinition
 {
     public StringName TargetSelector { get; init; } = "";
     public IReadOnlyList<StringName> TargetSlots { get; init; } = Array.Empty<StringName>();
-    public IReadOnlyDictionary<StringName, int> SlotWeightMap { get; init; } =
-        new ReadOnlyDictionary<StringName, int>(new Dictionary<StringName, int>());
+    public IReadOnlyList<EquipmentSlotWeightDefinition> SlotWeights { get; init; } =
+        Array.Empty<EquipmentSlotWeightDefinition>();
     public IReadOnlyList<StringName> RequiredItemTags { get; init; } = Array.Empty<StringName>();
     public IReadOnlyList<StringName> RequiredEquipmentTypeIds { get; init; } =
         Array.Empty<StringName>();
@@ -432,10 +432,6 @@ public sealed class EquipmentAbilityContentValidationContext
         EquipmentAbilityReadOnlySet<StringName>.Empty;
     public IReadOnlySet<StringName> KnownSkillIds { get; init; } =
         EquipmentAbilityReadOnlySet<StringName>.Empty;
-    public IReadOnlyDictionary<StringName, IReadOnlySet<StringName>> TraitCategoriesByTraitId { get; init; } =
-        new ReadOnlyDictionary<StringName, IReadOnlySet<StringName>>(
-            new Dictionary<StringName, IReadOnlySet<StringName>>()
-        );
     public IReadOnlySet<StringName> KnownCreatureTypeTags { get; init; } =
         EquipmentAbilityReadOnlySet<StringName>.Empty;
     public IReadOnlySet<StringName> KnownBattleEnvironmentTags { get; init; } =
@@ -458,13 +454,23 @@ public sealed class EquipmentAbilityHandlerSpec
     public Type PayloadResourceType { get; init; }
     public Type PayloadDefinitionType { get; init; }
     public EquipmentAbilityMutationPolicyKind MutationPolicy { get; init; }
-    public IReadOnlyDictionary<EquipmentAbilityConsumerKind, EquipmentAbilityConsumerSupportSpec> ConsumerSupport { get; init; } =
-        new ReadOnlyDictionary<
-            EquipmentAbilityConsumerKind,
-            EquipmentAbilityConsumerSupportSpec
-        >(new Dictionary<EquipmentAbilityConsumerKind, EquipmentAbilityConsumerSupportSpec>());
+    public IReadOnlyList<EquipmentAbilityConsumerSupportSpec> ConsumerSupport { get; init; } =
+        Array.Empty<EquipmentAbilityConsumerSupportSpec>();
     public EquipmentAbilityStateAccessSpec StateAccess { get; init; } =
         EquipmentAbilityStateAccessSpec.Empty;
+
+    public bool SupportsConsumer(EquipmentAbilityConsumerKind consumer) =>
+        GetConsumerSupport(consumer) != null;
+
+    public EquipmentAbilityConsumerSupportSpec GetConsumerSupport(
+        EquipmentAbilityConsumerKind consumer
+    )
+    {
+        foreach (EquipmentAbilityConsumerSupportSpec support in ConsumerSupport)
+            if (support != null && support.Consumer == consumer)
+                return support;
+        return null;
+    }
 }
 
 public sealed class EquipmentAbilityTriggerTimingSpec

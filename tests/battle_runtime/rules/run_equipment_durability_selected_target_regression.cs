@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
@@ -143,7 +144,7 @@ public partial class run_equipment_durability_selected_target_regression : Scene
                 {
                     TargetUnit = target,
                     TargetSlots = Names("main_hand"),
-                    SlotWeightMap = WeightDictionary(("off_hand", 5)),
+                    SlotWeights = Weights(("off_hand", 5)),
                     ConsumeRandom = false,
                 }
             );
@@ -184,7 +185,7 @@ public partial class run_equipment_durability_selected_target_regression : Scene
                 {
                     TargetUnit = target,
                     TargetSlots = Names("off_hand"),
-                    SlotWeightMap = WeightDictionary(("off_hand", 5)),
+                    SlotWeights = Weights(("off_hand", 5)),
                     ConsumeRandom = true,
                 }
             );
@@ -353,13 +354,21 @@ public partial class run_equipment_durability_selected_target_regression : Scene
         return result;
     }
 
-    private static System.Collections.Generic.Dictionary<StringName, int> WeightDictionary(
+    private static IReadOnlyList<EquipmentSlotWeightDefinition> Weights(
         params (StringName SlotId, int Weight)[] values
     )
     {
-        var result = new System.Collections.Generic.Dictionary<StringName, int>();
+        var result = new List<EquipmentSlotWeightDefinition>();
         foreach ((StringName slotId, int weight) in values)
-            result[slotId] = weight;
+        {
+            result.Add(
+                new EquipmentSlotWeightDefinition
+                {
+                    SlotId = slotId,
+                    Weight = weight,
+                }
+            );
+        }
         return result;
     }
 

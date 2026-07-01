@@ -684,9 +684,7 @@ public partial class BattleDamageResolver
         {
             TargetUnit = targetUnit,
             TargetSlots = GetEquipmentDurabilityTargetSlots(effectDefinition),
-            SlotWeightMap =
-                effectDefinition?.GetStringNameIntMapParamTyped("slot_weight_map")
-                ?? new Dictionary<StringName, int>(),
+            SlotWeights = GetEquipmentDurabilitySlotWeights(effectDefinition),
             ExplicitSlotOverride = overrideSlot,
             ConsumeRandom = true,
         };
@@ -723,7 +721,7 @@ public partial class BattleDamageResolver
 
         IReadOnlyList<StringName> allowedSlots = query.TargetSlots ?? Array.Empty<StringName>();
         IReadOnlyDictionary<StringName, int> slotWeightMap =
-            query.SlotWeightMap ?? new Dictionary<StringName, int>();
+            BuildEquipmentDurabilitySlotWeightIndex(query.SlotWeights);
         var candidatesByEntrySlot = new Dictionary<StringName, EquipmentDurabilitySelectionCandidate>();
         IReadOnlyList<StringName> selectorSlots =
             allowedSlots.Count > 0 ? allowedSlots : equipmentView.GetEntrySlotIdsTyped();
@@ -833,12 +831,62 @@ public partial class BattleDamageResolver
         return result;
     }
 
+    private static IReadOnlyList<EquipmentSlotWeightDefinition> GetEquipmentDurabilitySlotWeights(
+        CombatEffectDefinition effectDefinition
+    )
+    {
+        IReadOnlyDictionary<StringName, int> weightMap =
+            effectDefinition?.GetStringNameIntMapParamTyped("slot_weight_map");
+        if (weightMap == null || weightMap.Count == 0)
+        {
+            return Array.Empty<EquipmentSlotWeightDefinition>();
+        }
+        var result = new List<EquipmentSlotWeightDefinition>();
+        foreach ((StringName slotId, int weight) in weightMap)
+        {
+            StringName normalizedSlotId = ProgressionDataUtils.to_string_name(slotId);
+            if (normalizedSlotId != "")
+            {
+                result.Add(
+                    new EquipmentSlotWeightDefinition
+                    {
+                        SlotId = normalizedSlotId,
+                        Weight = weight,
+                    }
+                );
+            }
+        }
+        return result.Count > 0
+            ? result
+            : Array.Empty<EquipmentSlotWeightDefinition>();
+    }
+
+    private static IReadOnlyDictionary<StringName, int> BuildEquipmentDurabilitySlotWeightIndex(
+        IReadOnlyList<EquipmentSlotWeightDefinition> slotWeights
+    )
+    {
+        var result = new Dictionary<StringName, int>();
+        if (slotWeights == null || slotWeights.Count == 0)
+        {
+            return result;
+        }
+        foreach (EquipmentSlotWeightDefinition slotWeight in slotWeights)
+        {
+            if (slotWeight == null || slotWeight.SlotId == "")
+            {
+                continue;
+            }
+            result[slotWeight.SlotId] = slotWeight.Weight;
+        }
+        return result;
+    }
+
     internal sealed class EquipmentDurabilitySelectionQuery
     {
         public BattleUnitState TargetUnit { get; init; }
         public IReadOnlyList<StringName> TargetSlots { get; init; } = Array.Empty<StringName>();
-        public IReadOnlyDictionary<StringName, int> SlotWeightMap { get; init; } =
-            new Dictionary<StringName, int>();
+        public IReadOnlyList<EquipmentSlotWeightDefinition> SlotWeights { get; init; } =
+            Array.Empty<EquipmentSlotWeightDefinition>();
         public StringName ExplicitSlotOverride { get; init; } = "";
         public bool ConsumeRandom { get; init; } = true;
     }

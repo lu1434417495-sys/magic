@@ -751,7 +751,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         {
             KnownTraitIds = ReadOnlyKeySet(_traitDefIndex),
             KnownSkillIds = ReadOnlyKeySet(_skillDefinitionIndex),
-            TraitCategoriesByTraitId = BuildTraitCategoryFacts(_traitDefIndex),
         };
     }
 
@@ -2333,30 +2332,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         if (source == null || source.Count == 0)
             return EquipmentAbilityReadOnlySet<StringName>.Empty;
         return EquipmentAbilityReadOnlySet<StringName>.From(source.Keys);
-    }
-
-    private static IReadOnlyDictionary<StringName, IReadOnlySet<StringName>> BuildTraitCategoryFacts(
-        IReadOnlyDictionary<StringName, TraitDef> source
-    )
-    {
-        var result = new Dictionary<StringName, IReadOnlySet<StringName>>();
-        if (source == null || source.Count == 0)
-            return new ReadOnlyDictionary<StringName, IReadOnlySet<StringName>>(result);
-
-        foreach ((StringName traitId, TraitDef traitDef) in source)
-        {
-            if (traitId == "" || traitDef == null)
-                continue;
-
-            var categories = new HashSet<StringName>();
-            foreach (StringName category in traitDef.categories)
-            {
-                if (category != "")
-                    categories.Add(category);
-            }
-            result[traitId] = EquipmentAbilityReadOnlySet<StringName>.From(categories);
-        }
-        return new ReadOnlyDictionary<StringName, IReadOnlySet<StringName>>(result);
     }
 
     private static GDictionary ProjectTypedDictionary<T>(IReadOnlyDictionary<StringName, T> source)
