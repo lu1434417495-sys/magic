@@ -14,6 +14,7 @@ internal static class WorldMapSpawnProjection
             ["settlements"] = ProjectSettlements(worldBuild.Settlements),
             ["world_npcs"] = ProjectWorldNpcs(worldBuild.WorldNpcs),
             ["encounter_anchors"] = ProjectEncounterAnchors(worldBuild.EncounterAnchors),
+            ["resource_nodes"] = ProjectResourceNodes(worldBuild.ResourceNodes),
             ["world_events"] = ProjectWorldEvents(worldBuild.WorldEvents),
             ["mounted_submaps"] = ProjectMountedSubmaps(worldBuild.MountedSubmaps),
             ["active_submap_id"] = "",
@@ -62,6 +63,19 @@ internal static class WorldMapSpawnProjection
         foreach (EncounterAnchorData encounterAnchor in encounterAnchors)
             if (encounterAnchor != null)
                 result.Add(WorldMapDataProjection.Project(encounterAnchor));
+        return result;
+    }
+
+    private static GArray ProjectResourceNodes(
+        IEnumerable<WorldMapResourceNodeData> resourceNodes
+    )
+    {
+        var result = new GArray();
+        if (resourceNodes == null)
+            return result;
+        foreach (WorldMapResourceNodeData resourceNode in resourceNodes)
+            if (resourceNode != null && resourceNode.Exists)
+                result.Add(WorldMapDataProjection.Project(resourceNode));
         return result;
     }
 

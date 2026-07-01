@@ -336,6 +336,36 @@ public partial class run_world_submap_regression : SceneTree
             $"root world_data 的负数 world_step 应直接判为坏档。 error={negativeWorldStepError}"
         );
 
+        GDictionary rootMissingResourceNodes = BuildMinimalWorldData(710);
+        rootMissingResourceNodes.Remove("resource_nodes");
+        string missingResourceNodesError =
+            serializer.GetWorldDataSchemaValidationError(rootMissingResourceNodes);
+        _test.True(
+            !string.IsNullOrEmpty(missingResourceNodesError),
+            $"root world_data 缺少 resource_nodes 应直接判为坏档。 error={missingResourceNodesError}"
+        );
+
+        GDictionary rootInvalidResourceNode = BuildMinimalWorldData(711);
+        rootInvalidResourceNode["resource_nodes"] = new GArray
+        {
+            BuildResourceNode(
+                "resource_bad_1",
+                WorldMapResourceNodeData.KindFarm,
+                "坏资源",
+                new Vector2I(2, 2),
+                WorldMapResourceNodeData.YieldIronOre,
+                "",
+                3,
+                3
+            ),
+        };
+        string invalidResourceNodeError =
+            serializer.GetWorldDataValidationError(rootInvalidResourceNode);
+        _test.True(
+            !string.IsNullOrEmpty(invalidResourceNodeError),
+            $"resource node 类型与产出不匹配应直接判为坏档。 error={invalidResourceNodeError}"
+        );
+
         GDictionary generatedMissingSeed = BuildMinimalWorldData(606);
         generatedMissingSeed.Remove("map_seed");
         string missingSeedError = serializer.GetMountedSubmapWorldDataValidationError(
@@ -444,7 +474,32 @@ public partial class run_world_submap_regression : SceneTree
             ["settlements"] = new GArray(),
             ["world_events"] = new GArray(),
             ["encounter_anchors"] = new GArray(),
+            ["resource_nodes"] = new GArray(),
             ["mounted_submaps"] = new GDictionary(),
+        };
+    }
+
+    private static GDictionary BuildResourceNode(
+        string nodeId,
+        string nodeKind,
+        string displayName,
+        Vector2I worldCoord,
+        string yieldItemId,
+        string sourceSettlementId,
+        int maxCharges,
+        int remainingCharges
+    )
+    {
+        return new GDictionary
+        {
+            ["node_id"] = nodeId,
+            ["node_kind"] = nodeKind,
+            ["display_name"] = displayName,
+            ["world_coord"] = worldCoord,
+            ["yield_item_id"] = yieldItemId,
+            ["source_settlement_id"] = sourceSettlementId,
+            ["max_charges"] = maxCharges,
+            ["remaining_charges"] = remainingCharges,
         };
     }
 

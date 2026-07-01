@@ -49,6 +49,18 @@ public partial class WorldMapView : Control
     public Color world_event_marker_center_color = new(0.32f, 0.06f, 0.02f, 1.0f);
 
     [Export]
+    public Color farm_resource_marker_color = new(0.48f, 0.73f, 0.35f, 0.95f);
+
+    [Export]
+    public Color herb_resource_marker_color = new(0.26f, 0.82f, 0.58f, 0.95f);
+
+    [Export]
+    public Color mine_resource_marker_color = new(0.62f, 0.65f, 0.68f, 0.95f);
+
+    [Export]
+    public Color resource_marker_outline_color = new(0.05f, 0.08f, 0.1f, 0.95f);
+
+    [Export]
     public Color encounter_marker_outer_color = new(0.87f, 0.28f, 0.23f, 0.95f);
 
     [Export]
@@ -348,6 +360,19 @@ public partial class WorldMapView : Control
             );
         }
 
+        foreach (WorldMapResourceNodeData resourceNode in _worldData.ResourceNodes)
+        {
+            if (resourceNode == null || !resourceNode.Exists)
+                continue;
+            Vector2I coord = resourceNode.WorldCoord;
+            if (!visibleRect.HasPoint(coord) || !_fogSystem.IsVisible(coord, _playerFactionId))
+                continue;
+            _draw_resource_marker(
+                resourceNode,
+                _get_cell_rect_for_origin(coord, cameraOrigin).GetCenter()
+            );
+        }
+
         foreach (EncounterAnchorData encounterAnchor in _worldData.EncounterAnchors)
         {
             if (encounterAnchor == null)
@@ -387,6 +412,53 @@ public partial class WorldMapView : Control
         Vector2[] outline = { diamond[0], diamond[1], diamond[2], diamond[3], diamond[0] };
         DrawPolyline(outline, world_event_marker_outline_color, 2.0f);
         DrawCircle(center, cell_size * 0.05f, world_event_marker_center_color);
+    }
+
+    private void _draw_resource_marker(WorldMapResourceNodeData resourceNode, Vector2 center)
+    {
+        float radius = cell_size * 0.16f;
+        if (resourceNode.NodeKind == WorldMapResourceNodeData.KindFarm)
+        {
+            Rect2 body = new(center - Vector2.One * radius, Vector2.One * radius * 2.0f);
+            DrawRect(body, farm_resource_marker_color);
+            DrawRect(body, resource_marker_outline_color, false, 2.0f);
+            DrawLine(
+                new Vector2(body.Position.X, center.Y),
+                new Vector2(body.End.X, center.Y),
+                resource_marker_outline_color,
+                1.0f
+            );
+            DrawLine(
+                new Vector2(center.X, body.Position.Y),
+                new Vector2(center.X, body.End.Y),
+                resource_marker_outline_color,
+                1.0f
+            );
+            return;
+        }
+
+        if (resourceNode.NodeKind == WorldMapResourceNodeData.KindHerbGarden)
+        {
+            DrawCircle(center, radius, herb_resource_marker_color);
+            DrawCircle(center, radius, resource_marker_outline_color, false, 2.0f);
+            DrawCircle(center + new Vector2(-radius * 0.3f, -radius * 0.15f), radius * 0.35f, Colors.White);
+            DrawCircle(center + new Vector2(radius * 0.28f, radius * 0.1f), radius * 0.28f, new Color(0.1f, 0.42f, 0.24f, 0.9f));
+            return;
+        }
+
+        Vector2[] diamond =
+        {
+            center + new Vector2(0, -radius),
+            center + new Vector2(radius, 0),
+            center + new Vector2(0, radius),
+            center + new Vector2(-radius, 0),
+        };
+        DrawColoredPolygon(diamond, mine_resource_marker_color);
+        DrawPolyline(
+            new[] { diamond[0], diamond[1], diamond[2], diamond[3], diamond[0] },
+            resource_marker_outline_color,
+            2.0f
+        );
     }
 
     private void _draw_player(Vector2 cameraOrigin)

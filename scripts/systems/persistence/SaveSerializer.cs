@@ -407,6 +407,9 @@ public sealed class SaveSerializer
         normalized["encounter_anchors"] = NormalizeEncounterAnchors(
             ReadArray(worldData, "encounter_anchors")
         );
+        normalized["resource_nodes"] = NormalizeResourceNodes(
+            ReadArray(worldData, "resource_nodes")
+        );
         return normalized;
     }
 
@@ -434,6 +437,9 @@ public sealed class SaveSerializer
         serialized["active_submap_id"] = worldData["active_submap_id"].AsString();
         serialized["encounter_anchors"] = SerializeObjectOrDictionaryArray(
             ReadArray(worldData, "encounter_anchors")
+        );
+        serialized["resource_nodes"] = SerializeObjectOrDictionaryArray(
+            ReadArray(worldData, "resource_nodes")
         );
         return serialized;
     }
@@ -482,6 +488,7 @@ public sealed class SaveSerializer
             "settlements",
             "world_events",
             "encounter_anchors",
+            "resource_nodes",
             "mounted_submaps",
         };
         string[] optional =
@@ -503,6 +510,7 @@ public sealed class SaveSerializer
                 "settlements",
                 "world_events",
                 "encounter_anchors",
+                "resource_nodes",
             }
         )
         {
@@ -567,6 +575,11 @@ public sealed class SaveSerializer
             && worldData["encounter_anchors"].VariantType != Variant.Type.Array
         )
             return "Corrupt save world_data.encounter_anchors: expected Array.";
+        string resourceNodeError = GetWorldResourceNodesValidationError(
+            ReadArray(worldData, "resource_nodes")
+        );
+        if (!string.IsNullOrEmpty(resourceNodeError))
+            return resourceNodeError;
         if (
             worldData.ContainsKey("world_npcs")
             && worldData["world_npcs"].VariantType != Variant.Type.Array
@@ -1051,6 +1064,23 @@ public sealed class SaveSerializer
         return result;
     }
 
+    private static GArray NormalizeResourceNodes(Variant resourceNodesValue)
+    {
+        var result = new GArray();
+        if (!TryRawArray(resourceNodesValue, out GArray resourceNodeValues))
+            return result;
+        foreach (var resourceNodeValue in resourceNodeValues)
+        {
+            WorldMapResourceNodeData parsedNode =
+                resourceNodeValue.VariantType == Variant.Type.Dictionary
+                    ? WorldMapResourceNodeData.FromDictionary(resourceNodeValue.AsGodotDictionary())
+                    : null;
+            if (parsedNode != null && parsedNode.Exists)
+                result.Add(WorldMapDataProjection.Project(parsedNode));
+        }
+        return result;
+    }
+
     private static GArray SerializeObjectOrDictionaryArray(Variant arrayValue)
     {
         var result = new GArray();
@@ -1204,6 +1234,70 @@ public sealed class SaveSerializer
                 return $"Corrupt save world_data.world_events[{index}]: world_coord must be a Vector2i payload.";
             if (eventData["is_discovered"].VariantType != Variant.Type.Bool)
                 return $"Corrupt save world_data.world_events[{index}]: is_discovered must be a bool.";
+            index++;
+        }
+        return "";
+    }
+
+    private static string GetWorldResourceNodesValidationError(Variant resourceNodesValue)
+    {
+        if (!TryRawArray(resourceNodesValue, out GArray resourceNodeValues))
+            return "Corrupt save world_data.resource_nodes: expected Array.";
+        string[] required =
+        {
+            "node_id",
+            "node_kind",
+            "display_name",
+            "world_coord",
+            "yield_item_id",
+            "source_settlement_id",
+            "max_charges",
+            "remaining_charges",
+        };
+        int index = 0;
+        foreach (var resourceNodeValue in resourceNodeValues)
+        {
+            if (resourceNodeValue.VariantType != Variant.Type.Dictionary)
+                return $"Corrupt save world_data.resource_nodes[{index}]: expected Dictionary.";
+            GDictionary resourceNode = resourceNodeValue.AsGodotDictionary();
+            if (!HasExactKeys(resourceNode, required))
+                return $"Corrupt save world_data.resource_nodes[{index}]: fields must exactly match current schema.";
+            foreach (
+                string stringField in new[]
+                {
+                    "node_id",
+                    "node_kind",
+                    "display_name",
+                    "yield_item_id",
+                    "source_settlement_id",
+                }
+            )
+            {
+                if (!IsStringValue(resourceNode[stringField]))
+                    return $"Corrupt save world_data.resource_nodes[{index}]: {stringField} must be a String.";
+            }
+            string nodeKind = resourceNode["node_kind"].AsString();
+            if (!WorldMapResourceNodeData.IsKnownKind(nodeKind))
+                return $"Corrupt save world_data.resource_nodes[{index}]: node_kind is unknown.";
+            if (!IsSupportedVector2I(resourceNode["world_coord"]))
+                return $"Corrupt save world_data.resource_nodes[{index}]: world_coord must be a Vector2i payload.";
+            if (
+                resourceNode["yield_item_id"].AsString()
+                != WorldMapResourceNodeData.DefaultYieldItemId(nodeKind)
+            )
+                return $"Corrupt save world_data.resource_nodes[{index}]: yield_item_id does not match node_kind.";
+            if (
+                resourceNode["max_charges"].VariantType != Variant.Type.Int
+                || resourceNode["max_charges"].AsInt32() <= 0
+            )
+                return $"Corrupt save world_data.resource_nodes[{index}]: max_charges must be a positive int.";
+            if (
+                resourceNode["remaining_charges"].VariantType != Variant.Type.Int
+                || resourceNode["remaining_charges"].AsInt32() < 0
+                || resourceNode["remaining_charges"].AsInt32()
+                    > resourceNode["max_charges"].AsInt32()
+            )
+                return $"Corrupt save world_data.resource_nodes[{index}]: remaining_charges must be between 0 and max_charges.";
             index++;
         }
         return "";

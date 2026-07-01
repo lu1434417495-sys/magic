@@ -86,6 +86,7 @@ public sealed class WorldMapSpawnSystem
         public List<SettlementInstanceData> Settlements { get; } = new();
         public List<WorldNpcInstanceData> WorldNpcs { get; } = new();
         public List<EncounterAnchorData> EncounterAnchors { get; } = new();
+        public List<WorldMapResourceNodeData> ResourceNodes { get; } = new();
         public List<WorldEventInstanceData> WorldEvents { get; } = new();
         public List<MountedSubmapInstanceData> MountedSubmaps { get; } = new();
         public Vector2I PlayerStartCoord { get; init; } = Vector2I.Zero;
@@ -356,6 +357,15 @@ public sealed class WorldMapSpawnSystem
             settlements,
             playerStartCoord
         );
+        List<WorldEventInstanceData> worldEvents = GenerateWorldEvents();
+        List<WorldMapResourceNodeData> resourceNodes = GenerateResourceNodes(
+            settlements,
+            worldNpcs,
+            encounterAnchors,
+            worldEvents,
+            playerStartSettlement,
+            playerStartCoord
+        );
 
         var result = new WorldBuildData
         {
@@ -367,7 +377,8 @@ public sealed class WorldMapSpawnSystem
         result.Settlements.AddRange(settlements);
         result.WorldNpcs.AddRange(worldNpcs);
         result.EncounterAnchors.AddRange(encounterAnchors);
-        result.WorldEvents.AddRange(GenerateWorldEvents());
+        result.ResourceNodes.AddRange(resourceNodes);
+        result.WorldEvents.AddRange(worldEvents);
         result.MountedSubmaps.AddRange(GenerateMountedSubmaps());
         return result;
     }
@@ -976,6 +987,511 @@ public sealed class WorldMapSpawnSystem
         }
         return worldNpcs;
     }
+
+    private List<WorldMapResourceNodeData> GenerateResourceNodes(
+        IReadOnlyList<SettlementInstanceData> settlements,
+        IReadOnlyList<WorldNpcInstanceData> worldNpcs,
+        IReadOnlyList<EncounterAnchorData> encounterAnchors,
+        IReadOnlyList<WorldEventInstanceData> worldEvents,
+        SettlementInstanceData playerStartSettlement,
+        Vector2I playerStartCoord
+    )
+    {
+        var resourceNodes = new List<WorldMapResourceNodeData>();
+        var reservedCoords = BuildResourceReservedCoords(worldNpcs, encounterAnchors, worldEvents);
+        int nextIndex = 1;
+
+        if (playerStartSettlement != null)
+        {
+            TryAddSettlementResourceNode(
+                resourceNodes,
+                reservedCoords,
+                playerStartSettlement,
+                WorldMapResourceNodeData.KindHerbGarden,
+                ref nextIndex,
+                1,
+                6
+            );
+            TryAddSettlementResourceNode(
+                resourceNodes,
+                reservedCoords,
+                playerStartSettlement,
+                WorldMapResourceNodeData.KindFarm,
+                ref nextIndex,
+                1,
+                5
+            );
+        }
+
+        foreach (SettlementInstanceData settlement in settlements)
+        {
+            if (settlement == null)
+                continue;
+            int farmCount = GetSettlementFarmTargetCount(settlement);
+            int herbGardenCount = GetSettlementHerbGardenTargetCount(settlement);
+            if (ReferenceEquals(settlement, playerStartSettlement))
+            {
+                farmCount = Math.Max(farmCount - 1, 0);
+                herbGardenCount = Math.Max(herbGardenCount - 1, 0);
+            }
+            for (int index = 0; index < farmCount; index++)
+            {
+                TryAddSettlementResourceNode(
+                    resourceNodes,
+                    reservedCoords,
+                    settlement,
+                    WorldMapResourceNodeData.KindFarm,
+                    ref nextIndex,
+                    1,
+                    6
+                );
+            }
+            for (int index = 0; index < herbGardenCount; index++)
+            {
+                TryAddSettlementResourceNode(
+                    resourceNodes,
+                    reservedCoords,
+                    settlement,
+                    WorldMapResourceNodeData.KindHerbGarden,
+                    ref nextIndex,
+                    2,
+                    8
+                );
+            }
+        }
+
+        PlaceMineResourceNodes(
+            resourceNodes,
+            reservedCoords,
+            settlements,
+            playerStartCoord,
+            ref nextIndex
+        );
+        return resourceNodes;
+    }
+
+    private HashSet<Vector2I> BuildResourceReservedCoords(
+        IReadOnlyList<WorldNpcInstanceData> worldNpcs,
+        IReadOnlyList<EncounterAnchorData> encounterAnchors,
+        IReadOnlyList<WorldEventInstanceData> worldEvents
+    )
+    {
+        var reservedCoords = new HashSet<Vector2I>();
+        if (worldNpcs != null)
+        {
+            foreach (WorldNpcInstanceData npc in worldNpcs)
+                if (npc != null)
+                    reservedCoords.Add(npc.Coord);
+        }
+        if (encounterAnchors != null)
+        {
+            foreach (EncounterAnchorData encounterAnchor in encounterAnchors)
+                if (encounterAnchor != null)
+                    reservedCoords.Add(encounterAnchor.world_coord);
+        }
+        if (worldEvents != null)
+        {
+            foreach (WorldEventInstanceData worldEvent in worldEvents)
+                if (worldEvent != null)
+                    reservedCoords.Add(worldEvent.WorldCoord);
+        }
+        return reservedCoords;
+    }
+
+    private bool TryAddSettlementResourceNode(
+        List<WorldMapResourceNodeData> resourceNodes,
+        HashSet<Vector2I> reservedCoords,
+        SettlementInstanceData settlement,
+        string nodeKind,
+        ref int nextIndex,
+        int minDistance,
+        int maxDistance
+    )
+    {
+        Vector2I coord = FindSettlementResourceCoord(
+            settlement,
+            nodeKind,
+            resourceNodes,
+            reservedCoords,
+            minDistance,
+            maxDistance
+        );
+        if (coord == new Vector2I(-1, -1))
+            return false;
+        return AddResourceNode(
+            resourceNodes,
+            reservedCoords,
+            nodeKind,
+            coord,
+            settlement?.SettlementId ?? "",
+            ref nextIndex
+        );
+    }
+
+    private Vector2I FindSettlementResourceCoord(
+        SettlementInstanceData settlement,
+        string nodeKind,
+        IReadOnlyList<WorldMapResourceNodeData> resourceNodes,
+        HashSet<Vector2I> reservedCoords,
+        int minDistance,
+        int maxDistance
+    )
+    {
+        if (settlement == null)
+            return new Vector2I(-1, -1);
+        Vector2I center = settlement.Origin + settlement.FootprintSize / 2;
+        Vector2I bestCoord = new(-1, -1);
+        double bestScore = double.NegativeInfinity;
+        int minDistanceToFootprint = Math.Max(minDistance, 1);
+        int maxDistanceToFootprint = Math.Max(maxDistance, minDistanceToFootprint);
+        for (int y = -maxDistanceToFootprint; y <= maxDistanceToFootprint; y++)
+        {
+            for (int x = -maxDistanceToFootprint; x <= maxDistanceToFootprint; x++)
+            {
+                Vector2I candidate = center + new Vector2I(x, y);
+                int distance = DistanceToSettlementFootprint(candidate, settlement);
+                if (distance < minDistanceToFootprint || distance > maxDistanceToFootprint)
+                    continue;
+                if (
+                    !IsResourceCoordAvailable(
+                        candidate,
+                        reservedCoords,
+                        resourceNodes,
+                        nodeKind,
+                        2
+                    )
+                )
+                    continue;
+                double score = ScoreSettlementResourceCoord(
+                    candidate,
+                    settlement,
+                    nodeKind,
+                    distance
+                );
+                if (score <= bestScore)
+                    continue;
+                bestScore = score;
+                bestCoord = candidate;
+            }
+        }
+        return bestCoord;
+    }
+
+    private double ScoreSettlementResourceCoord(
+        Vector2I candidate,
+        SettlementInstanceData settlement,
+        string nodeKind,
+        int distanceToFootprint
+    )
+    {
+        double jitter = Hash01($"resource_{nodeKind}", candidate) * 4.0;
+        if (nodeKind == WorldMapResourceNodeData.KindFarm)
+        {
+            return -Math.Abs(distanceToFootprint - 1) * 8.0 - settlement.Tier + jitter;
+        }
+        if (nodeKind == WorldMapResourceNodeData.KindHerbGarden)
+        {
+            return -Math.Abs(distanceToFootprint - 3) * 7.0 + settlement.Tier * 0.5 + jitter;
+        }
+        return jitter;
+    }
+
+    private int GetSettlementFarmTargetCount(SettlementInstanceData settlement)
+    {
+        if (settlement == null)
+            return 0;
+        return settlement.Tier switch
+        {
+            (int)SettlementConfig.SettlementTier.VILLAGE => 1,
+            (int)SettlementConfig.SettlementTier.TOWN => 2,
+            (int)SettlementConfig.SettlementTier.CITY => 2,
+            (int)SettlementConfig.SettlementTier.CAPITAL => 1,
+            (int)SettlementConfig.SettlementTier.METROPOLIS => 1,
+            _ => 0,
+        };
+    }
+
+    private int GetSettlementHerbGardenTargetCount(SettlementInstanceData settlement)
+    {
+        if (settlement == null)
+            return 0;
+        if (settlement.Tier == (int)SettlementConfig.SettlementTier.VILLAGE)
+            return 1;
+        if (settlement.Tier == (int)SettlementConfig.SettlementTier.TOWN)
+            return 1;
+        if (
+            settlement.Tier == (int)SettlementConfig.SettlementTier.CITY
+            && Hash01("resource_city_herb", settlement.Origin) >= 0.45
+        )
+            return 1;
+        if (
+            settlement.Tier == (int)SettlementConfig.SettlementTier.CAPITAL
+            && Hash01("resource_capital_herb", settlement.Origin) >= 0.65
+        )
+            return 1;
+        return 0;
+    }
+
+    private void PlaceMineResourceNodes(
+        List<WorldMapResourceNodeData> resourceNodes,
+        HashSet<Vector2I> reservedCoords,
+        IReadOnlyList<SettlementInstanceData> settlements,
+        Vector2I playerStartCoord,
+        ref int nextIndex
+    )
+    {
+        int targetCount = GetMineResourceTargetCount();
+        if (targetCount <= 0)
+            return;
+
+        List<Vector2I> chunkCoords = BuildAllChunkCoords();
+        chunkCoords.Sort(
+            (a, b) => ScoreMineChunk(b, settlements).CompareTo(ScoreMineChunk(a, settlements))
+        );
+        foreach (Vector2I chunkCoord in chunkCoords)
+        {
+            if (CountResourceNodesOfKind(resourceNodes, WorldMapResourceNodeData.KindMine) >= targetCount)
+                return;
+            Vector2I coord = FindMineResourceCoordInChunk(
+                chunkCoord,
+                settlements,
+                resourceNodes,
+                reservedCoords,
+                playerStartCoord,
+                8,
+                10
+            );
+            if (coord == new Vector2I(-1, -1))
+                continue;
+            AddResourceNode(
+                resourceNodes,
+                reservedCoords,
+                WorldMapResourceNodeData.KindMine,
+                coord,
+                "",
+                ref nextIndex
+            );
+        }
+    }
+
+    private int GetMineResourceTargetCount()
+    {
+        Vector2I worldChunks = _generationConfig.world_size_in_chunks;
+        int chunkCount = Math.Max(worldChunks.X * worldChunks.Y, 1);
+        return Math.Min(Math.Max(3, chunkCount / 90), 24);
+    }
+
+    private List<Vector2I> BuildAllChunkCoords()
+    {
+        var chunkCoords = new List<Vector2I>();
+        Vector2I worldChunks = _generationConfig.world_size_in_chunks;
+        for (int y = 0; y < worldChunks.Y; y++)
+        for (int x = 0; x < worldChunks.X; x++)
+            chunkCoords.Add(new Vector2I(x, y));
+        return chunkCoords;
+    }
+
+    private Vector2I FindMineResourceCoordInChunk(
+        Vector2I chunkCoord,
+        IReadOnlyList<SettlementInstanceData> settlements,
+        IReadOnlyList<WorldMapResourceNodeData> resourceNodes,
+        HashSet<Vector2I> reservedCoords,
+        Vector2I playerStartCoord,
+        int minDistanceToSettlement,
+        int minDistanceToPlayerStart
+    )
+    {
+        Vector2I origin = new(
+            chunkCoord.X * _generationConfig.chunk_size.X,
+            chunkCoord.Y * _generationConfig.chunk_size.Y
+        );
+        Vector2I bestCoord = new(-1, -1);
+        double bestScore = double.NegativeInfinity;
+        for (int y = 0; y < _generationConfig.chunk_size.Y; y++)
+        {
+            for (int x = 0; x < _generationConfig.chunk_size.X; x++)
+            {
+                Vector2I candidate = origin + new Vector2I(x, y);
+                if (
+                    !IsResourceCoordAvailable(
+                        candidate,
+                        reservedCoords,
+                        resourceNodes,
+                        WorldMapResourceNodeData.KindMine,
+                        12
+                    )
+                )
+                    continue;
+                int settlementDistance = DistanceToNearestSettlementFootprint(
+                    candidate,
+                    settlements
+                );
+                if (settlementDistance < minDistanceToSettlement)
+                    continue;
+                int startDistance = ManhattanDistance(candidate, playerStartCoord);
+                if (startDistance < minDistanceToPlayerStart)
+                    continue;
+
+                double score =
+                    ScoreMineChunk(chunkCoord, settlements) * 100.0
+                    + settlementDistance * 0.35
+                    + Math.Min(startDistance, 40) * 0.2
+                    + Hash01("resource_mine_coord", candidate) * 8.0;
+                if (score <= bestScore)
+                    continue;
+                bestScore = score;
+                bestCoord = candidate;
+            }
+        }
+        return bestCoord;
+    }
+
+    private double ScoreMineChunk(
+        Vector2I chunkCoord,
+        IReadOnlyList<SettlementInstanceData> settlements
+    )
+    {
+        double noise = Hash01("resource_mine_geology", chunkCoord);
+        double ridge = Math.Abs(
+            Math.Sin((chunkCoord.X + (_mapSeed % 97)) * 0.73)
+                + Math.Cos((chunkCoord.Y - (_mapSeed % 53)) * 0.61)
+        ) * 0.5;
+        int distance = DistanceToNearestSettlementFootprint(
+            new Vector2I(
+                chunkCoord.X * _generationConfig.chunk_size.X + _generationConfig.chunk_size.X / 2,
+                chunkCoord.Y * _generationConfig.chunk_size.Y + _generationConfig.chunk_size.Y / 2
+            ),
+            settlements
+        );
+        double remoteBonus = Math.Min(distance, 50) / 50.0;
+        return noise * 0.55 + ridge * 0.3 + remoteBonus * 0.15;
+    }
+
+    private bool AddResourceNode(
+        List<WorldMapResourceNodeData> resourceNodes,
+        HashSet<Vector2I> reservedCoords,
+        string nodeKind,
+        Vector2I coord,
+        string sourceSettlementId,
+        ref int nextIndex
+    )
+    {
+        string nodeId = $"resource_{nodeKind}_{nextIndex}";
+        WorldMapResourceNodeData resourceNode = WorldMapResourceNodeData.Create(
+            nodeId,
+            nodeKind,
+            coord,
+            sourceSettlementId
+        );
+        if (resourceNode == null || !resourceNode.Exists)
+            return false;
+        resourceNodes.Add(resourceNode);
+        reservedCoords.Add(coord);
+        nextIndex++;
+        return true;
+    }
+
+    private bool IsResourceCoordAvailable(
+        Vector2I candidate,
+        HashSet<Vector2I> reservedCoords,
+        IReadOnlyList<WorldMapResourceNodeData> resourceNodes,
+        string nodeKind,
+        int minSameKindDistance
+    )
+    {
+        if (!_gridSystem.IsCellInsideWorld(candidate))
+            return false;
+        if (_gridSystem.GetOccupantRoot(candidate) != "")
+            return false;
+        if (reservedCoords.Contains(candidate))
+            return false;
+        foreach (WorldMapResourceNodeData resourceNode in resourceNodes)
+        {
+            if (resourceNode == null)
+                continue;
+            int distance = ManhattanDistance(resourceNode.WorldCoord, candidate);
+            if (distance == 0)
+                return false;
+            if (resourceNode.NodeKind == nodeKind && distance < minSameKindDistance)
+                return false;
+        }
+        return true;
+    }
+
+    private static int CountResourceNodesOfKind(
+        IReadOnlyList<WorldMapResourceNodeData> resourceNodes,
+        string nodeKind
+    )
+    {
+        int count = 0;
+        foreach (WorldMapResourceNodeData resourceNode in resourceNodes)
+        {
+            if (resourceNode != null && resourceNode.NodeKind == nodeKind)
+                count++;
+        }
+        return count;
+    }
+
+    private static int DistanceToNearestSettlementFootprint(
+        Vector2I coord,
+        IReadOnlyList<SettlementInstanceData> settlements
+    )
+    {
+        if (settlements == null || settlements.Count == 0)
+            return int.MaxValue / 4;
+        int nearestDistance = int.MaxValue / 4;
+        foreach (SettlementInstanceData settlement in settlements)
+        {
+            if (settlement == null)
+                continue;
+            nearestDistance = Math.Min(
+                nearestDistance,
+                DistanceToSettlementFootprint(coord, settlement)
+            );
+        }
+        return nearestDistance;
+    }
+
+    private static int DistanceToSettlementFootprint(
+        Vector2I coord,
+        SettlementInstanceData settlement
+    )
+    {
+        if (settlement == null)
+            return int.MaxValue / 4;
+        Vector2I origin = settlement.Origin;
+        Vector2I size = settlement.FootprintSize;
+        int maxX = origin.X + Math.Max(size.X, 1) - 1;
+        int maxY = origin.Y + Math.Max(size.Y, 1) - 1;
+        int dx = coord.X < origin.X ? origin.X - coord.X : coord.X > maxX ? coord.X - maxX : 0;
+        int dy = coord.Y < origin.Y ? origin.Y - coord.Y : coord.Y > maxY ? coord.Y - maxY : 0;
+        return dx + dy;
+    }
+
+    private double Hash01(string salt, Vector2I coord)
+    {
+        unchecked
+        {
+            ulong hash = 1469598103934665603UL;
+            Mix(ref hash, (ulong)_mapSeed);
+            Mix(ref hash, (ulong)(uint)coord.X);
+            Mix(ref hash, (ulong)(uint)coord.Y);
+            foreach (char ch in salt ?? "")
+                Mix(ref hash, ch);
+            return (hash & ((1UL << 53) - 1UL)) / (double)(1UL << 53);
+        }
+    }
+
+    private static void Mix(ref ulong hash, ulong value)
+    {
+        hash ^= value;
+        hash *= 1099511628211UL;
+        hash ^= value >> 32;
+        hash *= 1099511628211UL;
+    }
+
+    private static int ManhattanDistance(Vector2I a, Vector2I b) =>
+        Math.Abs(a.X - b.X) + Math.Abs(a.Y - b.Y);
 
     private List<EncounterAnchorData> GenerateEncounterAnchors(
         IReadOnlyList<SettlementInstanceData> settlements,

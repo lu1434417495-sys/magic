@@ -155,10 +155,11 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `docs/design/settlement.md`
   - `scripts/systems/world/WorldMapSpawnSystem.cs`
   - `scripts/systems/world/EncounterAnchorData.cs`
+  - `scripts/systems/world/WorldMapResourceNodeData.cs`
   - `scripts/systems/world/WildEncounterGrowthSystem.cs`
   - `scripts/utils/WorldEventConfig.cs`
   - `scripts/utils/MountedSubmapConfig.cs`
-- 负责：世界生成、据点注入、挂载子地图事件、遭遇锚点和世界初始状态；`EncounterAnchorData` 是 plain C# world runtime DTO，由 `WorldRuntimeData` typed owner 持有，`encounter_anchors` public/save 边界只投影 dictionary payload，不要恢复 `RefCounted` / `GlobalClass` 或把 live anchor object 放进 Godot array。
+- 负责：世界生成、据点注入、挂载子地图事件、遭遇锚点、野外资源点和世界初始状态；`EncounterAnchorData` / `WorldMapResourceNodeData` 是 plain C# world runtime DTO，由 `WorldRuntimeData` typed owner 持有，`encounter_anchors` / `resource_nodes` public/save 边界只投影 dictionary payload，不要恢复 `RefCounted` / `GlobalClass` 或把 live object 放进 Godot array。
 - 适合：世界生成规则、起始遭遇、据点生成、submap 入口。
 - 邻接单元：CU-02、CU-03、CU-05、CU-06、CU-20。
 
@@ -225,7 +226,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 - 文件：
   - `scripts/ui/WorldMapView.cs`
   - `assets/main/basic_map/*.png`
-- 负责：大地图绘制、图标、选中反馈、点击表现；`WorldMapView` 的世界数据缓存应保持 `WorldRuntimeData` typed owner，`Configure(...)` / `RefreshWorld(...)` 只在 UI 边界接收 Godot world payload 并立即投影为 typed data，绘制时再临时投影，不要恢复长期 `_worldData` `GDictionary` 字段。
+- 负责：大地图绘制、据点/事件/遭遇/NPC/资源点图标、选中反馈、点击表现；`WorldMapView` 的世界数据缓存应保持 `WorldRuntimeData` typed owner，`Configure(...)` / `RefreshWorld(...)` 只在 UI 边界接收 Godot world payload 并立即投影为 typed data，绘制时再临时投影，不要恢复长期 `_worldData` `GDictionary` 字段。
 - 适合：地图视觉、事件图标、地图交互表现。
 - 邻接单元：CU-05、CU-06。
 

@@ -12,6 +12,7 @@ internal sealed class WorldRuntimeData
     private readonly List<WorldMapSettlementRecordData> _settlements = new();
     private readonly List<WorldMapEventData> _worldEvents = new();
     private readonly List<EncounterAnchorData> _encounterAnchors = new();
+    private readonly List<WorldMapResourceNodeData> _resourceNodes = new();
     private readonly Dictionary<string, WorldMapMountedSubmapData> _mountedSubmaps =
         new(System.StringComparer.Ordinal);
     private readonly List<WorldMapNpcData> _worldNpcs = new();
@@ -32,6 +33,7 @@ internal sealed class WorldRuntimeData
 
     public IReadOnlyList<WorldMapSettlementRecordData> Settlements => _settlements;
     public IReadOnlyList<EncounterAnchorData> EncounterAnchors => _encounterAnchors;
+    public IReadOnlyList<WorldMapResourceNodeData> ResourceNodes => _resourceNodes;
     public IReadOnlyList<WorldMapEventData> WorldEvents => _worldEvents;
     public IReadOnlyList<WorldMapNpcData> WorldNpcs => _worldNpcs;
 
@@ -83,6 +85,8 @@ internal sealed class WorldRuntimeData
             return null;
         if (!ReadEncounterAnchors(result._encounterAnchors, ReadArray(data, "encounter_anchors")))
             return null;
+        if (!ReadResourceNodes(result._resourceNodes, ReadArray(data, "resource_nodes")))
+            return null;
         if (!ReadMountedSubmaps(result._mountedSubmaps, ReadDictionary(data, "mounted_submaps")))
             return null;
         if (!ReadWorldNpcs(result._worldNpcs, ReadArray(data, "world_npcs")))
@@ -102,6 +106,7 @@ internal sealed class WorldRuntimeData
             ["settlements"] = ProjectSettlements(),
             ["world_events"] = ProjectWorldEvents(),
             ["encounter_anchors"] = ProjectEncounterAnchors(),
+            ["resource_nodes"] = ProjectResourceNodes(),
             ["mounted_submaps"] = ProjectMountedSubmaps(),
         };
         if (HasWorldNpcs)
@@ -292,6 +297,19 @@ internal sealed class WorldRuntimeData
         return result;
     }
 
+    private GArray ProjectResourceNodes()
+    {
+        GArray result = new();
+        foreach (WorldMapResourceNodeData resourceNode in _resourceNodes)
+        {
+            if (resourceNode != null && resourceNode.Exists)
+            {
+                result.Add(WorldMapDataProjection.Project(resourceNode));
+            }
+        }
+        return result;
+    }
+
     private GDictionary ProjectMountedSubmaps()
     {
         GDictionary result = new();
@@ -391,6 +409,23 @@ internal sealed class WorldRuntimeData
             if (encounterAnchor != null)
             {
                 target.Add(encounterAnchor);
+            }
+        }
+        return true;
+    }
+
+    private static bool ReadResourceNodes(List<WorldMapResourceNodeData> target, GArray values)
+    {
+        foreach (Variant value in values)
+        {
+            if (value.VariantType != Variant.Type.Dictionary)
+                return false;
+            WorldMapResourceNodeData resourceNode = WorldMapResourceNodeData.FromDictionary(
+                value.AsGodotDictionary()
+            );
+            if (resourceNode != null && resourceNode.Exists)
+            {
+                target.Add(resourceNode);
             }
         }
         return true;

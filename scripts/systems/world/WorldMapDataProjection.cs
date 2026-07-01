@@ -59,4 +59,9 @@ internal static class WorldMapDataProjection
             ["suppressed_until_step"] = encounterAnchor.suppressed_until_step,
         };
     }
+
+    internal static GDictionary Project(WorldMapResourceNodeData resourceNode) =>
+        resourceNode != null && resourceNode.Exists
+            ? resourceNode.ToDictionary()
+            : new GDictionary();
 }

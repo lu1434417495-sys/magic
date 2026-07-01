@@ -38,6 +38,7 @@ public sealed class WorldMapDataContext
     private readonly Dictionary<string, WorldMapSettlementRecordData> _settlementsById =
         new(StringComparer.Ordinal);
     private readonly Dictionary<Vector2I, EncounterAnchorData> _encounterAnchorByCoord = new();
+    private readonly Dictionary<Vector2I, WorldMapResourceNodeData> _resourceNodeByCoord = new();
 
     internal WorldRuntimeData RootRuntimeData => _rootRuntimeData;
 
@@ -66,6 +67,7 @@ public sealed class WorldMapDataContext
         _worldNpcByCoord.Clear();
         _settlementsById.Clear();
         _encounterAnchorByCoord.Clear();
+        _resourceNodeByCoord.Clear();
     }
 
     public void Dispose() => Reset();
@@ -246,6 +248,22 @@ public sealed class WorldMapDataContext
         _encounterAnchorByCoord.TryGetValue(coord, out EncounterAnchorData encounterAnchor)
             ? encounterAnchor
             : null;
+
+    internal WorldMapResourceNodeData GetResourceNodeAt(Vector2I coord) =>
+        _resourceNodeByCoord.TryGetValue(coord, out WorldMapResourceNodeData resourceNode)
+            ? resourceNode
+            : null;
+
+    internal List<WorldMapResourceNodeData> GetActiveResourceNodes()
+    {
+        var resourceNodes = new List<WorldMapResourceNodeData>();
+        foreach (WorldMapResourceNodeData resourceNode in _activeRuntimeData.ResourceNodes)
+        {
+            if (resourceNode != null && resourceNode.Exists)
+                resourceNodes.Add(resourceNode);
+        }
+        return resourceNodes;
+    }
 
     internal List<EncounterAnchorData> GetActiveEncounterAnchors(bool includeCleared = true)
     {
@@ -536,6 +554,7 @@ public sealed class WorldMapDataContext
         _settlementsById.Clear();
         _worldNpcByCoord.Clear();
         _encounterAnchorByCoord.Clear();
+        _resourceNodeByCoord.Clear();
         _worldEventByCoord.Clear();
         // Iterate the typed source of truth directly — no ActiveWorldDataPayload()
         // ToDictionary and no per-item FromDictionary. Lookups are read-only, so
@@ -562,6 +581,12 @@ public sealed class WorldMapDataContext
             if (ea == null)
                 continue;
             _encounterAnchorByCoord[ea.world_coord] = ea;
+        }
+        foreach (WorldMapResourceNodeData resourceNode in _activeRuntimeData.ResourceNodes)
+        {
+            if (resourceNode == null || !resourceNode.Exists)
+                continue;
+            _resourceNodeByCoord[resourceNode.WorldCoord] = resourceNode;
         }
         foreach (WorldMapEventData worldEvent in _activeRuntimeData.WorldEvents)
         {
