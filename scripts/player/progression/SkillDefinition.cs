@@ -1346,7 +1346,8 @@ public sealed class CombatEffectDefinition
         IReadOnlyList<StringName> saveAdvantageTags = null,
         IReadOnlyList<StringName> saveDisadvantageTags = null,
         IReadOnlyList<StringName> saveImmunityTags = null,
-        IReadOnlyList<StringName> saveTags = null
+        IReadOnlyList<StringName> saveTags = null,
+        IReadOnlyList<EquipmentSlotWeightDefinition> equipmentDurabilitySlotWeights = null
     )
     {
         EffectType = effectType;
@@ -1469,6 +1470,8 @@ public sealed class CombatEffectDefinition
         SaveDisadvantageTags = saveDisadvantageTags ?? EmptyStringNames;
         SaveImmunityTags = saveImmunityTags ?? EmptyStringNames;
         SaveTags = saveTags ?? EmptyStringNames;
+        EquipmentDurabilitySlotWeights =
+            equipmentDurabilitySlotWeights ?? System.Array.Empty<EquipmentSlotWeightDefinition>();
     }
 
     public StringName EffectType { get; }
@@ -1589,6 +1592,7 @@ public sealed class CombatEffectDefinition
     public IReadOnlyList<StringName> SaveDisadvantageTags { get; }
     public IReadOnlyList<StringName> SaveImmunityTags { get; }
     public IReadOnlyList<StringName> SaveTags { get; }
+    public IReadOnlyList<EquipmentSlotWeightDefinition> EquipmentDurabilitySlotWeights { get; }
     internal BattleEffectKind EffectKind => BattleTypedNames.ToEffectKind(EffectType);
     internal CombatEffectTriggerCondition TriggerConditionKind =>
         CombatEffectContentRules.ToTriggerCondition(TriggerCondition);
@@ -1825,7 +1829,8 @@ public sealed class CombatEffectDefinition
             SaveAdvantageTags,
             SaveDisadvantageTags,
             SaveImmunityTags,
-            SaveTags
+            SaveTags,
+            EquipmentDurabilitySlotWeights
         );
     }
 
@@ -1949,7 +1954,8 @@ public sealed class CombatEffectDefinition
             SaveAdvantageTags,
             SaveDisadvantageTags,
             SaveImmunityTags,
-            SaveTags
+            SaveTags,
+            EquipmentDurabilitySlotWeights
         );
     }
 
@@ -2075,8 +2081,45 @@ public sealed class CombatEffectDefinition
                 CopyStringNameArray(source.save_advantage_tags),
                 CopyStringNameArray(source.save_disadvantage_tags),
                 CopyStringNameArray(source.save_immunity_tags),
-                CopyStringNameArray(source.save_tags)
+                CopyStringNameArray(source.save_tags),
+                ProjectEquipmentDurabilitySlotWeights(
+                    source.equipment_durability_slot_weights
+                )
             );
+    }
+
+    private static IReadOnlyList<EquipmentSlotWeightDefinition> ProjectEquipmentDurabilitySlotWeights(
+        Godot.Collections.Array<CombatEffectSlotWeightDef> values
+    )
+    {
+        if (values == null || values.Count == 0)
+        {
+            return System.Array.Empty<EquipmentSlotWeightDefinition>();
+        }
+        var result = new List<EquipmentSlotWeightDefinition>();
+        foreach (CombatEffectSlotWeightDef value in values)
+        {
+            if (value == null)
+            {
+                continue;
+            }
+            StringName slotId = ProgressionDataUtils.to_string_name(value.slot_id);
+            int weight = value.weight;
+            if (slotId == "" || weight <= 0)
+            {
+                continue;
+            }
+            result.Add(
+                new EquipmentSlotWeightDefinition
+                {
+                    SlotId = slotId,
+                    Weight = weight,
+                }
+            );
+        }
+        return result.Count > 0
+            ? new ReadOnlyCollection<EquipmentSlotWeightDefinition>(result)
+            : System.Array.Empty<EquipmentSlotWeightDefinition>();
     }
 
     private static IReadOnlyList<StringName> CopyStringNameArray(

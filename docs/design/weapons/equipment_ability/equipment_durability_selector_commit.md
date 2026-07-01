@@ -33,7 +33,7 @@ EquipmentAbilityTargetSelectorResolver
 | 当前 owner | 现有职责 | V1 处理方式 |
 | --- | --- | --- |
 | `scripts/systems/battle/rules/BattleDamageResolver.DtoHelpers.cs` | `ApplyEquipmentDurabilityDamageEffect(...)` 内部完成 target 选择、save、rarity bonus、耐久扣减、清槽和 event 构造 | 保留旧入口，但拆成 query -> select -> commit 编排 |
-| `scripts/systems/battle/rules/BattleDamageResolver.DtoHelpers.cs` | `SelectEquipmentForDurabilityDamage(...)` 当前读取 `target_slots`、`slot_weight_map`、`equipment_slot_override` 并使用 `TrueRandomSeedService.RandiRange(...)` | 改成不依赖 `CombatEffectDefinition` 的 query helper；旧 effect 路径负责把 effect 参数转 query |
+| `scripts/systems/battle/rules/BattleDamageResolver.DtoHelpers.cs` | `SelectEquipmentForDurabilityDamage(...)` 读取 `target_slots`、typed `equipment_durability_slot_weights`、`equipment_slot_override` 并使用 `TrueRandomSeedService.RandiRange(...)` | 改成不依赖 `CombatEffectDefinition` 的 query helper；spell effect 路径负责把 typed effect 字段转 query |
 | `scripts/systems/battle/rules/BattleDamageResolver.Effects.cs` | `BuildEquipmentDurabilitySelection(...)` 从 `EquipmentState` / `EquipmentEntryState` 构造 private selection，过滤空装备和 `current_durability <= 0` | 扩展为 shared candidate builder 的内部 revalidation 基础 |
 | `scripts/player/equipment/EquipmentState.cs` | `GetEntry(...)`、`GetEntrySlotForSlot(...)`、`GetEntrySlotIdsTyped(...)`、`ClearEntrySlot(...)` 是装备槽位事实 API | selected-target commit 必须使用这些 API 精确验证和清槽 |
 | `scripts/player/equipment/EquipmentEntryState.cs` | `item_id`、`instance_id`、`occupied_slot_ids`、`GetEquipmentInstance()` 是 entry 事实 | selector 只复制稳定 identity，不把 entry live object 暴露给 handler |
@@ -134,7 +134,7 @@ internal sealed class EquipmentDurabilitySelectionQuery
 
 构造来源：
 
-- `BuildEquipmentDurabilitySelectionQueryFromEffect(...)` 从旧 `CombatEffectDefinition` 读取 `target_slots`、`slot_weight_map` 和 `DamageResolutionContext.EquipmentSlotOverride` / `"equipment_slot_override"`，但进入 query 前必须投成 typed `SlotWeights` 列表；旧 effect params 是历史技能边界，不作为装备能力 ABI。
+- `BuildEquipmentDurabilitySelectionQueryFromEffect(...)` 从 `CombatEffectDefinition` 读取 `target_slots`、typed `EquipmentDurabilitySlotWeights` 和 `DamageResolutionContext.EquipmentSlotOverride` / `"equipment_slot_override"`；`params.slot_weight_map` 不再是 spell effect schema，内容校验必须拒绝。
 - `BuildEquipmentDurabilitySelectionQueryFromAbilityPayload(...)` 从 `EquipmentDurabilityDamageActionPayloadDef` 读取 `target_selector`、`target_slots`、typed `slot_weights`、`required_item_tags`、`required_equipment_type_ids`。
 - `target_weapon`、`target_shield`、`target_armor`、`target_slot` 可以用同一 query，只是 `ConsumeRandom = false` 且通过 fixed selector 规则限制候选。
 - `random_target_equipment` 在 execution 中 `ConsumeRandom = true`；preview / AI / snapshot 中 `ConsumeRandom = false`。

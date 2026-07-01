@@ -5,6 +5,7 @@
 [ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_xlsww"]
 [ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_628t1"]
 [ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_iuvjb"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectSlotWeightDef.cs" id="6_eqwgt"]
 
 [sub_resource type="Resource" id="Resource_l0g1t"]
 script = ExtResource("3_xlsww")
@@ -49,6 +50,66 @@ damage_tag = &"force"
 dice_count = 8
 dice_sides = 6
 
+[sub_resource type="Resource" id="Resource_disj_weight_hands"]
+script = ExtResource("6_eqwgt")
+slot_id = &"hands"
+weight = 10
+
+[sub_resource type="Resource" id="Resource_disj_weight_feet"]
+script = ExtResource("6_eqwgt")
+slot_id = &"feet"
+weight = 10
+
+[sub_resource type="Resource" id="Resource_disj_weight_cloak"]
+script = ExtResource("6_eqwgt")
+slot_id = &"cloak"
+weight = 10
+
+[sub_resource type="Resource" id="Resource_disj_weight_necklace"]
+script = ExtResource("6_eqwgt")
+slot_id = &"necklace"
+weight = 10
+
+[sub_resource type="Resource" id="Resource_disj_weight_ring_1"]
+script = ExtResource("6_eqwgt")
+slot_id = &"ring_1"
+weight = 10
+
+[sub_resource type="Resource" id="Resource_disj_weight_ring_2"]
+script = ExtResource("6_eqwgt")
+slot_id = &"ring_2"
+weight = 10
+
+[sub_resource type="Resource" id="Resource_disj_weight_special_trinket"]
+script = ExtResource("6_eqwgt")
+slot_id = &"special_trinket"
+weight = 10
+
+[sub_resource type="Resource" id="Resource_disj_weight_badge"]
+script = ExtResource("6_eqwgt")
+slot_id = &"badge"
+weight = 10
+
+[sub_resource type="Resource" id="Resource_disj_weight_body"]
+script = ExtResource("6_eqwgt")
+slot_id = &"body"
+weight = 10
+
+[sub_resource type="Resource" id="Resource_disj_weight_head"]
+script = ExtResource("6_eqwgt")
+slot_id = &"head"
+weight = 20
+
+[sub_resource type="Resource" id="Resource_disj_weight_main_hand"]
+script = ExtResource("6_eqwgt")
+slot_id = &"main_hand"
+weight = 30
+
+[sub_resource type="Resource" id="Resource_disj_weight_off_hand"]
+script = ExtResource("6_eqwgt")
+slot_id = &"off_hand"
+weight = 20
+
 [sub_resource type="Resource" id="Resource_x8cf6"]
 script = ExtResource("3_xlsww")
 effect_type = &"equipment_durability_damage"
@@ -60,22 +121,9 @@ save_ability = &"willpower"
 save_dc_source_ability = &"intelligence"
 save_tag = &"equipment_disjunction"
 require_damage_applied = true
+equipment_durability_slot_weights = Array[ExtResource("6_eqwgt")]([SubResource("Resource_disj_weight_hands"), SubResource("Resource_disj_weight_feet"), SubResource("Resource_disj_weight_cloak"), SubResource("Resource_disj_weight_necklace"), SubResource("Resource_disj_weight_ring_1"), SubResource("Resource_disj_weight_ring_2"), SubResource("Resource_disj_weight_special_trinket"), SubResource("Resource_disj_weight_badge"), SubResource("Resource_disj_weight_body"), SubResource("Resource_disj_weight_head"), SubResource("Resource_disj_weight_main_hand"), SubResource("Resource_disj_weight_off_hand")])
 params = {
 "max_damaged_items": 1,
-"slot_weight_map": {
-&"hands": 10,
-&"feet": 10,
-&"cloak": 10,
-&"necklace": 10,
-&"ring_1": 10,
-&"ring_2": 10,
-&"special_trinket": 10,
-&"badge": 10,
-&"body": 10,
-&"head": 20,
-&"main_hand": 30,
-&"off_hand": 20
-},
 "target_slots": Array[StringName]([&"main_hand", &"off_hand", &"head", &"body", &"hands", &"feet", &"cloak", &"necklace", &"ring_1", &"ring_2", &"special_trinket", &"badge"])
 }
 
@@ -91,22 +139,9 @@ save_ability = &"willpower"
 save_dc_source_ability = &"intelligence"
 save_tag = &"equipment_disjunction"
 require_damage_applied = true
+equipment_durability_slot_weights = Array[ExtResource("6_eqwgt")]([SubResource("Resource_disj_weight_hands"), SubResource("Resource_disj_weight_feet"), SubResource("Resource_disj_weight_cloak"), SubResource("Resource_disj_weight_necklace"), SubResource("Resource_disj_weight_ring_1"), SubResource("Resource_disj_weight_ring_2"), SubResource("Resource_disj_weight_special_trinket"), SubResource("Resource_disj_weight_badge"), SubResource("Resource_disj_weight_body"), SubResource("Resource_disj_weight_head"), SubResource("Resource_disj_weight_main_hand"), SubResource("Resource_disj_weight_off_hand")])
 params = {
 "max_damaged_items": 1,
-"slot_weight_map": {
-&"hands": 10,
-&"feet": 10,
-&"cloak": 10,
-&"necklace": 10,
-&"ring_1": 10,
-&"ring_2": 10,
-&"special_trinket": 10,
-&"badge": 10,
-&"body": 10,
-&"head": 20,
-&"main_hand": 30,
-&"off_hand": 20
-},
 "target_slots": Array[StringName]([&"main_hand", &"off_hand", &"head", &"body", &"hands", &"feet", &"cloak", &"necklace", &"ring_1", &"ring_2", &"special_trinket", &"badge"])
 }
 
@@ -122,22 +157,9 @@ save_ability = &"willpower"
 save_dc_source_ability = &"intelligence"
 save_tag = &"equipment_disjunction"
 require_damage_applied = true
+equipment_durability_slot_weights = Array[ExtResource("6_eqwgt")]([SubResource("Resource_disj_weight_hands"), SubResource("Resource_disj_weight_feet"), SubResource("Resource_disj_weight_cloak"), SubResource("Resource_disj_weight_necklace"), SubResource("Resource_disj_weight_ring_1"), SubResource("Resource_disj_weight_ring_2"), SubResource("Resource_disj_weight_special_trinket"), SubResource("Resource_disj_weight_badge"), SubResource("Resource_disj_weight_body"), SubResource("Resource_disj_weight_head"), SubResource("Resource_disj_weight_main_hand"), SubResource("Resource_disj_weight_off_hand")])
 params = {
 "max_damaged_items": 1,
-"slot_weight_map": {
-&"hands": 10,
-&"feet": 10,
-&"cloak": 10,
-&"necklace": 10,
-&"ring_1": 10,
-&"ring_2": 10,
-&"special_trinket": 10,
-&"badge": 10,
-&"body": 10,
-&"head": 20,
-&"main_hand": 30,
-&"off_hand": 20
-},
 "target_slots": Array[StringName]([&"main_hand", &"off_hand", &"head", &"body", &"hands", &"feet", &"cloak", &"necklace", &"ring_1", &"ring_2", &"special_trinket", &"badge"])
 }
 
@@ -152,22 +174,9 @@ save_ability = &"willpower"
 save_dc_source_ability = &"intelligence"
 save_tag = &"equipment_disjunction"
 require_damage_applied = true
+equipment_durability_slot_weights = Array[ExtResource("6_eqwgt")]([SubResource("Resource_disj_weight_hands"), SubResource("Resource_disj_weight_feet"), SubResource("Resource_disj_weight_cloak"), SubResource("Resource_disj_weight_necklace"), SubResource("Resource_disj_weight_ring_1"), SubResource("Resource_disj_weight_ring_2"), SubResource("Resource_disj_weight_special_trinket"), SubResource("Resource_disj_weight_badge"), SubResource("Resource_disj_weight_body"), SubResource("Resource_disj_weight_head"), SubResource("Resource_disj_weight_main_hand"), SubResource("Resource_disj_weight_off_hand")])
 params = {
 "max_damaged_items": 1,
-"slot_weight_map": {
-&"hands": 10,
-&"feet": 10,
-&"cloak": 10,
-&"necklace": 10,
-&"ring_1": 10,
-&"ring_2": 10,
-&"special_trinket": 10,
-&"badge": 10,
-&"body": 10,
-&"head": 20,
-&"main_hand": 30,
-&"off_hand": 20
-},
 "target_slots": Array[StringName]([&"main_hand", &"off_hand", &"head", &"body", &"hands", &"feet", &"cloak", &"necklace", &"ring_1", &"ring_2", &"special_trinket", &"badge"])
 }
 

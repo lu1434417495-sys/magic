@@ -835,23 +835,29 @@ public partial class BattleDamageResolver
         CombatEffectDefinition effectDefinition
     )
     {
-        IReadOnlyDictionary<StringName, int> weightMap =
-            effectDefinition?.GetStringNameIntMapParamTyped("slot_weight_map");
-        if (weightMap == null || weightMap.Count == 0)
+        IReadOnlyList<EquipmentSlotWeightDefinition> slotWeights =
+            effectDefinition?.EquipmentDurabilitySlotWeights;
+        if (slotWeights == null || slotWeights.Count == 0)
         {
             return Array.Empty<EquipmentSlotWeightDefinition>();
         }
         var result = new List<EquipmentSlotWeightDefinition>();
-        foreach ((StringName slotId, int weight) in weightMap)
+        foreach (EquipmentSlotWeightDefinition slotWeight in slotWeights)
         {
-            StringName normalizedSlotId = ProgressionDataUtils.to_string_name(slotId);
-            if (normalizedSlotId != "")
+            if (slotWeight == null)
+            {
+                continue;
+            }
+            StringName normalizedSlotId = ProgressionDataUtils.to_string_name(
+                slotWeight.SlotId
+            );
+            if (normalizedSlotId != "" && slotWeight.Weight > 0)
             {
                 result.Add(
                     new EquipmentSlotWeightDefinition
                     {
                         SlotId = normalizedSlotId,
-                        Weight = weight,
+                        Weight = slotWeight.Weight,
                     }
                 );
             }

@@ -425,6 +425,10 @@ public partial class CombatEffectDef : Resource
     public Godot.Collections.Array<StringName> effect_tags { get; set; } = new();
 
     [Export]
+    public Godot.Collections.Array<CombatEffectSlotWeightDef> equipment_durability_slot_weights { get; set; } =
+        new();
+
+    [Export]
     public Godot.Collections.Dictionary @params { get; set; } = new();
 
     internal int GetIntParamTyped(string key, int fallback = 0)

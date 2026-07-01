@@ -2006,12 +2006,17 @@ public class SkillContentRegistry : System.IDisposable
             parameters,
             "target_slots"
         );
+        if (parameters.ContainsKey("slot_weight_map"))
+        {
+            errors.Add(
+                $"Skill {skillId} equipment_durability_damage effect in {contextLabel} params.slot_weight_map is unsupported; use equipment_durability_slot_weights."
+            );
+        }
         _append_equipment_slot_weight_validation_errors(
             errors,
             skillId,
             contextLabel,
-            parameters,
-            "slot_weight_map"
+            effectDef.equipment_durability_slot_weights
         );
     }
 
@@ -2055,39 +2060,41 @@ public class SkillContentRegistry : System.IDisposable
         Array<string> errors,
         StringName skillId,
         string contextLabel,
-        Dictionary parameters,
-        string paramName
+        Godot.Collections.Array<CombatEffectSlotWeightDef> slotWeights
     )
     {
-        if (parameters == null || !parameters.ContainsKey(paramName))
+        if (slotWeights == null || slotWeights.Count == 0)
             return;
-        object value = parameters[paramName];
-        if (!TryAsDictionary(value, out Dictionary weightMap))
+        var seenSlots = new HashSet<StringName>();
+        for (int index = 0; index < slotWeights.Count; index++)
         {
-            errors.Add(
-                $"Skill {skillId} equipment_durability_damage effect in {contextLabel} params.{paramName} must be a Dictionary."
-            );
-            return;
-        }
-        foreach (Variant rawKey in weightMap.Keys)
-        {
-            if (rawKey.VariantType != VT.StringName)
+            CombatEffectSlotWeightDef slotWeight = slotWeights[index];
+            if (slotWeight == null)
             {
                 errors.Add(
-                    $"Skill {skillId} equipment_durability_damage effect in {contextLabel} params.{paramName} key {rawKey} must be a StringName."
+                    $"Skill {skillId} equipment_durability_damage effect in {contextLabel} equipment_durability_slot_weights[{index}] must be set."
                 );
                 continue;
             }
-            var slotId = rawKey.AsStringName();
+            var slotId = ProgressionDataUtils.to_string_name(slotWeight.slot_id);
             if (!EquipmentRules.IsValidSlot(slotId))
+            {
                 errors.Add(
-                    $"Skill {skillId} equipment_durability_damage effect in {contextLabel} params.{paramName} uses unsupported slot {slotId}."
+                    $"Skill {skillId} equipment_durability_damage effect in {contextLabel} equipment_durability_slot_weights uses unsupported slot {slotId}."
                 );
-            TryGetDictionaryValue(weightMap, rawKey, out object weightVariant);
-            if (!TryStrictInt(weightVariant, out int weight) || weight <= 0)
+            }
+            else if (!seenSlots.Add(slotId))
+            {
                 errors.Add(
-                    $"Skill {skillId} equipment_durability_damage effect in {contextLabel} params.{paramName}.{slotId} must be a positive int."
+                    $"Skill {skillId} equipment_durability_damage effect in {contextLabel} equipment_durability_slot_weights repeats slot {slotId}."
                 );
+            }
+            if (slotWeight.weight <= 0)
+            {
+                errors.Add(
+                    $"Skill {skillId} equipment_durability_damage effect in {contextLabel} equipment_durability_slot_weights[{slotId}] must be a positive int."
+                );
+            }
         }
     }
 

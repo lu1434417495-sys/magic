@@ -206,20 +206,27 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
         );
 
     private static CombatEffectDefinition DisjunctionEffect(int power) =>
-        TestSkillDefinitionProjection.BuildEffect(
-            "equipment_durability_damage",
-            power: Mathf.Max(power, 1),
-            effectTargetTeamFilter: "enemy",
-            saveDcMode: "caster_spell",
-            saveAbility: "willpower",
-            saveDcSourceAbility: "intelligence",
-            saveTag: "equipment_disjunction",
-            requireDamageApplied: true,
-            parameters: new Dictionary<string, Variant>
+        CombatEffectDefinition.FromResource(
+            new CombatEffectDef
             {
-                ["max_damaged_items"] = 1,
-                ["slot_weight_map"] = new GDictionary { [new StringName("main_hand")] = 1 },
-                ["target_slots"] = new GStringNameArray { "main_hand" },
+                effect_type = "equipment_durability_damage",
+                power = Mathf.Max(power, 1),
+                effect_target_team_filter = "enemy",
+                save_dc_mode = "caster_spell",
+                save_ability = "willpower",
+                save_dc_source_ability = "intelligence",
+                save_tag = "equipment_disjunction",
+                require_damage_applied = true,
+                equipment_durability_slot_weights =
+                    new Godot.Collections.Array<CombatEffectSlotWeightDef>
+                    {
+                        new() { slot_id = "main_hand", weight = 1 },
+                    },
+                @params = new GDictionary
+                {
+                    ["max_damaged_items"] = 1,
+                    ["target_slots"] = new GStringNameArray { "main_hand" },
+                },
             }
         );
 

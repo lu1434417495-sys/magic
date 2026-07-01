@@ -19,6 +19,7 @@ public partial class run_equipment_durability_selected_target_regression : Scene
         TestSelectedCommitSaveSuccessReturnsResolvedResultWithoutMutation();
         TestConfiguredWeightMapDoesNotDefaultUnweightedSlot();
         TestOccupiedSlotSelectionReportsMatchedSlot();
+        TestTypedCombatEffectSlotWeightsBuildSelectorQueryDespiteLegacyParams();
 
         Quit(_test.Finish("Equipment durability selected target regression"));
     }
@@ -248,6 +249,52 @@ public partial class run_equipment_durability_selected_target_regression : Scene
         );
     }
 
+    private void TestTypedCombatEffectSlotWeightsBuildSelectorQueryDespiteLegacyParams()
+    {
+        using BattleDamageResolver resolver = new();
+        BattleUnitState target = BuildUnit("legacy_weight_target", "enemy");
+        EquipInstance(target, "main_hand", "bronze_sword", "eq_legacy_weight", 20);
+
+        CombatEffectDefinition effect = DisjunctionEffectFromResource(
+            7,
+            targetSlots: Names("main_hand"),
+            typedSlotWeights: CombatEffectSlotWeights(("main_hand", 1)),
+            slotWeightMap: WeightMap(("off_hand", 5))
+        );
+        _test.Eq(
+            effect.EquipmentDurabilitySlotWeights.Count,
+            1,
+            "test effect should carry typed durability slot weights."
+        );
+        _test.Eq(
+            effect.GetStringNameListParamTyped("target_slots").Count,
+            1,
+            "test effect should carry target_slots."
+        );
+
+        BattleDamageResolver.EquipmentDurabilitySelectionResult selection =
+            resolver.SelectEquipmentForDurabilityDamage(
+                new BattleDamageResolver.EquipmentDurabilitySelectionQuery
+                {
+                    TargetUnit = target,
+                    TargetSlots = effect.GetStringNameListParamTyped("target_slots"),
+                    SlotWeights = effect.EquipmentDurabilitySlotWeights,
+                    ConsumeRandom = false,
+                }
+            );
+
+        _test.Eq(
+            selection.Candidates.Count,
+            1,
+            "typed selector query should use CombatEffectDefinition slot weights, not legacy params.slot_weight_map."
+        );
+        _test.Eq(
+            selection.TotalWeight,
+            1,
+            "typed selector query should preserve the typed main_hand weight."
+        );
+    }
+
     private static EquipmentAbilityEquipmentTargetRef BuildTargetRef(
         BattleUnitState unit,
         StringName entrySlotId,
@@ -326,8 +373,7 @@ public partial class run_equipment_durability_selected_target_regression : Scene
 
     private static CombatEffectDefinition DisjunctionEffect(
         int power,
-        GStringNameArray targetSlots = null,
-        GDictionary slotWeightMap = null
+        GStringNameArray targetSlots = null
     ) =>
         TestSkillDefinitionProjection.BuildEffect(
             "equipment_durability_damage",
@@ -341,10 +387,55 @@ public partial class run_equipment_durability_selected_target_regression : Scene
             parameters: new System.Collections.Generic.Dictionary<string, Variant>
             {
                 ["max_damaged_items"] = 1,
-                ["slot_weight_map"] = slotWeightMap ?? WeightMap(("main_hand", 1)),
                 ["target_slots"] = targetSlots ?? Names("main_hand"),
             }
         );
+
+    private static CombatEffectDefinition DisjunctionEffectFromResource(
+        int power,
+        GStringNameArray targetSlots = null,
+        Godot.Collections.Array<CombatEffectSlotWeightDef> typedSlotWeights = null,
+        GDictionary slotWeightMap = null
+    ) =>
+        CombatEffectDefinition.FromResource(
+            new CombatEffectDef
+            {
+                effect_type = "equipment_durability_damage",
+                power = Mathf.Max(power, 1),
+                effect_target_team_filter = "enemy",
+                save_dc_mode = "caster_spell",
+                save_ability = "willpower",
+                save_dc_source_ability = "intelligence",
+                save_tag = "equipment_disjunction",
+                require_damage_applied = true,
+                equipment_durability_slot_weights =
+                    typedSlotWeights ?? new Godot.Collections.Array<CombatEffectSlotWeightDef>(),
+                @params = new GDictionary
+                {
+                    ["max_damaged_items"] = 1,
+                    ["slot_weight_map"] = slotWeightMap ?? WeightMap(("main_hand", 1)),
+                    ["target_slots"] = targetSlots ?? Names("main_hand"),
+                },
+            }
+        );
+
+    private static Godot.Collections.Array<CombatEffectSlotWeightDef> CombatEffectSlotWeights(
+        params (StringName SlotId, int Weight)[] values
+    )
+    {
+        var result = new Godot.Collections.Array<CombatEffectSlotWeightDef>();
+        foreach ((StringName slotId, int weight) in values)
+        {
+            result.Add(
+                new CombatEffectSlotWeightDef
+                {
+                    slot_id = slotId,
+                    weight = weight,
+                }
+            );
+        }
+        return result;
+    }
 
     private static GStringNameArray Names(params StringName[] values)
     {
@@ -379,4 +470,5 @@ public partial class run_equipment_durability_selected_target_regression : Scene
             result[slotId] = weight;
         return result;
     }
+
 }
