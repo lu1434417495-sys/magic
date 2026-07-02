@@ -984,6 +984,12 @@ public partial class BattleUnitState
         _consumedContingencySetupIds.Add(normalized);
     }
 
+    internal bool HasConsumedContingencySetup(StringName setupId)
+    {
+        StringName normalized = ProgressionDataUtils.to_string_name(setupId);
+        return normalized != "" && _consumedContingencySetupIds.Contains(normalized);
+    }
+
     internal IReadOnlyList<StringName> GetConsumedContingencySetupIdsTyped() =>
         new List<StringName>(_consumedContingencySetupIds);
 

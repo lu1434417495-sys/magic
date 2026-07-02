@@ -38,7 +38,6 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
     private readonly Dictionary<StringName, BattleContingencyInstance> _instancesById = new();
     private readonly Dictionary<StringName, List<StringName>> _instanceIdsByMemberId = new();
     private readonly Dictionary<StringName, List<StringName>> _instanceIdsByTriggerType = new();
-    private readonly Dictionary<StringName, HashSet<StringName>> _consumedSetupIdsByMemberId = new();
     private readonly HashSet<string> _queuedSourceEventKeys = new(StringComparer.Ordinal);
     private readonly Queue<ContingencyReleaseContext> _releaseQueue = new();
     private readonly Queue<AutoCastRequest> _sequentialAutoCastQueue = new();
@@ -83,7 +82,6 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
         _instancesById.Clear();
         _instanceIdsByMemberId.Clear();
         _instanceIdsByTriggerType.Clear();
-        _consumedSetupIdsByMemberId.Clear();
         _queuedSourceEventKeys.Clear();
         _releaseQueue.Clear();
         _sequentialAutoCastQueue.Clear();
@@ -120,15 +118,27 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
         return false;
     }
 
+    // Consumed state has a single owner: the stamp on the owner unit
+    // (BattleUnitState.MarkContingencySetupConsumed), which battle-end writeback
+    // and snapshot overlays already read. This system resolves through it.
     internal bool IsSetupConsumedForMember(StringName memberId, StringName setupId)
     {
         memberId = Normalize(memberId);
         setupId = Normalize(setupId);
-        return memberId != ""
-            && setupId != ""
-            && _consumedSetupIdsByMemberId.TryGetValue(memberId, out HashSet<StringName> setupIds)
-            && setupIds.Contains(setupId);
+        if (memberId == "" || setupId == "")
+            return false;
+        foreach (BattleContingencyInstance instance in GetInstancesForMember(memberId))
+        {
+            if (instance.SetupId == setupId)
+                return IsInstanceConsumed(instance);
+        }
+        return false;
     }
+
+    private bool IsInstanceConsumed(BattleContingencyInstance instance) =>
+        instance != null
+        && FindOwnerUnit(instance.OwnerUnitId)?.HasConsumedContingencySetup(instance.SetupId)
+            == true;
 
     internal int GetReleasedReservedMpMaxForMember(StringName memberId)
     {
@@ -138,7 +148,7 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
         int total = 0;
         foreach (BattleContingencyInstance instance in GetInstancesForMember(memberId))
         {
-            if (instance?.Setup == null || !IsSetupConsumedForMember(memberId, instance.SetupId))
+            if (instance?.Setup == null || !IsInstanceConsumed(instance))
                 continue;
             total += Mathf.Max(instance.Setup.ReservedMpMax, 0);
         }
@@ -238,7 +248,7 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
                 continue;
             if (!_instancesById.TryGetValue(queuedContext.InstanceId, out BattleContingencyInstance instance))
                 continue;
-            if (IsSetupConsumedForMember(instance.OwnerMemberId, instance.SetupId))
+            if (IsInstanceConsumed(instance))
             {
                 AppendContingencyReportEntry(
                     batch,
@@ -339,7 +349,7 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
                 continue;
             if (instance.Suppressed)
                 continue;
-            if (IsSetupConsumedForMember(instance.OwnerMemberId, instance.SetupId))
+            if (IsInstanceConsumed(instance))
                 continue;
             if (!IsOwnerLive(instance.OwnerUnitId))
                 continue;
@@ -470,7 +480,7 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
                     ["release_mode"] = (instance.Setup?.ReleaseMode ?? new StringName("")).ToString(),
                     ["stored_spells"] = BuildStoredSpellSnapshot(instance.Setup?.StoredSpells),
                     ["suppressed"] = instance.Suppressed,
-                    ["consumed"] = IsSetupConsumedForMember(instance.OwnerMemberId, instance.SetupId),
+                    ["consumed"] = IsInstanceConsumed(instance),
                 }
             );
         }
@@ -611,7 +621,7 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
                 );
                 continue;
             }
-            if (IsSetupConsumedForMember(instance.OwnerMemberId, instance.SetupId))
+            if (IsInstanceConsumed(instance))
             {
                 AppendContingencyReportEntry(
                     batch,
@@ -679,14 +689,15 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
                 yield return instance;
     }
 
+    // AddTriggerIndexEntry keeps each list sorted on insert, and instances are only
+    // added during ResetForBattle, so trigger evaluation can read the index directly
+    // without a per-event copy + re-sort.
     private IReadOnlyList<StringName> GetInstanceIdsForTrigger(StringName triggerType)
     {
         triggerType = Normalize(triggerType);
         if (triggerType == "" || !_instanceIdsByTriggerType.TryGetValue(triggerType, out List<StringName> instanceIds))
             return Array.Empty<StringName>();
-        List<StringName> result = new(instanceIds);
-        result.Sort(CompareStringNamesOrdinal);
-        return result;
+        return instanceIds;
     }
 
     private static int CompareStringNamesOrdinal(StringName left, StringName right) =>
@@ -728,7 +739,7 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
     {
         if (!CanDamageTriggerInstance(instance, context))
             return false;
-        int percent = ReadInt(instance.Setup?.Trigger?.Payload, "damage_percent", 0);
+        int percent = instance.Setup?.Trigger?.DamagePercent ?? 0;
         if (percent <= 0)
             return false;
         int maxHp = GetMaxHp(context.TargetUnit);
@@ -751,7 +762,7 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
             return false;
         if (instance.Suppressed)
             return false;
-        if (IsSetupConsumedForMember(instance.OwnerMemberId, instance.SetupId))
+        if (IsInstanceConsumed(instance))
             return false;
         if (!IsOwnerLive(instance.OwnerUnitId))
             return false;
@@ -829,13 +840,13 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
     {
         if (fact.TargetUnitId != instance.OwnerUnitId || fact.MaxHp <= 0)
             return false;
-        int percent = ReadInt(instance.Setup?.Trigger?.Payload, "percent", 0);
+        int percent = instance.Setup?.Trigger?.Percent ?? 0;
         if (percent <= 0)
             return false;
         bool currentBelow = fact.CurrentHp * 100 <= fact.MaxHp * percent;
         if (!currentBelow)
             return false;
-        bool crossingOnly = ReadBool(instance.Setup?.Trigger?.Payload, "crossing_only");
+        bool crossingOnly = instance.Setup?.Trigger?.CrossingOnly ?? false;
         return !crossingOnly || fact.PreviousHp * 100 > fact.MaxHp * percent;
     }
 
@@ -843,11 +854,15 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
     {
         if (fact.TargetUnitId != instance.OwnerUnitId || fact.StatusIds.Count == 0)
             return false;
-        GArray configuredStatusIds = ReadArray(instance.Setup?.Trigger?.Payload, "status_tags");
+        IReadOnlyList<StringName> configuredStatusIds =
+            instance.Setup?.Trigger?.StatusTags ?? System.Array.Empty<StringName>();
+        if (configuredStatusIds.Count == 0)
+            return false;
         foreach (StringName statusId in fact.StatusIds)
         {
-            if (ContainsStringName(configuredStatusIds, statusId))
-                return true;
+            foreach (StringName configuredStatusId in configuredStatusIds)
+                if (configuredStatusId == statusId)
+                    return true;
         }
         return false;
     }
@@ -865,7 +880,7 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
             return false;
         if (!IsHostile(ownerUnit, sourceUnit))
             return false;
-        int radius = ReadInt(instance.Setup?.Trigger?.Payload, "radius", 0);
+        int radius = instance.Setup?.Trigger?.Radius ?? 0;
         if (radius <= 0)
             return false;
         int previousDistance = Manhattan(ownerUnit.coord, fact.PreviousSourceCell);
@@ -929,27 +944,6 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
         return Math.Abs(left.X - right.X) + Math.Abs(left.Y - right.Y);
     }
 
-    private static bool ReadBool(GDictionary source, string key)
-    {
-        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
-            return false;
-        return source[key].AsBool();
-    }
-
-    private static int ReadInt(GDictionary source, string key, int fallback)
-    {
-        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
-            return fallback;
-        return source[key].AsInt32();
-    }
-
-    private static GArray ReadArray(GDictionary source, string key)
-    {
-        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
-            return new GArray();
-        return source[key].AsGodotArray();
-    }
-
     private static GArray BuildStoredSpellSnapshot(
         IReadOnlyList<ContingencyStoredSpellEntryState> spells
     )
@@ -975,34 +969,11 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
         return result;
     }
 
-    private static bool ContainsStringName(GArray values, StringName expected)
-    {
-        expected = Normalize(expected);
-        if (values == null || expected == "")
-            return false;
-        foreach (Variant value in values)
-        {
-            StringName parsed = ProgressionDataUtils.to_string_name(value);
-            if (parsed == expected)
-                return true;
-        }
-        return false;
-    }
-
     private void MarkConsumed(BattleContingencyInstance instance)
     {
         if (instance == null || instance.OwnerMemberId == "" || instance.SetupId == "")
             return;
-        if (!_consumedSetupIdsByMemberId.TryGetValue(instance.OwnerMemberId, out HashSet<StringName> setupIds))
-        {
-            setupIds = new HashSet<StringName>();
-            _consumedSetupIdsByMemberId[instance.OwnerMemberId] = setupIds;
-        }
-        if (!setupIds.Add(instance.SetupId))
-            return;
-
-        BattleUnitState ownerUnit = FindOwnerUnit(instance.OwnerUnitId);
-        ownerUnit?.MarkContingencySetupConsumed(instance.SetupId);
+        FindOwnerUnit(instance.OwnerUnitId)?.MarkContingencySetupConsumed(instance.SetupId);
     }
 
     private void RefreshOwnerUnit(StringName ownerUnitId)

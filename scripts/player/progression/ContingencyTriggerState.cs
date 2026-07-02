@@ -31,10 +31,20 @@ public enum ContingencyTimingKind
 public class ContingencyTriggerState
 {
     private readonly Dictionary<string, object> _payload = new(System.StringComparer.Ordinal);
+    private readonly List<StringName> _statusTags = new();
 
     public ContingencyTriggerKind TriggerKind { get; private set; } =
         ContingencyTriggerKind.Unknown;
     public StringName Type { get; private set; } = "";
+
+    // Typed trigger parameters, resolved once at FromDictionary time. Battle-time
+    // matchers must read these instead of fishing keys out of Payload.
+    public int Percent { get; private set; }
+    public bool CrossingOnly { get; private set; }
+    public int DamagePercent { get; private set; }
+    public int Radius { get; private set; }
+    public IReadOnlyList<StringName> StatusTags => _statusTags;
+
     public GDictionary Payload =>
         RuntimePlainPayload.ProjectDictionary(
             _payload,
@@ -47,7 +57,12 @@ public class ContingencyTriggerState
         {
             TriggerKind = TriggerKind,
             Type = Type,
+            Percent = Percent,
+            CrossingOnly = CrossingOnly,
+            DamagePercent = DamagePercent,
+            Radius = Radius,
         };
+        state._statusTags.AddRange(_statusTags);
         foreach (
             KeyValuePair<string, object> entry in RuntimePlainPayload.CloneDictionary(_payload)
         )
@@ -85,7 +100,45 @@ public class ContingencyTriggerState
             if (!string.IsNullOrEmpty(entry.Key))
                 state._payload[entry.Key] = entry.Value;
         }
+        state.ResolveTypedParameters(payload);
         return state;
+    }
+
+    private void ResolveTypedParameters(GDictionary payload)
+    {
+        if (TriggerKind == ContingencyTriggerKind.HpBelowPercent)
+        {
+            if (ContingencySchemaUtils.TryReadInt(payload, "percent", out int percent))
+                Percent = percent;
+            if (ContingencySchemaUtils.TryReadBool(payload, "crossing_only", out bool crossingOnly))
+                CrossingOnly = crossingOnly;
+            return;
+        }
+        if (TriggerKind == ContingencyTriggerKind.IncomingDamagePercent)
+        {
+            if (ContingencySchemaUtils.TryReadInt(payload, "damage_percent", out int damagePercent))
+                DamagePercent = damagePercent;
+            return;
+        }
+        if (TriggerKind == ContingencyTriggerKind.EnemyEnterRadius)
+        {
+            if (ContingencySchemaUtils.TryReadInt(payload, "radius", out int radius))
+                Radius = radius;
+            return;
+        }
+        if (TriggerKind == ContingencyTriggerKind.StatusApplied)
+        {
+            if (!ContingencySchemaUtils.TryReadArray(payload, "status_tags", out GArray statusTags))
+                return;
+            foreach (Variant value in statusTags)
+            {
+                if (!ContingencySchemaUtils.TryAsStringLike(value, out string text))
+                    continue;
+                StringName statusTag = new(text);
+                if (statusTag != "" && !_statusTags.Contains(statusTag))
+                    _statusTags.Add(statusTag);
+            }
+        }
     }
 
     internal static StringName ToStringName(ContingencyTriggerKind kind)
