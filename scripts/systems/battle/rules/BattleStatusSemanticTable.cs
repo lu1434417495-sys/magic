@@ -69,51 +69,128 @@ public static class BattleStatusSemanticTable
         STATUS_WILLPOWER_SAVE_BONUS_UP = "willpower_save_bonus_up",
         STATUS_TIME_STASIS = "time_stasis",
         STATUS_TIME_SLOW = "time_slow",
-        STATUS_TIME_REVERBERATION = "time_reverberation";
+        STATUS_TIME_REVERBERATION = "time_reverberation",
+        STATUS_BLACK_STAR_BRAND_NORMAL = "black_star_brand_normal",
+        STATUS_BLACK_STAR_BRAND_ELITE = "black_star_brand_elite";
+
+    private const int DEFAULT_DISPEL_PRIORITY = 50;
+
+    // One row owns everything the table knows about a status: semantic, harm
+    // classification, cast blocking, dispel/cleanse eligibility, dispel priority.
+    // Adding a status means adding exactly one row here.
+    private sealed record BattleStatusDescriptor
+    {
+        internal BattleStatusSemantic Semantic { get; init; }
+        internal bool Harmful { get; init; }
+
+        // Harmful but immune to普通净化（temporal-only release / dispel 专用路径）。
+        internal bool CleanseProtected { get; init; }
+        internal bool BlocksPendingCast { get; init; }
+        internal bool DispellableHarmful { get; init; }
+        internal bool DispellableBeneficial { get; init; }
+        internal int DispelPriority { get; init; } = DEFAULT_DISPEL_PRIORITY;
+    }
+
+    private static readonly Dictionary<StringName, BattleStatusDescriptor> StatusTable = new()
+    {
+        // —— 增益（可驱散增益）——
+        [STATUS_ATTACK_UP] = new() { Semantic = RefreshSemantic(), DispellableBeneficial = true, DispelPriority = 80 },
+        [STATUS_ATTACK_ROLL_BONUS_UP] = new() { Semantic = RefreshSemantic(), DispellableBeneficial = true, DispelPriority = 80 },
+        [STATUS_DAMAGE_REDUCTION_UP] = new() { Semantic = RefreshSemantic(), DispellableBeneficial = true, DispelPriority = 80 },
+        [STATUS_DODGE_BONUS_UP] = new() { Semantic = RefreshSemantic(), DispellableBeneficial = true, DispelPriority = 80 },
+        [STATUS_WILLPOWER_SAVE_BONUS_UP] = new() { Semantic = RefreshSemantic(), DispellableBeneficial = true, DispelPriority = 80 },
+        [STATUS_DEATH_WARD] = new() { Semantic = RefreshSemantic(), DispellableBeneficial = true, DispelPriority = 100 },
+        [STATUS_MAGIC_SHIELD] = new() { Semantic = RefreshSemantic(), DispellableBeneficial = true, DispelPriority = 100 },
+        [STATUS_PRISMATIC_BARRIER] = new() { Semantic = RefreshSemantic(), DispellableBeneficial = true, DispelPriority = 100 },
+        [STATUS_SPELLWARD] = new() { Semantic = RefreshSemantic(), DispellableBeneficial = true, DispelPriority = 100 },
+
+        // —— 中性/自持（只有语义）——
+        [STATUS_ARCHER_PRE_AIM] = new() { Semantic = RefreshSemantic() },
+        [STATUS_ARCHER_RANGE_UP] = new() { Semantic = RefreshSemantic() },
+        [STATUS_ARCHER_SHOOTING_SPECIALIZATION] = new() { Semantic = RefreshSemantic() },
+        [STATUS_GUARDING] = new() { Semantic = RefreshSemantic() },
+        [STATUS_LAST_STAND_ACTIVE] = new() { Semantic = RefreshSemantic() },
+        [STATUS_TIME_REVERBERATION] = new() { Semantic = RefreshSemantic() },
+
+        // —— 减益 ——
+        [STATUS_ARMOR_BREAK] = new() { Semantic = RefreshSemantic(), Harmful = true },
+        [STATUS_TENDON_CUT] = new() { Semantic = RefreshSemantic(), Harmful = true },
+        [STATUS_CROWN_BREAK_BROKEN_FANG] = new() { Semantic = RefreshSemantic(), Harmful = true },
+        [STATUS_CROWN_BREAK_BROKEN_HAND] = new() { Semantic = RefreshSemantic(), Harmful = true },
+        [STATUS_CROWN_BREAK_BLINDED_EYE] = new() { Semantic = RefreshSemantic(), Harmful = true },
+        [STATUS_BLIND] = new() { Semantic = RefreshSemantic(attackRollPenalty: DEFAULT_BLIND_ATTACK_ROLL_PENALTY), Harmful = true, DispellableHarmful = true, DispelPriority = 90 },
+        [STATUS_FROZEN] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, BlocksPendingCast = true, DispelPriority = 90 },
+        [STATUS_MARKED] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true },
+        [STATUS_PINNED] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
+        [STATUS_ROOTED] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 90 },
+        [STATUS_SHOCKED] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
+        [STATUS_TAUNTED] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
+        [STATUS_HEX_OF_FRAILTY] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
+        [STATUS_DOOM_SENTENCE_VERDICT] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true },
+        [STATUS_BURNING] = new() { Semantic = BuildSemantic(STACK_ADD, 3, TICK_TIMELINE_DAMAGE), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
+        [STATUS_SLOW] = new() { Semantic = RefreshSemantic(moveCostDelta: 1), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
+        [STATUS_SOUL_FRACTURE] = new() { Semantic = RefreshSemantic(displayLabel: "灵魂裂解"), Harmful = true, DispellableHarmful = true },
+        [STATUS_AFTERSHOCK] = new() { Semantic = RefreshSemantic(displayLabel: "余悸"), Harmful = true, DispellableHarmful = true },
+        [STATUS_REACTION_LOCK] = new() { Semantic = RefreshSemantic(displayLabel: "反应封锁"), Harmful = true, DispellableHarmful = true },
+        [STATUS_FRIGHTENED] = new() { Semantic = RefreshSemantic(displayLabel: "恐惧"), Harmful = true, DispellableHarmful = true },
+        [STATUS_STUNNED] = new() { Semantic = RefreshSemantic(displayLabel: "震慑"), Harmful = true, DispellableHarmful = true },
+        [STATUS_MADNESS] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, BlocksPendingCast = true, DispelPriority = 90 },
+        [STATUS_PETRIFIED] = new() { Semantic = RefreshSemantic(), Harmful = true, CleanseProtected = true, BlocksPendingCast = true },
+        [STATUS_TIME_STASIS] = new() { Semantic = RefreshSemantic(), Harmful = true, CleanseProtected = true, DispellableHarmful = true, DispelPriority = 90 },
+        [STATUS_TIME_SLOW] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
+        [STATUS_STAGGERED] = new()
+        {
+            Semantic = RefreshSemantic(
+                tickMode: TICK_TURN_START_AP_PENALTY,
+                apPenaltyGroup: STATUS_STAGGERED,
+                displayLabel: "踉跄"
+            ),
+            Harmful = true,
+            DispellableHarmful = true,
+            BlocksPendingCast = true,
+            DispelPriority = 70,
+        },
+        [STATUS_METEOR_CONCUSSED] = new()
+        {
+            Semantic = RefreshSemantic(
+                tickMode: TICK_TURN_START_AP_PENALTY,
+                attackRollPenalty: 2,
+                apPenaltyGroup: STATUS_STAGGERED,
+                consumeAfterApPenalty: true,
+                displayLabel: "震眩",
+                turnStartLogReasonId: "meteor_concussed_ap_consumed"
+            ),
+            Harmful = true,
+            DispellableHarmful = true,
+            BlocksPendingCast = true,
+            DispelPriority = 70,
+        },
+
+        // —— 命运烙印：只参与减益判定，语义留空走 effect 自配置路径 ——
+        [STATUS_BLACK_STAR_BRAND_NORMAL] = new() { Harmful = true },
+        [STATUS_BLACK_STAR_BRAND_ELITE] = new() { Harmful = true },
+    };
+
+    private static BattleStatusDescriptor GetDescriptor(StringName statusId)
+    {
+        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
+        return normalizedStatusId != ""
+            && StatusTable.TryGetValue(normalizedStatusId, out BattleStatusDescriptor descriptor)
+            ? descriptor
+            : null;
+    }
 
     public static bool HasSemantic(StringName statusId) => GetSemantic(statusId).Defined;
 
-    public static bool IsHarmfulStatus(StringName statusId)
-    {
-        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
-        return normalizedStatusId == STATUS_ARMOR_BREAK
-            || normalizedStatusId == STATUS_BLIND
-            || normalizedStatusId == STATUS_FROZEN
-            || normalizedStatusId == STATUS_MARKED
-            || normalizedStatusId == STATUS_METEOR_CONCUSSED
-            || normalizedStatusId == STATUS_PINNED
-            || normalizedStatusId == STATUS_ROOTED
-            || normalizedStatusId == STATUS_SHOCKED
-            || normalizedStatusId == STATUS_TAUNTED
-            || normalizedStatusId == STATUS_TENDON_CUT
-            || normalizedStatusId == STATUS_BURNING
-            || normalizedStatusId == STATUS_SLOW
-            || normalizedStatusId == STATUS_SOUL_FRACTURE
-            || normalizedStatusId == STATUS_STAGGERED
-            || normalizedStatusId == STATUS_AFTERSHOCK
-            || normalizedStatusId == STATUS_REACTION_LOCK
-            || normalizedStatusId == STATUS_FRIGHTENED
-            || normalizedStatusId == STATUS_STUNNED
-            || normalizedStatusId == STATUS_HEX_OF_FRAILTY
-            || normalizedStatusId == STATUS_CROWN_BREAK_BROKEN_FANG
-            || normalizedStatusId == STATUS_CROWN_BREAK_BROKEN_HAND
-            || normalizedStatusId == STATUS_CROWN_BREAK_BLINDED_EYE
-            || normalizedStatusId == STATUS_DOOM_SENTENCE_VERDICT
-            || normalizedStatusId == STATUS_PETRIFIED
-            || normalizedStatusId == STATUS_MADNESS
-            || normalizedStatusId == STATUS_TIME_STASIS
-            || normalizedStatusId == STATUS_TIME_SLOW
-            || normalizedStatusId == "black_star_brand_normal"
-            || normalizedStatusId == "black_star_brand_elite";
-    }
+    public static bool IsHarmfulStatus(StringName statusId) =>
+        GetDescriptor(statusId)?.Harmful ?? false;
 
     public static bool IsCleansableHarmfulStatus(StringName statusId)
     {
-        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
-        // time_stasis 解除属于 temporal-only release / dispel 路径，普通净化不移除。
-        if (normalizedStatusId == STATUS_PETRIFIED || normalizedStatusId == STATUS_TIME_STASIS)
-            return false;
-        return IsHarmfulStatus(normalizedStatusId);
+        BattleStatusDescriptor descriptor = GetDescriptor(statusId);
+        // CleanseProtected（petrified / time_stasis）解除属于 temporal-only release /
+        // dispel 路径，普通净化不移除。
+        return descriptor != null && descriptor.Harmful && !descriptor.CleanseProtected;
     }
 
     public static bool IsHarmfulStatusEntry(BattleStatusEffectState statusEntry)
@@ -129,21 +206,13 @@ public static class BattleStatusSemanticTable
     {
         if (statusEntry == null || statusEntry.undispellable)
             return false;
-        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusEntry.status_id);
-        if (normalizedStatusId == STATUS_PETRIFIED || normalizedStatusId == STATUS_TIME_STASIS)
+        if (GetDescriptor(statusEntry.status_id)?.CleanseProtected == true)
             return false;
         return IsHarmfulStatusEntry(statusEntry);
     }
 
-    public static bool BlocksPendingCast(StringName statusId)
-    {
-        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
-        return normalizedStatusId == STATUS_PETRIFIED
-            || normalizedStatusId == STATUS_MADNESS
-            || normalizedStatusId == STATUS_FROZEN
-            || normalizedStatusId == STATUS_STAGGERED
-            || normalizedStatusId == STATUS_METEOR_CONCUSSED;
-    }
+    public static bool BlocksPendingCast(StringName statusId) =>
+        GetDescriptor(statusId)?.BlocksPendingCast ?? false;
 
     public static string GetDisplayLabel(StringName statusId)
     {
@@ -163,45 +232,11 @@ public static class BattleStatusSemanticTable
             : configuredLabel;
     }
 
-    public static bool IsDispellableHarmfulStatus(StringName statusId)
-    {
-        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
-        return normalizedStatusId == STATUS_BLIND
-            || normalizedStatusId == STATUS_BURNING
-            || normalizedStatusId == STATUS_DOOM_SENTENCE_VERDICT
-            || normalizedStatusId == STATUS_FROZEN
-            || normalizedStatusId == STATUS_HEX_OF_FRAILTY
-            || normalizedStatusId == STATUS_MADNESS
-            || normalizedStatusId == STATUS_MARKED
-            || normalizedStatusId == STATUS_METEOR_CONCUSSED
-            || normalizedStatusId == STATUS_PINNED
-            || normalizedStatusId == STATUS_ROOTED
-            || normalizedStatusId == STATUS_SHOCKED
-            || normalizedStatusId == STATUS_SLOW
-            || normalizedStatusId == STATUS_SOUL_FRACTURE
-            || normalizedStatusId == STATUS_STAGGERED
-            || normalizedStatusId == STATUS_AFTERSHOCK
-            || normalizedStatusId == STATUS_REACTION_LOCK
-            || normalizedStatusId == STATUS_FRIGHTENED
-            || normalizedStatusId == STATUS_STUNNED
-            || normalizedStatusId == STATUS_TAUNTED
-            || normalizedStatusId == STATUS_TIME_STASIS
-            || normalizedStatusId == STATUS_TIME_SLOW;
-    }
+    public static bool IsDispellableHarmfulStatus(StringName statusId) =>
+        GetDescriptor(statusId)?.DispellableHarmful ?? false;
 
-    public static bool IsDispellableBeneficialStatus(StringName statusId)
-    {
-        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
-        return normalizedStatusId == STATUS_ATTACK_UP
-            || normalizedStatusId == STATUS_ATTACK_ROLL_BONUS_UP
-            || normalizedStatusId == STATUS_DAMAGE_REDUCTION_UP
-            || normalizedStatusId == STATUS_DEATH_WARD
-            || normalizedStatusId == STATUS_DODGE_BONUS_UP
-            || normalizedStatusId == STATUS_MAGIC_SHIELD
-            || normalizedStatusId == STATUS_PRISMATIC_BARRIER
-            || normalizedStatusId == STATUS_SPELLWARD
-            || normalizedStatusId == STATUS_WILLPOWER_SAVE_BONUS_UP;
-    }
+    public static bool IsDispellableBeneficialStatus(StringName statusId) =>
+        GetDescriptor(statusId)?.DispellableBeneficial ?? false;
 
     public static bool IsDispellableHarmfulStatusEntry(BattleStatusEffectState statusEntry)
     {
@@ -229,125 +264,11 @@ public static class BattleStatusSemanticTable
         return IsDispellableBeneficialStatus(statusEntry.status_id);
     }
 
-    public static int GetDispelPriority(StringName statusId)
-    {
-        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
-        if (
-            normalizedStatusId == STATUS_DEATH_WARD
-            || normalizedStatusId == STATUS_MAGIC_SHIELD
-            || normalizedStatusId == STATUS_PRISMATIC_BARRIER
-            || normalizedStatusId == STATUS_SPELLWARD
-        )
-            return 100;
-        if (
-            normalizedStatusId == STATUS_BLIND
-            || normalizedStatusId == STATUS_FROZEN
-            || normalizedStatusId == STATUS_MADNESS
-            || normalizedStatusId == STATUS_ROOTED
-            || normalizedStatusId == STATUS_TIME_STASIS
-        )
-            return 90;
-        if (
-            normalizedStatusId == STATUS_ATTACK_UP
-            || normalizedStatusId == STATUS_ATTACK_ROLL_BONUS_UP
-            || normalizedStatusId == STATUS_DAMAGE_REDUCTION_UP
-            || normalizedStatusId == STATUS_DODGE_BONUS_UP
-            || normalizedStatusId == STATUS_WILLPOWER_SAVE_BONUS_UP
-        )
-            return 80;
-        if (
-            normalizedStatusId == STATUS_BURNING
-            || normalizedStatusId == STATUS_HEX_OF_FRAILTY
-            || normalizedStatusId == STATUS_METEOR_CONCUSSED
-            || normalizedStatusId == STATUS_PINNED
-            || normalizedStatusId == STATUS_SHOCKED
-            || normalizedStatusId == STATUS_SLOW
-            || normalizedStatusId == STATUS_STAGGERED
-            || normalizedStatusId == STATUS_TAUNTED
-            || normalizedStatusId == STATUS_TIME_SLOW
-        )
-            return 70;
-        return 50;
-    }
+    public static int GetDispelPriority(StringName statusId) =>
+        GetDescriptor(statusId)?.DispelPriority ?? DEFAULT_DISPEL_PRIORITY;
 
-    public static BattleStatusSemantic GetSemantic(StringName statusId)
-    {
-        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
-        if (
-            normalizedStatusId == STATUS_ARCHER_PRE_AIM
-            || normalizedStatusId == STATUS_ARCHER_RANGE_UP
-            || normalizedStatusId == STATUS_ARCHER_SHOOTING_SPECIALIZATION
-            || normalizedStatusId == STATUS_ATTACK_UP
-            || normalizedStatusId == STATUS_ATTACK_ROLL_BONUS_UP
-            || normalizedStatusId == STATUS_DAMAGE_REDUCTION_UP
-            || normalizedStatusId == STATUS_DEATH_WARD
-            || normalizedStatusId == STATUS_DODGE_BONUS_UP
-            || normalizedStatusId == STATUS_GUARDING
-            || normalizedStatusId == STATUS_HEX_OF_FRAILTY
-            || normalizedStatusId == STATUS_MAGIC_SHIELD
-            || normalizedStatusId == STATUS_PRISMATIC_BARRIER
-            || normalizedStatusId == STATUS_SPELLWARD
-            || normalizedStatusId == STATUS_LAST_STAND_ACTIVE
-            || normalizedStatusId == STATUS_WILLPOWER_SAVE_BONUS_UP
-        )
-            return RefreshSemantic();
-        if (normalizedStatusId == STATUS_BLIND)
-            return RefreshSemantic(attackRollPenalty: DEFAULT_BLIND_ATTACK_ROLL_PENALTY);
-        if (
-            normalizedStatusId == STATUS_ARMOR_BREAK
-            || normalizedStatusId == STATUS_FROZEN
-            || normalizedStatusId == STATUS_MARKED
-            || normalizedStatusId == STATUS_PINNED
-            || normalizedStatusId == STATUS_ROOTED
-            || normalizedStatusId == STATUS_SHOCKED
-            || normalizedStatusId == STATUS_TAUNTED
-            || normalizedStatusId == STATUS_TENDON_CUT
-            || normalizedStatusId == STATUS_CROWN_BREAK_BROKEN_FANG
-            || normalizedStatusId == STATUS_CROWN_BREAK_BROKEN_HAND
-            || normalizedStatusId == STATUS_CROWN_BREAK_BLINDED_EYE
-            || normalizedStatusId == STATUS_DOOM_SENTENCE_VERDICT
-            || normalizedStatusId == STATUS_PETRIFIED
-            || normalizedStatusId == STATUS_MADNESS
-            || normalizedStatusId == STATUS_TIME_STASIS
-            || normalizedStatusId == STATUS_TIME_SLOW
-            || normalizedStatusId == STATUS_TIME_REVERBERATION
-        )
-            return RefreshSemantic();
-        if (normalizedStatusId == STATUS_BURNING)
-            return BuildSemantic(STACK_ADD, 3, TICK_TIMELINE_DAMAGE);
-        if (normalizedStatusId == STATUS_SLOW)
-            return RefreshSemantic(moveCostDelta: 1);
-        if (normalizedStatusId == STATUS_SOUL_FRACTURE)
-            return RefreshSemantic(displayLabel: "灵魂裂解");
-        if (normalizedStatusId == STATUS_AFTERSHOCK)
-            return RefreshSemantic(displayLabel: "余悸");
-        if (normalizedStatusId == STATUS_REACTION_LOCK)
-            return RefreshSemantic(displayLabel: "反应封锁");
-        if (normalizedStatusId == STATUS_FRIGHTENED)
-            return RefreshSemantic(displayLabel: "恐惧");
-        if (normalizedStatusId == STATUS_STUNNED)
-            return RefreshSemantic(displayLabel: "震慑");
-        if (normalizedStatusId == STATUS_METEOR_CONCUSSED)
-        {
-            return RefreshSemantic(
-                tickMode: TICK_TURN_START_AP_PENALTY,
-                attackRollPenalty: 2,
-                apPenaltyGroup: STATUS_STAGGERED,
-                consumeAfterApPenalty: true,
-                displayLabel: "震眩",
-                turnStartLogReasonId: "meteor_concussed_ap_consumed"
-            );
-        }
-        if (normalizedStatusId == STATUS_STAGGERED)
-        {
-            return RefreshSemantic(
-                tickMode: TICK_TURN_START_AP_PENALTY,
-                apPenaltyGroup: STATUS_STAGGERED,
-                displayLabel: "踉跄"
-            );
-        }
-        return default;
-    }
+    public static BattleStatusSemantic GetSemantic(StringName statusId) =>
+        GetDescriptor(statusId)?.Semantic ?? default;
 
     public static BattleStatusEffectState MergeStatus(
         CombatEffectDefinition effectDefinition,
