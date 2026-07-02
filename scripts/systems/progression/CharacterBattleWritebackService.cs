@@ -2,14 +2,14 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-internal sealed class ContingencyConsumedCommitResult
+public sealed class ContingencyConsumedCommitResult
 {
-    internal bool Ok { get; init; }
-    internal string ErrorCode { get; init; } = "";
-    internal StringName MemberId { get; init; } = "";
-    internal int ConsumedCount { get; init; }
+    public bool Ok { get; init; }
+    public string ErrorCode { get; init; } = "";
+    public StringName MemberId { get; init; } = "";
+    public int ConsumedCount { get; init; }
 
-    internal static ContingencyConsumedCommitResult Success(
+    public static ContingencyConsumedCommitResult Success(
         StringName memberId,
         int consumedCount
     ) =>
@@ -20,7 +20,7 @@ internal sealed class ContingencyConsumedCommitResult
             ConsumedCount = Mathf.Max(consumedCount, 0),
         };
 
-    internal static ContingencyConsumedCommitResult Failure(
+    public static ContingencyConsumedCommitResult Failure(
         string errorCode,
         StringName memberId
     ) =>
@@ -99,11 +99,34 @@ internal sealed class CharacterBattleWritebackService
         return BattleResourceCommitResult.Success(normalizedMemberId);
     }
 
+    internal ContingencyConsumedCommitResult ValidateContingencyConsumedSetups(
+        StringName memberId,
+        IReadOnlyCollection<StringName> consumedSetupIds
+    ) => TryBuildConsumedSetupsRelease(memberId, consumedSetupIds, out _);
+
     internal ContingencyConsumedCommitResult CommitContingencyConsumedSetups(
         StringName memberId,
         IReadOnlyCollection<StringName> consumedSetupIds
     )
     {
+        ContingencyConsumedCommitResult result = TryBuildConsumedSetupsRelease(
+            memberId,
+            consumedSetupIds,
+            out PartyMemberState nextMember
+        );
+        if (!result.Ok || nextMember == null)
+            return result;
+        _partyState.SetMemberState(nextMember);
+        return result;
+    }
+
+    private ContingencyConsumedCommitResult TryBuildConsumedSetupsRelease(
+        StringName memberId,
+        IReadOnlyCollection<StringName> consumedSetupIds,
+        out PartyMemberState nextMember
+    )
+    {
+        nextMember = null;
         StringName normalizedMemberId = ProgressionDataUtils.to_string_name(memberId);
         if (normalizedMemberId == "")
             return ContingencyConsumedCommitResult.Failure("invalid_member_id", normalizedMemberId);
@@ -142,8 +165,7 @@ internal sealed class CharacterBattleWritebackService
         if (pendingConsumedIds.Count > 0)
             return ContingencyConsumedCommitResult.Failure("setup_not_found", normalizedMemberId);
 
-        PartyMemberState nextMember = memberState.WithContingencySetupsForMutation(nextSetups);
-        _partyState.SetMemberState(nextMember);
+        nextMember = memberState.WithContingencySetupsForMutation(nextSetups);
         return ContingencyConsumedCommitResult.Success(
             normalizedMemberId,
             normalizedSetupIds.Count

@@ -1004,6 +1004,24 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
         ) =>
             BattleResourceCommitResult.Success(member_id);
 
+        public ContingencyConsumedCommitResult ValidateContingencyConsumedSetups(
+            StringName member_id,
+            IReadOnlyCollection<StringName> consumed_setup_ids
+        ) =>
+            ContingencyConsumedCommitResult.Success(
+                member_id,
+                consumed_setup_ids?.Count ?? 0
+            );
+
+        public ContingencyConsumedCommitResult CommitContingencyConsumedSetups(
+            StringName member_id,
+            IReadOnlyCollection<StringName> consumed_setup_ids
+        ) =>
+            ContingencyConsumedCommitResult.Success(
+                member_id,
+                consumed_setup_ids?.Count ?? 0
+            );
+
         public void CommitBattleDeath(StringName member_id) { }
 
         public int FlushAfterBattle() => (int)Error.Ok;

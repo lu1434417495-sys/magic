@@ -296,6 +296,26 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         return BattleResourceCommitResult.Success(member_id);
     }
 
+    public ContingencyConsumedCommitResult ValidateContingencyConsumedSetups(
+        StringName member_id,
+        IReadOnlyCollection<StringName> consumed_setup_ids
+    )
+    {
+        var writebackService = new CharacterBattleWritebackService();
+        writebackService.Setup(party_state, null, null);
+        return writebackService.ValidateContingencyConsumedSetups(member_id, consumed_setup_ids);
+    }
+
+    public ContingencyConsumedCommitResult CommitContingencyConsumedSetups(
+        StringName member_id,
+        IReadOnlyCollection<StringName> consumed_setup_ids
+    )
+    {
+        var writebackService = new CharacterBattleWritebackService();
+        writebackService.Setup(party_state, null, null);
+        return writebackService.CommitContingencyConsumedSetups(member_id, consumed_setup_ids);
+    }
+
     public void CommitBattleDeath(StringName member_id)
     {
         PartyMemberState memberState = GetMemberState(member_id);

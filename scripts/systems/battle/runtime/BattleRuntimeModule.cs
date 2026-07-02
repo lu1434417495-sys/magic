@@ -2016,6 +2016,18 @@ public sealed partial class BattleRuntimeModule : IDisposable
             return BattleEndResult.Success();
         if (_characterGateway != null && options.CommitProgression)
         {
+            // Phase 1: validate every commit read-only before mutating any member,
+            // so a mid-loop failure cannot leave earlier members half-committed.
+            foreach (StringName allyUnitId in _state.ally_unit_ids)
+            {
+                _state.TryGetUnitTyped(allyUnitId, out BattleUnitState unitState);
+                if (unitState == null || !unitState.is_alive)
+                    continue;
+                ContingencyConsumedCommitResult validationResult =
+                    ValidateContingencyConsumedSetupsForBattleUnit(unitState);
+                if (!validationResult.Ok)
+                    return BattleEndResult.ContingencyConsumedFailure(validationResult);
+            }
             foreach (StringName allyUnitId in _state.ally_unit_ids)
             {
                 _state.TryGetUnitTyped(allyUnitId, out BattleUnitState unitState);
@@ -2060,22 +2072,37 @@ public sealed partial class BattleRuntimeModule : IDisposable
         return BattleEndResult.Success();
     }
 
+    private ContingencyConsumedCommitResult ValidateContingencyConsumedSetupsForBattleUnit(
+        BattleUnitState unitState
+    )
+    {
+        IReadOnlyList<StringName> consumedSetupIds =
+            unitState?.GetConsumedContingencySetupIdsTyped() ?? Array.Empty<StringName>();
+        if (consumedSetupIds.Count == 0)
+            return ContingencyConsumedCommitResult.Success(
+                unitState?.source_member_id ?? "",
+                0
+            );
+        return _characterGateway.ValidateContingencyConsumedSetups(
+            unitState.source_member_id,
+            consumedSetupIds
+        );
+    }
+
     private ContingencyConsumedCommitResult CommitContingencyConsumedSetupsForBattleUnit(
         BattleUnitState unitState
     )
     {
         IReadOnlyList<StringName> consumedSetupIds =
             unitState?.GetConsumedContingencySetupIdsTyped() ?? Array.Empty<StringName>();
-        if (_characterGateway is CharacterManagementModule characterManagement)
-        {
-            return characterManagement.CommitContingencyConsumedSetups(
-                unitState.source_member_id,
-                consumedSetupIds
+        if (consumedSetupIds.Count == 0)
+            return ContingencyConsumedCommitResult.Success(
+                unitState?.source_member_id ?? "",
+                0
             );
-        }
-        return ContingencyConsumedCommitResult.Success(
-            unitState?.source_member_id ?? "",
-            consumedSetupIds.Count
+        return _characterGateway.CommitContingencyConsumedSetups(
+            unitState.source_member_id,
+            consumedSetupIds
         );
     }
 

@@ -1894,7 +1894,16 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         current_aura
     );
 
-    internal ContingencyConsumedCommitResult CommitContingencyConsumedSetups(
+    public ContingencyConsumedCommitResult ValidateContingencyConsumedSetups(
+        StringName member_id,
+        IReadOnlyCollection<StringName> consumed_setup_ids
+    ) =>
+        _battle_writeback_service.ValidateContingencyConsumedSetups(
+            member_id,
+            consumed_setup_ids
+        );
+
+    public ContingencyConsumedCommitResult CommitContingencyConsumedSetups(
         StringName member_id,
         IReadOnlyCollection<StringName> consumed_setup_ids
     ) =>

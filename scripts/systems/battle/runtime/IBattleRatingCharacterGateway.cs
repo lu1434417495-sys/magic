@@ -109,6 +109,16 @@ public interface IBattleRuntimeCharacterGateway : IBattleRatingCharacterGateway
         int current_aura
     );
 
+    ContingencyConsumedCommitResult ValidateContingencyConsumedSetups(
+        StringName member_id,
+        IReadOnlyCollection<StringName> consumed_setup_ids
+    );
+
+    ContingencyConsumedCommitResult CommitContingencyConsumedSetups(
+        StringName member_id,
+        IReadOnlyCollection<StringName> consumed_setup_ids
+    );
+
     void CommitBattleDeath(StringName member_id);
 
     int FlushAfterBattle();

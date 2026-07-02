@@ -267,6 +267,24 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
             int current_aura
         ) => BattleResourceCommitResult.Success(member_id);
 
+        public ContingencyConsumedCommitResult ValidateContingencyConsumedSetups(
+            StringName member_id,
+            IReadOnlyCollection<StringName> consumed_setup_ids
+        ) =>
+            ContingencyConsumedCommitResult.Success(
+                member_id,
+                consumed_setup_ids?.Count ?? 0
+            );
+
+        public ContingencyConsumedCommitResult CommitContingencyConsumedSetups(
+            StringName member_id,
+            IReadOnlyCollection<StringName> consumed_setup_ids
+        ) =>
+            ContingencyConsumedCommitResult.Success(
+                member_id,
+                consumed_setup_ids?.Count ?? 0
+            );
+
         public void CommitBattleDeath(StringName member_id) { }
 
         public int FlushAfterBattle() => (int)Error.Ok;

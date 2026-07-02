@@ -531,6 +531,14 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
         member.progression.unit_base_attributes.SetAttributeValue(AttributeService.HP_MAX, 20);
         member.progression.unit_base_attributes.SetAttributeValue(AttributeService.MP_MAX, 200);
         member.progression.unit_base_attributes.SetAttributeValue(AttributeService.ACTION_POINTS, 2);
+        member.progression.SetSkillProgress(
+            new UnitSkillProgress
+            {
+                skill_id = "mage_chain_contingency",
+                is_learned = true,
+                skill_level = 5,
+            }
+        );
         return setup != null
             ? member.WithContingencySetupsForMutation(new[] { setup })
             : member;
@@ -750,6 +758,24 @@ public partial class run_contingency_damage_hook_contract_regression : SceneTree
             int current_aura
         ) =>
             BattleResourceCommitResult.Success(member_id);
+
+        public ContingencyConsumedCommitResult ValidateContingencyConsumedSetups(
+            StringName member_id,
+            IReadOnlyCollection<StringName> consumed_setup_ids
+        ) =>
+            ContingencyConsumedCommitResult.Success(
+                member_id,
+                consumed_setup_ids?.Count ?? 0
+            );
+
+        public ContingencyConsumedCommitResult CommitContingencyConsumedSetups(
+            StringName member_id,
+            IReadOnlyCollection<StringName> consumed_setup_ids
+        ) =>
+            ContingencyConsumedCommitResult.Success(
+                member_id,
+                consumed_setup_ids?.Count ?? 0
+            );
 
         public void CommitBattleDeath(StringName member_id) { }
         public int FlushAfterBattle() => (int)Error.Ok;
