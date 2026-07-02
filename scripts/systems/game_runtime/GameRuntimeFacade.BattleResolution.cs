@@ -169,7 +169,7 @@ public sealed partial class GameRuntimeFacade
             .MarkWorldChanged()
             .MarkPlayerCoordChanged();
         RuntimeTransactionRollbackState rollbackState =
-            RuntimeTransactionRollbackState.Capture(this);
+            RuntimeTransactionRollbackState.Capture(this, rollbackTransaction);
         BattleFinalizationRollbackState battleRollbackState =
             BattleFinalizationRollbackState.Capture(_battle_runtime, battle_resolution_result);
         var guidanceUnlocks = new GStringNameArray();

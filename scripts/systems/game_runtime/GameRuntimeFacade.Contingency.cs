@@ -146,7 +146,10 @@ public sealed partial class GameRuntimeFacade
             );
 
         RuntimeTransaction transaction = new RuntimeTransaction().MarkPartyChanged();
-        RuntimeTransactionRollbackState rollbackState = RuntimeTransactionRollbackState.Capture(this);
+        RuntimeTransactionRollbackState rollbackState = RuntimeTransactionRollbackState.Capture(
+            this,
+            transaction
+        );
         ContingencySetupMutationResult mutationResult = mutate.Invoke();
         if (mutationResult == null)
             return ContingencySetupMutationResult.Failure("mutation_failed", memberId, setupId);

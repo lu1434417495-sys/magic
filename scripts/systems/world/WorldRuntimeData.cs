@@ -41,6 +41,49 @@ internal sealed class WorldRuntimeData
 
     internal static WorldRuntimeData Empty() => new();
 
+    // Typed deep copy for rollback snapshots — replaces the whole-map
+    // ToDictionary/FromDictionary round-trip on the capture path. Immutable
+    // record elements (settlements, events, nodes, npcs, submaps, return stack)
+    // are shared by reference; mutable EncounterAnchorData is copied per element;
+    // fog states are plain payload graphs cloned via RuntimePlainPayload.
+    internal WorldRuntimeData DuplicateState()
+    {
+        WorldRuntimeData copy = new()
+        {
+            MapSeed = MapSeed,
+            WorldStep = WorldStep,
+            NextEquipmentInstanceSerial = NextEquipmentInstanceSerial,
+            ActiveSubmapId = ActiveSubmapId,
+            PlayerStartCoord = PlayerStartCoord,
+            HasPlayerStartCoord = HasPlayerStartCoord,
+            PlayerStartSettlementId = PlayerStartSettlementId,
+            HasPlayerStartSettlementId = HasPlayerStartSettlementId,
+            PlayerStartSettlementName = PlayerStartSettlementName,
+            HasPlayerStartSettlementName = HasPlayerStartSettlementName,
+            HasFogStates = HasFogStates,
+            HasWorldNpcs = HasWorldNpcs,
+        };
+        copy._submapReturnStack.AddRange(_submapReturnStack);
+        copy._settlements.AddRange(_settlements);
+        copy._worldEvents.AddRange(_worldEvents);
+        foreach (EncounterAnchorData encounterAnchor in _encounterAnchors)
+        {
+            if (encounterAnchor != null)
+                copy._encounterAnchors.Add(encounterAnchor.DuplicateState());
+        }
+        copy._resourceNodes.AddRange(_resourceNodes);
+        foreach (KeyValuePair<string, WorldMapMountedSubmapData> entry in _mountedSubmaps)
+            copy._mountedSubmaps[entry.Key] = entry.Value;
+        copy._worldNpcs.AddRange(_worldNpcs);
+        foreach (
+            KeyValuePair<string, object> entry in RuntimePlainPayload.CloneDictionary(_fogStates)
+        )
+        {
+            copy._fogStates[entry.Key] = entry.Value;
+        }
+        return copy;
+    }
+
     internal static WorldRuntimeData FromDictionary(GDictionary data)
     {
         if (data == null)

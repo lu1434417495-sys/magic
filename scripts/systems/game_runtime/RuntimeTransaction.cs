@@ -99,34 +99,55 @@ internal sealed class RuntimeTransactionRollbackState
     private readonly WorldRuntimeData _worldData;
     private readonly Vector2I _playerCoord;
     private readonly SessionRollbackSnapshot _sessionSnapshot;
+    private readonly bool _capturedPartyState;
+    private readonly bool _capturedWorldData;
 
     private RuntimeTransactionRollbackState(
         PartyState partyState,
         WorldRuntimeData worldData,
         Vector2I playerCoord,
-        GameSession session
+        GameSession session,
+        bool capturedPartyState,
+        bool capturedWorldData
     )
     {
         _partyState = partyState?.DuplicateState();
         _worldData = worldData ?? WorldRuntimeData.Empty();
         _playerCoord = playerCoord;
         _sessionSnapshot = session != null ? new SessionRollbackSnapshot(session) : null;
+        _capturedPartyState = capturedPartyState;
+        _capturedWorldData = capturedWorldData;
     }
 
-    internal static RuntimeTransactionRollbackState Capture(GameRuntimeFacade runtime)
+    // scopes == null captures everything. Passing the transaction skips the
+    // whole-world dictionary round-trip for party-only mutations, which is a
+    // multi-hundred-ms cost on large maps (see world-move perf history).
+    internal static RuntimeTransactionRollbackState Capture(
+        GameRuntimeFacade runtime,
+        RuntimeTransaction scopes = null
+    )
     {
         if (runtime == null)
             return new RuntimeTransactionRollbackState(
                 null,
                 WorldRuntimeData.Empty(),
                 Vector2I.Zero,
-                null
+                null,
+                capturedPartyState: false,
+                capturedWorldData: false
             );
+        bool captureParty = scopes == null || scopes.PersistPartyState;
+        bool captureWorld = scopes == null || scopes.PersistWorldData;
         return new RuntimeTransactionRollbackState(
-            runtime.GetPartyState(),
-            WorldRuntimeData.FromDictionary(runtime.GetWorldData()) ?? WorldRuntimeData.Empty(),
+            captureParty ? runtime.GetPartyState() : null,
+            captureWorld
+                ? runtime._world_map_data_context?.ActiveRuntimeData?.DuplicateState()
+                    ?? WorldRuntimeData.Empty()
+                : WorldRuntimeData.Empty(),
             runtime.GetPlayerCoord(),
-            runtime._game_session
+            runtime._game_session,
+            captureParty,
+            captureWorld
         );
     }
 
@@ -135,12 +156,33 @@ internal sealed class RuntimeTransactionRollbackState
         if (runtime == null || transaction == null)
             return;
 
+        bool restoreParty = transaction.PersistPartyState;
+        bool restoreWorld = transaction.PersistWorldData;
+        if (restoreParty && !_capturedPartyState)
+        {
+            GameLog.Error(
+                "runtime transaction rollback requested party restore but party state was not captured; party scope skipped.",
+                "runtime_transaction.rollback_scope_missing",
+                "game_runtime"
+            );
+            restoreParty = false;
+        }
+        if (restoreWorld && !_capturedWorldData)
+        {
+            GameLog.Error(
+                "runtime transaction rollback requested world restore but world data was not captured; world scope skipped.",
+                "runtime_transaction.rollback_scope_missing",
+                "game_runtime"
+            );
+            restoreWorld = false;
+        }
+
         GameSession session = runtime._game_session;
         if (session != null)
         {
-            if (transaction.PersistPartyState)
+            if (restoreParty)
                 session._party_state = _partyState?.DuplicateState() ?? new PartyState();
-            if (transaction.PersistWorldData)
+            if (restoreWorld)
                 session.ReplaceWorldDataPayloadForRuntimeRestore(
                     WorldMapDataProjection.Project(_worldData)
                 );
@@ -149,7 +191,7 @@ internal sealed class RuntimeTransactionRollbackState
             _sessionSnapshot?.Restore(session);
         }
 
-        if (transaction.PersistPartyState && _partyState != null)
+        if (restoreParty && _partyState != null)
         {
             PartyState restoredPartyState = session != null
                 ? session.GetPartyState()
@@ -158,7 +200,7 @@ internal sealed class RuntimeTransactionRollbackState
         }
 
         bool worldOrCoordRestored = false;
-        if (transaction.PersistWorldData)
+        if (restoreWorld)
         {
             GDictionary restoredWorldData = session != null
                 ? session.GetWorldData()

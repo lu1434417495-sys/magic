@@ -42,6 +42,23 @@ public class EncounterAnchorData
     public int growth_stage { get; set; }
     public int suppressed_until_step { get; set; }
 
+    public EncounterAnchorData DuplicateState() =>
+        new()
+        {
+            entity_id = entity_id,
+            display_name = display_name ?? "",
+            world_coord = world_coord,
+            faction_id = faction_id,
+            enemy_roster_template_id = enemy_roster_template_id,
+            region_tag = region_tag,
+            vision_range = vision_range,
+            is_cleared = is_cleared,
+            encounter_kind = encounter_kind,
+            encounter_profile_id = encounter_profile_id,
+            growth_stage = growth_stage,
+            suppressed_until_step = suppressed_until_step,
+        };
+
     internal static StringName ToStringName(EncounterAnchorKind kind)
     {
         return kind switch
