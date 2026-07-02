@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ContingencySetupTemplateDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/ContingencySetupTemplateDef.cs" id="1_template"]
+
+[resource]
+script = ExtResource("1_template")
+template_id = &"owner_turn_mirror_self"
+display_name = "起手镜影"
+source_skill_id = &"mage_chain_contingency"
+matrix_load = 3
+release_mode = &"burst_release"
+trigger = {
+"subject": "owner",
+"timing": "owner_turn_started",
+"type": "owner_turn_started"
+}
+stored_spells = Array[Dictionary]([{
+"fallback_policy": "skip_if_invalid",
+"max_cast_level": 2,
+"order": 1,
+"parameter_bindings": {},
+"stored_skill_id": "mage_mirror_image",
+"target_resolver": {
+"type": "self"
+}
+}])

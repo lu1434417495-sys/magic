@@ -5,9 +5,6 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public sealed class PartyContingencySetupService
 {
-    private static readonly StringName ChargeMaterialItemId = "special_contingency_gem";
-    private const int ChargeMaterialQuantity = 1;
-
     private PartyState _partyState = new();
     private PartyWarehouseService _warehouseService;
     private IReadOnlyDictionary<StringName, SkillDefinition> _skillDefinitions =
@@ -95,7 +92,7 @@ public sealed class PartyContingencySetupService
             return Fail("charged_setup_limit", normalizedMemberId, normalizedSetupId);
 
         List<ContingencyMaterialCostState> costs = BuildChargeCosts();
-        int reservedMpMax = Mathf.Max(setup.MatrixLoad * 2, 1);
+        int reservedMpMax = ContingencyContentRules.ResolveReservedMpMax(setup.MatrixLoad);
         ContingencyMatrixSetupState chargedCandidate = BuildSetupVariant(
             setup,
             charged: true,
@@ -284,8 +281,8 @@ public sealed class PartyContingencySetupService
             return false;
         ContingencyMaterialCostState cost = setup.MaterialCosts[0];
         return cost != null
-            && cost.ItemId == ChargeMaterialItemId
-            && cost.Quantity == ChargeMaterialQuantity;
+            && cost.ItemId == ContingencyContentRules.ChargeMaterialItemId
+            && cost.Quantity == ContingencyContentRules.ChargeMaterialQuantity;
     }
 
     private static PartyMemberState ReplaceSetup(
@@ -330,7 +327,10 @@ public sealed class PartyContingencySetupService
     private static List<ContingencyMaterialCostState> BuildChargeCosts() =>
         new()
         {
-            ContingencyMaterialCostState.Create(ChargeMaterialItemId, ChargeMaterialQuantity),
+            ContingencyMaterialCostState.Create(
+                ContingencyContentRules.ChargeMaterialItemId,
+                ContingencyContentRules.ChargeMaterialQuantity
+            ),
         };
 
     private static List<WarehouseBatchQuantityEntry> BuildWarehouseCostEntries(

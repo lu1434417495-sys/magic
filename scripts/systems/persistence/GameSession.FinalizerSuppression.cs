@@ -167,6 +167,10 @@ public partial class GameSession
         SuppressResourceValues(_progression_content_registry?.GetProfessionDefsTyped(), visited);
         SuppressResourceValues(_progression_content_registry?.GetAchievementDefsTyped(), visited);
         SuppressResourceValues(_progression_content_registry?.GetQuestDefsTyped(), visited);
+        SuppressResourceValues(
+            _progression_content_registry?.GetContingencySetupTemplatesTyped(),
+            visited
+        );
         SuppressResourceValues(_progression_content_registry?.GetRaceDefsTyped(), visited);
         SuppressResourceValues(_progression_content_registry?.GetSubraceDefsTyped(), visited);
         SuppressResourceValues(_progression_content_registry?.GetTraitDefsTyped(), visited);

@@ -58,6 +58,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private readonly AscensionContentRegistry _ascensionContentRegistry = new();
     private readonly StageAdvancementContentRegistry _stageAdvancementContentRegistry = new();
     private readonly QuestContentRegistry _questContentRegistry = new();
+    private readonly ContingencyTemplateContentRegistry _contingencyTemplateContentRegistry = new();
     private readonly EquipmentAbilityContentRegistry _equipmentAbilityContentRegistry = new();
 
     private GStringArray _validationErrors = new();
@@ -288,6 +289,9 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             _validationErrors.Add(error);
         foreach (QuestDef questDef in _questContentRegistry.GetQuestDefsTyped().Values)
             _register_quest(questDef);
+        _contingencyTemplateContentRegistry.Rebuild();
+        foreach (string error in _contingencyTemplateContentRegistry.GetValidationErrors())
+            _validationErrors.Add(error);
         _register_seed_achievements();
         SyncTypedDefinitionIndexes();
 
@@ -368,6 +372,13 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     public IReadOnlyList<string> GetQuestRegistrationErrorsTyped()
     {
         return new List<string>(_questRegistrationErrors);
+    }
+
+    public IReadOnlyDictionary<StringName, ContingencySetupTemplateDef> GetContingencySetupTemplatesTyped()
+    {
+        return new Dictionary<StringName, ContingencySetupTemplateDef>(
+            _contingencyTemplateContentRegistry.GetTemplateDefsTyped()
+        );
     }
 
     public IReadOnlyDictionary<StringName, RaceDef> GetRaceDefsTyped()

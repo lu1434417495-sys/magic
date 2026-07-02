@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="ContingencySetupTemplateDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/ContingencySetupTemplateDef.cs" id="1_template"]
+
+[resource]
+script = ExtResource("1_template")
+template_id = &"hp_mirror_self"
+display_name = "濒死镜影"
+source_skill_id = &"mage_chain_contingency"
+matrix_load = 3
+release_mode = &"burst_release"
+trigger = {
+"crossing_only": true,
+"percent": 30,
+"subject": "owner",
+"timing": "after_hp_changed",
+"type": "hp_below_percent"
+}
+stored_spells = Array[Dictionary]([{
+"fallback_policy": "skip_if_invalid",
+"max_cast_level": 2,
+"order": 1,
+"parameter_bindings": {},
+"stored_skill_id": "mage_mirror_image",
+"target_resolver": {
+"type": "self"
+}
+}])

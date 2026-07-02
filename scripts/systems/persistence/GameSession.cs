@@ -1041,6 +1041,12 @@ public partial class GameSession : Node
         return new Dictionary<StringName, QuestDef>(_questDefIndex);
     }
 
+    public IReadOnlyDictionary<StringName, ContingencySetupTemplateDef> GetContingencySetupTemplatesTyped()
+    {
+        return _progression_content_registry?.GetContingencySetupTemplatesTyped()
+            ?? new Dictionary<StringName, ContingencySetupTemplateDef>();
+    }
+
     public IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped()
     {
         return new Dictionary<StringName, ItemDef>(_itemDefIndex);

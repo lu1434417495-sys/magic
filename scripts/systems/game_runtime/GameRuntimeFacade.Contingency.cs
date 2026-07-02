@@ -246,9 +246,8 @@ public sealed partial class GameRuntimeFacade
     )
     {
         errorCode = "";
-        bool ownerTurnTemplate = payloadName == "owner_turn_mirror_self";
-        bool hpTemplate = payloadName == "hp_mirror_self";
-        if (!hpTemplate && !ownerTurnTemplate)
+        ContingencySetupTemplateDef template = ResolveContingencySetupTemplateDef(payloadName);
+        if (template == null)
         {
             errorCode = "unknown_setup_payload";
             return null;
@@ -256,69 +255,57 @@ public sealed partial class GameRuntimeFacade
 
         PartyMemberState member = _party_state?.GetMemberState(memberId);
         UnitProgress progress = member?.progression;
-        if (
-            !TryGetLearnedSkillLevel(progress, "mage_chain_contingency", out int chainLevel)
-            || !TryGetLearnedSkillLevel(progress, "mage_mirror_image", out int mirrorLevel)
-        )
+        if (!TryGetLearnedSkillLevel(progress, template.source_skill_id, out int sourceLevel))
         {
             errorCode = "missing_required_skill";
             return null;
         }
 
-        GDictionary payload = new()
+        var castLevelsByStoredSkillId = new Dictionary<StringName, int>();
+        foreach (
+            ContingencyTemplateStoredSpellInfo storedSpell
+            in ContingencyContentRules.GetTemplateStoredSpellsTyped(template)
+        )
         {
-            ["setup_id"] = payloadName.ToString(),
-            ["display_name"] = ownerTurnTemplate ? "起手镜影" : "濒死镜影",
-            ["enabled"] = true,
-            ["charged"] = false,
-            ["source_skill_id"] = "mage_chain_contingency",
-            ["source_skill_level"] = Mathf.Max(chainLevel, 1),
-            ["matrix_load"] = 3,
-            ["reserved_mp_max"] = 0,
-            ["material_costs"] = new GArray(),
-            ["trigger"] = ownerTurnTemplate
-                ? new GDictionary
-                {
-                    ["type"] = "owner_turn_started",
-                    ["subject"] = "owner",
-                    ["timing"] = "owner_turn_started",
-                }
-                : new GDictionary
-                {
-                    ["type"] = "hp_below_percent",
-                    ["subject"] = "owner",
-                    ["percent"] = 30,
-                    ["crossing_only"] = true,
-                    ["timing"] = "after_hp_changed",
-                },
-            ["release_mode"] = "burst_release",
-            ["stored_spells"] = new GArray
+            if (!TryGetLearnedSkillLevel(progress, storedSpell.StoredSkillId, out int storedLevel))
             {
-                new GDictionary
-                {
-                    ["stored_skill_id"] = "mage_mirror_image",
-                    ["cast_level"] = Mathf.Max(Mathf.Min(mirrorLevel, 2), 1),
-                    ["order"] = 1,
-                    ["target_resolver"] = new GDictionary { ["type"] = "self" },
-                    ["parameter_bindings"] = new GDictionary(),
-                    ["fallback_policy"] = "skip_if_invalid",
-                },
-            },
-        };
-        ContingencyMatrixSetupState setup = ContingencyMatrixSetupState.FromDictionary(payload);
+                errorCode = "missing_required_skill";
+                return null;
+            }
+            castLevelsByStoredSkillId[storedSpell.StoredSkillId] = Mathf.Max(
+                Mathf.Min(storedLevel, storedSpell.MaxCastLevel),
+                1
+            );
+        }
+
+        GDictionary payload = ContingencyContentRules.BuildSetupPayloadFromTemplate(
+            template,
+            Mathf.Max(sourceLevel, 1),
+            castLevelsByStoredSkillId
+        );
+        ContingencyMatrixSetupState setup = payload != null
+            ? ContingencyMatrixSetupState.FromDictionary(payload)
+            : null;
         if (setup == null)
             errorCode = "invalid_setup";
         return setup;
     }
 
-    private static StringName ResolveContingencyTemplateSetupId(StringName payloadName)
+    private ContingencySetupTemplateDef ResolveContingencySetupTemplateDef(StringName payloadName)
     {
-        if (payloadName == "hp_mirror_self")
-            return new StringName("hp_mirror_self");
-        if (payloadName == "owner_turn_mirror_self")
-            return new StringName("owner_turn_mirror_self");
-        return new StringName("");
+        StringName normalized = ProgressionDataUtils.to_string_name(payloadName);
+        if (normalized == "")
+            return null;
+        IReadOnlyDictionary<StringName, ContingencySetupTemplateDef> templates =
+            _game_session?.GetContingencySetupTemplatesTyped();
+        return templates != null
+            && templates.TryGetValue(normalized, out ContingencySetupTemplateDef template)
+            ? template
+            : null;
     }
+
+    private StringName ResolveContingencyTemplateSetupId(StringName payloadName) =>
+        ResolveContingencySetupTemplateDef(payloadName)?.template_id ?? new StringName("");
 
     private static bool TryGetLearnedSkillLevel(
         UnitProgress progress,
