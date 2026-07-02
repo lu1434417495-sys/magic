@@ -1,0 +1,228 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=36 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilitySourceTraceDef.cs" id="3_trace"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="4_reaction"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionDef.cs" id="5_dice"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionTermDef.cs" id="6_dice_term"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityActionDef.cs" id="7_action"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AddDamageDiceActionPayloadDef.cs" id="8_add_damage"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ApplyStatusActionPayloadDef.cs" id="9_apply_status"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ScheduleAreaEffectActionPayloadDef.cs" id="10_schedule_area"]
+
+[sub_resource type="Resource" id="Trace_poison_touch_damage"]
+script = ExtResource("3_trace")
+source_kind = &"by_family"
+source_file = "docs/design/weapons/by_family/axes_01.md"
+item_id = &"weapon_unique_axe_plague_tongue_099"
+display_name = "瘟疫之舌"
+bullet_index = 1
+bullet_title = "疫病之触"
+bullet_text = "攻击附加1D6毒素伤害"
+mechanism_family = &"add_damage_dice"
+coverage_status = &"bound"
+phase = &"v1"
+test_id = &"plague_tongue_poison_touch_damage"
+
+[sub_resource type="Resource" id="Dice_term_1d6_poison"]
+script = ExtResource("6_dice_term")
+dice_count = 1
+dice_sides = 6
+
+[sub_resource type="Resource" id="Dice_1d6_poison"]
+script = ExtResource("5_dice")
+terms = Array[Resource]([SubResource("Dice_term_1d6_poison")])
+
+[sub_resource type="Resource" id="Action_poison_touch_damage_payload"]
+script = ExtResource("8_add_damage")
+target_selector = &"attack_target"
+dice = SubResource("Dice_1d6_poison")
+damage_type = &"poison"
+damage_tags = Array[StringName]([&"poison"])
+
+[sub_resource type="Resource" id="Action_poison_touch_damage"]
+script = ExtResource("7_action")
+action_id = &"action.plague_tongue.poison_touch.add_poison_damage"
+kind = &"add_damage_dice"
+payload = SubResource("Action_poison_touch_damage_payload")
+
+[sub_resource type="Resource" id="Reaction_poison_touch_damage"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.plague_tongue.poison_touch.after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+actions = Array[Resource]([SubResource("Action_poison_touch_damage")])
+
+[sub_resource type="Resource" id="Binding_poison_touch_damage"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.axe.plague_tongue.poison_touch_damage"
+trait_id = &"weapon.axe.plague_tongue.poison_touch_damage"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"plague_tongue"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+source_traces = Array[Resource]([SubResource("Trace_poison_touch_damage")])
+reactions = Array[Resource]([SubResource("Reaction_poison_touch_damage")])
+
+[sub_resource type="Resource" id="Trace_axe_fever"]
+script = ExtResource("3_trace")
+source_kind = &"by_family"
+source_file = "docs/design/weapons/by_family/axes_01.md"
+item_id = &"weapon_unique_axe_plague_tongue_099"
+display_name = "瘟疫之舌"
+bullet_index = 1
+bullet_title = "斧刃热"
+bullet_text = "命中后目标须通过DC14体质检定，失败则感染斧刃热"
+mechanism_family = &"apply_status_after_hit"
+coverage_status = &"bound"
+phase = &"v1"
+test_id = &"plague_tongue_axe_fever"
+
+[sub_resource type="Resource" id="Action_axe_fever_payload"]
+script = ExtResource("9_apply_status")
+target_selector = &"target"
+status_id = &"axe_fever"
+duration_tu = 300
+stack_delta = 1
+stack_behavior = &"refresh"
+stack_limit = 1
+display_label = "斧刃热"
+attack_roll_penalty = 0
+counts_as_debuff_override = true
+counts_as_debuff = true
+dispellable_harmful_magic = true
+tick_interval_tu = 60
+timeline_damage_dice_count = 1
+timeline_damage_dice_sides = 4
+save_dc = 14
+save_ability = &"constitution"
+save_tag = &"poison"
+apply_on_save_failure = true
+
+[sub_resource type="Resource" id="Action_axe_fever"]
+script = ExtResource("7_action")
+action_id = &"action.plague_tongue.axe_fever.apply_status"
+kind = &"apply_status"
+payload = SubResource("Action_axe_fever_payload")
+
+[sub_resource type="Resource" id="Reaction_axe_fever"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.plague_tongue.axe_fever.after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+actions = Array[Resource]([SubResource("Action_axe_fever")])
+
+[sub_resource type="Resource" id="Binding_axe_fever"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.axe.plague_tongue.axe_fever"
+trait_id = &"weapon.axe.plague_tongue.axe_fever"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"plague_tongue"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+source_traces = Array[Resource]([SubResource("Trace_axe_fever")])
+reactions = Array[Resource]([SubResource("Reaction_axe_fever")])
+
+[sub_resource type="Resource" id="Trace_plague_spread"]
+script = ExtResource("3_trace")
+source_kind = &"by_family"
+source_file = "docs/design/weapons/by_family/axes_01.md"
+item_id = &"weapon_unique_axe_plague_tongue_099"
+display_name = "瘟疫之舌"
+bullet_index = 2
+bullet_title = "瘟疫传播"
+bullet_text = "被瘟疫之舌击杀的生物会在固定60TU后化为瘟疫云"
+mechanism_family = &"delayed_area_terrain_effect"
+coverage_status = &"bound"
+phase = &"v1"
+test_id = &"plague_tongue_plague_spread"
+
+[sub_resource type="Resource" id="Action_plague_spread_cloud_payload"]
+script = ExtResource("10_schedule_area")
+anchor_selector = &"defeated"
+delay_tu = 60
+terrain_effect_id = &"plague_cloud"
+area_pattern = &"diamond"
+area_value = 1
+lifetime_policy = &"battle"
+effect_type = &"none"
+target_team_filter = &"any"
+stack_behavior = &"refresh"
+display_name = "瘟疫云"
+render_overlay_id = &"plague_cloud"
+contact_status_id = &"axe_fever"
+contact_status_duration_tu = 300
+contact_stack_behavior = &"refresh"
+contact_stack_limit = 1
+contact_status_display_label = "斧刃热"
+contact_counts_as_debuff_override = true
+contact_counts_as_debuff = true
+contact_dispellable_harmful_magic = true
+contact_save_dc = 13
+contact_save_ability = &"constitution"
+contact_save_tag = &"poison"
+contact_apply_on_save_failure = true
+contact_tick_interval_tu = 60
+contact_timeline_damage_dice_count = 1
+contact_timeline_damage_dice_sides = 4
+contact_blocked_by_trait_id = &"weapon.axe.plague_tongue.immune_carrier"
+
+[sub_resource type="Resource" id="Action_plague_spread_cloud"]
+script = ExtResource("7_action")
+action_id = &"action.plague_tongue.plague_spread.schedule_cloud"
+kind = &"schedule_area_effect"
+payload = SubResource("Action_plague_spread_cloud_payload")
+
+[sub_resource type="Resource" id="Reaction_plague_spread_cloud"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.plague_tongue.plague_spread.after_kill"
+trigger = &"on_kill"
+timing = &"after_kill"
+actions = Array[Resource]([SubResource("Action_plague_spread_cloud")])
+
+[sub_resource type="Resource" id="Binding_plague_spread"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.axe.plague_tongue.plague_spread"
+trait_id = &"weapon.axe.plague_tongue.plague_spread"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"plague_tongue"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+source_traces = Array[Resource]([SubResource("Trace_plague_spread")])
+reactions = Array[Resource]([SubResource("Reaction_plague_spread_cloud")])
+
+[sub_resource type="Resource" id="Trace_immune_carrier"]
+script = ExtResource("3_trace")
+source_kind = &"by_family"
+source_file = "docs/design/weapons/by_family/axes_01.md"
+item_id = &"weapon_unique_axe_plague_tongue_099"
+display_name = "瘟疫之舌"
+bullet_index = 3
+bullet_title = "免疫携带者"
+bullet_text = "持有者免疫瘟疫之舌传播的所有疾病"
+mechanism_family = &"source_disease_immunity"
+coverage_status = &"bound"
+phase = &"v1"
+test_id = &"plague_tongue_immune_carrier"
+
+[sub_resource type="Resource" id="Binding_immune_carrier"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.axe.plague_tongue.immune_carrier"
+trait_id = &"weapon.axe.plague_tongue.immune_carrier"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"plague_tongue"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+source_traces = Array[Resource]([SubResource("Trace_immune_carrier")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability.weapon.axe.plague_tongue"
+schema_version = 1
+load_order = 130
+bindings = Array[Resource]([SubResource("Binding_poison_touch_damage"), SubResource("Binding_axe_fever"), SubResource("Binding_plague_spread"), SubResource("Binding_immune_carrier")])

@@ -7,16 +7,27 @@ public class BattleAttackRollModifierBundle
 
     public int TotalBonus { get; private set; }
     public int TotalPenalty { get; private set; }
+    public bool HasAdvantage { get; private set; }
     public IReadOnlyList<BattleAttackRollModifierSpec> Breakdown => _breakdown;
 
     public bool IsEmpty()
     {
-        return TotalBonus == 0 && TotalPenalty == 0 && _breakdown.Count == 0;
+        return TotalBonus == 0 && TotalPenalty == 0 && !HasAdvantage && _breakdown.Count == 0;
     }
 
     public void AddSpec(BattleAttackRollModifierSpec spec)
     {
-        if (spec == null || spec.modifier_delta == 0)
+        if (spec == null)
+        {
+            return;
+        }
+        if (spec.AppliesToKind == BattleAttackRollModifierApplyTarget.AttackAdvantage)
+        {
+            HasAdvantage = true;
+            _breakdown.Add(spec);
+            return;
+        }
+        if (spec.modifier_delta == 0)
         {
             return;
         }

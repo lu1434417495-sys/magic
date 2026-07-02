@@ -889,6 +889,8 @@ public class BattleHitResolver : IDisposable
             target_unit,
             attack_context
         );
+        bool isAdvantage = _resolve_attack_advantage(attack_check, attack_context);
+        NormalizeAdvantageState(ref isDisadvantage, ref isAdvantage);
         if (attack_check.Invalid)
         {
             return new AttackResolutionMetadata
@@ -897,6 +899,7 @@ public class BattleHitResolver : IDisposable
                 AttackSuccess = false,
                 OrdinaryMiss = true,
                 IsDisadvantage = isDisadvantage,
+                IsAdvantage = isAdvantage,
                 HiddenLuckAtBirth = hiddenLuckAtBirth,
                 FaithLuckBonus = faithLuckBonus,
                 EffectiveLuck = effectiveLuck,
@@ -915,6 +918,7 @@ public class BattleHitResolver : IDisposable
         {
             AttackResolution = ATTACK_RESOLUTION_MISS,
             IsDisadvantage = isDisadvantage,
+            IsAdvantage = isAdvantage,
             HiddenLuckAtBirth = hiddenLuckAtBirth,
             FaithLuckBonus = faithLuckBonus,
             EffectiveLuck = effectiveLuck,
@@ -943,7 +947,12 @@ public class BattleHitResolver : IDisposable
 
         if (critGateDie > NATURAL_HIT_ROLL)
         {
-            int critGateRoll = _roll_attack_die(critGateDie, isDisadvantage, attack_context);
+            int critGateRoll = _roll_attack_die(
+                critGateDie,
+                isDisadvantage,
+                isAdvantage,
+                attack_context
+            );
             metadata.CritGateRoll = critGateRoll;
             if (BattleFateAttackRules.DoesGateDieCrit(critGateRoll, critGateDie, critLocked))
             {
@@ -954,7 +963,12 @@ public class BattleHitResolver : IDisposable
             }
         }
 
-        int hitRoll = _roll_attack_die(NATURAL_HIT_ROLL, isDisadvantage, attack_context);
+        int hitRoll = _roll_attack_die(
+            NATURAL_HIT_ROLL,
+            isDisadvantage,
+            isAdvantage,
+            attack_context
+        );
         metadata.HitRoll = hitRoll;
         AttackTraitTriggerResult naturalOneTraitResult = _resolve_natural_one_trait_reroll(
             source_unit,
@@ -1049,7 +1063,7 @@ public class BattleHitResolver : IDisposable
 
         if (critGateDie > NATURAL_HIT_ROLL)
         {
-            int critGateRoll = _roll_attack_die(critGateDie, isDisadvantage, attack_context);
+            int critGateRoll = _roll_attack_die(critGateDie, isDisadvantage, false, attack_context);
             if (BattleFateAttackRules.DoesGateDieCrit(critGateRoll, critGateDie, critLocked))
             {
                 return metadata with
@@ -1063,7 +1077,7 @@ public class BattleHitResolver : IDisposable
             metadata = metadata with { CritGateRoll = critGateRoll };
         }
 
-        int hitRoll = _roll_attack_die(NATURAL_HIT_ROLL, isDisadvantage, attack_context);
+        int hitRoll = _roll_attack_die(NATURAL_HIT_ROLL, isDisadvantage, false, attack_context);
         metadata = metadata with { HitRoll = hitRoll };
         AttackTraitTriggerResult naturalOneTraitResult = _resolve_natural_one_trait_reroll(
             source_unit,
@@ -1153,7 +1167,9 @@ public class BattleHitResolver : IDisposable
         AttackContext attack_context
     )
     {
-        return _roll_attack_die(die_size, is_disadvantage, attack_context);
+        bool isAdvantage = attack_context?.HasIsAdvantage == true && attack_context.IsAdvantage;
+        NormalizeAdvantageState(ref is_disadvantage, ref isAdvantage);
+        return _roll_attack_die(die_size, is_disadvantage, isAdvantage, attack_context);
     }
 
     public string FormatAttackCheckPreview(AttackCheckInput attack_check)
@@ -1219,7 +1235,7 @@ public class BattleHitResolver : IDisposable
         {
             return hookResult;
         }
-        int rerolledRoll = _roll_attack_die(NATURAL_HIT_ROLL, false, attack_context);
+        int rerolledRoll = _roll_attack_die(NATURAL_HIT_ROLL, false, false, attack_context);
         return new AttackTraitTriggerResult(
             triggered: hookResult.Triggered,
             @event: hookResult.Event,
@@ -1256,17 +1272,42 @@ public class BattleHitResolver : IDisposable
         return battleState.IsAttackDisadvantage(source_unit, target_unit);
     }
 
-    private int _roll_attack_die(int die_size, bool is_disadvantage, AttackContext attack_context)
+    private static bool _resolve_attack_advantage(
+        AttackCheckInput attack_check,
+        AttackContext attack_context
+    )
+    {
+        if (attack_context?.HasIsAdvantage == true)
+        {
+            return attack_context.IsAdvantage;
+        }
+        return attack_check.IsAdvantage;
+    }
+
+    private static void NormalizeAdvantageState(ref bool isDisadvantage, ref bool isAdvantage)
+    {
+        if (!isDisadvantage || !isAdvantage)
+            return;
+        isDisadvantage = false;
+        isAdvantage = false;
+    }
+
+    private int _roll_attack_die(
+        int die_size,
+        bool is_disadvantage,
+        bool is_advantage,
+        AttackContext attack_context
+    )
     {
         int normalizedDieSize = Math.Max(die_size, 1);
         BattleState battleState = attack_context?.BattleState;
         int firstRoll = _roll_attack_die_once(normalizedDieSize, attack_context, battleState);
-        if (!is_disadvantage)
+        if (!is_disadvantage && !is_advantage)
         {
             return firstRoll;
         }
         int secondRoll = _roll_attack_die_once(normalizedDieSize, attack_context, battleState);
-        return Math.Min(firstRoll, secondRoll);
+        return is_advantage ? Math.Max(firstRoll, secondRoll) : Math.Min(firstRoll, secondRoll);
     }
 
     private int _roll_attack_die_once(
@@ -1560,6 +1601,8 @@ public class BattleHitResolver : IDisposable
         }
 
         bool isDisadvantage = battle_state.IsAttackDisadvantage(active_unit, target_unit);
+        bool isAdvantage = attack_check.IsAdvantage;
+        NormalizeAdvantageState(ref isDisadvantage, ref isAdvantage);
         int hiddenLuckAtBirth = _get_hidden_luck_at_birth(active_unit);
         int faithLuckBonus = _get_faith_luck_bonus(active_unit);
         int effectiveLuck = Math.Clamp(
@@ -1580,7 +1623,8 @@ public class BattleHitResolver : IDisposable
             critGateDie,
             critThreshold,
             fumbleLowEnd,
-            isDisadvantage
+            isDisadvantage,
+            isAdvantage
         );
         AttackCheckInput resolvedCheck = CopyAttackCheck(
             attack_check,
@@ -1588,6 +1632,7 @@ public class BattleHitResolver : IDisposable
             successRatePercent: successRatePercent,
             baseHitRatePercent: baseHitRatePercent,
             isDisadvantage: isDisadvantage,
+            isAdvantage: isAdvantage,
             critGateDie: critGateDie,
             critThreshold: critThreshold,
             fumbleLowEnd: fumbleLowEnd,
@@ -1633,6 +1678,8 @@ public class BattleHitResolver : IDisposable
         }
 
         bool isDisadvantage = battle_state.IsAttackDisadvantage(active_unit, target_unit);
+        bool isAdvantage = attack_check.IsAdvantage;
+        NormalizeAdvantageState(ref isDisadvantage, ref isAdvantage);
         int hiddenLuckAtBirth = _get_hidden_luck_at_birth(active_unit);
         int faithLuckBonus = _get_faith_luck_bonus(active_unit);
         int effectiveLuck = Math.Clamp(
@@ -1653,7 +1700,8 @@ public class BattleHitResolver : IDisposable
             critGateDie,
             critThreshold,
             fumbleLowEnd,
-            isDisadvantage
+            isDisadvantage,
+            isAdvantage
         );
         AttackCheckInput resolvedCheck = CopyAttackCheck(
             attack_check,
@@ -1661,6 +1709,7 @@ public class BattleHitResolver : IDisposable
             successRatePercent: successRatePercent,
             baseHitRatePercent: baseHitRatePercent,
             isDisadvantage: isDisadvantage,
+            isAdvantage: isAdvantage,
             critGateDie: critGateDie,
             critThreshold: critThreshold,
             fumbleLowEnd: fumbleLowEnd,
@@ -1704,7 +1753,8 @@ public class BattleHitResolver : IDisposable
         int crit_gate_die,
         int crit_threshold,
         int fumble_low_end,
-        bool is_disadvantage
+        bool is_disadvantage,
+        bool is_advantage
     )
     {
         double basisPoints = _compute_fate_attack_success_rate_basis_points(
@@ -1713,7 +1763,8 @@ public class BattleHitResolver : IDisposable
             crit_gate_die,
             crit_threshold,
             fumble_low_end,
-            is_disadvantage
+            is_disadvantage,
+            is_advantage
         );
         return Math.Clamp((int)Math.Round(basisPoints / 100.0), 0, 100);
     }
@@ -1724,7 +1775,8 @@ public class BattleHitResolver : IDisposable
         int crit_gate_die,
         int crit_threshold,
         int fumble_low_end,
-        bool is_disadvantage
+        bool is_disadvantage,
+        bool is_advantage
     )
     {
         double d20SuccessBasisPoints = _compute_d20_attack_success_rate_basis_points(
@@ -1733,7 +1785,8 @@ public class BattleHitResolver : IDisposable
             crit_gate_die,
             crit_threshold,
             fumble_low_end,
-            is_disadvantage
+            is_disadvantage,
+            is_advantage
         );
         if (crit_locked || crit_gate_die <= NATURAL_HIT_ROLL)
         {
@@ -1743,6 +1796,11 @@ public class BattleHitResolver : IDisposable
         if (is_disadvantage)
         {
             gateCritBasisPoints /= crit_gate_die;
+        }
+        else if (is_advantage)
+        {
+            double missGateChance = (crit_gate_die - 1.0) / crit_gate_die;
+            gateCritBasisPoints = 10000.0 * (1.0 - missGateChance * missGateChance);
         }
         return gateCritBasisPoints
             + (10000.0 - gateCritBasisPoints) * d20SuccessBasisPoints / 10000.0;
@@ -1754,12 +1812,13 @@ public class BattleHitResolver : IDisposable
         int crit_gate_die,
         int crit_threshold,
         int fumble_low_end,
-        bool is_disadvantage
+        bool is_disadvantage,
+        bool is_advantage
     )
     {
         int successOutcomes = 0;
         int totalOutcomes = NATURAL_HIT_ROLL;
-        if (!is_disadvantage)
+        if (!is_disadvantage && !is_advantage)
         {
             for (int roll = NATURAL_MISS_ROLL; roll <= NATURAL_HIT_ROLL; roll++)
             {
@@ -1784,7 +1843,9 @@ public class BattleHitResolver : IDisposable
         {
             for (int secondRoll = NATURAL_MISS_ROLL; secondRoll <= NATURAL_HIT_ROLL; secondRoll++)
             {
-                int roll = Math.Min(firstRoll, secondRoll);
+                int roll = is_advantage
+                    ? Math.Max(firstRoll, secondRoll)
+                    : Math.Min(firstRoll, secondRoll);
                 if (
                     _is_d20_attack_success_roll(
                         roll,
@@ -2090,6 +2151,7 @@ public class BattleHitResolver : IDisposable
         int? successRatePercent = null,
         int? baseHitRatePercent = null,
         bool? isDisadvantage = null,
+        bool? isAdvantage = null,
         int? critGateDie = null,
         int? critThreshold = null,
         int? fumbleLowEnd = null,
@@ -2124,6 +2186,7 @@ public class BattleHitResolver : IDisposable
             followUpAttackPenalty: source.FollowUpAttackPenalty,
             exponentialPenalty: source.ExponentialPenalty,
             isDisadvantage: isDisadvantage ?? source.IsDisadvantage,
+            isAdvantage: isAdvantage ?? source.IsAdvantage,
             invalid: source.Invalid,
             errorId: source.ErrorId,
             errorMessage: source.ErrorMessage,

@@ -102,6 +102,20 @@ public sealed class WorldMapResourceNodeData
         };
     }
 
+    // Resource nodes are immutable; harvesting rebuilds the one node with a lowered
+    // remaining-charge count. Callers drop the node from the world once it hits zero.
+    internal WorldMapResourceNodeData WithRemainingCharges(int remainingCharges) =>
+        new WorldMapResourceNodeData(
+            NodeId,
+            NodeKind,
+            DisplayName,
+            WorldCoord,
+            YieldItemId,
+            SourceSettlementId,
+            MaxCharges,
+            Mathf.Clamp(remainingCharges, 0, MaxCharges)
+        );
+
     internal static bool IsKnownKind(string nodeKind) =>
         nodeKind == KindFarm || nodeKind == KindHerbGarden || nodeKind == KindMine;
 

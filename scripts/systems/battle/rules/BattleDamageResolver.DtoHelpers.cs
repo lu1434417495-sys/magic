@@ -222,7 +222,7 @@ public partial class BattleDamageResolver
         int count = 0;
         foreach (StringName statusId in targetUnit.GetSortedStatusEffectIdsTyped())
         {
-            if (BattleStatusSemanticTable.IsHarmfulStatus(statusId))
+            if (BattleStatusSemanticTable.IsHarmfulStatusEntry(targetUnit.GetStatusEffect(statusId)))
             {
                 count += 1;
                 if (count >= threshold)
@@ -506,6 +506,109 @@ public partial class BattleDamageResolver
             return EquipmentDurabilityCommitResult.NoOp(noOpReason);
         }
         return ApplyEquipmentDurabilityDamageToSelection(request, selection, resolvedContext);
+    }
+
+    internal EquipmentDurabilityCommitResult ApplyEquipmentDurabilityDamageToSelection(
+        EquipmentDurabilityDirectCommitRequest request
+    )
+    {
+        if (request == null || request.TargetEquipment == null)
+        {
+            return EquipmentDurabilityCommitResult.NoOp("invalid_request");
+        }
+        BattleUnitState targetUnit = request.TargetUnit;
+        EquipmentAbilityEquipmentTargetRef targetEquipment = request.TargetEquipment;
+        if (targetUnit == null || targetUnit.unit_id != targetEquipment.UnitId)
+        {
+            return EquipmentDurabilityCommitResult.NoOp("target_unit_missing");
+        }
+        EquipmentState equipmentView = targetUnit.GetEquipmentView();
+        if (equipmentView == null)
+        {
+            return EquipmentDurabilityCommitResult.NoOp("target_equipment_missing");
+        }
+
+        StringName entrySlotId = ProgressionDataUtils.to_string_name(
+            targetEquipment.EntrySlotId
+        );
+        StringName slotId = ProgressionDataUtils.to_string_name(targetEquipment.SlotId);
+        if (entrySlotId == "" || slotId == "")
+        {
+            return EquipmentDurabilityCommitResult.NoOp("invalid_request");
+        }
+
+        EquipmentEntryState entry = equipmentView.GetEntry(entrySlotId);
+        if (entry == null || entry.IsEmpty())
+        {
+            return EquipmentDurabilityCommitResult.NoOp("target_equipment_missing");
+        }
+        if (
+            entry.item_id != targetEquipment.ItemId
+            || entry.instance_id != targetEquipment.EquipmentInstanceId
+            || !HasStringName(entry.occupied_slot_ids, slotId)
+        )
+        {
+            return EquipmentDurabilityCommitResult.NoOp("target_equipment_changed");
+        }
+        foreach (StringName occupiedSlotId in targetEquipment.OccupiedSlotIds ?? Array.Empty<StringName>())
+        {
+            StringName normalizedOccupiedSlotId = ProgressionDataUtils.to_string_name(
+                occupiedSlotId
+            );
+            if (
+                normalizedOccupiedSlotId == ""
+                || equipmentView.GetEntrySlotForSlot(normalizedOccupiedSlotId) != entrySlotId
+            )
+            {
+                return EquipmentDurabilityCommitResult.NoOp("target_equipment_changed");
+            }
+        }
+
+        EquipmentInstanceState equipmentInstance = entry.GetEquipmentInstance();
+        if (equipmentInstance == null)
+        {
+            return EquipmentDurabilityCommitResult.NoOp("target_equipment_missing");
+        }
+        if (
+            equipmentInstance.item_id != targetEquipment.ItemId
+            || equipmentInstance.instance_id != targetEquipment.EquipmentInstanceId
+        )
+        {
+            return EquipmentDurabilityCommitResult.NoOp("target_equipment_changed");
+        }
+        int before = Math.Max(equipmentInstance.current_durability, 0);
+        if (before <= 0)
+        {
+            return EquipmentDurabilityCommitResult.NoOp("already_destroyed");
+        }
+
+        int rarity = equipmentInstance.rarity;
+        int durabilityLoss = Math.Min(Math.Max(request.DurabilityLoss, 0), before);
+        int after = before - durabilityLoss;
+        if (after <= 0)
+        {
+            equipmentView.ClearEntrySlot(entrySlotId);
+        }
+        else
+        {
+            equipmentInstance.current_durability = after;
+        }
+        return new EquipmentDurabilityCommitResult
+        {
+            Resolved = true,
+            TargetUnitId = targetUnit.unit_id,
+            EntrySlotId = entrySlotId,
+            SlotId = slotId,
+            ItemId = entry.item_id,
+            EquipmentInstanceId = entry.instance_id,
+            Rarity = rarity,
+            DurabilityBefore = before,
+            DurabilityAfter = Math.Max(after, 0),
+            DurabilityLoss = durabilityLoss,
+            Destroyed = after <= 0,
+            HasSave = false,
+            SaveResult = new SaveResolutionResult(),
+        };
     }
 
     private EquipmentDurabilityCommitResult ApplyEquipmentDurabilityDamageToSelection(

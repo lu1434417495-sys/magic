@@ -16,17 +16,50 @@ internal static class BattleRuntimeEffectDefinitions
         int durationTu,
         IReadOnlyDictionary<string, Variant> parameters = null,
         StringName stackBehavior = default,
-        int stackLimit = 0
+        int stackLimit = 0,
+        int attackRollPenalty = -1,
+        int sourceBoundAttackRollPenalty = 0,
+        int sourceBoundAttackRollPenaltyMinStacks = 1,
+        string displayName = "",
+        bool countsAsDebuffOverride = false,
+        bool countsAsDebuff = false,
+        bool undispellable = false,
+        bool dispellableMagic = false,
+        bool dispellableHarmfulMagic = false,
+        bool dispellableBeneficialMagic = false
     )
     {
+        IReadOnlyDictionary<string, Variant> mergedParameters = parameters;
+        if (sourceBoundAttackRollPenalty > 0)
+        {
+            var nextParameters = new Dictionary<string, Variant>();
+            if (parameters != null)
+            {
+                foreach (KeyValuePair<string, Variant> entry in parameters)
+                    nextParameters[entry.Key] = entry.Value;
+            }
+            nextParameters["source_bound_attack_roll_penalty"] =
+                sourceBoundAttackRollPenalty;
+            nextParameters["source_bound_attack_roll_penalty_min_stacks"] =
+                Math.Max(sourceBoundAttackRollPenaltyMinStacks, 1);
+            mergedParameters = nextParameters;
+        }
         return Create(
             effectType: StatusEffectType,
             statusId: Normalize(statusId),
             power: Math.Max(power, 0),
             durationTu: Math.Max(durationTu, 0),
-            parameters: parameters,
+            parameters: mergedParameters,
             stackBehavior: Normalize(stackBehavior),
-            stackLimit: Math.Max(stackLimit, 0)
+            stackLimit: Math.Max(stackLimit, 0),
+            displayName: displayName ?? "",
+            attackRollPenalty: attackRollPenalty,
+            undispellable: undispellable,
+            dispellableMagic: dispellableMagic,
+            dispellableHarmfulMagic: dispellableHarmfulMagic,
+            dispellableBeneficialMagic: dispellableBeneficialMagic,
+            countsAsDebuffOverride: countsAsDebuffOverride,
+            countsAsDebuff: countsAsDebuff
         );
     }
 
@@ -289,6 +322,8 @@ internal static class BattleRuntimeEffectDefinitions
             Normalize(triggerEvent),
             Normalize(triggerStatusId),
             Normalize(consumedStatusId),
+            default,
+            0,
             dicePerConsumedStack,
             diceSidesPerStack,
             apGain,

@@ -427,6 +427,177 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         }
     }
 
+    public void ApplyContactEffectsForUnit(
+        BattleUnitState targetUnit,
+        BattleSaveContext saveContext,
+        BattleEventBatch batch
+    )
+    {
+        var runtime = _ResolveRuntime();
+        if (runtime == null || targetUnit == null || !targetUnit.is_alive)
+            return;
+
+        BattleState state = runtime.GetState();
+        BattleGridService gridService = runtime.GetGridService();
+        if (state == null || gridService == null)
+            return;
+
+        targetUnit.RefreshFootprint();
+        List<Vector2I> targetCoords = gridService.GetUnitTargetCoords(
+            targetUnit,
+            targetUnit.coord
+        );
+        if (targetCoords.Count == 0)
+            return;
+
+        var processedContactKeys = new HashSet<string>();
+        foreach (Vector2I coord in targetCoords)
+        {
+            BattleCellState cell = gridService.GetCellState(state, coord);
+            if (cell == null || cell.timed_terrain_effects.Count == 0)
+                continue;
+            foreach (BattleTerrainEffectState effectState in cell.timed_terrain_effects)
+            {
+                ApplyContactEffectForUnit(
+                    runtime,
+                    state,
+                    targetUnit,
+                    effectState,
+                    saveContext,
+                    processedContactKeys,
+                    batch
+                );
+            }
+        }
+    }
+
+    private void ApplyContactEffectForUnit(
+        BattleRuntimeModule runtime,
+        BattleState state,
+        BattleUnitState targetUnit,
+        BattleTerrainEffectState effectState,
+        BattleSaveContext saveContext,
+        HashSet<string> processedContactKeys,
+        BattleEventBatch batch
+    )
+    {
+        if (
+            runtime == null
+            || state == null
+            || targetUnit == null
+            || effectState == null
+            || effectState.contact_status_id == ""
+            || processedContactKeys == null
+        )
+        {
+            return;
+        }
+        if (
+            effectState.contact_blocked_by_trait_id != ""
+            && targetUnit.effective_trait_ids.Contains(effectState.contact_blocked_by_trait_id)
+        )
+        {
+            return;
+        }
+
+        BattleUnitState sourceUnit =
+            effectState.source_unit_id != "" ? GetUnit(state, effectState.source_unit_id) : null;
+        if (
+            !BattleTargetTeamRules.IsUnitValidForFilter(
+                sourceUnit,
+                targetUnit,
+                effectState.target_team_filter
+            )
+        )
+        {
+            return;
+        }
+
+        string contactKey =
+            $"{effectState.field_instance_id}|{targetUnit.unit_id}|{effectState.contact_status_id}";
+        if (processedContactKeys.Contains(contactKey))
+            return;
+        processedContactKeys.Add(contactKey);
+
+        if (effectState.contact_save_dc > 0)
+        {
+            CombatEffectDefinition saveEffect = BattleRuntimeEffectDefinitions.StaticSave(
+                effectState.contact_save_dc,
+                effectState.contact_save_ability,
+                effectState.contact_save_tag
+            );
+            BattleSaveResult saveResult = BattleSaveResolver.ResolveSaveResult(
+                sourceUnit,
+                targetUnit,
+                saveEffect,
+                saveContext
+            );
+            if (effectState.contact_apply_on_save_failure && saveResult.Success)
+                return;
+        }
+
+        int durationTu = Math.Max(effectState.contact_status_duration_tu, 0);
+        CombatEffectDefinition statusEffect = BattleRuntimeEffectDefinitions.Status(
+            effectState.contact_status_id,
+            1,
+            durationTu,
+            stackBehavior: effectState.contact_stack_behavior,
+            stackLimit: effectState.contact_stack_limit,
+            displayName: effectState.contact_status_display_label,
+            countsAsDebuffOverride: effectState.contact_counts_as_debuff_override,
+            countsAsDebuff: effectState.contact_counts_as_debuff,
+            undispellable: effectState.contact_undispellable,
+            dispellableMagic: effectState.contact_dispellable_magic,
+            dispellableHarmfulMagic: effectState.contact_dispellable_harmful_magic,
+            dispellableBeneficialMagic: effectState.contact_dispellable_beneficial_magic
+        );
+        BattleStatusEffectState statusEntry = BattleStatusSemanticTable.MergeStatus(
+            statusEffect,
+            sourceUnit?.unit_id ?? new StringName(""),
+            targetUnit.GetStatusEffect(effectState.contact_status_id),
+            effectState.contact_status_id
+        );
+        if (statusEntry == null)
+            return;
+        ApplyContactTimelineDamagePayload(statusEntry, effectState);
+        targetUnit.SetStatusEffect(statusEntry);
+        runtime.MarkAppliedStatusesForTurnTiming(
+            targetUnit,
+            new Godot.Collections.Array<StringName> { effectState.contact_status_id }
+        );
+        runtime.AppendChangedUnitId(batch, targetUnit.unit_id);
+        runtime.AppendChangedUnitCoords(batch, targetUnit);
+        runtime.AppendBatchLog(
+            batch,
+            $"{targetUnit.display_name} 感染 {_GetTimedTerrainEffectDisplayName(effectState)}。"
+        );
+    }
+
+    private static void ApplyContactTimelineDamagePayload(
+        BattleStatusEffectState statusEntry,
+        BattleTerrainEffectState effectState
+    )
+    {
+        if (statusEntry == null || effectState == null)
+            return;
+        if (effectState.contact_tick_interval_tu > 0)
+            statusEntry.tick_interval_tu = effectState.contact_tick_interval_tu;
+        if (
+            effectState.contact_timeline_damage_dice_count > 0
+            && effectState.contact_timeline_damage_dice_sides > 0
+        )
+        {
+            statusEntry.timeline_damage_dice_count =
+                effectState.contact_timeline_damage_dice_count;
+            statusEntry.timeline_damage_dice_sides =
+                effectState.contact_timeline_damage_dice_sides;
+            statusEntry.timeline_damage_flat_bonus = Math.Max(
+                effectState.contact_timeline_damage_flat_bonus,
+                0
+            );
+        }
+    }
+
     private static CombatEffectDefinition BuildTickEffectDefinition(
         BattleTerrainEffectState effectState
     )

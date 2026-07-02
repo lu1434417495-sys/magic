@@ -178,6 +178,43 @@ internal sealed class WorldRuntimeData
         return false;
     }
 
+    // Spend one charge from the resource node at coord. WorldMapResourceNodeData is
+    // immutable, so rebuild just the one node with a lowered charge count, and drop it
+    // from the world once depleted. Runs only on an actual harvest, not on every move.
+    internal bool TryHarvestResourceNode(
+        Vector2I coord,
+        out WorldMapResourceNodeData node,
+        out int remainingAfter
+    )
+    {
+        node = null;
+        remainingAfter = 0;
+        for (int index = 0; index < _resourceNodes.Count; index++)
+        {
+            WorldMapResourceNodeData current = _resourceNodes[index];
+            if (current == null || !current.Exists || current.WorldCoord != coord)
+            {
+                continue;
+            }
+            if (current.RemainingCharges <= 0)
+            {
+                return false;
+            }
+            node = current;
+            remainingAfter = current.RemainingCharges - 1;
+            if (remainingAfter <= 0)
+            {
+                _resourceNodes.RemoveAt(index);
+            }
+            else
+            {
+                _resourceNodes[index] = current.WithRemainingCharges(remainingAfter);
+            }
+            return true;
+        }
+        return false;
+    }
+
     internal bool TrySetSettlementState(string settlementId, WorldMapSettlementStateData state)
     {
         if (string.IsNullOrEmpty(settlementId) || state == null)

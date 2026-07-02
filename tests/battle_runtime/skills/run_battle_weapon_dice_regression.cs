@@ -535,7 +535,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         BattleEventBatch equippedBatch = runtime.IssueCommand(command);
         _test.True(
             equippedBatch.changed_unit_ids.Contains(attacker.unit_id),
-            "装备武器应满足 requires_weapon 并正常结算施法者。"
+            $"装备武器应满足 requires_weapon 并正常结算施法者。 log={FormatLogs(equippedBatch?.log_lines)}"
         );
         _test.Eq(attacker.current_ap, 1, "装备武器满足 requires_weapon 后应正常扣除 AP。");
         _test.True(target.current_hp < targetHpBefore, "装备武器满足 requires_weapon 后应造成伤害。");
@@ -575,7 +575,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         BattleEventBatch batch = runtime.IssueCommand(command);
         _test.True(
             batch.changed_unit_ids.Contains(attacker.unit_id),
-            "天生武器骰技能应正常完成一次主动技能结算。"
+            $"天生武器骰技能应正常完成一次主动技能结算。 log={FormatLogs(batch?.log_lines)}"
         );
         _test.Eq(gateway.SkillUsedEvents, 1, "天生武器骰技能成功后仍应记录技能使用事件。");
         _test.Eq(gateway.Grants.Count, 0, "天生武器骰满值不应触发主动技能熟练度 / 精通入账。");
@@ -887,6 +887,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         {
             command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
             unit_id = attacker.unit_id,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId),
             skill_id = skillId,
             target_unit_id = target.unit_id,
             target_coord = target.coord,

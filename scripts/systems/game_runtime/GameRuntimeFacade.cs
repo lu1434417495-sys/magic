@@ -152,6 +152,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     internal BattleRuntimeModule _battle_runtime;
     internal Vector2I _player_coord = Vector2I.Zero;
     internal Vector2I _selected_coord = Vector2I.Zero;
+    internal Vector2I _pending_harvest_coord = new(-1, -1);
     internal bool _settlement_entry_active;
     internal Vector2I _settlement_entry_source_coord = new(-1, -1);
     internal Vector2I _settlement_entry_target_coord = new(-1, -1);
@@ -1609,6 +1610,8 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         _selected_coord = coord;
         if (_fog_system.IsVisible(coord, _player_faction_id) && _try_open_settlement_at(coord))
             return;
+        if (_fog_system.IsVisible(coord, _player_faction_id) && _try_open_resource_harvest_at(coord))
+            return;
         UpdateStatusInternal($"已选中格子 {FormatCoordInternal(coord)}。");
     }
 
@@ -1666,6 +1669,125 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             $"已打开 {settlement.DisplayNameOrFallback("据点")} 的据点窗口。"
         );
         return true;
+    }
+
+    // Clicking a resource node cell opens a harvest confirmation. Like settlements it
+    // requires visibility, but harvesting is a hands-on action, so the player must also
+    // be standing on or next to the node (Chebyshev distance <= 1).
+    private bool _try_open_resource_harvest_at(Vector2I coord)
+    {
+        WorldMapResourceNodeData node = _world_map_data_context.GetResourceNodeAt(coord);
+        if (node == null || !node.Exists)
+            return false;
+        if (node.RemainingCharges <= 0)
+        {
+            UpdateStatusInternal($"{node.DisplayName} 的资源已经采集殆尽。");
+            return true;
+        }
+        int distance = Mathf.Max(
+            Mathf.Abs(coord.X - _player_coord.X),
+            Mathf.Abs(coord.Y - _player_coord.Y)
+        );
+        if (distance > 1)
+        {
+            UpdateStatusInternal($"距离 {node.DisplayName} 太远，靠近后才能采集。");
+            return true;
+        }
+        _pending_harvest_coord = coord;
+        _active_modal_kind = RuntimeModalKind.ResourceHarvestConfirm;
+        UpdateStatusInternal($"已靠近 {node.DisplayName}，确认后可采集。");
+        return true;
+    }
+
+    public GDictionary GetPendingResourceHarvestPrompt()
+    {
+        WorldMapResourceNodeData node =
+            _world_map_data_context.GetResourceNodeAt(_pending_harvest_coord);
+        if (node == null || !node.Exists)
+            return new GDictionary();
+        string itemName = GetItemDisplayName(node.YieldItemId);
+        return new GDictionary
+        {
+            ["title"] = $"采集 · {node.DisplayName}",
+            ["description"] =
+                $"在此采集 1 次可获得【{itemName}】。\n剩余可采集次数：{node.RemainingCharges} / {node.MaxCharges}。",
+            ["confirm_text"] = "采集",
+            ["cancel_text"] = "离开",
+        };
+    }
+
+    private RuntimeCommandResult HarvestPendingResourceNodeTyped()
+    {
+        if (_active_modal_kind != RuntimeModalKind.ResourceHarvestConfirm)
+            return BuildCommandErrorResult("当前没有待确认的采集点。");
+        Vector2I coord = _pending_harvest_coord;
+        WorldMapResourceNodeData node = _world_map_data_context.GetResourceNodeAt(coord);
+        if (node == null || !node.Exists)
+        {
+            _clear_pending_resource_harvest();
+            return BuildCommandErrorResult("采集点已不存在。");
+        }
+        if (node.RemainingCharges <= 0)
+        {
+            _clear_pending_resource_harvest();
+            return BuildCommandErrorResult($"{node.DisplayName} 的资源已经采集殆尽。");
+        }
+
+        string itemName = GetItemDisplayName(node.YieldItemId);
+        var addResult = _party_warehouse_service.AddItemTyped(node.YieldItemId, 1);
+        if (!addResult.ItemFound)
+            return BuildCommandErrorResult($"采集失败：未找到【{node.YieldItemId}】的物品定义。");
+        if (addResult.AddedQuantity <= 0)
+            return BuildCommandErrorResult("共享仓库已满，无法采集更多资源。");
+
+        if (!_world_map_data_context.TryHarvestResourceNodeAt(coord))
+        {
+            // Node mutation should not fail after the visibility/charge checks above,
+            // but if it does, undo the warehouse add so nothing is granted for free.
+            _party_warehouse_service.RemoveItemTyped(node.YieldItemId, addResult.AddedQuantity);
+            return BuildCommandErrorResult("采集失败：无法更新采集点状态。");
+        }
+
+        int worldPersistError =
+            _game_session != null
+                ? _game_session.SetWorldData(_world_map_data_context.root_world_data)
+                : (int)Error.Unavailable;
+        int partyPersistError = PersistPartyStateInternal();
+        int commitError = (int)Error.Ok;
+        if (worldPersistError == (int)Error.Ok && partyPersistError == (int)Error.Ok)
+            commitError = CommitRuntimeStateInternal("resource_harvest");
+
+        WorldMapResourceNodeData afterNode = _world_map_data_context.GetResourceNodeAt(coord);
+        int remaining = afterNode != null && afterNode.Exists ? afterNode.RemainingCharges : 0;
+        _clear_pending_resource_harvest();
+
+        if (
+            worldPersistError != (int)Error.Ok
+            || partyPersistError != (int)Error.Ok
+            || commitError != (int)Error.Ok
+        )
+        {
+            UpdateStatusInternal($"已采集 1 个【{itemName}】，但状态持久化失败。");
+            return BuildCommandErrorResult(_current_status_message);
+        }
+
+        string tail = remaining <= 0 ? "，采集点已耗尽。" : $"，剩余可采集 {remaining} 次。";
+        UpdateStatusInternal($"已采集 1 个【{itemName}】{tail}");
+        return BuildCommandOkResult();
+    }
+
+    private RuntimeCommandResult CancelPendingResourceHarvestTyped()
+    {
+        _clear_pending_resource_harvest();
+        UpdateStatusInternal("已离开采集点。");
+        return BuildCommandOkResult();
+    }
+
+    private void _clear_pending_resource_harvest()
+    {
+        _pending_harvest_coord = new Vector2I(-1, -1);
+        if (_active_modal_kind == RuntimeModalKind.ResourceHarvestConfirm)
+            _active_modal_kind = RuntimeModalKind.None;
     }
 
     private bool _try_open_character_info_at_world_coord(Vector2I coord)

@@ -359,6 +359,12 @@ public partial class CombatEffectDef : Resource
     public StringName consumed_status_id { get; set; } = "";
 
     [Export]
+    public StringName required_target_status_id { get; set; } = "";
+
+    [Export]
+    public int required_target_status_min_stacks { get; set; }
+
+    [Export]
     public int dice_per_consumed_stack { get; set; }
 
     [Export]

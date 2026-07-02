@@ -528,6 +528,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             );
             if (definitionApplied)
             {
+                Runtime?.CommitEquipmentSkillUsageIfNeeded(active_unit, command, batch);
                 _grant_skill_mastery_if_needed(active_unit, skillDefinition, batch);
             }
             Runtime?._skill_mastery_service.Clear();
@@ -560,6 +561,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             );
             if (meteorApplied)
             {
+                Runtime?.CommitEquipmentSkillUsageIfNeeded(active_unit, command, batch);
                 _grant_skill_mastery_if_needed(active_unit, skillDefinition, batch);
             }
             Runtime._skill_mastery_service.Clear();
@@ -594,6 +596,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             );
             if (definitionApplied)
             {
+                Runtime?.CommitEquipmentSkillUsageIfNeeded(active_unit, command, batch);
                 _grant_skill_mastery_if_needed(active_unit, skillDefinition, batch);
             }
             Runtime?._skill_mastery_service.Clear();

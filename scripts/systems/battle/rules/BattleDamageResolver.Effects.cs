@@ -54,6 +54,7 @@ public partial class BattleDamageResolver
             ItemId = entry.item_id,
             EquipmentInstanceId = entry.instance_id,
             OccupiedSlotIds = new List<StringName>(entry.occupied_slot_ids),
+            Rarity = equipmentInstance.rarity,
             CurrentDurability = equipmentInstance.current_durability,
         };
     }

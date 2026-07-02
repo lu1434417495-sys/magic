@@ -338,6 +338,17 @@ public sealed class WorldMapDataContext
         return true;
     }
 
+    public bool TryHarvestResourceNodeAt(Vector2I coord)
+    {
+        if (!_activeRuntimeData.TryHarvestResourceNode(coord, out _, out _))
+        {
+            return false;
+        }
+        _sync_active_world_payload_from_typed();
+        _rebuild_world_coord_lookups();
+        return true;
+    }
+
     public bool SetActiveSettlementState(
         string settlementId,
         Godot.Collections.Dictionary settlementState

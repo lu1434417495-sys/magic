@@ -122,22 +122,29 @@ internal class BattleAttackCheckPolicyService
         }
 
         BattleAttackRollModifierBundle modifierBundle = BuildModifierBundle(context);
+        bool hasAdvantage = modifierBundle.HasAdvantage;
         if (context.HasReadView)
         {
-            return _hitResolver.BuildSkillDefinitionAttackCheck(
+            return CopyAttackCheckWithAdvantage(
+                _hitResolver.BuildSkillDefinitionAttackCheck(
                 context.attacker_view,
                 context.target_view,
                 context.skill_definition,
                 flat_bonus + modifierBundle.TotalBonus,
                 flat_penalty + modifierBundle.TotalPenalty
+                ),
+                hasAdvantage
             );
         }
-        return _hitResolver.BuildSkillDefinitionAttackCheck(
-            context.attacker,
-            context.target,
-            context.skill_definition,
-            flat_bonus + modifierBundle.TotalBonus,
-            flat_penalty + modifierBundle.TotalPenalty
+        return CopyAttackCheckWithAdvantage(
+            _hitResolver.BuildSkillDefinitionAttackCheck(
+                context.attacker,
+                context.target,
+                context.skill_definition,
+                flat_bonus + modifierBundle.TotalBonus,
+                flat_penalty + modifierBundle.TotalPenalty
+            ),
+            hasAdvantage
         );
     }
 
@@ -362,22 +369,29 @@ internal class BattleAttackCheckPolicyService
         context.roll_kind = ROLL_KIND_REPEAT_WEAPON_STAGE;
         BattleRepeatAttackStageSpec resolvedStageSpec = context.repeat_stage_spec;
         BattleAttackRollModifierBundle modifierBundle = BuildModifierBundle(context);
+        bool hasAdvantage = modifierBundle.HasAdvantage;
         if (context.HasReadView)
         {
-            return _hitResolver.BuildSkillDefinitionAttackCheck(
-                context.attacker_view,
-                context.target_view,
+            return CopyAttackCheckWithAdvantage(
+                _hitResolver.BuildSkillDefinitionAttackCheck(
+                    context.attacker_view,
+                    context.target_view,
+                    context.skill_definition,
+                    resolvedStageSpec.stage_base_attack_bonus + modifierBundle.TotalBonus,
+                    resolvedStageSpec.ResolveStageAttackPenalty() + modifierBundle.TotalPenalty
+                ),
+                hasAdvantage
+            );
+        }
+        return CopyAttackCheckWithAdvantage(
+            _hitResolver.BuildSkillDefinitionAttackCheck(
+                context.attacker,
+                context.target,
                 context.skill_definition,
                 resolvedStageSpec.stage_base_attack_bonus + modifierBundle.TotalBonus,
                 resolvedStageSpec.ResolveStageAttackPenalty() + modifierBundle.TotalPenalty
-            );
-        }
-        return _hitResolver.BuildSkillDefinitionAttackCheck(
-            context.attacker,
-            context.target,
-            context.skill_definition,
-            resolvedStageSpec.stage_base_attack_bonus + modifierBundle.TotalBonus,
-            resolvedStageSpec.ResolveStageAttackPenalty() + modifierBundle.TotalPenalty
+            ),
+            hasAdvantage
         );
     }
 
@@ -516,7 +530,73 @@ internal class BattleAttackCheckPolicyService
         {
             candidates.Add(spec);
         }
+        foreach (BattleAttackRollModifierSpec spec in CollectStatusModifierCandidates(context))
+        {
+            candidates.Add(spec);
+        }
+        foreach (BattleAttackRollModifierSpec spec in CollectEquipmentAbilityModifierCandidates(context))
+        {
+            candidates.Add(spec);
+        }
         return candidates;
+    }
+
+    private static List<BattleAttackRollModifierSpec> CollectStatusModifierCandidates(
+        BattleAttackCheckPolicyContext context
+    )
+    {
+        var candidates = new List<BattleAttackRollModifierSpec>();
+        BattleUnitState attacker = context?.attacker;
+        BattleUnitState target = context?.target;
+        if (attacker == null || target == null)
+            return candidates;
+
+        foreach (BattleStatusEffectState status in attacker.GetStatusEffectsTyped())
+        {
+            int penalty = Math.Max(status?.source_bound_attack_roll_penalty ?? 0, 0);
+            if (penalty <= 0)
+                continue;
+            int minStacks = Math.Max(status.source_bound_attack_roll_penalty_min_stacks, 1);
+            if (Math.Max(status.stacks, 0) < minStacks)
+                continue;
+            if (ProgressionDataUtils.to_string_name(status.source_unit_id) != target.unit_id)
+                continue;
+
+            candidates.Add(
+                new BattleAttackRollModifierSpec
+                {
+                    source_domain = "status",
+                    source_id = status.status_id,
+                    source_instance_id = status.source_unit_id.ToString(),
+                    label = ResolveStatusModifierLabel(status),
+                    modifier_delta = -penalty,
+                    stack_key = status.status_id,
+                    stack_mode = "max",
+                    target_team_filter = "any",
+                    endpoint_mode = "target",
+                    footprint_mode = "any_cell",
+                    applies_to = "attack_roll",
+                }
+            );
+        }
+        return candidates;
+    }
+
+    private static string ResolveStatusModifierLabel(BattleStatusEffectState status)
+    {
+        string label = BattleStatusSemanticTable.GetDisplayLabel(status);
+        return string.IsNullOrWhiteSpace(label) ? status?.status_id.ToString() ?? "" : label;
+    }
+
+    private List<BattleAttackRollModifierSpec> CollectEquipmentAbilityModifierCandidates(
+        BattleAttackCheckPolicyContext context
+    )
+    {
+        BattleEquipmentAbilityRuntimeService equipmentAbilityService =
+            ResolveRuntime()?.GetEquipmentAbilityRuntimeService();
+        return equipmentAbilityService != null
+            ? equipmentAbilityService.CollectAttackRollModifierCandidates(context)
+            : new List<BattleAttackRollModifierSpec>();
     }
 
     private List<BattleAttackRollModifierSpec> CollectTerrainModifierCandidates(
@@ -581,11 +661,17 @@ internal class BattleAttackCheckPolicyService
         {
             return false;
         }
-        if (spec.AppliesToKind != BattleAttackRollModifierApplyTarget.AttackRoll)
+        if (
+            spec.AppliesToKind != BattleAttackRollModifierApplyTarget.AttackRoll
+            && spec.AppliesToKind != BattleAttackRollModifierApplyTarget.AttackAdvantage
+        )
         {
             return false;
         }
-        if (spec.modifier_delta == 0)
+        if (
+            spec.AppliesToKind == BattleAttackRollModifierApplyTarget.AttackRoll
+            && spec.modifier_delta == 0
+        )
         {
             return false;
         }
@@ -748,6 +834,47 @@ internal class BattleAttackCheckPolicyService
             return;
         }
         target.SetAttackRollModifierBreakdown(modifierBundle.Breakdown);
+    }
+
+    private static AttackCheckInput CopyAttackCheckWithAdvantage(
+        AttackCheckInput source,
+        bool isAdvantage
+    )
+    {
+        if (!isAdvantage || source.Invalid)
+            return source;
+        return new AttackCheckInput(
+            attackerBaseAttackBonus: source.AttackerBaseAttackBonus,
+            attackerAttackBonus: source.AttackerAttackBonus,
+            attackerBab: source.AttackerBab,
+            targetArmorClass: source.TargetArmorClass,
+            skillAttackBonus: source.SkillAttackBonus,
+            lockedSkillHitBonus: source.LockedSkillHitBonus,
+            situationalAttackBonus: source.SituationalAttackBonus,
+            situationalAttackPenalty: source.SituationalAttackPenalty,
+            requiredRoll: source.RequiredRoll,
+            displayRequiredRoll: source.DisplayRequiredRoll,
+            hitRatePercent: source.HitRatePercent,
+            successRatePercent: source.SuccessRatePercent,
+            baseHitRatePercent: source.BaseHitRatePercent,
+            naturalOneAutoMiss: source.NaturalOneAutoMiss,
+            naturalTwentyAutoHit: source.NaturalTwentyAutoHit,
+            critThreshold: source.CritThreshold,
+            fumbleLowEnd: source.FumbleLowEnd,
+            critLocked: source.CritLocked,
+            critGateDie: source.CritGateDie,
+            effectiveLuck: source.EffectiveLuck,
+            forceHitNoCrit: source.ForceHitNoCrit,
+            skillId: source.SkillId,
+            followUpAttackPenalty: source.FollowUpAttackPenalty,
+            exponentialPenalty: source.ExponentialPenalty,
+            isDisadvantage: source.IsDisadvantage,
+            isAdvantage: true,
+            invalid: source.Invalid,
+            errorId: source.ErrorId,
+            errorMessage: source.ErrorMessage,
+            previewText: source.PreviewText
+        );
     }
 
     private BattleAttackCheckPolicyContext CopyContextForRepeatStage(

@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+
+[sub_resource type="Resource" id="Effect_twilight_step_blink"]
+script = ExtResource("1_effect")
+effect_type = &"forced_move"
+forced_move_mode = &"blink"
+forced_move_distance = 3
+
+[sub_resource type="Resource" id="Combat_twilight_step"]
+script = ExtResource("2_combat")
+skill_id = &"weapon_sword_twilight_edge_twilight_step"
+target_mode = &"ground"
+target_team_filter = &"ally"
+range_value = 3
+ap_cost = 1
+cooldown_tu = 40
+mastery_trigger_mode = &"effect_applied"
+ai_tags = Array[StringName]([&"mobility", &"equipment"])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_twilight_step_blink")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"weapon_sword_twilight_edge_twilight_step"
+display_name = "暮影步"
+icon_id = &"weapon_sword_twilight_edge_twilight_step"
+description = "装备技能。战斗时间达到70TU后可选，消耗1AP，冷却40TU，闪现至3格内地面格。使用后当前行动轮次内启用暮光切割；白天使用还会让攻击持有者的攻击检定+1直到本行动轮次结束。"
+skill_type = &"active"
+max_level = 1
+non_core_max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"equipment", &"twilight_edge", &"mobility", &"weapon"])
+learn_source = &"innate"
+combat_profile = SubResource("Combat_twilight_step")

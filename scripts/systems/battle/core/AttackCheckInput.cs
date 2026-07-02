@@ -31,6 +31,7 @@ public readonly struct AttackCheckInput
     public readonly int FollowUpAttackPenalty;
     public readonly bool ExponentialPenalty;
     public readonly bool IsDisadvantage;
+    public readonly bool IsAdvantage;
 
     public readonly bool Invalid;
     public readonly StringName ErrorId;
@@ -63,6 +64,7 @@ public readonly struct AttackCheckInput
         int followUpAttackPenalty = 0,
         bool exponentialPenalty = false,
         bool isDisadvantage = false,
+        bool isAdvantage = false,
         bool invalid = false,
         StringName errorId = null,
         string errorMessage = "",
@@ -94,6 +96,7 @@ public readonly struct AttackCheckInput
         FollowUpAttackPenalty = followUpAttackPenalty;
         ExponentialPenalty = exponentialPenalty;
         IsDisadvantage = isDisadvantage;
+        IsAdvantage = isAdvantage;
         Invalid = invalid;
         ErrorId = errorId ?? new StringName("");
         ErrorMessage = errorMessage ?? "";

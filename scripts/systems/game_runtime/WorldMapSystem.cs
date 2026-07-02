@@ -1030,6 +1030,11 @@ public partial class WorldMapSystem : Control
             _return_to_startup_scene();
             return;
         }
+        if (modalId == "resource_harvest_confirm")
+        {
+            _runtime_proxy.CommandConfirmResourceHarvest();
+            return;
+        }
         _runtime_proxy.CommandConfirmSubmapEntry();
     }
 
@@ -1043,6 +1048,11 @@ public partial class WorldMapSystem : Control
             RenderFromRuntime(false);
             return;
         }
+        if (modalId == "resource_harvest_confirm")
+        {
+            _runtime_proxy.CommandCancelResourceHarvest();
+            return;
+        }
         _runtime_proxy.CommandCancelSubmapEntry();
     }
 
@@ -1050,6 +1060,8 @@ public partial class WorldMapSystem : Control
     {
         if (modal_id == "submap_confirm")
             return _runtime_proxy.GetPendingSubmapPrompt();
+        if (modal_id == "resource_harvest_confirm")
+            return _runtime_proxy.GetPendingResourceHarvestPrompt();
         if (modal_id == "battle_start_confirm")
             return _runtime_proxy.GetPendingBattleStartPrompt();
         if (modal_id == "game_over")
@@ -1374,6 +1386,7 @@ public partial class WorldMapSystem : Control
             character_reward_window.HideWindow();
         if (
             modalId == "submap_confirm"
+            || modalId == "resource_harvest_confirm"
             || modalId == "battle_start_confirm"
             || modalId == "game_over"
         )

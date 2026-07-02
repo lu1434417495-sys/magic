@@ -1,0 +1,241 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=44 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilitySourceTraceDef.cs" id="3_trace"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="4_reaction"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionGroupDef.cs" id="5_condition_group"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionDef.cs" id="6_condition"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/HasEquipmentTagConditionPayloadDef.cs" id="7_has_equipment_tag"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/CompareFactConditionPayloadDef.cs" id="8_compare_payload"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityFactQueryDef.cs" id="9_fact_query"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionDef.cs" id="10_dice"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionTermDef.cs" id="11_dice_term"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityActionDef.cs" id="12_action"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AddDamageDiceActionPayloadDef.cs" id="13_add_damage"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentDurabilityDamageActionPayloadDef.cs" id="14_durability_damage"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentRollGateDef.cs" id="15_roll_gate"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AttackRollBonusActionPayloadDef.cs" id="16_attack_roll_bonus"]
+
+[sub_resource type="Resource" id="Trace_guard_breaker"]
+script = ExtResource("3_trace")
+source_kind = &"by_family"
+source_file = "docs/design/weapons/by_family/axes_01.md"
+item_id = &"weapon_unique_axe_shieldbreaker_098"
+display_name = "碎盾"
+bullet_index = 1
+bullet_title = "破盾者"
+bullet_text = "对持盾目标攻击检定+3；命中持盾目标时，有30%概率将非魔法盾牌粉碎"
+mechanism_family = &"durability"
+coverage_status = &"bound"
+phase = &"v1"
+test_id = &"shieldbreaker_guard_breaker"
+
+[sub_resource type="Resource" id="Condition_guard_target_shield_payload"]
+script = ExtResource("7_has_equipment_tag")
+subject = &"target"
+equipment_selector = &"off_hand"
+any_tags = Array[StringName]([&"shield"])
+
+[sub_resource type="Resource" id="Condition_guard_target_shield"]
+script = ExtResource("6_condition")
+condition_id = &"condition.guard_breaker.target_has_shield"
+kind = &"has_equipment_tag"
+payload = SubResource("Condition_guard_target_shield_payload")
+
+[sub_resource type="Resource" id="Condition_group_guard_breaker"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_guard_target_shield")])
+
+[sub_resource type="Resource" id="Roll_term_d20"]
+script = ExtResource("11_dice_term")
+dice_count = 1
+dice_sides = 20
+
+[sub_resource type="Resource" id="Roll_d20"]
+script = ExtResource("10_dice")
+terms = Array[Resource]([SubResource("Roll_term_d20")])
+
+[sub_resource type="Resource" id="Roll_gate_guard_breaker"]
+script = ExtResource("15_roll_gate")
+rng_stream = &"equipment_ability.guard_breaker"
+roll = SubResource("Roll_d20")
+compare = &"lte"
+threshold = 6
+
+[sub_resource type="Resource" id="Action_guard_attack_bonus_payload"]
+script = ExtResource("16_attack_roll_bonus")
+target_selector = &"attack_target"
+bonus = 3
+stack_mode = &"max"
+label = "破盾者"
+
+[sub_resource type="Resource" id="Action_guard_attack_bonus"]
+script = ExtResource("12_action")
+action_id = &"action.guard_breaker.attack_roll_bonus"
+kind = &"attack_roll_bonus"
+payload = SubResource("Action_guard_attack_bonus_payload")
+
+[sub_resource type="Resource" id="Reaction_guard_attack_bonus"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.guard_breaker.before_hit"
+trigger = &"on_hit"
+timing = &"before_hit"
+condition_group = SubResource("Condition_group_guard_breaker")
+actions = Array[Resource]([SubResource("Action_guard_attack_bonus")])
+
+[sub_resource type="Resource" id="Action_guard_breaker_payload"]
+script = ExtResource("14_durability_damage")
+target_selector = &"target_equipment"
+target_slots = Array[StringName]([&"off_hand"])
+required_item_tags = Array[StringName]([&"shield"])
+durability_loss = 999
+require_attack_success = true
+max_damaged_items = 1
+max_target_rarity = 0
+
+[sub_resource type="Resource" id="Action_guard_breaker"]
+script = ExtResource("12_action")
+action_id = &"action.guard_breaker.destroy_shield"
+kind = &"equipment_durability_damage"
+payload = SubResource("Action_guard_breaker_payload")
+
+[sub_resource type="Resource" id="Reaction_guard_breaker"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.guard_breaker.after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+condition_group = SubResource("Condition_group_guard_breaker")
+roll_gate = SubResource("Roll_gate_guard_breaker")
+actions = Array[Resource]([SubResource("Action_guard_breaker")])
+
+[sub_resource type="Resource" id="Binding_guard_breaker"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.axe.shieldbreaker.guard_breaker"
+trait_id = &"weapon.axe.shieldbreaker.guard_breaker"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"shieldbreaker"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+source_traces = Array[Resource]([SubResource("Trace_guard_breaker")])
+reactions = Array[Resource]([SubResource("Reaction_guard_attack_bonus"), SubResource("Reaction_guard_breaker")])
+
+[sub_resource type="Resource" id="Trace_siege_axe"]
+script = ExtResource("3_trace")
+source_kind = &"by_family"
+source_file = "docs/design/weapons/by_family/axes_01.md"
+item_id = &"weapon_unique_axe_shieldbreaker_098"
+display_name = "碎盾"
+bullet_index = 2
+bullet_title = "攻城之斧"
+bullet_text = "对construct和建筑物伤害额外+2D6"
+mechanism_family = &"add_damage_dice"
+coverage_status = &"bound"
+phase = &"v1"
+test_id = &"shieldbreaker_siege_axe"
+
+[sub_resource type="Resource" id="Fact_target_creature_type"]
+script = ExtResource("9_fact_query")
+query_kind = &"fact"
+fact_id = &"creature_type_tags"
+subject = &"target"
+value_kind = &"string_name_set"
+
+[sub_resource type="Resource" id="Literal_construct"]
+script = ExtResource("9_fact_query")
+query_kind = &"literal"
+value_kind = &"string_name"
+string_name_literal = &"construct"
+
+[sub_resource type="Resource" id="Compare_siege_construct_payload"]
+script = ExtResource("8_compare_payload")
+left = SubResource("Fact_target_creature_type")
+compare = &"contains"
+right = SubResource("Literal_construct")
+
+[sub_resource type="Resource" id="Condition_siege_construct"]
+script = ExtResource("6_condition")
+condition_id = &"condition.siege_axe.target_construct"
+kind = &"compare_fact"
+payload = SubResource("Compare_siege_construct_payload")
+
+[sub_resource type="Resource" id="Condition_group_siege_axe"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_siege_construct")])
+
+[sub_resource type="Resource" id="Dice_term_2d6"]
+script = ExtResource("11_dice_term")
+dice_count = 2
+dice_sides = 6
+
+[sub_resource type="Resource" id="Dice_2d6"]
+script = ExtResource("10_dice")
+terms = Array[Resource]([SubResource("Dice_term_2d6")])
+
+[sub_resource type="Resource" id="Action_siege_axe_payload"]
+script = ExtResource("13_add_damage")
+target_selector = &"attack_target"
+dice = SubResource("Dice_2d6")
+damage_type = &"physical_slash"
+damage_tags = Array[StringName]([&"physical_slash"])
+
+[sub_resource type="Resource" id="Action_siege_axe"]
+script = ExtResource("12_action")
+action_id = &"action.siege_axe.add_construct_damage"
+kind = &"add_damage_dice"
+payload = SubResource("Action_siege_axe_payload")
+condition_group = SubResource("Condition_group_siege_axe")
+
+[sub_resource type="Resource" id="Reaction_siege_axe"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.siege_axe.after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+actions = Array[Resource]([SubResource("Action_siege_axe")])
+
+[sub_resource type="Resource" id="Binding_siege_axe"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.axe.shieldbreaker.siege_axe"
+trait_id = &"weapon.axe.shieldbreaker.siege_axe"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"shieldbreaker"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+source_traces = Array[Resource]([SubResource("Trace_siege_axe")])
+reactions = Array[Resource]([SubResource("Reaction_siege_axe")])
+
+[sub_resource type="Resource" id="Trace_defense_enemy"]
+script = ExtResource("3_trace")
+source_kind = &"by_family"
+source_file = "docs/design/weapons/by_family/axes_01.md"
+item_id = &"weapon_unique_axe_shieldbreaker_098"
+display_name = "碎盾"
+bullet_index = 3
+bullet_title = "防御之敌"
+bullet_text = "持有者无法使用盾牌，但作为补偿，获得+1AC"
+mechanism_family = &"attribute_modifier"
+coverage_status = &"bound"
+phase = &"v1"
+test_id = &"shieldbreaker_defense_enemy"
+
+[sub_resource type="Resource" id="Binding_defense_enemy"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.axe.shieldbreaker.defense_enemy"
+trait_id = &"weapon.axe.shieldbreaker.defense_enemy"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"shieldbreaker"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+source_traces = Array[Resource]([SubResource("Trace_defense_enemy")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability.weapon.axe.shieldbreaker"
+schema_version = 1
+load_order = 100
+bindings = Array[Resource]([SubResource("Binding_guard_breaker"), SubResource("Binding_siege_axe"), SubResource("Binding_defense_enemy")])

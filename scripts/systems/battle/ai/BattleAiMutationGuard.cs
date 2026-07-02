@@ -723,8 +723,21 @@ internal sealed class BattleAiMutationGuard
         result.Set("params", StableValue.FromMap(StableMap.FromTypedDictionary(statusEffect.GetParamsTyped())));
         result.Set("stacks", StableValue.FromInteger(statusEffect.stacks));
         result.Set("duration", StableValue.FromInteger(statusEffect.duration));
+        result.Set("display_label", StableValue.FromText(statusEffect.display_label ?? ""));
         result.Set("tick_interval_tu", StableValue.FromInteger(statusEffect.tick_interval_tu));
         result.Set("next_tick_at_tu", StableValue.FromInteger(statusEffect.next_tick_at_tu));
+        result.Set(
+            "timeline_damage_dice_count",
+            StableValue.FromInteger(statusEffect.timeline_damage_dice_count)
+        );
+        result.Set(
+            "timeline_damage_dice_sides",
+            StableValue.FromInteger(statusEffect.timeline_damage_dice_sides)
+        );
+        result.Set(
+            "timeline_damage_flat_bonus",
+            StableValue.FromInteger(statusEffect.timeline_damage_flat_bonus)
+        );
         result.Set(
             "skip_next_turn_end_decay",
             StableValue.FromBool(statusEffect.skip_next_turn_end_decay)
@@ -856,6 +869,58 @@ internal sealed class BattleAiMutationGuard
         result.Set("item_id", StableValue.FromText(instance.item_id.ToString()));
         result.Set("rarity", StableValue.FromInteger(instance.rarity));
         result.Set("current_durability", StableValue.FromInteger(instance.current_durability));
+        result.Set(
+            "ability_usage_periods",
+            StableValue.FromArray(StableEquipmentAbilityUsagePeriods(instance.ability_usage_periods))
+        );
+        result.Set(
+            "ability_persistent_counters",
+            StableValue.FromArray(
+                StableEquipmentAbilityPersistentCounters(instance.ability_persistent_counters)
+            )
+        );
+        return result;
+    }
+
+    private static List<StableValue> StableEquipmentAbilityUsagePeriods(
+        IEnumerable<EquipmentAbilityUsagePeriodState> values
+    )
+    {
+        List<StableValue> result = new();
+        foreach (
+            EquipmentAbilityUsagePeriodState usage in values
+                ?? System.Array.Empty<EquipmentAbilityUsagePeriodState>()
+        )
+        {
+            if (usage == null)
+                continue;
+            StableMap entry = new();
+            entry.Set("ability_id", StableValue.FromText(usage.AbilityId ?? ""));
+            entry.Set("period_kind", StableValue.FromText(usage.PeriodKind ?? ""));
+            entry.Set("period_index", StableValue.FromInteger(usage.PeriodIndex));
+            entry.Set("used_count", StableValue.FromInteger(usage.UsedCount));
+            result.Add(StableValue.FromMap(entry));
+        }
+        return result;
+    }
+
+    private static List<StableValue> StableEquipmentAbilityPersistentCounters(
+        IEnumerable<EquipmentAbilityPersistentCounterState> values
+    )
+    {
+        List<StableValue> result = new();
+        foreach (
+            EquipmentAbilityPersistentCounterState counter in values
+                ?? System.Array.Empty<EquipmentAbilityPersistentCounterState>()
+        )
+        {
+            if (counter == null)
+                continue;
+            StableMap entry = new();
+            entry.Set("counter_id", StableValue.FromText(counter.CounterId ?? ""));
+            entry.Set("value", StableValue.FromInteger(counter.Value));
+            result.Add(StableValue.FromMap(entry));
+        }
         return result;
     }
 
@@ -1068,6 +1133,9 @@ internal sealed class BattleAiMutationGuard
         private Vector2I _worldCoord = Vector2I.Zero;
         private StringName _encounterAnchorId = "";
         private StringName _terrainProfileId = "";
+        private List<StringName> _environmentTags = new();
+        private int _environmentRevision;
+        private int _environmentWorldStep = -1;
         private List<StringName> _attackDisadvantageTags = new();
         private List<StringName> _allyUnitIds = new();
         private List<StringName> _enemyUnitIds = new();
@@ -1097,6 +1165,12 @@ internal sealed class BattleAiMutationGuard
             snapshot._worldCoord = state.world_coord;
             snapshot._encounterAnchorId = state.encounter_anchor_id;
             snapshot._terrainProfileId = state.terrain_profile_id;
+            BattleEnvironmentSnapshot environmentSnapshot = state.GetEnvironmentSnapshot();
+            snapshot._environmentTags = StringNameArrayToList(
+                environmentSnapshot.GlobalEnvironmentTags
+            );
+            snapshot._environmentRevision = environmentSnapshot.Revision;
+            snapshot._environmentWorldStep = environmentSnapshot.WorldStep;
             snapshot._attackDisadvantageTags = StringNameArrayToList(state.attack_disadvantage_tags);
             snapshot._allyUnitIds = StringNameArrayToList(state.ally_unit_ids);
             snapshot._enemyUnitIds = StringNameArrayToList(state.enemy_unit_ids);
@@ -1132,6 +1206,9 @@ internal sealed class BattleAiMutationGuard
             state.world_coord = _worldCoord;
             state.encounter_anchor_id = _encounterAnchorId;
             state.terrain_profile_id = _terrainProfileId;
+            state.ReplaceEnvironmentSnapshot(
+                BattleEnvironmentSnapshot.FromGlobalTags(_environmentTags, _environmentWorldStep)
+            );
             state.attack_disadvantage_tags = BuildStringNameArray(_attackDisadvantageTags);
             state.ally_unit_ids = BuildStringNameArray(_allyUnitIds);
             state.enemy_unit_ids = BuildStringNameArray(_enemyUnitIds);
@@ -1155,6 +1232,9 @@ internal sealed class BattleAiMutationGuard
             result.Set("world_coord", StableValue.FromVector2I(_worldCoord));
             result.Set("encounter_anchor_id", StableValue.FromText(_encounterAnchorId.ToString()));
             result.Set("terrain_profile_id", StableValue.FromText(_terrainProfileId.ToString()));
+            result.Set("environment_revision", StableValue.FromInteger(_environmentRevision));
+            result.Set("environment_world_step", StableValue.FromInteger(_environmentWorldStep));
+            result.Set("environment_tags", StableValue.FromArray(StableStringNameList(_environmentTags)));
             result.Set("attack_disadvantage_tags", StableValue.FromArray(StableStringNameList(_attackDisadvantageTags)));
             result.Set("ally_unit_ids", StableValue.FromArray(StableStringNameList(_allyUnitIds)));
             result.Set("enemy_unit_ids", StableValue.FromArray(StableStringNameList(_enemyUnitIds)));
@@ -2301,8 +2381,12 @@ internal sealed class BattleAiMutationGuard
             source_skill_level = effect.source_skill_level,
             stacks = effect.stacks,
             duration = effect.duration,
+            display_label = effect.display_label,
             tick_interval_tu = effect.tick_interval_tu,
             next_tick_at_tu = effect.next_tick_at_tu,
+            timeline_damage_dice_count = effect.timeline_damage_dice_count,
+            timeline_damage_dice_sides = effect.timeline_damage_dice_sides,
+            timeline_damage_flat_bonus = effect.timeline_damage_flat_bonus,
             skip_next_turn_end_decay = effect.skip_next_turn_end_decay,
             forced_move_immune = effect.forced_move_immune,
             counts_as_debuff_override = effect.counts_as_debuff_override,
@@ -2409,17 +2493,7 @@ internal sealed class BattleAiMutationGuard
 
     private static EquipmentInstanceState DuplicateEquipmentInstance(EquipmentInstanceState instance)
     {
-        if (instance == null)
-        {
-            return null;
-        }
-        return new EquipmentInstanceState
-        {
-            instance_id = instance.instance_id,
-            item_id = instance.item_id,
-            rarity = instance.rarity,
-            current_durability = instance.current_durability,
-        };
+        return instance?.DuplicateState();
     }
 
     private static Godot.Collections.Array<StringName> DuplicateStringNameArray(

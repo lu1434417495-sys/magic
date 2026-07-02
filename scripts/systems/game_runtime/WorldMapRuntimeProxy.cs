@@ -73,6 +73,11 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetPendingBattleStartPrompt() ?? new Dictionary();
     }
 
+    public Dictionary GetPendingResourceHarvestPrompt()
+    {
+        return _runtime?.GetPendingResourceHarvestPrompt() ?? new Dictionary();
+    }
+
     public Dictionary GetLogSnapshot(int limit = 80)
     {
         return _runtime?.GetLogSnapshot(limit) ?? new Dictionary();
@@ -552,6 +557,16 @@ internal sealed class WorldMapRuntimeProxy
     internal RuntimeCommandResult CommandCancelSubmapEntry()
     {
         return RunRuntimeCommand(() => _runtime.CommandCancelSubmapEntryTyped());
+    }
+
+    internal RuntimeCommandResult CommandConfirmResourceHarvest()
+    {
+        return RunRuntimeCommand(() => _runtime.CommandConfirmResourceHarvestTyped());
+    }
+
+    internal RuntimeCommandResult CommandCancelResourceHarvest()
+    {
+        return RunRuntimeCommand(() => _runtime.CommandCancelResourceHarvestTyped());
     }
 
     internal RuntimeCommandResult CommandReturnFromSubmap()

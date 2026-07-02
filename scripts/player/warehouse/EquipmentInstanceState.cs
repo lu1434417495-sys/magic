@@ -47,10 +47,6 @@ public class EquipmentInstanceState
 
     private const string TRANSIENT_LOOT_PAYLOAD_LABEL = "transient loot equipment instance payload";
 
-    private const string PeriodKindPerWorldDay = "per_world_day";
-
-    private const string PeriodKindPerWorldMonth = "per_world_month";
-
     public StringName instance_id = "";
 
     public StringName item_id = "";
@@ -516,7 +512,11 @@ public class EquipmentInstanceState
     }
 
     private static bool _is_valid_period_kind(string periodKind) =>
-        periodKind == PeriodKindPerWorldDay || periodKind == PeriodKindPerWorldMonth;
+        EquipmentAbilityUsagePeriodKinds.TryParse(
+            new StringName(periodKind ?? ""),
+            out EquipmentAbilityUsagePeriodKind kind
+        )
+        && EquipmentAbilityUsagePeriodKinds.IsLimited(kind);
 
     public static bool IsValidRarity(int value) =>
         value >= (int)RarityTier.COMMON && value <= (int)RarityTier.LEGENDARY;

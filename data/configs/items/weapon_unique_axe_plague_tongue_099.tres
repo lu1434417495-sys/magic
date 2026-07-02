@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Resource_one_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 8
+flat_bonus = 1
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+one_handed_dice = SubResource("Resource_one_handed_dice")
+properties_mode = 2
+properties = Array[StringName]([&"versatile"])
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_axe_plague_tongue_099"
+base_item_id = &"weapon_type_battleaxe_base"
+display_name = "瘟疫之舌"
+description = "一柄病态黄绿色的战斧，斧刃仿佛在缓慢滋生瘟疫。"
+is_stackable = false
+base_price = 48000
+buy_price = 48000
+sell_price = 24000
+sellable = true
+max_stack = 1
+tags = Array[StringName]([&"versatile", &"plague_tongue", &"disease", &"poison"])
+trait_ids = Array[StringName]([&"weapon.axe.plague_tongue.poison_touch_damage", &"weapon.axe.plague_tongue.axe_fever", &"weapon.axe.plague_tongue.plague_spread", &"weapon.axe.plague_tongue.immune_carrier"])
+weapon_profile = SubResource("Resource_weapon_profile")

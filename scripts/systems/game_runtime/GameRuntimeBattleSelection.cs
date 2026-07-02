@@ -2108,17 +2108,28 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         return Runtime?.GetSkillCatalogTyped();
     }
 
+    private IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> GetEquipmentAbilityBindings()
+    {
+        return Runtime?.GetBattleRuntime()?.GetEquipmentAbilityBindingIndexTyped();
+    }
+
     private BattleSkillAvailabilityView BuildSkillAvailabilityView(
         BattleUnitState activeUnit,
         BattleSkillAvailabilityConsumer consumer
     )
     {
-        BattleSkillAvailabilityService service = new(GetSkillCatalog());
+        BattleSkillAvailabilityService service = new(
+            GetSkillCatalog(),
+            equipmentAbilityBindings: GetEquipmentAbilityBindings()
+        );
         return service.BuildView(
             new BattleSkillAvailabilityQuery
             {
                 User = activeUnit,
                 Consumer = consumer,
+                IncludeEquipmentSkills = true,
+                WorldStep = GetBattleWorldStep(),
+                BattleState = Runtime?.GetBattleRuntime()?.GetState(),
             }
         );
     }
@@ -2130,12 +2141,18 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         out BattleAvailableSkillEntry entry
     )
     {
-        BattleSkillAvailabilityService service = new(GetSkillCatalog());
+        BattleSkillAvailabilityService service = new(
+            GetSkillCatalog(),
+            equipmentAbilityBindings: GetEquipmentAbilityBindings()
+        );
         return service.TryGetSkillEntryBySlot(
             new BattleSkillAvailabilityQuery
             {
                 User = activeUnit,
                 Consumer = consumer,
+                IncludeEquipmentSkills = true,
+                WorldStep = GetBattleWorldStep(),
+                BattleState = Runtime?.GetBattleRuntime()?.GetState(),
             },
             index,
             out entry
@@ -2149,17 +2166,28 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         out BattleAvailableSkillEntry entry
     )
     {
-        BattleSkillAvailabilityService service = new(GetSkillCatalog());
+        BattleSkillAvailabilityService service = new(
+            GetSkillCatalog(),
+            equipmentAbilityBindings: GetEquipmentAbilityBindings()
+        );
         return service.TryResolveSkillEntry(
             new BattleSkillAvailabilityQuery
             {
                 User = activeUnit,
                 Consumer = consumer,
+                IncludeEquipmentSkills = true,
+                WorldStep = GetBattleWorldStep(),
+                BattleState = Runtime?.GetBattleRuntime()?.GetState(),
             },
             skillEntryId,
             out entry
         );
     }
+
+    private int GetBattleWorldStep() =>
+        Runtime?.GetBattleRuntime()?.GetBattleWorldStep()
+        ?? Runtime?.GetWorldStep()
+        ?? -1;
 
     private BattlePreview PreviewBattleCommand(BattleCommand command)
     {

@@ -12,6 +12,7 @@ public sealed class EquipmentAbilityEquipmentTargetRef
     public StringName EquipmentTypeId { get; init; } = "";
     public IReadOnlyList<StringName> OccupiedSlotIds { get; init; } = Array.Empty<StringName>();
     public IReadOnlyList<StringName> ItemTags { get; init; } = Array.Empty<StringName>();
+    public int Rarity { get; init; } = -1;
     public int CurrentDurability { get; init; }
 }
 
@@ -30,6 +31,16 @@ internal sealed class EquipmentDurabilityCommitRequest
     public DamageResolutionContext DamageContext { get; init; }
     public int TotalDamage { get; init; }
     public int TotalShieldAbsorbed { get; init; }
+    public StringName SourceKey { get; init; } = "";
+    public StringName ActionId { get; init; } = "";
+}
+
+internal sealed class EquipmentDurabilityDirectCommitRequest
+{
+    public BattleUnitState SourceUnit { get; init; }
+    public BattleUnitState TargetUnit { get; init; }
+    public EquipmentAbilityEquipmentTargetRef TargetEquipment { get; init; }
+    public int DurabilityLoss { get; init; }
     public StringName SourceKey { get; init; } = "";
     public StringName ActionId { get; init; } = "";
 }

@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Resource_one_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 6
+flat_bonus = 3
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+one_handed_dice = SubResource("Resource_one_handed_dice")
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_sword_twilight_edge_005"
+base_item_id = &"weapon_type_scimitar_base"
+display_name = "暮光之刃"
+description = "一柄在昼夜边界变换锋芒的弯刀。1D6+3，finesse、light。装备授予暮影步：战斗时间达到70TU后可用，1AP，冷却40TU，位移3格；白天命中额外1点force，黄昏或夜间命中额外2点force并获得攻击优势；暮影步后的当前行动轮次内首次命中额外2D6 psychic；黄昏或夜间攻击持有者的攻击检定-1，白天暮影步后当前行动轮次内攻击持有者的攻击检定+1。"
+is_stackable = false
+base_price = 72000
+buy_price = 72000
+sell_price = 36000
+sellable = true
+max_stack = 1
+tags = Array[StringName]([&"twilight_edge"])
+trait_ids = Array[StringName]([&"weapon.sword.twilight_edge.twilight_step", &"weapon.sword.twilight_edge.day_night_balance", &"weapon.sword.twilight_edge.twilight_cut", &"weapon.sword.twilight_edge.twilight_guard"])
+weapon_profile = SubResource("Resource_weapon_profile")

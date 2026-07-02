@@ -27,6 +27,15 @@ public partial class WorldMapView : Control
     [Export]
     public Texture2D village_settlement_texture;
 
+    [Export]
+    public Texture2D farm_resource_texture;
+
+    [Export]
+    public Texture2D herb_resource_texture;
+
+    [Export]
+    public Texture2D mine_resource_texture;
+
     [Export(PropertyHint.Range, "16,256,1")]
     public int player_texture_draw_size = 128;
 
@@ -369,7 +378,7 @@ public partial class WorldMapView : Control
                 continue;
             _draw_resource_marker(
                 resourceNode,
-                _get_cell_rect_for_origin(coord, cameraOrigin).GetCenter()
+                _get_cell_rect_for_origin(coord, cameraOrigin)
             );
         }
 
@@ -414,7 +423,59 @@ public partial class WorldMapView : Control
         DrawCircle(center, cell_size * 0.05f, world_event_marker_center_color);
     }
 
-    private void _draw_resource_marker(WorldMapResourceNodeData resourceNode, Vector2 center)
+    private void _draw_resource_marker(WorldMapResourceNodeData resourceNode, Rect2 cellRect)
+    {
+        Texture2D texture = _get_resource_texture(resourceNode.NodeKind);
+        if (texture != null)
+        {
+            Rect2 iconRect = cellRect.Grow(-cell_size * 0.1f);
+            DrawTextureRect(texture, iconRect, false);
+            DrawRect(iconRect, resource_marker_outline_color, false, 2.0f);
+        }
+        else
+        {
+            _draw_resource_marker_fallback(resourceNode, cellRect.GetCenter());
+        }
+        _draw_resource_label(resourceNode, cellRect);
+    }
+
+    private Texture2D _get_resource_texture(string nodeKind) =>
+        nodeKind switch
+        {
+            WorldMapResourceNodeData.KindFarm => farm_resource_texture,
+            WorldMapResourceNodeData.KindHerbGarden => herb_resource_texture,
+            WorldMapResourceNodeData.KindMine => mine_resource_texture,
+            _ => null,
+        };
+
+    private void _draw_resource_label(WorldMapResourceNodeData resourceNode, Rect2 cellRect)
+    {
+        Font font = GetThemeDefaultFont();
+        if (font == null)
+            return;
+        const int fontSize = 14;
+        string label = string.IsNullOrEmpty(resourceNode.DisplayName)
+            ? "采集点"
+            : resourceNode.DisplayName;
+        Vector2 textSize = font.GetStringSize(
+            label,
+            HorizontalAlignment.Left,
+            -1.0f,
+            fontSize
+        );
+        var padding = new Vector2(5.0f, 2.0f);
+        Vector2 bgSize = textSize + padding * 2.0f;
+        var bgPos = new Vector2(
+            cellRect.GetCenter().X - bgSize.X * 0.5f,
+            cellRect.End.Y - bgSize.Y - 4.0f
+        );
+        DrawRect(new Rect2(bgPos, bgSize), new Color(0.05f, 0.07f, 0.11f, 0.82f));
+        DrawRect(new Rect2(bgPos, bgSize), resource_marker_outline_color, false, 1.0f);
+        var textPos = new Vector2(bgPos.X + padding.X, bgPos.Y + padding.Y + font.GetAscent(fontSize));
+        DrawString(font, textPos, label, HorizontalAlignment.Left, -1.0f, fontSize, Colors.White);
+    }
+
+    private void _draw_resource_marker_fallback(WorldMapResourceNodeData resourceNode, Vector2 center)
     {
         float radius = cell_size * 0.16f;
         if (resourceNode.NodeKind == WorldMapResourceNodeData.KindFarm)

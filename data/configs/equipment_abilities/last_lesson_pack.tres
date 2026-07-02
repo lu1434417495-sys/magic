@@ -1,0 +1,750 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=120 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilitySourceTraceDef.cs" id="3_trace"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="4_reaction"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionGroupDef.cs" id="5_condition_group"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionDef.cs" id="6_condition"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/CompareFactConditionPayloadDef.cs" id="7_compare_payload"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityFactQueryDef.cs" id="8_fact_query"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityActionDef.cs" id="9_action"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AttackRollBonusActionPayloadDef.cs" id="10_attack_roll_bonus"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AttackRollAdvantageActionPayloadDef.cs" id="11_attack_roll_advantage"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityStateSchemaDef.cs" id="12_state_schema"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ModifyAbilityStateActionPayloadDef.cs" id="13_modify_state"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentGrantedActionDef.cs" id="14_grant"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DamageRollModeOverrideActionPayloadDef.cs" id="15_damage_roll_mode"]
+
+[sub_resource type="Resource" id="Literal_zero"]
+script = ExtResource("8_fact_query")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 0
+
+[sub_resource type="Resource" id="Literal_one"]
+script = ExtResource("8_fact_query")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 1
+
+[sub_resource type="Resource" id="Literal_two"]
+script = ExtResource("8_fact_query")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 2
+
+[sub_resource type="Resource" id="Literal_three"]
+script = ExtResource("8_fact_query")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 3
+
+[sub_resource type="Resource" id="Fact_teachings"]
+script = ExtResource("8_fact_query")
+query_kind = &"fact"
+fact_id = &"equipment_ability_state"
+subject = &"source"
+binding_id = &"binding.weapon.sword.last_lesson.old_chen_legacy"
+state_key = &"teachings"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Fact_dealt_damage_current_turn"]
+script = ExtResource("8_fact_query")
+query_kind = &"fact"
+fact_id = &"equipment_ability_state"
+subject = &"source"
+binding_id = &"binding.weapon.sword.last_lesson.old_chen_legacy"
+state_key = &"dealt_damage_current_turn"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Fact_skip_teaching_next_turn"]
+script = ExtResource("8_fact_query")
+query_kind = &"fact"
+fact_id = &"equipment_ability_state"
+subject = &"source"
+binding_id = &"binding.weapon.sword.last_lesson.old_chen_legacy"
+state_key = &"skip_teaching_next_turn"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Fact_next_attack_advantage"]
+script = ExtResource("8_fact_query")
+query_kind = &"fact"
+fact_id = &"equipment_ability_state"
+subject = &"source"
+binding_id = &"binding.weapon.sword.last_lesson.last_lesson"
+state_key = &"next_attack_advantage"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Fact_maximize_damage_current_turn"]
+script = ExtResource("8_fact_query")
+query_kind = &"fact"
+fact_id = &"equipment_ability_state"
+subject = &"source"
+binding_id = &"binding.weapon.sword.last_lesson.inheritance_seal"
+state_key = &"maximize_damage_current_turn"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Fact_nearby_enemy_count_radius_2"]
+script = ExtResource("8_fact_query")
+query_kind = &"fact"
+fact_id = &"nearby_enemy_count"
+subject = &"source"
+value_kind = &"int"
+int_literal = 2
+
+[sub_resource type="Resource" id="Compare_teachings_gte_1"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_teachings")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Compare_teachings_gte_3"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_teachings")
+compare = &"gte"
+right = SubResource("Literal_three")
+
+[sub_resource type="Resource" id="Compare_teachings_lt_3"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_teachings")
+compare = &"lt"
+right = SubResource("Literal_three")
+
+[sub_resource type="Resource" id="Compare_dealt_damage_eq_0"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_dealt_damage_current_turn")
+compare = &"eq"
+right = SubResource("Literal_zero")
+
+[sub_resource type="Resource" id="Compare_skip_eq_0"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_skip_teaching_next_turn")
+compare = &"eq"
+right = SubResource("Literal_zero")
+
+[sub_resource type="Resource" id="Compare_skip_gte_1"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_skip_teaching_next_turn")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Compare_next_attack_advantage_gte_1"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_next_attack_advantage")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Compare_maximize_damage_gte_1"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_maximize_damage_current_turn")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Compare_nearby_eq_0"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_nearby_enemy_count_radius_2")
+compare = &"eq"
+right = SubResource("Literal_zero")
+
+[sub_resource type="Resource" id="Compare_nearby_gte_1"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_nearby_enemy_count_radius_2")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Compare_nearby_gte_2"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_nearby_enemy_count_radius_2")
+compare = &"gte"
+right = SubResource("Literal_two")
+
+[sub_resource type="Resource" id="Compare_nearby_gte_3"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_nearby_enemy_count_radius_2")
+compare = &"gte"
+right = SubResource("Literal_three")
+
+[sub_resource type="Resource" id="Condition_teachings_gte_1"]
+script = ExtResource("6_condition")
+condition_id = &"condition.last_lesson.teachings_gte_1"
+kind = &"compare_fact"
+payload = SubResource("Compare_teachings_gte_1")
+
+[sub_resource type="Resource" id="Condition_teachings_gte_3"]
+script = ExtResource("6_condition")
+condition_id = &"condition.last_lesson.teachings_gte_3"
+kind = &"compare_fact"
+payload = SubResource("Compare_teachings_gte_3")
+
+[sub_resource type="Resource" id="Condition_teachings_lt_3"]
+script = ExtResource("6_condition")
+condition_id = &"condition.last_lesson.teachings_lt_3"
+kind = &"compare_fact"
+payload = SubResource("Compare_teachings_lt_3")
+
+[sub_resource type="Resource" id="Condition_dealt_damage_eq_0"]
+script = ExtResource("6_condition")
+condition_id = &"condition.last_lesson.dealt_damage_eq_0"
+kind = &"compare_fact"
+payload = SubResource("Compare_dealt_damage_eq_0")
+
+[sub_resource type="Resource" id="Condition_skip_eq_0"]
+script = ExtResource("6_condition")
+condition_id = &"condition.last_lesson.skip_eq_0"
+kind = &"compare_fact"
+payload = SubResource("Compare_skip_eq_0")
+
+[sub_resource type="Resource" id="Condition_skip_gte_1"]
+script = ExtResource("6_condition")
+condition_id = &"condition.last_lesson.skip_gte_1"
+kind = &"compare_fact"
+payload = SubResource("Compare_skip_gte_1")
+
+[sub_resource type="Resource" id="Condition_next_attack_advantage"]
+script = ExtResource("6_condition")
+condition_id = &"condition.last_lesson.next_attack_advantage"
+kind = &"compare_fact"
+payload = SubResource("Compare_next_attack_advantage_gte_1")
+
+[sub_resource type="Resource" id="Condition_maximize_damage"]
+script = ExtResource("6_condition")
+condition_id = &"condition.last_lesson.maximize_damage_current_turn"
+kind = &"compare_fact"
+payload = SubResource("Compare_maximize_damage_gte_1")
+
+[sub_resource type="Resource" id="Condition_nearby_eq_0"]
+script = ExtResource("6_condition")
+condition_id = &"condition.last_lesson.nearby_enemy_eq_0"
+kind = &"compare_fact"
+payload = SubResource("Compare_nearby_eq_0")
+
+[sub_resource type="Resource" id="Condition_nearby_gte_1"]
+script = ExtResource("6_condition")
+condition_id = &"condition.last_lesson.nearby_enemy_gte_1"
+kind = &"compare_fact"
+payload = SubResource("Compare_nearby_gte_1")
+
+[sub_resource type="Resource" id="Condition_nearby_gte_2"]
+script = ExtResource("6_condition")
+condition_id = &"condition.last_lesson.nearby_enemy_gte_2"
+kind = &"compare_fact"
+payload = SubResource("Compare_nearby_gte_2")
+
+[sub_resource type="Resource" id="Condition_nearby_gte_3"]
+script = ExtResource("6_condition")
+condition_id = &"condition.last_lesson.nearby_enemy_gte_3"
+kind = &"compare_fact"
+payload = SubResource("Compare_nearby_gte_3")
+
+[sub_resource type="Resource" id="Condition_group_teachings_gte_1"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_teachings_gte_1")])
+
+[sub_resource type="Resource" id="Condition_group_teachings_gte_3"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_teachings_gte_3")])
+
+[sub_resource type="Resource" id="Condition_group_can_gain_teaching"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_dealt_damage_eq_0"), SubResource("Condition_skip_eq_0"), SubResource("Condition_teachings_lt_3")])
+
+[sub_resource type="Resource" id="Condition_group_skip_gte_1"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_skip_gte_1")])
+
+[sub_resource type="Resource" id="Condition_group_next_attack_advantage"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_next_attack_advantage")])
+
+[sub_resource type="Resource" id="Condition_group_maximize_damage"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_maximize_damage")])
+
+[sub_resource type="Resource" id="Condition_group_nearby_eq_0"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_nearby_eq_0")])
+
+[sub_resource type="Resource" id="Condition_group_nearby_gte_1"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_nearby_gte_1")])
+
+[sub_resource type="Resource" id="Condition_group_nearby_gte_2"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_nearby_gte_2")])
+
+[sub_resource type="Resource" id="Condition_group_nearby_gte_3"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_nearby_gte_3")])
+
+[sub_resource type="Resource" id="Trace_old_chen_legacy"]
+script = ExtResource("3_trace")
+source_kind = &"by_family"
+source_file = "docs/design/weapons/by_family/swords_01.md"
+item_id = &"weapon_unique_sword_last_lesson_020"
+display_name = "最后一课"
+bullet_index = 1
+bullet_title = "老陈的遗训"
+bullet_text = "回合结束时若本回合未造成HP伤害，获得1层教诲，最多3层；传承之印会跳过本次回合结束获得教诲。"
+mechanism_family = &"battle_state_turn_end_counter"
+coverage_status = &"bound"
+phase = &"v1"
+test_id = &"last_lesson_old_chen_legacy"
+
+[sub_resource type="Resource" id="State_teachings"]
+script = ExtResource("12_state_schema")
+state_key = &"teachings"
+owner_scope = &"binding"
+value_kind = &"int"
+initial_int_value = 0
+max_int_value = 3
+reset_timing = &"per_battle"
+visible_to_ui = true
+
+[sub_resource type="Resource" id="State_dealt_damage_current_turn"]
+script = ExtResource("12_state_schema")
+state_key = &"dealt_damage_current_turn"
+owner_scope = &"binding"
+value_kind = &"int"
+initial_int_value = 0
+max_int_value = 1
+reset_timing = &"per_turn"
+
+[sub_resource type="Resource" id="State_skip_teaching_next_turn"]
+script = ExtResource("12_state_schema")
+state_key = &"skip_teaching_next_turn"
+owner_scope = &"binding"
+value_kind = &"int"
+initial_int_value = 0
+max_int_value = 1
+reset_timing = &"per_battle"
+
+[sub_resource type="Resource" id="Action_mark_damage_dealt_payload"]
+script = ExtResource("13_modify_state")
+target_selector = &"source"
+state_key = &"dealt_damage_current_turn"
+operation = &"set"
+int_delta = 1
+
+[sub_resource type="Resource" id="Action_mark_damage_dealt"]
+script = ExtResource("9_action")
+action_id = &"action.last_lesson.old_chen_legacy.mark_damage_dealt"
+kind = &"modify_ability_state"
+payload = SubResource("Action_mark_damage_dealt_payload")
+
+[sub_resource type="Resource" id="Action_gain_teaching_payload"]
+script = ExtResource("13_modify_state")
+target_selector = &"source"
+state_key = &"teachings"
+operation = &"add"
+int_delta = 1
+
+[sub_resource type="Resource" id="Action_gain_teaching"]
+script = ExtResource("9_action")
+action_id = &"action.last_lesson.old_chen_legacy.gain_teaching"
+kind = &"modify_ability_state"
+payload = SubResource("Action_gain_teaching_payload")
+condition_group = SubResource("Condition_group_can_gain_teaching")
+
+[sub_resource type="Resource" id="Action_clear_skip_payload"]
+script = ExtResource("13_modify_state")
+target_selector = &"source"
+state_key = &"skip_teaching_next_turn"
+operation = &"clear"
+
+[sub_resource type="Resource" id="Action_clear_skip"]
+script = ExtResource("9_action")
+action_id = &"action.last_lesson.old_chen_legacy.clear_skip"
+kind = &"modify_ability_state"
+payload = SubResource("Action_clear_skip_payload")
+condition_group = SubResource("Condition_group_skip_gte_1")
+
+[sub_resource type="Resource" id="Action_clear_dealt_payload"]
+script = ExtResource("13_modify_state")
+target_selector = &"source"
+state_key = &"dealt_damage_current_turn"
+operation = &"clear"
+
+[sub_resource type="Resource" id="Action_clear_dealt"]
+script = ExtResource("9_action")
+action_id = &"action.last_lesson.old_chen_legacy.clear_damage_dealt"
+kind = &"modify_ability_state"
+payload = SubResource("Action_clear_dealt_payload")
+
+[sub_resource type="Resource" id="Reaction_mark_damage_dealt"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.last_lesson.old_chen_legacy.after_damage"
+trigger = &"on_damage_applied"
+timing = &"after_damage"
+actions = Array[Resource]([SubResource("Action_mark_damage_dealt")])
+
+[sub_resource type="Resource" id="Reaction_old_chen_turn_end"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.last_lesson.old_chen_legacy.turn_end"
+trigger = &"on_turn_end"
+timing = &"after_turn"
+actions = Array[Resource]([SubResource("Action_gain_teaching"), SubResource("Action_clear_skip"), SubResource("Action_clear_dealt")])
+
+[sub_resource type="Resource" id="Binding_old_chen_legacy"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.last_lesson.old_chen_legacy"
+trait_id = &"weapon.sword.last_lesson.old_chen_legacy"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"last_lesson"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+source_traces = Array[Resource]([SubResource("Trace_old_chen_legacy")])
+state_schemas = Array[Resource]([SubResource("State_teachings"), SubResource("State_dealt_damage_current_turn"), SubResource("State_skip_teaching_next_turn")])
+reactions = Array[Resource]([SubResource("Reaction_mark_damage_dealt"), SubResource("Reaction_old_chen_turn_end")])
+
+[sub_resource type="Resource" id="Trace_last_lesson"]
+script = ExtResource("3_trace")
+source_kind = &"by_family"
+source_file = "docs/design/weapons/by_family/swords_01.md"
+item_id = &"weapon_unique_sword_last_lesson_020"
+display_name = "最后一课"
+bullet_index = 2
+bullet_title = "最后一课"
+bullet_text = "装备授予技能 weapon_sword_last_lesson_last_lesson：消耗1层教诲，使下一次攻击检定获得优势。"
+mechanism_family = &"granted_skill_consumes_shared_state_next_attack_advantage"
+coverage_status = &"bound"
+phase = &"v1"
+test_id = &"last_lesson_last_lesson"
+
+[sub_resource type="Resource" id="State_next_attack_advantage"]
+script = ExtResource("12_state_schema")
+state_key = &"next_attack_advantage"
+owner_scope = &"binding"
+value_kind = &"int"
+initial_int_value = 0
+max_int_value = 1
+reset_timing = &"per_turn"
+
+[sub_resource type="Resource" id="Grant_last_lesson_skill"]
+script = ExtResource("14_grant")
+granted_action_id = &"grant.last_lesson.last_lesson.skill"
+granted_kind = &"skill"
+skill_id = &"weapon_sword_last_lesson_last_lesson"
+skill_level = 1
+display_category = &"equipment"
+display_priority = 100
+availability_conditions = SubResource("Condition_group_teachings_gte_1")
+
+[sub_resource type="Resource" id="Action_consume_one_teaching_payload"]
+script = ExtResource("13_modify_state")
+target_selector = &"source"
+binding_id = &"binding.weapon.sword.last_lesson.old_chen_legacy"
+state_key = &"teachings"
+operation = &"add"
+int_delta = -1
+
+[sub_resource type="Resource" id="Action_consume_one_teaching"]
+script = ExtResource("9_action")
+action_id = &"action.last_lesson.last_lesson.consume_teaching"
+kind = &"modify_ability_state"
+payload = SubResource("Action_consume_one_teaching_payload")
+
+[sub_resource type="Resource" id="Action_mark_next_advantage_payload"]
+script = ExtResource("13_modify_state")
+target_selector = &"source"
+state_key = &"next_attack_advantage"
+operation = &"set"
+int_delta = 1
+
+[sub_resource type="Resource" id="Action_mark_next_advantage"]
+script = ExtResource("9_action")
+action_id = &"action.last_lesson.last_lesson.mark_next_advantage"
+kind = &"modify_ability_state"
+payload = SubResource("Action_mark_next_advantage_payload")
+
+[sub_resource type="Resource" id="Action_next_attack_advantage_payload"]
+script = ExtResource("11_attack_roll_advantage")
+target_selector = &"attack_target"
+mode = &"advantage"
+stack_mode = &"max"
+label = "最后一课"
+
+[sub_resource type="Resource" id="Action_next_attack_advantage"]
+script = ExtResource("9_action")
+action_id = &"action.last_lesson.last_lesson.next_attack_advantage"
+kind = &"attack_roll_advantage"
+payload = SubResource("Action_next_attack_advantage_payload")
+
+[sub_resource type="Resource" id="Action_clear_next_advantage_payload"]
+script = ExtResource("13_modify_state")
+target_selector = &"source"
+state_key = &"next_attack_advantage"
+operation = &"clear"
+
+[sub_resource type="Resource" id="Action_clear_next_advantage"]
+script = ExtResource("9_action")
+action_id = &"action.last_lesson.last_lesson.clear_next_advantage"
+kind = &"modify_ability_state"
+payload = SubResource("Action_clear_next_advantage_payload")
+condition_group = SubResource("Condition_group_next_attack_advantage")
+
+[sub_resource type="Resource" id="Reaction_last_lesson_skill_used"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.last_lesson.last_lesson.after_skill"
+trigger = &"on_granted_skill_used"
+timing = &"after_skill"
+actions = Array[Resource]([SubResource("Action_consume_one_teaching"), SubResource("Action_mark_next_advantage")])
+
+[sub_resource type="Resource" id="Reaction_next_attack_advantage"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.last_lesson.last_lesson.before_hit"
+trigger = &"on_hit"
+timing = &"before_hit"
+condition_group = SubResource("Condition_group_next_attack_advantage")
+actions = Array[Resource]([SubResource("Action_next_attack_advantage")])
+
+[sub_resource type="Resource" id="Reaction_clear_next_advantage"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.last_lesson.last_lesson.after_damage"
+trigger = &"on_damage_applied"
+timing = &"after_damage"
+actions = Array[Resource]([SubResource("Action_clear_next_advantage")])
+
+[sub_resource type="Resource" id="Binding_last_lesson"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.last_lesson.last_lesson"
+trait_id = &"weapon.sword.last_lesson.last_lesson"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"last_lesson"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+source_traces = Array[Resource]([SubResource("Trace_last_lesson")])
+state_schemas = Array[Resource]([SubResource("State_next_attack_advantage")])
+reactions = Array[Resource]([SubResource("Reaction_last_lesson_skill_used"), SubResource("Reaction_next_attack_advantage"), SubResource("Reaction_clear_next_advantage")])
+granted_actions = Array[Resource]([SubResource("Grant_last_lesson_skill")])
+
+[sub_resource type="Resource" id="Trace_inheritance_seal"]
+script = ExtResource("3_trace")
+source_kind = &"by_family"
+source_file = "docs/design/weapons/by_family/swords_01.md"
+item_id = &"weapon_unique_sword_last_lesson_020"
+display_name = "最后一课"
+bullet_index = 3
+bullet_title = "传承之印"
+bullet_text = "装备授予技能 weapon_sword_last_lesson_inheritance_seal：消耗3层教诲，当前行动轮次内攻击伤害骰取最大，并使本次回合结束无法获得教诲。"
+mechanism_family = &"granted_skill_consumes_shared_state_damage_roll_mode_override"
+coverage_status = &"bound"
+phase = &"v1"
+test_id = &"last_lesson_inheritance_seal"
+
+[sub_resource type="Resource" id="State_maximize_damage_current_turn"]
+script = ExtResource("12_state_schema")
+state_key = &"maximize_damage_current_turn"
+owner_scope = &"binding"
+value_kind = &"int"
+initial_int_value = 0
+max_int_value = 1
+reset_timing = &"per_turn"
+
+[sub_resource type="Resource" id="Grant_inheritance_seal_skill"]
+script = ExtResource("14_grant")
+granted_action_id = &"grant.last_lesson.inheritance_seal.skill"
+granted_kind = &"skill"
+skill_id = &"weapon_sword_last_lesson_inheritance_seal"
+skill_level = 1
+display_category = &"equipment"
+display_priority = 101
+availability_conditions = SubResource("Condition_group_teachings_gte_3")
+
+[sub_resource type="Resource" id="Action_consume_three_teachings_payload"]
+script = ExtResource("13_modify_state")
+target_selector = &"source"
+binding_id = &"binding.weapon.sword.last_lesson.old_chen_legacy"
+state_key = &"teachings"
+operation = &"add"
+int_delta = -3
+
+[sub_resource type="Resource" id="Action_consume_three_teachings"]
+script = ExtResource("9_action")
+action_id = &"action.last_lesson.inheritance_seal.consume_teachings"
+kind = &"modify_ability_state"
+payload = SubResource("Action_consume_three_teachings_payload")
+
+[sub_resource type="Resource" id="Action_mark_max_damage_payload"]
+script = ExtResource("13_modify_state")
+target_selector = &"source"
+state_key = &"maximize_damage_current_turn"
+operation = &"set"
+int_delta = 1
+
+[sub_resource type="Resource" id="Action_mark_max_damage"]
+script = ExtResource("9_action")
+action_id = &"action.last_lesson.inheritance_seal.mark_max_damage"
+kind = &"modify_ability_state"
+payload = SubResource("Action_mark_max_damage_payload")
+
+[sub_resource type="Resource" id="Action_mark_skip_teaching_payload"]
+script = ExtResource("13_modify_state")
+target_selector = &"source"
+binding_id = &"binding.weapon.sword.last_lesson.old_chen_legacy"
+state_key = &"skip_teaching_next_turn"
+operation = &"set"
+int_delta = 1
+
+[sub_resource type="Resource" id="Action_mark_skip_teaching"]
+script = ExtResource("9_action")
+action_id = &"action.last_lesson.inheritance_seal.mark_skip_teaching"
+kind = &"modify_ability_state"
+payload = SubResource("Action_mark_skip_teaching_payload")
+
+[sub_resource type="Resource" id="Action_damage_roll_maximum_payload"]
+script = ExtResource("15_damage_roll_mode")
+target_selector = &"source"
+roll_mode = &"maximum"
+stack_mode = &"max"
+label = "传承之印"
+
+[sub_resource type="Resource" id="Action_damage_roll_maximum"]
+script = ExtResource("9_action")
+action_id = &"action.last_lesson.inheritance_seal.damage_roll_maximum"
+kind = &"damage_roll_mode_override"
+payload = SubResource("Action_damage_roll_maximum_payload")
+
+[sub_resource type="Resource" id="Reaction_inheritance_skill_used"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.last_lesson.inheritance_seal.after_skill"
+trigger = &"on_granted_skill_used"
+timing = &"after_skill"
+actions = Array[Resource]([SubResource("Action_consume_three_teachings"), SubResource("Action_mark_max_damage"), SubResource("Action_mark_skip_teaching")])
+
+[sub_resource type="Resource" id="Reaction_inheritance_damage_roll"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.last_lesson.inheritance_seal.before_damage"
+trigger = &"on_damage_roll"
+timing = &"before_damage"
+condition_group = SubResource("Condition_group_maximize_damage")
+actions = Array[Resource]([SubResource("Action_damage_roll_maximum")])
+
+[sub_resource type="Resource" id="Binding_inheritance_seal"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.last_lesson.inheritance_seal"
+trait_id = &"weapon.sword.last_lesson.inheritance_seal"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"last_lesson"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+source_traces = Array[Resource]([SubResource("Trace_inheritance_seal")])
+state_schemas = Array[Resource]([SubResource("State_maximize_damage_current_turn")])
+reactions = Array[Resource]([SubResource("Reaction_inheritance_skill_used"), SubResource("Reaction_inheritance_damage_roll")])
+granted_actions = Array[Resource]([SubResource("Grant_inheritance_seal_skill")])
+
+[sub_resource type="Resource" id="Trace_classroom_aura"]
+script = ExtResource("3_trace")
+source_kind = &"by_family"
+source_file = "docs/design/weapons/by_family/swords_01.md"
+item_id = &"weapon_unique_sword_last_lesson_020"
+display_name = "最后一课"
+bullet_index = 4
+bullet_title = "教室气息"
+bullet_text = "10尺内每有1名敌人，攻击持有者的攻击检定-1，最多-3；若10尺内没有敌人，持有者攻击检定-1。"
+mechanism_family = &"nearby_enemy_count_attack_roll_modifier"
+coverage_status = &"bound"
+phase = &"v1"
+test_id = &"last_lesson_classroom_aura"
+
+[sub_resource type="Resource" id="Action_aura_enemy_1_payload"]
+script = ExtResource("10_attack_roll_bonus")
+target_selector = &"attacker"
+bonus = -1
+stack_mode = &"max"
+label = "教室气息"
+
+[sub_resource type="Resource" id="Action_aura_enemy_1"]
+script = ExtResource("9_action")
+action_id = &"action.last_lesson.classroom_aura.enemy_1"
+kind = &"attack_roll_bonus"
+payload = SubResource("Action_aura_enemy_1_payload")
+condition_group = SubResource("Condition_group_nearby_gte_1")
+
+[sub_resource type="Resource" id="Action_aura_enemy_2_payload"]
+script = ExtResource("10_attack_roll_bonus")
+target_selector = &"attacker"
+bonus = -1
+stack_mode = &"max"
+label = "教室气息"
+
+[sub_resource type="Resource" id="Action_aura_enemy_2"]
+script = ExtResource("9_action")
+action_id = &"action.last_lesson.classroom_aura.enemy_2"
+kind = &"attack_roll_bonus"
+payload = SubResource("Action_aura_enemy_2_payload")
+condition_group = SubResource("Condition_group_nearby_gte_2")
+
+[sub_resource type="Resource" id="Action_aura_enemy_3_payload"]
+script = ExtResource("10_attack_roll_bonus")
+target_selector = &"attacker"
+bonus = -1
+stack_mode = &"max"
+label = "教室气息"
+
+[sub_resource type="Resource" id="Action_aura_enemy_3"]
+script = ExtResource("9_action")
+action_id = &"action.last_lesson.classroom_aura.enemy_3"
+kind = &"attack_roll_bonus"
+payload = SubResource("Action_aura_enemy_3_payload")
+condition_group = SubResource("Condition_group_nearby_gte_3")
+
+[sub_resource type="Resource" id="Action_aura_lonely_payload"]
+script = ExtResource("10_attack_roll_bonus")
+target_selector = &"attack_target"
+bonus = -1
+stack_mode = &"max"
+label = "教室气息"
+
+[sub_resource type="Resource" id="Action_aura_lonely"]
+script = ExtResource("9_action")
+action_id = &"action.last_lesson.classroom_aura.lonely_attack_penalty"
+kind = &"attack_roll_bonus"
+payload = SubResource("Action_aura_lonely_payload")
+condition_group = SubResource("Condition_group_nearby_eq_0")
+
+[sub_resource type="Resource" id="Reaction_classroom_aura_defense"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.last_lesson.classroom_aura.defense_before_hit"
+trigger = &"on_hit"
+timing = &"before_hit"
+actions = Array[Resource]([SubResource("Action_aura_enemy_1"), SubResource("Action_aura_enemy_2"), SubResource("Action_aura_enemy_3")])
+
+[sub_resource type="Resource" id="Reaction_classroom_aura_lonely"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.last_lesson.classroom_aura.lonely_before_hit"
+trigger = &"on_hit"
+timing = &"before_hit"
+actions = Array[Resource]([SubResource("Action_aura_lonely")])
+
+[sub_resource type="Resource" id="Binding_classroom_aura"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.last_lesson.classroom_aura"
+trait_id = &"weapon.sword.last_lesson.classroom_aura"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"last_lesson"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+source_traces = Array[Resource]([SubResource("Trace_classroom_aura")])
+reactions = Array[Resource]([SubResource("Reaction_classroom_aura_defense"), SubResource("Reaction_classroom_aura_lonely")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability_pack.last_lesson"
+schema_version = 1
+load_order = 100
+bindings = Array[Resource]([SubResource("Binding_old_chen_legacy"), SubResource("Binding_last_lesson"), SubResource("Binding_inheritance_seal"), SubResource("Binding_classroom_aura")])

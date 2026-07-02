@@ -730,15 +730,32 @@ public sealed class BattleHudAdapter : IDisposable
 
     private BattleSkillAvailabilityView BuildSkillAvailabilityView(BattleUnitState activeUnit)
     {
-        BattleSkillAvailabilityService service = new(GetSkillCatalog(), GetSkillDefinitions());
+        BattleSkillAvailabilityService service = new(
+            GetSkillCatalog(),
+            GetSkillDefinitions(),
+            GetEquipmentAbilityBindings()
+        );
         return service.BuildView(
             new BattleSkillAvailabilityQuery
             {
                 User = activeUnit,
                 Consumer = BattleSkillAvailabilityConsumer.Hud,
+                IncludeEquipmentSkills = true,
+                WorldStep = GetBattleWorldStep(),
+                BattleState = _runtime?.GetBattleRuntime()?.GetState(),
             }
         );
     }
+
+    private IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> GetEquipmentAbilityBindings()
+    {
+        return _runtime?.GetBattleRuntime()?.GetEquipmentAbilityBindingIndexTyped();
+    }
+
+    private int GetBattleWorldStep() =>
+        _runtime?.GetBattleRuntime()?.GetBattleWorldStep()
+        ?? _runtime?.GetWorldStep()
+        ?? -1;
 
     private static string FormatSkillEntrySourceKind(BattleSkillEntrySourceKind sourceKind)
     {

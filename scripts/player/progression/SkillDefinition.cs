@@ -1327,6 +1327,8 @@ public sealed class CombatEffectDefinition
         StringName triggerEvent = default,
         StringName triggerStatusId = default,
         StringName consumedStatusId = default,
+        StringName requiredTargetStatusId = default,
+        int requiredTargetStatusMinStacks = 0,
         int dicePerConsumedStack = 0,
         int diceSidesPerStack = 0,
         int apGain = 0,
@@ -1450,6 +1452,8 @@ public sealed class CombatEffectDefinition
         TriggerEvent = triggerEvent;
         TriggerStatusId = triggerStatusId;
         ConsumedStatusId = consumedStatusId;
+        RequiredTargetStatusId = requiredTargetStatusId;
+        RequiredTargetStatusMinStacks = System.Math.Max(requiredTargetStatusMinStacks, 0);
         DicePerConsumedStack = dicePerConsumedStack;
         DiceSidesPerStack = diceSidesPerStack;
         ApGain = apGain;
@@ -1572,6 +1576,8 @@ public sealed class CombatEffectDefinition
     public StringName TriggerEvent { get; }
     public StringName TriggerStatusId { get; }
     public StringName ConsumedStatusId { get; }
+    public StringName RequiredTargetStatusId { get; }
+    public int RequiredTargetStatusMinStacks { get; }
     public int DicePerConsumedStack { get; }
     public int DiceSidesPerStack { get; }
     public int ApGain { get; }
@@ -1810,6 +1816,8 @@ public sealed class CombatEffectDefinition
             TriggerEvent,
             TriggerStatusId,
             ConsumedStatusId,
+            RequiredTargetStatusId,
+            RequiredTargetStatusMinStacks,
             DicePerConsumedStack,
             DiceSidesPerStack,
             ApGain,
@@ -1935,6 +1943,8 @@ public sealed class CombatEffectDefinition
             TriggerEvent,
             TriggerStatusId,
             ConsumedStatusId,
+            RequiredTargetStatusId,
+            RequiredTargetStatusMinStacks,
             DicePerConsumedStack,
             DiceSidesPerStack,
             ApGain,
@@ -2062,6 +2072,8 @@ public sealed class CombatEffectDefinition
                 source.trigger_event,
                 source.trigger_status_id,
                 source.consumed_status_id,
+                source.required_target_status_id,
+                source.required_target_status_min_stacks,
                 source.dice_per_consumed_stack,
                 source.dice_sides_per_stack,
                 source.ap_gain,

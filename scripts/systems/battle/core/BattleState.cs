@@ -90,6 +90,8 @@ public partial class BattleState
 
     public StringName terrain_profile_id = "default";
 
+    private BattleEnvironmentSnapshot _environmentSnapshot = BattleEnvironmentSnapshot.Empty();
+
     public StringNameList attack_disadvantage_tags = new();
 
     private readonly Dictionary<Vector2I, List<BattleCellState>> _cellColumns = new();
@@ -167,6 +169,14 @@ public partial class BattleState
     {
         get => BattleTypedNames.ToModalStateKind(modal_state);
         set => modal_state = BattleTypedNames.ToStringName(value);
+    }
+
+    public BattleEnvironmentSnapshot GetEnvironmentSnapshot() =>
+        _environmentSnapshot ?? BattleEnvironmentSnapshot.Empty();
+
+    internal void ReplaceEnvironmentSnapshot(BattleEnvironmentSnapshot snapshot)
+    {
+        _environmentSnapshot = snapshot?.DuplicateState() ?? BattleEnvironmentSnapshot.Empty();
     }
 
     public void ResetLogEntries(IEnumerable<string> entries)

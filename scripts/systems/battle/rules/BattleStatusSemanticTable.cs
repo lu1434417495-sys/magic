@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
@@ -115,6 +116,25 @@ public static class BattleStatusSemanticTable
         return IsHarmfulStatus(normalizedStatusId);
     }
 
+    public static bool IsHarmfulStatusEntry(BattleStatusEffectState statusEntry)
+    {
+        if (statusEntry == null)
+            return false;
+        if (statusEntry.counts_as_debuff_override)
+            return statusEntry.counts_as_debuff;
+        return IsHarmfulStatus(statusEntry.status_id);
+    }
+
+    public static bool IsCleansableHarmfulStatusEntry(BattleStatusEffectState statusEntry)
+    {
+        if (statusEntry == null || statusEntry.undispellable)
+            return false;
+        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusEntry.status_id);
+        if (normalizedStatusId == STATUS_PETRIFIED || normalizedStatusId == STATUS_TIME_STASIS)
+            return false;
+        return IsHarmfulStatusEntry(statusEntry);
+    }
+
     public static bool BlocksPendingCast(StringName statusId)
     {
         var normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
@@ -123,6 +143,24 @@ public static class BattleStatusSemanticTable
             || normalizedStatusId == STATUS_FROZEN
             || normalizedStatusId == STATUS_STAGGERED
             || normalizedStatusId == STATUS_METEOR_CONCUSSED;
+    }
+
+    public static string GetDisplayLabel(StringName statusId)
+    {
+        BattleStatusSemantic semantic = GetSemantic(statusId);
+        return string.IsNullOrWhiteSpace(semantic.DisplayLabel)
+            ? ProgressionDataUtils.to_string_name(statusId).ToString()
+            : semantic.DisplayLabel;
+    }
+
+    public static string GetDisplayLabel(BattleStatusEffectState statusEntry)
+    {
+        if (statusEntry == null)
+            return "";
+        string configuredLabel = statusEntry.display_label ?? "";
+        return string.IsNullOrWhiteSpace(configuredLabel)
+            ? GetDisplayLabel(statusEntry.status_id)
+            : configuredLabel;
     }
 
     public static bool IsDispellableHarmfulStatus(StringName statusId)
@@ -174,7 +212,7 @@ public static class BattleStatusSemanticTable
         if (statusEntry.dispellable_harmful_magic)
             return true;
         if (statusEntry.dispellable_magic)
-            return IsHarmfulStatus(statusEntry.status_id);
+            return IsHarmfulStatusEntry(statusEntry);
         return IsDispellableHarmfulStatus(statusEntry.status_id);
     }
 
@@ -187,7 +225,7 @@ public static class BattleStatusSemanticTable
         if (statusEntry.dispellable_beneficial_magic)
             return true;
         if (statusEntry.dispellable_magic)
-            return !IsHarmfulStatus(statusEntry.status_id);
+            return !IsHarmfulStatusEntry(statusEntry);
         return IsDispellableBeneficialStatus(statusEntry.status_id);
     }
 
@@ -339,13 +377,25 @@ public static class BattleStatusSemanticTable
         int previousStacks = Mathf.Max(statusEntry.stacks, 0);
         if (!semantic.Defined)
         {
-            statusEntry.stack_behavior =
+            StringName configuredStackMode =
                 ProgressionDataUtils.to_string_name(effectDefinition.StackBehavior) == ""
                     ? STACK_REFRESH
                     : effectDefinition.StackBehavior;
-            statusEntry.stack_limit = Mathf.Max(effectDefinition.StackLimit, 0);
-            statusEntry.power = effectDefinition.Power;
-            statusEntry.stacks = Mathf.Max(previousStacks + 1, 1);
+            int configuredStackLimit = Mathf.Max(effectDefinition.StackLimit, 0);
+            statusEntry.stack_behavior = configuredStackMode;
+            statusEntry.stack_limit = configuredStackLimit;
+            statusEntry.power = Mathf.Max(previousPower, incomingPower);
+            statusEntry.stacks =
+                configuredStackMode == STACK_ADD
+                    ? (
+                        configuredStackLimit > 0
+                            ? Mathf.Min(
+                                Mathf.Max(previousStacks + incomingPower, 1),
+                                configuredStackLimit
+                            )
+                            : Mathf.Max(previousStacks + incomingPower, 1)
+                    )
+                    : 1;
             int durationTu = ResolveDurationTu(effectDefinition);
             if (durationTu >= 0)
                 statusEntry.duration = durationTu;
@@ -395,6 +445,7 @@ public static class BattleStatusSemanticTable
         statusEntry.status_id = resolvedStatusId;
         statusEntry.source_unit_id = sourceUnitId;
         statusEntry.@params = CopyResidualParams(effectDefinition.Parameters);
+        statusEntry.display_label = effectDefinition.DisplayName ?? "";
         statusEntry.counts_as_debuff_override = effectDefinition.CountsAsDebuffOverride;
         statusEntry.counts_as_debuff = effectDefinition.CountsAsDebuff;
         statusEntry.lock_counterattack = effectDefinition.LockCounterattack;
@@ -424,6 +475,12 @@ public static class BattleStatusSemanticTable
             effectDefinition.GetStringNameIntMapParamTyped("save_bonus_by_tag")
         );
         statusEntry.attack_roll_penalty = effectDefinition.AttackRollPenalty;
+        statusEntry.source_bound_attack_roll_penalty =
+            effectDefinition.GetIntParamTyped("source_bound_attack_roll_penalty", 0);
+        statusEntry.source_bound_attack_roll_penalty_min_stacks = Math.Max(
+            effectDefinition.GetIntParamTyped("source_bound_attack_roll_penalty_min_stacks", 1),
+            1
+        );
         statusEntry.undispellable = effectDefinition.Undispellable;
         statusEntry.dispellable_magic = effectDefinition.DispellableMagic;
         statusEntry.dispellable_harmful_magic = effectDefinition.DispellableHarmfulMagic;
@@ -497,8 +554,40 @@ public static class BattleStatusSemanticTable
         if (statusEntry == null || statusEntry.tick_interval_tu <= 0)
             return 0;
         BattleStatusSemantic semantic = GetSemantic(statusEntry.status_id);
-        return semantic.TickMode != TICK_TIMELINE_DAMAGE ? 0 : GetEffectIntensity(statusEntry);
+        return semantic.TickMode == TICK_TIMELINE_DAMAGE || HasTimelineDamagePayload(statusEntry)
+            ? GetEffectIntensity(statusEntry)
+            : 0;
     }
+
+    public static int RollTimelineTickDamage(
+        BattleStatusEffectState statusEntry,
+        Func<int, int> rollDamageDie = null
+    )
+    {
+        if (statusEntry == null || statusEntry.tick_interval_tu <= 0)
+            return 0;
+        BattleStatusSemantic semantic = GetSemantic(statusEntry.status_id);
+        if (semantic.TickMode != TICK_TIMELINE_DAMAGE && !HasTimelineDamagePayload(statusEntry))
+            return 0;
+        if (statusEntry.timeline_damage_dice_count <= 0 || statusEntry.timeline_damage_dice_sides <= 0)
+            return GetEffectIntensity(statusEntry);
+
+        int total = Math.Max(statusEntry.timeline_damage_flat_bonus, 0);
+        int diceCount = Math.Max(statusEntry.timeline_damage_dice_count, 0);
+        int diceSides = Math.Max(statusEntry.timeline_damage_dice_sides, 1);
+        Func<int, int> roller = rollDamageDie ?? DefaultRollDamageDie;
+        for (int index = 0; index < diceCount; index++)
+            total += Math.Clamp(roller(diceSides), 1, diceSides);
+        return Math.Max(total, 0);
+    }
+
+    private static bool HasTimelineDamagePayload(BattleStatusEffectState statusEntry) =>
+        statusEntry != null
+        && (
+            statusEntry.timeline_damage_dice_count > 0
+            || statusEntry.timeline_damage_dice_sides > 0
+            || statusEntry.timeline_damage_flat_bonus > 0
+        );
 
     public static int GetMoveCostDelta(BattleStatusEffectState statusEntry)
     {
@@ -603,6 +692,9 @@ public static class BattleStatusSemanticTable
 
     private static int GetEffectIntensity(BattleStatusEffectState statusEntry) =>
         statusEntry == null ? 0 : Mathf.Max(Mathf.Max(statusEntry.power, statusEntry.stacks), 1);
+
+    private static int DefaultRollDamageDie(int diceSides) =>
+        TrueRandomSeedService.RandiRange(1, Math.Max(diceSides, 1));
 
     private static List<StringName> BuildStringNameList(IEnumerable<StringName> values)
     {

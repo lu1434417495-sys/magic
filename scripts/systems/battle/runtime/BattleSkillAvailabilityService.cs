@@ -20,6 +20,8 @@ internal sealed class BattleSkillAvailabilityQuery
     internal bool IncludeKnownSkills { get; init; } = true;
     internal bool IncludeEquipmentSkills { get; init; } = false;
     internal bool IncludeScopedAutoCast { get; init; } = false;
+    internal int WorldStep { get; init; } = -1;
+    internal BattleState BattleState { get; init; }
 }
 
 internal sealed class BattleAvailableSkillEntry
@@ -31,6 +33,11 @@ internal sealed class BattleAvailableSkillEntry
     internal StringName DisabledReason { get; init; } = "";
     internal IReadOnlyList<StringName> SuppressedSourceKeys { get; init; } =
         System.Array.Empty<StringName>();
+    internal StringName EquipmentBindingId { get; init; } = "";
+    internal StringName EquipmentGrantedActionId { get; init; } = "";
+    internal EquipmentAbilityUsagePeriodKind EquipmentUsagePeriodKind { get; init; } =
+        EquipmentAbilityUsagePeriodKind.None;
+    internal int EquipmentMaxUsesPerPeriod { get; init; }
 }
 
 internal sealed class BattleSkillAvailabilityView
@@ -97,23 +104,32 @@ internal sealed class BattleSkillAvailabilityService
         new ReadOnlyDictionary<StringName, SkillDefinition>(
             new Dictionary<StringName, SkillDefinition>()
         );
+    private static readonly IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> EmptyEquipmentAbilityBindings =
+        new ReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition>(
+            new Dictionary<StringName, EquipmentAbilityBindingDefinition>()
+        );
 
     private readonly ISkillCatalog _skillCatalog;
     private readonly IReadOnlyDictionary<StringName, SkillDefinition> _skillDefinitions;
+    private readonly IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> _equipmentAbilityBindings;
 
     internal BattleSkillAvailabilityService(
         ISkillCatalog skillCatalog,
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null
     )
     {
         _skillCatalog = skillCatalog;
         _skillDefinitions = skillDefinitions ?? EmptySkillDefinitions;
+        _equipmentAbilityBindings = equipmentAbilityBindings
+            ?? EmptyEquipmentAbilityBindings;
     }
 
     internal BattleSkillAvailabilityService(
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null
     )
-        : this(null, skillDefinitions) { }
+        : this(null, skillDefinitions, equipmentAbilityBindings) { }
 
     internal BattleSkillAvailabilityView BuildView(BattleSkillAvailabilityQuery query)
     {
@@ -127,6 +143,10 @@ internal sealed class BattleSkillAvailabilityService
         if (query == null || query.IncludeKnownSkills)
         {
             AddKnownSkillEntries(user, entries);
+        }
+        if (query?.IncludeEquipmentSkills == true)
+        {
+            AddEquipmentSkillEntries(user, entries, query.WorldStep, query.BattleState);
         }
 
         return new BattleSkillAvailabilityView(entries);
@@ -251,6 +271,109 @@ internal sealed class BattleSkillAvailabilityService
                     SuppressedSourceKeys = System.Array.Empty<StringName>(),
                 }
             );
+        }
+    }
+
+    private void AddEquipmentSkillEntries(
+        BattleUnitState user,
+        List<BattleAvailableSkillEntry> entries,
+        int worldStep,
+        BattleState battleState
+    )
+    {
+        if (
+            user?.equipment_ability_sources == null
+            || _equipmentAbilityBindings == null
+            || _equipmentAbilityBindings.Count == 0
+        )
+        {
+            return;
+        }
+
+        var seenEntryIds = new HashSet<StringName>();
+        foreach (BattleEquipmentAbilitySourceState source in user.equipment_ability_sources)
+        {
+            if (source?.AbilityIds == null)
+            {
+                continue;
+            }
+
+            foreach (StringName rawBindingId in source.AbilityIds)
+            {
+                StringName bindingId = NormalizeStringName(rawBindingId);
+                if (
+                    IsEmpty(bindingId)
+                    || !_equipmentAbilityBindings.TryGetValue(
+                        bindingId,
+                        out EquipmentAbilityBindingDefinition binding
+                    )
+                    || binding?.GrantedActions == null
+                )
+                {
+                    continue;
+                }
+
+                foreach (EquipmentGrantedActionDefinition grant in binding.GrantedActions)
+                {
+                    if (grant == null || grant.GrantedKind != EquipmentGrantedActionKind.Skill)
+                    {
+                        continue;
+                    }
+                    StringName skillId = NormalizeStringName(grant.SkillId);
+                    if (IsEmpty(skillId) || !TryGetSkillDefinition(skillId, out SkillDefinition skillDefinition))
+                    {
+                        continue;
+                    }
+                    if (
+                        skillDefinition.SkillTypeKind != SkillTypeKind.Active
+                        || !skillDefinition.CanUseInCombat()
+                    )
+                    {
+                        continue;
+                    }
+                    StringName entryId = BattleSkillEntryIds.EquipmentSkill(
+                        binding.BindingId,
+                        source.SourceEquipmentInstanceId,
+                        source.EffectiveInstanceKey,
+                        grant.GrantedActionId,
+                        skillId
+                    );
+                    if (IsEmpty(entryId) || !seenEntryIds.Add(entryId))
+                    {
+                        continue;
+                    }
+                    bool isSelectable = EquipmentAbilityUsageRuntime.IsAvailableForGrant(
+                        user,
+                        source,
+                        binding,
+                        grant,
+                        worldStep,
+                        battleState,
+                        _equipmentAbilityBindings,
+                        out StringName disabledReason
+                    );
+                    entries.Add(
+                        new BattleAvailableSkillEntry
+                        {
+                            EntryRef = new BattleSkillEntryRef(
+                                entryId,
+                                skillId,
+                                BattleSkillEntrySourceKind.EquipmentSkill,
+                                source.SourceEquipmentInstanceId
+                            ),
+                            SkillDefinition = skillDefinition,
+                            SkillLevel = Mathf.Max(grant.SkillLevel, 1),
+                            IsSelectable = isSelectable,
+                            DisabledReason = disabledReason,
+                            SuppressedSourceKeys = System.Array.Empty<StringName>(),
+                            EquipmentBindingId = binding.BindingId,
+                            EquipmentGrantedActionId = grant.GrantedActionId,
+                            EquipmentUsagePeriodKind = grant.UsagePeriodKind,
+                            EquipmentMaxUsesPerPeriod = grant.MaxUsesPerPeriod,
+                        }
+                    );
+                }
+            }
         }
     }
 

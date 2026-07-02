@@ -204,6 +204,7 @@ internal sealed class BattleTimelineDriver
             state.timeline.current_tu += tuDelta;
             ResolveTimelineStatusPhase(batch, tuDelta);
         }
+        runtime?._delayed_area_effect_system?.ProcessDueEffects(batch);
         runtime?._terrain_effect_system?.ProcessTimedTerrainEffects(batch);
         runtime?._layered_barrier_service?.AdvanceBarrierDurations(tuDelta, batch);
         if (tuDelta > 0)
@@ -568,6 +569,19 @@ internal sealed class BattleTimelineDriver
                 ?.HandleMisfortuneTrigger(
                     MisfortuneTriggerRequest.LowHpTurnEnd(activeUnit)
                 );
+        }
+        if (
+            activeUnit != null
+            && runtime?.GetEquipmentAbilityRuntimeService()?.ResolveTurnEnd(
+                new BattleEquipmentAbilityTurnEndContext
+                {
+                    SourceUnit = activeUnit,
+                    BattleState = state,
+                }
+            ) == true
+        )
+        {
+            _AppendChangedUnitId(batch, activeUnit.unit_id);
         }
         if (activeUnit != null && activeUnit.ControlModeKind != BattleUnitControlMode.Manual)
             _CleanupAiTurn(activeUnit);

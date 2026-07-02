@@ -1810,7 +1810,10 @@ internal sealed class BattleRuntimeSkillTurnResolver
             {
                 break;
             }
-            int tickDamage = BattleStatusSemanticTable.GetTimelineTickDamage(statusEntry);
+            int tickDamage = BattleStatusSemanticTable.RollTimelineTickDamage(
+                statusEntry,
+                RollStatusTimelineDamageDie
+            );
             if (tickDamage <= 0)
             {
                 continue;
@@ -1842,7 +1845,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
                     changed = true;
                     AppendLog(
                         batch,
-                        $"{DisplayName(unit_state)} 受到 {statusEntry.status_id} 持续影响，损失 {previousHp - unit_state.current_hp} 点生命。"
+                        $"{DisplayName(unit_state)} 受到 {BattleStatusSemanticTable.GetDisplayLabel(statusEntry)} 持续影响，损失 {previousHp - unit_state.current_hp} 点生命。"
                     );
                     if (
                         !unit_state.is_alive
@@ -1859,6 +1862,14 @@ internal sealed class BattleRuntimeSkillTurnResolver
             }
         }
         return new BattleStatusTickResult(changed, defeatSourceUnitId);
+    }
+
+    private int RollStatusTimelineDamageDie(int diceSides)
+    {
+        BattleDamageResolver damageResolver = _runtime?.GetDamageResolver();
+        if (damageResolver != null)
+            return damageResolver._roll_damage_die(diceSides);
+        return TrueRandomSeedService.RandiRange(1, Math.Max(diceSides, 1));
     }
 
     internal bool AdvanceUnitStatusDurations(

@@ -98,16 +98,30 @@ internal class BattleRuntimeLootResolver
         if (lootedIds.Contains(defeatedUnitId))
             return;
         lootedIds.Add(defeatedUnitId);
+        BattleEquipmentAbilityOnKillResult onKillResult = _runtime
+            .GetEquipmentAbilityRuntimeService()
+            ?.ResolveOnKill(
+                new BattleEquipmentAbilityOnKillContext
+                {
+                    SourceUnit = killerUnit,
+                    DefeatedUnit = unitState,
+                }
+            );
         var enemyTemplate = _ResolveEnemyTemplateForUnit(unitState);
         if (enemyTemplate == null)
             return;
         var dropLuck = _ResolveDropLuckForKillerUnit(killerUnit);
+        List<BattleLootEntry> lootEntries = _BuildDefeatedUnitLootEntries(
+            unitState,
+            enemyTemplate,
+            dropLuck
+        );
+        lootEntries = _runtime
+            .GetEquipmentAbilityRuntimeService()
+            ?.ApplyLootQuantityMultipliers(lootEntries, onKillResult)
+            ?? lootEntries;
         foreach (
-            BattleLootEntry lootEntry in _BuildDefeatedUnitLootEntries(
-                unitState,
-                enemyTemplate,
-                dropLuck
-            )
+            BattleLootEntry lootEntry in lootEntries
         )
         {
             _runtime._active_loot_entries.Add(lootEntry.Duplicate());

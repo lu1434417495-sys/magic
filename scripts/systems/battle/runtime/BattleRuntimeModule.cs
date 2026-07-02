@@ -253,6 +253,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
     internal BattleAiService _ai_service = new();
     private readonly BattleAiActionAssembler _ai_action_assembler = new();
     internal BattleTerrainEffectSystem _terrain_effect_system = new();
+    internal BattleDelayedAreaEffectSystem _delayed_area_effect_system = new();
     internal BattleRatingSystem _battle_rating_system = new();
     internal BattleUnitFactory _unit_factory = new();
     internal BattleChargeResolver _charge_resolver = new();
@@ -289,6 +290,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
 	internal BattleSpecialProfileGate _special_profile_gate;
 	internal BattleMeteorSwarmResolver _meteor_swarm_resolver;
     internal BattleAttackCheckPolicyService _attack_check_policy_service = new();
+    internal BattleEquipmentAbilityRuntimeService _equipment_ability_runtime_service = new();
     internal BattleSkillOutcomeCommitter _skill_outcome_committer = new();
     private readonly Dictionary<StringName, BattleRatingMemberStats> _battleRatingStatsByMemberId = new();
     private readonly List<PendingCharacterReward> _pendingPostBattleCharacterRewards = new();
@@ -421,8 +423,12 @@ public sealed partial class BattleRuntimeModule : IDisposable
         ClearLastStartFailure();
         _ai_service.Setup(_enemyAiBrainIndex, _damage_resolver);
         _terrain_effect_system.Setup(this);
+        _delayed_area_effect_system.Setup(this);
         _attack_check_policy_service ??= new BattleAttackCheckPolicyService();
         _attack_check_policy_service.Setup(this, _hit_resolver, _terrain_effect_system);
+        _equipment_ability_runtime_service ??= new BattleEquipmentAbilityRuntimeService();
+        _equipment_ability_runtime_service.Setup(this, _damage_resolver);
+        _damage_resolver?.SetEquipmentAbilityRuntimeService(_equipment_ability_runtime_service);
         _skill_outcome_committer ??= new BattleSkillOutcomeCommitter();
         _skill_outcome_committer.Setup(this);
         _battle_rating_system.Setup(this, _skill_mastery_service);
@@ -589,6 +595,9 @@ public sealed partial class BattleRuntimeModule : IDisposable
                 terrain_profile_id = terrainProfileId,
                 timeline = new BattleTimelineState(),
             };
+            _state.ReplaceEnvironmentSnapshot(
+                BattleEnvironmentSnapshot.FromBattleStartContext(context, terrainProfileId)
+            );
             _state.SetCellsFromDictionary(
                 GetDict(terrainData, "cells"),
                 duplicateCells: false,
@@ -1236,16 +1245,75 @@ public sealed partial class BattleRuntimeModule : IDisposable
         {
             return BattleSkillAccessResult.Deny("missing_unit", "当前单位无效。");
         }
-        BattleSkillAvailabilityService service = new(_skillCatalog, _skillDefinitionIndex);
+        BattleSkillAvailabilityService service = new(
+            _skillCatalog,
+            _skillDefinitionIndex,
+            _equipmentAbilityBindingIndex
+        );
         return service.ValidateSkillEntryAccess(
             new BattleSkillAvailabilityQuery
             {
                 User = unit,
                 Consumer = consumer,
+                IncludeEquipmentSkills = true,
+                WorldStep = GetBattleWorldStep(),
+                BattleState = _state,
             },
             command.skill_entry_id,
             command.skill_id
         );
+    }
+
+    internal int GetBattleWorldStep() =>
+        _state?.GetEnvironmentSnapshot()?.WorldStep ?? -1;
+
+    internal bool CommitEquipmentSkillUsageIfNeeded(
+        BattleUnitState unit,
+        BattleCommand command,
+        BattleEventBatch batch = null
+    )
+    {
+        if (unit == null || command == null)
+            return false;
+        BattleSkillAvailabilityService service = new(
+            _skillCatalog,
+            _skillDefinitionIndex,
+            _equipmentAbilityBindingIndex
+        );
+        BattleSkillAccessResult accessResult = service.ValidateSkillEntryAccess(
+            new BattleSkillAvailabilityQuery
+            {
+                User = unit,
+                Consumer = BattleSkillAvailabilityConsumer.PreviewExecution,
+                IncludeKnownSkills = false,
+                IncludeEquipmentSkills = true,
+                WorldStep = GetBattleWorldStep(),
+                BattleState = _state,
+            },
+            command.skill_entry_id,
+            command.skill_id
+        );
+        if (!accessResult.Allowed)
+            return false;
+
+        bool committed = EquipmentAbilityUsageRuntime.TryCommitUsage(
+            unit,
+            accessResult.Entry,
+            GetBattleWorldStep()
+        );
+        bool triggered = _equipment_ability_runtime_service?.ResolveGrantedSkillUsed(
+            new BattleEquipmentAbilityGrantedSkillUsedContext
+            {
+                SourceUnit = unit,
+                BindingId = accessResult.Entry.EquipmentBindingId,
+                GrantedActionId = accessResult.Entry.EquipmentGrantedActionId,
+                SkillId = accessResult.Entry.EntryRef.SkillId,
+                SkillEntryId = accessResult.Entry.EntryRef.SkillEntryId,
+            }
+        ) == true;
+        if (committed || triggered)
+            batch?.AddChangedUnitId(unit.unit_id);
+        return committed || triggered;
     }
 
     private static void PreviewWaitCommand(BattleUnitReadView activeUnit, BattlePreview preview)
@@ -1615,6 +1683,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
             );
         if (state == null)
             _contingency_system.ClearBattleState();
+        if (!ReferenceEquals(_state, state))
+            _delayed_area_effect_system.Clear();
         _state = state;
         if (_state != null)
         {
@@ -1904,6 +1974,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
     internal void _ensure_sidecars_ready()
     {
         _terrain_effect_system.Setup(this);
+        _delayed_area_effect_system.Setup(this);
         _attack_check_policy_service ??= new BattleAttackCheckPolicyService();
         _attack_check_policy_service.Setup(this, _hit_resolver, _terrain_effect_system);
         _skill_outcome_committer ??= new BattleSkillOutcomeCommitter();
@@ -2075,6 +2146,9 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _timeline_driver.Setup(this);
         _skill_orchestrator.Setup(this);
         _casting_time_service.Setup(this);
+        _equipment_ability_runtime_service ??= new BattleEquipmentAbilityRuntimeService();
+        _equipment_ability_runtime_service.Setup(this, _damage_resolver);
+        _damage_resolver?.SetEquipmentAbilityRuntimeService(_equipment_ability_runtime_service);
     }
 
     internal BattleFateEventBus GetFateEventBus() =>
@@ -2087,6 +2161,14 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _attack_check_policy_service ??= new BattleAttackCheckPolicyService();
         _attack_check_policy_service.Setup(this, _hit_resolver, _terrain_effect_system);
         return _attack_check_policy_service;
+    }
+
+    internal BattleEquipmentAbilityRuntimeService GetEquipmentAbilityRuntimeService()
+    {
+        _equipment_ability_runtime_service ??= new BattleEquipmentAbilityRuntimeService();
+        _equipment_ability_runtime_service.Setup(this, _damage_resolver);
+        _damage_resolver?.SetEquipmentAbilityRuntimeService(_equipment_ability_runtime_service);
+        return _equipment_ability_runtime_service;
     }
 
     public void ConfigureHitResolverForTests(BattleHitResolver hit_resolver)
@@ -2446,6 +2528,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         }
         _disposed = true;
         _terrain_effect_system?.Dispose();
+        _delayed_area_effect_system?.Dispose();
         _battle_rating_system?.DisposeRuntime();
         _unit_factory?.DisposeRuntime();
         _charge_resolver?.DisposeRuntime();
@@ -2465,10 +2548,12 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _casting_time_service?.Dispose();
         _meteor_swarm_resolver?.Dispose();
         _attack_check_policy_service?.Dispose();
+        _equipment_ability_runtime_service?.Dispose();
         _skill_outcome_committer?.Dispose();
         _meteor_swarm_resolver = null;
         _special_profile_gate = null;
         _attack_check_policy_service = null;
+        _equipment_ability_runtime_service = null;
         _skill_outcome_committer = null;
         _skill_mastery_service?.Dispose();
         _fate_runtime?.DisposeRuntime();
@@ -3930,6 +4015,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _damage_resolver.SetSkillDefinitions(GetSkillDefinitionIndexTyped());
         _damage_resolver.SetHitResolver(_hit_resolver);
         _damage_resolver.SetDamageApplicationHook(_contingency_system);
+        _damage_resolver.SetEquipmentAbilityRuntimeService(_equipment_ability_runtime_service);
     }
 
     private static bool IsEmpty(StringName value) => value == default || value == (StringName)"";

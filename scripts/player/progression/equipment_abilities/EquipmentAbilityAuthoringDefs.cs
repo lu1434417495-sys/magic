@@ -108,6 +108,9 @@ public sealed partial class EquipmentAbilityFactQueryDef : Resource
     [Export] public StringName query_kind { get; set; } = "";
     [Export] public StringName fact_id { get; set; } = "";
     [Export] public StringName subject { get; set; } = "";
+    [Export] public StringName binding_id { get; set; } = "";
+    [Export] public StringName state_key { get; set; } = "";
+    [Export] public StringName status_id { get; set; } = "";
     [Export] public StringName aggregation { get; set; } = "";
     [Export] public StringName value_kind { get; set; } = "";
     [Export] public bool bool_literal { get; set; }
@@ -154,18 +157,76 @@ public sealed partial class AddDamageDiceActionPayloadDef : Resource
 }
 
 [GlobalClass]
+public sealed partial class AttackRollBonusActionPayloadDef : Resource
+{
+    [Export] public StringName target_selector { get; set; } = "";
+    [Export] public int bonus { get; set; }
+    [Export] public StringName stack_mode { get; set; } = "max";
+    [Export] public string label { get; set; } = "";
+}
+
+[GlobalClass]
+public sealed partial class AttackRollAdvantageActionPayloadDef : Resource
+{
+    [Export] public StringName target_selector { get; set; } = "";
+    [Export] public StringName mode { get; set; } = "advantage";
+    [Export] public StringName stack_mode { get; set; } = "max";
+    [Export] public string label { get; set; } = "";
+}
+
+[GlobalClass]
+public sealed partial class DamageRollModeOverrideActionPayloadDef : Resource
+{
+    [Export] public StringName target_selector { get; set; } = "";
+    [Export] public StringName roll_mode { get; set; } = "maximum";
+    [Export] public StringName stack_mode { get; set; } = "max";
+    [Export] public string label { get; set; } = "";
+}
+
+[GlobalClass]
+public sealed partial class LootQuantityMultiplierActionPayloadDef : Resource
+{
+    [Export] public StringName target_selector { get; set; } = "";
+    [Export] public int multiplier_percent { get; set; } = 100;
+    [Export] public Godot.Collections.Array<StringName> affected_drop_kinds { get; set; } = new();
+    [Export] public Godot.Collections.Array<StringName> any_item_tags { get; set; } = new();
+}
+
+[GlobalClass]
 public sealed partial class ApplyStatusActionPayloadDef : Resource
 {
     [Export] public StringName target_selector { get; set; } = "";
     [Export] public StringName status_id { get; set; } = "";
     [Export] public int duration_turns { get; set; }
+    [Export] public int duration_tu { get; set; }
     [Export] public int stack_delta { get; set; }
+    [Export] public StringName stack_behavior { get; set; } = "refresh";
+    [Export] public int stack_limit { get; set; }
+    [Export] public string display_label { get; set; } = "";
+    [Export] public int attack_roll_penalty { get; set; } = -1;
+    [Export] public int source_bound_attack_roll_penalty { get; set; }
+    [Export] public int source_bound_attack_roll_penalty_min_stacks { get; set; } = 1;
+    [Export] public bool counts_as_debuff_override { get; set; }
+    [Export] public bool counts_as_debuff { get; set; }
+    [Export] public bool undispellable { get; set; }
+    [Export] public bool dispellable_magic { get; set; }
+    [Export] public bool dispellable_harmful_magic { get; set; }
+    [Export] public bool dispellable_beneficial_magic { get; set; }
+    [Export] public int tick_interval_tu { get; set; }
+    [Export] public int timeline_damage_dice_count { get; set; }
+    [Export] public int timeline_damage_dice_sides { get; set; }
+    [Export] public int timeline_damage_flat_bonus { get; set; }
+    [Export] public int save_dc { get; set; }
+    [Export] public StringName save_ability { get; set; } = "";
+    [Export] public StringName save_tag { get; set; } = "";
+    [Export] public bool apply_on_save_failure { get; set; }
 }
 
 [GlobalClass]
 public sealed partial class ModifyAbilityStateActionPayloadDef : Resource
 {
     [Export] public StringName target_selector { get; set; } = "";
+    [Export] public StringName binding_id { get; set; } = "";
     [Export] public StringName state_key { get; set; } = "";
     [Export] public StringName operation { get; set; } = "";
     [Export] public int int_delta { get; set; }
@@ -209,6 +270,7 @@ public sealed partial class EquipmentDurabilityDamageActionPayloadDef : Resource
     [Export] public int save_dc { get; set; }
     [Export] public bool require_attack_success { get; set; }
     [Export] public int max_damaged_items { get; set; } = 1;
+    [Export] public int max_target_rarity { get; set; } = -1;
 }
 
 [GlobalClass]
@@ -309,6 +371,8 @@ public sealed partial class EquipmentGrantedActionDef : Resource
     [Export] public StringName granted_kind { get; set; } = "";
     [Export] public StringName skill_id { get; set; } = "";
     [Export] public int skill_level { get; set; }
+    [Export] public StringName usage_period_kind { get; set; } = "";
+    [Export] public int max_uses_per_period { get; set; }
     [Export] public StringName display_category { get; set; } = "";
     [Export] public int display_priority { get; set; }
     [Export] public EquipmentAbilityConditionGroupDef availability_conditions { get; set; }

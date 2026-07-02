@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+
+[sub_resource type="Resource" id="Effect_starburst_damage"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+damage_tag = &"force"
+save_dc = 14
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"magic"
+dice_count = 2
+dice_sides = 8
+
+[sub_resource type="Resource" id="Combat_starburst"]
+script = ExtResource("2_combat")
+skill_id = &"weapon_axe_starfragment_starburst"
+target_mode = &"ground"
+target_team_filter = &"enemy"
+range_value = 4
+area_pattern = &"radius"
+area_value = 2
+ap_cost = 1
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_starburst_damage")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"weapon_axe_starfragment_starburst"
+display_name = "星爆"
+icon_id = &"weapon_axe_starfragment_starburst"
+description = "装备技能。选择地面目标，对半径2格内敌方造成2D8力场伤害；目标进行agility DC14豁免，成功则伤害减半；星辰碎片来源每世界日1次。"
+max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"equipment", &"starfragment", &"force", &"magic"])
+learn_source = &"innate"
+combat_profile = SubResource("Combat_starburst")

@@ -32,19 +32,86 @@ public enum EquipmentAbilityContentPhase
 public enum EquipmentAbilityTriggerKind
 {
     OnHit,
+    OnKill,
     OnBattleEnd,
+    OnGrantedSkillUsed,
+    OnTurnEnd,
+    OnDamageRoll,
+    OnDamageApplied,
 }
 
 public enum EquipmentAbilityTimingKind
 {
     BeforeHit,
     AfterHit,
+    AfterKill,
     AfterBattle,
+    AfterSkill,
+    AfterTurn,
+    BeforeDamage,
+    AfterDamage,
 }
 
 public enum EquipmentGrantedActionKind
 {
     Skill,
+}
+
+public enum EquipmentAbilityUsagePeriodKind
+{
+    None,
+    PerBattle,
+    PerWorldDay,
+    PerWorldMonth,
+}
+
+internal static class EquipmentAbilityUsagePeriodKinds
+{
+    internal static readonly StringName PerBattle = "per_battle";
+    internal static readonly StringName PerWorldDay = "per_world_day";
+    internal static readonly StringName PerWorldMonth = "per_world_month";
+
+    internal static bool IsLimited(EquipmentAbilityUsagePeriodKind kind) =>
+        kind != EquipmentAbilityUsagePeriodKind.None;
+
+    internal static StringName ToStringName(EquipmentAbilityUsagePeriodKind kind) =>
+        kind switch
+        {
+            EquipmentAbilityUsagePeriodKind.PerBattle => PerBattle,
+            EquipmentAbilityUsagePeriodKind.PerWorldDay => PerWorldDay,
+            EquipmentAbilityUsagePeriodKind.PerWorldMonth => PerWorldMonth,
+            _ => new StringName(""),
+        };
+
+    internal static bool TryParse(
+        StringName value,
+        out EquipmentAbilityUsagePeriodKind kind
+    )
+    {
+        StringName normalized = ProgressionDataUtils.to_string_name(value);
+        if (normalized == "")
+        {
+            kind = EquipmentAbilityUsagePeriodKind.None;
+            return true;
+        }
+        if (normalized == PerWorldDay)
+        {
+            kind = EquipmentAbilityUsagePeriodKind.PerWorldDay;
+            return true;
+        }
+        if (normalized == PerBattle)
+        {
+            kind = EquipmentAbilityUsagePeriodKind.PerBattle;
+            return true;
+        }
+        if (normalized == PerWorldMonth)
+        {
+            kind = EquipmentAbilityUsagePeriodKind.PerWorldMonth;
+            return true;
+        }
+        kind = EquipmentAbilityUsagePeriodKind.None;
+        return false;
+    }
 }
 
 public enum EquipmentAbilityHandlerKind
@@ -231,6 +298,9 @@ public sealed class EquipmentAbilityFactQueryDefinition
     public StringName QueryKind { get; init; } = "";
     public StringName FactId { get; init; } = "";
     public StringName Subject { get; init; } = "";
+    public StringName BindingId { get; init; } = "";
+    public StringName StateKey { get; init; } = "";
+    public StringName StatusId { get; init; } = "";
     public StringName Aggregation { get; init; } = "";
     public StringName ValueKind { get; init; } = "";
     public bool BoolLiteral { get; init; }
@@ -259,19 +329,114 @@ public sealed class AddDamageDiceActionPayloadDefinition
     public IReadOnlyList<StringName> DamageTags { get; init; } = Array.Empty<StringName>();
 }
 
+public sealed class AttackRollBonusActionPayloadDefinition
+    : EquipmentAbilityActionPayloadDefinition
+{
+    public StringName TargetSelector { get; init; } = "";
+    public int Bonus { get; init; }
+    public StringName StackMode { get; init; } = "";
+    public string Label { get; init; } = "";
+}
+
+public sealed class AttackRollAdvantageActionPayloadDefinition
+    : EquipmentAbilityActionPayloadDefinition
+{
+    public StringName TargetSelector { get; init; } = "";
+    public StringName Mode { get; init; } = "";
+    public StringName StackMode { get; init; } = "";
+    public string Label { get; init; } = "";
+}
+
+public sealed class DamageRollModeOverrideActionPayloadDefinition
+    : EquipmentAbilityActionPayloadDefinition
+{
+    public StringName TargetSelector { get; init; } = "";
+    public StringName RollMode { get; init; } = "";
+    public StringName StackMode { get; init; } = "";
+    public string Label { get; init; } = "";
+}
+
+public sealed class LootQuantityMultiplierActionPayloadDefinition
+    : EquipmentAbilityActionPayloadDefinition
+{
+    public StringName TargetSelector { get; init; } = "";
+    public int MultiplierPercent { get; init; }
+    public IReadOnlyList<StringName> AffectedDropKinds { get; init; } = Array.Empty<StringName>();
+    public IReadOnlyList<StringName> AnyItemTags { get; init; } = Array.Empty<StringName>();
+}
+
 public sealed class ApplyStatusActionPayloadDefinition
     : EquipmentAbilityActionPayloadDefinition
 {
     public StringName TargetSelector { get; init; } = "";
     public StringName StatusId { get; init; } = "";
     public int DurationTurns { get; init; }
+    public int DurationTu { get; init; }
     public int StackDelta { get; init; }
+    public StringName StackBehavior { get; init; } = "";
+    public int StackLimit { get; init; }
+    public string DisplayLabel { get; init; } = "";
+    public int AttackRollPenalty { get; init; } = -1;
+    public int SourceBoundAttackRollPenalty { get; init; }
+    public int SourceBoundAttackRollPenaltyMinStacks { get; init; } = 1;
+    public bool CountsAsDebuffOverride { get; init; }
+    public bool CountsAsDebuff { get; init; }
+    public bool Undispellable { get; init; }
+    public bool DispellableMagic { get; init; }
+    public bool DispellableHarmfulMagic { get; init; }
+    public bool DispellableBeneficialMagic { get; init; }
+    public int TickIntervalTu { get; init; }
+    public int TimelineDamageDiceCount { get; init; }
+    public int TimelineDamageDiceSides { get; init; }
+    public int TimelineDamageFlatBonus { get; init; }
+    public int SaveDc { get; init; }
+    public StringName SaveAbility { get; init; } = "";
+    public StringName SaveTag { get; init; } = "";
+    public bool ApplyOnSaveFailure { get; init; }
+}
+
+public sealed class ScheduleAreaEffectActionPayloadDefinition
+    : EquipmentAbilityActionPayloadDefinition
+{
+    public StringName AnchorSelector { get; init; } = "";
+    public int DelayTu { get; init; }
+    public StringName TerrainEffectId { get; init; } = "";
+    public StringName AreaPattern { get; init; } = "";
+    public int AreaValue { get; init; }
+    public StringName LifetimePolicy { get; init; } = "";
+    public StringName EffectType { get; init; } = "";
+    public StringName TargetTeamFilter { get; init; } = "";
+    public StringName StackBehavior { get; init; } = "";
+    public string DisplayName { get; init; } = "";
+    public StringName RenderOverlayId { get; init; } = "";
+    public int OverlayPriority { get; init; }
+    public StringName ContactStatusId { get; init; } = "";
+    public int ContactStatusDurationTu { get; init; }
+    public StringName ContactStackBehavior { get; init; } = "";
+    public int ContactStackLimit { get; init; }
+    public string ContactStatusDisplayLabel { get; init; } = "";
+    public bool ContactCountsAsDebuffOverride { get; init; }
+    public bool ContactCountsAsDebuff { get; init; }
+    public bool ContactUndispellable { get; init; }
+    public bool ContactDispellableMagic { get; init; }
+    public bool ContactDispellableHarmfulMagic { get; init; }
+    public bool ContactDispellableBeneficialMagic { get; init; }
+    public int ContactSaveDc { get; init; }
+    public StringName ContactSaveAbility { get; init; } = "";
+    public StringName ContactSaveTag { get; init; } = "";
+    public bool ContactApplyOnSaveFailure { get; init; }
+    public int ContactTickIntervalTu { get; init; }
+    public int ContactTimelineDamageDiceCount { get; init; }
+    public int ContactTimelineDamageDiceSides { get; init; }
+    public int ContactTimelineDamageFlatBonus { get; init; }
+    public StringName ContactBlockedByTraitId { get; init; } = "";
 }
 
 public sealed class ModifyAbilityStateActionPayloadDefinition
     : EquipmentAbilityActionPayloadDefinition
 {
     public StringName TargetSelector { get; init; } = "";
+    public StringName BindingId { get; init; } = "";
     public StringName StateKey { get; init; } = "";
     public StringName Operation { get; init; } = "";
     public int IntDelta { get; init; }
@@ -309,6 +474,7 @@ public sealed class EquipmentDurabilityDamageActionPayloadDefinition
     public int SaveDc { get; init; }
     public bool RequireAttackSuccess { get; init; }
     public int MaxDamagedItems { get; init; }
+    public int MaxTargetRarity { get; init; } = -1;
 }
 
 public sealed class DiceExpressionDefinition
@@ -334,6 +500,9 @@ public sealed class EquipmentGrantedActionDefinition
     public EquipmentGrantedActionKind GrantedKind { get; init; }
     public StringName SkillId { get; init; } = "";
     public int SkillLevel { get; init; }
+    public EquipmentAbilityUsagePeriodKind UsagePeriodKind { get; init; } =
+        EquipmentAbilityUsagePeriodKind.None;
+    public int MaxUsesPerPeriod { get; init; }
     public StringName DisplayCategory { get; init; } = "";
     public int DisplayPriority { get; init; }
     public EquipmentConditionGroupDefinition AvailabilityConditions { get; init; }

@@ -9,6 +9,8 @@ public sealed class AttackContext
     public StringName SkillId = new("");
     public bool HasIsDisadvantage;
     public bool IsDisadvantage;
+    public bool HasIsAdvantage;
+    public bool IsAdvantage;
     public bool ForceHitNoCrit;
     public int AttackRollOverride;
 

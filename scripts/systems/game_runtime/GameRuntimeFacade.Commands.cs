@@ -542,6 +542,22 @@ public sealed partial class GameRuntimeFacade
             }
         );
 
+    internal RuntimeCommandResult CommandConfirmResourceHarvestTyped() =>
+        ExecuteLoggedCommandTyped(
+            "world.resource_harvest",
+            "world",
+            new GDictionary { ["coord"] = _pending_harvest_coord },
+            HarvestPendingResourceNodeTyped
+        );
+
+    internal RuntimeCommandResult CommandCancelResourceHarvestTyped() =>
+        ExecuteLoggedCommandTyped(
+            "world.resource_harvest_cancel",
+            "world",
+            new GDictionary { ["coord"] = _pending_harvest_coord },
+            CancelPendingResourceHarvestTyped
+        );
+
     internal RuntimeCommandResult CommandConfirmBattleStartTyped() =>
         ExecuteLoggedCommandTyped(
             "battle.confirm_start",

@@ -576,6 +576,15 @@ internal class BattleMovementService
             }
             result.Executed = true;
             executedPath.Add(active_unit.coord);
+            TerrainEffectSystem?.ApplyContactEffectsForUnit(
+                active_unit,
+                BattleSaveContext.Empty,
+                batch
+            );
+            if (!active_unit.is_alive)
+            {
+                return result;
+            }
         }
 
         result.ReachedTarget = active_unit.coord == target_coord;

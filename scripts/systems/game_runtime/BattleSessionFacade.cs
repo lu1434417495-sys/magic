@@ -878,6 +878,8 @@ public sealed class BattleSessionFacade : IDisposable
         };
         context["battle_terrain_profile"] = ResolveBattleTerrainProfile(encounterAnchor).ToString();
         context["validate_spawn_reachability"] = false;
+        if (_runtime != null)
+            context["world_step"] = _runtime.GetWorldStep();
         return context;
     }
 

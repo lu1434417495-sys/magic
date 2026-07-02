@@ -6,6 +6,10 @@ using Godot;
 
 internal sealed class EquipmentAbilityContentRegistry : IDisposable
 {
+    private const int TuGranularity = 5;
+    private static readonly StringName StatusStackRefresh = "refresh";
+    private static readonly StringName StatusStackAdd = "add";
+
     private readonly Dictionary<StringName, EquipmentAbilityContentPackDefinition> _packsById = new();
     private readonly Dictionary<StringName, EquipmentAbilityBindingDefinition> _bindingsById = new();
     private readonly Dictionary<StringName, List<EquipmentAbilityBindingDefinition>> _bindingsByTraitId = new();
@@ -592,6 +596,21 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                     errors
                 );
             }
+            else if (condition.payload is CompareFactConditionPayloadDef comparePayload)
+            {
+                ValidateFactQuery(
+                    comparePayload.left,
+                    context,
+                    $"{conditionPath}.payload.left",
+                    errors
+                );
+                ValidateFactQuery(
+                    comparePayload.right,
+                    context,
+                    $"{conditionPath}.payload.right",
+                    errors
+                );
+            }
         }
         foreach (EquipmentAbilityConditionGroupDef child in group.groups)
             ValidateConditionGroup(child, $"{path}.groups", context, errors);
@@ -645,10 +664,23 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             case AddDamageDiceActionPayloadDef payload:
                 ValidateAddDamageDicePayload(payload, context, path, errors);
                 break;
+            case AttackRollBonusActionPayloadDef payload:
+                ValidateAttackRollBonusPayload(payload, path, errors);
+                break;
+            case AttackRollAdvantageActionPayloadDef payload:
+                ValidateAttackRollAdvantagePayload(payload, path, errors);
+                break;
+            case DamageRollModeOverrideActionPayloadDef payload:
+                ValidateDamageRollModeOverridePayload(payload, path, errors);
+                break;
+            case LootQuantityMultiplierActionPayloadDef payload:
+                ValidateLootQuantityMultiplierPayload(payload, path, errors);
+                break;
             case ApplyStatusActionPayloadDef payload:
-                if (payload.target_selector == "" || payload.status_id == "")
-                    AddError(errors, "EQA_ACTION_REQUIRED_FIELD_MISSING", path, "apply_status requires target_selector and status_id");
-                ValidateStatusReference(payload.status_id, context, $"{path}.payload.status_id", errors);
+                ValidateApplyStatusPayload(payload, context, path, errors);
+                break;
+            case ScheduleAreaEffectActionPayloadDef payload:
+                ValidateScheduleAreaEffectPayload(payload, context, path, errors);
                 break;
             case ModifyAbilityStateActionPayloadDef payload:
                 if (payload.target_selector == "" || payload.state_key == "")
@@ -726,6 +758,8 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         {
             if (contract == null || !contract.StateKeyMustBeDeclaredInBinding)
                 continue;
+            if (ReadStringNamePayloadMember(payload, "binding_id") != "")
+                continue;
             StringName stateKey = contract.StateKey;
             if (stateKey == "" && !string.IsNullOrWhiteSpace(contract.StateKeyPayloadMemberName))
                 stateKey = ReadStringNamePayloadMember(payload, contract.StateKeyPayloadMemberName);
@@ -760,18 +794,20 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         List<string> errors
     )
     {
+        bool hasDiceTerm = payload.dice != null && payload.dice.terms.Count > 0;
+        bool hasFlatBonus = payload.dice != null && payload.dice.flat_bonus > 0;
         if (
             payload.target_selector == ""
             || payload.damage_type == ""
             || payload.dice == null
-            || payload.dice.terms.Count == 0
+            || (!hasDiceTerm && !hasFlatBonus)
         )
         {
             AddError(
                 errors,
                 "EQA_ACTION_REQUIRED_FIELD_MISSING",
                 path,
-                "add_damage_dice requires target_selector, damage_type, and at least one dice term"
+                "add_damage_dice requires target_selector, damage_type, and dice terms or positive flat_bonus"
             );
         }
         if (HasKnownValues(context.KnownDamageTypes) && !context.KnownDamageTypes.Contains(payload.damage_type))
@@ -800,6 +836,415 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         }
     }
 
+    private static void ValidateAttackRollBonusPayload(
+        AttackRollBonusActionPayloadDef payload,
+        string path,
+        List<string> errors
+    )
+    {
+        if (payload.target_selector == "" || payload.bonus == 0)
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "attack_roll_bonus requires target_selector and non-zero bonus"
+            );
+        }
+    }
+
+    private static void ValidateAttackRollAdvantagePayload(
+        AttackRollAdvantageActionPayloadDef payload,
+        string path,
+        List<string> errors
+    )
+    {
+        if (payload.target_selector == "" || payload.mode != "advantage")
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "attack_roll_advantage requires target_selector and mode=advantage"
+            );
+        }
+    }
+
+    private static void ValidateDamageRollModeOverridePayload(
+        DamageRollModeOverrideActionPayloadDef payload,
+        string path,
+        List<string> errors
+    )
+    {
+        if (
+            payload.target_selector == ""
+            || (
+                payload.roll_mode != "random"
+                && payload.roll_mode != "average"
+                && payload.roll_mode != "maximum"
+            )
+        )
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "damage_roll_mode_override requires target_selector and roll_mode random/average/maximum"
+            );
+        }
+    }
+
+    private static void ValidateLootQuantityMultiplierPayload(
+        LootQuantityMultiplierActionPayloadDef payload,
+        string path,
+        List<string> errors
+    )
+    {
+        if (payload.target_selector == "" || payload.multiplier_percent <= 0)
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "loot_quantity_multiplier requires target_selector and positive multiplier_percent"
+            );
+        }
+        foreach (StringName dropKind in payload.affected_drop_kinds)
+        {
+            if (dropKind == "" || BattleLootIds.ToDropKind(dropKind) == BattleLootDropKind.Unknown)
+            {
+                AddError(
+                    errors,
+                    "EQA_LOOT_DROP_KIND_INVALID",
+                    $"{path}.payload.affected_drop_kinds",
+                    $"loot_quantity_multiplier drop kind {dropKind} is not supported"
+                );
+            }
+        }
+    }
+
+    private static void ValidateApplyStatusPayload(
+        ApplyStatusActionPayloadDef payload,
+        EquipmentAbilityContentValidationContext context,
+        string path,
+        List<string> errors
+    )
+    {
+        if (payload.target_selector == "" || payload.status_id == "")
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "apply_status requires target_selector and status_id"
+            );
+        }
+        ValidateStatusReference(payload.status_id, context, $"{path}.payload.status_id", errors);
+        ValidateStatusSemanticPayload(
+            payload.stack_behavior,
+            payload.stack_limit,
+            payload.counts_as_debuff_override,
+            payload.counts_as_debuff,
+            payload.undispellable,
+            payload.dispellable_magic,
+            payload.dispellable_harmful_magic,
+            payload.dispellable_beneficial_magic,
+            path,
+            "apply_status",
+            "",
+            errors
+        );
+        if (payload.source_bound_attack_roll_penalty_min_stacks <= 0)
+        {
+            AddError(
+                errors,
+                "EQA_STATUS_SOURCE_BOUND_MIN_STACKS_INVALID",
+                $"{path}.payload.source_bound_attack_roll_penalty_min_stacks",
+                "apply_status source_bound_attack_roll_penalty_min_stacks must be positive"
+            );
+        }
+        if (payload.save_dc > 0 && (payload.save_ability == "" || payload.save_tag == ""))
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "apply_status save gate requires save_ability and save_tag when save_dc is positive"
+            );
+        }
+        bool hasTimelineDamageDice =
+            payload.timeline_damage_dice_count > 0
+            || payload.timeline_damage_dice_sides > 0
+            || payload.timeline_damage_flat_bonus > 0;
+        if (payload.tick_interval_tu < 0)
+        {
+            AddError(
+                errors,
+                "EQA_STATUS_TICK_INVALID",
+                $"{path}.payload.tick_interval_tu",
+                "apply_status tick_interval_tu must be >= 0"
+            );
+        }
+        if (payload.timeline_damage_dice_count < 0 || payload.timeline_damage_dice_sides < 0)
+        {
+            AddError(
+                errors,
+                "EQA_STATUS_TIMELINE_DAMAGE_DICE_INVALID",
+                path,
+                "apply_status timeline damage dice count/sides must be >= 0"
+            );
+        }
+        if (payload.timeline_damage_flat_bonus < 0)
+        {
+            AddError(
+                errors,
+                "EQA_STATUS_TIMELINE_DAMAGE_DICE_INVALID",
+                $"{path}.payload.timeline_damage_flat_bonus",
+                "apply_status timeline_damage_flat_bonus must be >= 0"
+            );
+        }
+        if (hasTimelineDamageDice)
+        {
+            if (payload.tick_interval_tu <= 0)
+            {
+                AddError(
+                    errors,
+                    "EQA_STATUS_TICK_INVALID",
+                    $"{path}.payload.tick_interval_tu",
+                    "apply_status timeline damage dice require positive tick_interval_tu"
+                );
+            }
+            if (payload.timeline_damage_dice_count <= 0 || payload.timeline_damage_dice_sides <= 0)
+            {
+                AddError(
+                    errors,
+                    "EQA_STATUS_TIMELINE_DAMAGE_DICE_INVALID",
+                    path,
+                    "apply_status timeline damage dice require positive dice count and sides"
+                );
+            }
+        }
+    }
+
+    private static void ValidateStatusSemanticPayload(
+        StringName stackBehavior,
+        int stackLimit,
+        bool countsAsDebuffOverride,
+        bool countsAsDebuff,
+        bool undispellable,
+        bool dispellableMagic,
+        bool dispellableHarmfulMagic,
+        bool dispellableBeneficialMagic,
+        string path,
+        string ownerLabel,
+        string fieldPrefix,
+        List<string> errors
+    )
+    {
+        StringName normalizedStackBehavior = ProgressionDataUtils.to_string_name(stackBehavior);
+        if (
+            normalizedStackBehavior != ""
+            && normalizedStackBehavior != StatusStackRefresh
+            && normalizedStackBehavior != StatusStackAdd
+        )
+        {
+            AddError(
+                errors,
+                "EQA_STATUS_STACK_BEHAVIOR_INVALID",
+                $"{path}.payload.{fieldPrefix}stack_behavior",
+                $"{ownerLabel} status stack_behavior must be refresh or add"
+            );
+        }
+        if (stackLimit < 0)
+        {
+            AddError(
+                errors,
+                "EQA_STATUS_STACK_LIMIT_INVALID",
+                $"{path}.payload.{fieldPrefix}stack_limit",
+                $"{ownerLabel} status stack_limit must be >= 0"
+            );
+        }
+        if (countsAsDebuff && !countsAsDebuffOverride)
+        {
+            AddError(
+                errors,
+                "EQA_STATUS_DEBUFF_FLAG_INVALID",
+                $"{path}.payload.{fieldPrefix}counts_as_debuff",
+                $"{ownerLabel} status counts_as_debuff requires counts_as_debuff_override"
+            );
+        }
+        if (
+            undispellable
+            && (dispellableMagic || dispellableHarmfulMagic || dispellableBeneficialMagic)
+        )
+        {
+            AddError(
+                errors,
+                "EQA_STATUS_DISPEL_FLAG_INVALID",
+                $"{path}.payload.{fieldPrefix}undispellable",
+                $"{ownerLabel} status cannot be both undispellable and dispellable"
+            );
+        }
+    }
+
+    private static void ValidateScheduleAreaEffectPayload(
+        ScheduleAreaEffectActionPayloadDef payload,
+        EquipmentAbilityContentValidationContext context,
+        string path,
+        List<string> errors
+    )
+    {
+        if (
+            payload.anchor_selector == ""
+            || payload.delay_tu <= 0
+            || payload.terrain_effect_id == ""
+            || payload.area_pattern == ""
+            || payload.lifetime_policy == ""
+            || payload.effect_type == ""
+        )
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "schedule_area_effect requires anchor_selector, positive delay_tu, terrain_effect_id, area_pattern, lifetime_policy, and effect_type"
+            );
+        }
+        if (payload.delay_tu > 0 && payload.delay_tu % TuGranularity != 0)
+        {
+            AddError(
+                errors,
+                "EQA_TU_GRANULARITY_INVALID",
+                $"{path}.payload.delay_tu",
+                $"schedule_area_effect delay_tu must be a multiple of {TuGranularity}"
+            );
+        }
+        if (payload.area_value < 0)
+        {
+            AddError(
+                errors,
+                "EQA_AREA_VALUE_INVALID",
+                $"{path}.payload.area_value",
+                "schedule_area_effect area_value must be >= 0"
+            );
+        }
+        if (!CombatTargetTeamContentRules.IsValidSkillTargetTeamFilter(payload.target_team_filter))
+        {
+            AddError(
+                errors,
+                "EQA_TARGET_TEAM_FILTER_INVALID",
+                $"{path}.payload.target_team_filter",
+                $"schedule_area_effect target_team_filter {payload.target_team_filter} is not supported"
+            );
+        }
+
+        bool hasContactStatus = payload.contact_status_id != "";
+        if (!hasContactStatus)
+        {
+            return;
+        }
+        ValidateStatusReference(
+            payload.contact_status_id,
+            context,
+            $"{path}.payload.contact_status_id",
+            errors
+        );
+        ValidateStatusSemanticPayload(
+            payload.contact_stack_behavior,
+            payload.contact_stack_limit,
+            payload.contact_counts_as_debuff_override,
+            payload.contact_counts_as_debuff,
+            payload.contact_undispellable,
+            payload.contact_dispellable_magic,
+            payload.contact_dispellable_harmful_magic,
+            payload.contact_dispellable_beneficial_magic,
+            path,
+            "schedule_area_effect contact",
+            "contact_",
+            errors
+        );
+        if (payload.contact_status_duration_tu <= 0)
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                $"{path}.payload.contact_status_duration_tu",
+                "schedule_area_effect contact status requires positive contact_status_duration_tu"
+            );
+        }
+        if (payload.contact_save_dc > 0 && (payload.contact_save_ability == "" || payload.contact_save_tag == ""))
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "schedule_area_effect contact save gate requires contact_save_ability and contact_save_tag when contact_save_dc is positive"
+            );
+        }
+        if (payload.contact_tick_interval_tu < 0)
+        {
+            AddError(
+                errors,
+                "EQA_STATUS_TICK_INVALID",
+                $"{path}.payload.contact_tick_interval_tu",
+                "schedule_area_effect contact_tick_interval_tu must be >= 0"
+            );
+        }
+        if (
+            payload.contact_tick_interval_tu > 0
+            && payload.contact_tick_interval_tu % TuGranularity != 0
+        )
+        {
+            AddError(
+                errors,
+                "EQA_TU_GRANULARITY_INVALID",
+                $"{path}.payload.contact_tick_interval_tu",
+                $"schedule_area_effect contact_tick_interval_tu must be a multiple of {TuGranularity}"
+            );
+        }
+        bool hasContactTimelineDamage =
+            payload.contact_timeline_damage_dice_count > 0
+            || payload.contact_timeline_damage_dice_sides > 0
+            || payload.contact_timeline_damage_flat_bonus > 0;
+        if (
+            payload.contact_timeline_damage_dice_count < 0
+            || payload.contact_timeline_damage_dice_sides < 0
+            || payload.contact_timeline_damage_flat_bonus < 0
+        )
+        {
+            AddError(
+                errors,
+                "EQA_STATUS_TIMELINE_DAMAGE_DICE_INVALID",
+                path,
+                "schedule_area_effect contact timeline damage dice fields must be >= 0"
+            );
+        }
+        if (hasContactTimelineDamage)
+        {
+            if (payload.contact_tick_interval_tu <= 0)
+            {
+                AddError(
+                    errors,
+                    "EQA_STATUS_TICK_INVALID",
+                    $"{path}.payload.contact_tick_interval_tu",
+                    "schedule_area_effect contact timeline damage requires positive contact_tick_interval_tu"
+                );
+            }
+            if (
+                payload.contact_timeline_damage_dice_count <= 0
+                || payload.contact_timeline_damage_dice_sides <= 0
+            )
+            {
+                AddError(
+                    errors,
+                    "EQA_STATUS_TIMELINE_DAMAGE_DICE_INVALID",
+                    path,
+                    "schedule_area_effect contact timeline damage requires positive dice count and sides"
+                );
+            }
+        }
+    }
+
     private static void ValidateDurabilityPayload(
         EquipmentDurabilityDamageActionPayloadDef payload,
         EquipmentAbilityContentValidationContext context,
@@ -823,6 +1268,15 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 "EQA_DURABILITY_MAX_DAMAGED_ITEMS_UNSUPPORTED",
                 $"{path}.payload.max_damaged_items",
                 "V1 requires max_damaged_items = 1"
+            );
+        }
+        if (payload.max_target_rarity < -1 || !IsKnownEquipmentRarity(payload.max_target_rarity))
+        {
+            AddError(
+                errors,
+                "EQA_DURABILITY_TARGET_RARITY_INVALID",
+                $"{path}.payload.max_target_rarity",
+                "max_target_rarity must be -1 or a valid EquipmentInstanceState.RarityTier value"
             );
         }
         if (HasKnownValues(context.KnownEquipmentSlotIds))
@@ -881,6 +1335,11 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         }
     }
 
+    private static bool IsKnownEquipmentRarity(int rarity)
+    {
+        return rarity == -1 || EquipmentInstanceState.IsValidRarity(rarity);
+    }
+
     private static void ValidateDeclaredStateKey(
         StringName stateKey,
         HashSet<StringName> declaredStateKeys,
@@ -937,6 +1396,43 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                     "EQA_GRANTED_SKILL_COMPOSITION_INVALID",
                     grantPath,
                     "equipment granted skills require skill_id and positive skill_level"
+                );
+            }
+            bool usageKindParsed = EquipmentAbilityUsagePeriodKinds.TryParse(
+                grant.usage_period_kind,
+                out EquipmentAbilityUsagePeriodKind usagePeriodKind
+            );
+            if (!usageKindParsed)
+            {
+                AddError(
+                    errors,
+                    "EQA_GRANTED_USAGE_PERIOD_UNSUPPORTED",
+                    $"{grantPath}.usage_period_kind",
+                    $"usage_period_kind {grant.usage_period_kind} is not supported in V1"
+                );
+            }
+            if (
+                EquipmentAbilityUsagePeriodKinds.IsLimited(usagePeriodKind)
+                && grant.max_uses_per_period <= 0
+            )
+            {
+                AddError(
+                    errors,
+                    "EQA_GRANTED_USAGE_LIMIT_INVALID",
+                    $"{grantPath}.max_uses_per_period",
+                    "limited equipment granted skills require positive max_uses_per_period"
+                );
+            }
+            if (
+                !EquipmentAbilityUsagePeriodKinds.IsLimited(usagePeriodKind)
+                && grant.max_uses_per_period != 0
+            )
+            {
+                AddError(
+                    errors,
+                    "EQA_GRANTED_USAGE_LIMIT_INVALID",
+                    $"{grantPath}.max_uses_per_period",
+                    "max_uses_per_period requires usage_period_kind"
                 );
             }
             ValidateConditionGroup(
@@ -1031,6 +1527,20 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 $"status_id {statusId} is not known"
             );
         }
+    }
+
+    private static void ValidateFactQuery(
+        EquipmentAbilityFactQueryDef query,
+        EquipmentAbilityContentValidationContext context,
+        string path,
+        List<string> errors
+    )
+    {
+        if (query == null)
+            return;
+        if (query.fact_id != "status_stacks")
+            return;
+        ValidateStatusReference(query.status_id, context, $"{path}.status_id", errors);
     }
 
     private static void ValidateSkillReference(
@@ -1291,16 +1801,103 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 DamageType = damage.damage_type,
                 DamageTags = CopyStringNames(damage.damage_tags),
             },
+            AttackRollBonusActionPayloadDef attackRoll => new AttackRollBonusActionPayloadDefinition
+            {
+                TargetSelector = attackRoll.target_selector,
+                Bonus = attackRoll.bonus,
+                StackMode = attackRoll.stack_mode,
+                Label = attackRoll.label ?? "",
+            },
+            AttackRollAdvantageActionPayloadDef attackAdvantage => new AttackRollAdvantageActionPayloadDefinition
+            {
+                TargetSelector = attackAdvantage.target_selector,
+                Mode = attackAdvantage.mode,
+                StackMode = attackAdvantage.stack_mode,
+                Label = attackAdvantage.label ?? "",
+            },
+            DamageRollModeOverrideActionPayloadDef damageRollMode =>
+                new DamageRollModeOverrideActionPayloadDefinition
+                {
+                    TargetSelector = damageRollMode.target_selector,
+                    RollMode = damageRollMode.roll_mode,
+                    StackMode = damageRollMode.stack_mode,
+                    Label = damageRollMode.label ?? "",
+                },
+            LootQuantityMultiplierActionPayloadDef loot => new LootQuantityMultiplierActionPayloadDefinition
+            {
+                TargetSelector = loot.target_selector,
+                MultiplierPercent = loot.multiplier_percent,
+                AffectedDropKinds = CopyStringNames(loot.affected_drop_kinds),
+                AnyItemTags = CopyStringNames(loot.any_item_tags),
+            },
             ApplyStatusActionPayloadDef status => new ApplyStatusActionPayloadDefinition
             {
                 TargetSelector = status.target_selector,
                 StatusId = status.status_id,
                 DurationTurns = status.duration_turns,
+                DurationTu = status.duration_tu,
                 StackDelta = status.stack_delta,
+                StackBehavior = status.stack_behavior,
+                StackLimit = status.stack_limit,
+                DisplayLabel = status.display_label ?? "",
+                AttackRollPenalty = status.attack_roll_penalty,
+                SourceBoundAttackRollPenalty = status.source_bound_attack_roll_penalty,
+                SourceBoundAttackRollPenaltyMinStacks =
+                    status.source_bound_attack_roll_penalty_min_stacks,
+                CountsAsDebuffOverride = status.counts_as_debuff_override,
+                CountsAsDebuff = status.counts_as_debuff,
+                Undispellable = status.undispellable,
+                DispellableMagic = status.dispellable_magic,
+                DispellableHarmfulMagic = status.dispellable_harmful_magic,
+                DispellableBeneficialMagic = status.dispellable_beneficial_magic,
+                TickIntervalTu = status.tick_interval_tu,
+                TimelineDamageDiceCount = status.timeline_damage_dice_count,
+                TimelineDamageDiceSides = status.timeline_damage_dice_sides,
+                TimelineDamageFlatBonus = status.timeline_damage_flat_bonus,
+                SaveDc = status.save_dc,
+                SaveAbility = status.save_ability,
+                SaveTag = status.save_tag,
+                ApplyOnSaveFailure = status.apply_on_save_failure,
+            },
+            ScheduleAreaEffectActionPayloadDef schedule => new ScheduleAreaEffectActionPayloadDefinition
+            {
+                AnchorSelector = schedule.anchor_selector,
+                DelayTu = schedule.delay_tu,
+                TerrainEffectId = schedule.terrain_effect_id,
+                AreaPattern = schedule.area_pattern,
+                AreaValue = schedule.area_value,
+                LifetimePolicy = schedule.lifetime_policy,
+                EffectType = schedule.effect_type,
+                TargetTeamFilter = schedule.target_team_filter,
+                StackBehavior = schedule.stack_behavior,
+                DisplayName = schedule.display_name ?? "",
+                RenderOverlayId = schedule.render_overlay_id,
+                OverlayPriority = schedule.overlay_priority,
+                ContactStatusId = schedule.contact_status_id,
+                ContactStatusDurationTu = schedule.contact_status_duration_tu,
+                ContactStackBehavior = schedule.contact_stack_behavior,
+                ContactStackLimit = schedule.contact_stack_limit,
+                ContactStatusDisplayLabel = schedule.contact_status_display_label ?? "",
+                ContactCountsAsDebuffOverride = schedule.contact_counts_as_debuff_override,
+                ContactCountsAsDebuff = schedule.contact_counts_as_debuff,
+                ContactUndispellable = schedule.contact_undispellable,
+                ContactDispellableMagic = schedule.contact_dispellable_magic,
+                ContactDispellableHarmfulMagic = schedule.contact_dispellable_harmful_magic,
+                ContactDispellableBeneficialMagic = schedule.contact_dispellable_beneficial_magic,
+                ContactSaveDc = schedule.contact_save_dc,
+                ContactSaveAbility = schedule.contact_save_ability,
+                ContactSaveTag = schedule.contact_save_tag,
+                ContactApplyOnSaveFailure = schedule.contact_apply_on_save_failure,
+                ContactTickIntervalTu = schedule.contact_tick_interval_tu,
+                ContactTimelineDamageDiceCount = schedule.contact_timeline_damage_dice_count,
+                ContactTimelineDamageDiceSides = schedule.contact_timeline_damage_dice_sides,
+                ContactTimelineDamageFlatBonus = schedule.contact_timeline_damage_flat_bonus,
+                ContactBlockedByTraitId = schedule.contact_blocked_by_trait_id,
             },
             ModifyAbilityStateActionPayloadDef state => new ModifyAbilityStateActionPayloadDefinition
             {
                 TargetSelector = state.target_selector,
+                BindingId = state.binding_id,
                 StateKey = state.state_key,
                 Operation = state.operation,
                 IntDelta = state.int_delta,
@@ -1331,6 +1928,7 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                     SaveDc = durability.save_dc,
                     RequireAttackSuccess = durability.require_attack_success,
                     MaxDamagedItems = durability.max_damaged_items,
+                    MaxTargetRarity = durability.max_target_rarity,
                 },
             _ => null,
         };
@@ -1373,6 +1971,9 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             QueryKind = value.query_kind,
             FactId = value.fact_id,
             Subject = value.subject,
+            BindingId = value.binding_id,
+            StateKey = value.state_key,
+            StatusId = value.status_id,
             Aggregation = value.aggregation,
             ValueKind = value.value_kind,
             BoolLiteral = value.bool_literal,
@@ -1430,6 +2031,10 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         {
             if (value == null)
                 continue;
+            EquipmentAbilityUsagePeriodKinds.TryParse(
+                value.usage_period_kind,
+                out EquipmentAbilityUsagePeriodKind usagePeriodKind
+            );
             result.Add(
                 new EquipmentGrantedActionDefinition
                 {
@@ -1439,6 +2044,8 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                         : EquipmentGrantedActionKind.Skill,
                     SkillId = value.skill_id,
                     SkillLevel = value.skill_level,
+                    UsagePeriodKind = usagePeriodKind,
+                    MaxUsesPerPeriod = value.max_uses_per_period,
                     DisplayCategory = value.display_category,
                     DisplayPriority = value.display_priority,
                     AvailabilityConditions = ProjectConditionGroup(value.availability_conditions),
@@ -1632,9 +2239,34 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             trigger = EquipmentAbilityTriggerKind.OnHit;
             return true;
         }
+        if (value == "on_kill")
+        {
+            trigger = EquipmentAbilityTriggerKind.OnKill;
+            return true;
+        }
         if (value == "on_battle_end")
         {
             trigger = EquipmentAbilityTriggerKind.OnBattleEnd;
+            return true;
+        }
+        if (value == "on_granted_skill_used")
+        {
+            trigger = EquipmentAbilityTriggerKind.OnGrantedSkillUsed;
+            return true;
+        }
+        if (value == "on_turn_end")
+        {
+            trigger = EquipmentAbilityTriggerKind.OnTurnEnd;
+            return true;
+        }
+        if (value == "on_damage_roll")
+        {
+            trigger = EquipmentAbilityTriggerKind.OnDamageRoll;
+            return true;
+        }
+        if (value == "on_damage_applied")
+        {
+            trigger = EquipmentAbilityTriggerKind.OnDamageApplied;
             return true;
         }
         trigger = EquipmentAbilityTriggerKind.OnHit;
@@ -1653,9 +2285,34 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             timing = EquipmentAbilityTimingKind.AfterHit;
             return true;
         }
+        if (value == "after_kill")
+        {
+            timing = EquipmentAbilityTimingKind.AfterKill;
+            return true;
+        }
         if (value == "after_battle")
         {
             timing = EquipmentAbilityTimingKind.AfterBattle;
+            return true;
+        }
+        if (value == "after_skill")
+        {
+            timing = EquipmentAbilityTimingKind.AfterSkill;
+            return true;
+        }
+        if (value == "after_turn")
+        {
+            timing = EquipmentAbilityTimingKind.AfterTurn;
+            return true;
+        }
+        if (value == "before_damage")
+        {
+            timing = EquipmentAbilityTimingKind.BeforeDamage;
+            return true;
+        }
+        if (value == "after_damage")
+        {
+            timing = EquipmentAbilityTimingKind.AfterDamage;
             return true;
         }
         timing = EquipmentAbilityTimingKind.AfterHit;

@@ -21,8 +21,12 @@ public class BattleStatusEffectState
     private static readonly string[] OptionalSchemaFields =
     {
         "duration",
+        "display_label",
         "tick_interval_tu",
         "next_tick_at_tu",
+        "timeline_damage_dice_count",
+        "timeline_damage_dice_sides",
+        "timeline_damage_flat_bonus",
         "skip_next_turn_end_decay",
         "counts_as_debuff_override",
         "counts_as_debuff",
@@ -46,6 +50,8 @@ public class BattleStatusEffectState
         "heal_multiplier_percent",
         "shield_gain_multiplier_percent",
         "attack_roll_penalty",
+        "source_bound_attack_roll_penalty",
+        "source_bound_attack_roll_penalty_min_stacks",
         "undispellable",
         "dispellable_magic",
         "dispellable_harmful_magic",
@@ -98,6 +104,8 @@ public class BattleStatusEffectState
     public int? heal_multiplier_percent { get; set; }
     public int? shield_gain_multiplier_percent { get; set; }
     public int attack_roll_penalty { get; set; } = -1;
+    public int source_bound_attack_roll_penalty { get; set; }
+    public int source_bound_attack_roll_penalty_min_stacks { get; set; } = 1;
     public bool undispellable { get; set; }
     public bool dispellable_magic { get; set; }
     public bool dispellable_harmful_magic { get; set; }
@@ -117,8 +125,12 @@ public class BattleStatusEffectState
     public int death_prevention_priority { get; set; }
     public int stacks { get; set; }
     public int duration { get; set; } = -1;
+    public string display_label { get; set; } = "";
     public int tick_interval_tu { get; set; }
     public int next_tick_at_tu { get; set; }
+    public int timeline_damage_dice_count { get; set; }
+    public int timeline_damage_dice_sides { get; set; }
+    public int timeline_damage_flat_bonus { get; set; }
     public bool skip_next_turn_end_decay { get; set; }
     public bool forced_move_immune { get; set; }
     public bool counts_as_debuff_override { get; set; }
@@ -215,6 +227,9 @@ public class BattleStatusEffectState
             heal_multiplier_percent = heal_multiplier_percent,
             shield_gain_multiplier_percent = shield_gain_multiplier_percent,
             attack_roll_penalty = attack_roll_penalty,
+            source_bound_attack_roll_penalty = source_bound_attack_roll_penalty,
+            source_bound_attack_roll_penalty_min_stacks =
+                source_bound_attack_roll_penalty_min_stacks,
             undispellable = undispellable,
             dispellable_magic = dispellable_magic,
             dispellable_harmful_magic = dispellable_harmful_magic,
@@ -234,8 +249,12 @@ public class BattleStatusEffectState
             death_prevention_priority = death_prevention_priority,
             stacks = stacks,
             duration = duration,
+            display_label = display_label,
             tick_interval_tu = tick_interval_tu,
             next_tick_at_tu = next_tick_at_tu,
+            timeline_damage_dice_count = timeline_damage_dice_count,
+            timeline_damage_dice_sides = timeline_damage_dice_sides,
+            timeline_damage_flat_bonus = timeline_damage_flat_bonus,
             skip_next_turn_end_decay = skip_next_turn_end_decay,
             forced_move_immune = forced_move_immune,
             counts_as_debuff_override = counts_as_debuff_override,
@@ -275,6 +294,10 @@ public class BattleStatusEffectState
         {
             payload["duration"] = duration;
         }
+        if (!string.IsNullOrWhiteSpace(display_label))
+        {
+            payload["display_label"] = display_label;
+        }
         if (tick_interval_tu > 0)
         {
             payload["tick_interval_tu"] = tick_interval_tu;
@@ -282,6 +305,15 @@ public class BattleStatusEffectState
         if (next_tick_at_tu > 0)
         {
             payload["next_tick_at_tu"] = next_tick_at_tu;
+        }
+        if (timeline_damage_dice_count > 0 || timeline_damage_dice_sides > 0)
+        {
+            payload["timeline_damage_dice_count"] = timeline_damage_dice_count;
+            payload["timeline_damage_dice_sides"] = timeline_damage_dice_sides;
+        }
+        if (timeline_damage_flat_bonus > 0)
+        {
+            payload["timeline_damage_flat_bonus"] = timeline_damage_flat_bonus;
         }
         if (skip_next_turn_end_decay)
         {
@@ -355,6 +387,18 @@ public class BattleStatusEffectState
             }
         }
 
+        string displayLabelValue = "";
+        if (effectDict.ContainsKey("display_label"))
+        {
+            if (
+                !TryGetStringLike(effectDict, "display_label", out displayLabelValue)
+                || string.IsNullOrWhiteSpace(displayLabelValue)
+            )
+            {
+                return null;
+            }
+        }
+
         int tickIntervalValue = 0;
         if (effectDict.ContainsKey("tick_interval_tu"))
         {
@@ -373,6 +417,52 @@ public class BattleStatusEffectState
             if (
                 !TryGetStrictInt(effectDict, "next_tick_at_tu", out nextTickAtValue)
                 || nextTickAtValue <= 0
+            )
+            {
+                return null;
+            }
+        }
+
+        int timelineDamageDiceCountValue = 0;
+        int timelineDamageDiceSidesValue = 0;
+        int timelineDamageFlatBonusValue = 0;
+        bool hasTimelineDamageDiceCount = effectDict.ContainsKey("timeline_damage_dice_count");
+        bool hasTimelineDamageDiceSides = effectDict.ContainsKey("timeline_damage_dice_sides");
+        bool hasTimelineDamageFlatBonus = effectDict.ContainsKey("timeline_damage_flat_bonus");
+        if (hasTimelineDamageDiceCount != hasTimelineDamageDiceSides)
+        {
+            return null;
+        }
+        if (hasTimelineDamageDiceCount)
+        {
+            if (
+                !TryGetStrictInt(
+                    effectDict,
+                    "timeline_damage_dice_count",
+                    out timelineDamageDiceCountValue
+                )
+                || timelineDamageDiceCountValue <= 0
+                || !TryGetStrictInt(
+                    effectDict,
+                    "timeline_damage_dice_sides",
+                    out timelineDamageDiceSidesValue
+                )
+                || timelineDamageDiceSidesValue <= 0
+            )
+            {
+                return null;
+            }
+        }
+        if (hasTimelineDamageFlatBonus)
+        {
+            if (
+                !TryGetStrictInt(
+                    effectDict,
+                    "timeline_damage_flat_bonus",
+                    out timelineDamageFlatBonusValue
+                )
+                || timelineDamageFlatBonusValue <= 0
+                || !hasTimelineDamageDiceCount
             )
             {
                 return null;
@@ -501,6 +591,10 @@ public class BattleStatusEffectState
                 "shield_gain_multiplier_percent"
             ),
             attack_roll_penalty = ReadOptionalIntParam(parameters, "attack_roll_penalty") ?? -1,
+            source_bound_attack_roll_penalty =
+                ReadOptionalIntParam(parameters, "source_bound_attack_roll_penalty") ?? 0,
+            source_bound_attack_roll_penalty_min_stacks =
+                ReadOptionalIntParam(parameters, "source_bound_attack_roll_penalty_min_stacks") ?? 1,
             undispellable = ReadOptionalBoolParam(parameters, "undispellable"),
             dispellable_magic = ReadOptionalBoolParam(parameters, "dispellable_magic"),
             dispellable_harmful_magic = ReadOptionalBoolParam(parameters, "dispellable_harmful_magic"),
@@ -538,8 +632,12 @@ public class BattleStatusEffectState
             save_bonus_by_tag = ReadStringNameIntMapParam(parameters, "save_bonus_by_tag"),
             stacks = stacks,
             duration = durationValue,
+            display_label = displayLabelValue,
             tick_interval_tu = tickIntervalValue,
             next_tick_at_tu = nextTickAtValue,
+            timeline_damage_dice_count = timelineDamageDiceCountValue,
+            timeline_damage_dice_sides = timelineDamageDiceSidesValue,
+            timeline_damage_flat_bonus = timelineDamageFlatBonusValue,
             skip_next_turn_end_decay = skipDecayValue,
             counts_as_debuff_override = countsAsDebuffOverrideValue,
             counts_as_debuff = countsAsDebuffValue,
@@ -596,6 +694,12 @@ public class BattleStatusEffectState
         if (attack_roll_penalty >= 0)
         {
             projected["attack_roll_penalty"] = attack_roll_penalty;
+        }
+        if (source_bound_attack_roll_penalty > 0)
+        {
+            projected["source_bound_attack_roll_penalty"] = source_bound_attack_roll_penalty;
+            projected["source_bound_attack_roll_penalty_min_stacks"] =
+                Mathf.Max(source_bound_attack_roll_penalty_min_stacks, 1);
         }
         if (undispellable)
         {

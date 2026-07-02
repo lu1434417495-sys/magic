@@ -17,6 +17,26 @@ public class BattleTerrainEffectState
         "accuracy_modifier_spec",
         "does_not_stack_with_status_id",
         "does_not_stack_with_status_ids",
+        "contact_status_id",
+        "contact_status_duration_tu",
+        "contact_stack_behavior",
+        "contact_stack_limit",
+        "contact_status_display_label",
+        "contact_counts_as_debuff_override",
+        "contact_counts_as_debuff",
+        "contact_undispellable",
+        "contact_dispellable_magic",
+        "contact_dispellable_harmful_magic",
+        "contact_dispellable_beneficial_magic",
+        "contact_save_dc",
+        "contact_save_ability",
+        "contact_save_tag",
+        "contact_apply_on_save_failure",
+        "contact_tick_interval_tu",
+        "contact_timeline_damage_dice_count",
+        "contact_timeline_damage_dice_sides",
+        "contact_timeline_damage_flat_bonus",
+        "contact_blocked_by_trait_id",
     };
 
     private static readonly string[] SerializedFieldNames =
@@ -93,6 +113,26 @@ public class BattleTerrainEffectState
     public BattleAttackRollModifierSpec accuracy_modifier_spec { get; set; }
     public StringName does_not_stack_with_status_id { get; set; } = "";
     public List<StringName> does_not_stack_with_status_ids { get; set; } = new();
+    public StringName contact_status_id { get; set; } = "";
+    public int contact_status_duration_tu { get; set; }
+    public StringName contact_stack_behavior { get; set; } = "refresh";
+    public int contact_stack_limit { get; set; }
+    public string contact_status_display_label { get; set; } = "";
+    public bool contact_counts_as_debuff_override { get; set; }
+    public bool contact_counts_as_debuff { get; set; }
+    public bool contact_undispellable { get; set; }
+    public bool contact_dispellable_magic { get; set; }
+    public bool contact_dispellable_harmful_magic { get; set; }
+    public bool contact_dispellable_beneficial_magic { get; set; }
+    public int contact_save_dc { get; set; }
+    public StringName contact_save_ability { get; set; } = "";
+    public StringName contact_save_tag { get; set; } = "";
+    public bool contact_apply_on_save_failure { get; set; }
+    public int contact_tick_interval_tu { get; set; }
+    public int contact_timeline_damage_dice_count { get; set; }
+    public int contact_timeline_damage_dice_sides { get; set; }
+    public int contact_timeline_damage_flat_bonus { get; set; }
+    public StringName contact_blocked_by_trait_id { get; set; } = "";
     public StringName source_unit_id { get; set; } = "";
     public StringName source_skill_id { get; set; } = "";
     public StringName target_team_filter { get; set; } = "any";
@@ -257,6 +297,26 @@ public class BattleTerrainEffectState
                 "does_not_stack_with_status_id"
             ),
             does_not_stack_with_status_ids = ReadStringNameList(parameters, "does_not_stack_with_status_ids"),
+            contact_status_id = GetStringName(parameters, "contact_status_id"),
+            contact_status_duration_tu = GetInt(parameters, "contact_status_duration_tu"),
+            contact_stack_behavior = GetStringName(parameters, "contact_stack_behavior"),
+            contact_stack_limit = GetInt(parameters, "contact_stack_limit"),
+            contact_status_display_label = GetString(parameters, "contact_status_display_label"),
+            contact_counts_as_debuff_override = GetBool(parameters, "contact_counts_as_debuff_override"),
+            contact_counts_as_debuff = GetBool(parameters, "contact_counts_as_debuff"),
+            contact_undispellable = GetBool(parameters, "contact_undispellable"),
+            contact_dispellable_magic = GetBool(parameters, "contact_dispellable_magic"),
+            contact_dispellable_harmful_magic = GetBool(parameters, "contact_dispellable_harmful_magic"),
+            contact_dispellable_beneficial_magic = GetBool(parameters, "contact_dispellable_beneficial_magic"),
+            contact_save_dc = GetInt(parameters, "contact_save_dc"),
+            contact_save_ability = GetStringName(parameters, "contact_save_ability"),
+            contact_save_tag = GetStringName(parameters, "contact_save_tag"),
+            contact_apply_on_save_failure = GetBool(parameters, "contact_apply_on_save_failure"),
+            contact_tick_interval_tu = GetInt(parameters, "contact_tick_interval_tu"),
+            contact_timeline_damage_dice_count = GetInt(parameters, "contact_timeline_damage_dice_count"),
+            contact_timeline_damage_dice_sides = GetInt(parameters, "contact_timeline_damage_dice_sides"),
+            contact_timeline_damage_flat_bonus = GetInt(parameters, "contact_timeline_damage_flat_bonus"),
+            contact_blocked_by_trait_id = GetStringName(parameters, "contact_blocked_by_trait_id"),
             source_unit_id = GetStringName(typedData, "source_unit_id"),
             source_skill_id = GetStringName(typedData, "source_skill_id"),
             target_team_filter = targetTeamFilter,
@@ -370,6 +430,86 @@ public class BattleTerrainEffectState
                     does_not_stack_with_status_ids
                 );
         }
+        if (contact_status_id != "")
+        {
+            projected["contact_status_id"] = contact_status_id.ToString();
+        }
+        if (contact_status_duration_tu > 0)
+        {
+            projected["contact_status_duration_tu"] = contact_status_duration_tu;
+        }
+        if (contact_stack_behavior != "")
+        {
+            projected["contact_stack_behavior"] = contact_stack_behavior.ToString();
+        }
+        if (contact_stack_limit > 0)
+        {
+            projected["contact_stack_limit"] = contact_stack_limit;
+        }
+        if (!string.IsNullOrEmpty(contact_status_display_label))
+        {
+            projected["contact_status_display_label"] = contact_status_display_label;
+        }
+        if (contact_counts_as_debuff_override)
+        {
+            projected["contact_counts_as_debuff_override"] = true;
+            projected["contact_counts_as_debuff"] = contact_counts_as_debuff;
+        }
+        if (contact_undispellable)
+        {
+            projected["contact_undispellable"] = true;
+        }
+        if (contact_dispellable_magic)
+        {
+            projected["contact_dispellable_magic"] = true;
+        }
+        if (contact_dispellable_harmful_magic)
+        {
+            projected["contact_dispellable_harmful_magic"] = true;
+        }
+        if (contact_dispellable_beneficial_magic)
+        {
+            projected["contact_dispellable_beneficial_magic"] = true;
+        }
+        if (contact_save_dc > 0)
+        {
+            projected["contact_save_dc"] = contact_save_dc;
+        }
+        if (contact_save_ability != "")
+        {
+            projected["contact_save_ability"] = contact_save_ability.ToString();
+        }
+        if (contact_save_tag != "")
+        {
+            projected["contact_save_tag"] = contact_save_tag.ToString();
+        }
+        if (contact_apply_on_save_failure)
+        {
+            projected["contact_apply_on_save_failure"] = contact_apply_on_save_failure;
+        }
+        if (contact_tick_interval_tu > 0)
+        {
+            projected["contact_tick_interval_tu"] = contact_tick_interval_tu;
+        }
+        if (contact_timeline_damage_dice_count > 0)
+        {
+            projected["contact_timeline_damage_dice_count"] =
+                contact_timeline_damage_dice_count;
+        }
+        if (contact_timeline_damage_dice_sides > 0)
+        {
+            projected["contact_timeline_damage_dice_sides"] =
+                contact_timeline_damage_dice_sides;
+        }
+        if (contact_timeline_damage_flat_bonus > 0)
+        {
+            projected["contact_timeline_damage_flat_bonus"] =
+                contact_timeline_damage_flat_bonus;
+        }
+        if (contact_blocked_by_trait_id != "")
+        {
+            projected["contact_blocked_by_trait_id"] = contact_blocked_by_trait_id.ToString();
+        }
         return projected;
     }
 
@@ -418,6 +558,11 @@ public class BattleTerrainEffectState
         return TryGetStrictInt(payload, key, out int value) ? value : 0;
     }
 
+    private static bool GetBool(GDictionary payload, string key)
+    {
+        return TryGetStrictBool(payload, key, out bool value) && value;
+    }
+
     private static bool TryGetStringLike(GDictionary payload, string key, out string value)
     {
         if (TryGetExactValue(payload, key, out object rawValue)
@@ -437,6 +582,17 @@ public class BattleTerrainEffectState
             return true;
         }
         value = 0;
+        return false;
+    }
+
+    private static bool TryGetStrictBool(GDictionary payload, string key, out bool value)
+    {
+        if (TryGetExactValue(payload, key, out object rawValue)
+            && TryAsStrictBool(rawValue, out value))
+        {
+            return true;
+        }
+        value = false;
         return false;
     }
 
@@ -495,6 +651,22 @@ public class BattleTerrainEffectState
             return true;
         }
         value = 0;
+        return false;
+    }
+
+    private static bool TryAsStrictBool(object rawValue, out bool value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Bool)
+        {
+            value = variant.AsBool();
+            return true;
+        }
+        if (rawValue is bool boolValue)
+        {
+            value = boolValue;
+            return true;
+        }
+        value = false;
         return false;
     }
 

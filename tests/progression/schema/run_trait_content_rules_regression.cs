@@ -50,6 +50,7 @@ public partial class run_trait_content_rules_regression : SceneTree
         "zariel_legacy",
         "drow_magic",
         "draconic_ancestry",
+        "equipment_ability",
     };
 
     public override void _Initialize()

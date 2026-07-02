@@ -38,10 +38,38 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
                     typeof(AddDamageDiceActionPayloadDef),
                     typeof(AddDamageDiceActionPayloadDefinition)
                 ),
+                ["attack_roll_bonus"] = Action(
+                    "attack_roll_bonus",
+                    typeof(AttackRollBonusActionPayloadDef),
+                    typeof(AttackRollBonusActionPayloadDefinition),
+                    consumerSupport: ConsumerSupport(includePreview: true)
+                ),
+                ["attack_roll_advantage"] = Action(
+                    "attack_roll_advantage",
+                    typeof(AttackRollAdvantageActionPayloadDef),
+                    typeof(AttackRollAdvantageActionPayloadDefinition),
+                    consumerSupport: ConsumerSupport(includePreview: true)
+                ),
+                ["damage_roll_mode_override"] = Action(
+                    "damage_roll_mode_override",
+                    typeof(DamageRollModeOverrideActionPayloadDef),
+                    typeof(DamageRollModeOverrideActionPayloadDefinition),
+                    consumerSupport: ConsumerSupport(includePreview: true)
+                ),
+                ["loot_quantity_multiplier"] = Action(
+                    "loot_quantity_multiplier",
+                    typeof(LootQuantityMultiplierActionPayloadDef),
+                    typeof(LootQuantityMultiplierActionPayloadDefinition)
+                ),
                 ["apply_status"] = Action(
                     "apply_status",
                     typeof(ApplyStatusActionPayloadDef),
                     typeof(ApplyStatusActionPayloadDefinition)
+                ),
+                ["schedule_area_effect"] = Action(
+                    "schedule_area_effect",
+                    typeof(ScheduleAreaEffectActionPayloadDef),
+                    typeof(ScheduleAreaEffectActionPayloadDefinition)
                 ),
                 ["modify_ability_state"] = Action(
                     "modify_ability_state",
@@ -86,11 +114,46 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
                         }
                     ),
                 },
+                [EquipmentAbilityTriggerKind.OnKill] = new()
+                {
+                    Trigger = EquipmentAbilityTriggerKind.OnKill,
+                    AllowedTimings = EquipmentAbilityReadOnlySet<EquipmentAbilityTimingKind>.From(
+                        new[] { EquipmentAbilityTimingKind.AfterKill }
+                    ),
+                },
                 [EquipmentAbilityTriggerKind.OnBattleEnd] = new()
                 {
                     Trigger = EquipmentAbilityTriggerKind.OnBattleEnd,
                     AllowedTimings = EquipmentAbilityReadOnlySet<EquipmentAbilityTimingKind>.From(
                         new[] { EquipmentAbilityTimingKind.AfterBattle }
+                    ),
+                },
+                [EquipmentAbilityTriggerKind.OnGrantedSkillUsed] = new()
+                {
+                    Trigger = EquipmentAbilityTriggerKind.OnGrantedSkillUsed,
+                    AllowedTimings = EquipmentAbilityReadOnlySet<EquipmentAbilityTimingKind>.From(
+                        new[] { EquipmentAbilityTimingKind.AfterSkill }
+                    ),
+                },
+                [EquipmentAbilityTriggerKind.OnTurnEnd] = new()
+                {
+                    Trigger = EquipmentAbilityTriggerKind.OnTurnEnd,
+                    AllowedTimings = EquipmentAbilityReadOnlySet<EquipmentAbilityTimingKind>.From(
+                        new[] { EquipmentAbilityTimingKind.AfterTurn }
+                    ),
+                },
+                [EquipmentAbilityTriggerKind.OnDamageRoll] = new()
+                {
+                    Trigger = EquipmentAbilityTriggerKind.OnDamageRoll,
+                    AllowedTimings = EquipmentAbilityReadOnlySet<EquipmentAbilityTimingKind>.From(
+                        new[] { EquipmentAbilityTimingKind.BeforeDamage }
+                    ),
+                },
+                [EquipmentAbilityTriggerKind.OnDamageApplied] = new()
+                {
+                    Trigger = EquipmentAbilityTriggerKind.OnDamageApplied,
+                    AllowedTimings = EquipmentAbilityReadOnlySet<EquipmentAbilityTimingKind>.From(
+                        new[] { EquipmentAbilityTimingKind.AfterDamage }
                     ),
                 },
             }

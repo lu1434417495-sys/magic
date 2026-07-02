@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Resource_one_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 8
+flat_bonus = 2
+
+[sub_resource type="Resource" id="Resource_two_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 10
+flat_bonus = 2
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+one_handed_dice = SubResource("Resource_one_handed_dice")
+two_handed_dice = SubResource("Resource_two_handed_dice")
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_sword_last_lesson_020"
+base_item_id = &"weapon_type_longsword_base"
+display_name = "最后一课"
+description = "一柄沉静得像课堂铃声后的长剑。1D8+2，versatile，双手使用为1D10+2。回合结束时若本回合未造成HP伤害，获得1层教诲，最多3层；装备授予最后一课和传承之印。最后一课消耗1层教诲，使下一次攻击检定获得优势；传承之印消耗3层教诲，使当前行动轮次内攻击伤害骰取最大，并使本次回合结束无法获得教诲。教室气息按10尺内敌人数让攻击持有者的攻击检定-1，最多-3；若10尺内没有敌人，持有者攻击检定-1。"
+is_stackable = false
+base_price = 55000
+buy_price = 55000
+sell_price = 27500
+sellable = true
+max_stack = 1
+tags = Array[StringName]([&"last_lesson"])
+trait_ids = Array[StringName]([&"weapon.sword.last_lesson.old_chen_legacy", &"weapon.sword.last_lesson.last_lesson", &"weapon.sword.last_lesson.inheritance_seal", &"weapon.sword.last_lesson.classroom_aura"])
+weapon_profile = SubResource("Resource_weapon_profile")
