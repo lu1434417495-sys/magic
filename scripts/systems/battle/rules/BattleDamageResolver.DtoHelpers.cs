@@ -1157,9 +1157,9 @@ public partial class BattleDamageResolver
     {
         DamageResolutionContext resolutionContext = context ?? DamageResolutionContext.Empty();
         if (
-            !BattleGradedSaveExecutionRules.TryReadPhantasmalKillProfile(
+            !PhantasmalKillExecutionRules.TryReadPhantasmalKillProfile(
                 effectDefinition,
-                out BattleGradedSaveExecutionProfile profile,
+                out PhantasmalKillExecutionProfile profile,
                 out string profileError
             )
         )
@@ -1185,7 +1185,7 @@ public partial class BattleDamageResolver
             return GradedSaveExecuteEffectResult.Empty;
         }
 
-        GradedSaveExecutionGrade grade = BattleGradedSaveExecutionRules.ResolveGrade(saveResult);
+        GradedSaveExecutionGrade grade = PhantasmalKillExecutionRules.ResolveGrade(saveResult);
         if (grade == GradedSaveExecutionGrade.CriticalSuccess)
         {
             return GradedSaveExecuteEffectResult.Empty;
@@ -1212,7 +1212,7 @@ public partial class BattleDamageResolver
         if (grade == GradedSaveExecutionGrade.CriticalFailure)
         {
             int executeThreshold =
-                BattleGradedSaveExecutionRules.ResolveCriticalFailureExecuteThreshold(
+                PhantasmalKillExecutionRules.ResolveCriticalFailureExecuteThreshold(
                     profile,
                     targetMaxHp
                 );
@@ -1264,7 +1264,7 @@ public partial class BattleDamageResolver
         }
 
         int failureExecuteThreshold =
-            BattleGradedSaveExecutionRules.ResolveFailureExecuteThreshold(
+            PhantasmalKillExecutionRules.ResolveFailureExecuteThreshold(
                 profile,
                 targetMaxHp
             );

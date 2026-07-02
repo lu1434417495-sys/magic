@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_graded_save_execution_rules_regression : SceneTree
+public partial class run_phantasmal_kill_execution_rules_regression : SceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -32,7 +32,7 @@ public partial class run_battle_graded_save_execution_rules_regression : SceneTr
         );
 
         _test.Eq(
-            BattleGradedSaveExecutionRules.ResolveGrade(immuneCriticalFailure),
+            PhantasmalKillExecutionRules.ResolveGrade(immuneCriticalFailure),
             GradedSaveExecutionGrade.Immune,
             "Immune save results must map to Immune before natural-roll or degree logic."
         );
@@ -54,7 +54,7 @@ public partial class run_battle_graded_save_execution_rules_regression : SceneTr
         );
 
         _test.Eq(
-            BattleGradedSaveExecutionRules.ResolveGrade(result),
+            PhantasmalKillExecutionRules.ResolveGrade(result),
             GradedSaveExecutionGrade.CriticalFailure,
             "Natural 1 should downgrade a failed save into the critical-failure grade."
         );
@@ -76,7 +76,7 @@ public partial class run_battle_graded_save_execution_rules_regression : SceneTr
         );
 
         _test.Eq(
-            BattleGradedSaveExecutionRules.ResolveGrade(result),
+            PhantasmalKillExecutionRules.ResolveGrade(result),
             GradedSaveExecutionGrade.CriticalSuccess,
             "Natural 20 should upgrade a successful save into the critical-success grade."
         );
@@ -84,15 +84,15 @@ public partial class run_battle_graded_save_execution_rules_regression : SceneTr
 
     private void TestFailureThresholdUsesMaxOfFixedAndPercent()
     {
-        BattleGradedSaveExecutionProfile profile = ReadProfile();
+        PhantasmalKillExecutionProfile profile = ReadProfile();
 
         _test.Eq(
-            BattleGradedSaveExecutionRules.ResolveFailureExecuteThreshold(profile, targetMaxHp: 120),
+            PhantasmalKillExecutionRules.ResolveFailureExecuteThreshold(profile, targetMaxHp: 120),
             50,
             "Failure execute threshold should use the fixed floor when it exceeds the HP percent."
         );
         _test.Eq(
-            BattleGradedSaveExecutionRules.ResolveFailureExecuteThreshold(profile, targetMaxHp: 400),
+            PhantasmalKillExecutionRules.ResolveFailureExecuteThreshold(profile, targetMaxHp: 400),
             100,
             "Failure execute threshold should use the HP percent when it exceeds the fixed floor."
         );
@@ -100,10 +100,10 @@ public partial class run_battle_graded_save_execution_rules_regression : SceneTr
 
     private void TestCriticalFailureThresholdUsesPercentOnly()
     {
-        BattleGradedSaveExecutionProfile profile = ReadProfile();
+        PhantasmalKillExecutionProfile profile = ReadProfile();
 
         _test.Eq(
-            BattleGradedSaveExecutionRules.ResolveCriticalFailureExecuteThreshold(
+            PhantasmalKillExecutionRules.ResolveCriticalFailureExecuteThreshold(
                 profile,
                 targetMaxHp: 200
             ),
@@ -115,12 +115,12 @@ public partial class run_battle_graded_save_execution_rules_regression : SceneTr
     private void TestAverageDiceDamageUsesDiceMean()
     {
         _test.Eq(
-            BattleGradedSaveExecutionRules.EstimateAverageDiceDamage(diceCount: 6, diceSides: 6),
+            PhantasmalKillExecutionRules.EstimateAverageDiceDamage(diceCount: 6, diceSides: 6),
             21,
             "Average damage for 6d6 should be six times the d6 mean."
         );
         _test.Eq(
-            BattleGradedSaveExecutionRules.EstimateAverageDiceDamage(diceCount: 10, diceSides: 6),
+            PhantasmalKillExecutionRules.EstimateAverageDiceDamage(diceCount: 10, diceSides: 6),
             35,
             "Average damage for 10d6 should be ten times the d6 mean."
         );
@@ -133,7 +133,7 @@ public partial class run_battle_graded_save_execution_rules_regression : SceneTr
         CombatEffectDefinition effect = MakeStaticSaveEffect(dc: 15);
 
         BattleGradedSaveGradeDistribution normal =
-            BattleGradedSaveExecutionRules.EstimateGradeDistribution(source, target, effect);
+            PhantasmalKillExecutionRules.EstimateGradeDistribution(source, target, effect);
         AssertDistribution(
             normal,
             immune: 0,
@@ -146,7 +146,7 @@ public partial class run_battle_graded_save_execution_rules_regression : SceneTr
 
         target.save_advantage_tags.Add("illusion");
         BattleGradedSaveGradeDistribution advantage =
-            BattleGradedSaveExecutionRules.EstimateGradeDistribution(source, target, effect);
+            PhantasmalKillExecutionRules.EstimateGradeDistribution(source, target, effect);
         AssertDistribution(
             advantage,
             immune: 0,
@@ -160,7 +160,7 @@ public partial class run_battle_graded_save_execution_rules_regression : SceneTr
         target.save_advantage_tags.Clear();
         target.save_advantage_tags.Add("illusion_disadvantage");
         BattleGradedSaveGradeDistribution disadvantage =
-            BattleGradedSaveExecutionRules.EstimateGradeDistribution(source, target, effect);
+            PhantasmalKillExecutionRules.EstimateGradeDistribution(source, target, effect);
         AssertDistribution(
             disadvantage,
             immune: 0,
@@ -179,7 +179,7 @@ public partial class run_battle_graded_save_execution_rules_regression : SceneTr
         target.save_advantage_tags.Add("illusion_immunity");
 
         BattleGradedSaveGradeDistribution distribution =
-            BattleGradedSaveExecutionRules.EstimateGradeDistribution(
+            PhantasmalKillExecutionRules.EstimateGradeDistribution(
                 source,
                 target,
                 MakeStaticSaveEffect(dc: 40)
@@ -203,7 +203,7 @@ public partial class run_battle_graded_save_execution_rules_regression : SceneTr
         CombatEffectDefinition effect = MakeStaticSaveEffect(dc: 15);
 
         BattleGradedSaveGradeDistribution naturalOne =
-            BattleGradedSaveExecutionRules.EstimateGradeDistribution(
+            PhantasmalKillExecutionRules.EstimateGradeDistribution(
                 source,
                 target,
                 effect,
@@ -221,7 +221,7 @@ public partial class run_battle_graded_save_execution_rules_regression : SceneTr
 
         target.save_advantage_tags.Add("illusion");
         BattleGradedSaveGradeDistribution selectedAdvantage =
-            BattleGradedSaveExecutionRules.EstimateGradeDistribution(
+            PhantasmalKillExecutionRules.EstimateGradeDistribution(
                 source,
                 target,
                 effect,
@@ -240,7 +240,7 @@ public partial class run_battle_graded_save_execution_rules_regression : SceneTr
         target.save_advantage_tags.Clear();
         target.save_advantage_tags.Add("illusion_disadvantage");
         BattleGradedSaveGradeDistribution selectedDisadvantage =
-            BattleGradedSaveExecutionRules.EstimateGradeDistribution(
+            PhantasmalKillExecutionRules.EstimateGradeDistribution(
                 source,
                 target,
                 effect,
@@ -257,11 +257,11 @@ public partial class run_battle_graded_save_execution_rules_regression : SceneTr
         );
     }
 
-    private BattleGradedSaveExecutionProfile ReadProfile()
+    private PhantasmalKillExecutionProfile ReadProfile()
     {
-        bool ok = BattleGradedSaveExecutionRules.TryReadPhantasmalKillProfile(
+        bool ok = PhantasmalKillExecutionRules.TryReadPhantasmalKillProfile(
             MakePhantasmalKillEffect(),
-            out BattleGradedSaveExecutionProfile profile,
+            out PhantasmalKillExecutionProfile profile,
             out string error
         );
         _test.True(ok, $"formal Phantasmal Kill profile should parse. error={error}");

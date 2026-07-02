@@ -1183,9 +1183,9 @@ public partial class BattleAiScoreService
             return empty;
         }
         if (
-            !BattleGradedSaveExecutionRules.TryReadPhantasmalKillProfile(
+            !PhantasmalKillExecutionRules.TryReadPhantasmalKillProfile(
                 effectDefinition,
-                out BattleGradedSaveExecutionProfile profile,
+                out PhantasmalKillExecutionProfile profile,
                 out _
             )
         )
@@ -1196,7 +1196,7 @@ public partial class BattleAiScoreService
         StringName skillId = ResolveSkillId(skillDefinition);
         BattleSaveContext saveContext = BattleSaveContext.ForSkill(skillId);
         BattleGradedSaveGradeDistribution distribution =
-            BattleGradedSaveExecutionRules.EstimateGradeDistribution(
+            PhantasmalKillExecutionRules.EstimateGradeDistribution(
                 sourceUnit,
                 targetUnit,
                 effectDefinition,
@@ -1208,11 +1208,11 @@ public partial class BattleAiScoreService
         }
 
         int scaledHitCount = Math.Max(hitCount, 1);
-        int failureDamage = BattleGradedSaveExecutionRules.EstimateAverageDiceDamage(
+        int failureDamage = PhantasmalKillExecutionRules.EstimateAverageDiceDamage(
             profile.FailureDamageDiceCount,
             profile.FailureDamageDiceSides
         );
-        int criticalFailureDamage = BattleGradedSaveExecutionRules.EstimateAverageDiceDamage(
+        int criticalFailureDamage = PhantasmalKillExecutionRules.EstimateAverageDiceDamage(
             profile.CriticalFailureDamageDiceCount,
             profile.CriticalFailureDamageDiceSides
         );
@@ -1224,9 +1224,9 @@ public partial class BattleAiScoreService
         );
         int targetMaxHp = GetUnitMaxHp(targetUnit);
         int failureExecuteThreshold =
-            BattleGradedSaveExecutionRules.ResolveFailureExecuteThreshold(profile, targetMaxHp);
+            PhantasmalKillExecutionRules.ResolveFailureExecuteThreshold(profile, targetMaxHp);
         int criticalFailureExecuteThreshold =
-            BattleGradedSaveExecutionRules.ResolveCriticalFailureExecuteThreshold(
+            PhantasmalKillExecutionRules.ResolveCriticalFailureExecuteThreshold(
                 profile,
                 targetMaxHp
             );

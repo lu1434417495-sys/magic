@@ -1391,7 +1391,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 castVariant,
                 activeUnit
             ) ?? new List<CombatEffectDefinition>(),
-            out BattleGradedSaveExecutionProfile profile
+            out PhantasmalKillExecutionProfile profile
         );
         if (effectDefinition == null)
         {
@@ -1452,7 +1452,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             }
 
             BattleGradedSaveGradeDistribution distribution =
-                BattleGradedSaveExecutionRules.EstimateGradeDistribution(
+                PhantasmalKillExecutionRules.EstimateGradeDistribution(
                     sourceUnit,
                     targetUnit,
                     effectDefinition,
@@ -1487,14 +1487,14 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             bool failureExecuteRisk =
                 distribution.FailureBasisPoints > 0
                 && targetUnit.current_hp
-                    <= BattleGradedSaveExecutionRules.ResolveFailureExecuteThreshold(
+                    <= PhantasmalKillExecutionRules.ResolveFailureExecuteThreshold(
                         profile,
                         targetMaxHp
                     );
             bool criticalFailureExecuteRisk =
                 distribution.CriticalFailureBasisPoints > 0
                 && targetUnit.current_hp
-                    <= BattleGradedSaveExecutionRules.ResolveCriticalFailureExecuteThreshold(
+                    <= PhantasmalKillExecutionRules.ResolveCriticalFailureExecuteThreshold(
                         profile,
                         targetMaxHp
                     );
@@ -1567,7 +1567,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
 
     private static CombatEffectDefinition FindFirstValidGradedSaveExecuteEffect(
         IReadOnlyList<CombatEffectDefinition> effectDefinitions,
-        out BattleGradedSaveExecutionProfile profile
+        out PhantasmalKillExecutionProfile profile
     )
     {
         profile = default;
@@ -1578,7 +1578,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         {
             if (
                 effectDefinition?.EffectKind == BattleEffectKind.GradedSaveExecute
-                && BattleGradedSaveExecutionRules.TryReadPhantasmalKillProfile(
+                && PhantasmalKillExecutionRules.TryReadPhantasmalKillProfile(
                     effectDefinition,
                     out profile,
                     out _

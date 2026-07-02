@@ -11,7 +11,7 @@ internal enum GradedSaveExecutionGrade
     CriticalFailure,
 }
 
-internal readonly record struct BattleGradedSaveExecutionProfile(
+internal readonly record struct PhantasmalKillExecutionProfile(
     StringName ProfileId,
     int FailureExecuteThresholdFixed,
     int FailureExecuteThresholdMaxHpPercent,
@@ -35,7 +35,7 @@ internal readonly record struct BattleGradedSaveGradeDistribution(
     int CriticalFailureBasisPoints
 );
 
-internal static class BattleGradedSaveExecutionRules
+internal static class PhantasmalKillExecutionRules
 {
     internal static readonly StringName PhantasmalKillProfileId = "phantasmal_kill";
 
@@ -49,7 +49,7 @@ internal static class BattleGradedSaveExecutionRules
 
     internal static bool TryReadPhantasmalKillProfile(
         CombatEffectDefinition effectDefinition,
-        out BattleGradedSaveExecutionProfile profile,
+        out PhantasmalKillExecutionProfile profile,
         out string error
     )
     {
@@ -212,7 +212,7 @@ internal static class BattleGradedSaveExecutionRules
             return false;
         }
 
-        profile = new BattleGradedSaveExecutionProfile(
+        profile = new PhantasmalKillExecutionProfile(
             profileId,
             failureExecuteThresholdFixed,
             failureExecuteThresholdMaxHpPercent,
@@ -247,7 +247,7 @@ internal static class BattleGradedSaveExecutionRules
     }
 
     internal static int ResolveFailureExecuteThreshold(
-        BattleGradedSaveExecutionProfile profile,
+        PhantasmalKillExecutionProfile profile,
         int targetMaxHp
     )
     {
@@ -260,7 +260,7 @@ internal static class BattleGradedSaveExecutionRules
     }
 
     internal static int ResolveCriticalFailureExecuteThreshold(
-        BattleGradedSaveExecutionProfile profile,
+        PhantasmalKillExecutionProfile profile,
         int targetMaxHp
     )
     {
