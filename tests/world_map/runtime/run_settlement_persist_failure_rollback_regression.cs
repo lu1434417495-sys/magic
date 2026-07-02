@@ -667,6 +667,7 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
             ["settlements"] = settlementArray,
             ["world_events"] = new GArray(),
             ["encounter_anchors"] = new GArray(),
+            ["resource_nodes"] = new GArray(),
             ["mounted_submaps"] = new GDictionary(),
             ["world_npcs"] = new GArray(),
             ["player_start_coord"] = Vector2I.Zero,

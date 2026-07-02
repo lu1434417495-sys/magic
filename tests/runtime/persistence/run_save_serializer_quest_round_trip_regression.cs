@@ -56,8 +56,8 @@ public partial class run_save_serializer_quest_round_trip_regression : SceneTree
         GDictionary payload = BuildSavePayloadForSession(gameSession, partyState);
         _test.Eq(
             DictInt(payload, "version", -1),
-            11,
-            "Typed state owner schema should bump top-level save version to 11."
+            12,
+            "World resource node schema should bump top-level save version to 12."
         );
         GDictionary decodeResult = serializer.DecodePayload(
             payload,

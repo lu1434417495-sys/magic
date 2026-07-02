@@ -516,6 +516,7 @@ public partial class run_contingency_setup_schema_regression : SceneTree
             ["settlements"] = new GArray(),
             ["world_events"] = new GArray(),
             ["encounter_anchors"] = new GArray(),
+            ["resource_nodes"] = new GArray(),
             ["mounted_submaps"] = new GDictionary(),
         };
     }
