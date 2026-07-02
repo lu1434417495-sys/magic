@@ -509,6 +509,7 @@ public partial class run_phantasmal_kill_regression : SceneTree
             command_type = "skill",
             unit_id = source.unit_id,
             skill_id = SkillId,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill(SkillId),
             target_coord = targetCoord,
         };
         command.AddTargetCoord(targetCoord);

@@ -860,6 +860,14 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
         progress.unit_base_attributes.SetAttributeValue(AttributeService.HP_MAX, 20);
         progress.unit_base_attributes.SetAttributeValue(AttributeService.MP_MAX, 30);
         progress.unit_base_attributes.SetAttributeValue(AttributeService.AURA_MAX, 0);
+        progress.SetSkillProgress(
+            new UnitSkillProgress
+            {
+                skill_id = "mage_chain_contingency",
+                is_learned = true,
+                skill_level = 5,
+            }
+        );
         return progress;
     }
 

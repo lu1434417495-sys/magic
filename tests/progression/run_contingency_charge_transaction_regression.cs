@@ -591,7 +591,7 @@ public partial class run_contingency_charge_transaction_regression : SceneTree
             current_mastery = 0,
             total_mastery_earned = 0,
             is_core = false,
-            granted_source_type = "test",
+            granted_source_type = "player",
         };
 
     private static ContingencyMatrixSetupState ValidSetup(string setupId) =>
@@ -752,6 +752,7 @@ public partial class run_contingency_charge_transaction_regression : SceneTree
             ["settlements"] = new GArray(),
             ["world_events"] = new GArray(),
             ["encounter_anchors"] = new GArray(),
+            ["resource_nodes"] = new GArray(),
             ["mounted_submaps"] = new GDictionary(),
             ["world_npcs"] = new GArray(),
             ["player_start_coord"] = Vector2I.Zero,

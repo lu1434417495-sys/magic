@@ -697,6 +697,14 @@ public partial class run_contingency_target_resolver_regression : SceneTree
         };
         member.progression.unit_base_attributes.SetAttributeValue(AttributeService.HP_MAX, 20);
         member.progression.unit_base_attributes.SetAttributeValue(AttributeService.MP_MAX, 30);
+        member.progression.SetSkillProgress(
+            new UnitSkillProgress
+            {
+                skill_id = "mage_chain_contingency",
+                is_learned = true,
+                skill_level = 5,
+            }
+        );
         member = member.WithContingencySetupsForMutation(setups);
         PartyState party = new()
         {
