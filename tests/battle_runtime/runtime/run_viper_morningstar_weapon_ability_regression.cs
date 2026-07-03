@@ -162,30 +162,20 @@ public partial class run_viper_morningstar_weapon_ability_regression : SceneTree
 
     private void TestVenomStrikeAddsPoisonAndParalyzesOnFailedPoisonSave()
     {
+        // --- 毒液加成：真实命中后额外 +1D6 poison，不涉及豁免（确定性）。 ---
         using ViperFixture fixture = ViperFixture.Build(new GArray { 4, 2 });
         BattleUnitState attacker = fixture.BuildViperUnit("venom_strike");
-        BattleUnitState target = BuildTarget("venom_strike_target", new Vector2I(1, 0));
-        target.current_hp = 100;
-        target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
-        target.attribute_snapshot.SetValue(AttributeService.CONSTITUTION_MODIFIER, -100);
-        target.SetPendingCast(
-            new BattlePendingCastState
-            {
-                SkillId = "fixture_pending",
-                StartedCoord = target.coord,
-                RemainingCastProgress = 1000,
-            }
-        );
-
+        BattleUnitState damageTarget = BuildTarget("venom_strike_target", new Vector2I(1, 0));
+        damageTarget.current_hp = 100;
+        damageTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             attacker,
-            target,
+            damageTarget,
             "viper_venom_strike",
             previewCommand: false
         );
-        int venomStrikeDamage = 100 - target.current_hp;
-        BattleStatusEffectState paralyzed = target.GetStatusEffect("paralyzed");
+        int venomStrikeDamage = 100 - damageTarget.current_hp;
 
         using ViperFixture plainFixture = ViperFixture.Build(new GArray { 4, 2 });
         BattleUnitState plainAttacker = plainFixture.BuildViperUnit("venom_strike_plain");
@@ -208,22 +198,59 @@ public partial class run_viper_morningstar_weapon_ability_regression : SceneTree
             8,
             "毒蛇打击应在真实命中后额外造成 1D6 poison，且不吞掉武器伤害。"
         );
+
+        // --- 麻痹：注入固定豁免骰（nat 1）强制 DC15 poison 豁免失败，避免依赖 RNG d20
+        //     （nat 20 恒成功会让断言约 5% 概率偶发失败）。装备命中后反应经装备能力服务
+        //     直接解析，与 giants_heel 注入 SaveContext 的做法一致。 ---
+        BattleUnitState paralyzeTarget = BuildTarget("venom_strike_paralyze_target", new Vector2I(1, 0));
+        paralyzeTarget.current_hp = 100;
+        paralyzeTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
+        paralyzeTarget.SetPendingCast(
+            new BattlePendingCastState
+            {
+                SkillId = "fixture_pending",
+                StartedCoord = paralyzeTarget.coord,
+                RemainingCastProgress = 1000,
+            }
+        );
+        BattleState paralyzeState = WeaponAbilityCommandTestSupport.BuildFlatState(
+            "viper_venom_strike_paralyze",
+            attacker,
+            paralyzeTarget
+        );
+        fixture.Runtime.SetupStateForTests(paralyzeState);
+        fixture.Runtime.GetEquipmentAbilityRuntimeService().ResolveAfterHit(
+            new BattleEquipmentAbilityAfterHitContext
+            {
+                SourceUnit = attacker,
+                TargetUnit = paralyzeTarget,
+                BattleState = paralyzeState,
+                AttackSucceeded = true,
+                ApplyDamageDiceActions = false,
+                SaveContext = BattleSaveContext.WithSaveRollOverride(1),
+            }
+        );
+
+        BattleStatusEffectState paralyzed = paralyzeTarget.GetStatusEffect("paralyzed");
         _test.True(paralyzed != null, "毒蛇打击应在 DC15 constitution/poison 豁免失败后施加 paralyzed。");
         _test.Eq(paralyzed?.duration ?? -1, 60, "paralyzed 一回合应使用战斗 TU 持续时间，不写世界时间。");
         _test.True(
             BattleStatusSemanticTable.BlocksPendingCast("paralyzed"),
             "paralyzed 应接入通用 pending cast 阻断语义。"
         );
-        _test.False(target.HasPendingCast(), "命中后施加 paralyzed 应中断目标 pending cast。");
         _test.True(
-            fixture.Runtime._skill_turn_resolver.IsMovementBlocked(target),
+            fixture.Runtime._skill_turn_resolver.IsCastInterruptedByStatus(paralyzeTarget),
+            "命中后施加 paralyzed 应中断目标 pending cast。"
+        );
+        _test.True(
+            fixture.Runtime._skill_turn_resolver.IsMovementBlocked(paralyzeTarget),
             "paralyzed 应阻止移动。"
         );
-        WeaponAbilityCommandTestSupport.PrimeBasicAttack(target);
+        WeaponAbilityCommandTestSupport.PrimeBasicAttack(paralyzeTarget);
         _test.True(
             BattleSkillCastBlockReasonKinds.IsBlocked(
                 fixture.Runtime.GetSkillCastBlockReason(
-                    target,
+                    paralyzeTarget,
                     fixture.SkillDefs[WeaponAbilityCommandTestSupport.BasicAttackSkillId]
                 )
             ),
