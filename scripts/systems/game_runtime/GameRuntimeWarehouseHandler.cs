@@ -523,11 +523,22 @@ public sealed class GameRuntimeWarehouseHandler
             freeSlots = partyWarehouseService.GetFreeSlots();
             isOverCapacity = partyWarehouseService.IsOverCapacity();
 
+            GameSession gameSession = GetGameSession();
+            System.Collections.Generic.IReadOnlyDictionary<StringName, TraitDef> traitDefs =
+                gameSession != null
+                    ? gameSession.GetTraitDefsTyped()
+                    : new System.Collections.Generic.Dictionary<StringName, TraitDef>();
+
             foreach (var inventoryEntryData in partyWarehouseService.GetInventoryEntriesTyped())
             {
                 var entryData = PartyInventoryProjection.Project(inventoryEntryData);
                 entryData["granted_skill_name"] = GetSkillDisplayName(
                     inventoryEntryData.GrantedSkillId
+                );
+                entryData["description"] = ItemTraitDetailText.Compose(
+                    inventoryEntryData.Description,
+                    inventoryEntryData.ItemDef,
+                    traitDefs
                 );
                 inventoryEntries.Add(entryData);
             }

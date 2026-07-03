@@ -182,7 +182,8 @@ public sealed class SettlementShopService : IDisposable
         GDictionary settlementState,
         IReadOnlyDictionary<StringName, ItemDef> itemDefs,
         PartyWarehouseService warehouse,
-        int currentGold)
+        int currentGold,
+        IReadOnlyDictionary<StringName, TraitDef> traitDefs = null)
     {
         ShopDefinition shopDef = ResolveShopDef(interactionScriptId);
         if (shopDef == null)
@@ -218,7 +219,7 @@ public sealed class SettlementShopService : IDisposable
                 { "state_label", canBuy ? "状态：可购" : "状态：不可购" },
                 { "cost_label", $"单价 {stockEntry.UnitPrice} 金" },
                 { "summary_text", stockText },
-                { "details_text", description },
+                { "details_text", ItemTraitDetailText.Compose(description, stockEntry.ItemDef, traitDefs) },
                 { "is_enabled", canBuy },
                 { "disabled_reason", canBuy ? "" : stockEntry.Quantity <= 0 ? "库存不足" : "金币不足" },
                 { "shop_action", "buy" },
@@ -261,7 +262,7 @@ public sealed class SettlementShopService : IDisposable
                     { "state_label", "状态：可售" },
                     { "cost_label", $"回收 {unitPrice} 金" },
                     { "summary_text", stockText },
-                    { "details_text", itemDef.description },
+                    { "details_text", ItemTraitDetailText.Compose(itemDef.description, itemDef, traitDefs) },
                     { "is_enabled", true },
                     { "disabled_reason", "" },
                     { "shop_action", "sell" },

@@ -2790,7 +2790,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             settlementState,
             _GetItemDefsTyped(),
             GetPartyWarehouseService(),
-            GetPartyGold()
+            GetPartyGold(),
+            _GetTraitDefsTyped()
         );
         SetActiveSettlementState(settlement_id, settlementState);
         windowData["settlement_id"] = settlement_id;
@@ -2871,7 +2872,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             settlementState,
             _GetItemDefsTyped(),
             GetPartyWarehouseService(),
-            GetPartyGold()
+            GetPartyGold(),
+            _GetTraitDefsTyped()
         );
         SetActiveSettlementState(settlementId, settlementState);
         nextContext["settlement_id"] = settlementId;
@@ -3663,6 +3665,18 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return gameSession != null
             ? gameSession.GetItemDefsTyped()
             : new Dictionary<StringName, ItemDef>();
+    }
+
+    private IReadOnlyDictionary<StringName, TraitDef> _GetTraitDefsTyped()
+    {
+        if (!_has_runtime())
+        {
+            return new Dictionary<StringName, TraitDef>();
+        }
+        GameSession gameSession = Runtime.GetGameSession();
+        return gameSession != null
+            ? gameSession.GetTraitDefsTyped()
+            : new Dictionary<StringName, TraitDef>();
     }
 
     internal string GetItemDisplayName(StringName item_id)
