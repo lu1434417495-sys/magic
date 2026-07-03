@@ -122,16 +122,18 @@ internal class BattleAttackCheckPolicyService
         }
 
         BattleAttackRollModifierBundle modifierBundle = BuildModifierBundle(context);
+        EquipmentAttackDefenseAdjustment defenseAdjustment = BuildAttackDefenseAdjustment(context);
         bool hasAdvantage = modifierBundle.HasAdvantage;
         if (context.HasReadView)
         {
             return CopyAttackCheckWithAdvantage(
                 _hitResolver.BuildSkillDefinitionAttackCheck(
-                context.attacker_view,
-                context.target_view,
-                context.skill_definition,
-                flat_bonus + modifierBundle.TotalBonus,
-                flat_penalty + modifierBundle.TotalPenalty
+                    context.attacker_view,
+                    context.target_view,
+                    context.skill_definition,
+                    flat_bonus + modifierBundle.TotalBonus,
+                    flat_penalty + modifierBundle.TotalPenalty,
+                    defenseAdjustment
                 ),
                 hasAdvantage
             );
@@ -142,7 +144,8 @@ internal class BattleAttackCheckPolicyService
                 context.target,
                 context.skill_definition,
                 flat_bonus + modifierBundle.TotalBonus,
-                flat_penalty + modifierBundle.TotalPenalty
+                flat_penalty + modifierBundle.TotalPenalty,
+                defenseAdjustment
             ),
             hasAdvantage
         );
@@ -173,7 +176,8 @@ internal class BattleAttackCheckPolicyService
         }
 
         BattleAttackRollModifierBundle modifierBundle = BuildModifierBundle(context);
-        if (modifierBundle.IsEmpty())
+        EquipmentAttackDefenseAdjustment defenseAdjustment = BuildAttackDefenseAdjustment(context);
+        if (modifierBundle.IsEmpty() && defenseAdjustment.IsEmpty)
         {
             if (context.HasReadView)
             {
@@ -369,6 +373,7 @@ internal class BattleAttackCheckPolicyService
         context.roll_kind = ROLL_KIND_REPEAT_WEAPON_STAGE;
         BattleRepeatAttackStageSpec resolvedStageSpec = context.repeat_stage_spec;
         BattleAttackRollModifierBundle modifierBundle = BuildModifierBundle(context);
+        EquipmentAttackDefenseAdjustment defenseAdjustment = BuildAttackDefenseAdjustment(context);
         bool hasAdvantage = modifierBundle.HasAdvantage;
         if (context.HasReadView)
         {
@@ -378,7 +383,8 @@ internal class BattleAttackCheckPolicyService
                     context.target_view,
                     context.skill_definition,
                     resolvedStageSpec.stage_base_attack_bonus + modifierBundle.TotalBonus,
-                    resolvedStageSpec.ResolveStageAttackPenalty() + modifierBundle.TotalPenalty
+                    resolvedStageSpec.ResolveStageAttackPenalty() + modifierBundle.TotalPenalty,
+                    defenseAdjustment
                 ),
                 hasAdvantage
             );
@@ -389,7 +395,8 @@ internal class BattleAttackCheckPolicyService
                 context.target,
                 context.skill_definition,
                 resolvedStageSpec.stage_base_attack_bonus + modifierBundle.TotalBonus,
-                resolvedStageSpec.ResolveStageAttackPenalty() + modifierBundle.TotalPenalty
+                resolvedStageSpec.ResolveStageAttackPenalty() + modifierBundle.TotalPenalty,
+                defenseAdjustment
             ),
             hasAdvantage
         );
@@ -579,6 +586,41 @@ internal class BattleAttackCheckPolicyService
                 }
             );
         }
+        foreach (BattleStatusEffectState status in target.GetStatusEffectsTyped())
+        {
+            int bonusPerStack = Math.Max(
+                status?.source_bound_incoming_attack_roll_bonus_per_stack ?? 0,
+                0
+            );
+            if (bonusPerStack <= 0)
+                continue;
+            int minStacks = Math.Max(
+                status.source_bound_incoming_attack_roll_bonus_min_stacks,
+                1
+            );
+            int stacks = Math.Max(status.stacks, 0);
+            if (stacks < minStacks)
+                continue;
+            if (ProgressionDataUtils.to_string_name(status.source_unit_id) != attacker.unit_id)
+                continue;
+
+            candidates.Add(
+                new BattleAttackRollModifierSpec
+                {
+                    source_domain = "status",
+                    source_id = status.status_id,
+                    source_instance_id = status.source_unit_id.ToString(),
+                    label = ResolveStatusModifierLabel(status),
+                    modifier_delta = bonusPerStack * stacks,
+                    stack_key = status.status_id,
+                    stack_mode = "max",
+                    target_team_filter = "any",
+                    endpoint_mode = "target",
+                    footprint_mode = "any_cell",
+                    applies_to = "attack_roll",
+                }
+            );
+        }
         return candidates;
     }
 
@@ -597,6 +639,17 @@ internal class BattleAttackCheckPolicyService
         return equipmentAbilityService != null
             ? equipmentAbilityService.CollectAttackRollModifierCandidates(context)
             : new List<BattleAttackRollModifierSpec>();
+    }
+
+    private EquipmentAttackDefenseAdjustment BuildAttackDefenseAdjustment(
+        BattleAttackCheckPolicyContext context
+    )
+    {
+        BattleEquipmentAbilityRuntimeService equipmentAbilityService =
+            ResolveRuntime()?.GetEquipmentAbilityRuntimeService();
+        return equipmentAbilityService != null
+            ? equipmentAbilityService.CollectAttackDefenseAdjustment(context)
+            : new EquipmentAttackDefenseAdjustment();
     }
 
     private List<BattleAttackRollModifierSpec> CollectTerrainModifierCandidates(

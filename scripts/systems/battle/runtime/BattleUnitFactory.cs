@@ -344,6 +344,7 @@ internal sealed class BattleUnitFactory
         _filter_skills_by_equipment_requirements(us);
         _ensure_basic_attack_skill(us);
         _sync_passive_battle_statuses(us, prog, ms);
+        _sync_trait_passive_projection(us);
         us.RefreshFootprint();
     }
 
@@ -362,6 +363,7 @@ internal sealed class BattleUnitFactory
         _filter_skills_by_equipment_requirements(us);
         _ensure_basic_attack_skill(us);
         _sync_passive_battle_statuses(us, prog, ms);
+        _sync_trait_passive_projection(us);
     }
 
     internal void RefreshWeaponProjection(BattleUnitState us)
@@ -431,6 +433,7 @@ internal sealed class BattleUnitFactory
         _filter_skills_by_equipment_requirements(us);
         _ensure_basic_attack_skill(us);
         _sync_passive_battle_statuses(us, prog, ms);
+        _sync_trait_passive_projection(us);
         us.RefreshFootprint();
     }
 
@@ -620,6 +623,7 @@ internal sealed class BattleUnitFactory
         us.SetKnownSkillLockHitBonusesTyped(_collect_known_skill_lock_hit_bonus_map(prog));
         _sync_unlocked_resources_from_progression(us, prog);
         _sync_passive_battle_statuses(us, prog, ms);
+        _sync_trait_passive_projection(us);
         _filter_skills_by_equipment_requirements(us);
         us.movement_tags = _extract_movement_tags(ReadArray(ctx, "ally_movement_tags"));
         Godot.Collections.Array defaultActiveSkillIds = ReadArray(ctx, "default_active_skill_ids");
@@ -1246,6 +1250,14 @@ internal sealed class BattleUnitFactory
             };
         }
         PassiveStatusOrchestrator.ApplyToUnit(us, ctx, GetSkillDefinitionIndex());
+    }
+
+    private void _sync_trait_passive_projection(BattleUnitState us)
+    {
+        BattleTraitPassiveProjectionService.ProjectEffectiveTraitPassives(
+            us,
+            GetTraitDefIndex()
+        );
     }
 
     private static StringNameList _extract_movement_tags(

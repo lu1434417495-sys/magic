@@ -19,6 +19,7 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
     private void Run()
     {
         TestSkillSchemaAcceptsValidSaveFields();
+        TestDamageSaveCanApplyFailureStatus();
         TestSkillSchemaAcceptsDynamicCasterSpellSaveDc();
         TestSkillSchemaRejectsInvalidSaveFields();
         TestLevelOverridesRejectNonIntFields();
@@ -70,6 +71,35 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
         _test.True(
             statusErrors.Count == 0,
             "valid status save fields should pass SkillContentRegistry validation."
+        );
+    }
+
+    private void TestDamageSaveCanApplyFailureStatus()
+    {
+        using SkillContentRegistry registry = new();
+        using CombatEffectDef damageEffect = new()
+        {
+            effect_type = "damage",
+            damage_tag = "thunder",
+            dice_count = 2,
+            dice_sides = 6,
+            save_dc = 14,
+            save_ability = "constitution",
+            save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Magic),
+            save_partial_on_success = true,
+            save_failure_status_id = "prone",
+            duration_tu = 50,
+        };
+        GStringArray errors = new();
+        registry.AppendEffectValidationErrors(
+            errors,
+            "damage_save_failure_status",
+            damageEffect,
+            "test_effect"
+        );
+        _test.True(
+            errors.Count == 0,
+            $"damage effect should support save_failure_status_id using the same save result. errors={string.Join(" | ", errors)}"
         );
     }
 

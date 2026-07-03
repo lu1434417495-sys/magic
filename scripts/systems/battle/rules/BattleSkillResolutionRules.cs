@@ -445,6 +445,12 @@ public sealed class BattleSkillResolutionRules : IDisposable
         {
             return false;
         }
+        CombatSkillAttackResolutionMode attackResolutionMode =
+            combatProfile.AttackResolutionModeKind;
+        if (attackResolutionMode == CombatSkillAttackResolutionMode.DirectEffect)
+        {
+            return false;
+        }
         foreach (CombatEffectDefinition effectDefinition in effectDefinitions)
         {
             if (
@@ -467,6 +473,13 @@ public sealed class BattleSkillResolutionRules : IDisposable
             )
             {
                 continue;
+            }
+            if (
+                attackResolutionMode == CombatSkillAttackResolutionMode.FateAttack
+                || attackResolutionMode == CombatSkillAttackResolutionMode.ForceHitNoCrit
+            )
+            {
+                return true;
             }
             return true;
         }
@@ -498,6 +511,12 @@ public sealed class BattleSkillResolutionRules : IDisposable
         {
             return false;
         }
+        CombatSkillAttackResolutionMode attackResolutionMode =
+            combatProfile.AttackResolutionModeKind;
+        if (attackResolutionMode == CombatSkillAttackResolutionMode.DirectEffect)
+        {
+            return false;
+        }
         foreach (CombatEffectDefinition effectDefinition in effectDefinitions)
         {
             if (
@@ -521,6 +540,13 @@ public sealed class BattleSkillResolutionRules : IDisposable
             {
                 continue;
             }
+            if (
+                attackResolutionMode == CombatSkillAttackResolutionMode.FateAttack
+                || attackResolutionMode == CombatSkillAttackResolutionMode.ForceHitNoCrit
+            )
+            {
+                return true;
+            }
             return true;
         }
         return false;
@@ -528,7 +554,12 @@ public sealed class BattleSkillResolutionRules : IDisposable
 
     public bool IsForceHitNoCritSkill(SkillDefinition skillDefinition)
     {
-        return skillDefinition != null && skillDefinition.SkillId == BlackContractPushSkillId;
+        return skillDefinition != null
+            && (
+                skillDefinition.CombatProfile?.AttackResolutionModeKind
+                    == CombatSkillAttackResolutionMode.ForceHitNoCrit
+                || skillDefinition.SkillId == BlackContractPushSkillId
+            );
     }
 
     public CombatCastVariantDefinition ResolveGroundCastVariantDefinition(

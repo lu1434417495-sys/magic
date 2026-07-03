@@ -64,6 +64,8 @@ public partial class PartyManagementWindow : Control
         new Dictionary<StringName, SkillDefinition>();
     private IReadOnlyDictionary<StringName, ProfessionDef> _profession_defs =
         new Dictionary<StringName, ProfessionDef>();
+    private IReadOnlyDictionary<StringName, TraitDef> _trait_defs =
+        new Dictionary<StringName, TraitDef>();
     public CharacterManagementModule _character_management;
     public StringName _leader_member_id = "";
     public StringName _main_character_member_id = "";
@@ -153,6 +155,13 @@ public partial class PartyManagementWindow : Control
     public void SetProfessionDefs(IReadOnlyDictionary<StringName, ProfessionDef> profession_defs)
     {
         _profession_defs = profession_defs ?? new Dictionary<StringName, ProfessionDef>();
+        if (Visible)
+            RefreshView();
+    }
+
+    public void SetTraitDefs(IReadOnlyDictionary<StringName, TraitDef> trait_defs)
+    {
+        _trait_defs = trait_defs ?? new Dictionary<StringName, TraitDef>();
         if (Visible)
             RefreshView();
     }
@@ -644,13 +653,15 @@ public partial class PartyManagementWindow : Control
         }
 
         EquipmentState equipmentState = memberState.equipment_state;
+        var occupiedNotes = new List<string>();
+        var emptySlotLabels = new List<string>();
         int filledCount = 0;
         foreach (StringName slotId in EquipmentRules.GetAllSlotIdsTyped())
         {
             StringName entrySlotId = GetEntrySlotForSlot(equipmentState, slotId);
             if (entrySlotId != (StringName)"" && entrySlotId != slotId)
             {
-                lines.Add(
+                occupiedNotes.Add(
                     $"{EquipmentRules.GetSlotLabel(slotId)}：由{EquipmentRules.GetSlotLabel(entrySlotId)}占用"
                 );
                 continue;
@@ -658,28 +669,61 @@ public partial class PartyManagementWindow : Control
             StringName itemId = GetEquippedItemId(equipmentState, slotId);
             if (itemId == (StringName)"")
             {
-                lines.Add($"{EquipmentRules.GetSlotLabel(slotId)}：空");
+                emptySlotLabels.Add(EquipmentRules.GetSlotLabel(slotId));
                 continue;
             }
+            if (filledCount > 0)
+                lines.Add("");
             filledCount += 1;
-            ItemDef itemDef = GetTypedObject(_item_defs, itemId);
-            lines.Add($"{EquipmentRules.GetSlotLabel(slotId)}：{_get_item_display_name(itemId)}");
-            if (itemDef != null)
-            {
-                string typeLabel = _get_equipment_type_label(
-                    itemDef.GetEquipmentTypeIdNormalized()
-                );
-                if (!string.IsNullOrEmpty(typeLabel))
-                    lines.Add($"  类型：{typeLabel}");
-                List<string> modifierLines = _build_modifier_lines(itemDef.attribute_modifiers);
-                if (modifierLines.Count > 0)
-                    lines.Add($"  属性：{string.Join("，", modifierLines)}");
-                if (!string.IsNullOrEmpty(itemDef.description))
-                    lines.Add($"  说明：{itemDef.description}");
-            }
+            _append_equipment_card(lines, itemId);
         }
-        lines.Insert(0, $"已装备：{filledCount}");
+
+        if (filledCount == 0)
+            lines.Add("尚未装备任何物品。");
+        foreach (string note in occupiedNotes)
+            lines.Add($"[color=#6b7385]{_escape_bbcode(note)}[/color]");
+        if (emptySlotLabels.Count > 0)
+            lines.Add(
+                $"[color=#6b7385]空置槽位：{_escape_bbcode(string.Join("、", emptySlotLabels))}[/color]"
+            );
         return lines;
+    }
+
+    private void _append_equipment_card(List<string> lines, StringName itemId)
+    {
+        ItemDef itemDef = GetTypedObject(_item_defs, itemId);
+        string header = $"[b][color=#e8c36a]{_escape_bbcode(_get_item_display_name(itemId))}[/color][/b]";
+        if (itemDef != null)
+        {
+            string typeLabel = _get_equipment_type_label(itemDef.GetEquipmentTypeIdNormalized());
+            if (!string.IsNullOrEmpty(typeLabel))
+                header += $"（{_escape_bbcode(typeLabel)}）";
+        }
+        lines.Add(header);
+        string damageLabel = _build_weapon_damage_label(itemDef);
+        if (!string.IsNullOrEmpty(damageLabel))
+            lines.Add($"[color=#e0c890]{_escape_bbcode(damageLabel)}[/color]");
+        string propertyLabel = _build_weapon_property_label(itemDef);
+        if (!string.IsNullOrEmpty(propertyLabel))
+            lines.Add($"[color=#9fb0c4]{_escape_bbcode(propertyLabel)}[/color]");
+        lines.Add("[color=#4d5468]━━━━━━━━━━━━━━━━━━━━━━━━[/color]");
+
+        if (itemDef == null)
+            return;
+
+        if (!string.IsNullOrEmpty(itemDef.description))
+            lines.Add(_escape_bbcode(itemDef.description));
+
+        foreach (StringName traitId in itemDef.GetTraitIdsTyped())
+        {
+            TraitDef traitDef = _get_trait_def(traitId);
+            if (traitDef == null || string.IsNullOrEmpty(traitDef.display_name))
+                continue;
+            lines.Add("");
+            lines.Add($"[b][color=#a9d4ff]{_escape_bbcode(traitDef.display_name)}[/color][/b]");
+            if (!string.IsNullOrEmpty(traitDef.description))
+                lines.Add(_escape_bbcode(traitDef.description));
+        }
     }
 
     private List<string> _build_skill_detail_lines(
@@ -933,6 +977,63 @@ public partial class PartyManagementWindow : Control
         return itemDef != null && !string.IsNullOrEmpty(itemDef.display_name)
             ? itemDef.display_name
             : itemId.ToString();
+    }
+
+    private TraitDef _get_trait_def(StringName traitId)
+    {
+        return GetTypedObject(_trait_defs, traitId);
+    }
+
+    private static string _build_weapon_damage_label(ItemDef itemDef)
+    {
+        if (itemDef?.weapon_profile is not WeaponProfileDef profile)
+            return "";
+        var parts = new List<string>();
+        if (profile.one_handed_dice != null)
+            parts.Add(profile.one_handed_dice.ToRollLabel());
+        if (profile.two_handed_dice != null)
+        {
+            string twoHanded = profile.two_handed_dice.ToRollLabel();
+            if (parts.Count == 0 || parts[0] != twoHanded)
+                parts.Add(twoHanded);
+        }
+        return string.Join(" \\ ", parts);
+    }
+
+    private static string _build_weapon_property_label(ItemDef itemDef)
+    {
+        if (itemDef?.weapon_profile is not WeaponProfileDef profile)
+            return "";
+        var labels = new List<string>();
+        foreach (StringName property in profile.GetPropertiesTyped())
+        {
+            string label = _get_weapon_property_label(property);
+            if (!string.IsNullOrEmpty(label))
+                labels.Add(label);
+        }
+        return string.Join("、", labels);
+    }
+
+    private static string _get_weapon_property_label(StringName property)
+    {
+        if (property == (StringName)"finesse")
+            return "灵巧";
+        if (property == (StringName)"light")
+            return "轻型";
+        if (property == (StringName)"reach")
+            return "触及";
+        if (property == (StringName)"thrown")
+            return "投掷";
+        if (property == (StringName)"two_handed")
+            return "双手";
+        if (property == (StringName)"versatile")
+            return "多用";
+        return "";
+    }
+
+    private static string _escape_bbcode(string text)
+    {
+        return string.IsNullOrEmpty(text) ? (text ?? "") : text.Replace("[", "[lb]");
     }
 
     private string _get_skill_display_name(StringName skillId)

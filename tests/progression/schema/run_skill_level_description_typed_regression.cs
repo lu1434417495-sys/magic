@@ -242,6 +242,7 @@ public partial class run_skill_level_description_typed_regression : SceneTree
             castingSpellControlDc: 0,
             pendingCastBindingMode: "",
             attackRollBonus: 0,
+            attackResolutionMode: "",
             auraCost: 0,
             levelOverrides: new Dictionary<int, IReadOnlyDictionary<string, Variant>>(),
             masteryTriggerMode: "",

@@ -117,6 +117,10 @@ internal static class CombatSkillContentRules
 {
     private static readonly StringName SpellFateControlRoll = "control_roll";
     private static readonly StringName BacklashGroundAnchorDrift = "ground_anchor_drift";
+    private static readonly StringName AttackResolutionModeAuto = "auto";
+    private static readonly StringName AttackResolutionModeDirectEffect = "direct_effect";
+    private static readonly StringName AttackResolutionModeFateAttack = "fate_attack";
+    private static readonly StringName AttackResolutionModeForceHitNoCrit = "force_hit_no_crit";
     private static readonly StringName AreaOriginTarget = "target";
     private static readonly StringName AreaOriginCaster = "caster";
     private static readonly StringName AreaOriginAnchorCoord = "anchor_coord";
@@ -139,6 +143,19 @@ internal static class CombatSkillContentRules
         if (value == BacklashGroundAnchorDrift)
             return CombatSkillBacklashMode.GroundAnchorDrift;
         return CombatSkillBacklashMode.Unknown;
+    }
+
+    internal static CombatSkillAttackResolutionMode ToAttackResolutionMode(StringName value)
+    {
+        if (value == "" || value == AttackResolutionModeAuto)
+            return CombatSkillAttackResolutionMode.Auto;
+        if (value == AttackResolutionModeDirectEffect)
+            return CombatSkillAttackResolutionMode.DirectEffect;
+        if (value == AttackResolutionModeFateAttack)
+            return CombatSkillAttackResolutionMode.FateAttack;
+        if (value == AttackResolutionModeForceHitNoCrit)
+            return CombatSkillAttackResolutionMode.ForceHitNoCrit;
+        return CombatSkillAttackResolutionMode.Unknown;
     }
 
     internal static CombatAreaOriginMode ToAreaOriginMode(StringName value)

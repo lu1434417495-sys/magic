@@ -634,7 +634,7 @@ internal sealed class BattleTimelineDriver
                 actionPoints = Mathf.Max(unitState.attribute_snapshot.GetValue("action_points"), 1);
             }
             unitState.SetCurrentAp(actionPoints);
-            unitState.SetCurrentMovePoints(BattleUnitState.DefaultMovePointsPerTurn);
+            unitState.SetCurrentMovePoints(unitState.GetMovePointCapacity());
             var turnStartResult = _ApplyTurnStartStatuses(unitState, batch);
             if (!unitState.is_alive)
             {

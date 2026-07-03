@@ -46,6 +46,7 @@ public static class BattleStatusSemanticTable
         STATUS_MARKED = "marked",
         STATUS_METEOR_CONCUSSED = "meteor_concussed",
         STATUS_PINNED = "pinned",
+        STATUS_PARALYZED = "paralyzed",
         STATUS_PRISMATIC_BARRIER = "prismatic_barrier",
         STATUS_PETRIFIED = "petrified",
         STATUS_MADNESS = "madness",
@@ -121,6 +122,7 @@ public static class BattleStatusSemanticTable
         [STATUS_BLIND] = new() { Semantic = RefreshSemantic(attackRollPenalty: DEFAULT_BLIND_ATTACK_ROLL_PENALTY), Harmful = true, DispellableHarmful = true, DispelPriority = 90 },
         [STATUS_FROZEN] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, BlocksPendingCast = true, DispelPriority = 90 },
         [STATUS_MARKED] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true },
+        [STATUS_PARALYZED] = new() { Semantic = RefreshSemantic(displayLabel: "麻痹"), Harmful = true, DispellableHarmful = true, BlocksPendingCast = true, DispelPriority = 90 },
         [STATUS_PINNED] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
         [STATUS_ROOTED] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 90 },
         [STATUS_SHOCKED] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
@@ -400,6 +402,18 @@ public static class BattleStatusSemanticTable
             effectDefinition.GetIntParamTyped("source_bound_attack_roll_penalty", 0);
         statusEntry.source_bound_attack_roll_penalty_min_stacks = Math.Max(
             effectDefinition.GetIntParamTyped("source_bound_attack_roll_penalty_min_stacks", 1),
+            1
+        );
+        statusEntry.source_bound_incoming_attack_roll_bonus_per_stack =
+            effectDefinition.GetIntParamTyped(
+                "source_bound_incoming_attack_roll_bonus_per_stack",
+                0
+            );
+        statusEntry.source_bound_incoming_attack_roll_bonus_min_stacks = Math.Max(
+            effectDefinition.GetIntParamTyped(
+                "source_bound_incoming_attack_roll_bonus_min_stacks",
+                1
+            ),
             1
         );
         statusEntry.undispellable = effectDefinition.Undispellable;

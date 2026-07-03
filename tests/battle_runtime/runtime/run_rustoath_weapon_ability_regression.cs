@@ -94,13 +94,19 @@ public partial class run_rustoath_weapon_ability_regression : SceneTree
                 new StringName("weapon"),
                 "锈蚀之誓 registry 投影应是武器装备。"
             );
+        }
+
+        // 机制文本落在 trait（锈毒）里，物品说明只保留风味文字。
+        if (fixture.TraitDefs.TryGetValue(RustCorrosionTraitId, out TraitDef rustCorrosionTrait)
+            && rustCorrosionTrait != null)
+        {
             _test.True(
-                rustoathDef.description.Contains("5层"),
-                "锈蚀之誓资源文本应描述当前 5 层阈值。"
+                rustCorrosionTrait.description.Contains("5层"),
+                "锈毒 trait 文本应描述当前 5 层阈值。"
             );
             _test.False(
-                rustoathDef.description.Contains("AC-3"),
-                "锈蚀之誓资源文本不应保留已经废弃的 AC-3。"
+                rustCorrosionTrait.description.Contains("AC-3"),
+                "锈毒 trait 文本不应保留已经废弃的 AC-3。"
             );
         }
 

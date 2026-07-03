@@ -129,6 +129,7 @@ public partial class run_progression_service_resource_unlock_typed_regression : 
                 0,
                 "",
                 0,
+                "",
                 auraCost,
                 new Dictionary<int, IReadOnlyDictionary<string, Variant>>(),
                 "",

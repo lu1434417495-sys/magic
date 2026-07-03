@@ -38,6 +38,11 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
                     typeof(AddDamageDiceActionPayloadDef),
                     typeof(AddDamageDiceActionPayloadDefinition)
                 ),
+                ["deal_damage"] = Action(
+                    "deal_damage",
+                    typeof(DealDamageActionPayloadDef),
+                    typeof(DealDamageActionPayloadDefinition)
+                ),
                 ["attack_roll_bonus"] = Action(
                     "attack_roll_bonus",
                     typeof(AttackRollBonusActionPayloadDef),
@@ -48,6 +53,12 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
                     "attack_roll_advantage",
                     typeof(AttackRollAdvantageActionPayloadDef),
                     typeof(AttackRollAdvantageActionPayloadDefinition),
+                    consumerSupport: ConsumerSupport(includePreview: true)
+                ),
+                ["attack_defense_modifier"] = Action(
+                    "attack_defense_modifier",
+                    typeof(EquipmentAttackDefenseModifierDef),
+                    typeof(EquipmentAttackDefenseModifierDefinition),
                     consumerSupport: ConsumerSupport(includePreview: true)
                 ),
                 ["damage_roll_mode_override"] = Action(
@@ -82,6 +93,11 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
                     typeof(MarkTargetActionPayloadDef),
                     typeof(MarkTargetActionPayloadDefinition),
                     stateAccess: WritesDeclaredTargetMark()
+                ),
+                ["clear_status"] = Action(
+                    "clear_status",
+                    typeof(ClearStatusActionPayloadDef),
+                    typeof(ClearStatusActionPayloadDefinition)
                 ),
                 ["grant_skill"] = Action(
                     "grant_skill",

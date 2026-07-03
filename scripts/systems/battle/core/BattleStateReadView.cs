@@ -67,6 +67,7 @@ internal readonly struct BattleUnitReadView
     }
 
     internal bool IsValid => _unit != null;
+    internal BattleUnitState UnsafeUnitForReadOnlyRules => _unit;
     internal StringName UnitId => _unit?.unit_id ?? "";
     internal StringName SourceMemberId => _unit?.source_member_id ?? "";
     internal string DisplayName => _unit?.display_name ?? "";

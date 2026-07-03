@@ -102,6 +102,14 @@ public partial class CombatEffectDef : Resource
     public Godot.Collections.Array<StringName> damage_tags { get; set; } = new();
 
     [Export]
+    public Godot.Collections.Array<StringName> mitigation_bypass_damage_tags { get; set; } =
+        new();
+
+    [Export]
+    public Godot.Collections.Array<StringName> mitigation_bypass_tiers { get; set; } =
+        new();
+
+    [Export]
     public StringName damage_category { get; set; } = "";
 
     [Export]
@@ -310,6 +318,9 @@ public partial class CombatEffectDef : Resource
     public StringName bonus_condition { get; set; } = "";
 
     [Export]
+    public StringName bonus_condition_creature_type_tag { get; set; } = "";
+
+    [Export]
     public StringName trigger_event { get; set; } = "";
     internal CombatEffectTriggerEvent TriggerEventKind
     {
@@ -363,6 +374,9 @@ public partial class CombatEffectDef : Resource
 
     [Export]
     public int required_target_status_min_stacks { get; set; }
+
+    [Export]
+    public StringName required_target_status_source_selector { get; set; } = "";
 
     [Export]
     public int dice_per_consumed_stack { get; set; }

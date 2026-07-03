@@ -301,6 +301,7 @@ public sealed class EquipmentAbilityFactQueryDefinition
     public StringName BindingId { get; init; } = "";
     public StringName StateKey { get; init; } = "";
     public StringName StatusId { get; init; } = "";
+    public StringName AttributeId { get; init; } = "";
     public StringName Aggregation { get; init; } = "";
     public StringName ValueKind { get; init; } = "";
     public bool BoolLiteral { get; init; }
@@ -327,6 +328,23 @@ public sealed class AddDamageDiceActionPayloadDefinition
     public DiceExpressionDefinition Dice { get; init; }
     public StringName DamageType { get; init; } = "";
     public IReadOnlyList<StringName> DamageTags { get; init; } = Array.Empty<StringName>();
+    public IReadOnlyList<StringName> MitigationBypassDamageTags { get; init; } =
+        Array.Empty<StringName>();
+    public IReadOnlyList<StringName> MitigationBypassTiers { get; init; } =
+        Array.Empty<StringName>();
+}
+
+public sealed class DealDamageActionPayloadDefinition
+    : EquipmentAbilityActionPayloadDefinition
+{
+    public StringName TargetSelector { get; init; } = "";
+    public DiceExpressionDefinition Dice { get; init; }
+    public StringName DamageType { get; init; } = "";
+    public IReadOnlyList<StringName> DamageTags { get; init; } = Array.Empty<StringName>();
+    public IReadOnlyList<StringName> MitigationBypassDamageTags { get; init; } =
+        Array.Empty<StringName>();
+    public IReadOnlyList<StringName> MitigationBypassTiers { get; init; } =
+        Array.Empty<StringName>();
 }
 
 public sealed class AttackRollBonusActionPayloadDefinition
@@ -345,6 +363,30 @@ public sealed class AttackRollAdvantageActionPayloadDefinition
     public StringName Mode { get; init; } = "";
     public StringName StackMode { get; init; } = "";
     public string Label { get; init; } = "";
+}
+
+public sealed class EquipmentAttackDefenseModifierDefinition
+    : EquipmentAbilityActionPayloadDefinition
+{
+    public StringName ModifierId { get; init; } = "";
+    public IReadOnlyList<StringName> IgnoredAcComponents { get; init; } = Array.Empty<StringName>();
+    public IReadOnlyList<EquipmentAcComponentMultiplierDefinition> AcComponentMultipliers { get; init; } =
+        Array.Empty<EquipmentAcComponentMultiplierDefinition>();
+    public bool LockDodgeBonus { get; init; }
+    public StringName RequiredTargetEquipmentSelector { get; init; } = "";
+    public IReadOnlyList<StringName> RequiredTargetItemTags { get; init; } = Array.Empty<StringName>();
+    public IReadOnlyList<StringName> RequiredTargetEquipmentTypeIds { get; init; } =
+        Array.Empty<StringName>();
+    public StringName CoverPolicy { get; init; } = "";
+    public StringName ProjectileObstaclePolicy { get; init; } = "";
+    public StringName TraceLabel { get; init; } = "";
+}
+
+public sealed class EquipmentAcComponentMultiplierDefinition
+{
+    public StringName AcComponentId { get; init; } = "";
+    public int MultiplierPercent { get; init; }
+    public StringName StackMode { get; init; } = "";
 }
 
 public sealed class DamageRollModeOverrideActionPayloadDefinition
@@ -379,6 +421,9 @@ public sealed class ApplyStatusActionPayloadDefinition
     public int AttackRollPenalty { get; init; } = -1;
     public int SourceBoundAttackRollPenalty { get; init; }
     public int SourceBoundAttackRollPenaltyMinStacks { get; init; } = 1;
+    public int SourceBoundIncomingAttackRollBonusPerStack { get; init; }
+    public int SourceBoundIncomingAttackRollBonusMinStacks { get; init; } = 1;
+    public int MovePointCapacityDelta { get; init; }
     public bool CountsAsDebuffOverride { get; init; }
     public bool CountsAsDebuff { get; init; }
     public bool Undispellable { get; init; }
@@ -449,6 +494,25 @@ public sealed class MarkTargetActionPayloadDefinition
     public StringName StateKey { get; init; } = "";
     public int StackDelta { get; init; }
     public bool RemoveOnSourceMissing { get; init; }
+    public bool RemoveOnTargetDefeated { get; init; }
+    public bool UniquePerSource { get; init; }
+    public StringName MirrorStatusId { get; init; } = "";
+    public int MirrorStatusDurationTu { get; init; }
+    public StringName MirrorStatusStackBehavior { get; init; } = "";
+    public int MirrorStatusStackLimit { get; init; }
+    public string MirrorStatusDisplayLabel { get; init; } = "";
+    public IReadOnlyList<StringName> ClearStatusIdsOnReplace { get; init; } =
+        Array.Empty<StringName>();
+}
+
+public sealed class ClearStatusActionPayloadDefinition
+    : EquipmentAbilityActionPayloadDefinition
+{
+    public StringName TargetSelector { get; init; } = "";
+    public StringName StatusId { get; init; } = "";
+    public StringName MarkBindingId { get; init; } = "";
+    public StringName MarkStateKey { get; init; } = "";
+    public bool RequireSourceUnitMatch { get; init; }
 }
 
 public sealed class GrantSkillActionPayloadDefinition

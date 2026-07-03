@@ -52,6 +52,9 @@ public class BattleStatusEffectState
         "attack_roll_penalty",
         "source_bound_attack_roll_penalty",
         "source_bound_attack_roll_penalty_min_stacks",
+        "source_bound_incoming_attack_roll_bonus_per_stack",
+        "source_bound_incoming_attack_roll_bonus_min_stacks",
+        "move_point_capacity_delta",
         "undispellable",
         "dispellable_magic",
         "dispellable_harmful_magic",
@@ -106,6 +109,9 @@ public class BattleStatusEffectState
     public int attack_roll_penalty { get; set; } = -1;
     public int source_bound_attack_roll_penalty { get; set; }
     public int source_bound_attack_roll_penalty_min_stacks { get; set; } = 1;
+    public int source_bound_incoming_attack_roll_bonus_per_stack { get; set; }
+    public int source_bound_incoming_attack_roll_bonus_min_stacks { get; set; } = 1;
+    public int move_point_capacity_delta { get; set; }
     public bool undispellable { get; set; }
     public bool dispellable_magic { get; set; }
     public bool dispellable_harmful_magic { get; set; }
@@ -230,6 +236,11 @@ public class BattleStatusEffectState
             source_bound_attack_roll_penalty = source_bound_attack_roll_penalty,
             source_bound_attack_roll_penalty_min_stacks =
                 source_bound_attack_roll_penalty_min_stacks,
+            source_bound_incoming_attack_roll_bonus_per_stack =
+                source_bound_incoming_attack_roll_bonus_per_stack,
+            source_bound_incoming_attack_roll_bonus_min_stacks =
+                source_bound_incoming_attack_roll_bonus_min_stacks,
+            move_point_capacity_delta = move_point_capacity_delta,
             undispellable = undispellable,
             dispellable_magic = dispellable_magic,
             dispellable_harmful_magic = dispellable_harmful_magic,
@@ -595,6 +606,12 @@ public class BattleStatusEffectState
                 ReadOptionalIntParam(parameters, "source_bound_attack_roll_penalty") ?? 0,
             source_bound_attack_roll_penalty_min_stacks =
                 ReadOptionalIntParam(parameters, "source_bound_attack_roll_penalty_min_stacks") ?? 1,
+            source_bound_incoming_attack_roll_bonus_per_stack =
+                ReadOptionalIntParam(parameters, "source_bound_incoming_attack_roll_bonus_per_stack") ?? 0,
+            source_bound_incoming_attack_roll_bonus_min_stacks =
+                ReadOptionalIntParam(parameters, "source_bound_incoming_attack_roll_bonus_min_stacks") ?? 1,
+            move_point_capacity_delta =
+                ReadOptionalIntParam(parameters, "move_point_capacity_delta") ?? 0,
             undispellable = ReadOptionalBoolParam(parameters, "undispellable"),
             dispellable_magic = ReadOptionalBoolParam(parameters, "dispellable_magic"),
             dispellable_harmful_magic = ReadOptionalBoolParam(parameters, "dispellable_harmful_magic"),
@@ -700,6 +717,17 @@ public class BattleStatusEffectState
             projected["source_bound_attack_roll_penalty"] = source_bound_attack_roll_penalty;
             projected["source_bound_attack_roll_penalty_min_stacks"] =
                 Mathf.Max(source_bound_attack_roll_penalty_min_stacks, 1);
+        }
+        if (source_bound_incoming_attack_roll_bonus_per_stack > 0)
+        {
+            projected["source_bound_incoming_attack_roll_bonus_per_stack"] =
+                source_bound_incoming_attack_roll_bonus_per_stack;
+            projected["source_bound_incoming_attack_roll_bonus_min_stacks"] =
+                Mathf.Max(source_bound_incoming_attack_roll_bonus_min_stacks, 1);
+        }
+        if (move_point_capacity_delta != 0)
+        {
+            projected["move_point_capacity_delta"] = move_point_capacity_delta;
         }
         if (undispellable)
         {

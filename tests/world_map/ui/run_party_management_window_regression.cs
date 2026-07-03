@@ -145,7 +145,8 @@ public partial class run_party_management_window_regression : SceneTree
 
         string equipmentText = window.equipment_label.Text;
         string skillsText = window.skills_label.Text;
-        _test.True(equipmentText.Contains("已装备：1"), "双手占位不应把副手占位重复计为装备。");
+        int weaponMentions = equipmentText.Split("iron_greatsword").Length - 1;
+        _test.True(weaponMentions == 1, "双手武器应仅计为一件，不应因副手占位重复展示。");
         _test.True(equipmentText.Contains("副手：由主手占用"), "副手占位应显示为被主手占用。");
         _test.True(skillsText.Contains("missing_skill"), "缺失 skill_def 时仍应展示技能 ID。");
         _test.True(skillsText.Contains("技能定义缺失"), "缺失 skill_def 时应显示缺失提示而不是崩溃。");
@@ -335,6 +336,7 @@ public partial class run_party_management_window_regression : SceneTree
             0,
             "",
             0,
+            "",
             0,
             new Dictionary<int, IReadOnlyDictionary<string, Variant>>
             {

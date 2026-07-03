@@ -114,6 +114,7 @@ public partial class WorldMapSystem : Control
         GameContentCatalog contentCatalog = _game_session.GetContentCatalogTyped();
         party_management_window.SetAchievementDefs(contentCatalog.GetAchievementDefsTyped());
         party_management_window.SetItemDefs(contentCatalog.GetItemDefsTyped());
+        party_management_window.SetTraitDefs(contentCatalog.GetTraitDefsTyped());
         party_management_window.SetSkillDefinitions(contentCatalog.GetSkillDefinitionsTyped());
         party_management_window.SetProfessionDefs(contentCatalog.GetProfessionDefsTyped());
         party_management_window.SetCharacterManagement(_runtime_proxy.GetCharacterManagement());

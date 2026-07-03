@@ -133,6 +133,7 @@ public partial class BattleState
     public bool runtime_edges_dirty = true;
 
     private readonly BattleBarrierStore _layeredBarrierStore = new();
+    private readonly List<BattleEquipmentTargetMarkState> _equipmentTargetMarks = new();
 
     private readonly Dictionary<Vector2I, BattleCellState> _cellsByCoord = new();
     private readonly Dictionary<StringName, BattleUnitState> _unitsById = new();
@@ -147,6 +148,7 @@ public partial class BattleState
     internal int CellColumnCount => _cellColumns.Count;
     internal int RuntimeEdgeFaceCount => _runtimeEdgeFaces.Count;
     internal int LayeredBarrierFieldCount => _layeredBarrierStore.Count;
+    internal int EquipmentTargetMarkCount => _equipmentTargetMarks.Count;
     internal int ReportEntryCount => _reportEntries.Count;
     internal BattleBarrierStore LayeredBarrierStore => _layeredBarrierStore;
     internal long MovementGeometryRevision => _movement_geometry_revision;
@@ -828,6 +830,100 @@ public partial class BattleState
         foreach (BattleUnitState unitState in Units())
             results.Add(unitState);
         return results;
+    }
+
+    internal IReadOnlyList<BattleEquipmentTargetMarkState> GetEquipmentTargetMarksTyped()
+    {
+        var result = new List<BattleEquipmentTargetMarkState>();
+        foreach (BattleEquipmentTargetMarkState mark in _equipmentTargetMarks)
+        {
+            if (mark?.IsValid == true)
+                result.Add(mark.DuplicateState());
+        }
+        return result;
+    }
+
+    internal bool SetEquipmentTargetMark(
+        BattleEquipmentTargetMarkState mark,
+        bool uniquePerSource,
+        out BattleEquipmentTargetMarkState replaced
+    )
+    {
+        replaced = null;
+        if (mark?.IsValid != true)
+            return false;
+        for (int index = _equipmentTargetMarks.Count - 1; index >= 0; index--)
+        {
+            BattleEquipmentTargetMarkState existing = _equipmentTargetMarks[index];
+            if (existing?.IsValid != true)
+            {
+                _equipmentTargetMarks.RemoveAt(index);
+                continue;
+            }
+            if (!uniquePerSource || !existing.IsSameSource(mark))
+                continue;
+            replaced = existing.DuplicateState();
+            _equipmentTargetMarks.RemoveAt(index);
+        }
+        _equipmentTargetMarks.Add(mark.DuplicateState());
+        return true;
+    }
+
+    internal bool RemoveEquipmentTargetMark(
+        StringName sourceUnitId,
+        StringName sourceEquipmentInstanceId,
+        StringName bindingId,
+        StringName stateKey
+    )
+    {
+        bool removed = false;
+        for (int index = _equipmentTargetMarks.Count - 1; index >= 0; index--)
+        {
+            BattleEquipmentTargetMarkState existing = _equipmentTargetMarks[index];
+            if (existing?.IsValid != true)
+            {
+                _equipmentTargetMarks.RemoveAt(index);
+                removed = true;
+                continue;
+            }
+            if (
+                existing.SourceUnitId == sourceUnitId
+                && existing.SourceEquipmentInstanceId == sourceEquipmentInstanceId
+                && existing.BindingId == bindingId
+                && existing.StateKey == stateKey
+            )
+            {
+                _equipmentTargetMarks.RemoveAt(index);
+                removed = true;
+            }
+        }
+        return removed;
+    }
+
+    internal bool TryGetEquipmentTargetMark(
+        StringName sourceUnitId,
+        StringName sourceEquipmentInstanceId,
+        StringName bindingId,
+        StringName stateKey,
+        out BattleEquipmentTargetMarkState mark
+    )
+    {
+        mark = null;
+        foreach (BattleEquipmentTargetMarkState existing in _equipmentTargetMarks)
+        {
+            if (
+                existing?.IsValid == true
+                && existing.SourceUnitId == sourceUnitId
+                && existing.SourceEquipmentInstanceId == sourceEquipmentInstanceId
+                && existing.BindingId == bindingId
+                && existing.StateKey == stateKey
+            )
+            {
+                mark = existing.DuplicateState();
+                return true;
+            }
+        }
+        return false;
     }
 
     internal List<BattleCellEntry> GetCellEntriesTyped() => CellEntries();

@@ -2361,6 +2361,13 @@ internal sealed class BattleAiMutationGuard
             heal_multiplier_percent = effect.heal_multiplier_percent,
             shield_gain_multiplier_percent = effect.shield_gain_multiplier_percent,
             attack_roll_penalty = effect.attack_roll_penalty,
+            source_bound_attack_roll_penalty = effect.source_bound_attack_roll_penalty,
+            source_bound_attack_roll_penalty_min_stacks =
+                effect.source_bound_attack_roll_penalty_min_stacks,
+            source_bound_incoming_attack_roll_bonus_per_stack =
+                effect.source_bound_incoming_attack_roll_bonus_per_stack,
+            source_bound_incoming_attack_roll_bonus_min_stacks =
+                effect.source_bound_incoming_attack_roll_bonus_min_stacks,
             undispellable = effect.undispellable,
             dispellable_magic = effect.dispellable_magic,
             dispellable_harmful_magic = effect.dispellable_harmful_magic,

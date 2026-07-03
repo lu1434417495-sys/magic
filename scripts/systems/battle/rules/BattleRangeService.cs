@@ -264,6 +264,10 @@ public static class BattleRangeService
         {
             return configuredRange;
         }
+        if (UsesConfiguredWeaponRange(skillDefinition))
+        {
+            return configuredRange;
+        }
         if (RequiresCurrentMeleeWeapon(skillDefinition))
         {
             return unitInfo.WeaponAttackRange;
@@ -281,6 +285,13 @@ public static class BattleRangeService
             }
         }
         return configuredRange;
+    }
+
+    private static bool UsesConfiguredWeaponRange(SkillDefinition skillDefinition)
+    {
+        return ProgressionDataUtils.to_string_name(
+            skillDefinition?.CombatProfile?.WeaponRangePolicy ?? new StringName("")
+        ) == "configured";
     }
 
     public static bool IsGroundJumpSkill(SkillDefinition skillDefinition)

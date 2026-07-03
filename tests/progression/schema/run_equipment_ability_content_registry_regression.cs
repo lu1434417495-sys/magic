@@ -185,7 +185,14 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
             [typeof(ModifyAbilityStateActionPayloadDef)] =
                 new[] { "target_selector", "state_key", "operation", "int_delta" },
             [typeof(MarkTargetActionPayloadDef)] =
-                new[] { "target_selector", "state_key", "stack_delta", "remove_on_source_missing" },
+                new[]
+                {
+                    "target_selector",
+                    "state_key",
+                    "stack_delta",
+                    "remove_on_source_missing",
+                    "remove_on_target_defeated",
+                },
             [typeof(GrantSkillActionPayloadDef)] =
                 new[] { "skill_id", "skill_level", "availability_state_key" },
             [typeof(EquipmentSlotWeightDef)] = new[] { "slot_id", "weight" },

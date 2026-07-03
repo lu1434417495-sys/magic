@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Resource_two_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 2
+dice_sides = 6
+flat_bonus = 2
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+two_handed_dice = SubResource("Resource_two_handed_dice")
+properties_mode = 2
+properties = Array[StringName]([&"heavy", &"two_handed"])
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_hammer_tremor_102"
+base_item_id = &"weapon_type_maul_base"
+display_name = "地动"
+description = "一柄仿佛由地震本身锻造的巨锤，锤头的裂纹中持续渗出细微尘埃。"
+is_stackable = false
+base_price = 52000
+buy_price = 52000
+sell_price = 26000
+sellable = true
+max_stack = 1
+tags = Array[StringName]([&"tremor", &"maul", &"hammer", &"heavy", &"two_handed", &"thunder"])
+trait_ids = Array[StringName]([&"weapon.hammer.tremor.shockwave", &"weapon.hammer.tremor.geologic_resonance", &"weapon.hammer.tremor.stone_oath"])
+weapon_profile = SubResource("Resource_weapon_profile")

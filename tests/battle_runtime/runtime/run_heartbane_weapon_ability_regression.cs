@@ -105,9 +105,15 @@ public partial class run_heartbane_weapon_ability_regression : SceneTree
                 new StringName("weapon_type_rapier_base"),
                 "噬心者原始资源应声明继承 rapier 模板。"
             );
+        }
+
+        // 机制文本落在 trait（心碎之刺）里，物品说明只保留风味文字。
+        if (fixture.TraitDefs.TryGetValue(HeartbreakStingTraitId, out TraitDef heartbreakStingTrait)
+            && heartbreakStingTrait != null)
+        {
             _test.True(
-                rawHeartbane.description.Contains("2D6 psychic"),
-                "噬心者资源文本应描述改造后的骰子附伤，而不是百分比伤害。"
+                heartbreakStingTrait.description.Contains("2D6 psychic"),
+                "心碎之刺 trait 文本应描述改造后的骰子附伤，而不是百分比伤害。"
             );
         }
 

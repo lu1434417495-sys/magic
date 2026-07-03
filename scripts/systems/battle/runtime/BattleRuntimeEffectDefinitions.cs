@@ -20,6 +20,8 @@ internal static class BattleRuntimeEffectDefinitions
         int attackRollPenalty = -1,
         int sourceBoundAttackRollPenalty = 0,
         int sourceBoundAttackRollPenaltyMinStacks = 1,
+        int sourceBoundIncomingAttackRollBonusPerStack = 0,
+        int sourceBoundIncomingAttackRollBonusMinStacks = 1,
         string displayName = "",
         bool countsAsDebuffOverride = false,
         bool countsAsDebuff = false,
@@ -30,7 +32,10 @@ internal static class BattleRuntimeEffectDefinitions
     )
     {
         IReadOnlyDictionary<string, Variant> mergedParameters = parameters;
-        if (sourceBoundAttackRollPenalty > 0)
+        if (
+            sourceBoundAttackRollPenalty > 0
+            || sourceBoundIncomingAttackRollBonusPerStack > 0
+        )
         {
             var nextParameters = new Dictionary<string, Variant>();
             if (parameters != null)
@@ -38,10 +43,20 @@ internal static class BattleRuntimeEffectDefinitions
                 foreach (KeyValuePair<string, Variant> entry in parameters)
                     nextParameters[entry.Key] = entry.Value;
             }
-            nextParameters["source_bound_attack_roll_penalty"] =
-                sourceBoundAttackRollPenalty;
-            nextParameters["source_bound_attack_roll_penalty_min_stacks"] =
-                Math.Max(sourceBoundAttackRollPenaltyMinStacks, 1);
+            if (sourceBoundAttackRollPenalty > 0)
+            {
+                nextParameters["source_bound_attack_roll_penalty"] =
+                    sourceBoundAttackRollPenalty;
+                nextParameters["source_bound_attack_roll_penalty_min_stacks"] =
+                    Math.Max(sourceBoundAttackRollPenaltyMinStacks, 1);
+            }
+            if (sourceBoundIncomingAttackRollBonusPerStack > 0)
+            {
+                nextParameters["source_bound_incoming_attack_roll_bonus_per_stack"] =
+                    sourceBoundIncomingAttackRollBonusPerStack;
+                nextParameters["source_bound_incoming_attack_roll_bonus_min_stacks"] =
+                    Math.Max(sourceBoundIncomingAttackRollBonusMinStacks, 1);
+            }
             mergedParameters = nextParameters;
         }
         return Create(
@@ -76,6 +91,28 @@ internal static class BattleRuntimeEffectDefinitions
             saveDcMode: StaticSaveDcMode,
             saveAbility: Normalize(saveAbility),
             saveTag: Normalize(saveTag)
+        );
+    }
+
+    internal static CombatEffectDefinition Damage(
+        StringName damageTag,
+        int diceCount,
+        int diceSides,
+        int diceBonus,
+        IReadOnlyList<StringName> damageTags = null,
+        IReadOnlyList<StringName> mitigationBypassDamageTags = null,
+        IReadOnlyList<StringName> mitigationBypassTiers = null
+    )
+    {
+        return Create(
+            effectType: "damage",
+            damageTag: Normalize(damageTag),
+            diceCount: Math.Max(diceCount, 0),
+            diceSides: Math.Max(diceSides, 0),
+            diceBonus: Math.Max(diceBonus, 0),
+            damageTags: damageTags ?? EmptyStringNames,
+            mitigationBypassDamageTags: mitigationBypassDamageTags ?? EmptyStringNames,
+            mitigationBypassTiers: mitigationBypassTiers ?? EmptyStringNames
         );
     }
 
@@ -117,9 +154,10 @@ internal static class BattleRuntimeEffectDefinitions
         int minSkillLevel = 0,
         int maxSkillLevel = 0,
         StringName damageTag = default,
-        int damageRatioPercent = 0,
-        double preResistanceDamageMultiplier = 0.0,
+        int damageRatioPercent = 100,
+        double preResistanceDamageMultiplier = 1.0,
         StringName bonusCondition = default,
+        StringName bonusConditionCreatureTypeTag = default,
         int hpRatioThresholdPercent = 0,
         StringName damageCategory = default,
         StringName drBypassTag = default,
@@ -171,6 +209,8 @@ internal static class BattleRuntimeEffectDefinitions
         StringName doesNotStackWithStatusId = default,
         IReadOnlyList<StringName> doesNotStackWithStatusIds = null,
         IReadOnlyList<StringName> damageTags = null,
+        IReadOnlyList<StringName> mitigationBypassDamageTags = null,
+        IReadOnlyList<StringName> mitigationBypassTiers = null,
         bool useWeaponPhysicalDamageTag = false,
         bool resolveAsWeaponAttack = false,
         bool stopOnMiss = true,
@@ -343,7 +383,10 @@ internal static class BattleRuntimeEffectDefinitions
             saveAdvantageTags ?? EmptyStringNames,
             saveDisadvantageTags ?? EmptyStringNames,
             saveImmunityTags ?? EmptyStringNames,
-            saveTags ?? EmptyStringNames
+            saveTags ?? EmptyStringNames,
+            bonusConditionCreatureTypeTag: Normalize(bonusConditionCreatureTypeTag),
+            mitigationBypassDamageTags: mitigationBypassDamageTags ?? EmptyStringNames,
+            mitigationBypassTiers: mitigationBypassTiers ?? EmptyStringNames
         );
     }
 

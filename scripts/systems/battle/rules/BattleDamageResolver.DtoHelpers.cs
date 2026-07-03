@@ -186,7 +186,23 @@ public partial class BattleDamageResolver
         {
             return TargetHasEnoughDebuffs(effectDefinition, targetUnit);
         }
+        if (effectDefinition.BonusCondition == BonusConditionTargetCreatureType)
+        {
+            return TargetHasCreatureType(effectDefinition, targetUnit);
+        }
         return false;
+    }
+
+    private static bool TargetHasCreatureType(
+        CombatEffectDefinition effectDefinition,
+        BattleUnitState targetUnit
+    )
+    {
+        StringName requiredTag = ProgressionDataUtils.to_string_name(
+            effectDefinition?.BonusConditionCreatureTypeTag ?? ""
+        );
+        return requiredTag != ""
+            && targetUnit?.creature_type_tags?.Contains(requiredTag) == true;
     }
 
     private static bool IsTargetLowHp(
@@ -1540,6 +1556,42 @@ public partial class BattleDamageResolver
             return false;
         }
         targetUnit.SetStatusEffect(statusEntry);
+        return true;
+    }
+
+    private bool ApplySaveFailureStatusFromDamage(
+        BattleUnitState targetUnit,
+        BattleUnitState sourceUnit,
+        CombatEffectDefinition effectDefinition,
+        BattleSaveResult saveResult,
+        out StringName appliedStatusId
+    )
+    {
+        appliedStatusId = "";
+        if (
+            targetUnit == null
+            || effectDefinition == null
+            || !saveResult.HasSave
+            || saveResult.Success
+            || effectDefinition.SaveFailureStatusId == ""
+        )
+        {
+            return false;
+        }
+
+        StringName resolvedStatusId = BattleTemporalStatusService.ApplyEliteBossStasisDowngrade(
+            targetUnit,
+            ProgressionDataUtils.to_string_name(effectDefinition.SaveFailureStatusId)
+        );
+        if (resolvedStatusId == "")
+        {
+            return false;
+        }
+        if (!ApplyStatusEffect(targetUnit, sourceUnit, effectDefinition, resolvedStatusId))
+        {
+            return false;
+        }
+        appliedStatusId = resolvedStatusId;
         return true;
     }
 

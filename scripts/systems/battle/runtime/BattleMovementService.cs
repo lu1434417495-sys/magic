@@ -73,6 +73,7 @@ internal class BattleMovementService
                 || unitView.HasStatusEffect(BattleStatusSemanticTable.STATUS_ROOTED)
                 || unitView.HasStatusEffect(BattleStatusSemanticTable.STATUS_TENDON_CUT)
                 || unitView.HasStatusEffect(BattleStatusSemanticTable.STATUS_PETRIFIED)
+                || unitView.HasStatusEffect(BattleStatusSemanticTable.STATUS_PARALYZED)
                 || unitView.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_STASIS)
             );
     }

@@ -31,6 +31,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
     private static readonly StringName STATUS_METEOR_CONCUSSED = "meteor_concussed";
     private static readonly StringName STATUS_FROZEN = "frozen";
     private static readonly StringName STATUS_PETRIFIED = "petrified";
+    private static readonly StringName STATUS_PARALYZED = "paralyzed";
     private static readonly StringName STATUS_MADNESS = "madness";
     private static readonly StringName STATUS_GUARDING = "guarding";
     private static readonly StringName STATUS_BLACK_STAR_BRAND_NORMAL = "black_star_brand_normal";
@@ -72,6 +73,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
         "hex_of_frailty",
         "marked",
         "meteor_concussed",
+        "paralyzed",
         "pinned",
         "reaction_lock",
         "petrified",
@@ -141,6 +143,14 @@ internal sealed class BattleRuntimeSkillTurnResolver
             unit_state.SetCurrentMovePoints(0);
             _append_changed_unit(batch, unit_state);
             _append_log(batch, $"{DisplayName(unit_state)} 石化未解除，无法行动。");
+            return new BattleTurnControlStatusResult(true, true, false, "", false, false);
+        }
+        if (HasStatus(unit_state, STATUS_PARALYZED))
+        {
+            unit_state.SetCurrentAp(0);
+            unit_state.SetCurrentMovePoints(0);
+            _append_changed_unit(batch, unit_state);
+            _append_log(batch, $"{DisplayName(unit_state)} 处于麻痹状态，无法行动。");
             return new BattleTurnControlStatusResult(true, true, false, "", false, false);
         }
         if (HasStatus(unit_state, STATUS_MADNESS))
@@ -304,6 +314,10 @@ internal sealed class BattleRuntimeSkillTurnResolver
         {
             return BattleSkillCastBlockReasonKind.Petrified;
         }
+        if (active_unit.HasStatusEffect(STATUS_PARALYZED))
+        {
+            return BattleSkillCastBlockReasonKind.Paralyzed;
+        }
         if (active_unit.current_aura < costs.AuraCost)
         {
             return BattleSkillCastBlockReasonKind.InsufficientAura;
@@ -410,6 +424,10 @@ internal sealed class BattleRuntimeSkillTurnResolver
         {
             return BattleSkillCastBlockReasonKind.Petrified;
         }
+        if (active_unit.HasStatusEffect(STATUS_PARALYZED))
+        {
+            return BattleSkillCastBlockReasonKind.Paralyzed;
+        }
         if (active_unit.CurrentAura < costs.AuraCost)
         {
             return BattleSkillCastBlockReasonKind.InsufficientAura;
@@ -498,6 +516,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
             BattleSkillCastBlockReasonKind.InsufficientMp => "法力不足，无法施放该技能。",
             BattleSkillCastBlockReasonKind.InsufficientStamina => "体力不足，无法施放该技能。",
             BattleSkillCastBlockReasonKind.Petrified => "当前处于石化状态，无法施放技能。",
+            BattleSkillCastBlockReasonKind.Paralyzed => "当前处于麻痹状态，无法施放技能。",
             BattleSkillCastBlockReasonKind.InsufficientAura => "斗气不足，无法施放该技能。",
             BattleSkillCastBlockReasonKind.RacialSkillPerBattleChargeDepleted =>
                 $"{_get_skill_display_name(skillDefinition)} 的身份技能次数已用尽。",
@@ -564,6 +583,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
             BattleSkillCastBlockReasonKind.InsufficientMp => "法力不足，无法施放该技能。",
             BattleSkillCastBlockReasonKind.InsufficientStamina => "体力不足，无法施放该技能。",
             BattleSkillCastBlockReasonKind.Petrified => "当前处于石化状态，无法施放技能。",
+            BattleSkillCastBlockReasonKind.Paralyzed => "当前处于麻痹状态，无法施放技能。",
             BattleSkillCastBlockReasonKind.InsufficientAura => "斗气不足，无法施放该技能。",
             BattleSkillCastBlockReasonKind.RacialSkillPerBattleChargeDepleted =>
                 $"{_get_skill_display_name(skillDefinition)} 的身份技能次数已用尽。",
@@ -2075,6 +2095,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
             || HasUnitStatus(unit_state, STATUS_ROOTED)
             || HasUnitStatus(unit_state, STATUS_TENDON_CUT)
             || HasUnitStatus(unit_state, STATUS_PETRIFIED)
+            || HasUnitStatus(unit_state, STATUS_PARALYZED)
             || BattleTemporalStatusService.HasTimeStasis(unit_state);
     }
 

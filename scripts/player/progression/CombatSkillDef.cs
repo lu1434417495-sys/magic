@@ -23,6 +23,15 @@ internal enum CombatSkillBacklashMode
     GroundAnchorDrift,
 }
 
+internal enum CombatSkillAttackResolutionMode
+{
+    Unknown = 0,
+    Auto,
+    DirectEffect,
+    FateAttack,
+    ForceHitNoCrit,
+}
+
 internal enum CombatAreaOriginMode
 {
     Unknown = 0,
@@ -44,6 +53,10 @@ public partial class CombatSkillDef : Resource
     private static readonly StringName SpellFateControlRoll = "control_roll";
     private static readonly StringName SpellCriticalMpRefund = "mp_refund";
     private static readonly StringName BacklashGroundAnchorDrift = "ground_anchor_drift";
+    private static readonly StringName AttackResolutionModeAuto = "auto";
+    private static readonly StringName AttackResolutionModeDirectEffect = "direct_effect";
+    private static readonly StringName AttackResolutionModeFateAttack = "fate_attack";
+    private static readonly StringName AttackResolutionModeForceHitNoCrit = "force_hit_no_crit";
     private static readonly StringName AreaOriginTarget = "target";
     private static readonly StringName AreaOriginCaster = "caster";
     private static readonly StringName AreaOriginAnchorCoord = "anchor_coord";
@@ -74,6 +87,9 @@ public partial class CombatSkillDef : Resource
 
     [Export]
     public int range_value { get; set; } = 1;
+
+    [Export]
+    public StringName weapon_range_policy { get; set; } = "";
 
     [Export]
     public StringName area_pattern { get; set; } = "single";
@@ -117,6 +133,14 @@ public partial class CombatSkillDef : Resource
 
     [Export]
     public int attack_roll_bonus { get; set; }
+
+    [Export]
+    public StringName attack_resolution_mode { get; set; } = "";
+    internal CombatSkillAttackResolutionMode AttackResolutionModeKind
+    {
+        get => ToAttackResolutionMode(attack_resolution_mode);
+        set => attack_resolution_mode = ToStringName(value);
+    }
 
     [Export]
     public int aura_cost { get; set; }
@@ -584,6 +608,19 @@ public partial class CombatSkillDef : Resource
         return CombatSkillBacklashMode.Unknown;
     }
 
+    internal static CombatSkillAttackResolutionMode ToAttackResolutionMode(StringName value)
+    {
+        if (value == "" || value == AttackResolutionModeAuto)
+            return CombatSkillAttackResolutionMode.Auto;
+        if (value == AttackResolutionModeDirectEffect)
+            return CombatSkillAttackResolutionMode.DirectEffect;
+        if (value == AttackResolutionModeFateAttack)
+            return CombatSkillAttackResolutionMode.FateAttack;
+        if (value == AttackResolutionModeForceHitNoCrit)
+            return CombatSkillAttackResolutionMode.ForceHitNoCrit;
+        return CombatSkillAttackResolutionMode.Unknown;
+    }
+
     internal static CombatAreaOriginMode ToAreaOriginMode(StringName value)
     {
         if (value == AreaOriginTarget)
@@ -630,6 +667,18 @@ public partial class CombatSkillDef : Resource
         {
             CombatSkillBacklashMode.None => "",
             CombatSkillBacklashMode.GroundAnchorDrift => BacklashGroundAnchorDrift,
+            _ => "",
+        };
+    }
+
+    internal static StringName ToStringName(CombatSkillAttackResolutionMode mode)
+    {
+        return mode switch
+        {
+            CombatSkillAttackResolutionMode.Auto => "",
+            CombatSkillAttackResolutionMode.DirectEffect => AttackResolutionModeDirectEffect,
+            CombatSkillAttackResolutionMode.FateAttack => AttackResolutionModeFateAttack,
+            CombatSkillAttackResolutionMode.ForceHitNoCrit => AttackResolutionModeForceHitNoCrit,
             _ => "",
         };
     }

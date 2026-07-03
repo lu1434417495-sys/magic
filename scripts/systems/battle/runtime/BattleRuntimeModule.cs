@@ -1305,6 +1305,9 @@ public sealed partial class BattleRuntimeModule : IDisposable
             new BattleEquipmentAbilityGrantedSkillUsedContext
             {
                 SourceUnit = unit,
+                TargetUnit = ResolveCommandPrimaryTargetUnit(command),
+                BattleState = _state,
+                Batch = batch,
                 BindingId = accessResult.Entry.EquipmentBindingId,
                 GrantedActionId = accessResult.Entry.EquipmentGrantedActionId,
                 SkillId = accessResult.Entry.EntryRef.SkillId,
@@ -1314,6 +1317,22 @@ public sealed partial class BattleRuntimeModule : IDisposable
         if (committed || triggered)
             batch?.AddChangedUnitId(unit.unit_id);
         return committed || triggered;
+    }
+
+    private BattleUnitState ResolveCommandPrimaryTargetUnit(BattleCommand command)
+    {
+        if (_state == null || command == null)
+            return null;
+        StringName targetUnitId = ProgressionDataUtils.to_string_name(command.target_unit_id);
+        if (targetUnitId != "" && _state.TryGetUnitTyped(targetUnitId, out BattleUnitState target))
+            return target;
+        foreach (StringName candidateId in command.TargetUnitIdsTyped ?? Array.Empty<StringName>())
+        {
+            targetUnitId = ProgressionDataUtils.to_string_name(candidateId);
+            if (targetUnitId != "" && _state.TryGetUnitTyped(targetUnitId, out target))
+                return target;
+        }
+        return null;
     }
 
     private static void PreviewWaitCommand(BattleUnitReadView activeUnit, BattlePreview preview)
@@ -3653,6 +3672,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
             return;
         List<Vector2I> previousCoords = new(unit_state.occupied_coords);
         unit_state.MarkDead();
+        _clear_equipment_target_marks_for_defeated_unit(unit_state, batch);
         _grid_service.ClearUnitOccupancy(_state, unit_state);
         _append_changed_coords_typed(batch, previousCoords);
         _append_changed_unit_id(batch, unit_state.unit_id);
@@ -3666,12 +3686,25 @@ public sealed partial class BattleRuntimeModule : IDisposable
     {
         if (_state == null || unit_state == null)
             return;
+        _clear_equipment_target_marks_for_defeated_unit(unit_state, batch);
         _handle_adjacent_ally_defeat(unit_state);
         _handle_low_luck_relic_ally_defeat(unit_state, batch);
         List<Vector2I> previousCoords = new(unit_state.occupied_coords);
         _grid_service.ClearUnitOccupancy(_state, unit_state);
         _append_changed_coords_typed(batch, previousCoords);
         _append_changed_unit_id(batch, unit_state.unit_id);
+    }
+
+    private void _clear_equipment_target_marks_for_defeated_unit(
+        BattleUnitState unit_state,
+        BattleEventBatch batch
+    )
+    {
+        IReadOnlyList<StringName> changedUnitIds =
+            _equipment_ability_runtime_service?.ClearTargetMarksForDefeatedUnit(_state, unit_state)
+            ?? Array.Empty<StringName>();
+        foreach (StringName changedUnitId in changedUnitIds)
+            _append_changed_unit_id(batch, changedUnitId);
     }
 
     internal void _merge_batch(BattleEventBatch target_batch, BattleEventBatch source_batch)

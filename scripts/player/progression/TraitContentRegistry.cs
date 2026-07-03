@@ -168,8 +168,79 @@ public class TraitContentRegistry : IdentityContentRegistryBase
             V(traitDef.attribute_modifiers),
             "attribute_modifiers"
         );
+        AppendPassiveProjectionValidationErrors(errors, ownerLabel, traitDef);
         AppendRollSchemaValidationErrors(errors, ownerLabel, traitDef);
         AppendHighestRollValidationErrors(errors, ownerLabel, traitDef);
+    }
+
+    private static void AppendPassiveProjectionValidationErrors(
+        Godot.Collections.Array<string> errors,
+        string ownerLabel,
+        TraitDef traitDef
+    )
+    {
+        HashSet<StringName> seenSaveTags = new();
+        for (int index = 0; index < traitDef.save_advantage_tags.Count; index++)
+        {
+            StringName tag = ProgressionDataUtils.to_string_name(
+                traitDef.save_advantage_tags[index]
+            );
+            if (tag == "")
+            {
+                errors.Add($"{ownerLabel}.save_advantage_tags[{index}] must be a non-empty StringName.");
+                continue;
+            }
+            if (!seenSaveTags.Add(tag))
+            {
+                errors.Add($"{ownerLabel}.save_advantage_tags[{index}] duplicates save tag {tag}.");
+            }
+        }
+
+        HashSet<StringName> seenDamageTags = new();
+        for (int index = 0; index < traitDef.damage_resistance_entries.Count; index++)
+        {
+            TraitDamageResistanceEntryDef entry = traitDef.damage_resistance_entries[index];
+            string entryLabel = $"{ownerLabel}.damage_resistance_entries[{index}]";
+            if (entry == null)
+            {
+                errors.Add($"{entryLabel} must be a TraitDamageResistanceEntryDef.");
+                continue;
+            }
+
+            StringName damageTag = ProgressionDataUtils.to_string_name(entry.damage_tag);
+            if (damageTag == "")
+            {
+                errors.Add($"{entryLabel}.damage_tag must be a non-empty StringName.");
+            }
+            else
+            {
+                if (DamageTagContentRules.ToDamageTagKind(damageTag) == DamageTagKind.Unknown)
+                {
+                    errors.Add(
+                        $"{entryLabel}.damage_tag references unsupported damage tag {damageTag}; expected one of {DamageTagContentRules.ValidDamageTagLabel()}."
+                    );
+                }
+                if (!seenDamageTags.Add(damageTag))
+                {
+                    errors.Add($"{entryLabel}.damage_tag duplicates damage tag {damageTag}.");
+                }
+            }
+
+            StringName mitigationTier = ProgressionDataUtils.to_string_name(entry.mitigation_tier);
+            if (mitigationTier == "")
+            {
+                errors.Add($"{entryLabel}.mitigation_tier must be a non-empty StringName.");
+            }
+            else if (
+                DamageTagContentRules.ToMitigationTierKind(mitigationTier)
+                == DamageMitigationTierKind.Unknown
+            )
+            {
+                errors.Add(
+                    $"{entryLabel}.mitigation_tier uses unsupported mitigation tier {mitigationTier}; expected one of {DamageTagContentRules.ValidMitigationTierLabel()}."
+                );
+            }
+        }
     }
 
     private static void AppendSourceValidationErrors(

@@ -45,6 +45,8 @@ public partial class BattleDamageResolver : IDisposable
     private static readonly StringName StatusArcherPreAim = "archer_pre_aim";
     private static readonly StringName BonusConditionTargetLowHp = "target_low_hp";
     private static readonly StringName BonusConditionTargetDebuffCount = "target_debuff_count";
+    private static readonly StringName BonusConditionTargetCreatureType =
+        "target_creature_type";
     private static readonly StringName MitigationTierNormal = "normal";
     private static readonly StringName MitigationTierHalf = "half";
     private static readonly StringName MitigationTierDouble = "double";
@@ -288,7 +290,9 @@ public partial class BattleDamageResolver : IDisposable
 
     private readonly record struct EquipmentAbilityTaggedBonusDamageRoll(
         StringName DamageTag,
-        DicePoolRollResult Roll
+        DicePoolRollResult Roll,
+        IReadOnlyList<StringName> MitigationBypassDamageTags,
+        IReadOnlyList<StringName> MitigationBypassTiers
     );
 
     private readonly record struct SpellControlCheckContext(
@@ -1097,7 +1101,7 @@ public partial class BattleDamageResolver : IDisposable
             {
                 continue;
             }
-            if (!TargetStatusRequirementPasses(target_unit, effectDefinition))
+            if (!TargetStatusRequirementPasses(source_unit, target_unit, effectDefinition))
             {
                 continue;
             }
@@ -1156,6 +1160,18 @@ public partial class BattleDamageResolver : IDisposable
                 if (damageResult.HasAppliedDamage)
                 {
                     GrantStatusOnHitToSource(source_unit, effectDefinition);
+                }
+                if (
+                    ApplySaveFailureStatusFromDamage(
+                        target_unit,
+                        source_unit,
+                        effectDefinition,
+                        damageSaveResult,
+                        out StringName saveFailureStatusId
+                    )
+                )
+                {
+                    AddUnique(statusEffectIds, saveFailureStatusId);
                 }
                 foreach (
                     EquipmentAbilityTaggedBonusDamageRoll extraEquipmentBonusRoll in
@@ -1575,6 +1591,7 @@ public partial class BattleDamageResolver : IDisposable
     }
 
     private static bool TargetStatusRequirementPasses(
+        BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         CombatEffectDefinition effectDefinition
     )
@@ -1594,7 +1611,29 @@ public partial class BattleDamageResolver : IDisposable
         }
 
         int requiredStacks = Math.Max(effectDefinition.RequiredTargetStatusMinStacks, 1);
-        return Math.Max(statusEntry.stacks, 0) >= requiredStacks;
+        if (Math.Max(statusEntry.stacks, 0) < requiredStacks)
+        {
+            return false;
+        }
+
+        StringName sourceSelector = ProgressionDataUtils.to_string_name(
+            effectDefinition.RequiredTargetStatusSourceSelector
+        );
+        if (sourceSelector == "")
+        {
+            return true;
+        }
+        if (
+            sourceSelector == "source"
+            || sourceSelector == "attacker"
+            || sourceSelector == "owner"
+            || sourceSelector == "caster"
+        )
+        {
+            return sourceUnit != null
+                && ProgressionDataUtils.to_string_name(statusEntry.source_unit_id) == sourceUnit.unit_id;
+        }
+        return false;
     }
 
     public bool _resolve_secondary_hit(
@@ -1907,7 +1946,12 @@ public partial class BattleDamageResolver : IDisposable
             effectDefinition
         );
         int rolledDamage = Math.Max(RoundToInt(baseDamage * offenseMultiplier), 0);
-        GDictionary mitigationTierResult = ResolveMitigationTierResult(targetUnit, damageTag);
+        GDictionary mitigationTierResult = ResolveMitigationTierResult(
+            targetUnit,
+            damageTag,
+            effectDefinition?.MitigationBypassDamageTags,
+            effectDefinition?.MitigationBypassTiers
+        );
         StringName mitigationTier = DictStringName(
             mitigationTierResult,
             "tier",
@@ -2043,7 +2087,12 @@ public partial class BattleDamageResolver : IDisposable
             effectDefinition
         );
         int rolledDamage = Math.Max(RoundToInt(baseDamage * offenseMultiplier), 0);
-        GDictionary mitigationTierResult = ResolveMitigationTierResult(targetUnit, damageTag);
+        GDictionary mitigationTierResult = ResolveMitigationTierResult(
+            targetUnit,
+            damageTag,
+            taggedRoll.MitigationBypassDamageTags,
+            taggedRoll.MitigationBypassTiers
+        );
         StringName mitigationTier = DictStringName(
             mitigationTierResult,
             "tier",

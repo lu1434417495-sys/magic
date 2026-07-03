@@ -664,11 +664,17 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             case AddDamageDiceActionPayloadDef payload:
                 ValidateAddDamageDicePayload(payload, context, path, errors);
                 break;
+            case DealDamageActionPayloadDef payload:
+                ValidateDealDamagePayload(payload, context, path, errors);
+                break;
             case AttackRollBonusActionPayloadDef payload:
                 ValidateAttackRollBonusPayload(payload, path, errors);
                 break;
             case AttackRollAdvantageActionPayloadDef payload:
                 ValidateAttackRollAdvantagePayload(payload, path, errors);
+                break;
+            case EquipmentAttackDefenseModifierDef payload:
+                ValidateAttackDefenseModifierPayload(payload, path, errors);
                 break;
             case DamageRollModeOverrideActionPayloadDef payload:
                 ValidateDamageRollModeOverridePayload(payload, path, errors);
@@ -687,8 +693,10 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                     AddError(errors, "EQA_ACTION_REQUIRED_FIELD_MISSING", path, "modify_ability_state requires target_selector and state_key");
                 break;
             case MarkTargetActionPayloadDef payload:
-                if (payload.target_selector == "" || payload.state_key == "")
-                    AddError(errors, "EQA_ACTION_REQUIRED_FIELD_MISSING", path, "mark_target requires target_selector and state_key");
+                ValidateMarkTargetPayload(payload, context, path, errors);
+                break;
+            case ClearStatusActionPayloadDef payload:
+                ValidateClearStatusPayload(payload, context, path, errors);
                 break;
             case GrantSkillActionPayloadDef payload:
                 ValidateSkillReference(payload.skill_id, context, $"{path}.payload.skill_id", errors);
@@ -819,6 +827,19 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 $"damage_type {payload.damage_type} is not known"
             );
         }
+        ValidateDamageTagArray(
+            payload.damage_tags,
+            context,
+            $"{path}.payload.damage_tags",
+            errors
+        );
+        ValidateMitigationBypassArrays(
+            payload.mitigation_bypass_damage_tags,
+            payload.mitigation_bypass_tiers,
+            context,
+            path,
+            errors
+        );
         if (payload.dice != null)
         {
             foreach (DiceExpressionTermDef term in payload.dice.terms)
@@ -832,6 +853,147 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                         "dice terms must have positive dice_count and dice_sides"
                     );
                 }
+            }
+        }
+    }
+
+    private static void ValidateDealDamagePayload(
+        DealDamageActionPayloadDef payload,
+        EquipmentAbilityContentValidationContext context,
+        string path,
+        List<string> errors
+    )
+    {
+        bool hasDiceTerm = payload.dice != null && payload.dice.terms.Count > 0;
+        bool hasFlatBonus = payload.dice != null && payload.dice.flat_bonus > 0;
+        if (
+            payload.target_selector == ""
+            || payload.damage_type == ""
+            || payload.dice == null
+            || (!hasDiceTerm && !hasFlatBonus)
+        )
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "deal_damage requires target_selector, damage_type, and dice terms or positive flat_bonus"
+            );
+        }
+        if (HasKnownValues(context.KnownDamageTypes) && !context.KnownDamageTypes.Contains(payload.damage_type))
+        {
+            AddError(
+                errors,
+                "EQA_REFERENCE_UNKNOWN_DAMAGE_TYPE",
+                $"{path}.payload.damage_type",
+                $"damage_type {payload.damage_type} is not known"
+            );
+        }
+        ValidateDamageTagArray(
+            payload.damage_tags,
+            context,
+            $"{path}.payload.damage_tags",
+            errors
+        );
+        ValidateMitigationBypassArrays(
+            payload.mitigation_bypass_damage_tags,
+            payload.mitigation_bypass_tiers,
+            context,
+            path,
+            errors
+        );
+        if (payload.dice != null)
+        {
+            foreach (DiceExpressionTermDef term in payload.dice.terms)
+            {
+                if (term == null || term.dice_count <= 0 || term.dice_sides <= 0)
+                {
+                    AddError(
+                        errors,
+                        "EQA_DICE_INVALID",
+                        $"{path}.payload.dice",
+                        "dice terms must have positive dice_count and dice_sides"
+                    );
+                }
+            }
+        }
+    }
+
+    private static void ValidateDamageTagArray(
+        Godot.Collections.Array<StringName> damageTags,
+        EquipmentAbilityContentValidationContext context,
+        string path,
+        List<string> errors
+    )
+    {
+        if (damageTags == null || damageTags.Count == 0)
+            return;
+        for (int index = 0; index < damageTags.Count; index++)
+        {
+            StringName damageTag = ProgressionDataUtils.to_string_name(damageTags[index]);
+            if (damageTag == "")
+            {
+                AddError(
+                    errors,
+                    "EQA_REFERENCE_UNKNOWN_DAMAGE_TYPE",
+                    $"{path}[{index}]",
+                    "damage tag must be non-empty"
+                );
+                continue;
+            }
+            if (HasKnownValues(context.KnownDamageTypes) && !context.KnownDamageTypes.Contains(damageTag))
+            {
+                AddError(
+                    errors,
+                    "EQA_REFERENCE_UNKNOWN_DAMAGE_TYPE",
+                    $"{path}[{index}]",
+                    $"damage tag {damageTag} is not known"
+                );
+            }
+        }
+    }
+
+    private static void ValidateMitigationBypassArrays(
+        Godot.Collections.Array<StringName> damageTags,
+        Godot.Collections.Array<StringName> tiers,
+        EquipmentAbilityContentValidationContext context,
+        string path,
+        List<string> errors
+    )
+    {
+        int tagCount = damageTags?.Count ?? 0;
+        int tierCount = tiers?.Count ?? 0;
+        if (tagCount == 0 && tierCount == 0)
+            return;
+        if (tagCount == 0 || tierCount == 0)
+        {
+            AddError(
+                errors,
+                "EQA_MITIGATION_BYPASS_INCOMPLETE",
+                $"{path}.payload",
+                "mitigation bypass requires both mitigation_bypass_damage_tags and mitigation_bypass_tiers"
+            );
+        }
+        ValidateDamageTagArray(
+            damageTags,
+            context,
+            $"{path}.payload.mitigation_bypass_damage_tags",
+            errors
+        );
+        for (int index = 0; index < tierCount; index++)
+        {
+            StringName tier = ProgressionDataUtils.to_string_name(tiers[index]);
+            if (
+                DamageTagContentRules.ToMitigationTierKind(tier)
+                == DamageMitigationTierKind.Unknown
+            )
+            {
+                AddError(
+                    errors,
+                    "EQA_MITIGATION_BYPASS_TIER_INVALID",
+                    $"{path}.payload.mitigation_bypass_tiers[{index}]",
+                    $"mitigation bypass tier {tier} is not supported"
+                );
             }
         }
     }
@@ -866,6 +1028,135 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 "EQA_ACTION_REQUIRED_FIELD_MISSING",
                 path,
                 "attack_roll_advantage requires target_selector and mode=advantage"
+            );
+        }
+    }
+
+    private static void ValidateAttackDefenseModifierPayload(
+        EquipmentAttackDefenseModifierDef payload,
+        string path,
+        List<string> errors
+    )
+    {
+        if (
+            payload.modifier_id == ""
+            || (
+                (payload.ignored_ac_components?.Count ?? 0) == 0
+                && (payload.ac_component_multipliers?.Count ?? 0) == 0
+                && !payload.lock_dodge_bonus
+            )
+        )
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "attack_defense_modifier requires modifier_id and at least one AC adjustment"
+            );
+        }
+
+        var ignored = new HashSet<StringName>();
+        foreach (StringName componentId in payload.ignored_ac_components ?? new Godot.Collections.Array<StringName>())
+        {
+            if (!IsKnownAcComponent(componentId))
+            {
+                AddError(
+                    errors,
+                    "EQA_ATTACK_DEFENSE_AC_COMPONENT_UNKNOWN",
+                    $"{path}.payload.ignored_ac_components[{componentId}]",
+                    $"AC component {componentId} is not registered"
+                );
+                continue;
+            }
+            ignored.Add(componentId);
+        }
+
+        foreach (EquipmentAcComponentMultiplierDef multiplier in payload.ac_component_multipliers ?? new Godot.Collections.Array<EquipmentAcComponentMultiplierDef>())
+        {
+            if (multiplier == null)
+                continue;
+            if (!IsKnownAcComponent(multiplier.ac_component_id))
+            {
+                AddError(
+                    errors,
+                    "EQA_ATTACK_DEFENSE_AC_COMPONENT_UNKNOWN",
+                    $"{path}.payload.ac_component_multipliers[{multiplier.ac_component_id}]",
+                    $"AC component {multiplier.ac_component_id} is not registered"
+                );
+            }
+            if (ignored.Contains(multiplier.ac_component_id))
+            {
+                AddError(
+                    errors,
+                    "EQA_ATTACK_DEFENSE_AC_COMPONENT_CONFLICT",
+                    $"{path}.payload.ac_component_multipliers[{multiplier.ac_component_id}]",
+                    $"AC component {multiplier.ac_component_id} cannot be both ignored and multiplied"
+                );
+            }
+            if (multiplier.multiplier_percent < 0 || multiplier.multiplier_percent > 100)
+            {
+                AddError(
+                    errors,
+                    "EQA_ATTACK_DEFENSE_MULTIPLIER_INVALID",
+                    $"{path}.payload.ac_component_multipliers[{multiplier.ac_component_id}].multiplier_percent",
+                    "AC component multiplier percent must be between 0 and 100"
+                );
+            }
+            if (multiplier.stack_mode != "" && multiplier.stack_mode != "min")
+            {
+                AddError(
+                    errors,
+                    "EQA_ATTACK_DEFENSE_STACK_MODE_UNSUPPORTED",
+                    $"{path}.payload.ac_component_multipliers[{multiplier.ac_component_id}].stack_mode",
+                    "AC component multiplier stack_mode must be empty or min"
+                );
+            }
+        }
+
+        bool hasEquipmentFilter =
+            (payload.required_target_item_tags?.Count ?? 0) > 0
+            || (payload.required_target_equipment_type_ids?.Count ?? 0) > 0;
+        if (hasEquipmentFilter && payload.required_target_equipment_selector == "")
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                $"{path}.payload.required_target_equipment_selector",
+                "attack_defense_modifier target equipment filters require required_target_equipment_selector"
+            );
+        }
+        if (
+            payload.required_target_equipment_selector != ""
+            && payload.required_target_equipment_selector != "target_armor"
+            && payload.required_target_equipment_selector != "target_shield"
+        )
+        {
+            AddError(
+                errors,
+                "EQA_ATTACK_DEFENSE_TARGET_EQUIPMENT_SELECTOR_UNSUPPORTED",
+                $"{path}.payload.required_target_equipment_selector",
+                $"target equipment selector {payload.required_target_equipment_selector} is not supported"
+            );
+        }
+        if (payload.cover_policy != "" && payload.cover_policy != "normal")
+        {
+            AddError(
+                errors,
+                "EQA_ATTACK_DEFENSE_COVER_POLICY_UNSUPPORTED",
+                $"{path}.payload.cover_policy",
+                $"cover policy {payload.cover_policy} is not supported"
+            );
+        }
+        if (
+            payload.projectile_obstacle_policy != ""
+            && payload.projectile_obstacle_policy != "normal"
+        )
+        {
+            AddError(
+                errors,
+                "EQA_ATTACK_DEFENSE_PROJECTILE_POLICY_UNSUPPORTED",
+                $"{path}.payload.projectile_obstacle_policy",
+                $"projectile obstacle policy {payload.projectile_obstacle_policy} is not supported"
             );
         }
     }
@@ -963,6 +1254,15 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 "apply_status source_bound_attack_roll_penalty_min_stacks must be positive"
             );
         }
+        if (payload.source_bound_incoming_attack_roll_bonus_min_stacks <= 0)
+        {
+            AddError(
+                errors,
+                "EQA_STATUS_SOURCE_BOUND_MIN_STACKS_INVALID",
+                $"{path}.payload.source_bound_incoming_attack_roll_bonus_min_stacks",
+                "apply_status source_bound_incoming_attack_roll_bonus_min_stacks must be positive"
+            );
+        }
         if (payload.save_dc > 0 && (payload.save_ability == "" || payload.save_tag == ""))
         {
             AddError(
@@ -1024,6 +1324,87 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 );
             }
         }
+    }
+
+    private static void ValidateMarkTargetPayload(
+        MarkTargetActionPayloadDef payload,
+        EquipmentAbilityContentValidationContext context,
+        string path,
+        List<string> errors
+    )
+    {
+        if (payload.target_selector == "" || payload.state_key == "")
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "mark_target requires target_selector and state_key"
+            );
+        }
+        if (payload.mirror_status_id != "")
+        {
+            ValidateStatusReference(
+                payload.mirror_status_id,
+                context,
+                $"{path}.payload.mirror_status_id",
+                errors
+            );
+            ValidateStatusSemanticPayload(
+                payload.mirror_status_stack_behavior,
+                payload.mirror_status_stack_limit,
+                countsAsDebuffOverride: false,
+                countsAsDebuff: false,
+                undispellable: false,
+                dispellableMagic: false,
+                dispellableHarmfulMagic: false,
+                dispellableBeneficialMagic: false,
+                path,
+                "mark_target mirror",
+                "mirror_status_",
+                errors
+            );
+        }
+        foreach (StringName statusId in payload.clear_status_ids_on_replace ?? new Godot.Collections.Array<StringName>())
+        {
+            ValidateStatusReference(
+                statusId,
+                context,
+                $"{path}.payload.clear_status_ids_on_replace[{statusId}]",
+                errors
+            );
+        }
+    }
+
+    private static void ValidateClearStatusPayload(
+        ClearStatusActionPayloadDef payload,
+        EquipmentAbilityContentValidationContext context,
+        string path,
+        List<string> errors
+    )
+    {
+        if (payload.target_selector == "" || payload.status_id == "")
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "clear_status requires target_selector and status_id"
+            );
+        }
+        if (payload.target_selector == "marked_target" || payload.target_selector == "equipment_target_mark")
+        {
+            if (payload.mark_binding_id == "" || payload.mark_state_key == "")
+            {
+                AddError(
+                    errors,
+                    "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                    path,
+                    "clear_status marked_target selector requires mark_binding_id and mark_state_key"
+                );
+            }
+        }
+        ValidateStatusReference(payload.status_id, context, $"{path}.payload.status_id", errors);
     }
 
     private static void ValidateStatusSemanticPayload(
@@ -1538,9 +1919,20 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
     {
         if (query == null)
             return;
-        if (query.fact_id != "status_stacks")
+        if (query.fact_id == "status_stacks")
+        {
+            ValidateStatusReference(query.status_id, context, $"{path}.status_id", errors);
             return;
-        ValidateStatusReference(query.status_id, context, $"{path}.status_id", errors);
+        }
+        if (query.fact_id == "attribute_value" && query.attribute_id == "")
+        {
+            AddError(
+                errors,
+                "EQA_FACT_ATTRIBUTE_ID_MISSING",
+                $"{path}.attribute_id",
+                "attribute_value fact requires attribute_id"
+            );
+        }
     }
 
     private static void ValidateSkillReference(
@@ -1800,6 +2192,21 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 Dice = ProjectDice(damage.dice),
                 DamageType = damage.damage_type,
                 DamageTags = CopyStringNames(damage.damage_tags),
+                MitigationBypassDamageTags = CopyStringNames(
+                    damage.mitigation_bypass_damage_tags
+                ),
+                MitigationBypassTiers = CopyStringNames(damage.mitigation_bypass_tiers),
+            },
+            DealDamageActionPayloadDef directDamage => new DealDamageActionPayloadDefinition
+            {
+                TargetSelector = directDamage.target_selector,
+                Dice = ProjectDice(directDamage.dice),
+                DamageType = directDamage.damage_type,
+                DamageTags = CopyStringNames(directDamage.damage_tags),
+                MitigationBypassDamageTags = CopyStringNames(
+                    directDamage.mitigation_bypass_damage_tags
+                ),
+                MitigationBypassTiers = CopyStringNames(directDamage.mitigation_bypass_tiers),
             },
             AttackRollBonusActionPayloadDef attackRoll => new AttackRollBonusActionPayloadDefinition
             {
@@ -1814,6 +2221,21 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 Mode = attackAdvantage.mode,
                 StackMode = attackAdvantage.stack_mode,
                 Label = attackAdvantage.label ?? "",
+            },
+            EquipmentAttackDefenseModifierDef defense => new EquipmentAttackDefenseModifierDefinition
+            {
+                ModifierId = defense.modifier_id,
+                IgnoredAcComponents = CopyStringNames(defense.ignored_ac_components),
+                AcComponentMultipliers = ProjectAcComponentMultipliers(defense.ac_component_multipliers),
+                LockDodgeBonus = defense.lock_dodge_bonus,
+                RequiredTargetEquipmentSelector = defense.required_target_equipment_selector,
+                RequiredTargetItemTags = CopyStringNames(defense.required_target_item_tags),
+                RequiredTargetEquipmentTypeIds = CopyStringNames(
+                    defense.required_target_equipment_type_ids
+                ),
+                CoverPolicy = defense.cover_policy,
+                ProjectileObstaclePolicy = defense.projectile_obstacle_policy,
+                TraceLabel = defense.trace_label,
             },
             DamageRollModeOverrideActionPayloadDef damageRollMode =>
                 new DamageRollModeOverrideActionPayloadDefinition
@@ -1844,6 +2266,11 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 SourceBoundAttackRollPenalty = status.source_bound_attack_roll_penalty,
                 SourceBoundAttackRollPenaltyMinStacks =
                     status.source_bound_attack_roll_penalty_min_stacks,
+                SourceBoundIncomingAttackRollBonusPerStack =
+                    status.source_bound_incoming_attack_roll_bonus_per_stack,
+                SourceBoundIncomingAttackRollBonusMinStacks =
+                    status.source_bound_incoming_attack_roll_bonus_min_stacks,
+                MovePointCapacityDelta = status.move_point_capacity_delta,
                 CountsAsDebuffOverride = status.counts_as_debuff_override,
                 CountsAsDebuff = status.counts_as_debuff,
                 Undispellable = status.undispellable,
@@ -1908,6 +2335,22 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 StateKey = mark.state_key,
                 StackDelta = mark.stack_delta,
                 RemoveOnSourceMissing = mark.remove_on_source_missing,
+                RemoveOnTargetDefeated = mark.remove_on_target_defeated,
+                UniquePerSource = mark.unique_per_source,
+                MirrorStatusId = mark.mirror_status_id,
+                MirrorStatusDurationTu = mark.mirror_status_duration_tu,
+                MirrorStatusStackBehavior = mark.mirror_status_stack_behavior,
+                MirrorStatusStackLimit = mark.mirror_status_stack_limit,
+                MirrorStatusDisplayLabel = mark.mirror_status_display_label ?? "",
+                ClearStatusIdsOnReplace = CopyStringNames(mark.clear_status_ids_on_replace),
+            },
+            ClearStatusActionPayloadDef clear => new ClearStatusActionPayloadDefinition
+            {
+                TargetSelector = clear.target_selector,
+                StatusId = clear.status_id,
+                MarkBindingId = clear.mark_binding_id,
+                MarkStateKey = clear.mark_state_key,
+                RequireSourceUnitMatch = clear.require_source_unit_match,
             },
             GrantSkillActionPayloadDef grant => new GrantSkillActionPayloadDefinition
             {
@@ -1932,6 +2375,31 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 },
             _ => null,
         };
+    }
+
+    private static IReadOnlyList<EquipmentAcComponentMultiplierDefinition> ProjectAcComponentMultipliers(
+        Godot.Collections.Array<EquipmentAcComponentMultiplierDef> values
+    )
+    {
+        if (values == null || values.Count == 0)
+            return Array.Empty<EquipmentAcComponentMultiplierDefinition>();
+        var result = new List<EquipmentAcComponentMultiplierDefinition>();
+        foreach (EquipmentAcComponentMultiplierDef value in values)
+        {
+            if (value == null)
+                continue;
+            result.Add(
+                new EquipmentAcComponentMultiplierDefinition
+                {
+                    AcComponentId = value.ac_component_id,
+                    MultiplierPercent = value.multiplier_percent,
+                    StackMode = value.stack_mode,
+                }
+            );
+        }
+        return result.Count > 0
+            ? new ReadOnlyCollection<EquipmentAcComponentMultiplierDefinition>(result)
+            : Array.Empty<EquipmentAcComponentMultiplierDefinition>();
     }
 
     private static DiceExpressionDefinition ProjectDice(DiceExpressionDef value)
@@ -1974,6 +2442,7 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             BindingId = value.binding_id,
             StateKey = value.state_key,
             StatusId = value.status_id,
+            AttributeId = value.attribute_id,
             Aggregation = value.aggregation,
             ValueKind = value.value_kind,
             BoolLiteral = value.bool_literal,
@@ -2360,6 +2829,16 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
 
     private static bool ContainsValue(IReadOnlySet<StringName> source, StringName key) =>
         source != null && source.Contains(key);
+
+    private static bool IsKnownAcComponent(StringName componentId)
+    {
+        if (componentId == "")
+            return false;
+        foreach (StringName known in AttributeService.AC_COMPONENT_ATTRIBUTE_IDS)
+            if (known == componentId)
+                return true;
+        return false;
+    }
 
     private static bool IsAllowed(StringName value, params string[] allowed)
     {

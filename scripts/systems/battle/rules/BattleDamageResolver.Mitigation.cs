@@ -15,7 +15,9 @@ public partial class BattleDamageResolver
 
     private GDictionary ResolveMitigationTierResult(
         BattleUnitState targetUnit,
-        StringName damageTag
+        StringName damageTag,
+        IReadOnlyList<StringName> mitigationBypassDamageTags = null,
+        IReadOnlyList<StringName> mitigationBypassTiers = null
     )
     {
         if (targetUnit == null)
@@ -44,6 +46,17 @@ public partial class BattleDamageResolver
                 continue;
             }
             StringName mitigationTier = statusEntry.mitigation_tier;
+            if (
+                ShouldBypassMitigationTier(
+                    damageTag,
+                    mitigationTier,
+                    mitigationBypassDamageTags,
+                    mitigationBypassTiers
+                )
+            )
+            {
+                continue;
+            }
             if (mitigationTier == MitigationTierImmune)
             {
                 immuneSources.Add(
@@ -68,7 +81,9 @@ public partial class BattleDamageResolver
             damageTag,
             halfSources,
             doubleSources,
-            immuneSources
+            immuneSources,
+            mitigationBypassDamageTags,
+            mitigationBypassTiers
         );
         if (immuneSources.Count > 0)
             return MitigationPayload(
@@ -123,7 +138,9 @@ public partial class BattleDamageResolver
         StringName damageTag,
         GArray halfSources,
         GArray doubleSources,
-        GArray immuneSources
+        GArray immuneSources,
+        IReadOnlyList<StringName> mitigationBypassDamageTags = null,
+        IReadOnlyList<StringName> mitigationBypassTiers = null
     )
     {
         if (targetUnit == null || damageTag == "")
@@ -140,6 +157,17 @@ public partial class BattleDamageResolver
             StringName mitigationTier = ProgressionDataUtils.to_string_name(
                 targetUnit.damage_resistances[rawDamageTag]
             );
+            if (
+                ShouldBypassMitigationTier(
+                    damageTag,
+                    mitigationTier,
+                    mitigationBypassDamageTags,
+                    mitigationBypassTiers
+                )
+            )
+            {
+                continue;
+            }
             StringName sourceId = new($"damage_resistance_{resistanceDamageTag}");
             if (mitigationTier == MitigationTierImmune)
                 immuneSources.Add(
@@ -154,6 +182,40 @@ public partial class BattleDamageResolver
                     BuildMitigationSource(sourceId, "damage_resistance", 0, mitigationTier)
                 );
         }
+    }
+
+    private static bool ShouldBypassMitigationTier(
+        StringName damageTag,
+        StringName mitigationTier,
+        IReadOnlyList<StringName> mitigationBypassDamageTags,
+        IReadOnlyList<StringName> mitigationBypassTiers
+    )
+    {
+        StringName normalizedDamageTag = ProgressionDataUtils.to_string_name(damageTag);
+        StringName normalizedTier = ProgressionDataUtils.to_string_name(mitigationTier);
+        if (
+            normalizedDamageTag == ""
+            || normalizedTier == ""
+            || mitigationBypassDamageTags == null
+            || mitigationBypassTiers == null
+            || mitigationBypassDamageTags.Count == 0
+            || mitigationBypassTiers.Count == 0
+        )
+        {
+            return false;
+        }
+        return ContainsStringName(mitigationBypassDamageTags, normalizedDamageTag)
+            && ContainsStringName(mitigationBypassTiers, normalizedTier);
+    }
+
+    private static bool ContainsStringName(IReadOnlyList<StringName> values, StringName expected)
+    {
+        foreach (StringName rawValue in values ?? Array.Empty<StringName>())
+        {
+            if (ProgressionDataUtils.to_string_name(rawValue) == expected)
+                return true;
+        }
+        return false;
     }
 
     private bool StatusAppliesToDamageTag(

@@ -110,9 +110,15 @@ public partial class run_last_lesson_weapon_ability_regression : SceneTree
         if (raw != null)
         {
             _test.Eq(raw.base_item_id, new StringName("weapon_type_longsword_base"), "最后一课应继承 longsword 模板。");
+        }
+
+        // 机制文本落在 trait（老陈的遗训）里，物品说明只保留风味文字。
+        if (fixture.TraitDefs.TryGetValue(OldChenLegacyTraitId, out TraitDef legacyTrait)
+            && legacyTrait != null)
+        {
             _test.True(
-                raw.description.Contains("教诲"),
-                "最后一课资源文本应描述真实配置中的教诲层数。"
+                legacyTrait.description.Contains("教诲"),
+                "老陈的遗训 trait 文本应描述真实配置中的教诲层数。"
             );
         }
 

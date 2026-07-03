@@ -140,7 +140,13 @@ public partial class BattleDamageResolver
                         dice.FlatBonus,
                         true
                     );
-            AddEquipmentAbilityBonusDamageRoll(aggregateByTag, damageTag, roll);
+            AddEquipmentAbilityBonusDamageRoll(
+                aggregateByTag,
+                damageTag,
+                roll,
+                dice.MitigationBypassDamageTags,
+                dice.MitigationBypassTiers
+            );
         }
         return aggregateByTag.Count == 0
             ? Array.Empty<EquipmentAbilityTaggedBonusDamageRoll>()
@@ -150,7 +156,9 @@ public partial class BattleDamageResolver
     private static void AddEquipmentAbilityBonusDamageRoll(
         List<EquipmentAbilityTaggedBonusDamageRoll> result,
         StringName damageTag,
-        DicePoolRollResult roll
+        DicePoolRollResult roll,
+        IReadOnlyList<StringName> mitigationBypassDamageTags = null,
+        IReadOnlyList<StringName> mitigationBypassTiers = null
     )
     {
         if (result == null || damageTag == "" || (!roll.HasDice && roll.Bonus <= 0))
@@ -162,11 +170,71 @@ public partial class BattleDamageResolver
                 continue;
             result[index] = new EquipmentAbilityTaggedBonusDamageRoll(
                 damageTag,
-                CombineDicePoolRolls(existing.Roll, roll)
+                CombineDicePoolRolls(existing.Roll, roll),
+                MergeStringNameLists(
+                    existing.MitigationBypassDamageTags,
+                    mitigationBypassDamageTags
+                ),
+                MergeStringNameLists(existing.MitigationBypassTiers, mitigationBypassTiers)
             );
             return;
         }
-        result.Add(new EquipmentAbilityTaggedBonusDamageRoll(damageTag, roll));
+        result.Add(
+            new EquipmentAbilityTaggedBonusDamageRoll(
+                damageTag,
+                roll,
+                CopyStringNameList(mitigationBypassDamageTags),
+                CopyStringNameList(mitigationBypassTiers)
+            )
+        );
+    }
+
+    private static IReadOnlyList<StringName> MergeStringNameLists(
+        IReadOnlyList<StringName> left,
+        IReadOnlyList<StringName> right
+    )
+    {
+        if ((left == null || left.Count == 0) && (right == null || right.Count == 0))
+            return Array.Empty<StringName>();
+        var result = new List<StringName>();
+        AppendDistinctStringNames(result, left);
+        AppendDistinctStringNames(result, right);
+        return result.Count == 0 ? Array.Empty<StringName>() : result.ToArray();
+    }
+
+    private static IReadOnlyList<StringName> CopyStringNameList(IReadOnlyList<StringName> values)
+    {
+        if (values == null || values.Count == 0)
+            return Array.Empty<StringName>();
+        var result = new List<StringName>();
+        AppendDistinctStringNames(result, values);
+        return result.Count == 0 ? Array.Empty<StringName>() : result.ToArray();
+    }
+
+    private static void AppendDistinctStringNames(
+        List<StringName> result,
+        IReadOnlyList<StringName> values
+    )
+    {
+        if (result == null || values == null)
+            return;
+        foreach (StringName rawValue in values)
+        {
+            StringName value = ProgressionDataUtils.to_string_name(rawValue);
+            if (value == "")
+                continue;
+            bool exists = false;
+            foreach (StringName existing in result)
+            {
+                if (existing == value)
+                {
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists)
+                result.Add(value);
+        }
     }
 
     private static StringName ResolveEquipmentAbilityBonusDamageTag(

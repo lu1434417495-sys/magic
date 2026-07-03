@@ -412,6 +412,25 @@ public class BattleHitResolver : IDisposable
         int flat_penalty
     )
     {
+        return BuildSkillDefinitionAttackCheck(
+            active_unit,
+            target_unit,
+            skill_definition,
+            flat_bonus,
+            flat_penalty,
+            null
+        );
+    }
+
+    internal AttackCheckInput BuildSkillDefinitionAttackCheck(
+        BattleUnitState active_unit,
+        BattleUnitState target_unit,
+        SkillDefinition skill_definition,
+        int flat_bonus,
+        int flat_penalty,
+        EquipmentAttackDefenseAdjustment defense_adjustment
+    )
+    {
         int attackerBaseAttackBonus = _get_unit_attribute_value(
             active_unit,
             AttributeService.ToStringName(AttributeIdKind.BaseAttackBonus),
@@ -432,7 +451,7 @@ public class BattleHitResolver : IDisposable
                 errorMessage
             );
         }
-        int targetArmorClass = _get_target_armor_class(target_unit);
+        int targetArmorClass = _get_target_armor_class(target_unit, defense_adjustment);
         int skillLevel = 0;
         StringName skillId = skill_definition?.SkillId ?? new StringName("");
         if (active_unit != null && !IsEmpty(skillId))
@@ -489,6 +508,25 @@ public class BattleHitResolver : IDisposable
         int flat_penalty
     )
     {
+        return BuildSkillDefinitionAttackCheck(
+            active_unit,
+            target_unit,
+            skill_definition,
+            flat_bonus,
+            flat_penalty,
+            null
+        );
+    }
+
+    internal AttackCheckInput BuildSkillDefinitionAttackCheck(
+        BattleUnitReadView active_unit,
+        BattleUnitReadView target_unit,
+        SkillDefinition skill_definition,
+        int flat_bonus,
+        int flat_penalty,
+        EquipmentAttackDefenseAdjustment defense_adjustment
+    )
+    {
         int attackerBaseAttackBonus = _get_unit_attribute_value(
             active_unit,
             AttributeService.ToStringName(AttributeIdKind.BaseAttackBonus),
@@ -509,7 +547,7 @@ public class BattleHitResolver : IDisposable
                 errorMessage
             );
         }
-        int targetArmorClass = _get_target_armor_class(target_unit);
+        int targetArmorClass = _get_target_armor_class(target_unit, defense_adjustment);
         int skillLevel = 0;
         StringName skillId = skill_definition?.SkillId ?? new StringName("");
         if (active_unit.IsValid && !IsEmpty(skillId))
@@ -596,7 +634,10 @@ public class BattleHitResolver : IDisposable
         return unit_state.HasAttributeValue(attribute_id);
     }
 
-    private int _get_target_armor_class(BattleUnitState target_unit)
+    private int _get_target_armor_class(
+        BattleUnitState target_unit,
+        EquipmentAttackDefenseAdjustment defense_adjustment = null
+    )
     {
         int targetArmorClass = _get_unit_attribute_value(
             target_unit,
@@ -604,11 +645,20 @@ public class BattleHitResolver : IDisposable
             0
         );
         targetArmorClass -= _get_target_armor_break_penalty(target_unit);
-        if (_is_target_dodge_bonus_locked(target_unit))
+        targetArmorClass = _apply_attack_defense_adjustment(
+            targetArmorClass,
+            target_unit,
+            defense_adjustment
+        );
+        if (
+            _is_target_dodge_bonus_locked(target_unit)
+            || defense_adjustment?.LockDodgeBonus == true
+        )
         {
-            targetArmorClass -= Math.Max(
-                _get_unit_attribute_value(target_unit, AttributeService.ToStringName(AttributeIdKind.DodgeBonus), 0),
-                0
+            targetArmorClass -= _get_remaining_ac_component_value(
+                target_unit,
+                AttributeService.ToStringName(AttributeIdKind.DodgeBonus),
+                defense_adjustment
             );
         }
         else
@@ -618,7 +668,10 @@ public class BattleHitResolver : IDisposable
         return Math.Max(targetArmorClass, 1);
     }
 
-    private int _get_target_armor_class(BattleUnitReadView target_unit)
+    private int _get_target_armor_class(
+        BattleUnitReadView target_unit,
+        EquipmentAttackDefenseAdjustment defense_adjustment = null
+    )
     {
         int targetArmorClass = _get_unit_attribute_value(
             target_unit,
@@ -626,11 +679,20 @@ public class BattleHitResolver : IDisposable
             0
         );
         targetArmorClass -= _get_target_armor_break_penalty(target_unit);
-        if (_is_target_dodge_bonus_locked(target_unit))
+        targetArmorClass = _apply_attack_defense_adjustment(
+            targetArmorClass,
+            target_unit,
+            defense_adjustment
+        );
+        if (
+            _is_target_dodge_bonus_locked(target_unit)
+            || defense_adjustment?.LockDodgeBonus == true
+        )
         {
-            targetArmorClass -= Math.Max(
-                _get_unit_attribute_value(target_unit, AttributeService.ToStringName(AttributeIdKind.DodgeBonus), 0),
-                0
+            targetArmorClass -= _get_remaining_ac_component_value(
+                target_unit,
+                AttributeService.ToStringName(AttributeIdKind.DodgeBonus),
+                defense_adjustment
             );
         }
         else
@@ -638,6 +700,84 @@ public class BattleHitResolver : IDisposable
             targetArmorClass += _get_target_status_dodge_bonus(target_unit);
         }
         return Math.Max(targetArmorClass, 1);
+    }
+
+    private int _apply_attack_defense_adjustment(
+        int targetArmorClass,
+        BattleUnitState target_unit,
+        EquipmentAttackDefenseAdjustment defense_adjustment
+    )
+    {
+        if (defense_adjustment == null || defense_adjustment.IsEmpty)
+            return targetArmorClass;
+        foreach (StringName componentId in AttributeService.AC_COMPONENT_ATTRIBUTE_IDS)
+        {
+            int componentValue = Math.Max(_get_unit_attribute_value(target_unit, componentId, 0), 0);
+            targetArmorClass -= componentValue - _get_remaining_ac_component_value(
+                componentValue,
+                componentId,
+                defense_adjustment
+            );
+        }
+        return targetArmorClass;
+    }
+
+    private int _apply_attack_defense_adjustment(
+        int targetArmorClass,
+        BattleUnitReadView target_unit,
+        EquipmentAttackDefenseAdjustment defense_adjustment
+    )
+    {
+        if (defense_adjustment == null || defense_adjustment.IsEmpty)
+            return targetArmorClass;
+        foreach (StringName componentId in AttributeService.AC_COMPONENT_ATTRIBUTE_IDS)
+        {
+            int componentValue = Math.Max(_get_unit_attribute_value(target_unit, componentId, 0), 0);
+            targetArmorClass -= componentValue - _get_remaining_ac_component_value(
+                componentValue,
+                componentId,
+                defense_adjustment
+            );
+        }
+        return targetArmorClass;
+    }
+
+    private int _get_remaining_ac_component_value(
+        BattleUnitState target_unit,
+        StringName componentId,
+        EquipmentAttackDefenseAdjustment defense_adjustment
+    )
+    {
+        int componentValue = Math.Max(_get_unit_attribute_value(target_unit, componentId, 0), 0);
+        return _get_remaining_ac_component_value(componentValue, componentId, defense_adjustment);
+    }
+
+    private int _get_remaining_ac_component_value(
+        BattleUnitReadView target_unit,
+        StringName componentId,
+        EquipmentAttackDefenseAdjustment defense_adjustment
+    )
+    {
+        int componentValue = Math.Max(_get_unit_attribute_value(target_unit, componentId, 0), 0);
+        return _get_remaining_ac_component_value(componentValue, componentId, defense_adjustment);
+    }
+
+    private int _get_remaining_ac_component_value(
+        int componentValue,
+        StringName componentId,
+        EquipmentAttackDefenseAdjustment defense_adjustment
+    )
+    {
+        if (componentValue <= 0)
+            return 0;
+        if (defense_adjustment == null)
+            return componentValue;
+        if (defense_adjustment.ShouldIgnoreAcComponent(componentId))
+            return 0;
+        int multiplierPercent = defense_adjustment.ResolveComponentMultiplierPercent(componentId);
+        if (multiplierPercent >= 100)
+            return componentValue;
+        return Mathf.FloorToInt(componentValue * multiplierPercent / 100.0f);
     }
 
     private AttackCheckInput _build_invalid_attack_check(StringName error_id, string error_message)

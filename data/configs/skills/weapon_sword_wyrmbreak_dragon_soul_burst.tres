@@ -1,0 +1,51 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+
+[sub_resource type="Resource" id="Effect_dragon_soul_burst_damage"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+effect_target_team_filter = &"enemy"
+damage_tag = &"fire"
+mitigation_bypass_damage_tags = Array[StringName]([&"fire"])
+mitigation_bypass_tiers = Array[StringName]([&"half"])
+dice_count = 6
+dice_sides = 6
+bonus_condition = &"target_creature_type"
+bonus_condition_creature_type_tag = &"dragon"
+bonus_damage_dice_count = 2
+bonus_damage_dice_sides = 6
+save_dc = 16
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"magic"
+
+[sub_resource type="Resource" id="Combat_dragon_soul_burst"]
+script = ExtResource("2_combat")
+skill_id = &"weapon_sword_wyrmbreak_dragon_soul_burst"
+target_mode = &"ground"
+target_team_filter = &"enemy"
+range_pattern = &"single"
+range_value = 4
+area_pattern = &"line"
+area_value = 4
+requires_los = true
+ap_cost = 1
+delivery_categories = Array[StringName]([&"equipment", &"weapon", &"fire"])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_dragon_soul_burst_damage")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"weapon_sword_wyrmbreak_dragon_soul_burst"
+display_name = "龙魂爆发"
+icon_id = &"weapon_sword_wyrmbreak_dragon_soul_burst"
+description = "装备技能。消耗5层龙魂怒气，沿直线喷吐火焰，对敌方造成6D6 fire伤害，agility DC16豁免成功减半；dragon额外2D6。该火焰伤害绕过fire half抗性，但不绕过fire immune。"
+skill_type = &"active"
+max_level = 1
+non_core_max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"equipment", &"wyrmbreak", &"fire", &"dragon_soul"])
+learn_source = &"innate"
+combat_profile = SubResource("Combat_dragon_soul_burst")

@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=11 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilitySourceTraceDef.cs" id="3_trace"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentGrantedActionDef.cs" id="4_grant"]
+
+[sub_resource type="Resource" id="Trace_shockwave"]
+script = ExtResource("3_trace")
+source_kind = &"by_family"
+source_file = "docs/design/weapons/by_family/hammers_01.md"
+item_id = &"weapon_unique_hammer_tremor_102"
+display_name = "地动"
+bullet_index = 1
+bullet_title = "震击"
+bullet_text = "装备授予技能 weapon_hammer_tremor_shockwave：ground、range=1、radius=2、2D6 thunder、constitution DC14、成功半伤，失败额外倒地50TU"
+mechanism_family = &"granted_ground_area_damage_save_failure_status"
+coverage_status = &"bound"
+phase = &"v1"
+test_id = &"tremor_shockwave"
+
+[sub_resource type="Resource" id="Grant_shockwave_skill"]
+script = ExtResource("4_grant")
+granted_action_id = &"grant.tremor.shockwave.skill"
+granted_kind = &"skill"
+skill_id = &"weapon_hammer_tremor_shockwave"
+skill_level = 1
+display_category = &"equipment"
+display_priority = 100
+
+[sub_resource type="Resource" id="Binding_shockwave"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.hammer.tremor.shockwave"
+trait_id = &"weapon.hammer.tremor.shockwave"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"tremor"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+source_traces = Array[Resource]([SubResource("Trace_shockwave")])
+granted_actions = Array[Resource]([SubResource("Grant_shockwave_skill")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability.weapon.hammer.tremor"
+schema_version = 1
+load_order = 180
+bindings = Array[Resource]([SubResource("Binding_shockwave")])

@@ -619,6 +619,10 @@ public class SkillContentRegistry : System.IDisposable
             );
         if (combatProfile.range_value < 0)
             errors.Add($"Skill {skillId} combat_profile range_value must be >= 0.");
+        if (!IsValidWeaponRangePolicy(combatProfile.weapon_range_policy))
+            errors.Add(
+                $"Skill {skillId} combat_profile uses unsupported weapon_range_policy {combatProfile.weapon_range_policy}; expected empty, current_weapon, or configured."
+            );
         if (combatProfile.area_value < 0)
             errors.Add($"Skill {skillId} combat_profile area_value must be >= 0.");
         if (
@@ -643,6 +647,10 @@ public class SkillContentRegistry : System.IDisposable
         if (!IsValidPendingCastBindingMode(combatProfile.pending_cast_binding_mode))
             errors.Add(
                 $"Skill {skillId} combat_profile pending_cast_binding_mode uses unsupported value {combatProfile.pending_cast_binding_mode}."
+            );
+        if (combatProfile.AttackResolutionModeKind == CombatSkillAttackResolutionMode.Unknown)
+            errors.Add(
+                $"Skill {skillId} combat_profile uses unsupported attack_resolution_mode {combatProfile.attack_resolution_mode}."
             );
         bool hasCastingTime = combatProfile.casting_time_tu > 0;
         if (hasCastingTime)
@@ -1866,10 +1874,36 @@ public class SkillContentRegistry : System.IDisposable
                 );
         }
 
+        AppendDamageEffectMitigationBypassValidationErrors(
+            errors,
+            skillId,
+            effectDef,
+            contextLabel
+        );
+
         if (effectDef.hp_ratio_threshold_percent < 0 || effectDef.hp_ratio_threshold_percent > 100)
             errors.Add(
                 $"Skill {skillId} damage effect in {contextLabel} hp_ratio_threshold_percent must be 0 or from 1 to 100."
             );
+
+        if (
+            effectDef.bonus_condition == "target_creature_type"
+            && effectDef.bonus_condition_creature_type_tag == ""
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} damage effect in {contextLabel} bonus_condition target_creature_type requires bonus_condition_creature_type_tag."
+            );
+        }
+        if (
+            effectDef.bonus_condition_creature_type_tag != ""
+            && effectDef.bonus_condition != "target_creature_type"
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} damage effect in {contextLabel} bonus_condition_creature_type_tag requires bonus_condition target_creature_type."
+            );
+        }
 
         bool hasBonusDamageDice =
             effectDef.bonus_damage_dice_count > 0
@@ -1889,6 +1923,52 @@ public class SkillContentRegistry : System.IDisposable
             errors.Add(
                 $"Skill {skillId} damage effect in {contextLabel} bonus_damage_dice_sides must be positive."
             );
+    }
+
+    private static void AppendDamageEffectMitigationBypassValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        CombatEffectDef effectDef,
+        string contextLabel
+    )
+    {
+        int damageTagCount = effectDef.mitigation_bypass_damage_tags?.Count ?? 0;
+        int tierCount = effectDef.mitigation_bypass_tiers?.Count ?? 0;
+        if (damageTagCount == 0 && tierCount == 0)
+            return;
+        if (damageTagCount == 0 || tierCount == 0)
+        {
+            errors.Add(
+                $"Skill {skillId} damage effect in {contextLabel} mitigation bypass requires both mitigation_bypass_damage_tags and mitigation_bypass_tiers."
+            );
+        }
+        for (int index = 0; index < damageTagCount; index++)
+        {
+            StringName bypassDamageTag = ProgressionDataUtils.to_string_name(
+                effectDef.mitigation_bypass_damage_tags[index]
+            );
+            if (DamageTagContentRules.ToDamageTagKind(bypassDamageTag) == DamageTagKind.Unknown)
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} mitigation_bypass_damage_tags[{index}] uses unsupported damage tag {bypassDamageTag}; expected one of {DamageTagContentRules.ValidDamageTagLabel()}."
+                );
+            }
+        }
+        for (int index = 0; index < tierCount; index++)
+        {
+            StringName tier = ProgressionDataUtils.to_string_name(
+                effectDef.mitigation_bypass_tiers[index]
+            );
+            if (
+                DamageTagContentRules.ToMitigationTierKind(tier)
+                == DamageMitigationTierKind.Unknown
+            )
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} mitigation_bypass_tiers[{index}] uses unsupported mitigation tier {tier}; expected one of {DamageTagContentRules.ValidMitigationTierLabel()}."
+                );
+            }
+        }
     }
 
     private void AppendStatusDamageFilterValidationErrors(
@@ -2173,9 +2253,10 @@ public class SkillContentRegistry : System.IDisposable
             effectDef.save_failure_status_id != ""
             && effectKind != BattleEffectKind.Status
             && effectKind != BattleEffectKind.ApplyStatus
+            && effectKind != BattleEffectKind.Damage
         )
             errors.Add(
-                $"Skill {skillId} effect {contextLabel} save_failure_status_id is only supported on status effects."
+                $"Skill {skillId} effect {contextLabel} save_failure_status_id is only supported on status or damage effects."
             );
     }
 
@@ -2597,6 +2678,12 @@ public class SkillContentRegistry : System.IDisposable
         return value == BattleTypedNames.PendingCastBindingSoftAnchor
             || value == BattleTypedNames.PendingCastBindingHardAnchor
             || value == BattleTypedNames.PendingCastBindingGroundBind;
+    }
+
+    private static bool IsValidWeaponRangePolicy(StringName value)
+    {
+        StringName normalized = ProgressionDataUtils.to_string_name(value);
+        return normalized == "" || normalized == "current_weapon" || normalized == "configured";
     }
 
     private void AppendCastingTimeCompatibilityErrors(

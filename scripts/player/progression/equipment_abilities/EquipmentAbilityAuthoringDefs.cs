@@ -111,6 +111,7 @@ public sealed partial class EquipmentAbilityFactQueryDef : Resource
     [Export] public StringName binding_id { get; set; } = "";
     [Export] public StringName state_key { get; set; } = "";
     [Export] public StringName status_id { get; set; } = "";
+    [Export] public StringName attribute_id { get; set; } = "";
     [Export] public StringName aggregation { get; set; } = "";
     [Export] public StringName value_kind { get; set; } = "";
     [Export] public bool bool_literal { get; set; }
@@ -154,6 +155,23 @@ public sealed partial class AddDamageDiceActionPayloadDef : Resource
     [Export] public DiceExpressionDef dice { get; set; }
     [Export] public StringName damage_type { get; set; } = "";
     [Export] public Godot.Collections.Array<StringName> damage_tags { get; set; } = new();
+    [Export] public Godot.Collections.Array<StringName> mitigation_bypass_damage_tags { get; set; } =
+        new();
+    [Export] public Godot.Collections.Array<StringName> mitigation_bypass_tiers { get; set; } =
+        new();
+}
+
+[GlobalClass]
+public sealed partial class DealDamageActionPayloadDef : Resource
+{
+    [Export] public StringName target_selector { get; set; } = "";
+    [Export] public DiceExpressionDef dice { get; set; }
+    [Export] public StringName damage_type { get; set; } = "";
+    [Export] public Godot.Collections.Array<StringName> damage_tags { get; set; } = new();
+    [Export] public Godot.Collections.Array<StringName> mitigation_bypass_damage_tags { get; set; } =
+        new();
+    [Export] public Godot.Collections.Array<StringName> mitigation_bypass_tiers { get; set; } =
+        new();
 }
 
 [GlobalClass]
@@ -206,6 +224,9 @@ public sealed partial class ApplyStatusActionPayloadDef : Resource
     [Export] public int attack_roll_penalty { get; set; } = -1;
     [Export] public int source_bound_attack_roll_penalty { get; set; }
     [Export] public int source_bound_attack_roll_penalty_min_stacks { get; set; } = 1;
+    [Export] public int source_bound_incoming_attack_roll_bonus_per_stack { get; set; }
+    [Export] public int source_bound_incoming_attack_roll_bonus_min_stacks { get; set; } = 1;
+    [Export] public int move_point_capacity_delta { get; set; }
     [Export] public bool counts_as_debuff_override { get; set; }
     [Export] public bool counts_as_debuff { get; set; }
     [Export] public bool undispellable { get; set; }
@@ -239,6 +260,25 @@ public sealed partial class MarkTargetActionPayloadDef : Resource
     [Export] public StringName state_key { get; set; } = "";
     [Export] public int stack_delta { get; set; }
     [Export] public bool remove_on_source_missing { get; set; }
+    [Export] public bool remove_on_target_defeated { get; set; }
+    [Export] public bool unique_per_source { get; set; } = true;
+    [Export] public StringName mirror_status_id { get; set; } = "";
+    [Export] public int mirror_status_duration_tu { get; set; }
+    [Export] public StringName mirror_status_stack_behavior { get; set; } = "refresh";
+    [Export] public int mirror_status_stack_limit { get; set; } = 1;
+    [Export] public string mirror_status_display_label { get; set; } = "";
+    [Export] public Godot.Collections.Array<StringName> clear_status_ids_on_replace { get; set; } =
+        new();
+}
+
+[GlobalClass]
+public sealed partial class ClearStatusActionPayloadDef : Resource
+{
+    [Export] public StringName target_selector { get; set; } = "";
+    [Export] public StringName status_id { get; set; } = "";
+    [Export] public StringName mark_binding_id { get; set; } = "";
+    [Export] public StringName mark_state_key { get; set; } = "";
+    [Export] public bool require_source_unit_match { get; set; }
 }
 
 [GlobalClass]

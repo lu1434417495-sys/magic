@@ -331,6 +331,23 @@ public partial class BattleUnitState
 
     public int GetCurrentMovePoints() => current_move_points;
 
+    public int GetMovePointCapacity()
+    {
+        int delta = 0;
+        foreach (BattleStatusEffectState status in GetStatusEffectsTyped())
+        {
+            if (status == null || status.stacks <= 0)
+                continue;
+            delta += status.move_point_capacity_delta;
+        }
+        return Math.Max(DefaultMovePointsPerTurn + delta, 0);
+    }
+
+    public void ClampCurrentMovePointsToCapacity()
+    {
+        current_move_points = Math.Min(Math.Max(current_move_points, 0), GetMovePointCapacity());
+    }
+
     public bool IsAlive() => is_alive;
 
     public void SetCurrentHp(int value)

@@ -508,6 +508,7 @@ public sealed class CombatSkillDefinition
         int castingSpellControlDc,
         StringName pendingCastBindingMode,
         int attackRollBonus,
+        StringName attackResolutionMode,
         int auraCost,
         IReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>> levelOverrides,
         StringName masteryTriggerMode,
@@ -539,7 +540,8 @@ public sealed class CombatSkillDefinition
         IReadOnlyList<StringName> excludedWeaponTypeIds,
         bool requiresEquippedShield,
         int masteryLowHpBonusMultiplier,
-        int masteryLowHpThresholdPercent
+        int masteryLowHpThresholdPercent,
+        StringName weaponRangePolicy = default
     )
     {
         SkillId = skillId;
@@ -559,6 +561,7 @@ public sealed class CombatSkillDefinition
         CastingSpellControlDc = castingSpellControlDc;
         PendingCastBindingMode = pendingCastBindingMode;
         AttackRollBonus = attackRollBonus;
+        AttackResolutionMode = attackResolutionMode;
         AuraCost = auraCost;
         LevelOverrides = levelOverrides ?? EmptyLevelOverrides;
         MasteryTriggerMode = masteryTriggerMode;
@@ -591,6 +594,7 @@ public sealed class CombatSkillDefinition
         RequiresEquippedShield = requiresEquippedShield;
         MasteryLowHpBonusMultiplier = masteryLowHpBonusMultiplier;
         MasteryLowHpThresholdPercent = masteryLowHpThresholdPercent;
+        WeaponRangePolicy = weaponRangePolicy;
     }
 
     public StringName SkillId { get; }
@@ -598,6 +602,7 @@ public sealed class CombatSkillDefinition
     public StringName TargetTeamFilter { get; }
     public StringName RangePattern { get; }
     public int RangeValue { get; }
+    public StringName WeaponRangePolicy { get; }
     public StringName AreaPattern { get; }
     public int AreaValue { get; }
     public bool RequiresLos { get; }
@@ -610,6 +615,7 @@ public sealed class CombatSkillDefinition
     public int CastingSpellControlDc { get; }
     public StringName PendingCastBindingMode { get; }
     public int AttackRollBonus { get; }
+    public StringName AttackResolutionMode { get; }
     public int AuraCost { get; }
     public IReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>> LevelOverrides { get; }
     public StringName MasteryTriggerMode { get; }
@@ -656,6 +662,8 @@ public sealed class CombatSkillDefinition
         BattleTypedNames.ToCombatSkillMasteryAmountMode(MasteryAmountMode);
     internal CombatSpellFateMode SpellFateModeKind =>
         CombatSkillContentRules.ToSpellFateMode(SpellFateMode);
+    internal CombatSkillAttackResolutionMode AttackResolutionModeKind =>
+        CombatSkillContentRules.ToAttackResolutionMode(AttackResolutionMode);
     internal CombatSpellCriticalMode SpellCriticalModeKind =>
         CombatSkillDef.ToSpellCriticalMode(SpellCriticalMode);
     internal CombatSkillBacklashMode BacklashModeKind =>
@@ -758,6 +766,7 @@ public sealed class CombatSkillDefinition
             CastingSpellControlDc,
             PendingCastBindingMode,
             AttackRollBonus,
+            AttackResolutionMode,
             AuraCost,
             LevelOverrides,
             MasteryTriggerMode,
@@ -789,7 +798,8 @@ public sealed class CombatSkillDefinition
             ExcludedWeaponTypeIds,
             RequiresEquippedShield,
             MasteryLowHpBonusMultiplier,
-            MasteryLowHpThresholdPercent
+            MasteryLowHpThresholdPercent,
+            WeaponRangePolicy
         );
 
     internal CombatSkillDefinition WithArea(StringName areaPattern, int areaValue) =>
@@ -811,6 +821,7 @@ public sealed class CombatSkillDefinition
             CastingSpellControlDc,
             PendingCastBindingMode,
             AttackRollBonus,
+            AttackResolutionMode,
             AuraCost,
             LevelOverrides,
             MasteryTriggerMode,
@@ -842,7 +853,8 @@ public sealed class CombatSkillDefinition
             ExcludedWeaponTypeIds,
             RequiresEquippedShield,
             MasteryLowHpBonusMultiplier,
-            MasteryLowHpThresholdPercent
+            MasteryLowHpThresholdPercent,
+            WeaponRangePolicy
         );
 
     public int GetFumbleProtectionLimit(int skillLevel)
@@ -893,6 +905,7 @@ public sealed class CombatSkillDefinition
             source.casting_spell_control_dc,
             source.pending_cast_binding_mode,
             source.attack_roll_bonus,
+            source.attack_resolution_mode,
             source.aura_cost,
             ProjectLevelOverrides(source.level_overrides),
             source.mastery_trigger_mode,
@@ -924,7 +937,8 @@ public sealed class CombatSkillDefinition
             CopyStringNameArray(source.excluded_weapon_type_ids),
             source.requires_equipped_shield,
             source.mastery_low_hp_bonus_multiplier,
-            source.mastery_low_hp_threshold_percent
+            source.mastery_low_hp_threshold_percent,
+            source.weapon_range_policy
         );
     }
 
@@ -1349,7 +1363,11 @@ public sealed class CombatEffectDefinition
         IReadOnlyList<StringName> saveDisadvantageTags = null,
         IReadOnlyList<StringName> saveImmunityTags = null,
         IReadOnlyList<StringName> saveTags = null,
-        IReadOnlyList<EquipmentSlotWeightDefinition> equipmentDurabilitySlotWeights = null
+        IReadOnlyList<EquipmentSlotWeightDefinition> equipmentDurabilitySlotWeights = null,
+        StringName requiredTargetStatusSourceSelector = default,
+        StringName bonusConditionCreatureTypeTag = default,
+        IReadOnlyList<StringName> mitigationBypassDamageTags = null,
+        IReadOnlyList<StringName> mitigationBypassTiers = null
     )
     {
         EffectType = effectType;
@@ -1369,6 +1387,7 @@ public sealed class CombatEffectDefinition
         DamageRatioPercent = damageRatioPercent;
         PreResistanceDamageMultiplier = preResistanceDamageMultiplier;
         BonusCondition = bonusCondition;
+        BonusConditionCreatureTypeTag = bonusConditionCreatureTypeTag;
         HpRatioThresholdPercent = hpRatioThresholdPercent;
         DamageCategory = damageCategory;
         DrBypassTag = drBypassTag;
@@ -1422,6 +1441,8 @@ public sealed class CombatEffectDefinition
         DoesNotStackWithStatusId = doesNotStackWithStatusId;
         DoesNotStackWithStatusIds = doesNotStackWithStatusIds ?? EmptyStringNames;
         DamageTags = damageTags ?? EmptyStringNames;
+        MitigationBypassDamageTags = mitigationBypassDamageTags ?? EmptyStringNames;
+        MitigationBypassTiers = mitigationBypassTiers ?? EmptyStringNames;
         UseWeaponPhysicalDamageTag = useWeaponPhysicalDamageTag;
         ResolveAsWeaponAttack = resolveAsWeaponAttack;
         StopOnMiss = stopOnMiss;
@@ -1476,6 +1497,7 @@ public sealed class CombatEffectDefinition
         SaveTags = saveTags ?? EmptyStringNames;
         EquipmentDurabilitySlotWeights =
             equipmentDurabilitySlotWeights ?? System.Array.Empty<EquipmentSlotWeightDefinition>();
+        RequiredTargetStatusSourceSelector = requiredTargetStatusSourceSelector;
     }
 
     public StringName EffectType { get; }
@@ -1495,6 +1517,7 @@ public sealed class CombatEffectDefinition
     public int DamageRatioPercent { get; }
     public double PreResistanceDamageMultiplier { get; }
     public StringName BonusCondition { get; }
+    public StringName BonusConditionCreatureTypeTag { get; }
     public int HpRatioThresholdPercent { get; }
     public StringName DamageCategory { get; }
     public StringName DrBypassTag { get; }
@@ -1546,6 +1569,8 @@ public sealed class CombatEffectDefinition
     public StringName DoesNotStackWithStatusId { get; }
     public IReadOnlyList<StringName> DoesNotStackWithStatusIds { get; }
     public IReadOnlyList<StringName> DamageTags { get; }
+    public IReadOnlyList<StringName> MitigationBypassDamageTags { get; }
+    public IReadOnlyList<StringName> MitigationBypassTiers { get; }
     public bool UseWeaponPhysicalDamageTag { get; }
     public bool ResolveAsWeaponAttack { get; }
     public bool StopOnMiss { get; }
@@ -1578,6 +1603,7 @@ public sealed class CombatEffectDefinition
     public StringName ConsumedStatusId { get; }
     public StringName RequiredTargetStatusId { get; }
     public int RequiredTargetStatusMinStacks { get; }
+    public StringName RequiredTargetStatusSourceSelector { get; }
     public int DicePerConsumedStack { get; }
     public int DiceSidesPerStack { get; }
     public int ApGain { get; }
@@ -1838,7 +1864,11 @@ public sealed class CombatEffectDefinition
             SaveDisadvantageTags,
             SaveImmunityTags,
             SaveTags,
-            EquipmentDurabilitySlotWeights
+            EquipmentDurabilitySlotWeights,
+            RequiredTargetStatusSourceSelector,
+            BonusConditionCreatureTypeTag,
+            MitigationBypassDamageTags,
+            MitigationBypassTiers
         );
     }
 
@@ -1965,7 +1995,11 @@ public sealed class CombatEffectDefinition
             SaveDisadvantageTags,
             SaveImmunityTags,
             SaveTags,
-            EquipmentDurabilitySlotWeights
+            EquipmentDurabilitySlotWeights,
+            RequiredTargetStatusSourceSelector,
+            BonusConditionCreatureTypeTag,
+            MitigationBypassDamageTags,
+            MitigationBypassTiers
         );
     }
 
@@ -2096,7 +2130,11 @@ public sealed class CombatEffectDefinition
                 CopyStringNameArray(source.save_tags),
                 ProjectEquipmentDurabilitySlotWeights(
                     source.equipment_durability_slot_weights
-                )
+                ),
+                source.required_target_status_source_selector,
+                source.bonus_condition_creature_type_tag,
+                CopyStringNameArray(source.mitigation_bypass_damage_tags),
+                CopyStringNameArray(source.mitigation_bypass_tiers)
             );
     }
 

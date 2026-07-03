@@ -46,6 +46,12 @@ public partial class TraitDef : Resource
     public Godot.Collections.Array<AttributeModifier> attribute_modifiers { get; set; } = new();
 
     [Export]
+    public Godot.Collections.Array<StringName> save_advantage_tags { get; set; } = new();
+
+    [Export]
+    public Godot.Collections.Array<TraitDamageResistanceEntryDef> damage_resistance_entries { get; set; } = new();
+
+    [Export]
     public Godot.Collections.Array<TraitRollValueSchemaEntry> roll_value_schema { get; set; } =
         new();
 
