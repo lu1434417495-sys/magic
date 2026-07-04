@@ -44,12 +44,12 @@ public partial class run_power_word_kill_execute_schema_regression : SceneTree
         skill.combat_profile.area_value = 2;
         CombatEffectDef effect = skill.combat_profile.effect_defs[0];
         effect.effect_target_team_filter = "ally";
-        effect.save_dc_mode = "static";
-        effect.save_dc = 12;
+        effect.save_dc_mode = "fortune";
+        effect.save_dc = -1;
         effect.save_dc_source_ability = "fortune";
-        effect.save_ability = "constitution";
+        effect.save_ability = "fortune";
         effect.save_tag = "magic";
-        effect.damage_tag = "fire";
+        effect.damage_tag = "void";
         effect.save_partial_on_success = true;
 
         string errors = FormatErrors(ValidateSkill(skill));
@@ -63,12 +63,12 @@ public partial class run_power_word_kill_execute_schema_regression : SceneTree
         AssertContains(errors, "combat_profile.area_pattern", "execute should require single area pattern.");
         AssertContains(errors, "combat_profile.area_value", "execute should require zero area value.");
         AssertContains(errors, "effect_target_team_filter", "execute effect should target enemies.");
-        AssertContains(errors, "save_dc_mode", "execute should use caster_spell save DC mode.");
-        AssertContains(errors, "save_dc", "execute should not set static save_dc.");
-        AssertContains(errors, "save_dc_source_ability", "execute should use intelligence as save source.");
-        AssertContains(errors, "save_ability", "execute should save against willpower.");
+        AssertContains(errors, "save_dc_mode", "execute should reject unknown save DC mode.");
+        AssertContains(errors, "save_dc", "execute should reject invalid static save_dc.");
+        AssertContains(errors, "save_dc_source_ability", "execute should validate save source mode.");
+        AssertContains(errors, "save_ability", "execute should validate save ability.");
         AssertContains(errors, "save_tag", "execute should use execute save tag.");
-        AssertContains(errors, "damage_tag", "execute should use negative energy.");
+        AssertContains(errors, "damage_tag", "execute should reject unsupported damage tags.");
         AssertContains(errors, "save_partial_on_success", "execute should not use partial save.");
     }
 

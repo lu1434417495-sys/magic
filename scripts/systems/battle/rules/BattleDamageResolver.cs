@@ -291,6 +291,7 @@ public partial class BattleDamageResolver : IDisposable
     private readonly record struct EquipmentAbilityTaggedBonusDamageRoll(
         StringName DamageTag,
         DicePoolRollResult Roll,
+        bool Subtract,
         IReadOnlyList<StringName> MitigationBypassDamageTags,
         IReadOnlyList<StringName> MitigationBypassTiers
     );
@@ -1174,6 +1175,52 @@ public partial class BattleDamageResolver : IDisposable
                     AddUnique(statusEffectIds, saveFailureStatusId);
                 }
                 foreach (
+                    CombatDamageSegmentDefinition extraSegment in
+                        effectDefinition.ExtraDamageSegments
+                            ?? Array.Empty<CombatDamageSegmentDefinition>()
+                )
+                {
+                    DamageOutcomeResult extraSegmentOutcome =
+                        ResolveExtraDamageSegmentOutcome(
+                            source_unit,
+                            target_unit,
+                            effectDefinition,
+                            extraSegment,
+                            contextFlags
+                        );
+                    if (extraSegmentOutcome.InvalidDamageTag)
+                    {
+                        diagnostics.Add(
+                            new ResolutionDiagnostic
+                            {
+                                ErrorCode = extraSegmentOutcome.ErrorCode,
+                                Message = extraSegmentOutcome.Reason,
+                            }
+                        );
+                        continue;
+                    }
+                    extraSegmentOutcome = WithSaveResult(
+                        extraSegmentOutcome,
+                        damageSaveResult,
+                        effectDefinition
+                    );
+                    AppliedDamageResult extraSegmentDamageResult =
+                        ApplyDamageToTargetResult(
+                            target_unit,
+                            extraSegmentOutcome,
+                            source_unit,
+                            contextFlags
+                        );
+                    totalDamage += extraSegmentDamageResult.Damage;
+                    totalShieldAbsorbed += extraSegmentDamageResult.ShieldAbsorbed;
+                    damageEvents.Add(extraSegmentDamageResult.Event);
+                    blackStarWedgeTriggered =
+                        blackStarWedgeTriggered
+                        || extraSegmentDamageResult.LowLuckBlackStarWedgeTriggered;
+                    shieldBroken = shieldBroken || extraSegmentDamageResult.ShieldBroken;
+                    applied = true;
+                }
+                foreach (
                     EquipmentAbilityTaggedBonusDamageRoll extraEquipmentBonusRoll in
                         extraEquipmentBonusRolls ?? Array.Empty<EquipmentAbilityTaggedBonusDamageRoll>()
                 )
@@ -1766,12 +1813,13 @@ public partial class BattleDamageResolver : IDisposable
 
     private static DicePoolRollResult FindEquipmentAbilityBonusDamageRoll(
         IReadOnlyList<EquipmentAbilityTaggedBonusDamageRoll> rolls,
-        StringName damageTag
+        StringName damageTag,
+        bool subtract = false
     )
     {
         foreach (EquipmentAbilityTaggedBonusDamageRoll roll in rolls ?? Array.Empty<EquipmentAbilityTaggedBonusDamageRoll>())
         {
-            if (roll.DamageTag == damageTag)
+            if (roll.DamageTag == damageTag && roll.Subtract == subtract)
                 return roll.Roll;
         }
         return DicePoolRollResult.Empty;
@@ -1790,6 +1838,7 @@ public partial class BattleDamageResolver : IDisposable
             if (
                 roll.DamageTag != ""
                 && roll.DamageTag != primaryDamageTag
+                && !roll.Subtract
                 && (roll.Roll.HasDice || roll.Roll.Bonus > 0)
             )
             {
@@ -1877,6 +1926,12 @@ public partial class BattleDamageResolver : IDisposable
             bonusDamageRoll,
             FindEquipmentAbilityBonusDamageRoll(equipmentBonusRolls, damageTag)
         );
+        DicePoolRollResult equipmentDamagePenaltyRoll =
+            FindEquipmentAbilityBonusDamageRoll(
+                equipmentBonusRolls,
+                damageTag,
+                subtract: true
+            );
         extraEquipmentBonusRolls = FindExtraEquipmentAbilityBonusDamageRolls(
             equipmentBonusRolls,
             damageTag
@@ -1939,7 +1994,8 @@ public partial class BattleDamageResolver : IDisposable
             + criticalDamageRoll.Total
             + criticalBonusDamageRoll.Total
             + traitExtraWeaponRoll.Total
-            + consumedStackRoll.Total;
+            + consumedStackRoll.Total
+            - equipmentDamagePenaltyRoll.TotalWithBonus;
         double offenseMultiplier = BuildOffenseMultiplier(
             sourceUnit,
             targetUnit,
@@ -2040,6 +2096,170 @@ public partial class BattleDamageResolver : IDisposable
             TraitTriggerResults = traitCritResult.Triggered
                 ? new[] { traitCritResult.ToEventResult() }
                 : Array.Empty<TraitTriggerEventResult>(),
+            DamageDiceHighTotalRoll = diceSnapshot.DamageDiceHighTotalRoll,
+            DamageDiceHighTotalRollReason = diceSnapshot.DamageDiceHighTotalRollReason,
+            SkillDamageDiceIsMax = diceSnapshot.SkillDamageDiceIsMax,
+            SkillDamageDiceIsMaxReason = diceSnapshot.SkillDamageDiceIsMaxReason,
+            WeaponDamageDiceIsMax = diceSnapshot.WeaponDamageDiceIsMax,
+            WeaponDamageDiceIsMaxReason = diceSnapshot.WeaponDamageDiceIsMaxReason,
+        };
+        return new DamageOutcomeResult(
+            result,
+            false,
+            "",
+            "",
+            "",
+            damageTag,
+            resolvedDamage,
+            false,
+            false,
+            100.0,
+            0,
+            lowLuckBlackStarWedgeTriggered,
+            damageDiceEventFlags.Snapshot
+        );
+    }
+
+    private DamageOutcomeResult ResolveExtraDamageSegmentOutcome(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        CombatEffectDefinition effectDefinition,
+        CombatDamageSegmentDefinition segment,
+        DamageResolutionContext damageContext
+    )
+    {
+        if (segment == null)
+        {
+            return BuildInvalidDamageTagOutcomeFromTag("");
+        }
+        StringName damageTag = ProgressionDataUtils.to_string_name(segment.DamageTag);
+        if (DamageTagContentRules.ToDamageTagKind(damageTag) == DamageTagKind.Unknown)
+        {
+            return BuildInvalidDamageTagOutcomeFromTag(damageTag);
+        }
+
+        StringName rollMode = (damageContext ?? DamageResolutionContext.Empty()).DamageRollMode;
+        BattleEquipmentAbilityRuntimeService equipmentAbilityService =
+            _equipment_ability_runtime_service;
+        if (equipmentAbilityService != null)
+        {
+            rollMode = equipmentAbilityService.ResolveDamageRollModeOverride(
+                new BattleEquipmentAbilityDamageRollModeContext
+                {
+                    SourceUnit = sourceUnit,
+                    TargetUnit = targetUnit,
+                    BattleState = equipmentAbilityService.GetBattleState(),
+                    CurrentRollMode = rollMode,
+                    AttackSucceeded = damageContext.AttackSuccess,
+                    CriticalHit = false,
+                }
+            );
+        }
+
+        DicePoolRollResult damageRoll = RollDicePool(
+            Math.Max(segment.DiceCount, 0),
+            Math.Max(segment.DiceSides, 0),
+            segment.DiceBonus,
+            "extra_damage_segment_dice",
+            rollMode
+        );
+        int baseDamage = Math.Max(segment.Power, 0) + damageRoll.TotalWithBonus;
+        double offenseMultiplier =
+            BuildOffenseMultiplier(sourceUnit, targetUnit, effectDefinition)
+            * Math.Max(segment.PreResistanceDamageMultiplier, 0.0);
+        int rolledDamage = Math.Max(RoundToInt(baseDamage * offenseMultiplier), 0);
+        IReadOnlyList<StringName> mitigationBypassDamageTags =
+            segment.MitigationBypassDamageTags != null
+            && segment.MitigationBypassDamageTags.Count > 0
+                ? segment.MitigationBypassDamageTags
+                : effectDefinition?.MitigationBypassDamageTags;
+        IReadOnlyList<StringName> mitigationBypassTiers =
+            segment.MitigationBypassTiers != null
+            && segment.MitigationBypassTiers.Count > 0
+                ? segment.MitigationBypassTiers
+                : effectDefinition?.MitigationBypassTiers;
+        GDictionary mitigationTierResult = ResolveMitigationTierResult(
+            targetUnit,
+            damageTag,
+            mitigationBypassDamageTags,
+            mitigationBypassTiers
+        );
+        StringName mitigationTier = DictStringName(
+            mitigationTierResult,
+            "tier",
+            MitigationTierNormal
+        );
+        int tierAdjustedDamage = rolledDamage;
+        if (mitigationTier == MitigationTierImmune)
+        {
+            tierAdjustedDamage = 0;
+        }
+        else if (mitigationTier == MitigationTierHalf)
+        {
+            tierAdjustedDamage /= 2;
+        }
+        else if (mitigationTier == MitigationTierDouble)
+        {
+            tierAdjustedDamage *= 2;
+        }
+
+        FixedMitigationResult mitigation = BuildFixedMitigation(
+            targetUnit,
+            effectDefinition,
+            damageTag
+        );
+        ApplyBlackStarBrandGuardIgnore(mitigation, targetUnit);
+        bool lowLuckBlackStarWedgeTriggered = ApplyLowLuckBlackStarWedgeGuardIgnore(
+            mitigation,
+            sourceUnit
+        );
+        TrimFixedMitigationSources(mitigation);
+        int resolvedDamage = Math.Max(tierAdjustedDamage - mitigation.Total, MinDamageFloor);
+        DamageDiceEventFlags damageDiceEventFlags = BuildDamageDiceEventFlags(
+            false,
+            damageRoll,
+            DicePoolRollResult.Empty
+        );
+        DamageDiceEventSnapshot diceSnapshot = damageDiceEventFlags.Snapshot;
+        DamageEventResult result = new()
+        {
+            DamageTag = damageTag,
+            MitigationTier = AttackEffectResolutionResultReader.ParseMitigationTier(
+                mitigationTier
+            ),
+            MitigationSources =
+                AttackEffectResolutionResultReader.ReadMitigationSourcesFromArray(
+                    GetArray(mitigationTierResult, "sources")
+                ),
+            BaseDamage = baseDamage,
+            CriticalHit = false,
+            AddWeaponDice = false,
+            DamageDice = damageRoll.ToDamageDiceRollDetail(),
+            BonusConditionMet = false,
+            BonusDamageDice = DicePoolRollResult.Empty.ToDamageDiceRollDetail(),
+            WeaponDamageDice = DicePoolRollResult.Empty.ToDamageDiceRollDetail(),
+            CriticalExtraDamageDice = DicePoolRollResult.Empty.ToDamageDiceRollDetail(),
+            CriticalExtraBonusDamageDice = DicePoolRollResult.Empty.ToDamageDiceRollDetail(),
+            CriticalExtraWeaponDamageDice = DicePoolRollResult.Empty.ToDamageDiceRollDetail(),
+            TraitExtraWeaponDamageDice = DicePoolRollResult.Empty.ToDamageDiceRollDetail(),
+            OffenseMultiplier = offenseMultiplier,
+            RolledDamage = rolledDamage,
+            TierAdjustedDamage = tierAdjustedDamage,
+            ResolvedDamage = resolvedDamage,
+            BuffReduction = mitigation.BuffReduction,
+            StanceReduction = mitigation.StanceReduction,
+            PassiveReduction = mitigation.PassiveReduction,
+            ContentDr = mitigation.ContentDr,
+            GuardBlock = mitigation.GuardBlock,
+            GuardIgnoreApplied = mitigation.GuardIgnoreApplied,
+            FixedMitigationSourceLabels = mitigation.SourceLabels(),
+            LowLuckBlackStarWedgeTriggered = lowLuckBlackStarWedgeTriggered,
+            FixedMitigationTotal = mitigation.Total,
+            FullyAbsorbedByMitigation =
+                resolvedDamage <= 0
+                && mitigationTier != MitigationTierImmune
+                && tierAdjustedDamage > 0,
+            TraitTriggerResults = Array.Empty<TraitTriggerEventResult>(),
             DamageDiceHighTotalRoll = diceSnapshot.DamageDiceHighTotalRoll,
             DamageDiceHighTotalRollReason = diceSnapshot.DamageDiceHighTotalRollReason,
             SkillDamageDiceIsMax = diceSnapshot.SkillDamageDiceIsMax,
@@ -2847,7 +3067,36 @@ public partial class BattleDamageResolver : IDisposable
         multiplier *= GetLowLuckBloodDebtMultiplier(targetUnit);
         multiplier *= GetSourceOutgoingDamageMultiplier(sourceUnit);
         multiplier *= GetTargetIncomingDamageMultiplier(targetUnit);
+        multiplier *= GetTargetDamageMultiplierRuleMultiplier(targetUnit, effectDefinition);
         return Math.Max(multiplier, 0.0);
+    }
+
+    private static double GetTargetDamageMultiplierRuleMultiplier(
+        BattleUnitState targetUnit,
+        CombatEffectDefinition effectDefinition
+    )
+    {
+        if (
+            targetUnit == null
+            || effectDefinition?.TargetDamageMultiplierRules == null
+            || effectDefinition.TargetDamageMultiplierRules.Count == 0
+        )
+        {
+            return 1.0;
+        }
+        double multiplier = 1.0;
+        foreach (
+            CombatTargetDamageMultiplierRuleDefinition rule in
+                effectDefinition.TargetDamageMultiplierRules
+        )
+        {
+            if (rule == null || !rule.Matches(targetUnit))
+            {
+                continue;
+            }
+            multiplier *= Math.Max(rule.MultiplierPercent, 0) / 100.0;
+        }
+        return multiplier;
     }
 
     private static StringName ResolveDamageTag(

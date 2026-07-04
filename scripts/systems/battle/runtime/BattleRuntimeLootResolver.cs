@@ -69,10 +69,11 @@ internal class BattleRuntimeLootResolver
 
     internal void CollectDefeatedUnitLoot(
         BattleUnitState unitState,
-        BattleUnitState killerUnit = null
+        BattleUnitState killerUnit = null,
+        BattleEventBatch batch = null
     )
     {
-        _CollectDefeatedUnitLoot(unitState, killerUnit);
+        _CollectDefeatedUnitLoot(unitState, killerUnit, batch);
     }
 
     internal BattleResolutionResult BuildBattleResolutionResult()
@@ -86,7 +87,8 @@ internal class BattleRuntimeLootResolver
 
     private void _CollectDefeatedUnitLoot(
         BattleUnitState unitState,
-        BattleUnitState killerUnit = null
+        BattleUnitState killerUnit = null,
+        BattleEventBatch batch = null
     )
     {
         if (unitState == null || unitState.is_alive || unitState.faction_id == "player")
@@ -105,6 +107,8 @@ internal class BattleRuntimeLootResolver
                 {
                     SourceUnit = killerUnit,
                     DefeatedUnit = unitState,
+                    BattleState = _runtime?.GetState(),
+                    Batch = batch,
                 }
             );
         var enemyTemplate = _ResolveEnemyTemplateForUnit(unitState);

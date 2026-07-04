@@ -1270,7 +1270,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
     internal bool CommitEquipmentSkillUsageIfNeeded(
         BattleUnitState unit,
         BattleCommand command,
-        BattleEventBatch batch = null
+        BattleEventBatch batch = null,
+        BattleEquipmentSkillUseOutcome skillOutcome = null
     )
     {
         if (unit == null || command == null)
@@ -1312,6 +1313,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
                 GrantedActionId = accessResult.Entry.EquipmentGrantedActionId,
                 SkillId = accessResult.Entry.EntryRef.SkillId,
                 SkillEntryId = accessResult.Entry.EntryRef.SkillEntryId,
+                SkillOutcome = skillOutcome ?? BattleEquipmentSkillUseOutcome.Empty,
             }
         ) == true;
         if (committed || triggered)
@@ -3651,7 +3653,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         if (unit_state == null)
             return;
         if (options.CollectLoot)
-            _collect_defeated_unit_loot(unit_state, source_unit);
+            _collect_defeated_unit_loot(unit_state, source_unit, batch);
         _clear_defeated_unit(unit_state, batch);
         _record_unit_defeated(unit_state);
         if (options.RecordEnemyDefeatedAchievement)

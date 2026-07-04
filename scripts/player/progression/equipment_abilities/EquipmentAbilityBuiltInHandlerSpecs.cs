@@ -38,10 +38,20 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
                     typeof(AddDamageDiceActionPayloadDef),
                     typeof(AddDamageDiceActionPayloadDefinition)
                 ),
+                ["immediate_weapon_attack"] = Action(
+                    "immediate_weapon_attack",
+                    typeof(ImmediateWeaponAttackActionPayloadDef),
+                    typeof(ImmediateWeaponAttackActionPayloadDefinition)
+                ),
                 ["deal_damage"] = Action(
                     "deal_damage",
                     typeof(DealDamageActionPayloadDef),
                     typeof(DealDamageActionPayloadDefinition)
+                ),
+                ["heal"] = Action(
+                    "heal",
+                    typeof(HealActionPayloadDef),
+                    typeof(HealActionPayloadDefinition)
                 ),
                 ["attack_roll_bonus"] = Action(
                     "attack_roll_bonus",
@@ -103,6 +113,22 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
                     "grant_skill",
                     typeof(GrantSkillActionPayloadDef),
                     typeof(GrantSkillActionPayloadDefinition)
+                ),
+                ["summon_units"] = Action(
+                    "summon_units",
+                    typeof(SummonUnitsActionPayloadDef),
+                    typeof(SummonUnitsActionPayloadDefinition)
+                ),
+                ["consume_summoned_units"] = Action(
+                    "consume_summoned_units",
+                    typeof(ConsumeSummonedUnitsActionPayloadDef),
+                    typeof(ConsumeSummonedUnitsActionPayloadDefinition)
+                ),
+                ["summoned_unit_attack_roll_modifier"] = Action(
+                    "summoned_unit_attack_roll_modifier",
+                    typeof(SummonedUnitAttackRollModifierActionPayloadDef),
+                    typeof(SummonedUnitAttackRollModifierActionPayloadDefinition),
+                    consumerSupport: ConsumerSupport(includePreview: true)
                 ),
                 ["equipment_durability_damage"] = Action(
                     "equipment_durability_damage",

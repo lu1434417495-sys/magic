@@ -111,7 +111,8 @@ internal sealed partial class BattleSkillExecutionOrchestrator
     internal bool _is_unit_valid_for_effect(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        StringName target_team_filter
+        StringName target_team_filter,
+        bool allow_dead_targets = false
     )
     {
         bool madnessAnyTeam = source_unit?.ai_blackboard?.madness_target_any_team == true;
@@ -119,14 +120,18 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             source_unit,
             target_unit,
             target_team_filter,
-            new BattleTargetTeamRules.TargetFilterOptions(MadnessTargetAnyTeam: madnessAnyTeam)
+            new BattleTargetTeamRules.TargetFilterOptions(
+                AllowDeadTargets: allow_dead_targets,
+                MadnessTargetAnyTeam: madnessAnyTeam
+            )
         );
     }
 
     internal bool _is_unit_valid_for_effect(
         BattleUnitReadView source_unit,
         BattleUnitReadView target_unit,
-        StringName target_team_filter
+        StringName target_team_filter,
+        bool allow_dead_targets = false
     )
     {
         bool madnessAnyTeam = source_unit.IsValid && source_unit.MadnessTargetAnyTeam;
@@ -134,7 +139,10 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             source_unit,
             target_unit,
             target_team_filter,
-            new BattleTargetTeamRules.TargetFilterOptions(MadnessTargetAnyTeam: madnessAnyTeam)
+            new BattleTargetTeamRules.TargetFilterOptions(
+                AllowDeadTargets: allow_dead_targets,
+                MadnessTargetAnyTeam: madnessAnyTeam
+            )
         );
     }
 

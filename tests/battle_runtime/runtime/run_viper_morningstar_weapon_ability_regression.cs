@@ -293,6 +293,8 @@ public partial class run_viper_morningstar_weapon_ability_regression : SceneTree
 
         for (int use = 1; use <= 3; use++)
         {
+            if (use > 1)
+                holder.ResetPerTurnCharges();
             IssueVenomInjection(fixture, holder, $"viper_venom_injection_use_{use}", 0);
             _test.Eq(
                 GetAbilityState(holder, VenomInjectionBindingId, VenomPrimedStateKey),
@@ -329,6 +331,7 @@ public partial class run_viper_morningstar_weapon_ability_regression : SceneTree
             "第 4 次同日毒液注入禁用原因应稳定。"
         );
 
+        holder.ResetPerTurnCharges();
         BattleSkillAvailabilityView nextDayView = BuildEquipmentSkillView(fixture, holder, 15);
         _test.True(
             TryFindSkillEntry(nextDayView, VenomInjectionSkillId, out BattleAvailableSkillEntry nextDayEntry),

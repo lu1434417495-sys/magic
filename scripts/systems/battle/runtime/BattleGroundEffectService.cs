@@ -295,9 +295,13 @@ internal class BattleGroundEffectService
         Runtime?._append_changed_unit_coords(batch, unit_state);
     }
 
-    internal void _collect_defeated_unit_loot(BattleUnitState unit_state, BattleUnitState killer_unit = null)
+    internal void _collect_defeated_unit_loot(
+        BattleUnitState unit_state,
+        BattleUnitState killer_unit = null,
+        BattleEventBatch batch = null
+    )
     {
-        Runtime?._collect_defeated_unit_loot(unit_state, killer_unit);
+        Runtime?._collect_defeated_unit_loot(unit_state, killer_unit, batch);
     }
 
     internal void _clear_defeated_unit(BattleUnitState unit_state, BattleEventBatch batch = null)

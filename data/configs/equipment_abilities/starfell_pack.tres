@@ -1,0 +1,129 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=14 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilitySourceTraceDef.cs" id="3_trace"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentGrantedActionDef.cs" id="4_grant"]
+
+[sub_resource type="Resource" id="Trace_meteor_force"]
+script = ExtResource("3_trace")
+source_kind = &"by_family"
+source_file = "docs/design/weapons/by_family/swords_01.md"
+item_id = &"weapon_unique_sword_starfell_016"
+display_name = "群星之末"
+bullet_index = 1
+bullet_title = "陨星之力"
+bullet_text = "命中目标后在目标身上叠加星尘，最多5层；每层使后续攻击追加1D6 force。"
+mechanism_family = &"hit_status_stack_scaling_force_damage"
+coverage_status = &"deferred"
+phase = &"v1"
+test_id = &"starfell_meteor_force"
+note = "星尘层数和消费规则需要独立行为回归，本切片只投影来源。"
+
+[sub_resource type="Resource" id="Trace_star_map_guidance"]
+script = ExtResource("3_trace")
+source_kind = &"by_family"
+source_file = "docs/design/weapons/by_family/swords_01.md"
+item_id = &"weapon_unique_sword_starfell_016"
+display_name = "群星之末"
+bullet_index = 2
+bullet_title = "星图指引"
+bullet_text = "消耗2层星尘，使下一次攻击获得优势。"
+mechanism_family = &"status_stack_spend_attack_advantage"
+coverage_status = &"deferred"
+phase = &"v1"
+test_id = &"starfell_star_map_guidance"
+note = "依赖星尘层数精确扣减能力，后续与陨星之力一起接入。"
+
+[sub_resource type="Resource" id="Trace_starfall"]
+script = ExtResource("3_trace")
+source_kind = &"by_family"
+source_file = "docs/design/weapons/by_family/swords_01.md"
+item_id = &"weapon_unique_sword_starfell_016"
+display_name = "群星之末"
+bullet_index = 3
+bullet_title = "星坠"
+bullet_text = "消耗5层星尘，10尺半径，目标 agility DC16；失败6D6 force+fire，成功半伤；建筑和非魔法构造物受到双倍伤害；每场战斗1次。"
+mechanism_family = &"granted_area_skill_dual_damage_target_multiplier"
+coverage_status = &"bound"
+phase = &"v1"
+test_id = &"starfell_starfall"
+note = "当前技能已接入 dual damage segment 与 building/nonmagical construct target multiplier；星尘消费后续接入。"
+
+[sub_resource type="Resource" id="Grant_starfall_skill"]
+script = ExtResource("4_grant")
+granted_action_id = &"grant.starfell.starfall.skill"
+granted_kind = &"skill"
+skill_id = &"weapon_sword_starfell_starfall"
+skill_level = 1
+usage_period_kind = &"per_battle"
+max_uses_per_period = 1
+display_category = &"equipment"
+display_priority = 100
+
+[sub_resource type="Resource" id="Trace_cosmic_dread"]
+script = ExtResource("3_trace")
+source_kind = &"by_family"
+source_file = "docs/design/weapons/by_family/swords_01.md"
+item_id = &"weapon_unique_sword_starfell_016"
+display_name = "群星之末"
+bullet_index = 4
+bullet_title = "宇宙恐惧"
+bullet_text = "对拥有5层星尘的目标额外造成2D6 force，并触发恐惧压迫。"
+mechanism_family = &"max_status_stack_force_damage_fear"
+coverage_status = &"deferred"
+phase = &"v1"
+test_id = &"starfell_cosmic_dread"
+note = "依赖星尘层数行为，后续与陨星之力一起接入。"
+
+[sub_resource type="Resource" id="Binding_meteor_force"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.starfell.meteor_force"
+trait_id = &"weapon.sword.starfell.meteor_force"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"starfell"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+source_traces = Array[Resource]([SubResource("Trace_meteor_force")])
+
+[sub_resource type="Resource" id="Binding_star_map_guidance"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.starfell.star_map_guidance"
+trait_id = &"weapon.sword.starfell.star_map_guidance"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"starfell"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+source_traces = Array[Resource]([SubResource("Trace_star_map_guidance")])
+
+[sub_resource type="Resource" id="Binding_starfall"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.starfell.starfall"
+trait_id = &"weapon.sword.starfell.starfall"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"starfell"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+source_traces = Array[Resource]([SubResource("Trace_starfall")])
+granted_actions = Array[Resource]([SubResource("Grant_starfall_skill")])
+
+[sub_resource type="Resource" id="Binding_cosmic_dread"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.starfell.cosmic_dread"
+trait_id = &"weapon.sword.starfell.cosmic_dread"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"starfell"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+source_traces = Array[Resource]([SubResource("Trace_cosmic_dread")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability.weapon.sword.starfell"
+schema_version = 1
+load_order = 141
+bindings = Array[Resource]([SubResource("Binding_meteor_force"), SubResource("Binding_star_map_guidance"), SubResource("Binding_starfall"), SubResource("Binding_cosmic_dread")])

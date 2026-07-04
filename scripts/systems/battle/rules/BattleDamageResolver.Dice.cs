@@ -144,6 +144,7 @@ public partial class BattleDamageResolver
                 aggregateByTag,
                 damageTag,
                 roll,
+                dice.Subtract,
                 dice.MitigationBypassDamageTags,
                 dice.MitigationBypassTiers
             );
@@ -157,6 +158,7 @@ public partial class BattleDamageResolver
         List<EquipmentAbilityTaggedBonusDamageRoll> result,
         StringName damageTag,
         DicePoolRollResult roll,
+        bool subtract,
         IReadOnlyList<StringName> mitigationBypassDamageTags = null,
         IReadOnlyList<StringName> mitigationBypassTiers = null
     )
@@ -166,11 +168,12 @@ public partial class BattleDamageResolver
         for (int index = 0; index < result.Count; index++)
         {
             EquipmentAbilityTaggedBonusDamageRoll existing = result[index];
-            if (existing.DamageTag != damageTag)
+            if (existing.DamageTag != damageTag || existing.Subtract != subtract)
                 continue;
             result[index] = new EquipmentAbilityTaggedBonusDamageRoll(
                 damageTag,
                 CombineDicePoolRolls(existing.Roll, roll),
+                subtract,
                 MergeStringNameLists(
                     existing.MitigationBypassDamageTags,
                     mitigationBypassDamageTags
@@ -183,6 +186,7 @@ public partial class BattleDamageResolver
             new EquipmentAbilityTaggedBonusDamageRoll(
                 damageTag,
                 roll,
+                subtract,
                 CopyStringNameList(mitigationBypassDamageTags),
                 CopyStringNameList(mitigationBypassTiers)
             )

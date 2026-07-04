@@ -28,7 +28,10 @@ internal static class BattleRuntimeEffectDefinitions
         bool undispellable = false,
         bool dispellableMagic = false,
         bool dispellableHarmfulMagic = false,
-        bool dispellableBeneficialMagic = false
+        bool dispellableBeneficialMagic = false,
+        bool lockCounterattack = false,
+        bool lockGuard = false,
+        bool lockDodgeBonus = false
     )
     {
         IReadOnlyDictionary<string, Variant> mergedParameters = parameters;
@@ -74,7 +77,10 @@ internal static class BattleRuntimeEffectDefinitions
             dispellableHarmfulMagic: dispellableHarmfulMagic,
             dispellableBeneficialMagic: dispellableBeneficialMagic,
             countsAsDebuffOverride: countsAsDebuffOverride,
-            countsAsDebuff: countsAsDebuff
+            countsAsDebuff: countsAsDebuff,
+            lockCounterattack: lockCounterattack,
+            lockGuard: lockGuard,
+            lockDodgeBonus: lockDodgeBonus
         );
     }
 
@@ -101,7 +107,8 @@ internal static class BattleRuntimeEffectDefinitions
         int diceBonus,
         IReadOnlyList<StringName> damageTags = null,
         IReadOnlyList<StringName> mitigationBypassDamageTags = null,
-        IReadOnlyList<StringName> mitigationBypassTiers = null
+        IReadOnlyList<StringName> mitigationBypassTiers = null,
+        int power = 0
     )
     {
         return Create(
@@ -110,9 +117,26 @@ internal static class BattleRuntimeEffectDefinitions
             diceCount: Math.Max(diceCount, 0),
             diceSides: Math.Max(diceSides, 0),
             diceBonus: Math.Max(diceBonus, 0),
+            power: Math.Max(power, 0),
             damageTags: damageTags ?? EmptyStringNames,
             mitigationBypassDamageTags: mitigationBypassDamageTags ?? EmptyStringNames,
             mitigationBypassTiers: mitigationBypassTiers ?? EmptyStringNames
+        );
+    }
+
+    internal static CombatEffectDefinition Heal(
+        int diceCount,
+        int diceSides,
+        int diceBonus,
+        int power = 0
+    )
+    {
+        return Create(
+            effectType: "heal",
+            diceCount: Math.Max(diceCount, 0),
+            diceSides: Math.Max(diceSides, 0),
+            diceBonus: Math.Max(diceBonus, 0),
+            power: Math.Max(power, 0)
         );
     }
 

@@ -154,11 +154,23 @@ public sealed partial class AddDamageDiceActionPayloadDef : Resource
     [Export] public StringName target_selector { get; set; } = "";
     [Export] public DiceExpressionDef dice { get; set; }
     [Export] public StringName damage_type { get; set; } = "";
+    [Export] public bool subtract { get; set; }
     [Export] public Godot.Collections.Array<StringName> damage_tags { get; set; } = new();
     [Export] public Godot.Collections.Array<StringName> mitigation_bypass_damage_tags { get; set; } =
         new();
     [Export] public Godot.Collections.Array<StringName> mitigation_bypass_tiers { get; set; } =
         new();
+}
+
+[GlobalClass]
+public sealed partial class ImmediateWeaponAttackActionPayloadDef : Resource
+{
+    [Export] public StringName anchor_selector { get; set; } = "defeated";
+    [Export] public StringName target_team_filter { get; set; } = "enemy";
+    [Export] public int radius { get; set; } = 1;
+    [Export] public int max_attacks { get; set; } = 1;
+    [Export] public StringName skill_id { get; set; } = "basic_attack";
+    [Export] public bool require_weapon_range { get; set; } = true;
 }
 
 [GlobalClass]
@@ -172,6 +184,13 @@ public sealed partial class DealDamageActionPayloadDef : Resource
         new();
     [Export] public Godot.Collections.Array<StringName> mitigation_bypass_tiers { get; set; } =
         new();
+}
+
+[GlobalClass]
+public sealed partial class HealActionPayloadDef : Resource
+{
+    [Export] public StringName target_selector { get; set; } = "";
+    [Export] public DiceExpressionDef dice { get; set; }
 }
 
 [GlobalClass]
@@ -233,6 +252,9 @@ public sealed partial class ApplyStatusActionPayloadDef : Resource
     [Export] public bool dispellable_magic { get; set; }
     [Export] public bool dispellable_harmful_magic { get; set; }
     [Export] public bool dispellable_beneficial_magic { get; set; }
+    [Export] public bool lock_counterattack { get; set; }
+    [Export] public bool lock_guard { get; set; }
+    [Export] public bool lock_dodge_bonus { get; set; }
     [Export] public int tick_interval_tu { get; set; }
     [Export] public int timeline_damage_dice_count { get; set; }
     [Export] public int timeline_damage_dice_sides { get; set; }
@@ -287,6 +309,54 @@ public sealed partial class GrantSkillActionPayloadDef : Resource
     [Export] public StringName skill_id { get; set; } = "";
     [Export] public int skill_level { get; set; }
     [Export] public StringName availability_state_key { get; set; } = "";
+}
+
+[GlobalClass]
+public sealed partial class SummonUnitsActionPayloadDef : Resource
+{
+    [Export] public StringName anchor_selector { get; set; } = "defeated";
+    [Export] public StringName state_key { get; set; } = "";
+    [Export] public DiceExpressionDef count_dice { get; set; }
+    [Export] public int max_living_units { get; set; }
+    [Export] public int duration_tu { get; set; }
+    [Export] public int spawn_radius { get; set; } = 2;
+    [Export] public StringName unit_id_prefix { get; set; } = "summoned_unit";
+    [Export] public string unit_display_name { get; set; } = "";
+    [Export] public StringName body_size_category { get; set; } = "tiny";
+    [Export] public StringName control_mode { get; set; } = "ai";
+    [Export] public StringName ai_brain_id { get; set; } = "";
+    [Export] public StringName ai_state_id { get; set; } = "";
+    [Export] public int hp_max { get; set; } = 1;
+    [Export] public int armor_class { get; set; } = 10;
+    [Export] public int attack_bonus { get; set; }
+    [Export] public int base_attack_bonus { get; set; }
+    [Export] public int action_points { get; set; }
+    [Export] public int move_points { get; set; }
+    [Export] public Godot.Collections.Array<StringName> creature_type_tags { get; set; } = new();
+    [Export] public Godot.Collections.Array<StringName> movement_tags { get; set; } = new();
+}
+
+[GlobalClass]
+public sealed partial class ConsumeSummonedUnitsActionPayloadDef : Resource
+{
+    [Export] public StringName source_binding_id { get; set; } = "";
+    [Export] public StringName state_key { get; set; } = "";
+    [Export] public int count { get; set; }
+    [Export] public StringName selection_mode { get; set; } = "nearest_target";
+}
+
+[GlobalClass]
+public sealed partial class SummonedUnitAttackRollModifierActionPayloadDef : Resource
+{
+    [Export] public StringName target_selector { get; set; } = "attacker";
+    [Export] public StringName source_binding_id { get; set; } = "";
+    [Export] public StringName state_key { get; set; } = "";
+    [Export] public int radius { get; set; } = 1;
+    [Export] public int bonus_per_unit { get; set; }
+    [Export] public int max_absolute_bonus { get; set; }
+    [Export] public int min_units { get; set; } = 1;
+    [Export] public StringName stack_mode { get; set; } = "max";
+    [Export] public string label { get; set; } = "";
 }
 
 [GlobalClass]

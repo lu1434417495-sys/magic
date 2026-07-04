@@ -664,8 +664,14 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             case AddDamageDiceActionPayloadDef payload:
                 ValidateAddDamageDicePayload(payload, context, path, errors);
                 break;
+            case ImmediateWeaponAttackActionPayloadDef payload:
+                ValidateImmediateWeaponAttackPayload(payload, context, path, errors);
+                break;
             case DealDamageActionPayloadDef payload:
                 ValidateDealDamagePayload(payload, context, path, errors);
+                break;
+            case HealActionPayloadDef payload:
+                ValidateHealPayload(payload, path, errors);
                 break;
             case AttackRollBonusActionPayloadDef payload:
                 ValidateAttackRollBonusPayload(payload, path, errors);
@@ -702,6 +708,15 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 ValidateSkillReference(payload.skill_id, context, $"{path}.payload.skill_id", errors);
                 if (payload.skill_id == "" || payload.skill_level <= 0)
                     AddError(errors, "EQA_ACTION_REQUIRED_FIELD_MISSING", path, "grant_skill requires skill_id and positive skill_level");
+                break;
+            case SummonUnitsActionPayloadDef payload:
+                ValidateSummonUnitsPayload(payload, path, errors);
+                break;
+            case ConsumeSummonedUnitsActionPayloadDef payload:
+                ValidateConsumeSummonedUnitsPayload(payload, path, errors);
+                break;
+            case SummonedUnitAttackRollModifierActionPayloadDef payload:
+                ValidateSummonedUnitAttackRollModifierPayload(payload, path, errors);
                 break;
             case EquipmentDurabilityDamageActionPayloadDef payload:
                 ValidateDurabilityPayload(payload, context, path, errors);
@@ -857,6 +872,41 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         }
     }
 
+    private static void ValidateImmediateWeaponAttackPayload(
+        ImmediateWeaponAttackActionPayloadDef payload,
+        EquipmentAbilityContentValidationContext context,
+        string path,
+        List<string> errors
+    )
+    {
+        if (
+            payload.anchor_selector == ""
+            || payload.target_team_filter == ""
+            || payload.radius < 0
+            || payload.max_attacks <= 0
+            || payload.skill_id == ""
+        )
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "immediate_weapon_attack requires anchor_selector, target_team_filter, non-negative radius, positive max_attacks, and skill_id"
+            );
+        }
+        ValidateSkillReference(payload.skill_id, context, $"{path}.payload.skill_id", errors);
+        StringName filter = ProgressionDataUtils.to_string_name(payload.target_team_filter);
+        if (filter != "enemy" && filter != "ally" && filter != "any")
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_INVALID_VALUE",
+                $"{path}.payload.target_team_filter",
+                "immediate_weapon_attack target_team_filter must be enemy, ally, or any"
+            );
+        }
+    }
+
     private static void ValidateDealDamagePayload(
         DealDamageActionPayloadDef payload,
         EquipmentAbilityContentValidationContext context,
@@ -902,6 +952,40 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             path,
             errors
         );
+        if (payload.dice != null)
+        {
+            foreach (DiceExpressionTermDef term in payload.dice.terms)
+            {
+                if (term == null || term.dice_count <= 0 || term.dice_sides <= 0)
+                {
+                    AddError(
+                        errors,
+                        "EQA_DICE_INVALID",
+                        $"{path}.payload.dice",
+                        "dice terms must have positive dice_count and dice_sides"
+                    );
+                }
+            }
+        }
+    }
+
+    private static void ValidateHealPayload(
+        HealActionPayloadDef payload,
+        string path,
+        List<string> errors
+    )
+    {
+        bool hasDiceTerm = payload.dice != null && payload.dice.terms.Count > 0;
+        bool hasFlatBonus = payload.dice != null && payload.dice.flat_bonus > 0;
+        if (payload.target_selector == "" || payload.dice == null || (!hasDiceTerm && !hasFlatBonus))
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "heal requires target_selector and dice terms or positive flat_bonus"
+            );
+        }
         if (payload.dice != null)
         {
             foreach (DiceExpressionTermDef term in payload.dice.terms)
@@ -1372,6 +1456,103 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 context,
                 $"{path}.payload.clear_status_ids_on_replace[{statusId}]",
                 errors
+            );
+        }
+    }
+
+    private static void ValidateSummonUnitsPayload(
+        SummonUnitsActionPayloadDef payload,
+        string path,
+        List<string> errors
+    )
+    {
+        if (
+            payload == null
+            || payload.state_key == ""
+            || payload.count_dice == null
+            || payload.count_dice.terms.Count == 0
+            || payload.max_living_units <= 0
+            || string.IsNullOrWhiteSpace(payload.unit_display_name)
+            || payload.hp_max <= 0
+            || payload.armor_class <= 0
+        )
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "summon_units requires state_key, count_dice terms, max_living_units, unit_display_name, positive hp_max, and positive armor_class"
+            );
+        }
+        if (payload != null && payload.spawn_radius < 0)
+        {
+            AddError(
+                errors,
+                "EQA_SUMMON_SPAWN_RADIUS_INVALID",
+                $"{path}.payload.spawn_radius",
+                "summon_units spawn_radius must be >= 0"
+            );
+        }
+        foreach (DiceExpressionTermDef term in payload?.count_dice?.terms ?? new Godot.Collections.Array<DiceExpressionTermDef>())
+        {
+            if (term == null || term.dice_count <= 0 || term.dice_sides <= 0)
+            {
+                AddError(
+                    errors,
+                    "EQA_DICE_INVALID",
+                    $"{path}.payload.count_dice",
+                    "summon_units dice terms must have positive dice_count and dice_sides"
+                );
+            }
+        }
+    }
+
+    private static void ValidateConsumeSummonedUnitsPayload(
+        ConsumeSummonedUnitsActionPayloadDef payload,
+        string path,
+        List<string> errors
+    )
+    {
+        if (payload == null || payload.state_key == "" || payload.count <= 0)
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "consume_summoned_units requires state_key and positive count"
+            );
+        }
+    }
+
+    private static void ValidateSummonedUnitAttackRollModifierPayload(
+        SummonedUnitAttackRollModifierActionPayloadDef payload,
+        string path,
+        List<string> errors
+    )
+    {
+        if (
+            payload == null
+            || payload.target_selector == ""
+            || payload.source_binding_id == ""
+            || payload.state_key == ""
+            || payload.bonus_per_unit == 0
+            || payload.max_absolute_bonus <= 0
+        )
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "summoned_unit_attack_roll_modifier requires target_selector, source_binding_id, state_key, non-zero bonus_per_unit, and positive max_absolute_bonus"
+            );
+        }
+        if (payload != null && payload.radius < 0)
+        {
+            AddError(
+                errors,
+                "EQA_SUMMON_RADIUS_INVALID",
+                $"{path}.payload.radius",
+                "summoned_unit_attack_roll_modifier radius must be >= 0"
             );
         }
     }
@@ -2191,11 +2372,21 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 TargetSelector = damage.target_selector,
                 Dice = ProjectDice(damage.dice),
                 DamageType = damage.damage_type,
+                Subtract = damage.subtract,
                 DamageTags = CopyStringNames(damage.damage_tags),
                 MitigationBypassDamageTags = CopyStringNames(
                     damage.mitigation_bypass_damage_tags
                 ),
                 MitigationBypassTiers = CopyStringNames(damage.mitigation_bypass_tiers),
+            },
+            ImmediateWeaponAttackActionPayloadDef weaponAttack => new ImmediateWeaponAttackActionPayloadDefinition
+            {
+                AnchorSelector = weaponAttack.anchor_selector,
+                TargetTeamFilter = weaponAttack.target_team_filter,
+                Radius = Math.Max(weaponAttack.radius, 0),
+                MaxAttacks = Math.Max(weaponAttack.max_attacks, 0),
+                SkillId = weaponAttack.skill_id,
+                RequireWeaponRange = weaponAttack.require_weapon_range,
             },
             DealDamageActionPayloadDef directDamage => new DealDamageActionPayloadDefinition
             {
@@ -2207,6 +2398,11 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                     directDamage.mitigation_bypass_damage_tags
                 ),
                 MitigationBypassTiers = CopyStringNames(directDamage.mitigation_bypass_tiers),
+            },
+            HealActionPayloadDef heal => new HealActionPayloadDefinition
+            {
+                TargetSelector = heal.target_selector,
+                Dice = ProjectDice(heal.dice),
             },
             AttackRollBonusActionPayloadDef attackRoll => new AttackRollBonusActionPayloadDefinition
             {
@@ -2277,6 +2473,9 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 DispellableMagic = status.dispellable_magic,
                 DispellableHarmfulMagic = status.dispellable_harmful_magic,
                 DispellableBeneficialMagic = status.dispellable_beneficial_magic,
+                LockCounterattack = status.lock_counterattack,
+                LockGuard = status.lock_guard,
+                LockDodgeBonus = status.lock_dodge_bonus,
                 TickIntervalTu = status.tick_interval_tu,
                 TimelineDamageDiceCount = status.timeline_damage_dice_count,
                 TimelineDamageDiceSides = status.timeline_damage_dice_sides,
@@ -2358,6 +2557,50 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 SkillLevel = grant.skill_level,
                 AvailabilityStateKey = grant.availability_state_key,
             },
+            SummonUnitsActionPayloadDef summon => new SummonUnitsActionPayloadDefinition
+            {
+                AnchorSelector = summon.anchor_selector,
+                StateKey = summon.state_key,
+                CountDice = ProjectDice(summon.count_dice),
+                MaxLivingUnits = summon.max_living_units,
+                DurationTu = summon.duration_tu,
+                SpawnRadius = summon.spawn_radius,
+                UnitIdPrefix = summon.unit_id_prefix,
+                UnitDisplayName = summon.unit_display_name ?? "",
+                BodySizeCategory = summon.body_size_category,
+                ControlMode = summon.control_mode,
+                AiBrainId = summon.ai_brain_id,
+                AiStateId = summon.ai_state_id,
+                HpMax = summon.hp_max,
+                ArmorClass = summon.armor_class,
+                AttackBonus = summon.attack_bonus,
+                BaseAttackBonus = summon.base_attack_bonus,
+                ActionPoints = summon.action_points,
+                MovePoints = summon.move_points,
+                CreatureTypeTags = CopyStringNames(summon.creature_type_tags),
+                MovementTags = CopyStringNames(summon.movement_tags),
+            },
+            ConsumeSummonedUnitsActionPayloadDef consume =>
+                new ConsumeSummonedUnitsActionPayloadDefinition
+                {
+                    SourceBindingId = consume.source_binding_id,
+                    StateKey = consume.state_key,
+                    Count = consume.count,
+                    SelectionMode = consume.selection_mode,
+                },
+            SummonedUnitAttackRollModifierActionPayloadDef summonedModifier =>
+                new SummonedUnitAttackRollModifierActionPayloadDefinition
+                {
+                    TargetSelector = summonedModifier.target_selector,
+                    SourceBindingId = summonedModifier.source_binding_id,
+                    StateKey = summonedModifier.state_key,
+                    Radius = summonedModifier.radius,
+                    BonusPerUnit = summonedModifier.bonus_per_unit,
+                    MaxAbsoluteBonus = summonedModifier.max_absolute_bonus,
+                    MinUnits = summonedModifier.min_units,
+                    StackMode = summonedModifier.stack_mode,
+                    Label = summonedModifier.label ?? "",
+                },
             EquipmentDurabilityDamageActionPayloadDef durability =>
                 new EquipmentDurabilityDamageActionPayloadDefinition
                 {

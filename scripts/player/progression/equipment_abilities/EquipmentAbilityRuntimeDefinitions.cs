@@ -327,11 +327,23 @@ public sealed class AddDamageDiceActionPayloadDefinition
     public StringName TargetSelector { get; init; } = "";
     public DiceExpressionDefinition Dice { get; init; }
     public StringName DamageType { get; init; } = "";
+    public bool Subtract { get; init; }
     public IReadOnlyList<StringName> DamageTags { get; init; } = Array.Empty<StringName>();
     public IReadOnlyList<StringName> MitigationBypassDamageTags { get; init; } =
         Array.Empty<StringName>();
     public IReadOnlyList<StringName> MitigationBypassTiers { get; init; } =
         Array.Empty<StringName>();
+}
+
+public sealed class ImmediateWeaponAttackActionPayloadDefinition
+    : EquipmentAbilityActionPayloadDefinition
+{
+    public StringName AnchorSelector { get; init; } = "";
+    public StringName TargetTeamFilter { get; init; } = "";
+    public int Radius { get; init; }
+    public int MaxAttacks { get; init; }
+    public StringName SkillId { get; init; } = "";
+    public bool RequireWeaponRange { get; init; }
 }
 
 public sealed class DealDamageActionPayloadDefinition
@@ -345,6 +357,13 @@ public sealed class DealDamageActionPayloadDefinition
         Array.Empty<StringName>();
     public IReadOnlyList<StringName> MitigationBypassTiers { get; init; } =
         Array.Empty<StringName>();
+}
+
+public sealed class HealActionPayloadDefinition
+    : EquipmentAbilityActionPayloadDefinition
+{
+    public StringName TargetSelector { get; init; } = "";
+    public DiceExpressionDefinition Dice { get; init; }
 }
 
 public sealed class AttackRollBonusActionPayloadDefinition
@@ -430,6 +449,9 @@ public sealed class ApplyStatusActionPayloadDefinition
     public bool DispellableMagic { get; init; }
     public bool DispellableHarmfulMagic { get; init; }
     public bool DispellableBeneficialMagic { get; init; }
+    public bool LockCounterattack { get; init; }
+    public bool LockGuard { get; init; }
+    public bool LockDodgeBonus { get; init; }
     public int TickIntervalTu { get; init; }
     public int TimelineDamageDiceCount { get; init; }
     public int TimelineDamageDiceSides { get; init; }
@@ -521,6 +543,54 @@ public sealed class GrantSkillActionPayloadDefinition
     public StringName SkillId { get; init; } = "";
     public int SkillLevel { get; init; }
     public StringName AvailabilityStateKey { get; init; } = "";
+}
+
+public sealed class SummonUnitsActionPayloadDefinition
+    : EquipmentAbilityActionPayloadDefinition
+{
+    public StringName AnchorSelector { get; init; } = "";
+    public StringName StateKey { get; init; } = "";
+    public DiceExpressionDefinition CountDice { get; init; }
+    public int MaxLivingUnits { get; init; }
+    public int DurationTu { get; init; }
+    public int SpawnRadius { get; init; }
+    public StringName UnitIdPrefix { get; init; } = "";
+    public string UnitDisplayName { get; init; } = "";
+    public StringName BodySizeCategory { get; init; } = "";
+    public StringName ControlMode { get; init; } = "";
+    public StringName AiBrainId { get; init; } = "";
+    public StringName AiStateId { get; init; } = "";
+    public int HpMax { get; init; }
+    public int ArmorClass { get; init; }
+    public int AttackBonus { get; init; }
+    public int BaseAttackBonus { get; init; }
+    public int ActionPoints { get; init; }
+    public int MovePoints { get; init; }
+    public IReadOnlyList<StringName> CreatureTypeTags { get; init; } = Array.Empty<StringName>();
+    public IReadOnlyList<StringName> MovementTags { get; init; } = Array.Empty<StringName>();
+}
+
+public sealed class ConsumeSummonedUnitsActionPayloadDefinition
+    : EquipmentAbilityActionPayloadDefinition
+{
+    public StringName SourceBindingId { get; init; } = "";
+    public StringName StateKey { get; init; } = "";
+    public int Count { get; init; }
+    public StringName SelectionMode { get; init; } = "";
+}
+
+public sealed class SummonedUnitAttackRollModifierActionPayloadDefinition
+    : EquipmentAbilityActionPayloadDefinition
+{
+    public StringName TargetSelector { get; init; } = "";
+    public StringName SourceBindingId { get; init; } = "";
+    public StringName StateKey { get; init; } = "";
+    public int Radius { get; init; }
+    public int BonusPerUnit { get; init; }
+    public int MaxAbsoluteBonus { get; init; }
+    public int MinUnits { get; init; }
+    public StringName StackMode { get; init; } = "";
+    public string Label { get; init; } = "";
 }
 
 public sealed class EquipmentDurabilityDamageActionPayloadDefinition

@@ -1747,6 +1747,10 @@ internal sealed class BattleAiMutationGuard
         private bool _summoned;
         private bool _temporaryUnit;
         private StringName _summonSourceUnitId = "";
+        private StringName _summonSourceEquipmentInstanceId = "";
+        private StringName _summonBindingId = "";
+        private StringName _summonStateKey = "";
+        private int _summonExpiresAtTu = -1;
 
         public static BattleAiBlackboardSnapshot Capture(BattleAiBlackboard blackboard)
         {
@@ -1777,6 +1781,11 @@ internal sealed class BattleAiMutationGuard
             snapshot._summoned = blackboard.summoned;
             snapshot._temporaryUnit = blackboard.temporary_unit;
             snapshot._summonSourceUnitId = blackboard.summon_source_unit_id;
+            snapshot._summonSourceEquipmentInstanceId =
+                blackboard.summon_source_equipment_instance_id;
+            snapshot._summonBindingId = blackboard.summon_binding_id;
+            snapshot._summonStateKey = blackboard.summon_state_key;
+            snapshot._summonExpiresAtTu = blackboard.summon_expires_at_tu;
             return snapshot;
         }
 
@@ -1801,6 +1810,10 @@ internal sealed class BattleAiMutationGuard
                 summoned = _summoned,
                 temporary_unit = _temporaryUnit,
                 summon_source_unit_id = _summonSourceUnitId,
+                summon_source_equipment_instance_id = _summonSourceEquipmentInstanceId,
+                summon_binding_id = _summonBindingId,
+                summon_state_key = _summonStateKey,
+                summon_expires_at_tu = _summonExpiresAtTu,
             };
             if (_hasTurnStartedTu)
             {
@@ -1862,6 +1875,13 @@ internal sealed class BattleAiMutationGuard
                 "summon_source_unit_id",
                 StableValue.FromText(_summonSourceUnitId.ToString())
             );
+            result.Set(
+                "summon_source_equipment_instance_id",
+                StableValue.FromText(_summonSourceEquipmentInstanceId.ToString())
+            );
+            result.Set("summon_binding_id", StableValue.FromText(_summonBindingId.ToString()));
+            result.Set("summon_state_key", StableValue.FromText(_summonStateKey.ToString()));
+            result.Set("summon_expires_at_tu", StableValue.FromInteger(_summonExpiresAtTu));
             return result;
         }
     }

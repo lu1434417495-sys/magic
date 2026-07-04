@@ -346,10 +346,11 @@ internal sealed partial class BattleSkillExecutionOrchestrator
 
     internal void _collect_defeated_unit_loot(
         BattleUnitState unit_state,
-        BattleUnitState killer_unit = null
+        BattleUnitState killer_unit = null,
+        BattleEventBatch batch = null
     )
     {
-        Runtime?._collect_defeated_unit_loot(unit_state, killer_unit);
+        Runtime?._collect_defeated_unit_loot(unit_state, killer_unit, batch);
     }
 
     internal void _clear_defeated_unit(BattleUnitState unit_state, BattleEventBatch batch = null)
@@ -518,6 +519,8 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         {
             _record_skill_attempt(active_unit, command?.skill_id ?? new StringName(""));
             Runtime?._skill_mastery_service.Clear();
+            BattleSkillUseOutcomeSnapshot outcomeSnapshot =
+                CaptureSkillUseOutcomeSnapshot(command, allowRepeat);
             bool definitionApplied = _handle_unit_skill_command(
                 active_unit,
                 command,
@@ -528,7 +531,12 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             );
             if (definitionApplied)
             {
-                Runtime?.CommitEquipmentSkillUsageIfNeeded(active_unit, command, batch);
+                Runtime?.CommitEquipmentSkillUsageIfNeeded(
+                    active_unit,
+                    command,
+                    batch,
+                    BuildEquipmentSkillUseOutcome(outcomeSnapshot)
+                );
                 _grant_skill_mastery_if_needed(active_unit, skillDefinition, batch);
             }
             Runtime?._skill_mastery_service.Clear();
@@ -605,6 +613,102 @@ internal sealed partial class BattleSkillExecutionOrchestrator
 
         Runtime?._skill_mastery_service.Clear();
         return;
+    }
+
+    private BattleSkillUseOutcomeSnapshot CaptureSkillUseOutcomeSnapshot(
+        BattleCommand command,
+        bool allowRepeat
+    )
+    {
+        BattleState state = RtState();
+        if (state == null || command == null)
+            return BattleSkillUseOutcomeSnapshot.Empty;
+        GStringNameArray targetUnitIds = _normalize_target_unit_ids(command, allowRepeat);
+        var snapshots = new Dictionary<StringName, BattleSkillTargetBeforeState>();
+        foreach (StringName rawId in targetUnitIds)
+        {
+            StringName unitId = ProgressionDataUtils.to_string_name(rawId);
+            if (unitId == "" || snapshots.ContainsKey(unitId))
+                continue;
+            if (!state.TryGetUnitTyped(unitId, out BattleUnitState targetUnit) || targetUnit == null)
+                continue;
+            snapshots[unitId] = new BattleSkillTargetBeforeState(
+                targetUnit.current_hp,
+                targetUnit.is_alive
+            );
+        }
+        return snapshots.Count == 0
+            ? BattleSkillUseOutcomeSnapshot.Empty
+            : new BattleSkillUseOutcomeSnapshot(snapshots);
+    }
+
+    private BattleEquipmentSkillUseOutcome BuildEquipmentSkillUseOutcome(
+        BattleSkillUseOutcomeSnapshot snapshot
+    )
+    {
+        if (snapshot == null || snapshot.Targets.Count == 0)
+            return BattleEquipmentSkillUseOutcome.Empty;
+        BattleState state = RtState();
+        if (state == null)
+            return BattleEquipmentSkillUseOutcome.Empty;
+
+        var targetUnitIds = new List<StringName>();
+        int damagedTargetCount = 0;
+        int killedTargetCount = 0;
+        int hpDamageDealt = 0;
+        foreach (KeyValuePair<StringName, BattleSkillTargetBeforeState> entry in snapshot.Targets)
+        {
+            StringName unitId = entry.Key;
+            if (unitId == "")
+                continue;
+            targetUnitIds.Add(unitId);
+            if (!state.TryGetUnitTyped(unitId, out BattleUnitState targetUnit) || targetUnit == null)
+                continue;
+            int hpDamage = Math.Max(entry.Value.HpBefore - targetUnit.current_hp, 0);
+            if (hpDamage > 0)
+            {
+                damagedTargetCount++;
+                hpDamageDealt += hpDamage;
+            }
+            if (entry.Value.WasAlive && !targetUnit.is_alive)
+                killedTargetCount++;
+        }
+
+        return new BattleEquipmentSkillUseOutcome
+        {
+            TargetUnitIds = targetUnitIds,
+            DamagedTargetCount = damagedTargetCount,
+            KilledTargetCount = killedTargetCount,
+            HpDamageDealt = hpDamageDealt,
+        };
+    }
+
+    private sealed class BattleSkillUseOutcomeSnapshot
+    {
+        internal static readonly BattleSkillUseOutcomeSnapshot Empty = new(
+            new Dictionary<StringName, BattleSkillTargetBeforeState>()
+        );
+
+        internal BattleSkillUseOutcomeSnapshot(
+            IReadOnlyDictionary<StringName, BattleSkillTargetBeforeState> targets
+        )
+        {
+            Targets = targets ?? new Dictionary<StringName, BattleSkillTargetBeforeState>();
+        }
+
+        internal IReadOnlyDictionary<StringName, BattleSkillTargetBeforeState> Targets { get; }
+    }
+
+    private readonly struct BattleSkillTargetBeforeState
+    {
+        internal BattleSkillTargetBeforeState(int hpBefore, bool wasAlive)
+        {
+            HpBefore = Math.Max(hpBefore, 0);
+            WasAlive = wasAlive;
+        }
+
+        internal int HpBefore { get; }
+        internal bool WasAlive { get; }
     }
 
     internal bool ResolvePendingCast(
@@ -2639,11 +2743,13 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         {
             return false;
         }
+        bool allowDeadTargets = SkillAllowsDeadUnitTargets(skillDefinition, cast_variant);
         if (
             !_is_unit_valid_for_effect(
                 active_unit,
                 target_unit,
-                combatProfile.TargetTeamFilter
+                combatProfile.TargetTeamFilter,
+                allowDeadTargets
             )
         )
         {
@@ -2694,11 +2800,13 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         {
             return false;
         }
+        bool allowDeadTargets = SkillAllowsDeadUnitTargets(skillDefinition, cast_variant);
         if (
             !_is_unit_valid_for_effect(
                 active_unit,
                 target_unit,
-                combatProfile.TargetTeamFilter
+                combatProfile.TargetTeamFilter,
+                allowDeadTargets
             )
         )
         {
@@ -2720,6 +2828,35 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         return Runtime?.GetGridService().GetDistanceBetweenUnits(active_unit, target_unit)
             <= _get_effective_skill_range(active_unit, skillDefinition);
     }
+
+    private static bool SkillAllowsDeadUnitTargets(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
+    )
+    {
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (
+            combatProfile == null
+            || !BattleTargetTeamRules.IsBeneficialFilter(combatProfile.TargetTeamFilter)
+        )
+        {
+            return false;
+        }
+        foreach (CombatEffectDefinition effect in combatProfile.EffectDefinitions ?? Array.Empty<CombatEffectDefinition>())
+        {
+            if (IsRevivingHealEffect(effect))
+                return true;
+        }
+        foreach (CombatEffectDefinition effect in castVariant?.EffectDefinitions ?? Array.Empty<CombatEffectDefinition>())
+        {
+            if (IsRevivingHealEffect(effect))
+                return true;
+        }
+        return false;
+    }
+
+    private static bool IsRevivingHealEffect(CombatEffectDefinition effect) =>
+        effect?.EffectKind is BattleEffectKind.Heal or BattleEffectKind.HealFatal;
 
     internal BattleUnitSkillTargetAffordance GetUnitSkillTargetAffordance(
         BattleUnitState activeUnit,

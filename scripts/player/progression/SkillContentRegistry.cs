@@ -1578,28 +1578,52 @@ public class SkillContentRegistry : System.IDisposable
             effectDef.effect_target_team_filter,
             "enemy"
         );
-        RequireStringName(
-            errors,
-            skillId,
-            $"{contextLabel}.save_dc_mode",
-            effectDef.save_dc_mode,
-            BattleSaveContentRules.ToStringName(BattleSaveDcMode.CasterSpell)
+        BattleSaveDcMode saveDcMode = effectDef.SaveDcModeKind;
+        if (
+            saveDcMode != BattleSaveDcMode.Static
+            && saveDcMode != BattleSaveDcMode.CasterSpell
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel}.save_dc_mode must be static or caster_spell."
+            );
+        }
+        if (saveDcMode == BattleSaveDcMode.Static && effectDef.save_dc <= 0)
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel}.save_dc must be > 0 for static execute saves."
+            );
+        }
+        if (saveDcMode == BattleSaveDcMode.CasterSpell && effectDef.save_dc != 0)
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel}.save_dc must be 0 for caster_spell execute saves."
+            );
+        }
+        StringName saveDcSourceAbility = ProgressionDataUtils.to_string_name(
+            effectDef.save_dc_source_ability
         );
-        RequireInt(errors, skillId, $"{contextLabel}.save_dc", effectDef.save_dc, 0);
-        RequireStringName(
-            errors,
-            skillId,
-            $"{contextLabel}.save_dc_source_ability",
-            effectDef.save_dc_source_ability,
-            UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Intelligence)
-        );
-        RequireStringName(
-            errors,
-            skillId,
-            $"{contextLabel}.save_ability",
-            effectDef.save_ability,
-            UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower)
-        );
+        if (saveDcMode == BattleSaveDcMode.CasterSpell)
+        {
+            if (!BattleSaveContentRules.IsValidSaveAbility(saveDcSourceAbility))
+            {
+                errors.Add(
+                    $"Skill {skillId} effect {contextLabel}.save_dc_source_ability must be a valid base ability for caster_spell execute saves."
+                );
+            }
+        }
+        else if (saveDcSourceAbility != "")
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel}.save_dc_source_ability must be empty unless save_dc_mode is caster_spell."
+            );
+        }
+        if (!BattleSaveContentRules.IsValidSaveAbility(effectDef.save_ability))
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel}.save_ability must be a valid base ability."
+            );
+        }
         RequireStringName(
             errors,
             skillId,
@@ -1607,7 +1631,12 @@ public class SkillContentRegistry : System.IDisposable
             effectDef.save_tag,
             BattleSaveContentRules.ToStringName(BattleSaveTagKind.Execute)
         );
-        RequireStringName(errors, skillId, $"{contextLabel}.damage_tag", effectDef.damage_tag, "negative_energy");
+        if (DamageTagContentRules.ToDamageTagKind(effectDef.damage_tag) == DamageTagKind.Unknown)
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel}.damage_tag must be one of {DamageTagContentRules.ValidDamageTagLabel()}."
+            );
+        }
         RequireBool(
             errors,
             skillId,
@@ -1880,6 +1909,13 @@ public class SkillContentRegistry : System.IDisposable
             effectDef,
             contextLabel
         );
+        AppendExtraDamageSegmentValidationErrors(errors, skillId, effectDef, contextLabel);
+        AppendTargetDamageMultiplierRuleValidationErrors(
+            errors,
+            skillId,
+            effectDef,
+            contextLabel
+        );
 
         if (effectDef.hp_ratio_threshold_percent < 0 || effectDef.hp_ratio_threshold_percent > 100)
             errors.Add(
@@ -1923,6 +1959,218 @@ public class SkillContentRegistry : System.IDisposable
             errors.Add(
                 $"Skill {skillId} damage effect in {contextLabel} bonus_damage_dice_sides must be positive."
             );
+    }
+
+    private static void AppendExtraDamageSegmentValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        CombatEffectDef effectDef,
+        string contextLabel
+    )
+    {
+        if (effectDef?.extra_damage_segments == null)
+            return;
+        for (int index = 0; index < effectDef.extra_damage_segments.Count; index++)
+        {
+            CombatDamageSegmentDef segment = effectDef.extra_damage_segments[index];
+            if (segment == null)
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} extra_damage_segments[{index}] must be set."
+                );
+                continue;
+            }
+            if (segment.damage_tag == "")
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} extra_damage_segments[{index}] must declare damage_tag."
+                );
+            }
+            else if (DamageTagContentRules.ToDamageTagKind(segment.damage_tag) == DamageTagKind.Unknown)
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} extra_damage_segments[{index}] uses unsupported damage_tag {segment.damage_tag}; expected one of {DamageTagContentRules.ValidDamageTagLabel()}."
+                );
+            }
+            bool hasDamageBudget =
+                segment.power > 0
+                || segment.dice_count > 0
+                || segment.dice_sides > 0
+                || segment.dice_bonus != 0;
+            if (!hasDamageBudget)
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} extra_damage_segments[{index}] must set power or dice_count/dice_sides."
+                );
+            }
+            if (
+                (segment.dice_count > 0 || segment.dice_sides > 0 || segment.dice_bonus != 0)
+                && (segment.dice_count < 1 || segment.dice_sides < 1)
+            )
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} extra_damage_segments[{index}] must set dice_count and dice_sides >= 1 together."
+                );
+            }
+            for (int damageTagIndex = 0; damageTagIndex < segment.damage_tags.Count; damageTagIndex++)
+            {
+                StringName damageTag = ProgressionDataUtils.to_string_name(
+                    segment.damage_tags[damageTagIndex]
+                );
+                if (
+                    damageTag == ""
+                    || DamageTagContentRules.ToDamageTagKind(damageTag) == DamageTagKind.Unknown
+                )
+                {
+                    errors.Add(
+                        $"Skill {skillId} damage effect in {contextLabel} extra_damage_segments[{index}].damage_tags[{damageTagIndex}] must be one of {DamageTagContentRules.ValidDamageTagLabel()}."
+                    );
+                }
+            }
+            AppendDamageSegmentMitigationBypassValidationErrors(
+                errors,
+                skillId,
+                contextLabel,
+                segment,
+                index
+            );
+        }
+    }
+
+    private static void AppendDamageSegmentMitigationBypassValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        string contextLabel,
+        CombatDamageSegmentDef segment,
+        int segmentIndex
+    )
+    {
+        int damageTagCount = segment.mitigation_bypass_damage_tags?.Count ?? 0;
+        int tierCount = segment.mitigation_bypass_tiers?.Count ?? 0;
+        if (damageTagCount == 0 && tierCount == 0)
+            return;
+        if (damageTagCount == 0 || tierCount == 0)
+        {
+            errors.Add(
+                $"Skill {skillId} damage effect in {contextLabel} extra_damage_segments[{segmentIndex}] mitigation bypass requires both mitigation_bypass_damage_tags and mitigation_bypass_tiers."
+            );
+        }
+        for (int index = 0; index < damageTagCount; index++)
+        {
+            StringName bypassDamageTag = ProgressionDataUtils.to_string_name(
+                segment.mitigation_bypass_damage_tags[index]
+            );
+            if (DamageTagContentRules.ToDamageTagKind(bypassDamageTag) == DamageTagKind.Unknown)
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} extra_damage_segments[{segmentIndex}].mitigation_bypass_damage_tags[{index}] uses unsupported damage tag {bypassDamageTag}; expected one of {DamageTagContentRules.ValidDamageTagLabel()}."
+                );
+            }
+        }
+        for (int index = 0; index < tierCount; index++)
+        {
+            StringName tier = ProgressionDataUtils.to_string_name(
+                segment.mitigation_bypass_tiers[index]
+            );
+            if (
+                DamageTagContentRules.ToMitigationTierKind(tier)
+                == DamageMitigationTierKind.Unknown
+            )
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} extra_damage_segments[{segmentIndex}].mitigation_bypass_tiers[{index}] uses unsupported mitigation tier {tier}; expected one of {DamageTagContentRules.ValidMitigationTierLabel()}."
+                );
+            }
+        }
+    }
+
+    private static void AppendTargetDamageMultiplierRuleValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        CombatEffectDef effectDef,
+        string contextLabel
+    )
+    {
+        if (effectDef?.target_damage_multiplier_rules == null)
+            return;
+        for (int index = 0; index < effectDef.target_damage_multiplier_rules.Count; index++)
+        {
+            CombatTargetDamageMultiplierRuleDef rule =
+                effectDef.target_damage_multiplier_rules[index];
+            if (rule == null)
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} target_damage_multiplier_rules[{index}] must be set."
+                );
+                continue;
+            }
+            if (rule.multiplier_percent < 0)
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} target_damage_multiplier_rules[{index}] multiplier_percent must be >= 0."
+                );
+            }
+            bool hasTargetCondition =
+                (rule.any_creature_type_tags?.Count ?? 0) > 0
+                || (rule.all_creature_type_tags?.Count ?? 0) > 0;
+            if (!hasTargetCondition)
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} target_damage_multiplier_rules[{index}] must declare any_creature_type_tags or all_creature_type_tags."
+                );
+            }
+            AppendStringNameListValidationErrors(
+                errors,
+                skillId,
+                contextLabel,
+                $"target_damage_multiplier_rules[{index}].any_creature_type_tags",
+                rule.any_creature_type_tags
+            );
+            AppendStringNameListValidationErrors(
+                errors,
+                skillId,
+                contextLabel,
+                $"target_damage_multiplier_rules[{index}].all_creature_type_tags",
+                rule.all_creature_type_tags
+            );
+            AppendStringNameListValidationErrors(
+                errors,
+                skillId,
+                contextLabel,
+                $"target_damage_multiplier_rules[{index}].excluded_creature_type_tags",
+                rule.excluded_creature_type_tags
+            );
+        }
+    }
+
+    private static void AppendStringNameListValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        string contextLabel,
+        string fieldLabel,
+        Godot.Collections.Array<StringName> values
+    )
+    {
+        if (values == null)
+            return;
+        var seen = new HashSet<StringName>();
+        for (int index = 0; index < values.Count; index++)
+        {
+            StringName value = ProgressionDataUtils.to_string_name(values[index]);
+            if (value == "")
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} {fieldLabel}[{index}] must be non-empty."
+                );
+                continue;
+            }
+            if (!seen.Add(value))
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} {fieldLabel} repeats {value}."
+                );
+            }
+        }
     }
 
     private static void AppendDamageEffectMitigationBypassValidationErrors(

@@ -4,6 +4,9 @@ using System.Collections.Generic;
 
 internal static class EquipmentAbilityUsageRuntime
 {
+    internal static readonly StringName PerActionTurnUseExhaustedReason =
+        "equipment_skill_turn_use_exhausted";
+
     internal static bool IsAvailableForGrant(
         BattleUnitState unit,
         BattleEquipmentAbilitySourceState source,
@@ -30,9 +33,6 @@ internal static class EquipmentAbilityUsageRuntime
             disabledReason = "equipment_skill_availability_blocked";
             return false;
         }
-        if (!IsLimited(grant))
-            return true;
-
         if (grant.UsagePeriodKind == EquipmentAbilityUsagePeriodKind.PerBattle)
         {
             StringName chargeKey = BuildPerBattleChargeKey(source, grant);
@@ -46,38 +46,46 @@ internal static class EquipmentAbilityUsageRuntime
                 || unit.GetPerBattleChargeTyped(chargeKey, Math.Max(grant.MaxUsesPerPeriod, 1)) > 0;
             if (!available)
                 disabledReason = "equipment_skill_usage_exhausted";
-            return available;
+            if (!available)
+                return false;
+        }
+        else if (IsLimited(grant))
+        {
+            int periodIndex = ResolvePeriodIndex(grant.UsagePeriodKind, worldStep);
+            if (periodIndex < 0)
+            {
+                disabledReason = "equipment_skill_usage_unavailable";
+                return false;
+            }
+
+            EquipmentInstanceState instance = FindEquipmentInstance(
+                unit,
+                source?.SourceEquipmentInstanceId ?? new StringName("")
+            );
+            if (instance == null)
+            {
+                disabledReason = "equipment_skill_usage_unavailable";
+                return false;
+            }
+
+            int usedCount = GetUsedCount(
+                instance,
+                grant.GrantedActionId,
+                grant.UsagePeriodKind,
+                periodIndex
+            );
+            if (usedCount >= Math.Max(grant.MaxUsesPerPeriod, 1))
+            {
+                disabledReason = "equipment_skill_usage_exhausted";
+                return false;
+            }
         }
 
-        int periodIndex = ResolvePeriodIndex(grant.UsagePeriodKind, worldStep);
-        if (periodIndex < 0)
+        if (HasPerActionTurnUse(unit, source, grant))
         {
-            disabledReason = "equipment_skill_usage_unavailable";
+            disabledReason = PerActionTurnUseExhaustedReason;
             return false;
         }
-
-        EquipmentInstanceState instance = FindEquipmentInstance(
-            unit,
-            source?.SourceEquipmentInstanceId ?? new StringName("")
-        );
-        if (instance == null)
-        {
-            disabledReason = "equipment_skill_usage_unavailable";
-            return false;
-        }
-
-        int usedCount = GetUsedCount(
-            instance,
-            grant.GrantedActionId,
-            grant.UsagePeriodKind,
-            periodIndex
-        );
-        if (usedCount >= Math.Max(grant.MaxUsesPerPeriod, 1))
-        {
-            disabledReason = "equipment_skill_usage_exhausted";
-            return false;
-        }
-
         return true;
     }
 
@@ -202,7 +210,58 @@ internal static class EquipmentAbilityUsageRuntime
                 : unit.GetPerTurnChargeTyped(chargeKey, InitialStateValue(stateBinding, query.StateKey));
             return true;
         }
+        if (query.QueryKind == "fact" && query.FactId == "summoned_unit_count")
+        {
+            EquipmentAbilityBindingDefinition summonBinding = ResolveStateBinding(
+                query.BindingId,
+                binding,
+                bindingIndex
+            );
+            value = CountLivingSummonedUnits(
+                battleState,
+                unit,
+                source,
+                summonBinding?.BindingId ?? query.BindingId,
+                query.StateKey
+            );
+            return true;
+        }
         return false;
+    }
+
+    private static int CountLivingSummonedUnits(
+        BattleState battleState,
+        BattleUnitState sourceUnit,
+        BattleEquipmentAbilitySourceState source,
+        StringName bindingId,
+        StringName stateKey
+    )
+    {
+        if (battleState == null || sourceUnit == null)
+            return 0;
+        int count = 0;
+        StringName sourceEquipmentInstanceId = source?.SourceEquipmentInstanceId ?? "";
+        foreach (BattleUnitState unit in battleState.GetUnitsTyped())
+        {
+            BattleAiBlackboard blackboard = unit?.ai_blackboard;
+            if (unit == null || !unit.is_alive || blackboard?.summoned != true)
+                continue;
+            if (blackboard.summon_source_unit_id != sourceUnit.unit_id)
+                continue;
+            if (
+                sourceEquipmentInstanceId != ""
+                && blackboard.summon_source_equipment_instance_id != sourceEquipmentInstanceId
+            )
+            {
+                continue;
+            }
+            if (bindingId != "" && blackboard.summon_binding_id != bindingId)
+                continue;
+            if (stateKey != "" && blackboard.summon_state_key != stateKey)
+                continue;
+            count++;
+        }
+        return count;
     }
 
     private static EquipmentAbilityBindingDefinition ResolveStateBinding(
@@ -302,13 +361,35 @@ internal static class EquipmentAbilityUsageRuntime
             unit == null
             || entry == null
             || entry.EntryRef.SourceKind != BattleSkillEntrySourceKind.EquipmentSkill
-            || !EquipmentAbilityUsagePeriodKinds.IsLimited(entry.EquipmentUsagePeriodKind)
-            || entry.EquipmentMaxUsesPerPeriod <= 0
         )
         {
             return false;
         }
 
+        if (HasPerActionTurnUse(unit, entry))
+            return false;
+
+        bool committedPeriodUsage = false;
+        if (
+            EquipmentAbilityUsagePeriodKinds.IsLimited(entry.EquipmentUsagePeriodKind)
+            && entry.EquipmentMaxUsesPerPeriod > 0
+        )
+        {
+            if (!TryCommitLimitedUsage(unit, entry, worldStep))
+                return false;
+            committedPeriodUsage = true;
+        }
+
+        bool committedTurnUsage = TryCommitPerActionTurnUse(unit, entry);
+        return committedPeriodUsage || committedTurnUsage;
+    }
+
+    private static bool TryCommitLimitedUsage(
+        BattleUnitState unit,
+        BattleAvailableSkillEntry entry,
+        int worldStep
+    )
+    {
         if (entry.EquipmentUsagePeriodKind == EquipmentAbilityUsagePeriodKind.PerBattle)
         {
             StringName chargeKey = BuildPerBattleChargeKey(entry);
@@ -410,6 +491,37 @@ internal static class EquipmentAbilityUsageRuntime
         && EquipmentAbilityUsagePeriodKinds.IsLimited(grant.UsagePeriodKind)
         && grant.MaxUsesPerPeriod > 0;
 
+    private static bool HasPerActionTurnUse(
+        BattleUnitState unit,
+        BattleEquipmentAbilitySourceState source,
+        EquipmentGrantedActionDefinition grant
+    )
+    {
+        StringName chargeKey = BuildPerActionTurnUseKey(source, grant);
+        return unit != null && chargeKey != "" && unit.HasPerTurnChargeTyped(chargeKey);
+    }
+
+    private static bool HasPerActionTurnUse(
+        BattleUnitState unit,
+        BattleAvailableSkillEntry entry
+    )
+    {
+        StringName chargeKey = BuildPerActionTurnUseKey(entry);
+        return unit != null && chargeKey != "" && unit.HasPerTurnChargeTyped(chargeKey);
+    }
+
+    private static bool TryCommitPerActionTurnUse(
+        BattleUnitState unit,
+        BattleAvailableSkillEntry entry
+    )
+    {
+        StringName chargeKey = BuildPerActionTurnUseKey(entry);
+        if (unit == null || chargeKey == "" || unit.HasPerTurnChargeTyped(chargeKey))
+            return false;
+        unit.SetPerTurnChargeTyped(chargeKey, 1);
+        return true;
+    }
+
     private static StringName BuildPerBattleChargeKey(
         BattleEquipmentAbilitySourceState source,
         EquipmentGrantedActionDefinition grant
@@ -428,6 +540,37 @@ internal static class EquipmentAbilityUsageRuntime
             return "";
         return new StringName(
             $"equipment_skill:{entry.EntryRef.SourceEquipmentInstanceId}:{entry.EquipmentGrantedActionId}"
+        );
+    }
+
+    private static StringName BuildPerActionTurnUseKey(
+        BattleEquipmentAbilitySourceState source,
+        EquipmentGrantedActionDefinition grant
+    )
+    {
+        if (source == null || grant == null || grant.GrantedActionId == "")
+            return "";
+        StringName ownerSourceKey = source.SourceEquipmentInstanceId;
+        if (ownerSourceKey == "")
+            ownerSourceKey = source.EquipmentDefId;
+        if (ownerSourceKey == "")
+            ownerSourceKey = source.EffectiveInstanceKey;
+        if (ownerSourceKey == "")
+            return "";
+        return new StringName(
+            $"equipment_skill_turn_use:{ownerSourceKey}:{grant.GrantedActionId}"
+        );
+    }
+
+    private static StringName BuildPerActionTurnUseKey(BattleAvailableSkillEntry entry)
+    {
+        if (entry?.EntryRef == null || entry.EquipmentGrantedActionId == "")
+            return "";
+        StringName ownerSourceKey = entry.EntryRef.SourceEquipmentInstanceId;
+        if (ownerSourceKey == "")
+            return "";
+        return new StringName(
+            $"equipment_skill_turn_use:{ownerSourceKey}:{entry.EquipmentGrantedActionId}"
         );
     }
 

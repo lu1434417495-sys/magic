@@ -578,6 +578,7 @@ public sealed partial class BattleRuntimeModule
 
     internal void _collect_defeated_unit_loot(
         BattleUnitState unit_state,
-        BattleUnitState killer_unit = null
-    ) => _loot_resolver.CollectDefeatedUnitLoot(unit_state, killer_unit);
+        BattleUnitState killer_unit = null,
+        BattleEventBatch batch = null
+    ) => _loot_resolver.CollectDefeatedUnitLoot(unit_state, killer_unit, batch);
 }

@@ -27,6 +27,8 @@ internal sealed class BattleEquipmentAbilityOnKillContext
 {
     public BattleUnitState SourceUnit { get; init; }
     public BattleUnitState DefeatedUnit { get; init; }
+    public BattleState BattleState { get; init; }
+    public BattleEventBatch Batch { get; init; }
     public BattleSaveContext SaveContext { get; init; } = BattleSaveContext.Empty;
 }
 
@@ -40,6 +42,18 @@ internal sealed class BattleEquipmentAbilityGrantedSkillUsedContext
     public StringName GrantedActionId { get; init; } = "";
     public StringName SkillId { get; init; } = "";
     public StringName SkillEntryId { get; init; } = "";
+    public BattleEquipmentSkillUseOutcome SkillOutcome { get; init; } =
+        BattleEquipmentSkillUseOutcome.Empty;
+}
+
+internal sealed class BattleEquipmentSkillUseOutcome
+{
+    public static readonly BattleEquipmentSkillUseOutcome Empty = new();
+
+    public IReadOnlyList<StringName> TargetUnitIds { get; init; } = Array.Empty<StringName>();
+    public int DamagedTargetCount { get; init; }
+    public int KilledTargetCount { get; init; }
+    public int HpDamageDealt { get; init; }
 }
 
 internal sealed class BattleEquipmentAbilityDamageRollModeContext
@@ -73,18 +87,27 @@ internal readonly struct EquipmentAbilityFactContext
     internal readonly int CurrentTu;
     internal readonly BattleState BattleState;
     internal readonly int HpDamage;
+    internal readonly int SkillDamagedTargetCount;
+    internal readonly int SkillKilledTargetCount;
+    internal readonly int SkillHpDamageDealt;
 
     private EquipmentAbilityFactContext(
         bool criticalHit,
         int currentTu,
         BattleState battleState,
-        int hpDamage = 0
+        int hpDamage = 0,
+        int skillDamagedTargetCount = 0,
+        int skillKilledTargetCount = 0,
+        int skillHpDamageDealt = 0
     )
     {
         CriticalHit = criticalHit;
         CurrentTu = currentTu;
         BattleState = battleState;
         HpDamage = Math.Max(hpDamage, 0);
+        SkillDamagedTargetCount = Math.Max(skillDamagedTargetCount, 0);
+        SkillKilledTargetCount = Math.Max(skillKilledTargetCount, 0);
+        SkillHpDamageDealt = Math.Max(skillHpDamageDealt, 0);
     }
 
     internal static EquipmentAbilityFactContext Empty => new(false, -1, null);
@@ -124,6 +147,22 @@ internal readonly struct EquipmentAbilityFactContext
         context?.BattleState,
         context?.HpDamage ?? 0
     );
+
+    internal static EquipmentAbilityFactContext FromGrantedSkillUsed(
+        BattleEquipmentAbilityGrantedSkillUsedContext context
+    )
+    {
+        BattleEquipmentSkillUseOutcome outcome =
+            context?.SkillOutcome ?? BattleEquipmentSkillUseOutcome.Empty;
+        return new(
+            false,
+            Math.Max(context?.BattleState?.timeline?.current_tu ?? -1, -1),
+            context?.BattleState,
+            skillDamagedTargetCount: outcome.DamagedTargetCount,
+            skillKilledTargetCount: outcome.KilledTargetCount,
+            skillHpDamageDealt: outcome.HpDamageDealt
+        );
+    }
 }
 
 internal sealed class BattleEquipmentAbilityRollResult
@@ -151,6 +190,7 @@ internal sealed class BattleEquipmentAbilityBonusDamageDiceResult
     public int DiceCount { get; init; }
     public int DiceSides { get; init; }
     public int FlatBonus { get; init; }
+    public bool Subtract { get; init; }
     public StringName DamageType { get; init; } = "";
     public IReadOnlyList<StringName> DamageTags { get; init; } = Array.Empty<StringName>();
     public IReadOnlyList<StringName> MitigationBypassDamageTags { get; init; } =
@@ -299,12 +339,22 @@ internal sealed class BattleEquipmentAbilityOnKillResult
     private readonly List<BattleEquipmentAbilityLootQuantityMultiplierResult> _lootMultipliers =
         new();
     private readonly List<BattleEquipmentAbilityStatusActionResult> _statusResults = new();
+    private readonly List<BattleEquipmentAbilitySummonResult> _summonResults = new();
+    private readonly List<BattleEquipmentAbilityImmediateWeaponAttackResult>
+        _immediateWeaponAttackResults = new();
 
-    public bool Resolved => _lootMultipliers.Count > 0 || _statusResults.Count > 0;
+    public bool Resolved =>
+        _lootMultipliers.Count > 0
+        || _statusResults.Count > 0
+        || _summonResults.Count > 0
+        || _immediateWeaponAttackResults.Count > 0;
     public IReadOnlyList<BattleEquipmentAbilityLootQuantityMultiplierResult> LootMultipliers =>
         _lootMultipliers;
     public IReadOnlyList<BattleEquipmentAbilityStatusActionResult> StatusResults =>
         _statusResults;
+    public IReadOnlyList<BattleEquipmentAbilitySummonResult> SummonResults => _summonResults;
+    public IReadOnlyList<BattleEquipmentAbilityImmediateWeaponAttackResult>
+        ImmediateWeaponAttackResults => _immediateWeaponAttackResults;
 
     internal void AddLootMultiplier(BattleEquipmentAbilityLootQuantityMultiplierResult result)
     {
@@ -317,12 +367,46 @@ internal sealed class BattleEquipmentAbilityOnKillResult
         if (result != null)
             _statusResults.Add(result);
     }
+
+    internal void AddSummonResult(BattleEquipmentAbilitySummonResult result)
+    {
+        if (result != null)
+            _summonResults.Add(result);
+    }
+
+    internal void AddImmediateWeaponAttackResult(
+        BattleEquipmentAbilityImmediateWeaponAttackResult result
+    )
+    {
+        if (result != null)
+            _immediateWeaponAttackResults.Add(result);
+    }
+}
+
+internal sealed class BattleEquipmentAbilitySummonResult
+{
+    public StringName BindingId { get; init; } = "";
+    public StringName ActionId { get; init; } = "";
+    public int RequestedCount { get; init; }
+    public int CreatedCount { get; init; }
+}
+
+internal sealed class BattleEquipmentAbilityImmediateWeaponAttackResult
+{
+    public StringName BindingId { get; init; } = "";
+    public StringName ActionId { get; init; } = "";
+    public StringName TargetUnitId { get; init; } = "";
+    public bool Applied { get; init; }
+    public int Damage { get; init; }
 }
 
 internal sealed class BattleEquipmentAbilityRuntimeService
 {
     private static readonly StringName ActionKindAddDamageDice = "add_damage_dice";
+    private static readonly StringName ActionKindImmediateWeaponAttack =
+        "immediate_weapon_attack";
     private static readonly StringName ActionKindDealDamage = "deal_damage";
+    private static readonly StringName ActionKindHeal = "heal";
     private static readonly StringName ActionKindAttackRollBonus = "attack_roll_bonus";
     private static readonly StringName ActionKindAttackRollAdvantage = "attack_roll_advantage";
     private static readonly StringName ActionKindAttackDefenseModifier =
@@ -338,6 +422,11 @@ internal sealed class BattleEquipmentAbilityRuntimeService
         "equipment_durability_damage";
     private static readonly StringName ActionKindLootQuantityMultiplier =
         "loot_quantity_multiplier";
+    private static readonly StringName ActionKindSummonUnits = "summon_units";
+    private static readonly StringName ActionKindConsumeSummonedUnits =
+        "consume_summoned_units";
+    private static readonly StringName ActionKindSummonedUnitAttackRollModifier =
+        "summoned_unit_attack_roll_modifier";
     private static readonly StringName ConditionKindCompareFact = "compare_fact";
     private static readonly StringName ConditionKindHasEquipmentTag = "has_equipment_tag";
     private static readonly StringName FactCreatureTypeTags = "creature_type_tags";
@@ -345,6 +434,12 @@ internal sealed class BattleEquipmentAbilityRuntimeService
     private static readonly StringName FactHpPercentBp = "hp_percent_bp";
     private static readonly StringName FactCriticalHit = "critical_hit";
     private static readonly StringName FactHpDamage = "hp_damage";
+    private static readonly StringName FactSkillDamagedTargetCount =
+        "skill_damaged_target_count";
+    private static readonly StringName FactSkillKilledTargetCount =
+        "skill_killed_target_count";
+    private static readonly StringName FactSkillHpDamageDealt =
+        "skill_hp_damage_dealt";
     private static readonly StringName FactBodySize = "body_size";
     private static readonly StringName FactAttributeValue = "attribute_value";
     private static readonly StringName FactCurrentTu = "current_tu";
@@ -355,6 +450,8 @@ internal sealed class BattleEquipmentAbilityRuntimeService
         "equipment_target_mark_stacks";
     private static readonly StringName FactStatusStacks = "status_stacks";
     private static readonly StringName FactNearbyEnemyCount = "nearby_enemy_count";
+    private static readonly StringName FactNearbyUnitCount = "nearby_unit_count";
+    private static readonly StringName FactSummonedUnitCount = "summoned_unit_count";
     private static readonly StringName DropKindItem = "item";
     private static readonly StringName StackModeMax = "max";
     private static readonly StringName QueryKindFact = "fact";
@@ -435,6 +532,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService
                 result
             );
         }
+        CollectSummonedUnitAttackRollModifierActions(context, attacker, target, result);
         return result;
     }
 
@@ -532,6 +630,130 @@ internal sealed class BattleEquipmentAbilityRuntimeService
                 );
             }
         }
+    }
+
+    private void CollectSummonedUnitAttackRollModifierActions(
+        BattleAttackCheckPolicyContext context,
+        BattleUnitState attacker,
+        BattleUnitState target,
+        List<BattleAttackRollModifierSpec> result
+    )
+    {
+        BattleState state = context?.battle_state ?? _runtime?.GetState();
+        if (state == null || attacker == null || result == null)
+            return;
+
+        foreach (BattleUnitState owner in state.GetUnitsTyped())
+        {
+            if (owner == null || !owner.is_alive || owner.faction_id == attacker.faction_id)
+                continue;
+            foreach (ActiveEquipmentAbilityBinding activeBinding in CollectActiveBindings(owner))
+            {
+                EquipmentAbilityBindingDefinition binding = activeBinding.Binding;
+                if (binding?.Reactions == null)
+                    continue;
+                foreach (EquipmentAbilityReactionDefinition reaction in binding.Reactions)
+                {
+                    if (
+                        reaction == null
+                        || reaction.Trigger != EquipmentAbilityTriggerKind.OnHit
+                        || reaction.Timing != EquipmentAbilityTimingKind.BeforeHit
+                        || !ConditionGroupPasses(
+                            reaction.ConditionGroup,
+                            owner,
+                            attacker,
+                            EquipmentAbilityFactContext.FromBattleState(state),
+                            activeBinding
+                        )
+                    )
+                    {
+                        continue;
+                    }
+                    foreach (EquipmentAbilityActionDefinition action in reaction.Actions ?? Array.Empty<EquipmentAbilityActionDefinition>())
+                    {
+                        if (
+                            action == null
+                            || action.Kind != ActionKindSummonedUnitAttackRollModifier
+                            || action.PayloadDefinition is not SummonedUnitAttackRollModifierActionPayloadDefinition payload
+                            || !SummonedUnitModifierSelectorMatches(payload.TargetSelector)
+                            || !ConditionGroupPasses(
+                                action.ConditionGroup,
+                                owner,
+                                attacker,
+                                EquipmentAbilityFactContext.FromBattleState(state),
+                                activeBinding
+                            )
+                        )
+                        {
+                            continue;
+                        }
+
+                        EquipmentAbilityBindingDefinition sourceBinding = ResolveStateBinding(
+                            activeBinding,
+                            binding,
+                            payload.SourceBindingId
+                        );
+                        int count = CountLivingSummonedUnits(
+                            state,
+                            owner,
+                            activeBinding.Source,
+                            sourceBinding?.BindingId ?? payload.SourceBindingId,
+                            payload.StateKey,
+                            attacker,
+                            Math.Max(payload.Radius, 0)
+                        );
+                        if (count < Math.Max(payload.MinUnits, 1))
+                            continue;
+
+                        int delta = ClampSignedModifier(
+                            count * payload.BonusPerUnit,
+                            payload.MaxAbsoluteBonus
+                        );
+                        if (delta == 0)
+                            continue;
+                        result.Add(
+                            new BattleAttackRollModifierSpec
+                            {
+                                source_domain = "equipment_ability",
+                                source_id = binding.BindingId,
+                                source_instance_id =
+                                    activeBinding.Source?.SourceEquipmentInstanceId.ToString()
+                                    ?? "",
+                                label = ResolveActionLabel(binding, payload.Label),
+                                modifier_delta = delta,
+                                stack_key = action.ActionId != ""
+                                    ? action.ActionId
+                                    : binding.BindingId,
+                                stack_mode = payload.StackMode == ""
+                                    ? StackModeMax
+                                    : payload.StackMode,
+                                target_team_filter = "any",
+                                endpoint_mode = "target",
+                                footprint_mode = "any_cell",
+                                applies_to = "attack_roll",
+                            }
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    private static bool SummonedUnitModifierSelectorMatches(StringName selector)
+    {
+        StringName normalized = ProgressionDataUtils.to_string_name(selector);
+        return normalized == ""
+            || normalized == "attacker"
+            || normalized == "attack_source"
+            || normalized == "source_attacker";
+    }
+
+    private static int ClampSignedModifier(int value, int maxAbsolute)
+    {
+        int limit = Math.Max(maxAbsolute, 0);
+        if (limit == 0)
+            return value;
+        return Math.Clamp(value, -limit, limit);
     }
 
     private void CollectAttackRollAdvantageActions(
@@ -933,10 +1155,13 @@ internal sealed class BattleEquipmentAbilityRuntimeService
 
     internal bool ResolveTurnEnd(BattleEquipmentAbilityTurnEndContext context)
     {
+        bool changed = RemoveExpiredSummonedUnits(
+            context?.BattleState ?? _runtime?.GetState(),
+            null
+        );
         if (context == null || context.SourceUnit == null)
-            return false;
+            return changed;
 
-        bool changed = false;
         foreach (ActiveEquipmentAbilityBinding activeBinding in CollectActiveBindings(context.SourceUnit))
         {
             EquipmentAbilityBindingDefinition binding = activeBinding.Binding;
@@ -1140,6 +1365,8 @@ internal sealed class BattleEquipmentAbilityRuntimeService
         }
 
         bool changed = false;
+        EquipmentAbilityFactContext factContext =
+            EquipmentAbilityFactContext.FromGrantedSkillUsed(context);
         foreach (ActiveEquipmentAbilityBinding activeBinding in CollectActiveBindings(context.SourceUnit))
         {
             EquipmentAbilityBindingDefinition binding = activeBinding.Binding;
@@ -1158,7 +1385,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService
                         reaction.ConditionGroup,
                         context.SourceUnit,
                         context.TargetUnit,
-                        EquipmentAbilityFactContext.FromBattleState(context.BattleState ?? _runtime?.GetState()),
+                        factContext,
                         activeBinding
                     )
                 )
@@ -1168,13 +1395,14 @@ internal sealed class BattleEquipmentAbilityRuntimeService
 
                 foreach (EquipmentAbilityActionDefinition action in reaction.Actions ?? Array.Empty<EquipmentAbilityActionDefinition>())
                 {
+                    BattleState battleState = context.BattleState ?? _runtime?.GetState();
                     if (
                         action == null
                         || !ConditionGroupPasses(
                             action.ConditionGroup,
                             context.SourceUnit,
                             context.TargetUnit,
-                            EquipmentAbilityFactContext.FromBattleState(context.BattleState ?? _runtime?.GetState()),
+                            factContext,
                             activeBinding
                         )
                     )
@@ -1209,6 +1437,108 @@ internal sealed class BattleEquipmentAbilityRuntimeService
                                 context
                             )
                             || changed;
+                    }
+                    else if (
+                        action.Kind == ActionKindConsumeSummonedUnits
+                        && action.PayloadDefinition is ConsumeSummonedUnitsActionPayloadDefinition consumePayload
+                    )
+                    {
+                        changed =
+                            ResolveConsumeSummonedUnitsAction(
+                                activeBinding,
+                                binding,
+                                consumePayload,
+                                context
+                            )
+                            || changed;
+                    }
+                    else if (
+                        action.Kind == ActionKindDealDamage
+                        && action.PayloadDefinition is DealDamageActionPayloadDefinition dealDamagePayload
+                    )
+                    {
+                        BattleUnitState changedUnit = ResolveDealDamageAction(
+                            activeBinding,
+                            binding,
+                            dealDamagePayload,
+                            context.SourceUnit,
+                            context.TargetUnit,
+                            battleState
+                        );
+                        if (changedUnit != null)
+                        {
+                            context.Batch?.AddChangedUnitId(changedUnit.unit_id);
+                            changed = true;
+                        }
+                    }
+                    else if (
+                        action.Kind == ActionKindHeal
+                        && action.PayloadDefinition is HealActionPayloadDefinition healPayload
+                    )
+                    {
+                        BattleUnitState changedUnit = ResolveHealAction(
+                            activeBinding,
+                            binding,
+                            healPayload,
+                            context.SourceUnit,
+                            context.TargetUnit,
+                            battleState
+                        );
+                        if (changedUnit != null)
+                        {
+                            context.Batch?.AddChangedUnitId(changedUnit.unit_id);
+                            changed = true;
+                        }
+                    }
+                    else if (
+                        action.Kind == ActionKindClearStatus
+                        && action.PayloadDefinition is ClearStatusActionPayloadDefinition clearStatusPayload
+                    )
+                    {
+                        BattleUnitState changedUnit = ResolveEquipmentActionTarget(
+                            clearStatusPayload.TargetSelector,
+                            context.SourceUnit,
+                            context.TargetUnit,
+                            activeBinding,
+                            binding,
+                            clearStatusPayload.MarkBindingId,
+                            clearStatusPayload.MarkStateKey,
+                            battleState
+                        );
+                        bool cleared = ResolveClearStatusAction(
+                            activeBinding,
+                            binding,
+                            clearStatusPayload,
+                            context.SourceUnit,
+                            context.TargetUnit,
+                            battleState
+                        );
+                        if (cleared)
+                        {
+                            context.Batch?.AddChangedUnitId(changedUnit?.unit_id ?? "");
+                            changed = true;
+                        }
+                    }
+                    else if (
+                        action.Kind == ActionKindApplyStatus
+                        && action.PayloadDefinition is ApplyStatusActionPayloadDefinition statusPayload
+                    )
+                    {
+                        ResolveApplyStatusAction(
+                            binding,
+                            action,
+                            statusPayload,
+                            context.SourceUnit,
+                            ResolveSubject(
+                                statusPayload.TargetSelector,
+                                context.SourceUnit,
+                                context.TargetUnit
+                            ),
+                            BattleSaveContext.Empty,
+                            null
+                        );
+                        context.Batch?.AddChangedUnitId(context.TargetUnit?.unit_id ?? "");
+                        changed = true;
                     }
                 }
             }
@@ -1391,7 +1721,11 @@ internal sealed class BattleEquipmentAbilityRuntimeService
                     || !ConditionGroupPasses(
                         reaction.ConditionGroup,
                         context.SourceUnit,
-                        context.DefeatedUnit
+                        context.DefeatedUnit,
+                        EquipmentAbilityFactContext.FromBattleState(
+                            context.BattleState ?? _runtime?.GetState()
+                        ),
+                        activeBinding
                     )
                     || !RollGatePasses(
                         reaction.RollGate,
@@ -1405,7 +1739,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService
                 {
                     continue;
                 }
-                ResolveOnKillActions(binding, reaction, context, result);
+                ResolveOnKillActions(activeBinding, binding, reaction, context, result);
             }
         }
         return result;
@@ -1427,6 +1761,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService
     }
 
     private void ResolveOnKillActions(
+        ActiveEquipmentAbilityBinding activeBinding,
         EquipmentAbilityBindingDefinition binding,
         EquipmentAbilityReactionDefinition reaction,
         BattleEquipmentAbilityOnKillContext context,
@@ -1440,7 +1775,11 @@ internal sealed class BattleEquipmentAbilityRuntimeService
                 || !ConditionGroupPasses(
                     action.ConditionGroup,
                     context.SourceUnit,
-                    context.DefeatedUnit
+                    context.DefeatedUnit,
+                    EquipmentAbilityFactContext.FromBattleState(
+                        context.BattleState ?? _runtime?.GetState()
+                    ),
+                    activeBinding
                 )
                 || !RollGatePasses(
                     action.RollGate,
@@ -1483,7 +1822,225 @@ internal sealed class BattleEquipmentAbilityRuntimeService
             {
                 ResolveScheduleAreaEffectAction(binding, action, areaPayload, context);
             }
+            else if (
+                action.Kind == ActionKindSummonUnits
+                && action.PayloadDefinition is SummonUnitsActionPayloadDefinition summonPayload
+            )
+            {
+                ResolveSummonUnitsAction(
+                    activeBinding,
+                    binding,
+                    action,
+                    summonPayload,
+                    context,
+                    result
+                );
+            }
+            else if (
+                action.Kind == ActionKindImmediateWeaponAttack
+                && action.PayloadDefinition is ImmediateWeaponAttackActionPayloadDefinition attackPayload
+            )
+            {
+                ResolveImmediateWeaponAttackAction(
+                    binding,
+                    action,
+                    attackPayload,
+                    context,
+                    result
+                );
+            }
         }
+    }
+
+    private void ResolveImmediateWeaponAttackAction(
+        EquipmentAbilityBindingDefinition binding,
+        EquipmentAbilityActionDefinition action,
+        ImmediateWeaponAttackActionPayloadDefinition payload,
+        BattleEquipmentAbilityOnKillContext context,
+        BattleEquipmentAbilityOnKillResult result
+    )
+    {
+        BattleState state = context?.BattleState ?? _runtime?.GetState();
+        BattleUnitState sourceUnit = context?.SourceUnit;
+        BattleUnitState defeatedUnit = context?.DefeatedUnit;
+        BattleUnitState anchorUnit = ResolveSubject(
+            payload?.AnchorSelector ?? "",
+            sourceUnit,
+            defeatedUnit
+        );
+        if (
+            state == null
+            || sourceUnit?.is_alive != true
+            || anchorUnit == null
+            || _damageResolver == null
+            || payload == null
+            || payload.MaxAttacks <= 0
+        )
+        {
+            return;
+        }
+
+        SkillDefinition skillDefinition = _runtime?.GetSkillDefinitionTyped(payload.SkillId);
+        if (skillDefinition?.CombatProfile == null)
+            return;
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions =
+            skillDefinition.CombatProfile.EffectDefinitions ?? Array.Empty<CombatEffectDefinition>();
+        if (effectDefinitions.Count == 0)
+            return;
+
+        int attackCount = 0;
+        foreach (BattleUnitState targetUnit in CollectImmediateWeaponAttackTargets(
+            state,
+            sourceUnit,
+            defeatedUnit,
+            anchorUnit,
+            payload,
+            skillDefinition
+        ))
+        {
+            if (attackCount >= payload.MaxAttacks)
+                break;
+            BattleAttackCheckPolicyService attackPolicy =
+                _runtime?.GetAttackCheckPolicyService();
+            BattleAttackCheckPolicyContext policyContext =
+                attackPolicy?.BuildSkillDefinitionAttackContext(
+                    state,
+                    sourceUnit,
+                    targetUnit,
+                    skillDefinition,
+                    "skill_attack_check",
+                    action?.ActionId ?? new StringName(""),
+                    force_hit_no_crit: false
+                );
+            AttackCheckInput attackCheck =
+                attackPolicy != null
+                    ? attackPolicy.BuildAttackCheck(policyContext, 0, 0)
+                    : new AttackCheckInput(invalid: true);
+            AttackEffectResolutionResult attackResult = _damageResolver.ResolveAttackEffects(
+                sourceUnit,
+                targetUnit,
+                effectDefinitions,
+                attackCheck,
+                new AttackContext
+                {
+                    BattleState = state,
+                    SkillId = skillDefinition.SkillId,
+                }
+            );
+            if (!attackResult.Applied && !attackResult.AttackSuccess)
+                continue;
+
+            attackCount++;
+            result?.AddImmediateWeaponAttackResult(
+                new BattleEquipmentAbilityImmediateWeaponAttackResult
+                {
+                    BindingId = binding?.BindingId ?? new StringName(""),
+                    ActionId = action?.ActionId ?? new StringName(""),
+                    TargetUnitId = targetUnit.unit_id,
+                    Applied = attackResult.Applied,
+                    Damage = Math.Max(attackResult.Damage, 0),
+                }
+            );
+            context.Batch?.AddChangedUnitId(sourceUnit.unit_id);
+            context.Batch?.AddChangedUnitId(targetUnit.unit_id);
+            foreach (Vector2I coord in targetUnit.GetOccupiedCoordsTyped())
+                context.Batch?.AddChangedCoord(coord);
+            context.Batch?.AddLogLine(
+                $"{sourceUnit.display_name} 借 {binding?.TraitId} 追击 {targetUnit.display_name}。"
+            );
+            if (targetUnit.is_alive != true)
+            {
+                _runtime?.HandleUnitDefeatedByRuntimeEffect(
+                    targetUnit,
+                    sourceUnit,
+                    context.Batch,
+                    $"{targetUnit.display_name} 被击倒。",
+                    new BattleDefeatHandlingOptions(recordEnemyDefeatedAchievement: true)
+                );
+            }
+        }
+    }
+
+    private IReadOnlyList<BattleUnitState> CollectImmediateWeaponAttackTargets(
+        BattleState state,
+        BattleUnitState sourceUnit,
+        BattleUnitState defeatedUnit,
+        BattleUnitState anchorUnit,
+        ImmediateWeaponAttackActionPayloadDefinition payload,
+        SkillDefinition skillDefinition
+    )
+    {
+        var result = new List<BattleUnitState>();
+        if (state == null || sourceUnit == null || anchorUnit == null || payload == null)
+            return result;
+
+        int radius = Math.Max(payload.Radius, 0);
+        foreach (BattleUnitState candidate in state.GetUnitsTyped())
+        {
+            if (
+                candidate == null
+                || candidate.is_alive != true
+                || candidate.unit_id == sourceUnit.unit_id
+                || candidate.unit_id == (defeatedUnit?.unit_id ?? new StringName(""))
+                || !ImmediateWeaponAttackTeamFilterPasses(sourceUnit, candidate, payload.TargetTeamFilter)
+                || BattleGridDistanceService.GetDistanceBetweenUnits(anchorUnit, candidate) > radius
+            )
+            {
+                continue;
+            }
+            if (
+                payload.RequireWeaponRange
+                && BattleGridDistanceService.GetDistanceBetweenUnits(sourceUnit, candidate)
+                    > Math.Max(sourceUnit.weapon_attack_range, 1)
+            )
+            {
+                continue;
+            }
+            if (
+                skillDefinition?.CombatProfile != null
+                && !TargetFilterPasses(sourceUnit, candidate, skillDefinition.CombatProfile.TargetTeamFilter)
+            )
+            {
+                continue;
+            }
+            result.Add(candidate);
+        }
+        result.Sort(
+            (left, right) =>
+            {
+                int leftDistance = BattleGridDistanceService.GetDistanceBetweenUnits(anchorUnit, left);
+                int rightDistance = BattleGridDistanceService.GetDistanceBetweenUnits(anchorUnit, right);
+                if (leftDistance != rightDistance)
+                    return leftDistance.CompareTo(rightDistance);
+                return string.CompareOrdinal(left.unit_id.ToString(), right.unit_id.ToString());
+            }
+        );
+        return result;
+    }
+
+    private static bool ImmediateWeaponAttackTeamFilterPasses(
+        BattleUnitState sourceUnit,
+        BattleUnitState candidate,
+        StringName targetTeamFilter
+    )
+    {
+        StringName filter = ProgressionDataUtils.to_string_name(targetTeamFilter);
+        if (filter == "")
+            filter = BattleTypedNames.TargetFilterEnemy;
+        return BattleTargetTeamRules.IsUnitValidForFilter(sourceUnit, candidate, filter);
+    }
+
+    private static bool TargetFilterPasses(
+        BattleUnitState sourceUnit,
+        BattleUnitState candidate,
+        StringName targetTeamFilter
+    )
+    {
+        return BattleTargetTeamRules.IsUnitValidForFilter(
+            sourceUnit,
+            candidate,
+            ProgressionDataUtils.to_string_name(targetTeamFilter)
+        );
     }
 
     private void ResolveScheduleAreaEffectAction(
@@ -1504,6 +2061,469 @@ internal sealed class BattleEquipmentAbilityRuntimeService
             binding,
             action,
             payload
+        );
+    }
+
+    private void ResolveSummonUnitsAction(
+        ActiveEquipmentAbilityBinding activeBinding,
+        EquipmentAbilityBindingDefinition binding,
+        EquipmentAbilityActionDefinition action,
+        SummonUnitsActionPayloadDefinition payload,
+        BattleEquipmentAbilityOnKillContext context,
+        BattleEquipmentAbilityOnKillResult result
+    )
+    {
+        BattleState state = context?.BattleState ?? _runtime?.GetState();
+        if (
+            state == null
+            || context?.SourceUnit == null
+            || binding == null
+            || payload == null
+            || payload.StateKey == ""
+        )
+        {
+            return;
+        }
+
+        BattleUnitState anchorUnit = ResolveSubject(
+            payload.AnchorSelector == "" ? new StringName("defeated") : payload.AnchorSelector,
+            context.SourceUnit,
+            context.DefeatedUnit
+        ) ?? context.SourceUnit;
+
+        int currentCount = CountLivingSummonedUnits(
+            state,
+            context.SourceUnit,
+            activeBinding.Source,
+            binding.BindingId,
+            payload.StateKey
+        );
+        int capacity = Math.Max(payload.MaxLivingUnits, 0) - currentCount;
+        if (capacity <= 0)
+            return;
+
+        int requested = Math.Max(RollDiceExpression(payload.CountDice), 0);
+        int toCreate = Math.Min(requested, capacity);
+        if (toCreate <= 0)
+            return;
+
+        int created = 0;
+        foreach (Vector2I coord in CollectSummonSpawnCoords(state, anchorUnit, payload.SpawnRadius))
+        {
+            if (created >= toCreate)
+                break;
+            BattleUnitState summoned = BuildSummonedUnit(
+                state,
+                context.SourceUnit,
+                activeBinding.Source,
+                binding,
+                payload,
+                coord
+            );
+            if (summoned == null)
+                continue;
+            state.SetUnit(summoned);
+            if (!_runtime._grid_service.PlaceUnit(state, summoned, coord, true))
+            {
+                state.RemoveUnit(summoned.unit_id);
+                continue;
+            }
+            AddSummonedUnitToFactionList(state, context.SourceUnit, summoned);
+            context.Batch?.AddChangedUnitId(summoned.unit_id);
+            foreach (Vector2I occupiedCoord in summoned.GetOccupiedCoordsTyped())
+                context.Batch?.AddChangedCoord(occupiedCoord);
+            created++;
+        }
+
+        if (created > 0)
+        {
+            result?.AddSummonResult(
+                new BattleEquipmentAbilitySummonResult
+                {
+                    BindingId = binding.BindingId,
+                    ActionId = action?.ActionId ?? "",
+                    RequestedCount = requested,
+                    CreatedCount = created,
+                }
+            );
+        }
+    }
+
+    private bool ResolveConsumeSummonedUnitsAction(
+        ActiveEquipmentAbilityBinding activeBinding,
+        EquipmentAbilityBindingDefinition binding,
+        ConsumeSummonedUnitsActionPayloadDefinition payload,
+        BattleEquipmentAbilityGrantedSkillUsedContext context
+    )
+    {
+        BattleState state = context?.BattleState ?? _runtime?.GetState();
+        if (
+            state == null
+            || context?.SourceUnit == null
+            || binding == null
+            || payload == null
+            || payload.StateKey == ""
+            || payload.Count <= 0
+        )
+        {
+            return false;
+        }
+
+        StringName sourceBindingId = payload.SourceBindingId != ""
+            ? payload.SourceBindingId
+            : binding.BindingId;
+        List<BattleUnitState> summons = CollectLivingSummonedUnits(
+            state,
+            context.SourceUnit,
+            activeBinding.Source,
+            sourceBindingId,
+            payload.StateKey
+        );
+        SortSummonsForConsumption(summons, context.TargetUnit);
+        int removed = 0;
+        foreach (BattleUnitState summon in summons)
+        {
+            if (removed >= payload.Count)
+                break;
+            RemoveSummonedUnit(state, summon, context.Batch, "召唤单位被消耗。");
+            removed++;
+        }
+        return removed > 0;
+    }
+
+    private bool RemoveExpiredSummonedUnits(BattleState state, BattleEventBatch batch)
+    {
+        int currentTu = Math.Max(state?.timeline?.current_tu ?? -1, -1);
+        if (state == null || currentTu < 0)
+            return false;
+        bool changed = false;
+        foreach (BattleUnitState unit in state.GetUnitsTyped())
+        {
+            BattleAiBlackboard blackboard = unit?.ai_blackboard;
+            if (
+                unit == null
+                || !unit.is_alive
+                || blackboard?.summoned != true
+                || blackboard.summon_expires_at_tu < 0
+                || currentTu < blackboard.summon_expires_at_tu
+            )
+            {
+                continue;
+            }
+            RemoveSummonedUnit(state, unit, batch, "召唤单位持续时间结束。");
+            changed = true;
+        }
+        return changed;
+    }
+
+    private void RemoveSummonedUnit(
+        BattleState state,
+        BattleUnitState unit,
+        BattleEventBatch batch,
+        string logLine
+    )
+    {
+        if (state == null || unit == null)
+            return;
+        if (_runtime?.GetState() == state)
+        {
+            _runtime.RemoveSummonedUnitFromBattle(unit, batch, logLine);
+            return;
+        }
+        List<Vector2I> previousCoords = new(unit.GetOccupiedCoordsTyped());
+        unit.MarkDead();
+        _runtime?._grid_service.ClearUnitOccupancy(state, unit);
+        batch?.AddChangedUnitId(unit.unit_id);
+        foreach (Vector2I coord in previousCoords)
+            batch?.AddChangedCoord(coord);
+        if (!string.IsNullOrEmpty(logLine))
+            batch?.AddLogLine(logLine);
+    }
+
+    private BattleUnitState BuildSummonedUnit(
+        BattleState state,
+        BattleUnitState sourceUnit,
+        BattleEquipmentAbilitySourceState source,
+        EquipmentAbilityBindingDefinition binding,
+        SummonUnitsActionPayloadDefinition payload,
+        Vector2I coord
+    )
+    {
+        if (state == null || sourceUnit == null || binding == null || payload == null)
+            return null;
+        int hpMax = Math.Max(payload.HpMax, 1);
+        int actionPoints = Math.Max(payload.ActionPoints, 0);
+        int movePoints = Math.Max(payload.MovePoints, 0);
+        StringName unitId = BuildSummonedUnitId(
+            state,
+            payload.UnitIdPrefix == "" ? new StringName("summoned_unit") : payload.UnitIdPrefix,
+            sourceUnit.unit_id,
+            binding.BindingId,
+            payload.StateKey
+        );
+        BattleUnitState unit = new()
+        {
+            unit_id = unitId,
+            display_name = string.IsNullOrWhiteSpace(payload.UnitDisplayName)
+                ? unitId.ToString()
+                : payload.UnitDisplayName,
+            faction_id = sourceUnit.faction_id,
+            control_mode = payload.ControlMode == "" ? new StringName("ai") : payload.ControlMode,
+            ai_brain_id = payload.AiBrainId,
+            ai_state_id = payload.AiStateId,
+            is_alive = true,
+            current_hp = hpMax,
+            current_ap = actionPoints,
+            current_move_points = movePoints,
+        };
+        unit.SetAnchorCoord(coord);
+        unit.SetBodySizeCategory(
+            payload.BodySizeCategory == "" ? new StringName("tiny") : payload.BodySizeCategory
+        );
+        unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, hpMax);
+        unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, Math.Max(payload.ArmorClass, 1));
+        unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, payload.AttackBonus);
+        unit.attribute_snapshot.SetValue(AttributeService.BASE_ATTACK_BONUS, payload.BaseAttackBonus);
+        unit.attribute_snapshot.SetValue(AttributeService.ACTION_POINTS, actionPoints);
+        unit.SetCombatResources(hpMax, 0, 0, 0, actionPoints, movePoints);
+        foreach (StringName tag in payload.CreatureTypeTags ?? Array.Empty<StringName>())
+        {
+            if (tag != "" && !unit.creature_type_tags.Contains(tag))
+                unit.creature_type_tags.Add(tag);
+        }
+        foreach (StringName tag in payload.MovementTags ?? Array.Empty<StringName>())
+        {
+            if (tag != "" && !unit.movement_tags.Contains(tag))
+                unit.movement_tags.Add(tag);
+        }
+        unit.ai_blackboard.summoned = true;
+        unit.ai_blackboard.temporary_unit = true;
+        unit.ai_blackboard.summon_source_unit_id = sourceUnit.unit_id;
+        unit.ai_blackboard.summon_source_equipment_instance_id =
+            source?.SourceEquipmentInstanceId ?? "";
+        unit.ai_blackboard.summon_binding_id = binding.BindingId;
+        unit.ai_blackboard.summon_state_key = payload.StateKey;
+        unit.ai_blackboard.summon_expires_at_tu = payload.DurationTu > 0
+            ? Math.Max(state.timeline?.current_tu ?? 0, 0) + payload.DurationTu
+            : -1;
+        return unit;
+    }
+
+    private IEnumerable<Vector2I> CollectSummonSpawnCoords(
+        BattleState state,
+        BattleUnitState anchorUnit,
+        int radius
+    )
+    {
+        if (state == null || anchorUnit == null)
+            yield break;
+        int resolvedRadius = Math.Max(radius, 0);
+        Vector2I anchor = anchorUnit.coord;
+        var coords = new List<Vector2I>();
+        for (int y = anchor.Y - resolvedRadius; y <= anchor.Y + resolvedRadius; y++)
+        {
+            for (int x = anchor.X - resolvedRadius; x <= anchor.X + resolvedRadius; x++)
+            {
+                Vector2I coord = new(x, y);
+                if (_runtime._grid_service.GetDistance(anchor, coord) <= resolvedRadius)
+                    coords.Add(coord);
+            }
+        }
+        coords.Sort(
+            (left, right) =>
+            {
+                int leftDistance = _runtime._grid_service.GetDistance(anchor, left);
+                int rightDistance = _runtime._grid_service.GetDistance(anchor, right);
+                if (leftDistance != rightDistance)
+                    return leftDistance.CompareTo(rightDistance);
+                if (left.Y != right.Y)
+                    return left.Y.CompareTo(right.Y);
+                return left.X.CompareTo(right.X);
+            }
+        );
+        foreach (Vector2I coord in coords)
+            yield return coord;
+    }
+
+    private static void AddSummonedUnitToFactionList(
+        BattleState state,
+        BattleUnitState sourceUnit,
+        BattleUnitState summoned
+    )
+    {
+        if (state == null || sourceUnit == null || summoned == null)
+            return;
+        if (state.ally_unit_ids.Contains(sourceUnit.unit_id))
+        {
+            if (!state.ally_unit_ids.Contains(summoned.unit_id))
+                state.ally_unit_ids.Add(summoned.unit_id);
+            return;
+        }
+        if (state.enemy_unit_ids.Contains(sourceUnit.unit_id))
+        {
+            if (!state.enemy_unit_ids.Contains(summoned.unit_id))
+                state.enemy_unit_ids.Add(summoned.unit_id);
+            return;
+        }
+        if (sourceUnit.faction_id == "player")
+            state.ally_unit_ids.Add(summoned.unit_id);
+        else
+            state.enemy_unit_ids.Add(summoned.unit_id);
+    }
+
+    private static StringName BuildSummonedUnitId(
+        BattleState state,
+        StringName prefix,
+        StringName sourceUnitId,
+        StringName bindingId,
+        StringName stateKey
+    )
+    {
+        string baseId = string.Join(
+            "_",
+            SanitizeIdPart(prefix.ToString()),
+            SanitizeIdPart(sourceUnitId.ToString()),
+            SanitizeIdPart(bindingId.ToString()),
+            SanitizeIdPart(stateKey.ToString())
+        );
+        for (int suffix = 1; suffix < 10000; suffix++)
+        {
+            StringName candidate = new($"{baseId}_{suffix}");
+            if (state?.GetUnit(candidate) == null)
+                return candidate;
+        }
+        return new StringName($"{baseId}_{Guid.NewGuid():N}");
+    }
+
+    private static string SanitizeIdPart(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return "summon";
+        char[] chars = value.ToCharArray();
+        for (int index = 0; index < chars.Length; index++)
+        {
+            char c = chars[index];
+            if (!char.IsLetterOrDigit(c) && c != '_')
+                chars[index] = '_';
+        }
+        return new string(chars);
+    }
+
+    private int CountLivingSummonedUnits(
+        BattleState state,
+        BattleUnitState sourceUnit,
+        BattleEquipmentAbilitySourceState source,
+        StringName bindingId,
+        StringName stateKey,
+        BattleUnitState radiusSubject = null,
+        int radius = -1
+    ) => CollectLivingSummonedUnits(
+        state,
+        sourceUnit,
+        source,
+        bindingId,
+        stateKey,
+        radiusSubject,
+        radius
+    ).Count;
+
+    private List<BattleUnitState> CollectLivingSummonedUnits(
+        BattleState state,
+        BattleUnitState sourceUnit,
+        BattleEquipmentAbilitySourceState source,
+        StringName bindingId,
+        StringName stateKey,
+        BattleUnitState radiusSubject = null,
+        int radius = -1
+    )
+    {
+        var result = new List<BattleUnitState>();
+        if (state == null || sourceUnit == null)
+            return result;
+        StringName sourceEquipmentInstanceId = source?.SourceEquipmentInstanceId ?? "";
+        foreach (BattleUnitState unit in state.GetUnitsTyped())
+        {
+            if (
+                !SummonedUnitMatches(
+                    unit,
+                    sourceUnit.unit_id,
+                    sourceEquipmentInstanceId,
+                    bindingId,
+                    stateKey
+                )
+            )
+            {
+                continue;
+            }
+            if (
+                radiusSubject != null
+                && radius >= 0
+                && DistanceBetweenUnits(unit, radiusSubject) > radius
+            )
+            {
+                continue;
+            }
+            result.Add(unit);
+        }
+        return result;
+    }
+
+    private bool SummonedUnitMatches(
+        BattleUnitState unit,
+        StringName sourceUnitId,
+        StringName sourceEquipmentInstanceId,
+        StringName bindingId,
+        StringName stateKey
+    )
+    {
+        BattleAiBlackboard blackboard = unit?.ai_blackboard;
+        if (unit == null || !unit.is_alive || blackboard?.summoned != true)
+            return false;
+        if (sourceUnitId != "" && blackboard.summon_source_unit_id != sourceUnitId)
+            return false;
+        if (
+            sourceEquipmentInstanceId != ""
+            && blackboard.summon_source_equipment_instance_id != sourceEquipmentInstanceId
+        )
+        {
+            return false;
+        }
+        if (bindingId != "" && blackboard.summon_binding_id != bindingId)
+            return false;
+        if (stateKey != "" && blackboard.summon_state_key != stateKey)
+            return false;
+        return true;
+    }
+
+    private int DistanceBetweenUnits(BattleUnitState first, BattleUnitState second)
+    {
+        if (first == null || second == null)
+            return 999999;
+        int best = 999999;
+        foreach (Vector2I firstCoord in first.GetOccupiedCoordsTyped())
+        {
+            foreach (Vector2I secondCoord in second.GetOccupiedCoordsTyped())
+                best = Math.Min(best, _runtime._grid_service.GetDistance(firstCoord, secondCoord));
+        }
+        return best;
+    }
+
+    private void SortSummonsForConsumption(
+        List<BattleUnitState> summons,
+        BattleUnitState targetUnit
+    )
+    {
+        if (summons == null)
+            return;
+        summons.Sort(
+            (left, right) =>
+            {
+                int leftDistance = targetUnit != null ? DistanceBetweenUnits(left, targetUnit) : 0;
+                int rightDistance = targetUnit != null ? DistanceBetweenUnits(right, targetUnit) : 0;
+                if (leftDistance != rightDistance)
+                    return leftDistance.CompareTo(rightDistance);
+                return string.CompareOrdinal(left?.unit_id.ToString(), right?.unit_id.ToString());
+            }
         );
     }
 
@@ -1643,6 +2663,20 @@ internal sealed class BattleEquipmentAbilityRuntimeService
                 );
             }
             else if (
+                action.Kind == ActionKindHeal
+                && action.PayloadDefinition is HealActionPayloadDefinition healPayload
+            )
+            {
+                ResolveHealAction(
+                    activeBinding,
+                    binding,
+                    healPayload,
+                    context?.SourceUnit,
+                    context?.TargetUnit,
+                    context?.BattleState
+                );
+            }
+            else if (
                 action.Kind == ActionKindApplyStatus
                 && action.PayloadDefinition is ApplyStatusActionPayloadDefinition statusPayload
             )
@@ -1710,29 +2744,88 @@ internal sealed class BattleEquipmentAbilityRuntimeService
         BattleEquipmentAbilityAfterHitContext context
     )
     {
-        if (_damageResolver == null || payload?.Dice == null || context?.SourceUnit == null)
-            return;
-        BattleUnitState targetUnit = ResolveEquipmentActionTarget(
+        ResolveDealDamageAction(
+            activeBinding,
+            binding,
+            payload,
+            context?.SourceUnit,
+            context?.TargetUnit,
+            context?.BattleState
+        );
+    }
+
+    private BattleUnitState ResolveDealDamageAction(
+        ActiveEquipmentAbilityBinding activeBinding,
+        EquipmentAbilityBindingDefinition binding,
+        DealDamageActionPayloadDefinition payload,
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        BattleState battleState
+    )
+    {
+        if (_damageResolver == null || payload?.Dice == null || sourceUnit == null)
+            return null;
+        BattleUnitState resolvedTarget = ResolveEquipmentActionTarget(
             payload.TargetSelector,
-            context.SourceUnit,
-            context.TargetUnit,
+            sourceUnit,
+            targetUnit,
             activeBinding,
             binding,
             "",
             "",
-            context.BattleState
+            battleState
         );
-        if (targetUnit == null)
-            return;
+        if (resolvedTarget?.is_alive != true)
+            return null;
         IReadOnlyList<CombatEffectDefinition> effects = BuildDamageEffects(payload);
         if (effects.Count == 0)
-            return;
+            return null;
         _damageResolver.ResolveEffects(
-            context.SourceUnit,
-            targetUnit,
+            sourceUnit,
+            resolvedTarget,
             effects,
             DamageResolutionContext.Empty()
         );
+        return resolvedTarget;
+    }
+
+    private BattleUnitState ResolveHealAction(
+        ActiveEquipmentAbilityBinding activeBinding,
+        EquipmentAbilityBindingDefinition binding,
+        HealActionPayloadDefinition payload,
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        BattleState battleState
+    )
+    {
+        if (_damageResolver == null || payload?.Dice == null || sourceUnit == null)
+            return null;
+        BattleUnitState resolvedTarget = ResolveEquipmentActionTarget(
+            payload.TargetSelector,
+            sourceUnit,
+            targetUnit,
+            activeBinding,
+            binding,
+            "",
+            "",
+            battleState
+        );
+        if (resolvedTarget == null)
+            return null;
+        IReadOnlyList<CombatEffectDefinition> effects = BuildHealEffects(payload);
+        if (effects.Count == 0)
+            return null;
+        int previousHp = resolvedTarget.current_hp;
+        bool previousAlive = resolvedTarget.is_alive;
+        _damageResolver.ResolveEffects(
+            sourceUnit,
+            resolvedTarget,
+            effects,
+            DamageResolutionContext.Empty()
+        );
+        if (resolvedTarget.current_hp == previousHp && resolvedTarget.is_alive == previousAlive)
+            return null;
+        return resolvedTarget;
     }
 
     private static IReadOnlyList<CombatEffectDefinition> BuildDamageEffects(
@@ -1769,12 +2862,43 @@ internal sealed class BattleEquipmentAbilityRuntimeService
                     payload.DamageType,
                     0,
                     0,
-                    flatBonus,
+                    0,
                     payload.DamageTags,
                     payload.MitigationBypassDamageTags,
-                    payload.MitigationBypassTiers
+                    payload.MitigationBypassTiers,
+                    power: flatBonus
                 )
             );
+        }
+        return result;
+    }
+
+    private static IReadOnlyList<CombatEffectDefinition> BuildHealEffects(
+        HealActionPayloadDefinition payload
+    )
+    {
+        if (payload?.Dice == null)
+            return Array.Empty<CombatEffectDefinition>();
+
+        var result = new List<CombatEffectDefinition>();
+        bool usedFlatBonus = false;
+        int flatBonus = Math.Max(payload.Dice.FlatBonus, 0);
+        foreach (DiceExpressionTermDefinition term in payload.Dice.Terms ?? Array.Empty<DiceExpressionTermDefinition>())
+        {
+            if (term == null || term.DiceCount <= 0 || term.DiceSides <= 0)
+                continue;
+            result.Add(
+                BattleRuntimeEffectDefinitions.Heal(
+                    term.DiceCount,
+                    term.DiceSides,
+                    usedFlatBonus ? 0 : flatBonus
+                )
+            );
+            usedFlatBonus = true;
+        }
+        if (result.Count == 0 && flatBonus > 0)
+        {
+            result.Add(BattleRuntimeEffectDefinitions.Heal(0, 0, 0, flatBonus));
         }
         return result;
     }
@@ -1986,7 +3110,10 @@ internal sealed class BattleEquipmentAbilityRuntimeService
             undispellable: payload.Undispellable,
             dispellableMagic: payload.DispellableMagic,
             dispellableHarmfulMagic: payload.DispellableHarmfulMagic,
-            dispellableBeneficialMagic: payload.DispellableBeneficialMagic
+            dispellableBeneficialMagic: payload.DispellableBeneficialMagic,
+            lockCounterattack: payload.LockCounterattack,
+            lockGuard: payload.LockGuard,
+            lockDodgeBonus: payload.LockDodgeBonus
         );
         BattleStatusEffectState statusEntry = BattleStatusSemanticTable.MergeStatus(
             statusEffect,
@@ -2386,6 +3513,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService
                 DiceCount = term.DiceCount,
                 DiceSides = term.DiceSides,
                 FlatBonus = Math.Max(payload.Dice.FlatBonus, 0),
+                Subtract = payload.Subtract,
                 DamageType = payload.DamageType,
                 DamageTags = CopyStringNames(payload.DamageTags),
                 MitigationBypassDamageTags = CopyStringNames(payload.MitigationBypassDamageTags),
@@ -2401,6 +3529,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService
                 DiceCount = 0,
                 DiceSides = 0,
                 FlatBonus = payload.Dice.FlatBonus,
+                Subtract = payload.Subtract,
                 DamageType = payload.DamageType,
                 DamageTags = CopyStringNames(payload.DamageTags),
                 MitigationBypassDamageTags = CopyStringNames(payload.MitigationBypassDamageTags),
@@ -2780,6 +3909,21 @@ internal sealed class BattleEquipmentAbilityRuntimeService
             value = Math.Max(factContext.HpDamage, 0);
             return true;
         }
+        if (query.FactId == FactSkillDamagedTargetCount)
+        {
+            value = Math.Max(factContext.SkillDamagedTargetCount, 0);
+            return true;
+        }
+        if (query.FactId == FactSkillKilledTargetCount)
+        {
+            value = Math.Max(factContext.SkillKilledTargetCount, 0);
+            return true;
+        }
+        if (query.FactId == FactSkillHpDamageDealt)
+        {
+            value = Math.Max(factContext.SkillHpDamageDealt, 0);
+            return true;
+        }
         if (query.FactId == FactBodySize)
         {
             BattleUnitState bodySizeSubject = ResolveSubject(query.Subject, sourceUnit, targetUnit);
@@ -2852,7 +3996,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService
             value = Math.Max(statusSubject.GetStatusEffect(statusId)?.stacks ?? 0, 0);
             return true;
         }
-        if (query.FactId == FactNearbyEnemyCount)
+        if (query.FactId == FactNearbyEnemyCount || query.FactId == FactNearbyUnitCount)
         {
             BattleUnitState nearbySubject = ResolveSubject(query.Subject, sourceUnit, targetUnit);
             if (nearbySubject == null)
@@ -2863,7 +4007,39 @@ internal sealed class BattleEquipmentAbilityRuntimeService
             if (state == null)
                 return false;
             int radius = Math.Max(query.IntLiteral, 0);
-            value = CountNearbyLivingEnemies(state, nearbySubject, radius);
+            value =
+                query.FactId == FactNearbyUnitCount
+                    ? CountNearbyLivingUnits(state, nearbySubject, radius)
+                    : CountNearbyLivingEnemies(state, nearbySubject, radius);
+            return true;
+        }
+        if (query.FactId == FactSummonedUnitCount)
+        {
+            BattleUnitState summonOwner = ResolveSubject(query.Subject, sourceUnit, targetUnit);
+            if (summonOwner == null)
+                return false;
+            BattleState state =
+                factContext.BattleState
+                ?? _runtime?.GetState();
+            if (state == null)
+                return false;
+            EquipmentAbilityBindingDefinition summonBinding = ResolveStateBinding(
+                activeBinding,
+                activeBinding.Binding,
+                query.BindingId
+            );
+            BattleUnitState radiusSubject = query.IntLiteral > 0
+                ? ResolveSubject(query.ValueKind, sourceUnit, targetUnit)
+                : null;
+            value = CountLivingSummonedUnits(
+                state,
+                summonOwner,
+                activeBinding.Source,
+                summonBinding?.BindingId ?? query.BindingId,
+                query.StateKey,
+                radiusSubject,
+                query.IntLiteral > 0 ? query.IntLiteral : -1
+            );
             return true;
         }
         if (query.FactId != FactHpPercentBp)
@@ -3095,6 +4271,31 @@ internal sealed class BattleEquipmentAbilityRuntimeService
                 || !candidate.is_alive
                 || candidate.unit_id == sourceUnit.unit_id
                 || candidate.faction_id == sourceUnit.faction_id
+            )
+            {
+                continue;
+            }
+            if (BattleGridDistanceService.GetDistanceBetweenUnits(sourceUnit, candidate) <= radius)
+                count++;
+        }
+        return count;
+    }
+
+    private static int CountNearbyLivingUnits(
+        BattleState state,
+        BattleUnitState sourceUnit,
+        int radius
+    )
+    {
+        if (state == null || sourceUnit == null || radius < 0)
+            return 0;
+        int count = 0;
+        foreach (BattleUnitState candidate in state.GetUnitsTyped())
+        {
+            if (
+                candidate == null
+                || !candidate.is_alive
+                || candidate.unit_id == sourceUnit.unit_id
             )
             {
                 continue;

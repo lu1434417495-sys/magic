@@ -13,6 +13,10 @@ public sealed class BattleAiUnitBlackboardSnapshot
     public bool summoned;
     public bool temporary_unit;
     public StringName summon_source_unit_id = "";
+    public StringName summon_source_equipment_instance_id = "";
+    public StringName summon_binding_id = "";
+    public StringName summon_state_key = "";
+    public int summon_expires_at_tu = -1;
 
     internal static BattleAiUnitBlackboardSnapshot FromBlackboard(BattleAiBlackboard blackboard)
     {
@@ -32,6 +36,16 @@ public sealed class BattleAiUnitBlackboardSnapshot
             summon_source_unit_id = ProgressionDataUtils.to_string_name(
                 blackboard.summon_source_unit_id
             ),
+            summon_source_equipment_instance_id = ProgressionDataUtils.to_string_name(
+                blackboard.summon_source_equipment_instance_id
+            ),
+            summon_binding_id = ProgressionDataUtils.to_string_name(
+                blackboard.summon_binding_id
+            ),
+            summon_state_key = ProgressionDataUtils.to_string_name(
+                blackboard.summon_state_key
+            ),
+            summon_expires_at_tu = blackboard.summon_expires_at_tu,
         };
     }
 
@@ -48,6 +62,14 @@ public sealed class BattleAiUnitBlackboardSnapshot
         AddBool(result, "temporary_unit", temporary_unit);
         if (summon_source_unit_id != "")
             result["summon_source_unit_id"] = summon_source_unit_id;
+        if (summon_source_equipment_instance_id != "")
+            result["summon_source_equipment_instance_id"] = summon_source_equipment_instance_id;
+        if (summon_binding_id != "")
+            result["summon_binding_id"] = summon_binding_id;
+        if (summon_state_key != "")
+            result["summon_state_key"] = summon_state_key;
+        if (summon_expires_at_tu >= 0)
+            result["summon_expires_at_tu"] = summon_expires_at_tu;
         return result;
     }
 

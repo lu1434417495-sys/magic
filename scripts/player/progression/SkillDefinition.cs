@@ -1237,10 +1237,230 @@ public sealed class CombatCastVariantDefinition
     }
 }
 
+public sealed class CombatDamageSegmentDefinition
+{
+    private static readonly IReadOnlyList<StringName> EmptyStringNames =
+        System.Array.Empty<StringName>();
+
+    public CombatDamageSegmentDefinition(
+        StringName damageTag,
+        int power,
+        int diceCount,
+        int diceSides,
+        int diceBonus,
+        double preResistanceDamageMultiplier,
+        IReadOnlyList<StringName> damageTags = null,
+        IReadOnlyList<StringName> mitigationBypassDamageTags = null,
+        IReadOnlyList<StringName> mitigationBypassTiers = null
+    )
+    {
+        DamageTag = damageTag;
+        Power = System.Math.Max(power, 0);
+        DiceCount = diceCount;
+        DiceSides = diceSides;
+        DiceBonus = diceBonus;
+        PreResistanceDamageMultiplier = preResistanceDamageMultiplier;
+        DamageTags = damageTags ?? EmptyStringNames;
+        MitigationBypassDamageTags = mitigationBypassDamageTags ?? EmptyStringNames;
+        MitigationBypassTiers = mitigationBypassTiers ?? EmptyStringNames;
+    }
+
+    public StringName DamageTag { get; }
+    public int Power { get; }
+    public int DiceCount { get; }
+    public int DiceSides { get; }
+    public int DiceBonus { get; }
+    public double PreResistanceDamageMultiplier { get; }
+    public IReadOnlyList<StringName> DamageTags { get; }
+    public IReadOnlyList<StringName> MitigationBypassDamageTags { get; }
+    public IReadOnlyList<StringName> MitigationBypassTiers { get; }
+
+    internal static IReadOnlyList<CombatDamageSegmentDefinition> ProjectArray(
+        Godot.Collections.Array<CombatDamageSegmentDef> values
+    )
+    {
+        if (values == null || values.Count == 0)
+        {
+            return System.Array.Empty<CombatDamageSegmentDefinition>();
+        }
+        var result = new List<CombatDamageSegmentDefinition>();
+        foreach (CombatDamageSegmentDef value in values)
+        {
+            CombatDamageSegmentDefinition definition = FromResource(value);
+            if (definition != null)
+            {
+                result.Add(definition);
+            }
+        }
+        return result.Count > 0
+            ? new ReadOnlyCollection<CombatDamageSegmentDefinition>(result)
+            : System.Array.Empty<CombatDamageSegmentDefinition>();
+    }
+
+    private static CombatDamageSegmentDefinition FromResource(CombatDamageSegmentDef source)
+    {
+        return source == null
+            ? null
+            : new CombatDamageSegmentDefinition(
+                source.damage_tag,
+                source.power,
+                source.dice_count,
+                source.dice_sides,
+                source.dice_bonus,
+                source.pre_resistance_damage_multiplier,
+                CopyStringNameArray(source.damage_tags),
+                CopyStringNameArray(source.mitigation_bypass_damage_tags),
+                CopyStringNameArray(source.mitigation_bypass_tiers)
+            );
+    }
+
+    private static IReadOnlyList<StringName> CopyStringNameArray(
+        Godot.Collections.Array<StringName> values
+    )
+    {
+        if (values == null || values.Count == 0)
+        {
+            return EmptyStringNames;
+        }
+        var result = new List<StringName>(values.Count);
+        foreach (StringName value in values)
+        {
+            StringName normalized = ProgressionDataUtils.to_string_name(value);
+            if (normalized != "")
+            {
+                result.Add(normalized);
+            }
+        }
+        return result.Count > 0
+            ? new ReadOnlyCollection<StringName>(result)
+            : EmptyStringNames;
+    }
+}
+
+public sealed class CombatTargetDamageMultiplierRuleDefinition
+{
+    private static readonly IReadOnlyList<StringName> EmptyStringNames =
+        System.Array.Empty<StringName>();
+
+    public CombatTargetDamageMultiplierRuleDefinition(
+        IReadOnlyList<StringName> anyCreatureTypeTags,
+        IReadOnlyList<StringName> allCreatureTypeTags,
+        IReadOnlyList<StringName> excludedCreatureTypeTags,
+        int multiplierPercent
+    )
+    {
+        AnyCreatureTypeTags = anyCreatureTypeTags ?? EmptyStringNames;
+        AllCreatureTypeTags = allCreatureTypeTags ?? EmptyStringNames;
+        ExcludedCreatureTypeTags = excludedCreatureTypeTags ?? EmptyStringNames;
+        MultiplierPercent = multiplierPercent;
+    }
+
+    public IReadOnlyList<StringName> AnyCreatureTypeTags { get; }
+    public IReadOnlyList<StringName> AllCreatureTypeTags { get; }
+    public IReadOnlyList<StringName> ExcludedCreatureTypeTags { get; }
+    public int MultiplierPercent { get; }
+
+    internal bool Matches(BattleUnitState targetUnit)
+    {
+        if (targetUnit == null || targetUnit.creature_type_tags == null)
+        {
+            return false;
+        }
+        foreach (StringName excluded in ExcludedCreatureTypeTags)
+        {
+            if (excluded != "" && targetUnit.creature_type_tags.Contains(excluded))
+            {
+                return false;
+            }
+        }
+        foreach (StringName required in AllCreatureTypeTags)
+        {
+            if (required == "" || !targetUnit.creature_type_tags.Contains(required))
+            {
+                return false;
+            }
+        }
+        if (AnyCreatureTypeTags.Count == 0)
+        {
+            return AllCreatureTypeTags.Count > 0;
+        }
+        foreach (StringName candidate in AnyCreatureTypeTags)
+        {
+            if (candidate != "" && targetUnit.creature_type_tags.Contains(candidate))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    internal static IReadOnlyList<CombatTargetDamageMultiplierRuleDefinition> ProjectArray(
+        Godot.Collections.Array<CombatTargetDamageMultiplierRuleDef> values
+    )
+    {
+        if (values == null || values.Count == 0)
+        {
+            return System.Array.Empty<CombatTargetDamageMultiplierRuleDefinition>();
+        }
+        var result = new List<CombatTargetDamageMultiplierRuleDefinition>();
+        foreach (CombatTargetDamageMultiplierRuleDef value in values)
+        {
+            CombatTargetDamageMultiplierRuleDefinition definition = FromResource(value);
+            if (definition != null)
+            {
+                result.Add(definition);
+            }
+        }
+        return result.Count > 0
+            ? new ReadOnlyCollection<CombatTargetDamageMultiplierRuleDefinition>(result)
+            : System.Array.Empty<CombatTargetDamageMultiplierRuleDefinition>();
+    }
+
+    private static CombatTargetDamageMultiplierRuleDefinition FromResource(
+        CombatTargetDamageMultiplierRuleDef source
+    )
+    {
+        return source == null
+            ? null
+            : new CombatTargetDamageMultiplierRuleDefinition(
+                CopyStringNameArray(source.any_creature_type_tags),
+                CopyStringNameArray(source.all_creature_type_tags),
+                CopyStringNameArray(source.excluded_creature_type_tags),
+                source.multiplier_percent
+            );
+    }
+
+    private static IReadOnlyList<StringName> CopyStringNameArray(
+        Godot.Collections.Array<StringName> values
+    )
+    {
+        if (values == null || values.Count == 0)
+        {
+            return EmptyStringNames;
+        }
+        var result = new List<StringName>(values.Count);
+        foreach (StringName value in values)
+        {
+            StringName normalized = ProgressionDataUtils.to_string_name(value);
+            if (normalized != "" && !result.Contains(normalized))
+            {
+                result.Add(normalized);
+            }
+        }
+        return result.Count > 0
+            ? new ReadOnlyCollection<StringName>(result)
+            : EmptyStringNames;
+    }
+}
+
 public sealed class CombatEffectDefinition
 {
     private static readonly IReadOnlyList<StringName> EmptyStringNames =
         System.Array.Empty<StringName>();
+    private static readonly IReadOnlyList<CombatDamageSegmentDefinition> EmptyDamageSegments =
+        System.Array.Empty<CombatDamageSegmentDefinition>();
+    private static readonly IReadOnlyList<CombatTargetDamageMultiplierRuleDefinition> EmptyTargetDamageMultiplierRules =
+        System.Array.Empty<CombatTargetDamageMultiplierRuleDefinition>();
 
     public CombatEffectDefinition(
         StringName effectType,
@@ -1367,7 +1587,9 @@ public sealed class CombatEffectDefinition
         StringName requiredTargetStatusSourceSelector = default,
         StringName bonusConditionCreatureTypeTag = default,
         IReadOnlyList<StringName> mitigationBypassDamageTags = null,
-        IReadOnlyList<StringName> mitigationBypassTiers = null
+        IReadOnlyList<StringName> mitigationBypassTiers = null,
+        IReadOnlyList<CombatDamageSegmentDefinition> extraDamageSegments = null,
+        IReadOnlyList<CombatTargetDamageMultiplierRuleDefinition> targetDamageMultiplierRules = null
     )
     {
         EffectType = effectType;
@@ -1498,6 +1720,9 @@ public sealed class CombatEffectDefinition
         EquipmentDurabilitySlotWeights =
             equipmentDurabilitySlotWeights ?? System.Array.Empty<EquipmentSlotWeightDefinition>();
         RequiredTargetStatusSourceSelector = requiredTargetStatusSourceSelector;
+        ExtraDamageSegments = extraDamageSegments ?? EmptyDamageSegments;
+        TargetDamageMultiplierRules =
+            targetDamageMultiplierRules ?? EmptyTargetDamageMultiplierRules;
     }
 
     public StringName EffectType { get; }
@@ -1625,6 +1850,8 @@ public sealed class CombatEffectDefinition
     public IReadOnlyList<StringName> SaveImmunityTags { get; }
     public IReadOnlyList<StringName> SaveTags { get; }
     public IReadOnlyList<EquipmentSlotWeightDefinition> EquipmentDurabilitySlotWeights { get; }
+    public IReadOnlyList<CombatDamageSegmentDefinition> ExtraDamageSegments { get; }
+    public IReadOnlyList<CombatTargetDamageMultiplierRuleDefinition> TargetDamageMultiplierRules { get; }
     internal BattleEffectKind EffectKind => BattleTypedNames.ToEffectKind(EffectType);
     internal CombatEffectTriggerCondition TriggerConditionKind =>
         CombatEffectContentRules.ToTriggerCondition(TriggerCondition);
@@ -1868,7 +2095,9 @@ public sealed class CombatEffectDefinition
             RequiredTargetStatusSourceSelector,
             BonusConditionCreatureTypeTag,
             MitigationBypassDamageTags,
-            MitigationBypassTiers
+            MitigationBypassTiers,
+            ExtraDamageSegments,
+            TargetDamageMultiplierRules
         );
     }
 
@@ -1999,7 +2228,9 @@ public sealed class CombatEffectDefinition
             RequiredTargetStatusSourceSelector,
             BonusConditionCreatureTypeTag,
             MitigationBypassDamageTags,
-            MitigationBypassTiers
+            MitigationBypassTiers,
+            ExtraDamageSegments,
+            TargetDamageMultiplierRules
         );
     }
 
@@ -2134,7 +2365,11 @@ public sealed class CombatEffectDefinition
                 source.required_target_status_source_selector,
                 source.bonus_condition_creature_type_tag,
                 CopyStringNameArray(source.mitigation_bypass_damage_tags),
-                CopyStringNameArray(source.mitigation_bypass_tiers)
+                CopyStringNameArray(source.mitigation_bypass_tiers),
+                CombatDamageSegmentDefinition.ProjectArray(source.extra_damage_segments),
+                CombatTargetDamageMultiplierRuleDefinition.ProjectArray(
+                    source.target_damage_multiplier_rules
+                )
             );
     }
 

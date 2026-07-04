@@ -449,6 +449,14 @@ public partial class CombatEffectDef : Resource
         new();
 
     [Export]
+    public Godot.Collections.Array<CombatDamageSegmentDef> extra_damage_segments { get; set; } =
+        new();
+
+    [Export]
+    public Godot.Collections.Array<CombatTargetDamageMultiplierRuleDef> target_damage_multiplier_rules { get; set; } =
+        new();
+
+    [Export]
     public Godot.Collections.Dictionary @params { get; set; } = new();
 
     internal int GetIntParamTyped(string key, int fallback = 0)

@@ -67,13 +67,14 @@ internal sealed class BattleTimelineDriver
 
     private void _CollectDefeatedUnitLoot(
         BattleUnitState unitState,
-        BattleUnitState killerUnit = null
+        BattleUnitState killerUnit = null,
+        BattleEventBatch batch = null
     )
     {
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return;
-        runtime._collect_defeated_unit_loot(unitState, killerUnit);
+        runtime._collect_defeated_unit_loot(unitState, killerUnit, batch);
     }
 
     private void _ClearDefeatedUnit(BattleUnitState unitState, BattleEventBatch batch = null)
