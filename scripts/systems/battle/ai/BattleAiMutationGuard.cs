@@ -1294,6 +1294,7 @@ internal sealed class BattleAiMutationGuard
         private List<StringName> _proficiencyTags = new();
         private List<StringName> _saveAdvantageTags = new();
         private StringNameStringNameMapSnapshot _damageResistances = new();
+        private StringNameIntMapSnapshot _saveBonusByAbility = new();
         private List<BattleEffectiveTraitInstanceState> _effectiveTraitInstances = new();
         private List<StringName> _effectiveTraitIds = new();
         private StringName _versatilityPick = "";
@@ -1377,6 +1378,10 @@ internal sealed class BattleAiMutationGuard
             snapshot._saveAdvantageTags = StringNameArrayToList(unit.save_advantage_tags);
             snapshot._damageResistances =
                 StringNameStringNameMapSnapshot.FromTypedDictionary(unit.GetDamageResistancesTyped());
+            snapshot._saveBonusByAbility = StringNameIntMapSnapshot.FromTypedDictionary(
+                unit.save_bonus_by_ability?.ToTypedDictionary()
+                    ?? new Dictionary<StringName, int>()
+            );
             snapshot._effectiveTraitInstances = BattleUnitState.DuplicateEffectiveTraitInstances(
                 unit.effective_trait_instances
             );
@@ -1471,6 +1476,7 @@ internal sealed class BattleAiMutationGuard
             unit.proficiency_tags = BuildStringNameArray(_proficiencyTags);
             unit.save_advantage_tags = BuildStringNameArray(_saveAdvantageTags);
             unit.damage_resistances.ReplaceWithTyped(_damageResistances.ToTypedDictionary());
+            unit.save_bonus_by_ability.ReplaceWithTyped(_saveBonusByAbility.ToTypedDictionary());
             unit.effective_trait_instances = BattleUnitState.DuplicateEffectiveTraitInstances(
                 _effectiveTraitInstances
             );
@@ -1559,6 +1565,7 @@ internal sealed class BattleAiMutationGuard
             result.Set("proficiency_tags", StableValue.FromArray(StableStringNameList(_proficiencyTags)));
             result.Set("save_advantage_tags", StableValue.FromArray(StableStringNameList(_saveAdvantageTags)));
             result.Set("damage_resistances", StableValue.FromMap(_damageResistances.ToStableMap()));
+            result.Set("save_bonus_by_ability", StableValue.FromMap(_saveBonusByAbility.ToStableMap()));
             result.Set(
                 "effective_trait_instances",
                 StableValue.FromArray(StableEffectiveTraitPayload(_effectiveTraitInstances))

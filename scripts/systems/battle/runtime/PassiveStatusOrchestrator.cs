@@ -29,6 +29,7 @@ public static class PassiveStatusOrchestrator
         unitState.proficiency_tags = new StringNameList();
         unitState.save_advantage_tags = new StringNameList();
         unitState.damage_resistances = new BattleStringNameMap();
+        unitState.save_bonus_by_ability = new BattleStringNameIntMap();
     }
 
     private static bool _suppresses_original_race_traits(PassiveSourceContext context)

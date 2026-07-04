@@ -1011,12 +1011,14 @@ public class BattleSpecialSkillResolver
         {
             return false;
         }
-        BattleStatusEffectState statusEntry = target_unit.GetStatusEffect(STATUS_VAJRA_BODY);
-        if (statusEntry == null)
+        foreach (BattleStatusEffectState statusEntry in target_unit.GetStatusEffectsTyped())
         {
-            return false;
+            if (statusEntry == null || statusEntry.stacks <= 0)
+                continue;
+            if (ForcedMoveStatusParameters.FromStatus(statusEntry).ForcedMoveImmune)
+                return true;
         }
-        return ForcedMoveStatusParameters.FromStatus(statusEntry).ForcedMoveImmune;
+        return false;
     }
 
     internal void RecordVajraBodyMasteryFromIncomingDamageTyped(

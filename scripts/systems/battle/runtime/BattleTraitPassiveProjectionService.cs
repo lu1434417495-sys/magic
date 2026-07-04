@@ -25,6 +25,23 @@ internal static class BattleTraitPassiveProjectionService
 
             ProjectSaveTags(unitState, traitDef);
             ProjectDamageResistances(unitState, traitDef);
+            ProjectSaveBonuses(unitState, traitDef);
+        }
+    }
+
+    private static void ProjectSaveBonuses(BattleUnitState unitState, TraitDef traitDef)
+    {
+        if (unitState?.save_bonus_by_ability == null || traitDef?.save_bonus_entries == null)
+            return;
+
+        foreach (TraitSaveBonusEntryDef entry in traitDef.save_bonus_entries)
+        {
+            StringName saveAbility = ProgressionDataUtils.to_string_name(entry?.save_ability ?? "");
+            int bonus = entry?.bonus ?? 0;
+            if (saveAbility == "" || bonus == 0)
+                continue;
+            unitState.save_bonus_by_ability.TryGetValue(saveAbility, out int existing);
+            unitState.save_bonus_by_ability.Put(saveAbility, existing + bonus);
         }
     }
 

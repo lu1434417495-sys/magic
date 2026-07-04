@@ -529,7 +529,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 policy?.EffectDefinitions,
                 batch
             );
-            if (definitionApplied)
+            if (definitionApplied || IsEquipmentSkillCommand(command))
             {
                 Runtime?.CommitEquipmentSkillUsageIfNeeded(
                     active_unit,
@@ -537,6 +537,9 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                     batch,
                     BuildEquipmentSkillUseOutcome(outcomeSnapshot)
                 );
+            }
+            if (definitionApplied)
+            {
                 _grant_skill_mastery_if_needed(active_unit, skillDefinition, batch);
             }
             Runtime?._skill_mastery_service.Clear();
@@ -602,9 +605,12 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 policy.GroundCastVariantDefinition,
                 batch
             );
-            if (definitionApplied)
+            if (definitionApplied || IsEquipmentSkillCommand(command))
             {
                 Runtime?.CommitEquipmentSkillUsageIfNeeded(active_unit, command, batch);
+            }
+            if (definitionApplied)
+            {
                 _grant_skill_mastery_if_needed(active_unit, skillDefinition, batch);
             }
             Runtime?._skill_mastery_service.Clear();
@@ -613,6 +619,14 @@ internal sealed partial class BattleSkillExecutionOrchestrator
 
         Runtime?._skill_mastery_service.Clear();
         return;
+    }
+
+    private static bool IsEquipmentSkillCommand(BattleCommand command)
+    {
+        StringName skillEntryId = ProgressionDataUtils.to_string_name(
+            command?.skill_entry_id ?? new StringName("")
+        );
+        return skillEntryId.ToString().StartsWith("equipment_skill:", StringComparison.Ordinal);
     }
 
     private BattleSkillUseOutcomeSnapshot CaptureSkillUseOutcomeSnapshot(
@@ -634,7 +648,8 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 continue;
             snapshots[unitId] = new BattleSkillTargetBeforeState(
                 targetUnit.current_hp,
-                targetUnit.is_alive
+                targetUnit.is_alive,
+                targetUnit.coord
             );
         }
         return snapshots.Count == 0
@@ -656,6 +671,8 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         int damagedTargetCount = 0;
         int killedTargetCount = 0;
         int hpDamageDealt = 0;
+        int movedTargetCount = 0;
+        int unmovedTargetCount = 0;
         foreach (KeyValuePair<StringName, BattleSkillTargetBeforeState> entry in snapshot.Targets)
         {
             StringName unitId = entry.Key;
@@ -670,6 +687,10 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 damagedTargetCount++;
                 hpDamageDealt += hpDamage;
             }
+            if (targetUnit.coord != entry.Value.CoordBefore)
+                movedTargetCount++;
+            else
+                unmovedTargetCount++;
             if (entry.Value.WasAlive && !targetUnit.is_alive)
                 killedTargetCount++;
         }
@@ -680,7 +701,40 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             DamagedTargetCount = damagedTargetCount,
             KilledTargetCount = killedTargetCount,
             HpDamageDealt = hpDamageDealt,
+            MovedTargetCount = movedTargetCount,
+            UnmovedTargetCount = unmovedTargetCount,
         };
+    }
+
+    private static BattleKillProvenance BuildWeaponAttackKillProvenance(
+        BattleUnitState sourceUnit,
+        AttackEffectResolutionResult result,
+        StringName sourceActionId
+    )
+    {
+        if (sourceUnit == null || !ResultIncludesWeaponDamage(result))
+            return BattleKillProvenance.None;
+        return BattleKillProvenance.ForEquipmentAttack(
+            sourceUnit.GetEquipmentView()?.GetEquippedInstanceId("main_hand") ?? new StringName(""),
+            "",
+            sourceActionId
+        );
+    }
+
+    private static bool ResultIncludesWeaponDamage(AttackEffectResolutionResult result)
+    {
+        foreach (DamageEventResult damageEvent in result.DamageEvents ?? Array.Empty<DamageEventResult>())
+        {
+            if (
+                damageEvent.AddWeaponDice
+                && damageEvent.WeaponDamageDice.Count > 0
+                && damageEvent.WeaponDamageDice.Sides > 0
+            )
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private sealed class BattleSkillUseOutcomeSnapshot
@@ -701,14 +755,16 @@ internal sealed partial class BattleSkillExecutionOrchestrator
 
     private readonly struct BattleSkillTargetBeforeState
     {
-        internal BattleSkillTargetBeforeState(int hpBefore, bool wasAlive)
+        internal BattleSkillTargetBeforeState(int hpBefore, bool wasAlive, Vector2I coordBefore)
         {
             HpBefore = Math.Max(hpBefore, 0);
             WasAlive = wasAlive;
+            CoordBefore = coordBefore;
         }
 
         internal int HpBefore { get; }
         internal bool WasAlive { get; }
+        internal Vector2I CoordBefore { get; }
     }
 
     internal bool ResolvePendingCast(
@@ -3327,7 +3383,14 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 active_unit,
                 batch,
                 $"{target_unit.display_name} 被击倒。",
-                new BattleDefeatHandlingOptions(recordEnemyDefeatedAchievement: true)
+                new BattleDefeatHandlingOptions(
+                    recordEnemyDefeatedAchievement: true,
+                    killProvenance: BuildWeaponAttackKillProvenance(
+                        active_unit,
+                        damageResult,
+                        skillId
+                    )
+                )
             );
         }
         if (active_unit != null && target_unit != null)
@@ -3597,7 +3660,14 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                         source_unit,
                         batch,
                         $"{chainTarget.display_name} 被击倒。",
-                        new BattleDefeatHandlingOptions(recordEnemyDefeatedAchievement: true)
+                        new BattleDefeatHandlingOptions(
+                            recordEnemyDefeatedAchievement: true,
+                            killProvenance: BuildWeaponAttackKillProvenance(
+                                source_unit,
+                                chainResolution,
+                                skillDefinition?.SkillId ?? new StringName("")
+                            )
+                        )
                     );
                 }
                 bool causedChainDefeat = !chainTarget.is_alive;
@@ -3928,6 +3998,16 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         {
             return "目标处于时间静滞，只有时间系解控技能能够作用。";
         }
+        string targetStatusRequirementMessage = GetTargetStatusRequirementValidationMessage(
+            active_unit,
+            target_unit,
+            skillDefinition,
+            cast_variant
+        );
+        if (!string.IsNullOrEmpty(targetStatusRequirementMessage))
+        {
+            return targetStatusRequirementMessage;
+        }
         StringName skillId = skillDefinition?.SkillId ?? new StringName("");
         if (
             _is_black_crown_seal_skill(skillId)
@@ -3998,6 +4078,16 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         {
             return "目标处于时间静滞，只有时间系解控技能能够作用。";
         }
+        string targetStatusRequirementMessage = GetTargetStatusRequirementValidationMessage(
+            active_unit,
+            target_unit,
+            skillDefinition,
+            cast_variant
+        );
+        if (!string.IsNullOrEmpty(targetStatusRequirementMessage))
+        {
+            return targetStatusRequirementMessage;
+        }
         StringName skillId = skillDefinition?.SkillId ?? new StringName("");
         if (_is_black_crown_seal_skill(skillId))
         {
@@ -4041,6 +4131,197 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             }
         }
         return "";
+    }
+
+    private string GetTargetStatusRequirementValidationMessage(
+        BattleUnitState activeUnit,
+        BattleUnitState targetUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
+    )
+    {
+        if (activeUnit == null || targetUnit == null || skillDefinition == null)
+            return "";
+
+        bool sawRelevantRequirement = false;
+        CombatEffectDefinition firstFailedRequirement = null;
+        bool allowDeadTargets = SkillAllowsDeadUnitTargets(skillDefinition, castVariant);
+        foreach (
+            CombatEffectDefinition effectDefinition in CollectUnitSkillEffectDefinitions(
+                skillDefinition,
+                castVariant,
+                activeUnit
+            )
+        )
+        {
+            if (effectDefinition == null)
+                continue;
+            if (
+                !_is_unit_valid_for_effect(
+                    activeUnit,
+                    targetUnit,
+                    ResolveEffectTargetFilter(skillDefinition, effectDefinition),
+                    allowDeadTargets
+                )
+            )
+            {
+                continue;
+            }
+
+            StringName requiredStatusId = ProgressionDataUtils.to_string_name(
+                effectDefinition.RequiredTargetStatusId
+            );
+            if (requiredStatusId == "")
+                return "";
+
+            sawRelevantRequirement = true;
+            firstFailedRequirement ??= effectDefinition;
+            if (TargetStatusRequirementPasses(
+                activeUnit,
+                targetUnit,
+                effectDefinition,
+                requiredStatusId
+            ))
+            {
+                return "";
+            }
+        }
+
+        return sawRelevantRequirement
+            ? BuildTargetStatusRequirementMessage(firstFailedRequirement)
+            : "";
+    }
+
+    private string GetTargetStatusRequirementValidationMessage(
+        BattleUnitReadView activeUnit,
+        BattleUnitReadView targetUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
+    )
+    {
+        if (!activeUnit.IsValid || !targetUnit.IsValid || skillDefinition == null)
+            return "";
+
+        bool sawRelevantRequirement = false;
+        CombatEffectDefinition firstFailedRequirement = null;
+        bool allowDeadTargets = SkillAllowsDeadUnitTargets(skillDefinition, castVariant);
+        foreach (
+            CombatEffectDefinition effectDefinition in CollectUnitSkillEffectDefinitions(
+                skillDefinition,
+                castVariant,
+                activeUnit
+            )
+        )
+        {
+            if (effectDefinition == null)
+                continue;
+            if (
+                !_is_unit_valid_for_effect(
+                    activeUnit,
+                    targetUnit,
+                    ResolveEffectTargetFilter(skillDefinition, effectDefinition),
+                    allowDeadTargets
+                )
+            )
+            {
+                continue;
+            }
+
+            StringName requiredStatusId = ProgressionDataUtils.to_string_name(
+                effectDefinition.RequiredTargetStatusId
+            );
+            if (requiredStatusId == "")
+                return "";
+
+            sawRelevantRequirement = true;
+            firstFailedRequirement ??= effectDefinition;
+            if (TargetStatusRequirementPasses(
+                activeUnit,
+                targetUnit,
+                effectDefinition,
+                requiredStatusId
+            ))
+            {
+                return "";
+            }
+        }
+
+        return sawRelevantRequirement
+            ? BuildTargetStatusRequirementMessage(firstFailedRequirement)
+            : "";
+    }
+
+    private static bool TargetStatusRequirementPasses(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        CombatEffectDefinition effectDefinition,
+        StringName requiredStatusId
+    )
+    {
+        BattleStatusEffectState statusEntry = targetUnit?.GetStatusEffect(requiredStatusId);
+        if (statusEntry == null)
+            return false;
+        int requiredStacks = Math.Max(effectDefinition?.RequiredTargetStatusMinStacks ?? 0, 1);
+        if (Math.Max(statusEntry.stacks, 0) < requiredStacks)
+            return false;
+        return TargetStatusSourceRequirementPasses(
+            effectDefinition,
+            statusEntry.source_unit_id,
+            sourceUnit?.unit_id ?? new StringName("")
+        );
+    }
+
+    private static bool TargetStatusRequirementPasses(
+        BattleUnitReadView sourceUnit,
+        BattleUnitReadView targetUnit,
+        CombatEffectDefinition effectDefinition,
+        StringName requiredStatusId
+    )
+    {
+        if (!targetUnit.HasStatusEffect(requiredStatusId))
+            return false;
+        int requiredStacks = Math.Max(effectDefinition?.RequiredTargetStatusMinStacks ?? 0, 1);
+        if (Math.Max(targetUnit.GetStatusStacks(requiredStatusId), 0) < requiredStacks)
+            return false;
+        return TargetStatusSourceRequirementPasses(
+            effectDefinition,
+            targetUnit.GetStatusSourceUnitId(requiredStatusId),
+            sourceUnit.UnitId
+        );
+    }
+
+    private static bool TargetStatusSourceRequirementPasses(
+        CombatEffectDefinition effectDefinition,
+        StringName statusSourceUnitId,
+        StringName sourceUnitId
+    )
+    {
+        StringName sourceSelector = ProgressionDataUtils.to_string_name(
+            effectDefinition?.RequiredTargetStatusSourceSelector ?? new StringName("")
+        );
+        if (sourceSelector == "")
+            return true;
+        if (
+            sourceSelector == "source"
+            || sourceSelector == "attacker"
+            || sourceSelector == "owner"
+            || sourceSelector == "caster"
+        )
+        {
+            return sourceUnitId != "" && ProgressionDataUtils.to_string_name(statusSourceUnitId) == sourceUnitId;
+        }
+        return false;
+    }
+
+    private static string BuildTargetStatusRequirementMessage(
+        CombatEffectDefinition effectDefinition
+    )
+    {
+        StringName requiredStatusId = ProgressionDataUtils.to_string_name(
+            effectDefinition?.RequiredTargetStatusId ?? new StringName("")
+        );
+        int requiredStacks = Math.Max(effectDefinition?.RequiredTargetStatusMinStacks ?? 0, 1);
+        return $"目标缺少所需状态 {requiredStatusId} 至少 {requiredStacks} 层。";
     }
 
     private string GetExecuteTargetValidationMessage(

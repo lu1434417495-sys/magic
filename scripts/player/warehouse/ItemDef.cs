@@ -222,6 +222,14 @@ public partial class ItemDef : Resource
         return Mathf.Max(profile.attack_range, 0);
     }
 
+    public StringName GetWeaponRangeType()
+    {
+        var profile = _get_weapon_profile_resource();
+        if (!IsWeapon() || profile == null)
+            return "";
+        return ProgressionDataUtils.to_string_name(profile.range_type);
+    }
+
     public StringName GetWeaponPhysicalDamageTag()
     {
         var profile = _get_weapon_profile_resource();

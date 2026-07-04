@@ -4,6 +4,7 @@ using Godot;
 public sealed class AttackContext
 {
     private readonly Queue<int> _attackRollOverrides = new();
+    private readonly List<int> _saveRollOverrides = new();
 
     public BattleState BattleState;
     public StringName SkillId = new("");
@@ -13,6 +14,7 @@ public sealed class AttackContext
     public bool IsAdvantage;
     public bool ForceHitNoCrit;
     public int AttackRollOverride;
+    public IReadOnlyList<int> SaveRollOverrides => _saveRollOverrides;
 
     public AttackContext() { }
 
@@ -31,6 +33,11 @@ public sealed class AttackContext
     public void AddAttackRollOverride(int roll)
     {
         _attackRollOverrides.Enqueue(roll);
+    }
+
+    public void AddSaveRollOverride(int roll)
+    {
+        _saveRollOverrides.Add(Mathf.Clamp(roll, 1, 20));
     }
 
     public bool TryConsumeAttackRollOverride(int dieSize, out int roll)

@@ -1738,6 +1738,10 @@ internal sealed class BattleRuntimeSkillTurnResolver
         foreach (BattleStatusEffectState statusEntry in unit_state.GetStatusEffectsTyped())
         {
             int apPenalty = BattleStatusSemanticTable.GetTurnStartApPenalty(statusEntry);
+            if (BattleStatusSemanticTable.ShouldSetApToZeroAtTurnStart(statusEntry))
+            {
+                apPenalty = Math.Max(apPenalty, Math.Max(unit_state.current_ap, 1));
+            }
             if (apPenalty <= 0)
             {
                 continue;

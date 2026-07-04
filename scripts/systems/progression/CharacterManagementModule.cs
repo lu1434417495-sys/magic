@@ -1078,6 +1078,7 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
             weapon_profile_kind = BattleUnitState.ToStringName(BattleWeaponProfileKind.Equipped),
             weapon_item_id = item_def.item_id,
             weapon_profile_type_id = ProgressionDataUtils.to_string_name(profile.weapon_type_id),
+            weapon_range_type = item_def.GetWeaponRangeType(),
             weapon_family = ProgressionDataUtils.to_string_name(profile.family),
             weapon_current_grip = _resolve_weapon_current_grip(
                 one_handed_dice,
@@ -1099,6 +1100,7 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
             weapon_profile_kind = BattleUnitState.ToStringName(BattleWeaponProfileKind.Unarmed),
             weapon_item_id = "",
             weapon_profile_type_id = "unarmed",
+            weapon_range_type = "melee",
             weapon_family = "unarmed",
             weapon_current_grip = BattleUnitState.ToStringName(BattleWeaponGripKind.OneHanded),
             weapon_attack_range = 1,

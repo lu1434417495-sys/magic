@@ -15,6 +15,7 @@ internal static class EquipmentAbilityUsageRuntime
         int worldStep,
         BattleState battleState,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindingIndex,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefinitions,
         out StringName disabledReason
     )
     {
@@ -26,11 +27,17 @@ internal static class EquipmentAbilityUsageRuntime
                 source,
                 binding,
                 battleState,
-                bindingIndex
+                bindingIndex,
+                itemDefinitions
             )
         )
         {
             disabledReason = "equipment_skill_availability_blocked";
+            return false;
+        }
+        if (HasPerActionTurnUse(unit, source, grant))
+        {
+            disabledReason = PerActionTurnUseExhaustedReason;
             return false;
         }
         if (grant.UsagePeriodKind == EquipmentAbilityUsagePeriodKind.PerBattle)
@@ -80,12 +87,6 @@ internal static class EquipmentAbilityUsageRuntime
                 return false;
             }
         }
-
-        if (HasPerActionTurnUse(unit, source, grant))
-        {
-            disabledReason = PerActionTurnUseExhaustedReason;
-            return false;
-        }
         return true;
     }
 
@@ -95,7 +96,8 @@ internal static class EquipmentAbilityUsageRuntime
         BattleEquipmentAbilitySourceState source,
         EquipmentAbilityBindingDefinition binding,
         BattleState battleState,
-        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindingIndex
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindingIndex,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefinitions
     )
     {
         if (group == null)
@@ -113,7 +115,8 @@ internal static class EquipmentAbilityUsageRuntime
                 source,
                 binding,
                 battleState,
-                bindingIndex
+                bindingIndex,
+                itemDefinitions
             );
             passed = anyMode ? passed || conditionPassed : passed && conditionPassed;
         }
@@ -126,7 +129,8 @@ internal static class EquipmentAbilityUsageRuntime
                 source,
                 binding,
                 battleState,
-                bindingIndex
+                bindingIndex,
+                itemDefinitions
             );
             passed = anyMode ? passed || childPassed : passed && childPassed;
         }
@@ -141,9 +145,21 @@ internal static class EquipmentAbilityUsageRuntime
         BattleEquipmentAbilitySourceState source,
         EquipmentAbilityBindingDefinition binding,
         BattleState battleState,
-        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindingIndex
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindingIndex,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefinitions
     )
     {
+        if (
+            condition?.Kind == "has_equipment_tag"
+            && condition.PayloadDefinition is HasEquipmentTagConditionPayloadDefinition equipmentPayload
+        )
+        {
+            return HasEquipmentTagAvailabilityConditionPasses(
+                equipmentPayload,
+                unit,
+                itemDefinitions
+            );
+        }
         if (
             condition?.Kind == "compare_fact"
             && condition.PayloadDefinition is CompareFactConditionPayloadDefinition payload
@@ -170,6 +186,39 @@ internal static class EquipmentAbilityUsageRuntime
             return CompareInt(left, payload.Compare, right);
         }
         return false;
+    }
+
+    private static bool HasEquipmentTagAvailabilityConditionPasses(
+        HasEquipmentTagConditionPayloadDefinition payload,
+        BattleUnitState unit,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefinitions
+    )
+    {
+        if (payload == null || unit == null || itemDefinitions == null || itemDefinitions.Count == 0)
+            return false;
+        StringName subject = NormalizeStringName(payload.Subject);
+        if (subject != "" && subject != "source" && subject != "self" && subject != "holder")
+            return false;
+        StringName selector = NormalizeStringName(payload.EquipmentSelector);
+        if (selector == "")
+            return false;
+        StringName itemId = NormalizeStringName(
+            unit.GetEquipmentView()?.GetEquippedItemId(selector) ?? new StringName("")
+        );
+        if (
+            itemId == ""
+            || !itemDefinitions.TryGetValue(itemId, out ItemDef itemDef)
+            || itemDef == null
+        )
+        {
+            return false;
+        }
+        return AllTagsPresent(itemDef, payload.AllTags)
+            && (
+                payload.AnyTags == null
+                || payload.AnyTags.Count == 0
+                || AnyTagPresent(itemDef, payload.AnyTags)
+            );
     }
 
     private static bool TryResolveAvailabilityFactInt(
@@ -202,12 +251,37 @@ internal static class EquipmentAbilityUsageRuntime
                 binding,
                 bindingIndex
             );
-            StringName chargeKey = BuildBindingStateChargeKey(source, stateBinding, query.StateKey);
-            if (unit == null || chargeKey == "")
+            StringName stateKey = NormalizeStringName(query.StateKey);
+            if (unit == null || stateBinding == null || stateKey == "")
                 return false;
-            value = IsPerBattleState(stateBinding, query.StateKey)
-                ? unit.GetPerBattleChargeTyped(chargeKey, InitialStateValue(stateBinding, query.StateKey))
-                : unit.GetPerTurnChargeTyped(chargeKey, InitialStateValue(stateBinding, query.StateKey));
+            if (IsPersistentCounterState(stateBinding, stateKey))
+            {
+                EquipmentInstanceState instance = FindEquipmentInstance(
+                    unit,
+                    source?.SourceEquipmentInstanceId ?? new StringName("")
+                );
+                if (instance == null)
+                    return false;
+                value = ApplyFactIntAggregation(
+                    query,
+                    GetPersistentCounterValue(instance, stateBinding, stateKey)
+                );
+                return true;
+            }
+            StringName chargeKey = BuildBindingStateChargeKey(source, stateBinding, stateKey);
+            if (chargeKey == "")
+                return false;
+            value = ApplyFactIntAggregation(
+                query,
+                IsPerBattleState(stateBinding, stateKey)
+                    ? unit.GetPerBattleChargeTyped(chargeKey, InitialStateValue(stateBinding, stateKey))
+                    : unit.GetPerTurnChargeTyped(chargeKey, InitialStateValue(stateBinding, stateKey))
+            );
+            return true;
+        }
+        if (query.QueryKind == "fact" && query.FactId == "source_status_total_stacks")
+        {
+            value = CountSourceStatusTotalStacks(battleState, unit, query.StatusId);
             return true;
         }
         if (query.QueryKind == "fact" && query.FactId == "summoned_unit_count")
@@ -227,6 +301,28 @@ internal static class EquipmentAbilityUsageRuntime
             return true;
         }
         return false;
+    }
+
+    private static int CountSourceStatusTotalStacks(
+        BattleState battleState,
+        BattleUnitState sourceUnit,
+        StringName statusId
+    )
+    {
+        StringName normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
+        if (battleState == null || sourceUnit == null || normalizedStatusId == "")
+            return 0;
+        int total = 0;
+        foreach (BattleUnitState unit in battleState.GetUnitsTyped())
+        {
+            BattleStatusEffectState status = unit?.GetStatusEffect(normalizedStatusId);
+            if (status == null || status.stacks <= 0)
+                continue;
+            if (ProgressionDataUtils.to_string_name(status.source_unit_id) != sourceUnit.unit_id)
+                continue;
+            total += status.stacks;
+        }
+        return total;
     }
 
     private static int CountLivingSummonedUnits(
@@ -323,6 +419,69 @@ internal static class EquipmentAbilityUsageRuntime
         );
         return resetTiming == "per_battle" || resetTiming == "battle";
     }
+
+    private static bool IsPersistentCounterState(
+        EquipmentAbilityBindingDefinition binding,
+        StringName stateKey
+    )
+    {
+        StringName resetTiming = ProgressionDataUtils.to_string_name(
+            FindStateSchema(binding, stateKey)?.ResetTiming ?? new StringName("")
+        );
+        return resetTiming == "persistent_counter";
+    }
+
+    private static string BuildPersistentCounterId(
+        EquipmentAbilityBindingDefinition binding,
+        StringName stateKey
+    )
+    {
+        StringName bindingId = NormalizeStringName(binding?.BindingId ?? new StringName(""));
+        StringName normalizedStateKey = NormalizeStringName(stateKey);
+        if (bindingId == "" || normalizedStateKey == "")
+            return "";
+        return $"{bindingId}:{normalizedStateKey}";
+    }
+
+    private static long GetPersistentCounterValue(
+        EquipmentInstanceState instance,
+        EquipmentAbilityBindingDefinition binding,
+        StringName stateKey
+    )
+    {
+        string counterId = BuildPersistentCounterId(binding, stateKey);
+        if (instance == null || string.IsNullOrEmpty(counterId))
+            return 0;
+        foreach (
+            EquipmentAbilityPersistentCounterState counter in instance.ability_persistent_counters
+                ?? new List<EquipmentAbilityPersistentCounterState>()
+        )
+        {
+            if (counter != null && counter.CounterId == counterId)
+                return Math.Max(counter.Value, 0L);
+        }
+        return Math.Max(FindStateSchema(binding, stateKey)?.InitialIntValue ?? 0, 0);
+    }
+
+    private static int ApplyFactIntAggregation(
+        EquipmentAbilityFactQueryDefinition query,
+        long rawValue
+    )
+    {
+        long normalizedValue = Math.Max(rawValue, 0L);
+        StringName aggregation = NormalizeStringName(query?.Aggregation ?? new StringName(""));
+        if (aggregation == "" || aggregation == "value")
+            return ClampFactInt(normalizedValue);
+        if (aggregation == "floor_div")
+        {
+            int divisor = Math.Max(query?.IntLiteral ?? 0, 1);
+            return ClampFactInt(normalizedValue / divisor);
+        }
+        return ClampFactInt(normalizedValue);
+    }
+
+    private static int ClampFactInt(long value) =>
+        value > int.MaxValue ? int.MaxValue : (int)Math.Max(value, 0L);
 
     private static EquipmentAbilityStateSchemaDefinition FindStateSchema(
         EquipmentAbilityBindingDefinition binding,
@@ -529,8 +688,11 @@ internal static class EquipmentAbilityUsageRuntime
     {
         if (source == null || grant == null || grant.GrantedActionId == "")
             return "";
+        StringName ownerSourceKey = ResolveOwnerSourceKey(source);
+        if (ownerSourceKey == "")
+            return "";
         return new StringName(
-            $"equipment_skill:{source.SourceEquipmentInstanceId}:{grant.GrantedActionId}"
+            $"equipment_skill:{ownerSourceKey}:{grant.GrantedActionId}"
         );
     }
 
@@ -538,8 +700,11 @@ internal static class EquipmentAbilityUsageRuntime
     {
         if (entry?.EntryRef == null || entry.EquipmentGrantedActionId == "")
             return "";
+        StringName ownerSourceKey = ResolveOwnerSourceKey(entry);
+        if (ownerSourceKey == "")
+            return "";
         return new StringName(
-            $"equipment_skill:{entry.EntryRef.SourceEquipmentInstanceId}:{entry.EquipmentGrantedActionId}"
+            $"equipment_skill:{ownerSourceKey}:{entry.EquipmentGrantedActionId}"
         );
     }
 
@@ -550,11 +715,7 @@ internal static class EquipmentAbilityUsageRuntime
     {
         if (source == null || grant == null || grant.GrantedActionId == "")
             return "";
-        StringName ownerSourceKey = source.SourceEquipmentInstanceId;
-        if (ownerSourceKey == "")
-            ownerSourceKey = source.EquipmentDefId;
-        if (ownerSourceKey == "")
-            ownerSourceKey = source.EffectiveInstanceKey;
+        StringName ownerSourceKey = ResolveOwnerSourceKey(source);
         if (ownerSourceKey == "")
             return "";
         return new StringName(
@@ -566,12 +727,34 @@ internal static class EquipmentAbilityUsageRuntime
     {
         if (entry?.EntryRef == null || entry.EquipmentGrantedActionId == "")
             return "";
-        StringName ownerSourceKey = entry.EntryRef.SourceEquipmentInstanceId;
+        StringName ownerSourceKey = ResolveOwnerSourceKey(entry);
         if (ownerSourceKey == "")
             return "";
         return new StringName(
             $"equipment_skill_turn_use:{ownerSourceKey}:{entry.EquipmentGrantedActionId}"
         );
+    }
+
+    private static StringName ResolveOwnerSourceKey(BattleEquipmentAbilitySourceState source)
+    {
+        if (source == null)
+            return "";
+        StringName ownerSourceKey = source.SourceEquipmentInstanceId;
+        if (ownerSourceKey == "")
+            ownerSourceKey = source.EffectiveInstanceKey;
+        if (ownerSourceKey == "")
+            ownerSourceKey = source.EquipmentDefId;
+        return ownerSourceKey;
+    }
+
+    private static StringName ResolveOwnerSourceKey(BattleAvailableSkillEntry entry)
+    {
+        if (entry?.EntryRef == null)
+            return "";
+        StringName ownerSourceKey = entry.EntryRef.SourceEquipmentInstanceId;
+        if (ownerSourceKey == "")
+            ownerSourceKey = entry.EntryRef.SourceEquipmentEffectiveInstanceKey;
+        return ownerSourceKey;
     }
 
     private static EquipmentAbilityUsagePeriodState FindUsagePeriod(
@@ -607,6 +790,29 @@ internal static class EquipmentAbilityUsageRuntime
         }
         return null;
     }
+
+    private static bool AllTagsPresent(ItemDef itemDef, IReadOnlyList<StringName> requiredTags)
+    {
+        if (requiredTags == null || requiredTags.Count == 0)
+            return true;
+        foreach (StringName requiredTag in requiredTags)
+            if (!BattleEquipmentRequirementRules.ItemHasTag(itemDef, requiredTag))
+                return false;
+        return true;
+    }
+
+    private static bool AnyTagPresent(ItemDef itemDef, IReadOnlyList<StringName> requiredTags)
+    {
+        if (requiredTags == null || requiredTags.Count == 0)
+            return true;
+        foreach (StringName requiredTag in requiredTags)
+            if (BattleEquipmentRequirementRules.ItemHasTag(itemDef, requiredTag))
+                return true;
+        return false;
+    }
+
+    private static StringName NormalizeStringName(StringName value) =>
+        ProgressionDataUtils.to_string_name(value);
 
     private static string ToPeriodKindText(EquipmentAbilityUsagePeriodKind kind) =>
         EquipmentAbilityUsagePeriodKinds.ToStringName(kind).ToString();

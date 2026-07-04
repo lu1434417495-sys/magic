@@ -764,6 +764,7 @@ public partial class BattleDamageResolver : IDisposable
             return result;
         }
 
+        int weaponHpDamage = ComputeWeaponHpDamage(result);
         BattleEquipmentAbilityAfterHitResult afterHitResult =
             equipmentAbilityService.ResolveAfterHit(
                 new BattleEquipmentAbilityAfterHitContext
@@ -774,29 +775,67 @@ public partial class BattleDamageResolver : IDisposable
                     AttackSucceeded = true,
                     CriticalHit = attackMetadata.CriticalHit,
                     ApplyDamageDiceActions = false,
-                    SaveContext = new BattleSaveContext(
-                        attackMetadata.SkillId,
-                        Array.Empty<int>()
-                    ),
+                    WeaponHpDamage = weaponHpDamage,
+                    SaveContext = BuildAfterHitSaveContext(attackMetadata, attackContext),
                 }
             );
-        if (afterHitResult?.Resolved != true)
+        BattleEquipmentAbilityAfterHitResult hitReceivedResult =
+            targetUnit.unit_id != sourceUnit.unit_id
+                ? equipmentAbilityService.ResolveHitReceived(
+                    new BattleEquipmentAbilityAfterHitContext
+                    {
+                        SourceUnit = targetUnit,
+                        TargetUnit = sourceUnit,
+                        BattleState = attackContext?.BattleState ?? equipmentAbilityService.GetBattleState(),
+                        AttackSucceeded = true,
+                        CriticalHit = attackMetadata.CriticalHit,
+                        ApplyDamageDiceActions = false,
+                        WeaponHpDamage = weaponHpDamage,
+                        SaveContext = BuildAfterHitSaveContext(attackMetadata, attackContext),
+                    }
+                )
+                : null;
+        if (afterHitResult?.Resolved != true && hitReceivedResult?.Resolved != true)
             return result;
 
         AttackEffectResolutionResult mergedResult =
             AttackEffectResolutionResultReader.FinalizeTypedResult(result);
-        mergedResult.EquipmentDurabilityEvents = MergeEquipmentDurabilityEvents(
-            mergedResult.EquipmentDurabilityEvents,
-            afterHitResult.DurabilityResults
-        );
-        MergeAfterHitStatusResults(
-            mergedResult.StatusEffectIds,
-            mergedResult.SourceStatusEffectIds,
-            sourceUnit,
-            targetUnit,
-            afterHitResult.StatusResults
-        );
+        if (afterHitResult?.Resolved == true)
+        {
+            mergedResult.EquipmentDurabilityEvents = MergeEquipmentDurabilityEvents(
+                mergedResult.EquipmentDurabilityEvents,
+                afterHitResult.DurabilityResults
+            );
+            MergeAfterHitStatusResults(
+                mergedResult.StatusEffectIds,
+                mergedResult.SourceStatusEffectIds,
+                sourceUnit,
+                targetUnit,
+                afterHitResult.StatusResults
+            );
+        }
+        if (hitReceivedResult?.Resolved == true)
+        {
+            MergeAfterHitStatusResults(
+                mergedResult.StatusEffectIds,
+                mergedResult.SourceStatusEffectIds,
+                sourceUnit,
+                targetUnit,
+                hitReceivedResult.StatusResults
+            );
+        }
         return mergedResult;
+    }
+
+    private static BattleSaveContext BuildAfterHitSaveContext(
+        AttackResolutionMetadata attackMetadata,
+        AttackContext attackContext
+    )
+    {
+        return new BattleSaveContext(
+            attackMetadata.SkillId,
+            attackContext?.SaveRollOverrides ?? Array.Empty<int>()
+        );
     }
 
     private static bool ResultIncludesWeaponDamage(AttackEffectResolutionResult result)
@@ -813,6 +852,23 @@ public partial class BattleDamageResolver : IDisposable
             }
         }
         return false;
+    }
+
+    private static int ComputeWeaponHpDamage(AttackEffectResolutionResult result)
+    {
+        int total = 0;
+        foreach (DamageEventResult damageEvent in result.DamageEvents ?? Array.Empty<DamageEventResult>())
+        {
+            if (
+                damageEvent.AddWeaponDice
+                && damageEvent.WeaponDamageDice.Count > 0
+                && damageEvent.WeaponDamageDice.Sides > 0
+            )
+            {
+                total += Math.Max(damageEvent.HpDamage, 0);
+            }
+        }
+        return total;
     }
 
     private static EquipmentDurabilityEventResult[] MergeEquipmentDurabilityEvents(
@@ -1839,7 +1895,7 @@ public partial class BattleDamageResolver : IDisposable
                 roll.DamageTag != ""
                 && roll.DamageTag != primaryDamageTag
                 && !roll.Subtract
-                && (roll.Roll.HasDice || roll.Roll.Bonus > 0)
+                && !DicePoolRollIsEmpty(roll.Roll)
             )
             {
                 result.Add(roll);
@@ -1920,6 +1976,7 @@ public partial class BattleDamageResolver : IDisposable
                 targetUnit,
                 damageContext,
                 damageTag,
+                !DicePoolRollIsEmpty(weaponRoll),
                 rollMode
             );
         bonusDamageRoll = CombineDicePoolRolls(
@@ -2028,9 +2085,11 @@ public partial class BattleDamageResolver : IDisposable
         }
 
         FixedMitigationResult mitigation = BuildFixedMitigation(
+            sourceUnit,
             targetUnit,
             effectDefinition,
-            damageTag
+            damageTag,
+            damageContext
         );
         ApplyBlackStarBrandGuardIgnore(mitigation, targetUnit);
         bool lowLuckBlackStarWedgeTriggered = ApplyLowLuckBlackStarWedgeGuardIgnore(
@@ -2204,9 +2263,11 @@ public partial class BattleDamageResolver : IDisposable
         }
 
         FixedMitigationResult mitigation = BuildFixedMitigation(
+            sourceUnit,
             targetUnit,
             effectDefinition,
-            damageTag
+            damageTag,
+            damageContext
         );
         ApplyBlackStarBrandGuardIgnore(mitigation, targetUnit);
         bool lowLuckBlackStarWedgeTriggered = ApplyLowLuckBlackStarWedgeGuardIgnore(
@@ -2333,9 +2394,11 @@ public partial class BattleDamageResolver : IDisposable
         }
 
         FixedMitigationResult mitigation = BuildFixedMitigation(
+            sourceUnit,
             targetUnit,
             effectDefinition,
-            damageTag
+            damageTag,
+            damageContext
         );
         ApplyBlackStarBrandGuardIgnore(mitigation, targetUnit);
         bool lowLuckBlackStarWedgeTriggered = ApplyLowLuckBlackStarWedgeGuardIgnore(

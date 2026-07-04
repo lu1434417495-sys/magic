@@ -105,6 +105,7 @@ public partial class BattleUnitState
         "proficiency_tags",
         "save_advantage_tags",
         "damage_resistances",
+        "save_bonus_by_ability",
         "effective_trait_instances",
         "effective_trait_ids",
         "equipment_ability_sources",
@@ -113,6 +114,7 @@ public partial class BattleUnitState
         "weapon_profile_kind",
         "weapon_item_id",
         "weapon_profile_type_id",
+        "weapon_range_type",
         "weapon_family",
         "weapon_current_grip",
         "weapon_attack_range",
@@ -231,9 +233,11 @@ public partial class BattleUnitState
     public StringNameList proficiency_tags = new();
     public StringNameList save_advantage_tags = new();
     public BattleStringNameMap damage_resistances = new();
+    public BattleStringNameIntMap save_bonus_by_ability = new();
     public List<BattleEffectiveTraitInstanceState> effective_trait_instances = new();
     public StringNameList effective_trait_ids = new();
     public List<BattleEquipmentAbilitySourceState> equipment_ability_sources = new();
+    internal List<BattleTemporalProgressModifierState> temporal_progress_modifiers = new();
     public StringNameList creature_type_tags = new();
     internal BattleUnitControlMode ControlModeKind
     {
@@ -244,6 +248,7 @@ public partial class BattleUnitState
     public StringName weapon_profile_kind = WeaponProfileKindNone;
     public StringName weapon_item_id = "";
     public StringName weapon_profile_type_id = "";
+    public StringName weapon_range_type = "";
     public StringName weapon_family = "";
     public StringName weapon_current_grip = WeaponGripNone;
     public int weapon_attack_range;
@@ -1045,6 +1050,7 @@ public partial class BattleUnitState
         weapon_profile_kind = WeaponProfileKindNone;
         weapon_item_id = "";
         weapon_profile_type_id = "";
+        weapon_range_type = "";
         weapon_family = "";
         weapon_current_grip = WeaponGripNone;
         weapon_attack_range = 0;
@@ -1087,6 +1093,7 @@ public partial class BattleUnitState
             {
                 weapon_profile_kind = WeaponProfileKindUnarmed,
                 weapon_profile_type_id = "unarmed",
+                weapon_range_type = "melee",
                 weapon_family = "unarmed",
                 weapon_current_grip = WeaponGripOneHanded,
                 weapon_attack_range = attackRange,
@@ -1127,6 +1134,7 @@ public partial class BattleUnitState
             {
                 weapon_profile_kind = WeaponProfileKindNatural,
                 weapon_profile_type_id = !IsEmpty(profileTypeId) ? profileTypeId : "natural_weapon",
+                weapon_range_type = "melee",
                 weapon_family = family,
                 weapon_current_grip = attackRange > 0 ? WeaponGripOneHanded : WeaponGripNone,
                 weapon_attack_range = attackRange,
@@ -1149,6 +1157,7 @@ public partial class BattleUnitState
         );
         weapon_item_id = ToStringName(projection.weapon_item_id);
         weapon_profile_type_id = ToStringName(projection.weapon_profile_type_id);
+        weapon_range_type = ToStringName(projection.weapon_range_type);
         weapon_family = ToStringName(projection.weapon_family);
         weapon_current_grip = NormalizeWeaponGrip(ToStringName(projection.weapon_current_grip));
         weapon_attack_range = Math.Max(projection.weapon_attack_range, 0);
@@ -1306,14 +1315,19 @@ public partial class BattleUnitState
             proficiency_tags = proficiency_tags?.Duplicate() ?? new StringNameList(),
             save_advantage_tags = save_advantage_tags?.Duplicate() ?? new StringNameList(),
             damage_resistances = damage_resistances?.Clone() ?? new BattleStringNameMap(),
+            save_bonus_by_ability = save_bonus_by_ability?.Clone() ?? new BattleStringNameIntMap(),
             effective_trait_instances = DuplicateEffectiveTraitInstances(effective_trait_instances),
             effective_trait_ids = DeriveEffectiveTraitIdsFromInstances(effective_trait_instances),
             equipment_ability_sources = DuplicateEquipmentAbilitySources(equipment_ability_sources),
+            temporal_progress_modifiers = DuplicateTemporalProgressModifiers(
+                temporal_progress_modifiers
+            ),
             creature_type_tags = creature_type_tags?.Duplicate() ?? new StringNameList(),
             versatility_pick = versatility_pick,
             weapon_profile_kind = weapon_profile_kind,
             weapon_item_id = weapon_item_id,
             weapon_profile_type_id = weapon_profile_type_id,
+            weapon_range_type = weapon_range_type,
             weapon_family = weapon_family,
             weapon_current_grip = weapon_current_grip,
             weapon_attack_range = weapon_attack_range,
@@ -1414,6 +1428,8 @@ public partial class BattleUnitState
             ["save_advantage_tags"] = StringNameArrayToStrings(save_advantage_tags),
             ["damage_resistances"] =
                 damage_resistances?.ProjectStringKeyPayload() ?? new GDictionary(),
+            ["save_bonus_by_ability"] =
+                save_bonus_by_ability?.ProjectStringKeyPayload() ?? new GDictionary(),
             ["effective_trait_instances"] = EffectiveTraitInstancesToPayloadArray(
                 effective_trait_instances
             ),
@@ -1428,6 +1444,7 @@ public partial class BattleUnitState
             ["weapon_profile_kind"] = weapon_profile_kind.ToString(),
             ["weapon_item_id"] = weapon_item_id.ToString(),
             ["weapon_profile_type_id"] = weapon_profile_type_id.ToString(),
+            ["weapon_range_type"] = weapon_range_type.ToString(),
             ["weapon_family"] = weapon_family.ToString(),
             ["weapon_current_grip"] = weapon_current_grip.ToString(),
             ["weapon_attack_range"] = weapon_attack_range,
@@ -1561,6 +1578,7 @@ public partial class BattleUnitState
                 "shield_source_skill_id",
                 "weapon_item_id",
                 "weapon_profile_type_id",
+                "weapon_range_type",
                 "weapon_family",
                 "weapon_physical_damage_tag",
                 "versatility_pick",
@@ -1753,6 +1771,14 @@ public partial class BattleUnitState
         {
             return null;
         }
+        BattleStringNameIntMap parsedSaveBonusByAbility =
+            payload.ContainsKey("save_bonus_by_ability")
+            && payload["save_bonus_by_ability"].VariantType.ToString() == "Dictionary"
+                ? BattleStringNameIntMap.FromPayloadOrNull(
+                    payload["save_bonus_by_ability"].AsGodotDictionary(),
+                    true
+                ) ?? new BattleStringNameIntMap()
+                : new BattleStringNameIntMap();
 
         StringName parsedWeaponProfileKind = ToStringName(payload["weapon_profile_kind"]);
         if (!IsValidWeaponProfileKind(parsedWeaponProfileKind))
@@ -1849,6 +1875,7 @@ public partial class BattleUnitState
             proficiency_tags = parsedProficiencyTags,
             save_advantage_tags = parsedSaveAdvantageTags,
             damage_resistances = parsedDamageResistances,
+            save_bonus_by_ability = parsedSaveBonusByAbility,
             effective_trait_instances = parsedEffectiveTraitInstances,
             effective_trait_ids = parsedEffectiveTraitIds,
             equipment_ability_sources = parsedEquipmentAbilitySources,
@@ -1857,6 +1884,7 @@ public partial class BattleUnitState
             weapon_profile_kind = parsedWeaponProfileKind,
             weapon_item_id = ToStringName(payload["weapon_item_id"]),
             weapon_profile_type_id = ToStringName(payload["weapon_profile_type_id"]),
+            weapon_range_type = ToStringName(payload["weapon_range_type"]),
             weapon_family = ToStringName(payload["weapon_family"]),
             weapon_current_grip = parsedWeaponCurrentGrip,
             weapon_attack_range = payload["weapon_attack_range"].AsInt32(),
@@ -2133,6 +2161,19 @@ public partial class BattleUnitState
         return result;
     }
 
+    internal static List<BattleTemporalProgressModifierState> DuplicateTemporalProgressModifiers(
+        IEnumerable<BattleTemporalProgressModifierState> source
+    )
+    {
+        List<BattleTemporalProgressModifierState> result = new();
+        if (source == null)
+            return result;
+        foreach (BattleTemporalProgressModifierState entry in source)
+            if (entry != null)
+                result.Add(entry.DuplicateState());
+        return result;
+    }
+
     internal static GArray EquipmentAbilitySourcesToPayloadArray(
         IEnumerable<BattleEquipmentAbilitySourceState> source
     )
@@ -2289,6 +2330,7 @@ public partial class BattleUnitState
     private void NormalizeWeaponProjection()
     {
         weapon_profile_kind = NormalizeWeaponProfileKind(weapon_profile_kind);
+        weapon_range_type = ToStringName(weapon_range_type);
         weapon_current_grip = NormalizeWeaponGrip(weapon_current_grip);
         weapon_attack_range = Math.Max(weapon_attack_range, 0);
         weapon_one_handed_dice = NormalizeWeaponDice(weapon_one_handed_dice);

@@ -26,6 +26,20 @@ internal static class BattleTemporalStatusService
     internal static readonly StringName TemporalStatusTag =
         BattleSaveContentRules.ToStringName(BattleSaveTagKind.Temporal);
 
+    private static Queue<int> _forcedTemporalProgressRollsForTests;
+
+    internal static void SetForcedTemporalProgressRollsForTests(IEnumerable<int> rolls)
+    {
+        _forcedTemporalProgressRollsForTests = new Queue<int>();
+        foreach (int roll in rolls ?? Array.Empty<int>())
+            _forcedTemporalProgressRollsForTests.Enqueue(Math.Clamp(roll, 1, 20));
+    }
+
+    internal static void ClearForcedTemporalProgressRollsForTests()
+    {
+        _forcedTemporalProgressRollsForTests = null;
+    }
+
     internal static bool HasTimeStasis(BattleUnitState unitState)
     {
         return unitState != null
@@ -49,12 +63,26 @@ internal static class BattleTemporalStatusService
         {
             return 0;
         }
-        return HasTimeSlow(unitState) ? TimeSlowProgressRatePercent : FullProgressRatePercent;
+        if (HasTimeSlow(unitState))
+        {
+            return TimeSlowProgressRatePercent;
+        }
+        return ResolveTemporalProgressModifierRatePercent(unitState, actionProgress: true)
+            ?? FullProgressRatePercent;
     }
 
     internal static int GetCastProgressRatePercent(BattleUnitState unitState)
     {
-        return GetActionProgressRatePercent(unitState);
+        if (HasTimeStasis(unitState))
+        {
+            return 0;
+        }
+        if (HasTimeSlow(unitState))
+        {
+            return TimeSlowProgressRatePercent;
+        }
+        return ResolveTemporalProgressModifierRatePercent(unitState, actionProgress: false)
+            ?? FullProgressRatePercent;
     }
 
     // runtime-only 余数累加：raw = base * rate + remainder；gain = raw / 100；remainder = raw % 100。
@@ -72,6 +100,56 @@ internal static class BattleTemporalStatusService
         int raw = tuDelta * ratePercent + Math.Max(unitState.action_progress_rate_remainder, 0);
         unitState.action_progress_rate_remainder = raw % 100;
         return raw / 100;
+    }
+
+    private static int? ResolveTemporalProgressModifierRatePercent(
+        BattleUnitState unitState,
+        bool actionProgress
+    )
+    {
+        if (unitState?.temporal_progress_modifiers == null)
+            return null;
+        BattleTemporalProgressModifierState selected = null;
+        foreach (BattleTemporalProgressModifierState modifier in unitState.temporal_progress_modifiers)
+        {
+            if (modifier == null)
+                continue;
+            if (actionProgress && !modifier.AppliesToActionProgress)
+                continue;
+            if (!actionProgress && !modifier.AppliesToCastProgress)
+                continue;
+            if (selected == null || string.CompareOrdinal(
+                    modifier.ModifierId.ToString(),
+                    selected.ModifierId.ToString()
+                ) < 0)
+            {
+                selected = modifier;
+            }
+        }
+        if (selected == null)
+            return null;
+
+        int roll = RollTemporalProgressD20();
+        int attributeModifier = unitState.attribute_snapshot?.GetValue(
+            selected.AttributeModifierId
+        ) ?? 0;
+        bool success = roll + attributeModifier >= Math.Max(selected.SaveDc, 1);
+        int ratePercent = success
+            ? selected.SuccessRatePercent
+            : selected.FailureRatePercent;
+        return Math.Max(ratePercent, 0);
+    }
+
+    private static int RollTemporalProgressD20()
+    {
+        if (
+            _forcedTemporalProgressRollsForTests != null
+            && _forcedTemporalProgressRollsForTests.Count > 0
+        )
+        {
+            return _forcedTemporalProgressRollsForTests.Dequeue();
+        }
+        return TrueRandomSeedService.RandiRange(1, 20);
     }
 
     internal static int ConsumeCastProgressGain(BattleUnitState unitState, int baseProgressDelta)

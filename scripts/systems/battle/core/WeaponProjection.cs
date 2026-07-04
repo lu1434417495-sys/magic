@@ -6,6 +6,7 @@ public sealed class WeaponProjection
     public StringName weapon_profile_kind { get; set; } = "";
     public StringName weapon_item_id { get; set; } = "";
     public StringName weapon_profile_type_id { get; set; } = "";
+    public StringName weapon_range_type { get; set; } = "";
     public StringName weapon_family { get; set; } = "";
     public StringName weapon_current_grip { get; set; } = "";
     public int weapon_attack_range { get; set; }
@@ -44,6 +45,7 @@ public sealed class WeaponProjection
             weapon_profile_kind = ReadStringName(projection, "weapon_profile_kind"),
             weapon_item_id = ReadStringName(projection, "weapon_item_id"),
             weapon_profile_type_id = ReadStringName(projection, "weapon_profile_type_id"),
+            weapon_range_type = ReadStringName(projection, "weapon_range_type"),
             weapon_family = ReadStringName(projection, "weapon_family"),
             weapon_current_grip = currentGrip,
             weapon_attack_range = Mathf.Max(ReadInt(projection, "weapon_attack_range"), 0),
@@ -67,6 +69,7 @@ public sealed class WeaponProjection
             weapon_profile_kind = weapon_profile_kind,
             weapon_item_id = weapon_item_id,
             weapon_profile_type_id = weapon_profile_type_id,
+            weapon_range_type = weapon_range_type,
             weapon_family = weapon_family,
             weapon_current_grip = weapon_current_grip,
             weapon_attack_range = weapon_attack_range,
@@ -90,6 +93,7 @@ public sealed class WeaponProjection
             ["weapon_profile_kind"] = weapon_profile_kind.ToString(),
             ["weapon_item_id"] = weapon_item_id.ToString(),
             ["weapon_profile_type_id"] = weapon_profile_type_id.ToString(),
+            ["weapon_range_type"] = weapon_range_type.ToString(),
             ["weapon_family"] = weapon_family.ToString(),
             ["weapon_current_grip"] = weapon_current_grip.ToString(),
             ["weapon_attack_range"] = weapon_attack_range,

@@ -84,6 +84,7 @@ public partial class BattleDamageResolver
         BattleUnitState targetUnit,
         DamageResolutionContext damageContext,
         StringName fallbackDamageTag,
+        bool resultIncludesWeaponDamage,
         StringName rollMode = default
     )
     {
@@ -92,6 +93,7 @@ public partial class BattleDamageResolver
             || sourceUnit == null
             || targetUnit == null
             || damageContext?.AttackSuccess != true
+            || !resultIncludesWeaponDamage
         )
         {
             return Array.Empty<EquipmentAbilityTaggedBonusDamageRoll>();
@@ -268,9 +270,9 @@ public partial class BattleDamageResolver
         DicePoolRollResult right
     )
     {
-        if (!left.HasDice)
+        if (DicePoolRollIsEmpty(left))
             return right;
-        if (!right.HasDice)
+        if (DicePoolRollIsEmpty(right))
             return left;
 
         int[] leftRolls = left.Rolls ?? Array.Empty<int>();
@@ -290,6 +292,14 @@ public partial class BattleDamageResolver
             maxTotal,
             maxTotal > 0 && total == maxTotal
         );
+    }
+
+    private static bool DicePoolRollIsEmpty(DicePoolRollResult value)
+    {
+        return Math.Max(value.Count, 0) <= 0
+            && Math.Max(value.Total, 0) <= 0
+            && Math.Max(value.Bonus, 0) <= 0
+            && (value.Rolls == null || value.Rolls.Length == 0);
     }
 
     private int RollDamageDieVirtual(int diceSides)

@@ -503,6 +503,12 @@ public sealed class GameRuntimePartyCommandHandler
                     GetMemberDisplayName(memberId),
                     GetItemDisplayName(itemId)
                 );
+            case "attribute_too_low":
+                return string.Format(
+                    "{0} 属性不足，无法装备 {1}。",
+                    GetMemberDisplayName(memberId),
+                    GetItemDisplayName(itemId)
+                );
             case "requirement_failed":
                 return string.Format("{0} 不满足装备要求。", GetItemDisplayName(itemId));
             default:

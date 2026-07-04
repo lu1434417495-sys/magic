@@ -12,6 +12,8 @@ internal static class BattleEquipmentAbilityProjectionService
     )
     {
         List<BattleEquipmentAbilitySourceState> result = new();
+        if (unit != null)
+            unit.temporal_progress_modifiers = new List<BattleTemporalProgressModifierState>();
         if (
             unit == null
             || unit.effective_trait_instances == null
@@ -67,6 +69,11 @@ internal static class BattleEquipmentAbilityProjectionService
                     AbilityIds = SortedBindingIds(matchedBindings),
                 }
             );
+            AddTemporalProgressModifiers(
+                unit,
+                matchedBindings,
+                equipmentEntry.instance_id
+            );
         }
 
         return result;
@@ -81,6 +88,8 @@ internal static class BattleEquipmentAbilityProjectionService
     )
     {
         List<BattleEquipmentAbilitySourceState> result = new();
+        if (unit != null)
+            unit.temporal_progress_modifiers = new List<BattleTemporalProgressModifierState>();
         if (unit == null || template == null || bindings == null || bindings.Count == 0)
             return result;
 
@@ -122,6 +131,7 @@ internal static class BattleEquipmentAbilityProjectionService
                     AbilityIds = SortedBindingIds(matchedBindings),
                 }
             );
+            AddTemporalProgressModifiers(unit, matchedBindings, "");
         }
 
         return result;
@@ -218,5 +228,39 @@ internal static class BattleEquipmentAbilityProjectionService
         }
         result.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
         return result;
+    }
+
+    private static void AddTemporalProgressModifiers(
+        BattleUnitState unit,
+        IReadOnlyList<EquipmentAbilityBindingDefinition> bindings,
+        StringName sourceEquipmentInstanceId
+    )
+    {
+        if (unit == null || bindings == null)
+            return;
+        unit.temporal_progress_modifiers ??= new List<BattleTemporalProgressModifierState>();
+        foreach (EquipmentAbilityBindingDefinition binding in bindings)
+        {
+            foreach (EquipmentTemporalProgressModifierDefinition modifier in binding?.TemporalProgressModifiers ?? Array.Empty<EquipmentTemporalProgressModifierDefinition>())
+            {
+                if (modifier == null || modifier.ModifierId == "")
+                    continue;
+                unit.temporal_progress_modifiers.Add(
+                    new BattleTemporalProgressModifierState
+                    {
+                        ModifierId = modifier.ModifierId,
+                        BindingId = binding.BindingId,
+                        SourceEquipmentInstanceId = sourceEquipmentInstanceId,
+                        AppliesToActionProgress = modifier.AppliesToActionProgress,
+                        AppliesToCastProgress = modifier.AppliesToCastProgress,
+                        SaveDc = modifier.SaveDc,
+                        AttributeModifierId = modifier.AttributeModifierId,
+                        SuccessRatePercent = modifier.SuccessRatePercent,
+                        FailureRatePercent = modifier.FailureRatePercent,
+                        Label = modifier.Label,
+                    }
+                );
+            }
+        }
     }
 }

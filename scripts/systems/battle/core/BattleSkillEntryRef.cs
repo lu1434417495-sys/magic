@@ -11,7 +11,8 @@ internal readonly record struct BattleSkillEntryRef(
     StringName SkillEntryId,
     StringName SkillId,
     BattleSkillEntrySourceKind SourceKind,
-    StringName SourceEquipmentInstanceId
+    StringName SourceEquipmentInstanceId,
+    StringName SourceEquipmentEffectiveInstanceKey = default
 );
 
 internal static class BattleSkillEntryIds

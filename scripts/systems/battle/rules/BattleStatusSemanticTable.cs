@@ -14,6 +14,7 @@ public readonly record struct BattleStatusSemantic(
     int AttackRollPenalty,
     StringName ApPenaltyGroup,
     bool ConsumeAfterApPenalty,
+    bool SetApToZeroAtTurnStart,
     string DisplayLabel,
     string TurnStartLogReasonId
 );
@@ -51,6 +52,7 @@ public static class BattleStatusSemanticTable
         STATUS_PETRIFIED = "petrified",
         STATUS_MADNESS = "madness",
         STATUS_ROOTED = "rooted",
+        STATUS_POISONED = "poisoned",
         STATUS_SHOCKED = "shocked",
         STATUS_SLOW = "slow",
         STATUS_SPELLWARD = "spellward",
@@ -71,6 +73,7 @@ public static class BattleStatusSemanticTable
         STATUS_TIME_STASIS = "time_stasis",
         STATUS_TIME_SLOW = "time_slow",
         STATUS_TIME_REVERBERATION = "time_reverberation",
+        STATUS_TEMPORAL_AP_STOLEN = "temporal_ap_stolen",
         STATUS_BLACK_STAR_BRAND_NORMAL = "black_star_brand_normal",
         STATUS_BLACK_STAR_BRAND_ELITE = "black_star_brand_elite";
 
@@ -125,6 +128,7 @@ public static class BattleStatusSemanticTable
         [STATUS_PARALYZED] = new() { Semantic = RefreshSemantic(displayLabel: "麻痹"), Harmful = true, DispellableHarmful = true, BlocksPendingCast = true, DispelPriority = 90 },
         [STATUS_PINNED] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
         [STATUS_ROOTED] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 90 },
+        [STATUS_POISONED] = new() { Semantic = RefreshSemantic(attackRollPenalty: 2, displayLabel: "中毒"), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
         [STATUS_SHOCKED] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
         [STATUS_TAUNTED] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
         [STATUS_HEX_OF_FRAILTY] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
@@ -140,6 +144,20 @@ public static class BattleStatusSemanticTable
         [STATUS_PETRIFIED] = new() { Semantic = RefreshSemantic(), Harmful = true, CleanseProtected = true, BlocksPendingCast = true },
         [STATUS_TIME_STASIS] = new() { Semantic = RefreshSemantic(), Harmful = true, CleanseProtected = true, DispellableHarmful = true, DispelPriority = 90 },
         [STATUS_TIME_SLOW] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
+        [STATUS_TEMPORAL_AP_STOLEN] = new()
+        {
+            Semantic = RefreshSemantic(
+                tickMode: TICK_TURN_START_AP_PENALTY,
+                apPenaltyGroup: STATUS_TEMPORAL_AP_STOLEN,
+                consumeAfterApPenalty: true,
+                setApToZeroAtTurnStart: true,
+                displayLabel: "时间剥夺",
+                turnStartLogReasonId: "temporal_ap_stolen_consumed"
+            ),
+            Harmful = true,
+            DispellableHarmful = true,
+            DispelPriority = 70,
+        },
         [STATUS_STAGGERED] = new()
         {
             Semantic = RefreshSemantic(
@@ -465,6 +483,15 @@ public static class BattleStatusSemanticTable
             && semantic.ConsumeAfterApPenalty;
     }
 
+    public static bool ShouldSetApToZeroAtTurnStart(BattleStatusEffectState statusEntry)
+    {
+        if (statusEntry == null)
+            return false;
+        BattleStatusSemantic semantic = GetSemantic(statusEntry.status_id);
+        return semantic.TickMode == TICK_TURN_START_AP_PENALTY
+            && semantic.SetApToZeroAtTurnStart;
+    }
+
     public static string GetTurnStartApPenaltyDisplayLabel(BattleStatusEffectState statusEntry)
     {
         if (statusEntry == null)
@@ -565,6 +592,7 @@ public static class BattleStatusSemanticTable
         int attackRollPenalty = 0,
         StringName apPenaltyGroup = default,
         bool consumeAfterApPenalty = false,
+        bool setApToZeroAtTurnStart = false,
         string displayLabel = "",
         string turnStartLogReasonId = ""
     ) =>
@@ -576,6 +604,7 @@ public static class BattleStatusSemanticTable
             attackRollPenalty,
             apPenaltyGroup,
             consumeAfterApPenalty,
+            setApToZeroAtTurnStart,
             displayLabel,
             turnStartLogReasonId
         );
@@ -588,6 +617,7 @@ public static class BattleStatusSemanticTable
         int attackRollPenalty = 0,
         StringName apPenaltyGroup = default,
         bool consumeAfterApPenalty = false,
+        bool setApToZeroAtTurnStart = false,
         string displayLabel = "",
         string turnStartLogReasonId = ""
     ) =>
@@ -600,6 +630,7 @@ public static class BattleStatusSemanticTable
             Mathf.Max(attackRollPenalty, 0),
             ProgressionDataUtils.to_string_name(apPenaltyGroup),
             consumeAfterApPenalty,
+            setApToZeroAtTurnStart,
             displayLabel ?? "",
             turnStartLogReasonId ?? ""
         );

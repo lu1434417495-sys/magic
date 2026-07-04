@@ -11,6 +11,7 @@ internal enum BattleTerrainKind
     ShallowWater,
     FlowingWater,
     DeepWater,
+    Ice,
     Mud,
     Spike,
 }
@@ -23,6 +24,7 @@ public static class BattleTerrainRules
     private static readonly StringName TerrainShallowWater = "shallow_water";
     private static readonly StringName TerrainFlowingWater = "flowing_water";
     private static readonly StringName TerrainDeepWater = "deep_water";
+    private static readonly StringName TerrainIce = "ice";
     private static readonly StringName TerrainMud = "mud";
     private static readonly StringName TerrainSpike = "spike";
 
@@ -40,6 +42,7 @@ public static class BattleTerrainRules
             BattleTerrainKind.ShallowWater => TerrainShallowWater,
             BattleTerrainKind.FlowingWater => TerrainFlowingWater,
             BattleTerrainKind.DeepWater => TerrainDeepWater,
+            BattleTerrainKind.Ice => TerrainIce,
             BattleTerrainKind.Mud => TerrainMud,
             BattleTerrainKind.Spike => TerrainSpike,
             _ => new StringName(""),
@@ -60,6 +63,8 @@ public static class BattleTerrainRules
             return BattleTerrainKind.FlowingWater;
         if (terrainId == TerrainDeepWater)
             return BattleTerrainKind.DeepWater;
+        if (terrainId == TerrainIce)
+            return BattleTerrainKind.Ice;
         if (terrainId == TerrainMud)
             return BattleTerrainKind.Mud;
         if (terrainId == TerrainSpike)
@@ -233,6 +238,10 @@ public static class BattleTerrainRules
         if (kind == BattleTerrainKind.DeepWater)
         {
             return "深水";
+        }
+        if (kind == BattleTerrainKind.Ice)
+        {
+            return "冰层";
         }
         if (kind == BattleTerrainKind.Mud)
         {

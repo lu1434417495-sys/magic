@@ -82,9 +82,11 @@ public partial class BattleDamageResolver
     }
 
     private FixedMitigationResult BuildFixedMitigation(
+        BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         CombatEffectDefinition effectDefinition,
-        StringName damageTag
+        StringName damageTag,
+        DamageResolutionContext damageContext = null
     )
     {
         FixedMitigationComponent buffReduction = ResolveBuffReductionResult(targetUnit);
@@ -96,6 +98,12 @@ public partial class BattleDamageResolver
             damageTag
         );
         FixedMitigationComponent guardBlock = ResolveGuardBlockResult(targetUnit, damageTag);
+        FixedMitigationComponent equipmentReduction = ResolveEquipmentReductionResult(
+            sourceUnit,
+            targetUnit,
+            damageTag,
+            damageContext
+        );
         var result = new FixedMitigationResult
         {
             BuffReduction = buffReduction.Value,
@@ -103,13 +111,69 @@ public partial class BattleDamageResolver
             PassiveReduction = passiveReduction.Value,
             ContentDr = contentDr.Value,
             GuardBlock = guardBlock.Value,
+            EquipmentReduction = equipmentReduction.Value,
         };
         result.Sources.AddRange(buffReduction.Sources);
         result.Sources.AddRange(stanceReduction.Sources);
         result.Sources.AddRange(passiveReduction.Sources);
         result.Sources.AddRange(contentDr.Sources);
         result.Sources.AddRange(guardBlock.Sources);
+        result.Sources.AddRange(equipmentReduction.Sources);
         return result;
+    }
+
+    private FixedMitigationComponent ResolveEquipmentReductionResult(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        StringName damageTag,
+        DamageResolutionContext damageContext
+    )
+    {
+        BattleEquipmentAbilityRuntimeService equipmentAbilityService =
+            _equipment_ability_runtime_service;
+        if (
+            equipmentAbilityService == null
+            || sourceUnit == null
+            || targetUnit == null
+            || damageTag == ""
+        )
+        {
+            return ZeroSourceResult();
+        }
+
+        IReadOnlyList<BattleEquipmentAbilityDamageReductionResult> reductions =
+            equipmentAbilityService.CollectDamageReductions(
+                new BattleEquipmentAbilityDamageReductionContext
+                {
+                    SourceUnit = sourceUnit,
+                    TargetUnit = targetUnit,
+                    BattleState = equipmentAbilityService.GetBattleState(),
+                    DamageTag = damageTag,
+                    AttackSucceeded = damageContext?.AttackSuccess == true,
+                    CriticalHit = damageContext?.CriticalHit == true,
+                }
+            );
+        if (reductions == null || reductions.Count == 0)
+            return ZeroSourceResult();
+
+        int total = 0;
+        var sources = new List<MitigationSourceResult>();
+        foreach (BattleEquipmentAbilityDamageReductionResult reduction in reductions)
+        {
+            if (reduction == null || reduction.Amount <= 0)
+                continue;
+            total += reduction.Amount;
+            sources.Add(
+                BuildFixedMitigationSource(
+                    reduction.BindingId,
+                    "equipment_reduction",
+                    reduction.Amount
+                )
+            );
+        }
+        return total > 0
+            ? new FixedMitigationComponent(total, sources)
+            : ZeroSourceResult();
     }
 
     private FixedMitigationComponent ResolveContentDrResult(

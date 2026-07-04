@@ -108,28 +108,34 @@ internal sealed class BattleSkillAvailabilityService
         new ReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition>(
             new Dictionary<StringName, EquipmentAbilityBindingDefinition>()
         );
+    private static readonly IReadOnlyDictionary<StringName, ItemDef> EmptyItemDefinitions =
+        new ReadOnlyDictionary<StringName, ItemDef>(new Dictionary<StringName, ItemDef>());
 
     private readonly ISkillCatalog _skillCatalog;
     private readonly IReadOnlyDictionary<StringName, SkillDefinition> _skillDefinitions;
     private readonly IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> _equipmentAbilityBindings;
+    private readonly IReadOnlyDictionary<StringName, ItemDef> _itemDefinitions;
 
     internal BattleSkillAvailabilityService(
         ISkillCatalog skillCatalog,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null,
-        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefinitions = null
     )
     {
         _skillCatalog = skillCatalog;
         _skillDefinitions = skillDefinitions ?? EmptySkillDefinitions;
         _equipmentAbilityBindings = equipmentAbilityBindings
             ?? EmptyEquipmentAbilityBindings;
+        _itemDefinitions = itemDefinitions ?? EmptyItemDefinitions;
     }
 
     internal BattleSkillAvailabilityService(
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
-        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefinitions = null
     )
-        : this(null, skillDefinitions, equipmentAbilityBindings) { }
+        : this(null, skillDefinitions, equipmentAbilityBindings, itemDefinitions) { }
 
     internal BattleSkillAvailabilityView BuildView(BattleSkillAvailabilityQuery query)
     {
@@ -350,6 +356,7 @@ internal sealed class BattleSkillAvailabilityService
                         worldStep,
                         battleState,
                         _equipmentAbilityBindings,
+                        _itemDefinitions,
                         out StringName disabledReason
                     );
                     entries.Add(
@@ -359,7 +366,8 @@ internal sealed class BattleSkillAvailabilityService
                                 entryId,
                                 skillId,
                                 BattleSkillEntrySourceKind.EquipmentSkill,
-                                source.SourceEquipmentInstanceId
+                                source.SourceEquipmentInstanceId,
+                                source.EffectiveInstanceKey
                             ),
                             SkillDefinition = skillDefinition,
                             SkillLevel = Mathf.Max(grant.SkillLevel, 1),

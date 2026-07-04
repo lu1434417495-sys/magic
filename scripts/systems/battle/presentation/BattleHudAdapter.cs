@@ -733,7 +733,8 @@ public sealed class BattleHudAdapter : IDisposable
         BattleSkillAvailabilityService service = new(
             GetSkillCatalog(),
             GetSkillDefinitions(),
-            GetEquipmentAbilityBindings()
+            GetEquipmentAbilityBindings(),
+            GetItemDefs()
         );
         return service.BuildView(
             new BattleSkillAvailabilityQuery

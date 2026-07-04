@@ -26,16 +26,19 @@ internal readonly struct BattleDefeatHandlingOptions
     internal readonly bool CollectLoot;
     internal readonly bool RecordEnemyDefeatedAchievement;
     internal readonly bool CheckBattleEnd;
+    internal readonly BattleKillProvenance KillProvenance;
 
     internal BattleDefeatHandlingOptions(
         bool collectLoot = true,
         bool recordEnemyDefeatedAchievement = false,
-        bool checkBattleEnd = true
+        bool checkBattleEnd = true,
+        BattleKillProvenance killProvenance = default
     )
     {
         CollectLoot = collectLoot;
         RecordEnemyDefeatedAchievement = recordEnemyDefeatedAchievement;
         CheckBattleEnd = checkBattleEnd;
+        KillProvenance = killProvenance;
     }
 
 }
@@ -1248,7 +1251,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
         BattleSkillAvailabilityService service = new(
             _skillCatalog,
             _skillDefinitionIndex,
-            _equipmentAbilityBindingIndex
+            _equipmentAbilityBindingIndex,
+            _itemDefIndex
         );
         return service.ValidateSkillEntryAccess(
             new BattleSkillAvailabilityQuery
@@ -1279,7 +1283,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
         BattleSkillAvailabilityService service = new(
             _skillCatalog,
             _skillDefinitionIndex,
-            _equipmentAbilityBindingIndex
+            _equipmentAbilityBindingIndex,
+            _itemDefIndex
         );
         BattleSkillAccessResult accessResult = service.ValidateSkillEntryAccess(
             new BattleSkillAvailabilityQuery
@@ -3653,7 +3658,12 @@ public sealed partial class BattleRuntimeModule : IDisposable
         if (unit_state == null)
             return;
         if (options.CollectLoot)
-            _collect_defeated_unit_loot(unit_state, source_unit, batch);
+            _collect_defeated_unit_loot(
+                unit_state,
+                source_unit,
+                batch,
+                options.KillProvenance
+            );
         _clear_defeated_unit(unit_state, batch);
         _record_unit_defeated(unit_state);
         if (options.RecordEnemyDefeatedAchievement)

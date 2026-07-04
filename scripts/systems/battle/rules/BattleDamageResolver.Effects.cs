@@ -478,9 +478,11 @@ public partial class BattleDamageResolver
         }
 
         FixedMitigationResult mitigation = BuildFixedMitigation(
+            sourceUnit,
             targetUnit,
             (CombatEffectDefinition)null,
-            resolvedDamageTag
+            resolvedDamageTag,
+            damageContext
         );
         ApplyBlackStarBrandGuardIgnore(mitigation, targetUnit);
         bool lowLuckBlackStarWedgeTriggered = ApplyLowLuckBlackStarWedgeGuardIgnore(
