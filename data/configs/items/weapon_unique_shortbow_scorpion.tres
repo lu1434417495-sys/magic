@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Resource_two_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 6
+flat_bonus = 2
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+training_group = &"martial"
+attack_range = 6
+two_handed_dice = SubResource("Resource_two_handed_dice")
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_bow_scorpion_339"
+base_item_id = &"weapon_type_shortbow_base"
+display_name = "蝎子之弓"
+description = "一柄由蝎尾与甲壳锻造的短弓，弓弦能让箭矢携带麻痹毒素。"
+is_stackable = false
+base_price = 38000
+buy_price = 38000
+sell_price = 19000
+sellable = true
+max_stack = 1
+tags = Array[StringName]([&"scorpion_bow", &"shortbow", &"bow", &"poison"])
+trait_ids = Array[StringName]([&"weapon.bow.scorpion.scorpion_arrow", &"weapon.bow.scorpion.poison_immunity", &"weapon.bow.scorpion.poison_blood"])
+weapon_profile = SubResource("Resource_weapon_profile")

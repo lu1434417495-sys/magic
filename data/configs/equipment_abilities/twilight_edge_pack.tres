@@ -1,8 +1,7 @@
-[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=96 format=3]
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=91 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
-[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilitySourceTraceDef.cs" id="3_trace"]
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="4_reaction"]
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionGroupDef.cs" id="5_condition_group"]
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionDef.cs" id="6_condition"]
@@ -157,20 +156,6 @@ mode = &"all"
 conditions = Array[Resource]([SubResource("Condition_day_exposed_state")])
 groups = Array[Resource]([SubResource("Condition_group_daylight")])
 
-[sub_resource type="Resource" id="Trace_twilight_step"]
-script = ExtResource("3_trace")
-source_kind = &"by_family"
-source_file = "docs/design/weapons/by_family/swords_01.md"
-item_id = &"weapon_unique_sword_twilight_edge_005"
-display_name = "暮光之刃"
-bullet_index = 1
-bullet_title = "暮影步"
-bullet_text = "战斗时间达到70TU后，装备授予技能 weapon_sword_twilight_edge_twilight_step：地面3格、1AP、冷却40TU；使用后写入当前行动轮次状态。"
-mechanism_family = &"granted_mobility_skill_current_turn_state"
-coverage_status = &"bound"
-phase = &"v1"
-test_id = &"twilight_edge_twilight_step"
-
 [sub_resource type="Resource" id="State_twilight_step_current_turn"]
 script = ExtResource("16_state_schema")
 state_key = &"twilight_step_current_turn"
@@ -242,24 +227,9 @@ allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
 required_trait_categories = Array[StringName]([&"weapon_feat"])
 required_item_tags = Array[StringName]([&"twilight_edge"])
 supported_equipment_type_ids = Array[StringName]([&"weapon"])
-source_traces = Array[Resource]([SubResource("Trace_twilight_step")])
 state_schemas = Array[Resource]([SubResource("State_twilight_step_current_turn"), SubResource("State_twilight_day_exposed_current_turn")])
 reactions = Array[Resource]([SubResource("Reaction_twilight_step_used")])
 granted_actions = Array[Resource]([SubResource("Grant_twilight_step_skill")])
-
-[sub_resource type="Resource" id="Trace_day_night_balance"]
-script = ExtResource("3_trace")
-source_kind = &"by_family"
-source_file = "docs/design/weapons/by_family/swords_01.md"
-item_id = &"weapon_unique_sword_twilight_edge_005"
-display_name = "暮光之刃"
-bullet_index = 2
-bullet_title = "昼夜平衡"
-bullet_text = "白天命中额外1点force；黄昏或夜间命中额外2点force，并获得 attack advantage。"
-mechanism_family = &"environment_damage_and_attack_advantage"
-coverage_status = &"bound"
-phase = &"v1"
-test_id = &"twilight_edge_day_night_balance"
 
 [sub_resource type="Resource" id="Dice_flat_1_force"]
 script = ExtResource("9_dice")
@@ -334,22 +304,7 @@ allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
 required_trait_categories = Array[StringName]([&"weapon_feat"])
 required_item_tags = Array[StringName]([&"twilight_edge"])
 supported_equipment_type_ids = Array[StringName]([&"weapon"])
-source_traces = Array[Resource]([SubResource("Trace_day_night_balance")])
 reactions = Array[Resource]([SubResource("Reaction_day_night_damage"), SubResource("Reaction_day_night_advantage")])
-
-[sub_resource type="Resource" id="Trace_twilight_cut"]
-script = ExtResource("3_trace")
-source_kind = &"by_family"
-source_file = "docs/design/weapons/by_family/swords_01.md"
-item_id = &"weapon_unique_sword_twilight_edge_005"
-display_name = "暮光之刃"
-bullet_index = 3
-bullet_title = "暮光切割"
-bullet_text = "使用暮影步后的当前行动轮次内，首次命中额外造成2D6 psychic伤害；once_scope=turn。"
-mechanism_family = &"current_turn_state_bonus_damage_once"
-coverage_status = &"bound"
-phase = &"v1"
-test_id = &"twilight_edge_twilight_cut"
 
 [sub_resource type="Resource" id="Dice_term_2d6_psychic"]
 script = ExtResource("10_dice_term")
@@ -391,22 +346,7 @@ allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
 required_trait_categories = Array[StringName]([&"weapon_feat"])
 required_item_tags = Array[StringName]([&"twilight_edge"])
 supported_equipment_type_ids = Array[StringName]([&"weapon"])
-source_traces = Array[Resource]([SubResource("Trace_twilight_cut")])
 reactions = Array[Resource]([SubResource("Reaction_twilight_cut")])
-
-[sub_resource type="Resource" id="Trace_twilight_guard"]
-script = ExtResource("3_trace")
-source_kind = &"by_family"
-source_file = "docs/design/weapons/by_family/swords_01.md"
-item_id = &"weapon_unique_sword_twilight_edge_005"
-display_name = "暮光之刃"
-bullet_index = 4
-bullet_title = "暮光守护"
-bullet_text = "黄昏或夜间，攻击持有者的攻击检定-1；白天使用暮影步后的当前行动轮次内，攻击持有者的攻击检定+1。"
-mechanism_family = &"defender_sourced_attack_roll_modifier"
-coverage_status = &"bound"
-phase = &"v1"
-test_id = &"twilight_edge_twilight_guard"
 
 [sub_resource type="Resource" id="Action_guard_night_payload"]
 script = ExtResource("13_attack_roll_bonus")
@@ -452,7 +392,6 @@ allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
 required_trait_categories = Array[StringName]([&"weapon_feat"])
 required_item_tags = Array[StringName]([&"twilight_edge"])
 supported_equipment_type_ids = Array[StringName]([&"weapon"])
-source_traces = Array[Resource]([SubResource("Trace_twilight_guard")])
 reactions = Array[Resource]([SubResource("Reaction_twilight_guard")])
 
 [resource]

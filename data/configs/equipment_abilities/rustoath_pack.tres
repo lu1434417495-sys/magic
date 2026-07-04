@@ -1,8 +1,7 @@
-[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=53 format=3]
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=48 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
-[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilitySourceTraceDef.cs" id="3_trace"]
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="4_reaction"]
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionGroupDef.cs" id="5_condition_group"]
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionDef.cs" id="6_condition"]
@@ -16,20 +15,6 @@
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ApplyStatusActionPayloadDef.cs" id="14_apply_status"]
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentDurabilityDamageActionPayloadDef.cs" id="15_durability_damage"]
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentGrantedActionDef.cs" id="16_grant"]
-
-[sub_resource type="Resource" id="Trace_rust_corrosion"]
-script = ExtResource("3_trace")
-source_kind = &"by_family"
-source_file = "docs/design/weapons/by_family/swords_01.md"
-item_id = &"weapon_unique_sword_rustoath_006"
-display_name = "锈蚀之誓"
-bullet_index = 1
-bullet_title = "锈毒"
-bullet_text = "命中敌人叠加180TU锈蚀，最多5层。"
-mechanism_family = &"apply_status_stack"
-coverage_status = &"bound"
-phase = &"v1"
-test_id = &"rustoath_rust_corrosion"
 
 [sub_resource type="Resource" id="Action_rust_corrosion_payload"]
 script = ExtResource("14_apply_status")
@@ -67,22 +52,7 @@ allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
 required_trait_categories = Array[StringName]([&"weapon_feat"])
 required_item_tags = Array[StringName]([&"rustoath"])
 supported_equipment_type_ids = Array[StringName]([&"weapon"])
-source_traces = Array[Resource]([SubResource("Trace_rust_corrosion")])
 reactions = Array[Resource]([SubResource("Reaction_rust_corrosion")])
-
-[sub_resource type="Resource" id="Trace_armor_corrosion"]
-script = ExtResource("3_trace")
-source_kind = &"by_family"
-source_file = "docs/design/weapons/by_family/swords_01.md"
-item_id = &"weapon_unique_sword_rustoath_006"
-display_name = "锈蚀之誓"
-bullet_index = 2
-bullet_title = "护甲锈蚀"
-bullet_text = "目标达到5层锈蚀且穿戴金属护甲时，扣除该护甲24点耐久并施加护甲锈裂标记；已有护甲锈裂时不重复扣耐久。"
-mechanism_family = &"conditional_equipment_durability_damage"
-coverage_status = &"bound"
-phase = &"v1"
-test_id = &"rustoath_armor_corrosion"
 
 [sub_resource type="Resource" id="Fact_target_rust_stacks"]
 script = ExtResource("9_fact_query")
@@ -207,22 +177,7 @@ allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
 required_trait_categories = Array[StringName]([&"weapon_feat"])
 required_item_tags = Array[StringName]([&"rustoath"])
 supported_equipment_type_ids = Array[StringName]([&"weapon"])
-source_traces = Array[Resource]([SubResource("Trace_armor_corrosion")])
 reactions = Array[Resource]([SubResource("Reaction_armor_corrosion")])
-
-[sub_resource type="Resource" id="Trace_rotten_blade"]
-script = ExtResource("3_trace")
-source_kind = &"by_family"
-source_file = "docs/design/weapons/by_family/swords_01.md"
-item_id = &"weapon_unique_sword_rustoath_006"
-display_name = "锈蚀之誓"
-bullet_index = 3
-bullet_title = "腐朽之刃"
-bullet_text = "对护甲锈裂目标命中时，额外造成2D6 acid伤害。"
-mechanism_family = &"conditional_add_damage_dice"
-coverage_status = &"bound"
-phase = &"v1"
-test_id = &"rustoath_rotten_blade"
 
 [sub_resource type="Resource" id="Compare_armor_cracked_payload"]
 script = ExtResource("8_compare_payload")
@@ -281,22 +236,7 @@ allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
 required_trait_categories = Array[StringName]([&"weapon_feat"])
 required_item_tags = Array[StringName]([&"rustoath"])
 supported_equipment_type_ids = Array[StringName]([&"weapon"])
-source_traces = Array[Resource]([SubResource("Trace_rotten_blade")])
 reactions = Array[Resource]([SubResource("Reaction_rotten_blade")])
-
-[sub_resource type="Resource" id="Trace_rust_powder_storm"]
-script = ExtResource("3_trace")
-source_kind = &"by_family"
-source_file = "docs/design/weapons/by_family/swords_01.md"
-item_id = &"weapon_unique_sword_rustoath_006"
-display_name = "锈蚀之誓"
-bullet_index = 4
-bullet_title = "锈粉风暴"
-bullet_text = "装备授予技能 weapon_sword_rustoath_rust_powder_storm：1AP，需目标5层锈蚀，造成3D6 acid伤害并消耗目标锈蚀。"
-mechanism_family = &"granted_status_consume_damage_skill"
-coverage_status = &"bound"
-phase = &"v1"
-test_id = &"rustoath_rust_powder_storm"
 
 [sub_resource type="Resource" id="Grant_rust_powder_storm"]
 script = ExtResource("16_grant")
@@ -316,7 +256,6 @@ allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
 required_trait_categories = Array[StringName]([&"weapon_feat"])
 required_item_tags = Array[StringName]([&"rustoath"])
 supported_equipment_type_ids = Array[StringName]([&"weapon"])
-source_traces = Array[Resource]([SubResource("Trace_rust_powder_storm")])
 granted_actions = Array[Resource]([SubResource("Grant_rust_powder_storm")])
 
 [resource]

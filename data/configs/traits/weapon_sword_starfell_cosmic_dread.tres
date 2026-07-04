@@ -6,7 +6,7 @@
 script = ExtResource("1_trait")
 trait_id = &"weapon.sword.starfell.cosmic_dread"
 display_name = "宇宙恐惧"
-description = "群星之末对星尘满层目标的恐惧压迫，行为接入留待星尘层数切片。"
+description = "本武器命中已有5层星尘的目标时，额外造成2D6 force，并施加30TU宇宙恐惧：目标攻击检定-2，每次命中满层目标刷新。"
 categories = Array[StringName]([&"weapon_feat"])
 allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
 effect_type = &"equipment_ability"

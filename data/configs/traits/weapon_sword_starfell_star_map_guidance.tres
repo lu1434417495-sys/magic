@@ -6,7 +6,7 @@
 script = ExtResource("1_trait")
 trait_id = &"weapon.sword.starfell.star_map_guidance"
 display_name = "星图指引"
-description = "消耗星尘以获得命中优势的装备能力，行为接入留待星尘层数切片。"
+description = "装备授予技能【星图指引】：消耗2层你施加的星尘（优先扣除层数最多的目标），使下一次攻击检定获得优势。"
 categories = Array[StringName]([&"weapon_feat"])
 allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
 effect_type = &"equipment_ability"

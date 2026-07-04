@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="TraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"weapon.axe.bonecrusher.aftershock_fracture"
+display_name = "余震破防"
+description = "命中后使目标获得裂防 60TU，最多 3 层；每层使后续近战武器命中追加 2 点钝击伤害。达到 3 层时触发骨裂震荡：目标失去 1 AP，若无 AP 则获得 60TU 迟滞，然后清除裂防。"
+categories = Array[StringName]([&"weapon_feat"])
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+effect_type = &"equipment_ability"
+trigger_type = &"passive"
+stack_policy = &"stack_by_instance"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

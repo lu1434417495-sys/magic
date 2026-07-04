@@ -1,0 +1,46 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Resource_one_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 6
+flat_bonus = 1
+
+[sub_resource type="Resource" id="Resource_two_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 8
+flat_bonus = 1
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+weapon_type_id = &"spear"
+training_group = &"simple"
+range_type = &"melee"
+family = &"polearm"
+damage_tag = &"physical_pierce"
+attack_range = 2
+one_handed_dice = SubResource("Resource_one_handed_dice")
+two_handed_dice = SubResource("Resource_two_handed_dice")
+properties_mode = 1
+properties = Array[StringName]([&"versatile", &"thrown"])
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_polearm_spider_spear_136"
+base_item_id = &"weapon_type_spear_base"
+display_name = "蛛矛"
+description = "由蛛骨与丝腺材料锻成的独特长矛，可射出蛛丝束缚远处目标。"
+is_stackable = false
+base_price = 35000
+buy_price = 35000
+sell_price = 17500
+sellable = true
+max_stack = 1
+tags = Array[StringName]([&"spider_spear", &"spear", &"polearm", &"web", &"thrown"])
+trait_ids = Array[StringName]([&"weapon.polearm.spider_spear.web_binding"])
+weapon_profile = SubResource("Resource_weapon_profile")

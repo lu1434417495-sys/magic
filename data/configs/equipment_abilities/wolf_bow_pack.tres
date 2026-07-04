@@ -1,0 +1,209 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=39 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="4_reaction"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionGroupDef.cs" id="5_condition_group"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionDef.cs" id="6_condition"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/CompareFactConditionPayloadDef.cs" id="7_compare_payload"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityFactQueryDef.cs" id="8_fact_query"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionDef.cs" id="9_dice"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionTermDef.cs" id="10_dice_term"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityActionDef.cs" id="11_action"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentGrantedActionDef.cs" id="12_grant"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/SummonUnitsActionPayloadDef.cs" id="13_summon"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AttackRollBonusActionPayloadDef.cs" id="14_attack_bonus"]
+
+[sub_resource type="Resource" id="Literal_zero"]
+script = ExtResource("8_fact_query")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 0
+
+[sub_resource type="Resource" id="Literal_one"]
+script = ExtResource("8_fact_query")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 1
+
+[sub_resource type="Resource" id="Fact_nearby_ally_count"]
+script = ExtResource("8_fact_query")
+query_kind = &"fact"
+fact_id = &"nearby_ally_count"
+subject = &"source"
+value_kind = &"int"
+int_literal = 6
+
+[sub_resource type="Resource" id="Compare_allies_gte_one_payload"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_nearby_ally_count")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Condition_allies_gte_one"]
+script = ExtResource("6_condition")
+condition_id = &"condition.wolf_bow.nearby_ally"
+kind = &"compare_fact"
+payload = SubResource("Compare_allies_gte_one_payload")
+
+[sub_resource type="Resource" id="Condition_group_allies_gte_one"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_allies_gte_one")])
+
+[sub_resource type="Resource" id="Compare_allies_eq_zero_payload"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_nearby_ally_count")
+compare = &"eq"
+right = SubResource("Literal_zero")
+
+[sub_resource type="Resource" id="Condition_allies_eq_zero"]
+script = ExtResource("6_condition")
+condition_id = &"condition.wolf_bow.no_nearby_ally"
+kind = &"compare_fact"
+payload = SubResource("Compare_allies_eq_zero_payload")
+
+[sub_resource type="Resource" id="Condition_group_allies_eq_zero"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_allies_eq_zero")])
+
+[sub_resource type="Resource" id="Action_pack_bonus_payload"]
+script = ExtResource("14_attack_bonus")
+target_selector = &"attack_target"
+bonus = 3
+stack_mode = &"max"
+label = "狼群战术"
+
+[sub_resource type="Resource" id="Action_pack_bonus"]
+script = ExtResource("11_action")
+action_id = &"action.wolf_bow.pack_tactics.attack_bonus"
+kind = &"attack_roll_bonus"
+payload = SubResource("Action_pack_bonus_payload")
+
+[sub_resource type="Resource" id="Reaction_pack_supported"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.wolf_bow.pack_tactics.supported_before_hit"
+trigger = &"on_hit"
+timing = &"before_hit"
+condition_group = SubResource("Condition_group_allies_gte_one")
+actions = Array[Resource]([SubResource("Action_pack_bonus")])
+
+[sub_resource type="Resource" id="Action_pack_penalty_payload"]
+script = ExtResource("14_attack_bonus")
+target_selector = &"attack_target"
+bonus = -2
+stack_mode = &"max"
+label = "孤独猎手"
+
+[sub_resource type="Resource" id="Action_pack_penalty"]
+script = ExtResource("11_action")
+action_id = &"action.wolf_bow.pack_tactics.attack_penalty"
+kind = &"attack_roll_bonus"
+payload = SubResource("Action_pack_penalty_payload")
+
+[sub_resource type="Resource" id="Reaction_pack_lonely"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.wolf_bow.pack_tactics.lonely_before_hit"
+trigger = &"on_hit"
+timing = &"before_hit"
+condition_group = SubResource("Condition_group_allies_eq_zero")
+actions = Array[Resource]([SubResource("Action_pack_penalty")])
+
+[sub_resource type="Resource" id="Dice_term_1d1_wolf"]
+script = ExtResource("10_dice_term")
+dice_count = 1
+dice_sides = 1
+
+[sub_resource type="Resource" id="Dice_1d1_wolf"]
+script = ExtResource("9_dice")
+terms = Array[Resource]([SubResource("Dice_term_1d1_wolf")])
+
+[sub_resource type="Resource" id="Dice_term_1d6_fang"]
+script = ExtResource("10_dice_term")
+dice_count = 1
+dice_sides = 6
+
+[sub_resource type="Resource" id="Dice_1d6_fang"]
+script = ExtResource("9_dice")
+terms = Array[Resource]([SubResource("Dice_term_1d6_fang")])
+
+[sub_resource type="Resource" id="Grant_wolf_spirit_skill"]
+script = ExtResource("12_grant")
+granted_action_id = &"grant.wolf_bow.spirit_summon.skill"
+granted_kind = &"skill"
+skill_id = &"weapon_bow_wolf_spirit_summon"
+skill_level = 1
+usage_period_kind = &"per_world_day"
+max_uses_per_period = 1
+display_category = &"equipment"
+display_priority = 100
+
+[sub_resource type="Resource" id="Action_summon_wolf_payload"]
+script = ExtResource("13_summon")
+anchor_selector = &"skill_target"
+state_key = &"wolf_bow_ghost_wolf"
+count_dice = SubResource("Dice_1d1_wolf")
+max_living_units = 1
+duration_tu = 60
+spawn_radius = 1
+unit_id_prefix = &"wolf_bow_ghost_wolf"
+unit_display_name = "幽灵狼"
+body_size_category = &"medium"
+control_mode = &"ai"
+hp_max = 16
+armor_class = 13
+attack_bonus = 4
+base_attack_bonus = 4
+action_points = 2
+move_points = 2
+known_active_skill_ids = Array[StringName]([&"basic_attack"])
+natural_weapon_profile_type_id = &"wolf_fang"
+natural_weapon_damage_tag = &"physical_pierce"
+natural_weapon_attack_range = 1
+natural_weapon_damage_dice = SubResource("Dice_1d6_fang")
+natural_weapon_family = &"natural"
+creature_type_tags = Array[StringName]([&"beast", &"spirit", &"summoned"])
+
+[sub_resource type="Resource" id="Action_summon_wolf"]
+script = ExtResource("11_action")
+action_id = &"action.wolf_bow.spirit_summon.summon_wolf"
+kind = &"summon_units"
+payload = SubResource("Action_summon_wolf_payload")
+
+[sub_resource type="Resource" id="Reaction_wolf_spirit_after_skill"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.wolf_bow.spirit_summon.after_skill"
+trigger = &"on_granted_skill_used"
+timing = &"after_skill"
+actions = Array[Resource]([SubResource("Action_summon_wolf")])
+
+[sub_resource type="Resource" id="Binding_pack_tactics"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.bow.wolf.pack_tactics"
+trait_id = &"weapon.bow.wolf.pack_tactics"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"wolf_bow"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_pack_supported"), SubResource("Reaction_pack_lonely")])
+
+[sub_resource type="Resource" id="Binding_spirit_summon"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.bow.wolf.spirit_summon"
+trait_id = &"weapon.bow.wolf.spirit_summon"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"wolf_bow"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_wolf_spirit_after_skill")])
+granted_actions = Array[Resource]([SubResource("Grant_wolf_spirit_skill")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability.weapon.bow.wolf"
+schema_version = 1
+load_order = 325
+bindings = Array[Resource]([SubResource("Binding_pack_tactics"), SubResource("Binding_spirit_summon")])

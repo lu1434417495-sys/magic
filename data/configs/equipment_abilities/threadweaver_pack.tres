@@ -1,8 +1,7 @@
-[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=55 format=3]
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=50 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
-[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilitySourceTraceDef.cs" id="3_trace"]
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="4_reaction"]
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionGroupDef.cs" id="5_condition_group"]
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionDef.cs" id="6_condition"]
@@ -78,21 +77,6 @@ script = ExtResource("5_condition_group")
 mode = &"all"
 conditions = Array[Resource]([SubResource("Condition_skill_target_frayed")])
 
-[sub_resource type="Resource" id="Trace_fate_thread"]
-script = ExtResource("3_trace")
-source_kind = &"by_family"
-source_file = "docs/design/weapons/by_family/swords_01.md"
-item_id = &"weapon_unique_sword_threadweaver_019"
-display_name = "织命"
-bullet_index = 1
-bullet_title = "命运之线"
-bullet_text = "命中目标时叠加1层命运线（最多3层），每层使你对该目标的攻击检定获得+1加值；命运线仅对单一目标累积，切换目标则旧目标线保留1回合后消失。"
-mechanism_family = &"hit_status_stack_source_bound_attack_bonus"
-coverage_status = &"bound"
-phase = &"v1"
-test_id = &"threadweaver_fate_thread"
-note = "V1以30TU自然过期表达旧目标线保留1回合，不强制单目标清旧线。"
-
 [sub_resource type="Resource" id="Action_apply_fate_thread_payload"]
 script = ExtResource("12_apply_status")
 target_selector = &"attack_target"
@@ -130,22 +114,7 @@ allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
 required_trait_categories = Array[StringName]([&"weapon_feat"])
 required_item_tags = Array[StringName]([&"threadweaver"])
 supported_equipment_type_ids = Array[StringName]([&"weapon"])
-source_traces = Array[Resource]([SubResource("Trace_fate_thread")])
 reactions = Array[Resource]([SubResource("Reaction_fate_thread_after_hit")])
-
-[sub_resource type="Resource" id="Trace_fate_weaving"]
-script = ExtResource("3_trace")
-source_kind = &"by_family"
-source_file = "docs/design/weapons/by_family/swords_01.md"
-item_id = &"weapon_unique_sword_threadweaver_019"
-display_name = "织命"
-bullet_index = 2
-bullet_title = "命运编织"
-bullet_text = "连续命中同一目标3次（即叠满3层命运线）后，其命运线进入脆弱状态。"
-mechanism_family = &"max_status_stack_window_lockout"
-coverage_status = &"bound"
-phase = &"v1"
-test_id = &"threadweaver_fate_weaving"
 
 [sub_resource type="Resource" id="Action_apply_frayed_payload"]
 script = ExtResource("12_apply_status")
@@ -186,22 +155,7 @@ allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
 required_trait_categories = Array[StringName]([&"weapon_feat"])
 required_item_tags = Array[StringName]([&"threadweaver"])
 supported_equipment_type_ids = Array[StringName]([&"weapon"])
-source_traces = Array[Resource]([SubResource("Trace_fate_weaving")])
 reactions = Array[Resource]([SubResource("Reaction_fate_weaving_after_hit")])
-
-[sub_resource type="Resource" id="Trace_cut_fate_thread"]
-script = ExtResource("3_trace")
-source_kind = &"by_family"
-source_file = "docs/design/weapons/by_family/swords_01.md"
-item_id = &"weapon_unique_sword_threadweaver_019"
-display_name = "织命"
-bullet_index = 3
-bullet_title = "线断命绝"
-bullet_text = "作为一个action，可对处于脆弱状态的目标尝试剪断命运线，目标须通过DC18体质检定，失败则立即死亡；成功则受到4D10 psychic伤害；每场战斗限一次。"
-mechanism_family = &"granted_static_dc_execute_success_damage_status_spend"
-coverage_status = &"bound"
-phase = &"v1"
-test_id = &"threadweaver_cut_fate_thread"
 
 [sub_resource type="Resource" id="Grant_cut_fate_thread_skill"]
 script = ExtResource("13_grant")
@@ -277,24 +231,8 @@ allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
 required_trait_categories = Array[StringName]([&"weapon_feat"])
 required_item_tags = Array[StringName]([&"threadweaver"])
 supported_equipment_type_ids = Array[StringName]([&"weapon"])
-source_traces = Array[Resource]([SubResource("Trace_cut_fate_thread")])
 reactions = Array[Resource]([SubResource("Reaction_cut_fate_thread_after_skill")])
 granted_actions = Array[Resource]([SubResource("Grant_cut_fate_thread_skill")])
-
-[sub_resource type="Resource" id="Trace_thread_mending"]
-script = ExtResource("3_trace")
-source_kind = &"by_family"
-source_file = "docs/design/weapons/by_family/swords_01.md"
-item_id = &"weapon_unique_sword_threadweaver_019"
-display_name = "织命"
-bullet_index = 4
-bullet_title = "织线修复"
-bullet_text = "消耗自身10HP，为10尺内一个濒死盟友恢复2D8HP并稳定其伤势；每次使用使自身最大HP永久减少1。"
-mechanism_family = &"granted_heal_self_hp_cost"
-coverage_status = &"bound"
-phase = &"v1"
-test_id = &"threadweaver_thread_mending"
-note = "永久最大HP损失未接入；V1按用户确认改为每战一次的10HP即时代价。"
 
 [sub_resource type="Resource" id="Grant_thread_mending_skill"]
 script = ExtResource("13_grant")
@@ -340,7 +278,6 @@ allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
 required_trait_categories = Array[StringName]([&"weapon_feat"])
 required_item_tags = Array[StringName]([&"threadweaver"])
 supported_equipment_type_ids = Array[StringName]([&"weapon"])
-source_traces = Array[Resource]([SubResource("Trace_thread_mending")])
 reactions = Array[Resource]([SubResource("Reaction_thread_mending_after_skill")])
 granted_actions = Array[Resource]([SubResource("Grant_thread_mending_skill")])
 

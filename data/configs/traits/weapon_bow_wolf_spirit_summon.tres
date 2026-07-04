@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="TraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"weapon.bow.wolf.spirit_summon"
+display_name = "狼灵召唤"
+description = "每日1次，选择6格内盟友或自身作为锚点，召唤一只幽灵狼，持续60TU。"
+categories = Array[StringName]([&"weapon_feat"])
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+effect_type = &"equipment_ability"
+trigger_type = &"passive"
+stack_policy = &"stack_by_instance"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

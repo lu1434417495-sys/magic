@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="TraitDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"weapon.exotic.sands_time.time_deceleration"
+display_name = "时间减速"
+description = "装备授予时间减速技能：一场战斗一次，1AP，使敌人下一行动回合 AP 归零，但仍可移动。"
+source_scope = &"equipment_fixed"
+categories = Array[StringName]([&"weapon_feat"])
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+effect_type = &"equipment_ability"
+trigger_type = &"passive"
+stack_policy = &"stack_by_instance"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

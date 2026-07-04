@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Resource_one_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 8
+flat_bonus = 1
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+weapon_type_id = &"rapier"
+training_group = &"martial"
+range_type = &"melee"
+family = &"exotic"
+damage_tag = &"physical_pierce"
+attack_range = 1
+one_handed_dice = SubResource("Resource_one_handed_dice")
+properties_mode = 1
+properties = Array[StringName]([&"finesse"])
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_exotic_umbrella_232"
+base_item_id = &"weapon_type_rapier_base"
+display_name = "伞剑"
+description = "长柄雨伞中藏着细剑，钢制伞骨与防水防火伞面能在雨幕中遮挡箭矢与烈焰。"
+is_stackable = false
+base_price = 35000
+buy_price = 35000
+sell_price = 17500
+sellable = true
+max_stack = 1
+tags = Array[StringName]([&"umbrella_sword", &"exotic", &"rapier", &"melee", &"rain"])
+trait_ids = Array[StringName]([&"weapon.exotic.umbrella.rain_screen", &"weapon.exotic.umbrella.guard", &"weapon.exotic.umbrella.rain_advantage"])
+weapon_profile = SubResource("Resource_weapon_profile")

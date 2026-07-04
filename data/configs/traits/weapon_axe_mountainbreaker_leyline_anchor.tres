@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="TraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"weapon.axe.mountainbreaker.leyline_anchor"
+display_name = "地脉定锚"
+description = "裂山者造成真实武器 HP 伤害后，若目标 anchor 格尚未被此效果破坏，掷 D20 + strength_modifier；自然 20 自动成功，或总值高于 22 成功。成功后该格战斗内永久移动消耗 +1；每格最多一次，没有 TU 持续时间。"
+categories = Array[StringName]([&"weapon_feat"])
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+effect_type = &"equipment_ability"
+trigger_type = &"passive"
+stack_policy = &"stack_by_instance"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+save_advantage_tags = Array[StringName]([])
+damage_resistance_entries = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

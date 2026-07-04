@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Resource_one_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 8
+flat_bonus = 2
+
+[sub_resource type="Resource" id="Resource_two_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 10
+flat_bonus = 2
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+one_handed_dice = SubResource("Resource_one_handed_dice")
+two_handed_dice = SubResource("Resource_two_handed_dice")
+properties_mode = 2
+properties = Array[StringName]([&"versatile"])
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_battleaxe_lunareclipse"
+base_item_id = &"weapon_type_battleaxe_base"
+display_name = "月蚀"
+description = "一柄银白斧刃上永远带着缺月阴影的战斧。真实武器伤害会积蓄月相，三层后爆发盈月裁断；装备者可施展月蚀影步，在未穿重甲时闪现并短暂提升闪避。"
+is_stackable = false
+base_price = 56000
+buy_price = 56000
+sell_price = 28000
+sellable = true
+max_stack = 1
+tags = Array[StringName]([&"versatile", &"lunareclipse", &"moon", &"radiant"])
+trait_ids = Array[StringName]([&"weapon.battleaxe.lunareclipse.moon_phase_cycle", &"weapon.battleaxe.lunareclipse.full_moon_judgment", &"weapon.battleaxe.lunareclipse.eclipse_shadowstep"])
+weapon_profile = SubResource("Resource_weapon_profile")

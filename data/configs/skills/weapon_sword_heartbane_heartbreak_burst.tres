@@ -48,6 +48,7 @@ area_pattern = &"single"
 area_value = 0
 requires_los = true
 ap_cost = 1
+attack_resolution_mode = &"direct_effect"
 cooldown_tu = 0
 min_target_count = 1
 max_target_count = 1

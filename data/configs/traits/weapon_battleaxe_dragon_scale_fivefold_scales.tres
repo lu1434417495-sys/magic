@@ -1,0 +1,46 @@
+[gd_resource type="Resource" script_class="TraitDef" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDamageResistanceEntryDef.cs" id="2_resistance"]
+
+[sub_resource type="Resource" id="Resistance_fire_half"]
+script = ExtResource("2_resistance")
+damage_tag = &"fire"
+mitigation_tier = &"half"
+
+[sub_resource type="Resource" id="Resistance_lightning_half"]
+script = ExtResource("2_resistance")
+damage_tag = &"lightning"
+mitigation_tier = &"half"
+
+[sub_resource type="Resource" id="Resistance_poison_half"]
+script = ExtResource("2_resistance")
+damage_tag = &"poison"
+mitigation_tier = &"half"
+
+[sub_resource type="Resource" id="Resistance_acid_half"]
+script = ExtResource("2_resistance")
+damage_tag = &"acid"
+mitigation_tier = &"half"
+
+[sub_resource type="Resource" id="Resistance_freeze_half"]
+script = ExtResource("2_resistance")
+damage_tag = &"freeze"
+mitigation_tier = &"half"
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"weapon.battleaxe.dragon_scale.fivefold_scales"
+display_name = "五色龙鳞"
+description = "装备者受到 fire、lightning、poison、acid、freeze 伤害时减半。"
+categories = Array[StringName]([&"weapon_feat"])
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+effect_type = &"equipment_ability"
+trigger_type = &"passive"
+stack_policy = &"stack_by_instance"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+save_advantage_tags = Array[StringName]([])
+damage_resistance_entries = Array[Resource]([SubResource("Resistance_fire_half"), SubResource("Resistance_lightning_half"), SubResource("Resistance_poison_half"), SubResource("Resistance_acid_half"), SubResource("Resistance_freeze_half")])
+roll_value_schema = Array[Resource]([])

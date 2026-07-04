@@ -1,0 +1,122 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=20 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="4_reaction"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityActionDef.cs" id="5_action"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentGrantedActionDef.cs" id="6_grant"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ModifyActionPointsActionPayloadDef.cs" id="7_modify_ap"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentTemporalProgressModifierDef.cs" id="8_temporal_modifier"]
+
+[sub_resource type="Resource" id="Grant_time_acceleration_skill"]
+script = ExtResource("6_grant")
+granted_action_id = &"grant.sands_time.time_acceleration.skill"
+granted_kind = &"skill"
+skill_id = &"weapon_exotic_sands_time_accelerate"
+skill_level = 1
+usage_period_kind = &"per_battle"
+max_uses_per_period = 1
+display_category = &"equipment"
+display_priority = 100
+
+[sub_resource type="Resource" id="Grant_time_deceleration_skill"]
+script = ExtResource("6_grant")
+granted_action_id = &"grant.sands_time.time_deceleration.skill"
+granted_kind = &"skill"
+skill_id = &"weapon_exotic_sands_time_decelerate"
+skill_level = 1
+usage_period_kind = &"per_battle"
+max_uses_per_period = 1
+display_category = &"equipment"
+display_priority = 101
+
+[sub_resource type="Resource" id="Action_acceleration_payload"]
+script = ExtResource("7_modify_ap")
+target_selector = &"skill_target"
+mode = &"add_base_action_points"
+
+[sub_resource type="Resource" id="Action_time_acceleration"]
+script = ExtResource("5_action")
+action_id = &"action.sands_time.time_acceleration.double_ap"
+kind = &"modify_action_points"
+payload = SubResource("Action_acceleration_payload")
+
+[sub_resource type="Resource" id="Reaction_time_acceleration_used"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.sands_time.time_acceleration.after_skill"
+trigger = &"on_granted_skill_used"
+timing = &"after_skill"
+actions = Array[Resource]([SubResource("Action_time_acceleration")])
+
+[sub_resource type="Resource" id="Action_deceleration_payload"]
+script = ExtResource("7_modify_ap")
+target_selector = &"skill_target"
+mode = &"set_next_turn_ap_to_zero"
+status_id = &"temporal_ap_stolen"
+display_label = "时间剥夺"
+
+[sub_resource type="Resource" id="Action_time_deceleration"]
+script = ExtResource("5_action")
+action_id = &"action.sands_time.time_deceleration.next_turn_ap_zero"
+kind = &"modify_action_points"
+payload = SubResource("Action_deceleration_payload")
+
+[sub_resource type="Resource" id="Reaction_time_deceleration_used"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.sands_time.time_deceleration.after_skill"
+trigger = &"on_granted_skill_used"
+timing = &"after_skill"
+actions = Array[Resource]([SubResource("Action_time_deceleration")])
+
+[sub_resource type="Resource" id="Modifier_time_dislocation"]
+script = ExtResource("8_temporal_modifier")
+modifier_id = &"temporal_progress.sands_time.time_dislocation"
+applies_to_action_progress = true
+applies_to_cast_progress = true
+save_dc = 16
+attribute_modifier_id = &"intelligence_modifier"
+success_rate_percent = 200
+failure_rate_percent = 50
+label = "时间错乱"
+
+[sub_resource type="Resource" id="Binding_time_acceleration"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.exotic.sands_time.time_acceleration"
+trait_id = &"weapon.exotic.sands_time.time_acceleration"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"sands_time"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_time_acceleration_used")])
+granted_actions = Array[Resource]([SubResource("Grant_time_acceleration_skill")])
+
+[sub_resource type="Resource" id="Binding_time_deceleration"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.exotic.sands_time.time_deceleration"
+trait_id = &"weapon.exotic.sands_time.time_deceleration"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"sands_time"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_time_deceleration_used")])
+granted_actions = Array[Resource]([SubResource("Grant_time_deceleration_skill")])
+
+[sub_resource type="Resource" id="Binding_time_dislocation"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.exotic.sands_time.time_dislocation"
+trait_id = &"weapon.exotic.sands_time.time_dislocation"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"sands_time"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+temporal_progress_modifiers = Array[Resource]([SubResource("Modifier_time_dislocation")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability.weapon.exotic.sands_time"
+schema_version = 1
+load_order = 480
+bindings = Array[Resource]([SubResource("Binding_time_acceleration"), SubResource("Binding_time_deceleration"), SubResource("Binding_time_dislocation")])

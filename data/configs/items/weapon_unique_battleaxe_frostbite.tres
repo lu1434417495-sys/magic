@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Resource_one_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 8
+flat_bonus = 1
+
+[sub_resource type="Resource" id="Resource_two_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 10
+flat_bonus = 1
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+one_handed_dice = SubResource("Resource_one_handed_dice")
+two_handed_dice = SubResource("Resource_two_handed_dice")
+properties_mode = 2
+properties = Array[StringName]([&"versatile"])
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_axe_frostbite_097"
+base_item_id = &"weapon_type_battleaxe_base"
+display_name = "霜咬"
+description = "一柄覆着苍白冰痕的战斧。命中时附加寒冷伤害，连续三次命中同一目标会削弱其移动力；持有者可将相邻 1 格水域冻结成冰层。"
+is_stackable = false
+base_price = 40000
+buy_price = 40000
+sell_price = 20000
+sellable = true
+max_stack = 1
+tags = Array[StringName]([&"versatile", &"frostbite", &"freeze", &"ice"])
+trait_ids = Array[StringName]([&"weapon.axe.frostbite.frost_touch", &"weapon.axe.frostbite.icebound_path", &"weapon.axe.frostbite.polar_adaptation"])
+weapon_profile = SubResource("Resource_weapon_profile")

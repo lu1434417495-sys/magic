@@ -1,0 +1,205 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=38 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="4_reaction"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionGroupDef.cs" id="5_condition_group"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionDef.cs" id="6_condition"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/CompareFactConditionPayloadDef.cs" id="7_compare_payload"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityFactQueryDef.cs" id="8_fact_query"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityActionDef.cs" id="9_action"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DamageReductionActionPayloadDef.cs" id="10_damage_reduction"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AttackRollBonusActionPayloadDef.cs" id="11_attack_roll_bonus"]
+
+[sub_resource type="Resource" id="Fact_environment_tags"]
+script = ExtResource("8_fact_query")
+query_kind = &"fact"
+fact_id = &"battle_environment_tag"
+value_kind = &"string_name_set"
+
+[sub_resource type="Resource" id="Literal_rain"]
+script = ExtResource("8_fact_query")
+query_kind = &"literal"
+value_kind = &"string_name"
+string_name_literal = &"rain"
+
+[sub_resource type="Resource" id="Literal_wet"]
+script = ExtResource("8_fact_query")
+query_kind = &"literal"
+value_kind = &"string_name"
+string_name_literal = &"wet"
+
+[sub_resource type="Resource" id="Compare_env_contains_rain"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_environment_tags")
+compare = &"contains"
+right = SubResource("Literal_rain")
+
+[sub_resource type="Resource" id="Compare_env_contains_wet"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_environment_tags")
+compare = &"contains"
+right = SubResource("Literal_wet")
+
+[sub_resource type="Resource" id="Condition_env_rain"]
+script = ExtResource("6_condition")
+condition_id = &"condition.umbrella.env.rain"
+kind = &"compare_fact"
+payload = SubResource("Compare_env_contains_rain")
+
+[sub_resource type="Resource" id="Condition_env_wet"]
+script = ExtResource("6_condition")
+condition_id = &"condition.umbrella.env.wet"
+kind = &"compare_fact"
+payload = SubResource("Compare_env_contains_wet")
+
+[sub_resource type="Resource" id="Condition_group_rain_or_wet"]
+script = ExtResource("5_condition_group")
+mode = &"any"
+conditions = Array[Resource]([SubResource("Condition_env_rain"), SubResource("Condition_env_wet")])
+
+[sub_resource type="Resource" id="Fact_target_weapon_range_type"]
+script = ExtResource("8_fact_query")
+query_kind = &"fact"
+fact_id = &"weapon_range_type"
+subject = &"target"
+value_kind = &"string_name"
+
+[sub_resource type="Resource" id="Literal_ranged"]
+script = ExtResource("8_fact_query")
+query_kind = &"literal"
+value_kind = &"string_name"
+string_name_literal = &"ranged"
+
+[sub_resource type="Resource" id="Compare_target_weapon_ranged"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_target_weapon_range_type")
+compare = &"eq"
+right = SubResource("Literal_ranged")
+
+[sub_resource type="Resource" id="Condition_target_weapon_ranged"]
+script = ExtResource("6_condition")
+condition_id = &"condition.umbrella.guard.attacker_weapon_ranged"
+kind = &"compare_fact"
+payload = SubResource("Compare_target_weapon_ranged")
+
+[sub_resource type="Resource" id="Condition_group_target_weapon_ranged"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_target_weapon_ranged")])
+
+[sub_resource type="Resource" id="Action_rain_screen_base_payload"]
+script = ExtResource("10_damage_reduction")
+target_selector = &"damage_target"
+amount = 2
+damage_tags = Array[StringName]([&"fire", &"freeze"])
+label = "雨幕伞面"
+
+[sub_resource type="Resource" id="Action_rain_screen_base"]
+script = ExtResource("9_action")
+action_id = &"action.umbrella.rain_screen.base_reduction"
+kind = &"damage_reduction"
+payload = SubResource("Action_rain_screen_base_payload")
+
+[sub_resource type="Resource" id="Action_rain_screen_rain_payload"]
+script = ExtResource("10_damage_reduction")
+target_selector = &"damage_target"
+amount = 2
+damage_tags = Array[StringName]([&"fire", &"freeze"])
+label = "雨幕伞面：雨湿"
+
+[sub_resource type="Resource" id="Action_rain_screen_rain"]
+script = ExtResource("9_action")
+action_id = &"action.umbrella.rain_screen.rain_bonus_reduction"
+kind = &"damage_reduction"
+payload = SubResource("Action_rain_screen_rain_payload")
+condition_group = SubResource("Condition_group_rain_or_wet")
+
+[sub_resource type="Resource" id="Reaction_rain_screen"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.umbrella.rain_screen.before_damage"
+trigger = &"on_damage_roll"
+timing = &"before_damage"
+actions = Array[Resource]([SubResource("Action_rain_screen_base"), SubResource("Action_rain_screen_rain")])
+
+[sub_resource type="Resource" id="Binding_rain_screen"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.exotic.umbrella.rain_screen"
+trait_id = &"weapon.exotic.umbrella.rain_screen"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"umbrella_sword"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_rain_screen")])
+
+[sub_resource type="Resource" id="Action_guard_payload"]
+script = ExtResource("11_attack_roll_bonus")
+target_selector = &"attacker"
+bonus = -2
+stack_mode = &"max"
+label = "伞面格挡"
+
+[sub_resource type="Resource" id="Action_guard"]
+script = ExtResource("9_action")
+action_id = &"action.umbrella.guard.ranged_attack_penalty"
+kind = &"attack_roll_bonus"
+payload = SubResource("Action_guard_payload")
+
+[sub_resource type="Resource" id="Reaction_guard"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.umbrella.guard.before_hit"
+trigger = &"on_hit"
+timing = &"before_hit"
+condition_group = SubResource("Condition_group_target_weapon_ranged")
+actions = Array[Resource]([SubResource("Action_guard")])
+
+[sub_resource type="Resource" id="Binding_guard"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.exotic.umbrella.guard"
+trait_id = &"weapon.exotic.umbrella.guard"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"umbrella_sword"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_guard")])
+
+[sub_resource type="Resource" id="Action_rain_advantage_payload"]
+script = ExtResource("11_attack_roll_bonus")
+target_selector = &"attack_target"
+bonus = 2
+stack_mode = &"max"
+label = "雨天优势"
+
+[sub_resource type="Resource" id="Action_rain_advantage"]
+script = ExtResource("9_action")
+action_id = &"action.umbrella.rain_advantage.attack_bonus"
+kind = &"attack_roll_bonus"
+payload = SubResource("Action_rain_advantage_payload")
+
+[sub_resource type="Resource" id="Reaction_rain_advantage"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.umbrella.rain_advantage.before_hit"
+trigger = &"on_hit"
+timing = &"before_hit"
+condition_group = SubResource("Condition_group_rain_or_wet")
+actions = Array[Resource]([SubResource("Action_rain_advantage")])
+
+[sub_resource type="Resource" id="Binding_rain_advantage"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.exotic.umbrella.rain_advantage"
+trait_id = &"weapon.exotic.umbrella.rain_advantage"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"umbrella_sword"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_rain_advantage")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability.weapon.exotic.umbrella"
+schema_version = 1
+load_order = 232
+bindings = Array[Resource]([SubResource("Binding_rain_screen"), SubResource("Binding_guard"), SubResource("Binding_rain_advantage")])

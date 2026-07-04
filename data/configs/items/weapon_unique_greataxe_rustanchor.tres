@@ -1,0 +1,43 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Resource_two_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 12
+flat_bonus = 1
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+weapon_type_id = &"greataxe"
+training_group = &"martial"
+range_type = &"melee"
+family = &"axe"
+damage_tag = &"physical_slash"
+attack_range = 1
+two_handed_dice = SubResource("Resource_two_handed_dice")
+properties_mode = 2
+properties = Array[StringName]([&"two_handed", &"heavy"])
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_greataxe_rustanchor"
+base_item_id = &"weapon_type_greataxe_base"
+display_name = "锈锚"
+description = "一柄沉重得像旧锚的巨斧。它让持有者扎根防守，也用锈链拖慢受创敌人，再斩向已经失去退路的目标。"
+is_stackable = false
+base_price = 38000
+buy_price = 38000
+sell_price = 19000
+sellable = true
+max_stack = 1
+item_category = &"equipment"
+tags = Array[StringName]([&"rustanchor", &"heavy", &"two_handed"])
+trait_ids = Array[StringName]([&"weapon.axe.rustanchor.sunk_anchor_stance", &"weapon.axe.rustanchor.rust_chain_bite", &"weapon.axe.rustanchor.no_return_chop"])
+equipment_slot_ids = Array[String](["main_hand"])
+occupied_slot_ids = Array[String](["main_hand", "off_hand"])
+equipment_type_id = &"weapon"
+weapon_profile = SubResource("Resource_weapon_profile")

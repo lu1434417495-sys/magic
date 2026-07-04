@@ -1,8 +1,7 @@
-[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=36 format=3]
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=31 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
-[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilitySourceTraceDef.cs" id="3_trace"]
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="4_reaction"]
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionDef.cs" id="5_dice"]
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionTermDef.cs" id="6_dice_term"]
@@ -10,20 +9,6 @@
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AddDamageDiceActionPayloadDef.cs" id="8_add_damage"]
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ApplyStatusActionPayloadDef.cs" id="9_apply_status"]
 [ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ScheduleAreaEffectActionPayloadDef.cs" id="10_schedule_area"]
-
-[sub_resource type="Resource" id="Trace_poison_touch_damage"]
-script = ExtResource("3_trace")
-source_kind = &"by_family"
-source_file = "docs/design/weapons/by_family/axes_01.md"
-item_id = &"weapon_unique_axe_plague_tongue_099"
-display_name = "瘟疫之舌"
-bullet_index = 1
-bullet_title = "疫病之触"
-bullet_text = "攻击附加1D6毒素伤害"
-mechanism_family = &"add_damage_dice"
-coverage_status = &"bound"
-phase = &"v1"
-test_id = &"plague_tongue_poison_touch_damage"
 
 [sub_resource type="Resource" id="Dice_term_1d6_poison"]
 script = ExtResource("6_dice_term")
@@ -63,22 +48,7 @@ allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
 required_trait_categories = Array[StringName]([&"weapon_feat"])
 required_item_tags = Array[StringName]([&"plague_tongue"])
 supported_equipment_type_ids = Array[StringName]([&"weapon"])
-source_traces = Array[Resource]([SubResource("Trace_poison_touch_damage")])
 reactions = Array[Resource]([SubResource("Reaction_poison_touch_damage")])
-
-[sub_resource type="Resource" id="Trace_axe_fever"]
-script = ExtResource("3_trace")
-source_kind = &"by_family"
-source_file = "docs/design/weapons/by_family/axes_01.md"
-item_id = &"weapon_unique_axe_plague_tongue_099"
-display_name = "瘟疫之舌"
-bullet_index = 1
-bullet_title = "斧刃热"
-bullet_text = "命中后目标须通过DC14体质检定，失败则感染斧刃热"
-mechanism_family = &"apply_status_after_hit"
-coverage_status = &"bound"
-phase = &"v1"
-test_id = &"plague_tongue_axe_fever"
 
 [sub_resource type="Resource" id="Action_axe_fever_payload"]
 script = ExtResource("9_apply_status")
@@ -123,22 +93,7 @@ allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
 required_trait_categories = Array[StringName]([&"weapon_feat"])
 required_item_tags = Array[StringName]([&"plague_tongue"])
 supported_equipment_type_ids = Array[StringName]([&"weapon"])
-source_traces = Array[Resource]([SubResource("Trace_axe_fever")])
 reactions = Array[Resource]([SubResource("Reaction_axe_fever")])
-
-[sub_resource type="Resource" id="Trace_plague_spread"]
-script = ExtResource("3_trace")
-source_kind = &"by_family"
-source_file = "docs/design/weapons/by_family/axes_01.md"
-item_id = &"weapon_unique_axe_plague_tongue_099"
-display_name = "瘟疫之舌"
-bullet_index = 2
-bullet_title = "瘟疫传播"
-bullet_text = "被瘟疫之舌击杀的生物会在固定60TU后化为瘟疫云"
-mechanism_family = &"delayed_area_terrain_effect"
-coverage_status = &"bound"
-phase = &"v1"
-test_id = &"plague_tongue_plague_spread"
 
 [sub_resource type="Resource" id="Action_plague_spread_cloud_payload"]
 script = ExtResource("10_schedule_area")
@@ -192,22 +147,7 @@ allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
 required_trait_categories = Array[StringName]([&"weapon_feat"])
 required_item_tags = Array[StringName]([&"plague_tongue"])
 supported_equipment_type_ids = Array[StringName]([&"weapon"])
-source_traces = Array[Resource]([SubResource("Trace_plague_spread")])
 reactions = Array[Resource]([SubResource("Reaction_plague_spread_cloud")])
-
-[sub_resource type="Resource" id="Trace_immune_carrier"]
-script = ExtResource("3_trace")
-source_kind = &"by_family"
-source_file = "docs/design/weapons/by_family/axes_01.md"
-item_id = &"weapon_unique_axe_plague_tongue_099"
-display_name = "瘟疫之舌"
-bullet_index = 3
-bullet_title = "免疫携带者"
-bullet_text = "持有者免疫瘟疫之舌传播的所有疾病"
-mechanism_family = &"source_disease_immunity"
-coverage_status = &"bound"
-phase = &"v1"
-test_id = &"plague_tongue_immune_carrier"
 
 [sub_resource type="Resource" id="Binding_immune_carrier"]
 script = ExtResource("2_binding")
@@ -218,7 +158,6 @@ allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
 required_trait_categories = Array[StringName]([&"weapon_feat"])
 required_item_tags = Array[StringName]([&"plague_tongue"])
 supported_equipment_type_ids = Array[StringName]([&"weapon"])
-source_traces = Array[Resource]([SubResource("Trace_immune_carrier")])
 
 [resource]
 script = ExtResource("1_pack")

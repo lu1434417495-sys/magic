@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Resource_two_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 12
+flat_bonus = 2
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+two_handed_dice = SubResource("Resource_two_handed_dice")
+properties_mode = 2
+properties = Array[StringName]([&"two_handed", &"heavy"])
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_axe_glutton_090"
+base_item_id = &"weapon_type_greataxe_base"
+display_name = "贪食者"
+description = "一柄暗红齿刃巨斧，会在战斗中吞饮鲜血；未能收割时积蓄饥饿，击杀时将血食转为治疗。"
+is_stackable = false
+base_price = 42000
+buy_price = 42000
+sell_price = 21000
+sellable = true
+max_stack = 1
+tags = Array[StringName]([&"glutton", &"two_handed", &"heavy"])
+trait_ids = Array[StringName]([&"weapon.axe.glutton.sated", &"weapon.axe.glutton.unsatisfied", &"weapon.axe.glutton.devouring_chop"])
+weapon_profile = SubResource("Resource_weapon_profile")

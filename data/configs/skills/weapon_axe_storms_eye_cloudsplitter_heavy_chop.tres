@@ -1,0 +1,66 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+
+[sub_resource type="Resource" id="Effect_cloudsplitter_weapon_damage"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+effect_target_team_filter = &"enemy"
+add_weapon_dice = true
+requires_weapon = true
+use_weapon_physical_damage_tag = true
+resolve_as_weapon_attack = true
+
+[sub_resource type="Resource" id="Effect_cloudsplitter_thunder_damage"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+effect_target_team_filter = &"enemy"
+damage_tag = &"thunder"
+dice_count = 2
+dice_sides = 6
+
+[sub_resource type="Resource" id="Effect_cloudsplitter_push"]
+script = ExtResource("1_effect")
+effect_type = &"forced_move"
+effect_target_team_filter = &"enemy"
+forced_move_mode = &"knockback"
+forced_move_distance = 1
+
+[sub_resource type="Resource" id="Combat_cloudsplitter"]
+script = ExtResource("2_combat")
+skill_id = &"weapon_axe_storms_eye_cloudsplitter_heavy_chop"
+target_mode = &"unit"
+target_team_filter = &"enemy"
+target_selection_mode = &"single_unit"
+range_pattern = &"single"
+range_value = 1
+area_pattern = &"single"
+area_value = 0
+requires_los = true
+ap_cost = 1
+stamina_cost = 45
+cooldown_tu = 120
+attack_roll_bonus = 2
+min_target_count = 1
+max_target_count = 1
+allow_repeat_target = false
+selection_order_mode = &"stable"
+required_weapon_families = Array[StringName]([&"axe"])
+delivery_categories = Array[StringName]([&"equipment", &"storms_eye", &"weapon", &"melee", &"thunder", &"displacement"])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_cloudsplitter_weapon_damage"), SubResource("Effect_cloudsplitter_thunder_damage"), SubResource("Effect_cloudsplitter_push")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"weapon_axe_storms_eye_cloudsplitter_heavy_chop"
+display_name = "裂云重劈"
+icon_id = &"weapon_axe_storms_eye_cloudsplitter_heavy_chop"
+description = "装备技能。1AP、45体力，冷却 120TU；对相邻 1 格敌人进行攻击检定 +2 的武器攻击，命中造成武器伤害+2D6 thunder 并尝试推动 1 格；若没有实际推动，额外造成 2D6 thunder。"
+skill_type = &"active"
+max_level = 1
+non_core_max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"equipment", &"storms_eye", &"weapon", &"melee", &"thunder", &"displacement"])
+learn_source = &"innate"
+combat_profile = SubResource("Combat_cloudsplitter")

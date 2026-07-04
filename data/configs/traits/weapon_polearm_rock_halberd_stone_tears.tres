@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="TraitDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+[ext_resource type="Script" path="res://scripts/player/progression/TraitSaveBonusEntryDef.cs" id="2_save_bonus"]
+
+[sub_resource type="Resource" id="SaveBonus_perception"]
+script = ExtResource("2_save_bonus")
+save_ability = &"perception"
+bonus = 1
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"weapon.polearm.rock_halberd.stone_tears"
+display_name = "石之泪"
+description = "持有者免疫石化；美杜莎的沉静让感官更敏锐：感知豁免检定+1。"
+categories = Array[StringName]([&"weapon_feat"])
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+effect_type = &"equipment_ability"
+trigger_type = &"passive"
+stack_policy = &"stack_by_instance"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+save_advantage_tags = Array[StringName]([&"petrification_immunity"])
+save_bonus_entries = Array[Resource]([SubResource("SaveBonus_perception")])
+damage_resistance_entries = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

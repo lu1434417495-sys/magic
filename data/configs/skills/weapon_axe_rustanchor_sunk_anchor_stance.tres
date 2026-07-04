@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+
+[sub_resource type="Resource" id="Combat_sunk_anchor_stance"]
+script = ExtResource("2_combat")
+skill_id = &"weapon_axe_rustanchor_sunk_anchor_stance"
+target_mode = &"unit"
+target_team_filter = &"self"
+target_selection_mode = &"self"
+range_value = 0
+ap_cost = 1
+stamina_cost = 60
+cooldown_tu = 180
+attack_resolution_mode = &"direct_effect"
+mastery_trigger_mode = &"effect_applied"
+required_weapon_families = Array[StringName]([&"axe"])
+delivery_categories = Array[StringName]([&"equipment", &"rustanchor", &"weapon", &"defense"])
+effect_defs = Array[ExtResource("1_effect")]([])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"weapon_axe_rustanchor_sunk_anchor_stance"
+display_name = "沉锚守势"
+icon_id = &"weapon_axe_rustanchor_sunk_anchor_stance"
+description = "装备技能。1AP、60体力，冷却 180TU；自身获得沉锚 120TU，免疫敌方强制位移，移动点上限 -1，并在沉锚期间减免 3 点物理伤害。"
+skill_type = &"active"
+max_level = 1
+non_core_max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"equipment", &"rustanchor", &"weapon", &"defense"])
+learn_source = &"innate"
+combat_profile = SubResource("Combat_sunk_anchor_stance")

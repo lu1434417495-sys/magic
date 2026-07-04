@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentGrantedActionDef.cs" id="4_grant"]
+
+[sub_resource type="Resource" id="Grant_web_binding_skill"]
+script = ExtResource("4_grant")
+granted_action_id = &"grant.spider_spear.web_binding.skill"
+granted_kind = &"skill"
+skill_id = &"weapon_polearm_spider_spear_web_binding"
+skill_level = 1
+usage_period_kind = &"per_world_day"
+max_uses_per_period = 3
+display_category = &"equipment"
+display_priority = 100
+
+[sub_resource type="Resource" id="Binding_web_binding"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.polearm.spider_spear.web_binding"
+trait_id = &"weapon.polearm.spider_spear.web_binding"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"spider_spear"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+granted_actions = Array[Resource]([SubResource("Grant_web_binding_skill")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability.weapon.polearm.spider_spear"
+schema_version = 1
+load_order = 136
+bindings = Array[Resource]([SubResource("Binding_web_binding")])

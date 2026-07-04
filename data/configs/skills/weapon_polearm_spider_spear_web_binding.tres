@@ -1,0 +1,54 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+
+[sub_resource type="Resource" id="Effect_web_binding_rooted"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+effect_target_team_filter = &"enemy"
+status_id = &"rooted"
+duration_tu = 60
+stack_behavior = &"refresh"
+stack_limit = 1
+attack_roll_penalty = 2
+save_dc = 14
+save_ability = &"strength"
+save_tag = &"strength"
+counts_as_debuff_override = true
+counts_as_debuff = true
+
+[sub_resource type="Resource" id="Combat_web_binding"]
+script = ExtResource("2_combat")
+skill_id = &"weapon_polearm_spider_spear_web_binding"
+target_mode = &"unit"
+target_team_filter = &"enemy"
+target_selection_mode = &"single_unit"
+range_pattern = &"single"
+range_value = 3
+area_pattern = &"single"
+area_value = 0
+requires_los = true
+ap_cost = 1
+attack_resolution_mode = &"direct_effect"
+min_target_count = 1
+max_target_count = 1
+allow_repeat_target = false
+selection_order_mode = &"stable"
+delivery_categories = Array[StringName]([&"equipment", &"spider_spear", &"spear", &"web", &"control"])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_web_binding_rooted")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"weapon_polearm_spider_spear_web_binding"
+display_name = "蛛丝束缚"
+icon_id = &"weapon_polearm_spider_spear_web_binding"
+description = "装备技能。射出蛛丝束缚3格内一个敌人；目标进行 strength DC14 豁免，失败被定身60TU且攻击检定-2。蛛矛来源每世界日3次。"
+skill_type = &"active"
+max_level = 1
+non_core_max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"equipment", &"spider_spear", &"spear", &"polearm", &"web", &"control", &"weapon"])
+learn_source = &"innate"
+combat_profile = SubResource("Combat_web_binding")
