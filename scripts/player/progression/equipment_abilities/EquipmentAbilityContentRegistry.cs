@@ -378,9 +378,9 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
 
         ValidateSourceKinds(binding, errors);
         HashSet<StringName> declaredStateKeys = ValidateStateSchemas(binding, errors);
-        ValidateSourceTraces(binding, context, errors);
         ValidateReactions(binding, context, declaredStateKeys, errors);
         ValidateGrantedActions(binding, context, errors);
+        ValidateTemporalProgressModifiers(binding, errors);
         ValidateWeaponProfileOverlays(binding, context, errors);
         ValidateWorldEffects(binding, context, declaredStateKeys, errors);
     }
@@ -417,9 +417,10 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         {
             if (schema == null)
                 continue;
-            if (schema.state_key == "")
+            StringName stateKey = ProgressionDataUtils.to_string_name(schema.state_key);
+            if (stateKey == "")
                 continue;
-            keys.Add(schema.state_key);
+            keys.Add(stateKey);
             bool persistentReset =
                 schema.reset_timing == "per_world_day"
                 || schema.reset_timing == "per_world_month"
@@ -449,40 +450,164 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 );
             }
         }
+        foreach (EquipmentAbilityStateSchemaDef schema in binding.state_schemas)
+            ValidateStateSchemaSync(schema, keys, path, errors);
         return keys;
     }
 
-    private static void ValidateSourceTraces(
+    private static void ValidateStateSchemaSync(
+        EquipmentAbilityStateSchemaDef schema,
+        HashSet<StringName> declaredStateKeys,
+        string bindingPath,
+        List<string> errors
+    )
+    {
+        if (schema == null)
+            return;
+        StringName stateKey = ProgressionDataUtils.to_string_name(schema.state_key);
+        if (stateKey == "")
+            return;
+
+        StringName sourceStateKey = ProgressionDataUtils.to_string_name(
+            schema.sync_source_state_key
+        );
+        StringName syncAggregation = ProgressionDataUtils.to_string_name(
+            schema.sync_aggregation
+        );
+        string statePath = $"{bindingPath}.state_schemas[{stateKey}]";
+        if (sourceStateKey == "")
+        {
+            if (syncAggregation != "" || schema.sync_int_literal != 0)
+            {
+                AddError(
+                    errors,
+                    "EQA_STATE_SYNC_INVALID",
+                    $"{statePath}.sync_source_state_key",
+                    "state sync aggregation requires sync_source_state_key"
+                );
+            }
+            return;
+        }
+
+        if (sourceStateKey == stateKey)
+        {
+            AddError(
+                errors,
+                "EQA_STATE_SYNC_INVALID",
+                $"{statePath}.sync_source_state_key",
+                "state sync source cannot be the target state itself"
+            );
+        }
+        if (!declaredStateKeys.Contains(sourceStateKey))
+        {
+            AddError(
+                errors,
+                "EQA_STATE_SYNC_SOURCE_UNDECLARED",
+                $"{statePath}.sync_source_state_key",
+                $"sync_source_state_key {sourceStateKey} is not declared by binding state_schemas"
+            );
+        }
+
+        if (syncAggregation == "" || syncAggregation == "value")
+        {
+            if (schema.sync_int_literal != 0)
+            {
+                AddError(
+                    errors,
+                    "EQA_STATE_SYNC_INVALID",
+                    $"{statePath}.sync_int_literal",
+                    "value state sync does not accept sync_int_literal"
+                );
+            }
+            return;
+        }
+        if (syncAggregation == "floor_div")
+        {
+            if (schema.sync_int_literal <= 0)
+            {
+                AddError(
+                    errors,
+                    "EQA_STATE_SYNC_INVALID",
+                    $"{statePath}.sync_int_literal",
+                    "floor_div state sync requires positive sync_int_literal"
+                );
+            }
+            return;
+        }
+
+        AddError(
+            errors,
+            "EQA_STATE_SYNC_INVALID",
+            $"{statePath}.sync_aggregation",
+            $"state sync_aggregation {syncAggregation} is not supported"
+        );
+    }
+
+    private static void ValidateTemporalProgressModifiers(
         EquipmentAbilityBindingDef binding,
-        EquipmentAbilityContentValidationContext context,
         List<string> errors
     )
     {
         string path = BindingPath(binding);
-        foreach (EquipmentAbilitySourceTraceDef trace in binding.source_traces)
+        var seenIds = new HashSet<StringName>();
+        foreach (EquipmentTemporalProgressModifierDef modifier in binding.temporal_progress_modifiers)
         {
-            if (trace == null)
+            if (modifier == null)
                 continue;
-            bool valid = trace.source_kind == "by_family"
-                && (trace.coverage_status == "" || IsAllowed(trace.coverage_status, "bound", "deferred", "content_cut"))
-                && (trace.phase == "" || IsAllowed(trace.phase, "v1", "v2", "v3"));
-            if (trace.source_kind == "by_family")
-            {
-                valid = valid
-                    && trace.item_id != ""
-                    && (!HasKnownValues(context.KnownItemIds) || context.KnownItemIds.Contains(trace.item_id))
-                    && !string.IsNullOrWhiteSpace(trace.source_file)
-                    && !trace.source_file.Contains("..", StringComparison.Ordinal)
-                    && !trace.source_file.StartsWith("/", StringComparison.Ordinal)
-                    && trace.source_file.EndsWith(".md", StringComparison.OrdinalIgnoreCase);
-            }
-            if (!valid)
+            StringName modifierId = ProgressionDataUtils.to_string_name(modifier.modifier_id);
+            string modifierPath = $"{path}.temporal_progress_modifiers[{modifierId}]";
+            if (modifierId == "")
             {
                 AddError(
                     errors,
-                    "EQA_SOURCE_TRACE_INVALID",
-                    $"{path}.source_traces",
-                    "source trace uses unsupported enum values, unsafe by_family path, or missing item_id"
+                    "EQA_TEMPORAL_PROGRESS_MODIFIER_ID_MISSING",
+                    modifierPath,
+                    "temporal progress modifier requires modifier_id"
+                );
+            }
+            else if (!seenIds.Add(modifierId))
+            {
+                AddError(
+                    errors,
+                    "EQA_TEMPORAL_PROGRESS_MODIFIER_DUPLICATE",
+                    modifierPath,
+                    $"temporal progress modifier {modifierId} is duplicated"
+                );
+            }
+            if (!modifier.applies_to_action_progress && !modifier.applies_to_cast_progress)
+            {
+                AddError(
+                    errors,
+                    "EQA_TEMPORAL_PROGRESS_MODIFIER_SCOPE_INVALID",
+                    modifierPath,
+                    "temporal progress modifier must apply to action progress or cast progress"
+                );
+            }
+            if (modifier.save_dc <= 0)
+            {
+                AddError(
+                    errors,
+                    "EQA_TEMPORAL_PROGRESS_MODIFIER_DC_INVALID",
+                    $"{modifierPath}.save_dc",
+                    "temporal progress modifier save_dc must be positive"
+                );
+            }
+            if (modifier.attribute_modifier_id == "")
+            {
+                AddError(
+                    errors,
+                    "EQA_TEMPORAL_PROGRESS_MODIFIER_ATTRIBUTE_INVALID",
+                    $"{modifierPath}.attribute_modifier_id",
+                    "temporal progress modifier requires attribute_modifier_id"
+                );
+            }
+            if (modifier.success_rate_percent <= 0 || modifier.failure_rate_percent <= 0)
+            {
+                AddError(
+                    errors,
+                    "EQA_TEMPORAL_PROGRESS_MODIFIER_RATE_INVALID",
+                    modifierPath,
+                    "temporal progress modifier rates must be positive percentages"
                 );
             }
         }
@@ -673,6 +798,9 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             case HealActionPayloadDef payload:
                 ValidateHealPayload(payload, path, errors);
                 break;
+            case HealFromFactActionPayloadDef payload:
+                ValidateHealFromFactPayload(payload, context, path, errors);
+                break;
             case AttackRollBonusActionPayloadDef payload:
                 ValidateAttackRollBonusPayload(payload, path, errors);
                 break;
@@ -685,18 +813,26 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             case DamageRollModeOverrideActionPayloadDef payload:
                 ValidateDamageRollModeOverridePayload(payload, path, errors);
                 break;
+            case DamageReductionActionPayloadDef payload:
+                ValidateDamageReductionPayload(payload, context, path, errors);
+                break;
             case LootQuantityMultiplierActionPayloadDef payload:
                 ValidateLootQuantityMultiplierPayload(payload, path, errors);
                 break;
             case ApplyStatusActionPayloadDef payload:
                 ValidateApplyStatusPayload(payload, context, path, errors);
                 break;
+            case ModifyActionPointsActionPayloadDef payload:
+                ValidateModifyActionPointsPayload(payload, context, path, errors);
+                break;
             case ScheduleAreaEffectActionPayloadDef payload:
                 ValidateScheduleAreaEffectPayload(payload, context, path, errors);
                 break;
+            case ApplyBattleTerrainEffectAfterCheckActionPayloadDef payload:
+                ValidateApplyBattleTerrainEffectAfterCheckPayload(payload, path, errors);
+                break;
             case ModifyAbilityStateActionPayloadDef payload:
-                if (payload.target_selector == "" || payload.state_key == "")
-                    AddError(errors, "EQA_ACTION_REQUIRED_FIELD_MISSING", path, "modify_ability_state requires target_selector and state_key");
+                ValidateModifyAbilityStatePayload(payload, path, errors);
                 break;
             case MarkTargetActionPayloadDef payload:
                 ValidateMarkTargetPayload(payload, context, path, errors);
@@ -710,10 +846,13 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                     AddError(errors, "EQA_ACTION_REQUIRED_FIELD_MISSING", path, "grant_skill requires skill_id and positive skill_level");
                 break;
             case SummonUnitsActionPayloadDef payload:
-                ValidateSummonUnitsPayload(payload, path, errors);
+                ValidateSummonUnitsPayload(payload, context, path, errors);
                 break;
             case ConsumeSummonedUnitsActionPayloadDef payload:
                 ValidateConsumeSummonedUnitsPayload(payload, path, errors);
+                break;
+            case ConsumeStatusStacksActionPayloadDef payload:
+                ValidateConsumeStatusStacksPayload(payload, context, path, errors);
                 break;
             case SummonedUnitAttackRollModifierActionPayloadDef payload:
                 ValidateSummonedUnitAttackRollModifierPayload(payload, path, errors);
@@ -1003,6 +1142,34 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         }
     }
 
+    private static void ValidateHealFromFactPayload(
+        HealFromFactActionPayloadDef payload,
+        EquipmentAbilityContentValidationContext context,
+        string path,
+        List<string> errors
+    )
+    {
+        if (payload.target_selector == "" || payload.amount_fact == null || payload.multiplier_percent <= 0)
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "heal_from_fact requires target_selector, amount_fact and positive multiplier_percent"
+            );
+        }
+        ValidateFactQuery(payload.amount_fact, context, $"{path}.payload.amount_fact", errors);
+        if (payload.max_amount < 0)
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_INVALID_VALUE",
+                $"{path}.payload.max_amount",
+                "heal_from_fact max_amount must be zero or positive"
+            );
+        }
+    }
+
     private static void ValidateDamageTagArray(
         Godot.Collections.Array<StringName> damageTags,
         EquipmentAbilityContentValidationContext context,
@@ -1269,6 +1436,49 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         }
     }
 
+    private static void ValidateDamageReductionPayload(
+        DamageReductionActionPayloadDef payload,
+        EquipmentAbilityContentValidationContext context,
+        string path,
+        List<string> errors
+    )
+    {
+        if (
+            payload.target_selector == ""
+            || payload.amount <= 0
+            || (payload.damage_tags?.Count ?? 0) == 0
+        )
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "damage_reduction requires target_selector, positive amount, and at least one damage tag"
+            );
+        }
+        ValidateDamageTagArray(
+            payload.damage_tags,
+            context,
+            $"{path}.payload.damage_tags",
+            errors
+        );
+        if (
+            payload.target_selector != ""
+            && payload.target_selector != "self"
+            && payload.target_selector != "holder"
+            && payload.target_selector != "defender"
+            && payload.target_selector != "damage_target"
+        )
+        {
+            AddError(
+                errors,
+                "EQA_DAMAGE_REDUCTION_TARGET_SELECTOR_UNSUPPORTED",
+                $"{path}.payload.target_selector",
+                $"damage_reduction target_selector {payload.target_selector} is not supported"
+            );
+        }
+    }
+
     private static void ValidateLootQuantityMultiplierPayload(
         LootQuantityMultiplierActionPayloadDef payload,
         string path,
@@ -1410,6 +1620,70 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         }
     }
 
+    private static void ValidateModifyActionPointsPayload(
+        ModifyActionPointsActionPayloadDef payload,
+        EquipmentAbilityContentValidationContext context,
+        string path,
+        List<string> errors
+    )
+    {
+        StringName mode = ProgressionDataUtils.to_string_name(payload.mode);
+        if (payload.target_selector == "" || mode == "")
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "modify_action_points requires target_selector and mode"
+            );
+        }
+        if (
+            mode != ""
+            && mode != "add_base_action_points"
+            && mode != "subtract_current_action_points"
+            && mode != "set_next_turn_ap_to_zero"
+        )
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_MODE_INVALID",
+                $"{path}.payload.mode",
+                $"modify_action_points mode {mode} is not supported"
+            );
+        }
+        if (payload.amount < 0)
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_AMOUNT_INVALID",
+                $"{path}.payload.amount",
+                "modify_action_points amount must be >= 0"
+            );
+        }
+        if (mode == "subtract_current_action_points" && payload.amount <= 0)
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_AMOUNT_INVALID",
+                $"{path}.payload.amount",
+                "modify_action_points subtract_current_action_points requires positive amount"
+            );
+        }
+        if (mode == "set_next_turn_ap_to_zero")
+        {
+            if (payload.status_id == "")
+            {
+                AddError(
+                    errors,
+                    "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                    path,
+                    "modify_action_points set_next_turn_ap_to_zero requires status_id"
+                );
+            }
+            ValidateStatusReference(payload.status_id, context, $"{path}.payload.status_id", errors);
+        }
+    }
+
     private static void ValidateMarkTargetPayload(
         MarkTargetActionPayloadDef payload,
         EquipmentAbilityContentValidationContext context,
@@ -1462,6 +1736,7 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
 
     private static void ValidateSummonUnitsPayload(
         SummonUnitsActionPayloadDef payload,
+        EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
     )
@@ -1493,6 +1768,73 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 "summon_units spawn_radius must be >= 0"
             );
         }
+        foreach (StringName skillId in payload?.known_active_skill_ids ?? new Godot.Collections.Array<StringName>())
+        {
+            StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
+            if (normalizedSkillId == "")
+            {
+                AddError(
+                    errors,
+                    "EQA_SUMMON_KNOWN_SKILL_ID_EMPTY",
+                    $"{path}.payload.known_active_skill_ids",
+                    "summon_units known_active_skill_ids cannot contain empty ids"
+                );
+                continue;
+            }
+            if (HasKnownValues(context.KnownSkillIds) && !context.KnownSkillIds.Contains(normalizedSkillId))
+            {
+                AddError(
+                    errors,
+                    "EQA_REFERENCE_UNKNOWN_SKILL",
+                    $"{path}.payload.known_active_skill_ids",
+                    $"skill_id {normalizedSkillId} is not known"
+                );
+            }
+        }
+        bool hasNaturalWeapon =
+            payload != null
+            && (
+                payload.natural_weapon_profile_type_id != ""
+                || payload.natural_weapon_damage_tag != ""
+                || payload.natural_weapon_attack_range > 0
+                || payload.natural_weapon_damage_dice != null
+                || payload.natural_weapon_family != ""
+            );
+        if (hasNaturalWeapon)
+        {
+            bool hasOneDiceTerm = payload.natural_weapon_damage_dice?.terms?.Count == 1;
+            DiceExpressionTermDef term = hasOneDiceTerm
+                ? payload.natural_weapon_damage_dice.terms[0]
+                : null;
+            if (
+                payload.natural_weapon_profile_type_id == ""
+                || payload.natural_weapon_damage_tag == ""
+                || payload.natural_weapon_attack_range <= 0
+                || term == null
+                || term.dice_count <= 0
+                || term.dice_sides <= 0
+            )
+            {
+                AddError(
+                    errors,
+                    "EQA_SUMMON_NATURAL_WEAPON_INVALID",
+                    $"{path}.payload.natural_weapon_damage_dice",
+                    "summon_units natural weapon requires profile type, damage tag, positive attack range, and exactly one positive dice term"
+                );
+            }
+            else if (
+                DamageTagContentRules.ToDamageTagKind(payload.natural_weapon_damage_tag)
+                == DamageTagKind.Unknown
+            )
+            {
+                AddError(
+                    errors,
+                    "EQA_REFERENCE_UNKNOWN_DAMAGE_TYPE",
+                    $"{path}.payload.natural_weapon_damage_tag",
+                    $"damage tag {payload.natural_weapon_damage_tag} is not known"
+                );
+            }
+        }
         foreach (DiceExpressionTermDef term in payload?.count_dice?.terms ?? new Godot.Collections.Array<DiceExpressionTermDef>())
         {
             if (term == null || term.dice_count <= 0 || term.dice_sides <= 0)
@@ -1520,6 +1862,35 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 "EQA_ACTION_REQUIRED_FIELD_MISSING",
                 path,
                 "consume_summoned_units requires state_key and positive count"
+            );
+        }
+    }
+
+    private static void ValidateConsumeStatusStacksPayload(
+        ConsumeStatusStacksActionPayloadDef payload,
+        EquipmentAbilityContentValidationContext context,
+        string path,
+        List<string> errors
+    )
+    {
+        if (payload == null || payload.target_selector == "" || payload.status_id == "" || payload.count <= 0)
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "consume_status_stacks requires target_selector, status_id and positive count"
+            );
+            return;
+        }
+        ValidateStatusReference(payload.status_id, context, $"{path}.payload.status_id", errors);
+        if (payload.selection_mode != "" && payload.selection_mode != "highest_stacks")
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                $"{path}.payload.selection_mode",
+                $"consume_status_stacks selection_mode {payload.selection_mode} is not supported"
             );
         }
     }
@@ -1805,6 +2176,82 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 );
             }
         }
+    }
+
+    private static void ValidateApplyBattleTerrainEffectAfterCheckPayload(
+        ApplyBattleTerrainEffectAfterCheckActionPayloadDef payload,
+        string path,
+        List<string> errors
+    )
+    {
+        if (
+            payload.anchor_selector == ""
+            || payload.terrain_effect_id == ""
+            || payload.check_attribute_modifier_id == ""
+            || payload.check_compare == ""
+            || payload.check_threshold <= 0
+        )
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "apply_battle_terrain_effect_after_check requires anchor_selector, terrain_effect_id, check_attribute_modifier_id, check_compare, and positive check_threshold"
+            );
+        }
+        if (payload.move_cost_delta <= 0)
+        {
+            AddError(
+                errors,
+                "EQA_MOVE_COST_DELTA_INVALID",
+                $"{path}.payload.move_cost_delta",
+                "apply_battle_terrain_effect_after_check move_cost_delta must be positive"
+            );
+        }
+        if (!CombatTargetTeamContentRules.IsValidSkillTargetTeamFilter(payload.target_team_filter))
+        {
+            AddError(
+                errors,
+                "EQA_TARGET_TEAM_FILTER_INVALID",
+                $"{path}.payload.target_team_filter",
+                $"apply_battle_terrain_effect_after_check target_team_filter {payload.target_team_filter} is not supported"
+            );
+        }
+        if (!IsValidIntCompareOperator(payload.check_compare))
+        {
+            AddError(
+                errors,
+                "EQA_COMPARE_OPERATOR_INVALID",
+                $"{path}.payload.check_compare",
+                $"apply_battle_terrain_effect_after_check check_compare {payload.check_compare} is not supported"
+            );
+        }
+    }
+
+    private static void ValidateModifyAbilityStatePayload(
+        ModifyAbilityStateActionPayloadDef payload,
+        string path,
+        List<string> errors
+    )
+    {
+        if (payload.target_selector == "" || payload.state_key == "")
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "modify_ability_state requires target_selector and state_key"
+            );
+        }
+    }
+
+    private static bool IsValidIntCompareOperator(StringName compare)
+    {
+        return ProgressionDataUtils.to_string_name(compare).ToString() switch
+        {
+            "lte" or "lt" or "gte" or "gt" or "eq" => true,
+            _ => false,
+        };
     }
 
     private static void ValidateDurabilityPayload(
@@ -2100,7 +2547,7 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
     {
         if (query == null)
             return;
-        if (query.fact_id == "status_stacks")
+        if (query.fact_id == "status_stacks" || query.fact_id == "source_status_total_stacks")
         {
             ValidateStatusReference(query.status_id, context, $"{path}.status_id", errors);
             return;
@@ -2166,14 +2613,49 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             RequiredTraitCategories = CopyStringNameSet(source.required_trait_categories),
             RequiredItemTags = CopyStringNameSet(source.required_item_tags),
             SupportedEquipmentTypeIds = CopyStringNameSet(source.supported_equipment_type_ids),
-            SourceTraces = ProjectSourceTraces(source.source_traces),
             StateSchemas = ProjectStateSchemas(source.state_schemas),
             Reactions = ProjectReactions(source.reactions),
             GrantedActions = ProjectGrantedActions(source.granted_actions),
+            TemporalProgressModifiers = ProjectTemporalProgressModifiers(
+                source.binding_id,
+                source.temporal_progress_modifiers
+            ),
             WeaponProfileOverlays = ProjectWeaponProfileOverlays(source.weapon_profile_overlays),
             WorldEffects = ProjectWorldEffects(source.world_effects),
             ResourcePath = source.ResourcePath ?? "",
         };
+    }
+
+    private static IReadOnlyList<EquipmentTemporalProgressModifierDefinition> ProjectTemporalProgressModifiers(
+        StringName bindingId,
+        Godot.Collections.Array<EquipmentTemporalProgressModifierDef> values
+    )
+    {
+        if (values == null || values.Count == 0)
+            return Array.Empty<EquipmentTemporalProgressModifierDefinition>();
+        var result = new List<EquipmentTemporalProgressModifierDefinition>();
+        foreach (EquipmentTemporalProgressModifierDef value in values)
+        {
+            if (value == null)
+                continue;
+            result.Add(
+                new EquipmentTemporalProgressModifierDefinition
+                {
+                    ModifierId = value.modifier_id,
+                    BindingId = bindingId,
+                    AppliesToActionProgress = value.applies_to_action_progress,
+                    AppliesToCastProgress = value.applies_to_cast_progress,
+                    SaveDc = Math.Max(value.save_dc, 0),
+                    AttributeModifierId = value.attribute_modifier_id,
+                    SuccessRatePercent = Math.Max(value.success_rate_percent, 0),
+                    FailureRatePercent = Math.Max(value.failure_rate_percent, 0),
+                    Label = value.label ?? "",
+                }
+            );
+        }
+        return result.Count > 0
+            ? new ReadOnlyCollection<EquipmentTemporalProgressModifierDefinition>(result)
+            : Array.Empty<EquipmentTemporalProgressModifierDefinition>();
     }
 
     private static IReadOnlySet<StringName> ProjectSourceKinds(
@@ -2188,36 +2670,6 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 result.Add(TraitContentRules.ToStringName(kind));
         }
         return EquipmentAbilityReadOnlySet<StringName>.From(result);
-    }
-
-    private static IReadOnlyList<EquipmentAbilitySourceTraceDefinition> ProjectSourceTraces(
-        Godot.Collections.Array<EquipmentAbilitySourceTraceDef> values
-    )
-    {
-        var result = new List<EquipmentAbilitySourceTraceDefinition>();
-        foreach (EquipmentAbilitySourceTraceDef value in values)
-        {
-            if (value == null)
-                continue;
-            result.Add(
-                new EquipmentAbilitySourceTraceDefinition
-                {
-                    SourceKind = EquipmentAbilitySourceTraceKind.ByFamily,
-                    SourceFile = value.source_file ?? "",
-                    ItemId = value.item_id,
-                    DisplayName = value.display_name ?? "",
-                    BulletIndex = value.bullet_index,
-                    BulletTitle = value.bullet_title ?? "",
-                    BulletText = value.bullet_text ?? "",
-                    MechanismFamily = value.mechanism_family,
-                    CoverageStatus = ParseCoverageStatus(value.coverage_status),
-                    Phase = ParsePhase(value.phase),
-                    TestId = value.test_id,
-                    Note = value.note ?? "",
-                }
-            );
-        }
-        return new ReadOnlyCollection<EquipmentAbilitySourceTraceDefinition>(result);
     }
 
     private static IReadOnlyList<EquipmentAbilityStateSchemaDefinition> ProjectStateSchemas(
@@ -2240,6 +2692,9 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                     ResetTiming = value.reset_timing,
                     PersistOutsideBattle = value.persist_outside_battle,
                     VisibleToUi = value.visible_to_ui,
+                    SyncSourceStateKey = value.sync_source_state_key,
+                    SyncAggregation = value.sync_aggregation,
+                    SyncIntLiteral = value.sync_int_literal,
                 }
             );
         }
@@ -2404,6 +2859,13 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 TargetSelector = heal.target_selector,
                 Dice = ProjectDice(heal.dice),
             },
+            HealFromFactActionPayloadDef healFromFact => new HealFromFactActionPayloadDefinition
+            {
+                TargetSelector = healFromFact.target_selector,
+                AmountFact = ProjectFactQuery(healFromFact.amount_fact),
+                MultiplierPercent = healFromFact.multiplier_percent,
+                MaxAmount = healFromFact.max_amount,
+            },
             AttackRollBonusActionPayloadDef attackRoll => new AttackRollBonusActionPayloadDefinition
             {
                 TargetSelector = attackRoll.target_selector,
@@ -2441,6 +2903,14 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                     StackMode = damageRollMode.stack_mode,
                     Label = damageRollMode.label ?? "",
                 },
+            DamageReductionActionPayloadDef damageReduction =>
+                new DamageReductionActionPayloadDefinition
+                {
+                    TargetSelector = damageReduction.target_selector,
+                    Amount = damageReduction.amount,
+                    DamageTags = CopyStringNames(damageReduction.damage_tags),
+                    Label = damageReduction.label ?? "",
+                },
             LootQuantityMultiplierActionPayloadDef loot => new LootQuantityMultiplierActionPayloadDefinition
             {
                 TargetSelector = loot.target_selector,
@@ -2467,6 +2937,7 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 SourceBoundIncomingAttackRollBonusMinStacks =
                     status.source_bound_incoming_attack_roll_bonus_min_stacks,
                 MovePointCapacityDelta = status.move_point_capacity_delta,
+                ForcedMoveImmune = status.forced_move_immune,
                 CountsAsDebuffOverride = status.counts_as_debuff_override,
                 CountsAsDebuff = status.counts_as_debuff,
                 Undispellable = status.undispellable,
@@ -2484,6 +2955,14 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 SaveAbility = status.save_ability,
                 SaveTag = status.save_tag,
                 ApplyOnSaveFailure = status.apply_on_save_failure,
+            },
+            ModifyActionPointsActionPayloadDef actionPoints => new ModifyActionPointsActionPayloadDefinition
+            {
+                TargetSelector = actionPoints.target_selector,
+                Mode = actionPoints.mode,
+                Amount = actionPoints.amount,
+                StatusId = actionPoints.status_id,
+                DisplayLabel = actionPoints.display_label ?? "",
             },
             ScheduleAreaEffectActionPayloadDef schedule => new ScheduleAreaEffectActionPayloadDefinition
             {
@@ -2520,6 +2999,23 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 ContactTimelineDamageFlatBonus = schedule.contact_timeline_damage_flat_bonus,
                 ContactBlockedByTraitId = schedule.contact_blocked_by_trait_id,
             },
+            ApplyBattleTerrainEffectAfterCheckActionPayloadDef terrainCheck =>
+                new ApplyBattleTerrainEffectAfterCheckActionPayloadDefinition
+                {
+                    AnchorSelector = terrainCheck.anchor_selector,
+                    TerrainEffectId = terrainCheck.terrain_effect_id,
+                    MoveCostDelta = terrainCheck.move_cost_delta,
+                    TargetTeamFilter = terrainCheck.target_team_filter,
+                    StackBehavior = terrainCheck.stack_behavior,
+                    DisplayName = terrainCheck.display_name ?? "",
+                    RenderOverlayId = terrainCheck.render_overlay_id,
+                    OverlayPriority = terrainCheck.overlay_priority,
+                    CheckAttributeModifierId = terrainCheck.check_attribute_modifier_id,
+                    CheckCompare = terrainCheck.check_compare,
+                    CheckThreshold = terrainCheck.check_threshold,
+                    NaturalTwentyAutoSuccess = terrainCheck.natural_twenty_auto_success,
+                    NaturalOneAutoFailure = terrainCheck.natural_one_auto_failure,
+                },
             ModifyAbilityStateActionPayloadDef state => new ModifyAbilityStateActionPayloadDefinition
             {
                 TargetSelector = state.target_selector,
@@ -2577,6 +3073,12 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 BaseAttackBonus = summon.base_attack_bonus,
                 ActionPoints = summon.action_points,
                 MovePoints = summon.move_points,
+                KnownActiveSkillIds = CopyStringNames(summon.known_active_skill_ids),
+                NaturalWeaponProfileTypeId = summon.natural_weapon_profile_type_id,
+                NaturalWeaponDamageTag = summon.natural_weapon_damage_tag,
+                NaturalWeaponAttackRange = summon.natural_weapon_attack_range,
+                NaturalWeaponDamageDice = ProjectDice(summon.natural_weapon_damage_dice),
+                NaturalWeaponFamily = summon.natural_weapon_family,
                 CreatureTypeTags = CopyStringNames(summon.creature_type_tags),
                 MovementTags = CopyStringNames(summon.movement_tags),
             },
@@ -2587,6 +3089,15 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                     StateKey = consume.state_key,
                     Count = consume.count,
                     SelectionMode = consume.selection_mode,
+                },
+            ConsumeStatusStacksActionPayloadDef consumeStacks =>
+                new ConsumeStatusStacksActionPayloadDefinition
+                {
+                    TargetSelector = consumeStacks.target_selector,
+                    StatusId = consumeStacks.status_id,
+                    Count = consumeStacks.count,
+                    RequireSourceUnitMatch = consumeStacks.require_source_unit_match,
+                    SelectionMode = consumeStacks.selection_mode,
                 },
             SummonedUnitAttackRollModifierActionPayloadDef summonedModifier =>
                 new SummonedUnitAttackRollModifierActionPayloadDefinition
@@ -2907,24 +3418,6 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         return EquipmentAbilityReadOnlySet<StringName>.From(result);
     }
 
-    private static EquipmentAbilityCoverageStatus ParseCoverageStatus(StringName value)
-    {
-        if (value == "deferred")
-            return EquipmentAbilityCoverageStatus.Deferred;
-        if (value == "content_cut")
-            return EquipmentAbilityCoverageStatus.ContentCut;
-        return EquipmentAbilityCoverageStatus.Bound;
-    }
-
-    private static EquipmentAbilityContentPhase ParsePhase(StringName value)
-    {
-        if (value == "v2")
-            return EquipmentAbilityContentPhase.V2;
-        if (value == "v3")
-            return EquipmentAbilityContentPhase.V3;
-        return EquipmentAbilityContentPhase.V1;
-    }
-
     private static bool TryParseOverrideMode(
         StringName value,
         out EquipmentAbilityBindingOverrideMode mode
@@ -2981,6 +3474,11 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             trigger = EquipmentAbilityTriggerKind.OnDamageApplied;
             return true;
         }
+        if (value == "on_hit_received")
+        {
+            trigger = EquipmentAbilityTriggerKind.OnHitReceived;
+            return true;
+        }
         trigger = EquipmentAbilityTriggerKind.OnHit;
         return false;
     }
@@ -3025,6 +3523,11 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         if (value == "after_damage")
         {
             timing = EquipmentAbilityTimingKind.AfterDamage;
+            return true;
+        }
+        if (value == "after_hit_received")
+        {
+            timing = EquipmentAbilityTimingKind.AfterHitReceived;
             return true;
         }
         timing = EquipmentAbilityTimingKind.AfterHit;

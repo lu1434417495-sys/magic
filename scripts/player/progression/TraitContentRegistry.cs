@@ -241,6 +241,34 @@ public class TraitContentRegistry : IdentityContentRegistryBase
                 );
             }
         }
+
+        HashSet<StringName> seenSaveBonusAbilities = new();
+        for (int index = 0; index < traitDef.save_bonus_entries.Count; index++)
+        {
+            TraitSaveBonusEntryDef entry = traitDef.save_bonus_entries[index];
+            string entryLabel = $"{ownerLabel}.save_bonus_entries[{index}]";
+            if (entry == null)
+            {
+                errors.Add($"{entryLabel} must be a TraitSaveBonusEntryDef.");
+                continue;
+            }
+
+            StringName saveAbility = ProgressionDataUtils.to_string_name(entry.save_ability);
+            if (saveAbility == "" || !UnitBaseAttributes.IsBaseAttributeId(saveAbility))
+            {
+                errors.Add(
+                    $"{entryLabel}.save_ability must reference a base attribute id, got {saveAbility}."
+                );
+            }
+            else if (!seenSaveBonusAbilities.Add(saveAbility))
+            {
+                errors.Add($"{entryLabel}.save_ability duplicates save ability {saveAbility}.");
+            }
+            if (entry.bonus == 0)
+            {
+                errors.Add($"{entryLabel}.bonus must be non-zero.");
+            }
+        }
     }
 
     private static void AppendSourceValidationErrors(

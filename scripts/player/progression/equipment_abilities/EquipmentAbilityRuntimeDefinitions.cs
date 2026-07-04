@@ -10,25 +10,6 @@ public enum EquipmentAbilityBindingOverrideMode
     ReplaceBinding,
 }
 
-public enum EquipmentAbilitySourceTraceKind
-{
-    ByFamily,
-}
-
-public enum EquipmentAbilityCoverageStatus
-{
-    Bound,
-    Deferred,
-    ContentCut,
-}
-
-public enum EquipmentAbilityContentPhase
-{
-    V1,
-    V2,
-    V3,
-}
-
 public enum EquipmentAbilityTriggerKind
 {
     OnHit,
@@ -38,6 +19,7 @@ public enum EquipmentAbilityTriggerKind
     OnTurnEnd,
     OnDamageRoll,
     OnDamageApplied,
+    OnHitReceived,
 }
 
 public enum EquipmentAbilityTimingKind
@@ -50,6 +32,7 @@ public enum EquipmentAbilityTimingKind
     AfterTurn,
     BeforeDamage,
     AfterDamage,
+    AfterHitReceived,
 }
 
 public enum EquipmentGrantedActionKind
@@ -204,35 +187,19 @@ public sealed class EquipmentAbilityBindingDefinition
         EquipmentAbilityReadOnlySet<StringName>.Empty;
     public IReadOnlySet<StringName> SupportedEquipmentTypeIds { get; init; } =
         EquipmentAbilityReadOnlySet<StringName>.Empty;
-    public IReadOnlyList<EquipmentAbilitySourceTraceDefinition> SourceTraces { get; init; } =
-        Array.Empty<EquipmentAbilitySourceTraceDefinition>();
     public IReadOnlyList<EquipmentAbilityStateSchemaDefinition> StateSchemas { get; init; } =
         Array.Empty<EquipmentAbilityStateSchemaDefinition>();
     public IReadOnlyList<EquipmentAbilityReactionDefinition> Reactions { get; init; } =
         Array.Empty<EquipmentAbilityReactionDefinition>();
     public IReadOnlyList<EquipmentGrantedActionDefinition> GrantedActions { get; init; } =
         Array.Empty<EquipmentGrantedActionDefinition>();
+    public IReadOnlyList<EquipmentTemporalProgressModifierDefinition> TemporalProgressModifiers { get; init; } =
+        Array.Empty<EquipmentTemporalProgressModifierDefinition>();
     public IReadOnlyList<EquipmentWeaponProfileOverlayDefinition> WeaponProfileOverlays { get; init; } =
         Array.Empty<EquipmentWeaponProfileOverlayDefinition>();
     public IReadOnlyList<EquipmentWorldEffectDefinition> WorldEffects { get; init; } =
         Array.Empty<EquipmentWorldEffectDefinition>();
     public string ResourcePath { get; init; } = "";
-}
-
-public sealed class EquipmentAbilitySourceTraceDefinition
-{
-    public EquipmentAbilitySourceTraceKind SourceKind { get; init; }
-    public string SourceFile { get; init; } = "";
-    public StringName ItemId { get; init; } = "";
-    public string DisplayName { get; init; } = "";
-    public int BulletIndex { get; init; }
-    public string BulletTitle { get; init; } = "";
-    public string BulletText { get; init; } = "";
-    public StringName MechanismFamily { get; init; } = "";
-    public EquipmentAbilityCoverageStatus CoverageStatus { get; init; }
-    public EquipmentAbilityContentPhase Phase { get; init; }
-    public StringName TestId { get; init; } = "";
-    public string Note { get; init; } = "";
 }
 
 public sealed class EquipmentAbilityReactionDefinition
@@ -366,6 +333,15 @@ public sealed class HealActionPayloadDefinition
     public DiceExpressionDefinition Dice { get; init; }
 }
 
+public sealed class HealFromFactActionPayloadDefinition
+    : EquipmentAbilityActionPayloadDefinition
+{
+    public StringName TargetSelector { get; init; } = "";
+    public EquipmentAbilityFactQueryDefinition AmountFact { get; init; }
+    public int MultiplierPercent { get; init; }
+    public int MaxAmount { get; init; }
+}
+
 public sealed class AttackRollBonusActionPayloadDefinition
     : EquipmentAbilityActionPayloadDefinition
 {
@@ -417,6 +393,15 @@ public sealed class DamageRollModeOverrideActionPayloadDefinition
     public string Label { get; init; } = "";
 }
 
+public sealed class DamageReductionActionPayloadDefinition
+    : EquipmentAbilityActionPayloadDefinition
+{
+    public StringName TargetSelector { get; init; } = "";
+    public int Amount { get; init; }
+    public IReadOnlyList<StringName> DamageTags { get; init; } = Array.Empty<StringName>();
+    public string Label { get; init; } = "";
+}
+
 public sealed class LootQuantityMultiplierActionPayloadDefinition
     : EquipmentAbilityActionPayloadDefinition
 {
@@ -443,6 +428,7 @@ public sealed class ApplyStatusActionPayloadDefinition
     public int SourceBoundIncomingAttackRollBonusPerStack { get; init; }
     public int SourceBoundIncomingAttackRollBonusMinStacks { get; init; } = 1;
     public int MovePointCapacityDelta { get; init; }
+    public bool ForcedMoveImmune { get; init; }
     public bool CountsAsDebuffOverride { get; init; }
     public bool CountsAsDebuff { get; init; }
     public bool Undispellable { get; init; }
@@ -460,6 +446,16 @@ public sealed class ApplyStatusActionPayloadDefinition
     public StringName SaveAbility { get; init; } = "";
     public StringName SaveTag { get; init; } = "";
     public bool ApplyOnSaveFailure { get; init; }
+}
+
+public sealed class ModifyActionPointsActionPayloadDefinition
+    : EquipmentAbilityActionPayloadDefinition
+{
+    public StringName TargetSelector { get; init; } = "";
+    public StringName Mode { get; init; } = "";
+    public int Amount { get; init; }
+    public StringName StatusId { get; init; } = "";
+    public string DisplayLabel { get; init; } = "";
 }
 
 public sealed class ScheduleAreaEffectActionPayloadDefinition
@@ -497,6 +493,24 @@ public sealed class ScheduleAreaEffectActionPayloadDefinition
     public int ContactTimelineDamageDiceSides { get; init; }
     public int ContactTimelineDamageFlatBonus { get; init; }
     public StringName ContactBlockedByTraitId { get; init; } = "";
+}
+
+public sealed class ApplyBattleTerrainEffectAfterCheckActionPayloadDefinition
+    : EquipmentAbilityActionPayloadDefinition
+{
+    public StringName AnchorSelector { get; init; } = "";
+    public StringName TerrainEffectId { get; init; } = "";
+    public int MoveCostDelta { get; init; }
+    public StringName TargetTeamFilter { get; init; } = "";
+    public StringName StackBehavior { get; init; } = "";
+    public string DisplayName { get; init; } = "";
+    public StringName RenderOverlayId { get; init; } = "";
+    public int OverlayPriority { get; init; }
+    public StringName CheckAttributeModifierId { get; init; } = "";
+    public StringName CheckCompare { get; init; } = "";
+    public int CheckThreshold { get; init; }
+    public bool NaturalTwentyAutoSuccess { get; init; }
+    public bool NaturalOneAutoFailure { get; init; }
 }
 
 public sealed class ModifyAbilityStateActionPayloadDefinition
@@ -537,6 +551,16 @@ public sealed class ClearStatusActionPayloadDefinition
     public bool RequireSourceUnitMatch { get; init; }
 }
 
+public sealed class ConsumeStatusStacksActionPayloadDefinition
+    : EquipmentAbilityActionPayloadDefinition
+{
+    public StringName TargetSelector { get; init; } = "";
+    public StringName StatusId { get; init; } = "";
+    public int Count { get; init; }
+    public bool RequireSourceUnitMatch { get; init; } = true;
+    public StringName SelectionMode { get; init; } = "highest_stacks";
+}
+
 public sealed class GrantSkillActionPayloadDefinition
     : EquipmentAbilityActionPayloadDefinition
 {
@@ -566,6 +590,12 @@ public sealed class SummonUnitsActionPayloadDefinition
     public int BaseAttackBonus { get; init; }
     public int ActionPoints { get; init; }
     public int MovePoints { get; init; }
+    public IReadOnlyList<StringName> KnownActiveSkillIds { get; init; } = Array.Empty<StringName>();
+    public StringName NaturalWeaponProfileTypeId { get; init; } = "";
+    public StringName NaturalWeaponDamageTag { get; init; } = "";
+    public int NaturalWeaponAttackRange { get; init; }
+    public DiceExpressionDefinition NaturalWeaponDamageDice { get; init; }
+    public StringName NaturalWeaponFamily { get; init; } = "";
     public IReadOnlyList<StringName> CreatureTypeTags { get; init; } = Array.Empty<StringName>();
     public IReadOnlyList<StringName> MovementTags { get; init; } = Array.Empty<StringName>();
 }
@@ -590,6 +620,19 @@ public sealed class SummonedUnitAttackRollModifierActionPayloadDefinition
     public int MaxAbsoluteBonus { get; init; }
     public int MinUnits { get; init; }
     public StringName StackMode { get; init; } = "";
+    public string Label { get; init; } = "";
+}
+
+public sealed class EquipmentTemporalProgressModifierDefinition
+{
+    public StringName ModifierId { get; init; } = "";
+    public StringName BindingId { get; init; } = "";
+    public bool AppliesToActionProgress { get; init; }
+    public bool AppliesToCastProgress { get; init; }
+    public int SaveDc { get; init; }
+    public StringName AttributeModifierId { get; init; } = "";
+    public int SuccessRatePercent { get; init; }
+    public int FailureRatePercent { get; init; }
     public string Label { get; init; } = "";
 }
 
@@ -694,6 +737,9 @@ public sealed class EquipmentAbilityStateSchemaDefinition
     public StringName ResetTiming { get; init; } = "";
     public bool PersistOutsideBattle { get; init; }
     public bool VisibleToUi { get; init; }
+    public StringName SyncSourceStateKey { get; init; } = "";
+    public StringName SyncAggregation { get; init; } = "";
+    public int SyncIntLiteral { get; init; }
 }
 
 public sealed class EquipmentRollGateDefinition

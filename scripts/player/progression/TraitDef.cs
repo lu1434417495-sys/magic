@@ -52,6 +52,9 @@ public partial class TraitDef : Resource
     public Godot.Collections.Array<TraitDamageResistanceEntryDef> damage_resistance_entries { get; set; } = new();
 
     [Export]
+    public Godot.Collections.Array<TraitSaveBonusEntryDef> save_bonus_entries { get; set; } = new();
+
+    [Export]
     public Godot.Collections.Array<TraitRollValueSchemaEntry> roll_value_schema { get; set; } =
         new();
 

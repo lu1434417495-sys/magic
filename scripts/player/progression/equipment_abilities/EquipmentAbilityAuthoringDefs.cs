@@ -21,29 +21,12 @@ public sealed partial class EquipmentAbilityBindingDef : Resource
     [Export] public Godot.Collections.Array<StringName> required_trait_categories { get; set; } = new();
     [Export] public Godot.Collections.Array<StringName> required_item_tags { get; set; } = new();
     [Export] public Godot.Collections.Array<StringName> supported_equipment_type_ids { get; set; } = new();
-    [Export] public Godot.Collections.Array<EquipmentAbilitySourceTraceDef> source_traces { get; set; } = new();
     [Export] public Godot.Collections.Array<EquipmentAbilityStateSchemaDef> state_schemas { get; set; } = new();
     [Export] public Godot.Collections.Array<EquipmentAbilityReactionDef> reactions { get; set; } = new();
     [Export] public Godot.Collections.Array<EquipmentGrantedActionDef> granted_actions { get; set; } = new();
+    [Export] public Godot.Collections.Array<EquipmentTemporalProgressModifierDef> temporal_progress_modifiers { get; set; } = new();
     [Export] public Godot.Collections.Array<EquipmentWeaponProfileOverlayDef> weapon_profile_overlays { get; set; } = new();
     [Export] public Godot.Collections.Array<EquipmentWorldEffectDef> world_effects { get; set; } = new();
-}
-
-[GlobalClass]
-public sealed partial class EquipmentAbilitySourceTraceDef : Resource
-{
-    [Export] public StringName source_kind { get; set; } = "";
-    [Export] public string source_file { get; set; } = "";
-    [Export] public StringName item_id { get; set; } = "";
-    [Export] public string display_name { get; set; } = "";
-    [Export] public int bullet_index { get; set; }
-    [Export] public string bullet_title { get; set; } = "";
-    [Export] public string bullet_text { get; set; } = "";
-    [Export] public StringName mechanism_family { get; set; } = "";
-    [Export] public StringName coverage_status { get; set; } = "";
-    [Export] public StringName phase { get; set; } = "";
-    [Export] public StringName test_id { get; set; } = "";
-    [Export] public string note { get; set; } = "";
 }
 
 [GlobalClass]
@@ -194,6 +177,15 @@ public sealed partial class HealActionPayloadDef : Resource
 }
 
 [GlobalClass]
+public sealed partial class HealFromFactActionPayloadDef : Resource
+{
+    [Export] public StringName target_selector { get; set; } = "";
+    [Export] public EquipmentAbilityFactQueryDef amount_fact { get; set; }
+    [Export] public int multiplier_percent { get; set; } = 100;
+    [Export] public int max_amount { get; set; }
+}
+
+[GlobalClass]
 public sealed partial class AttackRollBonusActionPayloadDef : Resource
 {
     [Export] public StringName target_selector { get; set; } = "";
@@ -217,6 +209,15 @@ public sealed partial class DamageRollModeOverrideActionPayloadDef : Resource
     [Export] public StringName target_selector { get; set; } = "";
     [Export] public StringName roll_mode { get; set; } = "maximum";
     [Export] public StringName stack_mode { get; set; } = "max";
+    [Export] public string label { get; set; } = "";
+}
+
+[GlobalClass]
+public sealed partial class DamageReductionActionPayloadDef : Resource
+{
+    [Export] public StringName target_selector { get; set; } = "";
+    [Export] public int amount { get; set; }
+    [Export] public Godot.Collections.Array<StringName> damage_tags { get; set; } = new();
     [Export] public string label { get; set; } = "";
 }
 
@@ -246,6 +247,7 @@ public sealed partial class ApplyStatusActionPayloadDef : Resource
     [Export] public int source_bound_incoming_attack_roll_bonus_per_stack { get; set; }
     [Export] public int source_bound_incoming_attack_roll_bonus_min_stacks { get; set; } = 1;
     [Export] public int move_point_capacity_delta { get; set; }
+    [Export] public bool forced_move_immune { get; set; }
     [Export] public bool counts_as_debuff_override { get; set; }
     [Export] public bool counts_as_debuff { get; set; }
     [Export] public bool undispellable { get; set; }
@@ -263,6 +265,16 @@ public sealed partial class ApplyStatusActionPayloadDef : Resource
     [Export] public StringName save_ability { get; set; } = "";
     [Export] public StringName save_tag { get; set; } = "";
     [Export] public bool apply_on_save_failure { get; set; }
+}
+
+[GlobalClass]
+public sealed partial class ModifyActionPointsActionPayloadDef : Resource
+{
+    [Export] public StringName target_selector { get; set; } = "";
+    [Export] public StringName mode { get; set; } = "";
+    [Export] public int amount { get; set; }
+    [Export] public StringName status_id { get; set; } = "";
+    [Export] public string display_label { get; set; } = "";
 }
 
 [GlobalClass]
@@ -332,6 +344,13 @@ public sealed partial class SummonUnitsActionPayloadDef : Resource
     [Export] public int base_attack_bonus { get; set; }
     [Export] public int action_points { get; set; }
     [Export] public int move_points { get; set; }
+    [Export] public Godot.Collections.Array<StringName> known_active_skill_ids { get; set; } =
+        new();
+    [Export] public StringName natural_weapon_profile_type_id { get; set; } = "";
+    [Export] public StringName natural_weapon_damage_tag { get; set; } = "";
+    [Export] public int natural_weapon_attack_range { get; set; }
+    [Export] public DiceExpressionDef natural_weapon_damage_dice { get; set; }
+    [Export] public StringName natural_weapon_family { get; set; } = "";
     [Export] public Godot.Collections.Array<StringName> creature_type_tags { get; set; } = new();
     [Export] public Godot.Collections.Array<StringName> movement_tags { get; set; } = new();
 }
@@ -346,6 +365,16 @@ public sealed partial class ConsumeSummonedUnitsActionPayloadDef : Resource
 }
 
 [GlobalClass]
+public sealed partial class ConsumeStatusStacksActionPayloadDef : Resource
+{
+    [Export] public StringName target_selector { get; set; } = "";
+    [Export] public StringName status_id { get; set; } = "";
+    [Export] public int count { get; set; }
+    [Export] public bool require_source_unit_match { get; set; } = true;
+    [Export] public StringName selection_mode { get; set; } = "highest_stacks";
+}
+
+[GlobalClass]
 public sealed partial class SummonedUnitAttackRollModifierActionPayloadDef : Resource
 {
     [Export] public StringName target_selector { get; set; } = "attacker";
@@ -356,6 +385,19 @@ public sealed partial class SummonedUnitAttackRollModifierActionPayloadDef : Res
     [Export] public int max_absolute_bonus { get; set; }
     [Export] public int min_units { get; set; } = 1;
     [Export] public StringName stack_mode { get; set; } = "max";
+    [Export] public string label { get; set; } = "";
+}
+
+[GlobalClass]
+public sealed partial class EquipmentTemporalProgressModifierDef : Resource
+{
+    [Export] public StringName modifier_id { get; set; } = "";
+    [Export] public bool applies_to_action_progress { get; set; } = true;
+    [Export] public bool applies_to_cast_progress { get; set; } = true;
+    [Export] public int save_dc { get; set; }
+    [Export] public StringName attribute_modifier_id { get; set; } = "intelligence_modifier";
+    [Export] public int success_rate_percent { get; set; } = 200;
+    [Export] public int failure_rate_percent { get; set; } = 50;
     [Export] public string label { get; set; } = "";
 }
 
@@ -472,6 +514,9 @@ public sealed partial class EquipmentAbilityStateSchemaDef : Resource
     [Export] public StringName reset_timing { get; set; } = "";
     [Export] public bool persist_outside_battle { get; set; }
     [Export] public bool visible_to_ui { get; set; }
+    [Export] public StringName sync_source_state_key { get; set; } = "";
+    [Export] public StringName sync_aggregation { get; set; } = "";
+    [Export] public int sync_int_literal { get; set; }
 }
 
 [GlobalClass]

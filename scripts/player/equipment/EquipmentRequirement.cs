@@ -29,6 +29,9 @@ public partial class EquipmentRequirement : Resource
     [Export(PropertyHint.Range, "0,99,1")]
     public int max_body_size;
 
+    [Export]
+    public Godot.Collections.Array<EquipmentAttributeRequirementDef> attribute_requirements = new();
+
     public EquipmentRequirementCheckResult CheckResult(PartyMemberState member_state)
     {
         var blockers = new List<string>();
@@ -51,6 +54,21 @@ public partial class EquipmentRequirement : Resource
             blockers.Add("body_size_too_small");
         if (max_body_size > 0 && (member_state == null || member_state.body_size > max_body_size))
             blockers.Add("body_size_too_large");
+        foreach (EquipmentAttributeRequirementDef requirement in attribute_requirements ?? new())
+        {
+            StringName attributeId = ProgressionDataUtils.to_string_name(
+                requirement?.attribute_id ?? ""
+            );
+            if (attributeId == "" || requirement.min_value <= 0)
+                continue;
+            int value =
+                member_state
+                    ?.progression
+                    ?.unit_base_attributes
+                    ?.GetAttributeValue(attributeId) ?? 0;
+            if (value < requirement.min_value)
+                blockers.Add("attribute_too_low");
+        }
         return new EquipmentRequirementCheckResult(blockers.Count == 0, blockers);
     }
 }

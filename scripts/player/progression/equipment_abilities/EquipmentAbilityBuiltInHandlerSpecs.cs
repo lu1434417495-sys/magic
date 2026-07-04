@@ -53,6 +53,11 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
                     typeof(HealActionPayloadDef),
                     typeof(HealActionPayloadDefinition)
                 ),
+                ["heal_from_fact"] = Action(
+                    "heal_from_fact",
+                    typeof(HealFromFactActionPayloadDef),
+                    typeof(HealFromFactActionPayloadDefinition)
+                ),
                 ["attack_roll_bonus"] = Action(
                     "attack_roll_bonus",
                     typeof(AttackRollBonusActionPayloadDef),
@@ -77,6 +82,12 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
                     typeof(DamageRollModeOverrideActionPayloadDefinition),
                     consumerSupport: ConsumerSupport(includePreview: true)
                 ),
+                ["damage_reduction"] = Action(
+                    "damage_reduction",
+                    typeof(DamageReductionActionPayloadDef),
+                    typeof(DamageReductionActionPayloadDefinition),
+                    consumerSupport: ConsumerSupport(includePreview: true)
+                ),
                 ["loot_quantity_multiplier"] = Action(
                     "loot_quantity_multiplier",
                     typeof(LootQuantityMultiplierActionPayloadDef),
@@ -87,10 +98,20 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
                     typeof(ApplyStatusActionPayloadDef),
                     typeof(ApplyStatusActionPayloadDefinition)
                 ),
+                ["modify_action_points"] = Action(
+                    "modify_action_points",
+                    typeof(ModifyActionPointsActionPayloadDef),
+                    typeof(ModifyActionPointsActionPayloadDefinition)
+                ),
                 ["schedule_area_effect"] = Action(
                     "schedule_area_effect",
                     typeof(ScheduleAreaEffectActionPayloadDef),
                     typeof(ScheduleAreaEffectActionPayloadDefinition)
+                ),
+                ["apply_battle_terrain_effect_after_check"] = Action(
+                    "apply_battle_terrain_effect_after_check",
+                    typeof(ApplyBattleTerrainEffectAfterCheckActionPayloadDef),
+                    typeof(ApplyBattleTerrainEffectAfterCheckActionPayloadDefinition)
                 ),
                 ["modify_ability_state"] = Action(
                     "modify_ability_state",
@@ -123,6 +144,11 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
                     "consume_summoned_units",
                     typeof(ConsumeSummonedUnitsActionPayloadDef),
                     typeof(ConsumeSummonedUnitsActionPayloadDefinition)
+                ),
+                ["consume_status_stacks"] = Action(
+                    "consume_status_stacks",
+                    typeof(ConsumeStatusStacksActionPayloadDef),
+                    typeof(ConsumeStatusStacksActionPayloadDefinition)
                 ),
                 ["summoned_unit_attack_roll_modifier"] = Action(
                     "summoned_unit_attack_roll_modifier",
@@ -196,6 +222,13 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
                     Trigger = EquipmentAbilityTriggerKind.OnDamageApplied,
                     AllowedTimings = EquipmentAbilityReadOnlySet<EquipmentAbilityTimingKind>.From(
                         new[] { EquipmentAbilityTimingKind.AfterDamage }
+                    ),
+                },
+                [EquipmentAbilityTriggerKind.OnHitReceived] = new()
+                {
+                    Trigger = EquipmentAbilityTriggerKind.OnHitReceived,
+                    AllowedTimings = EquipmentAbilityReadOnlySet<EquipmentAbilityTimingKind>.From(
+                        new[] { EquipmentAbilityTimingKind.AfterHitReceived }
                     ),
                 },
             }
