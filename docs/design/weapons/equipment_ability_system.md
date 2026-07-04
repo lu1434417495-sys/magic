@@ -366,7 +366,7 @@ public partial class EquipmentAbilityBindingDef : Resource
 | `EquipmentAbilityActionDef` | `action_id`、`kind`、`payload`、`condition_group`、`roll_gate` |
 | `AddDamageDiceActionPayloadDef` | `target_selector`、`dice`、`damage_type`、`damage_tags` |
 | `ApplyStatusActionPayloadDef` | `target_selector`、`status_id`、`duration_turns`、`stack_delta` |
-| `ModifyAbilityStateActionPayloadDef` | `target_selector`、`state_key`、`operation`、`int_delta` |
+| `ModifyAbilityStateActionPayloadDef` | `target_selector`、`binding_id`、`state_key`、`operation`、`int_delta` |
 | `MarkTargetActionPayloadDef` | `target_selector`、`state_key`、`stack_delta`、`remove_on_source_missing` |
 | `GrantSkillActionPayloadDef` | `skill_id`、`skill_level`、`availability_state_key` |
 | `EquipmentDurabilityDamageActionPayloadDef` | `target_selector`、`target_slots`、`slot_weights`、`required_item_tags`、`required_equipment_type_ids`、`durability_loss`、`save_tag`、`save_dc`、`require_attack_success`、`max_damaged_items` |
@@ -377,7 +377,7 @@ public partial class EquipmentAbilityBindingDef : Resource
 | `EquipmentRollGateDef` | `rng_stream`、`roll`、`compare`、`threshold` |
 | `EquipmentOutcomeTableDef` | `table_id`、`roll`、`entries` |
 | `EquipmentOutcomeEntryDef` | `min_roll`、`max_roll`、`actions` |
-| `EquipmentAbilityStateSchemaDef` | `state_key`、`owner_scope`、`value_kind`、`initial_int_value`、`max_int_value`、`reset_timing`、`persist_outside_battle`、`visible_to_ui` |
+| `EquipmentAbilityStateSchemaDef` | `state_key`、`owner_scope`、`value_kind`、`initial_int_value`、`max_int_value`、`reset_timing`、`persist_outside_battle`、`visible_to_ui`、`sync_source_state_key`、`sync_aggregation`、`sync_int_literal` |
 | `EquipmentGrantedActionDef` | `granted_action_id`、`granted_kind`、`skill_id`、`skill_level`、`display_category`、`display_priority`、`availability_conditions` |
 | `EquipmentWorldEffectDef` | `world_effect_id`、`trigger`、`timing`、`condition_group`、`actions` |
 
@@ -1119,6 +1119,9 @@ public partial class ModifyAbilityStateActionPayloadDef : Resource
     public StringName target_selector { get; set; } = "source";
 
     [Export]
+    public StringName binding_id { get; set; } = "";
+
+    [Export]
     public StringName state_key { get; set; } = "";
 
     [Export]
@@ -1486,8 +1489,19 @@ public partial class EquipmentAbilityStateSchemaDef : Resource
 
     [Export]
     public bool visible_to_ui { get; set; }
+
+    [Export]
+    public StringName sync_source_state_key { get; set; } = "";
+
+    [Export]
+    public StringName sync_aggregation { get; set; } = "";
+
+    [Export]
+    public int sync_int_literal { get; set; }
 }
 ```
+
+`sync_source_state_key` 用于声明派生状态：当同一 binding 内的源 `state_key` 被写入后，运行时刷新所有以它为 source 的目标 state。目标仍然通过自己的 `state_key` 查询和保存；多个派生状态通过多条 `EquipmentAbilityStateSchemaDef` 声明同一个 source，而不是在动作 payload 上放数组。
 
 `owner_scope` DTO 层转 `EquipmentAbilityStateOwnerKind`：
 

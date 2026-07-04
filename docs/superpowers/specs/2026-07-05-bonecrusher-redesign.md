@@ -104,7 +104,7 @@
 
 新增或更新内容应包括：
 
-- 物品：`data/configs/items/weapon_unique_axe_bonecrusher_088.tres`
+- 物品：`data/configs/items/weapon_unique_greataxe_bonecrusher.tres`
 - Trait：
   - `weapon.axe.bonecrusher.armor_crushing_blow`
   - `weapon.axe.bonecrusher.bone_shatter`

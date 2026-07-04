@@ -39,9 +39,18 @@ Before editing weapon content, show the user:
 1. Weapon source: file, line, display name, family, base item, base damage/range, price, and all listed traits or specials.
 2. Mechanism classification: supported now, needs generic runtime support, should be a granted `SkillDef`, or should be deferred.
 3. Use case design: equip/unequip projection, unit state changes, true attack/damage flow, status/usage/state expiry, and cleanup.
-4. Exact balance choices that are not forced by existing config.
+4. Exact balance choices that are not forced by existing config, including every duration as an explicit TU value.
 
 Wait for user confirmation unless the user has already approved that exact weapon and behavior in the current conversation.
+
+## Duration Contract
+
+All weapon ability durations must be defined in TU before approval. This includes status durations, mark expiry, summon lifetime, cooldowns, lockouts, terrain or area effect lifetime, delayed effects, and any "round", "turn", "minute", or "hour" text from the source design.
+
+- Approval text must show the source duration and the chosen TU value, for example `1 round => 60TU`.
+- Plans, `.tres` resources, tests, and runtime assertions must use typed TU fields such as `duration_tu` or the relevant typed TU owner; natural-language duration is not an implementation value.
+- Do not copy design provenance into formal runtime resources. Avoid `source_traces`, `source_kind`, `source_file`, `bullet_text`, or similar design-audit fields in landed `.tres` content; keep source prose in approval notes, tests, or design docs instead.
+- If the conversion is unclear, stop and ask the user before writing content or tests.
 
 ## Content Model
 
@@ -49,14 +58,32 @@ Use configuration as the weapon-specific source of truth.
 
 | Content | Rule |
 |---|---|
-| Item | Create or update `data/configs/items/weapon_unique_<family>_<name>_<number>.tres`. Put fixed trait ids on the item. |
-| Trait | Use one trait per semantic feature where possible. Prefer ids like `weapon.<family>.<name>.<feature>`. |
-| Equipment ability pack | Put trigger/condition/action wiring in `data/configs/equipment_abilities/<name>_pack.tres`. Binding ids should be stable, for example `binding.weapon.<family>.<name>.<feature>`. |
+| Item | Create or update `data/configs/items/weapon_unique_<weapon_type>_<name>.tres`, where `<weapon_type>` comes from the concrete `base_item_id` such as `greataxe`, `longsword`, or `heavy_crossbow`; do not include source-list numbers in filenames. Put fixed trait ids on the item. |
+| Trait | Use one trait per semantic feature where possible. Prefer ids like `weapon.<family>.<name>.<feature>`. `TraitDef` is an identity/source and static-passive boundary, not a trigger/condition/action behavior engine. |
+| Equipment ability pack | Put the real weapon behavior wiring here: trigger, condition group, roll gate, outcome table, action results, state schema, granted actions, overlays, and world effects in `data/configs/equipment_abilities/<name>_pack.tres`. Binding ids should be stable, for example `binding.weapon.<family>.<name>.<feature>`. |
 | Active ability | If the weapon grants something the player chooses, targets, pays AP/resource for, uses per period, or cools down, make it a `SkillDef`. The equipment trait/binding grants availability; the skill owns action economy and targeting. |
 | Passive trait | Use trait typed passive fields for always-on unit facts such as save advantage tags, resistances, immunities, attribute modifiers, or other projection-ready data. |
 | Runtime support | Add only generic handlers/facts/actions that can serve more than one weapon. Do not hardcode weapon ids or trait ids in battle logic. |
 
 Godot `.tres` resources may reference schema scripts such as `TraitDef` or `EquipmentAbilityContentPackDef`; that is normal resource typing. Weapon behavior still belongs in generic runtime handlers and typed data fields, not in weapon-specific C# branches.
+
+## Trait and Ability Boundary
+
+For weapon abilities, `TraitDef` names and exposes a feature; `EquipmentAbilityContentPackDef` defines how that feature behaves. Do not claim a weapon behavior is implemented because a trait id, display text, description, or `effect_type = equipment_ability` exists.
+
+Use `TraitDef` fields only for these cases:
+
+- Source identity and matching: `trait_id`, categories, source kinds, stack and charge metadata.
+- Static passive projection: attribute modifiers, save advantage tags, damage resistance entries, and other explicitly typed passive fields already consumed by runtime owners.
+- Equipment ability source marker: `effect_type = equipment_ability` lets equipment ability bindings match the trait, but it does not define the behavior by itself.
+
+Put configurable behavior in the equipment ability pack:
+
+- Triggers such as on hit, on kill, on turn end, on damage roll, on damage applied, on granted skill used, or on battle end.
+- Conditions, fact comparisons, equipment tag checks, status checks, and action-level gates.
+- Results such as add damage dice, deal damage, heal, apply status, modify ability state, mark targets, clear status, schedule area effects, damage equipment durability, summon or consume summoned units, immediate weapon attacks, loot multipliers, attack roll modifiers, defense modifiers, damage roll mode overrides, granted skills, weapon profile overlays, and world effects.
+
+When a weapon needs a condition or result that is not currently configurable, add a generic typed authoring payload/definition, registry validation, runtime handler, and focused regression. The weapon data should then reference that generic handler; battle code should not branch on that weapon id or trait id.
 
 ## Mechanism Decisions
 
@@ -69,6 +96,7 @@ Use this decision table when translating design text:
 | On damage dealt | Use resolved damage facts such as `hp_damage`, not pre-mitigation intent. |
 | Save or resistance | Use typed save/damage/resistance owners. Do not put new behavior in generic `params` when a typed field is needed. |
 | Player chooses an action | Grant a `SkillDef` through equipment availability. Skill uses normal targeting, AP/resource, cooldown/TU, and direct-effect or attack resolution modes. |
+| Duration text such as minutes, rounds, or "1 minute" | Convert to an explicit TU value before approval and implementation. Use TU fields such as `duration_tu`; do not leave natural-language duration in the plan, resource, or test. If the conversion is unclear, ask the user. |
 | Per battle/day/month/permanent use | Use `EquipmentAbilityUsageRuntime` and typed period/state schema. Confirm the period if unclear. |
 | State marker or target mark | Use typed equipment ability state/mark support. Define ownership, expiry, death cleanup, and whether it is unique per source. |
 | Creature category | Read from `BattleUnitState.creature_type_tags`, not enemy templates. |
@@ -110,7 +138,7 @@ Minimum assertions:
 - Unequipping or using a unit without the weapon does not keep the projected state.
 - Active/granted skills appear through `BattleSkillAvailabilityService`, not by manually inserting known skill ids.
 - Triggered traits use the real attack/hit/damage path when the behavior is hit or damage based.
-- Saves, conditions, immunities, resistance bypass, AC adjustments, target marks, status durations, and use counters are asserted at their public typed state.
+- Saves, conditions, immunities, resistance bypass, AC adjustments, target marks, exact TU duration values, and use counters are asserted at their public typed state.
 - Cleanup is covered: expiry, death, target invalidation, combat end, or period reset when the weapon uses state.
 
 Do not test only a direct service stub when the claim is that the ability works on a unit in battle. A pure service test is acceptable only as extra coverage for a generic helper.
@@ -143,10 +171,12 @@ If the user asks to land multiple weapons and explicitly authorizes subagents, s
 | Mistake | Fix |
 |---|---|
 | Implementing a weapon by hardcoding its id in battle runtime | Move the id to `.tres` config and add a generic typed handler or fact. |
+| Treating `TraitDef` text, `trait_id`, or `effect_type = equipment_ability` as implemented behavior | Put trigger/condition/action wiring in an equipment ability pack, or use an existing typed passive field if the feature is truly always-on. |
 | Treating an active weapon ability as a trait-only effect | Make a `SkillDef`; let the equipment ability grant it. |
 | Showing only final code, not the chosen weapon/use cases | Stop and present the approval gate first. |
 | Testing a helper but not the real battle flow | Add a battle runtime regression that equips the item and resolves the real attack or skill. |
 | Leaving equip projection behind after unequip | Assert both equipped and unequipped unit states. |
+| Copying design prose like "1 minute" into the landing plan | Convert it to a concrete TU duration first, state that TU value in the approval gate, and assert the public status/skill state uses the same TU value. |
 | Reading creature type from enemy templates | Use battle unit creature tags. |
 | Adding new config in params | Add typed fields and registry validation. |
 | Adding compatibility fallback silently | Ask the user first and explain the concrete breakage it prevents. |
