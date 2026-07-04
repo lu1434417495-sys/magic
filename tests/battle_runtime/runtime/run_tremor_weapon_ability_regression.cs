@@ -61,7 +61,7 @@ public partial class run_tremor_weapon_ability_regression : SceneTree
             return;
 
         ItemDef rawTremor = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_hammer_tremor_102.tres"
+            "res://data/configs/items/weapon_unique_maul_tremor.tres"
         );
         _test.True(rawTremor != null, "地动原始资源应能加载。");
         if (rawTremor != null)
@@ -201,7 +201,10 @@ public partial class run_tremor_weapon_ability_regression : SceneTree
 
     private void TestShockwaveUsesSingleDamageSaveForHalfDamageAndProne()
     {
-        using TremorFixture fixture = TremorFixture.Build(new GArray { 4, 4, 4, 4, 4, 4, 4, 4 });
+        using TremorFixture fixture = TremorFixture.Build(
+            new GArray { 4, 4, 4, 4, 4, 4, 4, 4 },
+            saveRollOverride: 10
+        );
         BattleUnitState holder = fixture.BuildTremorUnit("shockwave_issue");
         holder.SetAnchorCoord(new Vector2I(2, 2));
         holder.attribute_snapshot.SetValue(AttributeService.CONSTITUTION_MODIFIER, 100);
@@ -464,7 +467,7 @@ public partial class run_tremor_weapon_ability_regression : SceneTree
         internal IReadOnlyDictionary<StringName, TraitDef> TraitDefs { get; }
         internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> Bindings { get; }
 
-        internal static TremorFixture Build(GArray damageRolls)
+        internal static TremorFixture Build(GArray damageRolls, int? saveRollOverride = null)
         {
             ItemContentRegistry itemRegistry = new();
             ProgressionContentRegistry progressionRegistry = new();
@@ -490,7 +493,10 @@ public partial class run_tremor_weapon_ability_regression : SceneTree
                 trait_defs: progressionRegistry.GetTraitDefsTyped(),
                 equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
             );
-            runtime.ConfigureDamageResolverForTests(new FixedRollDamageResolver(damageRolls));
+            BattleDamageResolver damageResolver = saveRollOverride.HasValue
+                ? new FixedSaveRollDamageResolver(damageRolls, saveRollOverride.Value)
+                : new FixedRollDamageResolver(damageRolls);
+            runtime.ConfigureDamageResolverForTests(damageResolver);
             runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
             return new TremorFixture(itemRegistry, progressionRegistry, partyState, runtime);
         }
@@ -553,6 +559,35 @@ public partial class run_tremor_weapon_ability_regression : SceneTree
             partyState.active_member_ids.Add(memberId);
             partyState.leader_member_id = memberId;
             return partyState;
+        }
+    }
+
+    private sealed partial class FixedSaveRollDamageResolver : FixedRollDamageResolver
+    {
+        private readonly int _saveRollOverride;
+
+        internal FixedSaveRollDamageResolver(GArray damageRolls, int saveRollOverride)
+            : base(damageRolls)
+        {
+            _saveRollOverride = Math.Clamp(saveRollOverride, 1, 20);
+        }
+
+        internal override AttackEffectResolutionResult ResolveEffects(
+            BattleUnitState source_unit,
+            BattleUnitState target_unit,
+            IEnumerable<CombatEffectDefinition> effect_definitions,
+            DamageResolutionContext damage_context
+        )
+        {
+            GDictionary fixedContext =
+                damage_context?.RawContext?.Duplicate(true) ?? new GDictionary();
+            fixedContext["save_roll_override"] = _saveRollOverride;
+            return base.ResolveEffects(
+                source_unit,
+                target_unit,
+                effect_definitions,
+                DamageResolutionContext.FromDictionary(fixedContext)
+            );
         }
     }
 }

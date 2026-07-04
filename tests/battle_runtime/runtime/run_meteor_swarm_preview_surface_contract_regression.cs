@@ -85,8 +85,14 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
         );
         BattleCommand command = BuildCommand(setup.Caster, new Vector2I(4, 4));
         BattlePreview preview = setup.Runtime.PreviewCommand(command);
-        _test.True(preview != null && preview.allowed, "陨星雨 preview surface 合同前置应可用。");
-        _test.True(preview.special_profile_preview_facts != null, "preview 必须暴露 special_profile_preview_facts。");
+        _test.True(
+            preview != null && preview.allowed,
+            $"陨星雨 preview surface 合同前置应可用。{DescribePreview(preview)}"
+        );
+        _test.True(
+            preview?.special_profile_preview_facts != null,
+            $"preview 必须暴露 special_profile_preview_facts。{DescribePreview(preview)}"
+        );
         if (preview == null || preview.special_profile_preview_facts == null)
             return;
         GDictionary factsPayload = MeteorSwarmProjection.Project(
@@ -315,6 +321,7 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
         {
             command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
             unit_id = caster.unit_id,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill("mage_meteor_swarm"),
             skill_id = "mage_meteor_swarm",
             target_coord = anchorCoord,
         };
@@ -341,6 +348,17 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
             return fallback;
         Variant value = dictionary[key];
         return value.VariantType == Variant.Type.String ? value.AsString() : fallback;
+    }
+
+    private static string DescribePreview(BattlePreview preview)
+    {
+        if (preview == null)
+            return " preview=null";
+        return
+            $" allowed={preview.allowed}"
+            + $" logs=[{string.Join(" | ", preview.LogLinesTyped)}]"
+            + $" target_coords=[{string.Join(", ", preview.TargetCoordsTyped)}]"
+            + $" target_units=[{string.Join(", ", preview.TargetUnitIdsTyped)}]";
     }
 
     private sealed class Fixture

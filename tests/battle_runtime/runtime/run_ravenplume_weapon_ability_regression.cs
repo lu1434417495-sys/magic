@@ -66,7 +66,7 @@ public partial class run_ravenplume_weapon_ability_regression : SceneTree
         _test.True(fixture.SkillDefs.ContainsKey(CrowFeastSkillId), "真实技能内容应包含群鸦之宴装备技能。");
 
         ItemDef rawItem = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_sword_ravenplume_017.tres"
+            "res://data/configs/items/weapon_unique_shortsword_ravenplume.tres"
         );
         _test.True(rawItem != null, "鸦羽原始资源应能加载。");
         if (rawItem != null)

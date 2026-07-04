@@ -76,7 +76,7 @@ public partial class run_giants_heel_weapon_ability_regression : SceneTree
             return;
 
         ItemDef rawGiantsHeel = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_greatsword_giants_heel_024.tres"
+            "res://data/configs/items/weapon_unique_greatsword_giants_heel.tres"
         );
         _test.True(rawGiantsHeel != null, "巨人之踵原始资源应能加载。");
         if (rawGiantsHeel != null)

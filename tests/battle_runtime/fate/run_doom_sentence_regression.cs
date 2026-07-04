@@ -58,7 +58,10 @@ public partial class run_doom_sentence_regression : SceneTree
         ));
         BattleCommand command = BuildUnitSkillCommand(caster.unit_id, DOOM_SENTENCE_SKILL_ID, boss);
         BattlePreview preview = runtime.PreviewCommand(command);
-        _test.True(preview != null && preview.allowed, "满足条件时，厄命宣判预览应允许。");
+        _test.True(
+            preview != null && preview.allowed,
+            $"满足条件时，厄命宣判预览应允许。 log={preview?.log_lines}"
+        );
         BattleEventBatch batch = runtime.IssueCommand(command);
         _test.True(boss.HasStatusEffect(STATUS_DOOM_SENTENCE_VERDICT), "厄命宣判成功后应写入 doom_sentence_verdict。");
         _test.Eq(runtime.GetMemberCalamity("hero"), 0, "厄命宣判成功施放后应扣除 5 点 calamity。");
@@ -365,6 +368,7 @@ public partial class run_doom_sentence_regression : SceneTree
         command.command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill);
         command.unit_id = unitId;
         command.skill_id = skillId;
+        command.skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId);
         command.target_unit_id = targetUnit?.unit_id ?? default;
         command.target_coord = targetUnit?.coord ?? new Vector2I(-1, -1);
         return command;

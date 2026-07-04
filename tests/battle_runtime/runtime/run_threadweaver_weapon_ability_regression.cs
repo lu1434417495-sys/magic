@@ -75,7 +75,7 @@ public partial class run_threadweaver_weapon_ability_regression : SceneTree
             return;
 
         ItemDef rawThreadweaver = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_sword_threadweaver_019.tres"
+            "res://data/configs/items/weapon_unique_rapier_threadweaver.tres"
         );
         _test.True(rawThreadweaver != null, "Threadweaver raw item resource should load.");
         if (rawThreadweaver != null)

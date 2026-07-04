@@ -81,7 +81,7 @@ public partial class run_twilight_edge_weapon_ability_regression : SceneTree
             return;
 
         ItemDef rawTwilightEdge = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_sword_twilight_edge_005.tres"
+            "res://data/configs/items/weapon_unique_scimitar_twilight_edge.tres"
         );
         _test.True(rawTwilightEdge != null, "暮光之刃原始资源应能加载。");
         if (rawTwilightEdge != null)

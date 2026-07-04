@@ -437,6 +437,7 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
             command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
             unit_id = caster.unit_id,
             skill_id = "mage_meteor_swarm",
+            skill_entry_id = BattleSkillEntryIds.KnownSkill("mage_meteor_swarm"),
             target_coord = anchorCoord,
         };
         command.AddTargetCoord(anchorCoord);

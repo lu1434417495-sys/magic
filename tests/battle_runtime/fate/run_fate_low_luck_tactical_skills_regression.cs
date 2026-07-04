@@ -296,7 +296,10 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
 
         BattleCommand previewCommand = BuildUnitSkillCommand(caster.unit_id, BLACK_CONTRACT_PUSH_SKILL_ID, enemy, variantId);
         BattlePreview preview = runtime.PreviewCommand(previewCommand);
-        _test.True(preview != null && preview.allowed, $"黑契推进 {variantId} 前置：目标应可预览。");
+        _test.True(
+            preview != null && preview.allowed,
+            $"黑契推进 {variantId} 前置：目标应可预览。preview={FormatPreview(preview)}"
+        );
 
         SkillDefinition skillDefinition = runtime.GetSkillDefinitionTyped(
             BLACK_CONTRACT_PUSH_SKILL_ID
@@ -394,7 +397,12 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
     private void AssertForceHitPreview(BattlePreview preview, string message)
     {
         AttackPreviewData hitPreview = preview?.hit_preview;
-        _test.True(hitPreview != null && !hitPreview.IsEmpty, $"{message} preview={preview}");
+        _test.True(
+            hitPreview != null && !hitPreview.IsEmpty,
+            $"{message} preview={FormatPreview(preview)}"
+        );
+        if (hitPreview == null || hitPreview.IsEmpty)
+            return;
         _test.Eq(hitPreview.HitRatePercent, 100, $"{message} hit_rate_percent 应为 100。");
         _test.Eq(hitPreview.SuccessRatePercent, 100, $"{message} success_rate_percent 应为 100。");
         _test.True(
@@ -403,6 +411,14 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         );
         _test.True(hitPreview.ForceHitNoCrit, $"{message} 应标记 force_hit_no_crit。");
         _test.True(hitPreview.CritLocked, $"{message} 应标记 crit_locked。");
+    }
+
+    private static string FormatPreview(BattlePreview preview)
+    {
+        if (preview == null)
+            return "<null>";
+        return
+            $"allowed={preview.allowed}, logs=[{string.Join(" | ", preview.LogLinesTyped)}], target_units=[{string.Join(", ", preview.TargetUnitIdsTyped)}], target_coords=[{string.Join(", ", preview.TargetCoordsTyped)}]";
     }
 
     private BattleRuntimeModule BuildRuntime()
@@ -596,6 +612,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         var command = new BattleCommand();
         command.command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill);
         command.unit_id = unitId;
+        command.skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId);
         command.skill_id = skillId;
         command.skill_variant_id = variantId;
         command.target_unit_id = targetUnit?.unit_id ?? default;

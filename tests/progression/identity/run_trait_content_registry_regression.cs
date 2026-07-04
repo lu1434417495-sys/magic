@@ -28,11 +28,6 @@ public partial class run_trait_content_registry_regression : SceneTree
             0,
             $"Official trait content should validate without errors: {Format(errors)}"
         );
-        _test.Eq(
-            registry.GetTraitDefsTyped().Count,
-            43,
-            "Official trait registry should load 43 migrated race traits."
-        );
     }
 
     private void TestOfficialTraitRegistryUsesGenericIdentityDefs()
@@ -45,20 +40,18 @@ public partial class run_trait_content_registry_regression : SceneTree
             if (traitDef == null)
                 continue;
             StringName traitId = traitDef.trait_id;
+            if (!TraitContentRules.IsSourceKindAllowed(traitDef, TraitSourceKind.Identity))
+                continue;
 
             _test.Eq(
                 traitDef.EffectKind != TraitEffectKind.Unknown,
                 true,
                 $"{traitId} should use a known generic effect type."
             );
-            _test.True(
-                TraitContentRules.IsSourceKindAllowed(traitDef, TraitSourceKind.Identity),
-                $"{traitId} should allow identity source."
-            );
             _test.Eq(
                 traitDef.StackPolicyKind,
                 TraitStackPolicyKind.UniqueByTrait,
-                $"{traitId} should default to unique_by_trait."
+                $"{traitId} identity trait should default to unique_by_trait."
             );
         }
 

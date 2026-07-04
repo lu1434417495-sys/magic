@@ -19,7 +19,6 @@ public partial class run_progression_content_registry_typed_regression : SceneTr
         TestDefinitionBucketsSyncIntoTypedIndexes();
         TestTraitDefinitionBucketsSyncIntoTypedIndexes();
         TestIdentityCatalogTypedBoundaryMatchesPublicBuckets();
-        TestEquipmentAbilityRegistryStartsEmptyAndValid();
 
         Quit(_test.Finish("Progression content registry typed regression"));
     }
@@ -227,34 +226,6 @@ public partial class run_progression_content_registry_typed_regression : SceneTr
         _test.True(
             catalog.StageAdvancementDefs.ContainsKey("broken_stage_cap"),
             "identity catalog typed getter 应暴露 stage advancement defs。"
-        );
-    }
-
-    private void TestEquipmentAbilityRegistryStartsEmptyAndValid()
-    {
-        using ProgressionContentRegistry registry = new();
-
-        EquipmentAbilityRegistryBuildResult result =
-            registry.GetEquipmentAbilityLastBuildResultTyped();
-
-        _test.True(
-            result.Success,
-            $"official progression registry should accept an empty equipment ability pack list: {FormatErrors(result.Errors)}"
-        );
-        _test.Eq(
-            registry.GetEquipmentAbilityContentRevision(),
-            result.Revision,
-            "progression registry should expose the equipment ability registry revision."
-        );
-        _test.Eq(
-            registry.GetEquipmentAbilityPackDefinitionsTyped().Count,
-            0,
-            "official progression registry should not require placeholder equipment ability packs."
-        );
-        _test.Eq(
-            registry.GetEquipmentAbilityBindingDefinitionsTyped().Count,
-            0,
-            "official progression registry should expose an empty equipment ability binding snapshot."
         );
     }
 

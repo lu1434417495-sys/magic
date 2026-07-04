@@ -50,7 +50,10 @@ public partial class run_phantasmal_kill_hover_preview_regression : SceneTree
         BattleCommand command = MakeGroundCommand(caster, new Vector2I(4, 4));
         BattlePreview preview = fixture.Runtime.PreviewCommand(command);
 
-        _test.True(preview != null && preview.allowed, "Phantasmal Kill ground hover preview should be allowed.");
+        _test.True(
+            preview != null && preview.allowed,
+            $"Phantasmal Kill ground hover preview should be allowed. log={(preview != null ? string.Join(" | ", preview.log_lines) : "null")}"
+        );
         _test.Eq(preview.target_coords.Count, 49, "Phantasmal Kill hover should expose a 7x7 ground area.");
         _test.True(preview.target_unit_ids.Contains(weakEnemy.unit_id), "hover preview should include in-area enemy.");
         _test.True(preview.target_unit_ids.Contains(weakAlly.unit_id), "hover preview should include in-area ally.");
@@ -212,6 +215,7 @@ public partial class run_phantasmal_kill_hover_preview_regression : SceneTree
             command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
             unit_id = source.unit_id,
             skill_id = SkillId,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill(SkillId),
             target_coord = targetCoord,
         };
         command.AddTargetCoord(targetCoord);

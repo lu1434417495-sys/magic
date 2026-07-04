@@ -87,7 +87,7 @@ public partial class run_plague_tongue_weapon_ability_regression : SceneTree
             return;
 
         ItemDef rawPlagueTongue = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_axe_plague_tongue_099.tres"
+            "res://data/configs/items/weapon_unique_battleaxe_plague_tongue.tres"
         );
         _test.True(rawPlagueTongue != null, "瘟疫之舌原始资源应能加载。");
         if (rawPlagueTongue != null)
@@ -220,23 +220,22 @@ public partial class run_plague_tongue_weapon_ability_regression : SceneTree
 
     private void TestAxeFeverAppliesOnFailedAfterHitSaveAndSkipsOnSuccess()
     {
-        using PlagueTongueFixture fixture = PlagueTongueFixture.Build(new GArray());
+        using PlagueTongueFixture failFixture = PlagueTongueFixture.Build(
+            new GArray(),
+            afterHitSaveRollOverride: 1
+        );
         _test.False(
             BattleStatusSemanticTable.HasSemantic("axe_fever"),
             "斧刃热状态语义应由瘟疫之舌装备配置提供，不应硬编码在全局状态表。"
         );
-        BattleUnitState attacker = fixture.BuildPlagueTongueUnit("axe_fever");
+        BattleUnitState attacker = failFixture.BuildPlagueTongueUnit("axe_fever");
         BattleUnitState failedTarget = BuildTarget("axe_fever_failed", new Vector2I(1, 0));
-        BattleUnitState successTarget = BuildTarget("axe_fever_success", new Vector2I(1, 0));
         failedTarget.current_hp = 100;
         failedTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         failedTarget.attribute_snapshot.SetValue(AttributeService.CONSTITUTION_MODIFIER, -100);
-        successTarget.current_hp = 100;
-        successTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
-        successTarget.attribute_snapshot.SetValue(AttributeService.CONSTITUTION_MODIFIER, 100);
 
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
-            fixture.Runtime,
+            failFixture.Runtime,
             attacker,
             failedTarget,
             "plague_tongue_axe_fever_failed"
@@ -256,9 +255,18 @@ public partial class run_plague_tongue_weapon_ability_regression : SceneTree
         );
         _test.Eq(fever?.source_unit_id ?? new StringName(""), attacker.unit_id, "斧刃热来源应记录持有者。");
 
+        using PlagueTongueFixture successFixture = PlagueTongueFixture.Build(
+            new GArray(),
+            afterHitSaveRollOverride: 20
+        );
+        BattleUnitState successAttacker = successFixture.BuildPlagueTongueUnit("axe_fever_success");
+        BattleUnitState successTarget = BuildTarget("axe_fever_success", new Vector2I(1, 0));
+        successTarget.current_hp = 100;
+        successTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
+        successTarget.attribute_snapshot.SetValue(AttributeService.CONSTITUTION_MODIFIER, 100);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
-            fixture.Runtime,
-            attacker,
+            successFixture.Runtime,
+            successAttacker,
             successTarget,
             "plague_tongue_axe_fever_success"
         );
@@ -270,7 +278,10 @@ public partial class run_plague_tongue_weapon_ability_regression : SceneTree
 
     private void TestAxeFeverDealsOneD4TimelineDamageEverySixtyTu()
     {
-        using PlagueTongueFixture fixture = PlagueTongueFixture.Build(new GArray { 4 });
+        using PlagueTongueFixture fixture = PlagueTongueFixture.Build(
+            new GArray { 4 },
+            afterHitSaveRollOverride: 1
+        );
         BattleUnitState attacker = fixture.BuildPlagueTongueUnit("axe_fever_tick");
         BattleUnitState target = BuildTarget("axe_fever_tick_target", new Vector2I(1, 0));
         target.current_hp = 100;
@@ -571,7 +582,10 @@ public partial class run_plague_tongue_weapon_ability_regression : SceneTree
         internal IReadOnlyDictionary<StringName, TraitDef> TraitDefs { get; }
         internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> Bindings { get; }
 
-        internal static PlagueTongueFixture Build(GArray damageRolls)
+        internal static PlagueTongueFixture Build(
+            GArray damageRolls,
+            int? afterHitSaveRollOverride = null
+        )
         {
             ItemContentRegistry itemRegistry = new();
             ProgressionContentRegistry progressionRegistry = new();
@@ -597,7 +611,13 @@ public partial class run_plague_tongue_weapon_ability_regression : SceneTree
                 trait_defs: progressionRegistry.GetTraitDefsTyped(),
                 equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
             );
-            runtime.ConfigureDamageResolverForTests(new FixedRollDamageResolver(damageRolls));
+            BattleDamageResolver damageResolver = afterHitSaveRollOverride.HasValue
+                ? new FixedAfterHitSaveRollDamageResolver(
+                    damageRolls,
+                    afterHitSaveRollOverride.Value
+                )
+                : new FixedRollDamageResolver(damageRolls);
+            runtime.ConfigureDamageResolverForTests(damageResolver);
             runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
             return new PlagueTongueFixture(
                 itemRegistry,
@@ -668,6 +688,36 @@ public partial class run_plague_tongue_weapon_ability_regression : SceneTree
             partyState.active_member_ids.Add(memberId);
             partyState.leader_member_id = memberId;
             return partyState;
+        }
+    }
+
+    private sealed partial class FixedAfterHitSaveRollDamageResolver : FixedRollDamageResolver
+    {
+        private readonly int _afterHitSaveRollOverride;
+
+        internal FixedAfterHitSaveRollDamageResolver(GArray damageRolls, int afterHitSaveRollOverride)
+            : base(damageRolls)
+        {
+            _afterHitSaveRollOverride = Math.Clamp(afterHitSaveRollOverride, 1, 20);
+        }
+
+        internal override AttackEffectResolutionResult ResolveAttackEffects(
+            BattleUnitState source_unit,
+            BattleUnitState target_unit,
+            IEnumerable<CombatEffectDefinition> effect_definitions,
+            AttackCheckInput attack_check,
+            AttackContext attack_context = null
+        )
+        {
+            attack_context ??= new AttackContext();
+            attack_context.AddSaveRollOverride(_afterHitSaveRollOverride);
+            return base.ResolveAttackEffects(
+                source_unit,
+                target_unit,
+                effect_definitions,
+                attack_check,
+                attack_context
+            );
         }
     }
 }

@@ -126,7 +126,7 @@ public partial class run_starfragment_weapon_ability_regression : SceneTree
             return;
 
         ItemDef rawStarfragment = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_axe_starfragment_100.tres"
+            "res://data/configs/items/weapon_unique_greataxe_starfragment.tres"
         );
         _test.True(rawStarfragment != null, "星辰碎片原始资源应能加载。");
         if (rawStarfragment != null)
@@ -336,6 +336,33 @@ public partial class run_starfragment_weapon_ability_regression : SceneTree
                 );
             }
 
+            equipped.current_ap = 2;
+            BattleSkillAvailabilityView sameTurnView = service.BuildView(
+                new BattleSkillAvailabilityQuery
+                {
+                    User = equipped,
+                    IncludeKnownSkills = false,
+                    IncludeEquipmentSkills = true,
+                    Consumer = BattleSkillAvailabilityConsumer.ManualSelection,
+                    WorldStep = 12,
+                }
+            );
+            _test.True(
+                TryFindSkillEntry(sameTurnView, StarburstSkillId, out BattleAvailableSkillEntry sameTurnEntry),
+                "同一行动回合使用后星爆入口仍应存在，供 UI 展示禁用原因。"
+            );
+            if (sameTurnEntry != null)
+            {
+                _test.False(sameTurnEntry.IsSelectable, "同一行动回合内星爆不能第二次使用。");
+                _test.Eq(
+                    sameTurnEntry.DisabledReason,
+                    new StringName("equipment_skill_turn_use_exhausted"),
+                    "同一行动回合内星爆禁用原因应来自装备技能行动回合一次限制。"
+                );
+            }
+
+            equipped.ResetPerTurnCharges();
+            equipped.current_ap = 2;
             BattleSkillAvailabilityView exhaustedView = service.BuildView(
                 new BattleSkillAvailabilityQuery
                 {
@@ -348,7 +375,7 @@ public partial class run_starfragment_weapon_ability_regression : SceneTree
             );
             _test.True(
                 TryFindSkillEntry(exhaustedView, StarburstSkillId, out BattleAvailableSkillEntry exhaustedEntry),
-                "同日用尽后星爆入口仍应存在，供 UI 展示禁用原因。"
+                "跨行动回合后同日用尽的星爆入口仍应存在，供 UI 展示禁用原因。"
             );
             if (exhaustedEntry != null)
             {
@@ -356,10 +383,12 @@ public partial class run_starfragment_weapon_ability_regression : SceneTree
                 _test.Eq(
                     exhaustedEntry.DisabledReason,
                     new StringName("equipment_skill_usage_exhausted"),
-                    "同日星爆禁用原因应稳定。"
+                    $"同日星爆禁用原因应稳定。 charges={SummarizePerTurnCharges(equipped)} limits={SummarizePerTurnChargeLimits(equipped)} entry_source={exhaustedEntry.EntryRef.SourceEquipmentInstanceId} entry_effective={exhaustedEntry.EntryRef.SourceEquipmentEffectiveInstanceKey}"
                 );
             }
 
+            equipped.ResetPerTurnCharges();
+            equipped.current_ap = 2;
             BattleSkillAvailabilityView nextDayView = service.BuildView(
                 new BattleSkillAvailabilityQuery
                 {
@@ -375,7 +404,12 @@ public partial class run_starfragment_weapon_ability_regression : SceneTree
                 "次日星爆入口应仍能解析。"
             );
             if (nextDayEntry != null)
-                _test.True(nextDayEntry.IsSelectable, "次日星爆应恢复可选。");
+            {
+                _test.True(
+                    nextDayEntry.IsSelectable,
+                    $"次日星爆应恢复可选。 disabled={nextDayEntry.DisabledReason} charges={SummarizePerTurnCharges(equipped)} limits={SummarizePerTurnChargeLimits(equipped)}"
+                );
+            }
 
             BattleUnitState issueCaster = fixture.BuildStarfragmentUnit("starburst_issue");
             issueCaster.SetCombatResources(40, 10, 0, 0, 1, 0);
@@ -573,6 +607,28 @@ public partial class run_starfragment_weapon_ability_regression : SceneTree
         if (values == null)
             return "";
         return string.Join(" | ", values);
+    }
+
+    private static string SummarizePerTurnCharges(BattleUnitState unit)
+    {
+        var entries = new List<string>();
+        foreach ((StringName key, int value) in unit?.GetPerTurnChargesTyped() ?? new Dictionary<StringName, int>())
+        {
+            entries.Add($"{key}:{value}");
+        }
+        entries.Sort(StringComparer.Ordinal);
+        return entries.Count == 0 ? "<none>" : string.Join(",", entries);
+    }
+
+    private static string SummarizePerTurnChargeLimits(BattleUnitState unit)
+    {
+        var entries = new List<string>();
+        foreach ((StringName key, int value) in unit?.GetPerTurnChargeLimitsTyped() ?? new Dictionary<StringName, int>())
+        {
+            entries.Add($"{key}:{value}");
+        }
+        entries.Sort(StringComparer.Ordinal);
+        return entries.Count == 0 ? "<none>" : string.Join(",", entries);
     }
 
     private static bool TryFindSkillEntry(

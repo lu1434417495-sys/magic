@@ -44,28 +44,11 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
                     "required_trait_categories",
                     "required_item_tags",
                     "supported_equipment_type_ids",
-                    "source_traces",
                     "state_schemas",
                     "reactions",
                     "granted_actions",
                     "weapon_profile_overlays",
                     "world_effects",
-                },
-            [typeof(EquipmentAbilitySourceTraceDef)] =
-                new[]
-                {
-                    "source_kind",
-                    "source_file",
-                    "item_id",
-                    "display_name",
-                    "bullet_index",
-                    "bullet_title",
-                    "bullet_text",
-                    "mechanism_family",
-                    "coverage_status",
-                    "phase",
-                    "test_id",
-                    "note",
                 },
             [typeof(EquipmentAbilityReactionDef)] =
                 new[]
@@ -131,6 +114,7 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
                     "attack_roll_penalty",
                     "source_bound_attack_roll_penalty",
                     "source_bound_attack_roll_penalty_min_stacks",
+                    "forced_move_immune",
                     "counts_as_debuff_override",
                     "counts_as_debuff",
                     "undispellable",
@@ -185,8 +169,32 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
                     "contact_timeline_damage_flat_bonus",
                     "contact_blocked_by_trait_id",
                 },
+            [typeof(ApplyBattleTerrainEffectAfterCheckActionPayloadDef)] =
+                new[]
+                {
+                    "anchor_selector",
+                    "terrain_effect_id",
+                    "move_cost_delta",
+                    "target_team_filter",
+                    "stack_behavior",
+                    "display_name",
+                    "render_overlay_id",
+                    "overlay_priority",
+                    "check_attribute_modifier_id",
+                    "check_compare",
+                    "check_threshold",
+                    "natural_twenty_auto_success",
+                    "natural_one_auto_failure",
+                },
             [typeof(ModifyAbilityStateActionPayloadDef)] =
-                new[] { "target_selector", "state_key", "operation", "int_delta" },
+                new[]
+                {
+                    "target_selector",
+                    "binding_id",
+                    "state_key",
+                    "operation",
+                    "int_delta",
+                },
             [typeof(MarkTargetActionPayloadDef)] =
                 new[]
                 {
@@ -198,6 +206,36 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
                 },
             [typeof(GrantSkillActionPayloadDef)] =
                 new[] { "skill_id", "skill_level", "availability_state_key" },
+            [typeof(SummonUnitsActionPayloadDef)] =
+                new[]
+                {
+                    "anchor_selector",
+                    "state_key",
+                    "count_dice",
+                    "max_living_units",
+                    "duration_tu",
+                    "spawn_radius",
+                    "unit_id_prefix",
+                    "unit_display_name",
+                    "body_size_category",
+                    "control_mode",
+                    "ai_brain_id",
+                    "ai_state_id",
+                    "hp_max",
+                    "armor_class",
+                    "attack_bonus",
+                    "base_attack_bonus",
+                    "action_points",
+                    "move_points",
+                    "known_active_skill_ids",
+                    "natural_weapon_profile_type_id",
+                    "natural_weapon_damage_tag",
+                    "natural_weapon_attack_range",
+                    "natural_weapon_damage_dice",
+                    "natural_weapon_family",
+                    "creature_type_tags",
+                    "movement_tags",
+                },
             [typeof(EquipmentSlotWeightDef)] = new[] { "slot_id", "weight" },
             [typeof(EquipmentDurabilityDamageActionPayloadDef)] =
                 new[]
@@ -271,6 +309,9 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
                     "reset_timing",
                     "persist_outside_battle",
                     "visible_to_ui",
+                    "sync_source_state_key",
+                    "sync_aggregation",
+                    "sync_int_literal",
                 },
             [typeof(EquipmentGrantedActionDef)] =
                 new[]
@@ -314,7 +355,6 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
         {
             typeof(EquipmentAbilityContentPackDefinition),
             typeof(EquipmentAbilityBindingDefinition),
-            typeof(EquipmentAbilitySourceTraceDefinition),
             typeof(EquipmentAbilityReactionDefinition),
             typeof(EquipmentAbilityConditionDefinition),
             typeof(EquipmentConditionGroupDefinition),
@@ -360,6 +400,7 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
         AssertContainsKey(actionSpecs, "mark_target", "action specs");
         AssertContainsKey(actionSpecs, "grant_skill", "action specs");
         AssertContainsKey(actionSpecs, "equipment_durability_damage", "action specs");
+        AssertContainsKey(actionSpecs, "apply_battle_terrain_effect_after_check", "action specs");
         _test.False(
             actionSpecs.ContainsKey("weapon_profile_overlay"),
             "weapon profile overlay should stay projection-only, not a normal action handler."
@@ -381,6 +422,12 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
                 EquipmentAbilityConsumerKind.Preview
             ),
             "durability action spec should expose preview support metadata."
+        );
+        _test.False(
+            actionSpecs["apply_battle_terrain_effect_after_check"].SupportsConsumer(
+                EquipmentAbilityConsumerKind.Preview
+            ),
+            "terrain break after-check should stay execution-only because it mutates battle terrain."
         );
         _test.Eq(
             modifyState.StateAccess.Writes[0].StateKeyPayloadMemberName,
@@ -534,7 +581,6 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
         EquipmentAbilityBindingDef bindingResource = pack.bindings[0];
         bindingResource.binding_id = "mutated.binding";
         bindingResource.required_item_tags.Clear();
-        bindingResource.source_traces[0].item_id = "mutated_item";
         ((AddDamageDiceActionPayloadDef)bindingResource.reactions[0].actions[0].payload)
             .damage_type = "mutated_damage";
 
@@ -553,11 +599,6 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
         _test.False(
             snapshot.RequiredItemTags is ISet<StringName>,
             "binding DTO required item tags should not expose a mutable set implementation."
-        );
-        _test.Eq(
-            snapshot.SourceTraces[0].ItemId,
-            new StringName("test_blade"),
-            "source trace DTO should retain copied item id after Resource mutation."
         );
         _test.Eq(
             registry.FindBindings(
@@ -634,6 +675,21 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
             "EQA_ACTION_REQUIRED_FIELD_MISSING",
             "bad.missing_action_field"
         );
+        AssertErrorContains(
+            result.Errors,
+            "EQA_ACTION_REQUIRED_FIELD_MISSING",
+            "bad.missing_terrain_check_field"
+        );
+        AssertErrorContains(
+            result.Errors,
+            "EQA_COMPARE_OPERATOR_INVALID",
+            "bad.invalid_terrain_check_compare"
+        );
+        AssertErrorContains(
+            result.Errors,
+            "EQA_MOVE_COST_DELTA_INVALID",
+            "bad.invalid_terrain_move_cost"
+        );
         AssertErrorContains(result.Errors, "EQA_REFERENCE_UNKNOWN_STATUS", "bad.unknown_status");
         AssertErrorContains(result.Errors, "EQA_REFERENCE_UNKNOWN_SLOT", "bad.unknown_slot");
         AssertErrorContains(result.Errors, "EQA_SLOT_WEIGHT_INVALID", "bad.invalid_slot_weight");
@@ -650,6 +706,16 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
         AssertErrorContains(result.Errors, "EQA_STATE_KEY_UNDECLARED", "bad.undeclared_state");
         AssertErrorContains(
             result.Errors,
+            "EQA_STATE_SYNC_SOURCE_UNDECLARED",
+            "bad.undeclared_sync_state"
+        );
+        AssertErrorContains(
+            result.Errors,
+            "EQA_STATE_SYNC_INVALID",
+            "bad.invalid_sync_divisor"
+        );
+        AssertErrorContains(
+            result.Errors,
             "EQA_STATE_PERSISTENT_OWNER_INVALID",
             "bad.invalid_persistent_state"
         );
@@ -659,7 +725,6 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
             "bad.invalid_grant"
         );
         AssertErrorContains(result.Errors, "EQA_REFERENCE_UNKNOWN_SKILL", "bad.invalid_grant");
-        AssertErrorContains(result.Errors, "EQA_SOURCE_TRACE_INVALID", "bad.invalid_trace");
         AssertErrorContains(
             result.Errors,
             "EQA_REACTION_CONFIRMATION_UNSUPPORTED",
@@ -710,6 +775,16 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
             "EQA_GRANTED_KIND_UNSUPPORTED",
             "bad.invalid_grant_kind"
         );
+        AssertErrorContains(
+            result.Errors,
+            "EQA_REFERENCE_UNKNOWN_SKILL",
+            "bad.summon_unknown_skill"
+        );
+        AssertErrorContains(
+            result.Errors,
+            "EQA_REFERENCE_UNKNOWN_DAMAGE_TYPE",
+            "bad.summon_unknown_damage"
+        );
     }
 
     private static EquipmentAbilityContentPackDef BuildValidPack(
@@ -739,22 +814,6 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
         binding.required_trait_categories.Add("weapon_feat");
         binding.required_item_tags.Add("blade");
         binding.supported_equipment_type_ids.Add("weapon");
-        binding.source_traces.Add(
-            new EquipmentAbilitySourceTraceDef
-            {
-                source_kind = "by_family",
-                source_file = "bows_01.md",
-                item_id = "test_blade",
-                display_name = "Test Blade",
-                bullet_index = 1,
-                bullet_title = "Flame edge",
-                bullet_text = "Adds flame damage.",
-                mechanism_family = "damage_bonus",
-                coverage_status = "bound",
-                phase = "v1",
-                test_id = "equipment_ability_content_registry",
-            }
-        );
         binding.reactions.Add(
             new EquipmentAbilityReactionDef
             {
@@ -901,6 +960,72 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
                         payload = new AddDamageDiceActionPayloadDef
                         {
                             target_selector = "attack_target",
+                        },
+                    }
+                )
+            )
+        );
+
+        pack.bindings.Add(
+            BuildBinding(
+                "bad.missing_terrain_check_field",
+                reaction: ReactionWithAction(
+                    "reaction.missing_terrain_check_field",
+                    new EquipmentAbilityActionDef
+                    {
+                        action_id = "action.missing_terrain_check_field",
+                        kind = "apply_battle_terrain_effect_after_check",
+                        payload = new ApplyBattleTerrainEffectAfterCheckActionPayloadDef
+                        {
+                            anchor_selector = "attack_target",
+                            terrain_effect_id = "broken_ground",
+                            move_cost_delta = 1,
+                        },
+                    }
+                )
+            )
+        );
+
+        pack.bindings.Add(
+            BuildBinding(
+                "bad.invalid_terrain_check_compare",
+                reaction: ReactionWithAction(
+                    "reaction.invalid_terrain_check_compare",
+                    new EquipmentAbilityActionDef
+                    {
+                        action_id = "action.invalid_terrain_check_compare",
+                        kind = "apply_battle_terrain_effect_after_check",
+                        payload = new ApplyBattleTerrainEffectAfterCheckActionPayloadDef
+                        {
+                            anchor_selector = "attack_target",
+                            terrain_effect_id = "broken_ground",
+                            move_cost_delta = 1,
+                            check_attribute_modifier_id = "strength_modifier",
+                            check_compare = "nearly",
+                            check_threshold = 22,
+                        },
+                    }
+                )
+            )
+        );
+
+        pack.bindings.Add(
+            BuildBinding(
+                "bad.invalid_terrain_move_cost",
+                reaction: ReactionWithAction(
+                    "reaction.invalid_terrain_move_cost",
+                    new EquipmentAbilityActionDef
+                    {
+                        action_id = "action.invalid_terrain_move_cost",
+                        kind = "apply_battle_terrain_effect_after_check",
+                        payload = new ApplyBattleTerrainEffectAfterCheckActionPayloadDef
+                        {
+                            anchor_selector = "attack_target",
+                            terrain_effect_id = "broken_ground",
+                            move_cost_delta = 0,
+                            check_attribute_modifier_id = "strength_modifier",
+                            check_compare = "gt",
+                            check_threshold = 22,
                         },
                     }
                 )
@@ -1082,6 +1207,90 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
             )
         );
 
+        EquipmentAbilityBindingDef badSyncState =
+            BuildBinding(
+                "bad.undeclared_sync_state",
+                reaction: ReactionWithAction(
+                    "reaction.undeclared_sync_state",
+                    new EquipmentAbilityActionDef
+                    {
+                        action_id = "action.sync_state",
+                        kind = "modify_ability_state",
+                        payload = new ModifyAbilityStateActionPayloadDef
+                        {
+                            target_selector = "self",
+                            state_key = "declared_state",
+                            operation = "add",
+                            int_delta = 1,
+                        },
+                    }
+                )
+            );
+        badSyncState.state_schemas.Add(
+            new EquipmentAbilityStateSchemaDef
+            {
+                state_key = "declared_state",
+                owner_scope = "battle_state",
+                value_kind = "int",
+                reset_timing = "per_battle",
+            }
+        );
+        badSyncState.state_schemas.Add(
+            new EquipmentAbilityStateSchemaDef
+            {
+                state_key = "tier",
+                owner_scope = "battle_state",
+                value_kind = "int",
+                reset_timing = "per_battle",
+                sync_source_state_key = "missing_sync_state",
+                sync_aggregation = "floor_div",
+                sync_int_literal = 10,
+            }
+        );
+        pack.bindings.Add(badSyncState);
+
+        EquipmentAbilityBindingDef badSyncDivisor =
+            BuildBinding(
+                "bad.invalid_sync_divisor",
+                reaction: ReactionWithAction(
+                    "reaction.invalid_sync_divisor",
+                    new EquipmentAbilityActionDef
+                    {
+                        action_id = "action.sync_divisor",
+                        kind = "modify_ability_state",
+                        payload = new ModifyAbilityStateActionPayloadDef
+                        {
+                            target_selector = "self",
+                            state_key = "counter",
+                            operation = "add",
+                            int_delta = 1,
+                        },
+                    }
+                )
+            );
+        badSyncDivisor.state_schemas.Add(
+            new EquipmentAbilityStateSchemaDef
+            {
+                state_key = "counter",
+                owner_scope = "battle_state",
+                value_kind = "int",
+                reset_timing = "per_battle",
+            }
+        );
+        badSyncDivisor.state_schemas.Add(
+            new EquipmentAbilityStateSchemaDef
+            {
+                state_key = "tier",
+                owner_scope = "battle_state",
+                value_kind = "int",
+                reset_timing = "per_battle",
+                sync_source_state_key = "counter",
+                sync_aggregation = "floor_div",
+                sync_int_literal = 0,
+            }
+        );
+        pack.bindings.Add(badSyncDivisor);
+
         EquipmentAbilityBindingDef badPersistent =
             BuildBinding(
                 "bad.invalid_persistent_state",
@@ -1120,26 +1329,6 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
             }
         );
         pack.bindings.Add(badGrant);
-
-        EquipmentAbilityBindingDef badTrace =
-            BuildBinding(
-                "bad.invalid_trace",
-                reaction: ReactionWithAction(
-                    "reaction.valid_trace",
-                    BuildValidAddDamageAction("action.valid_trace")
-                )
-            );
-        badTrace.source_traces.Add(
-            new EquipmentAbilitySourceTraceDef
-            {
-                source_kind = "by_family",
-                source_file = "../outside.md",
-                item_id = "",
-                coverage_status = "bound",
-                phase = "v1",
-            }
-        );
-        pack.bindings.Add(badTrace);
 
         pack.bindings.Add(
             BuildBinding(
@@ -1353,6 +1542,23 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
         );
         pack.bindings.Add(badGrantKind);
 
+        pack.bindings.Add(
+            BuildSummonBinding(
+                "bad.summon_unknown_skill",
+                "action.summon_unknown_skill",
+                "missing_summon_skill",
+                "physical_slash"
+            )
+        );
+        pack.bindings.Add(
+            BuildSummonBinding(
+                "bad.summon_unknown_damage",
+                "action.summon_unknown_damage",
+                "known_skill",
+                "void_damage"
+            )
+        );
+
         return pack;
     }
 
@@ -1412,6 +1618,80 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
                             dice_sides = 4,
                         },
                     },
+                },
+            },
+        };
+
+    private static EquipmentAbilityBindingDef BuildSummonBinding(
+        StringName bindingId,
+        StringName actionId,
+        StringName knownSkillId,
+        StringName damageTag
+    )
+    {
+        EquipmentAbilityBindingDef binding = BuildBinding(
+            bindingId,
+            ReactionWithAction(
+                $"reaction.{bindingId}",
+                BuildSummonAction(actionId, knownSkillId, damageTag)
+            )
+        );
+        binding.state_schemas.Add(
+            new EquipmentAbilityStateSchemaDef
+            {
+                state_key = "test_summon_state",
+                owner_scope = "source_equipment",
+                value_kind = "int",
+                initial_int_value = 0,
+                max_int_value = 1,
+            }
+        );
+        return binding;
+    }
+
+    private static EquipmentAbilityActionDef BuildSummonAction(
+        StringName actionId,
+        StringName knownSkillId,
+        StringName damageTag
+    )
+    {
+        SummonUnitsActionPayloadDef payload = new()
+        {
+            anchor_selector = "self",
+            state_key = "test_summon_state",
+            count_dice = BuildDice(1, 1),
+            max_living_units = 1,
+            duration_tu = 60,
+            spawn_radius = 1,
+            unit_id_prefix = "test_summon",
+            unit_display_name = "Test Summon",
+            body_size_category = "small",
+            control_mode = "ally_ai",
+            hp_max = 1,
+            armor_class = 10,
+            natural_weapon_profile_type_id = "test_claws",
+            natural_weapon_damage_tag = damageTag,
+            natural_weapon_attack_range = 1,
+            natural_weapon_damage_dice = BuildDice(1, 4),
+        };
+        payload.known_active_skill_ids.Add(knownSkillId);
+        return new EquipmentAbilityActionDef
+        {
+            action_id = actionId,
+            kind = "summon_units",
+            payload = payload,
+        };
+    }
+
+    private static DiceExpressionDef BuildDice(int diceCount, int diceSides) =>
+        new()
+        {
+            terms =
+            {
+                new DiceExpressionTermDef
+                {
+                    dice_count = diceCount,
+                    dice_sides = diceSides,
                 },
             },
         };

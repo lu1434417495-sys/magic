@@ -72,7 +72,7 @@ public partial class run_shieldbreaker_weapon_projection_regression : SceneTree
             return;
 
         ItemDef rawShieldbreaker = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_axe_shieldbreaker_098.tres"
+            "res://data/configs/items/weapon_unique_greataxe_shieldbreaker.tres"
         );
         _test.True(rawShieldbreaker != null, "碎盾原始资源应能加载。");
         if (rawShieldbreaker != null)

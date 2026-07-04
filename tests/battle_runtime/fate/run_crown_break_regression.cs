@@ -70,7 +70,10 @@ public partial class run_crown_break_regression : SceneTree
 
             command = BuildGroundSkillCommand(caster.unit_id, OPTION_BROKEN_FANG, elite.coord);
             preview = runtime.PreviewCommand(command);
-            _test.True(preview != null && preview.allowed, "断牙分支前置：已被烙印的 elite 应允许预览折冠。");
+            _test.True(
+                preview != null && preview.allowed,
+                $"断牙分支前置：已被烙印的 elite 应允许预览折冠。 log={preview?.log_lines}"
+            );
             batch = runtime.IssueCommand(command);
             _test.Eq(runtime.GetMemberCalamity("hero"), 0, "折冠成功施放后应固定扣除 2 点 calamity。");
             _test.True(elite.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_FANG), "断牙分支应写入 broken_fang 状态。");
@@ -471,6 +474,7 @@ public partial class run_crown_break_regression : SceneTree
         command.command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill);
         command.unit_id = unitId;
         command.skill_id = CROWN_BREAK_SKILL_ID;
+        command.skill_entry_id = BattleSkillEntryIds.KnownSkill(CROWN_BREAK_SKILL_ID);
         command.skill_variant_id = variantId;
         command.target_coord = targetCoord;
         command.target_coords = new GVector2IArray { targetCoord };
@@ -483,6 +487,7 @@ public partial class run_crown_break_regression : SceneTree
         command.command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill);
         command.unit_id = unitId;
         command.skill_id = skillId;
+        command.skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId);
         command.target_unit_id = targetUnit?.unit_id ?? default;
         command.target_coord = targetUnit?.coord ?? new Vector2I(-1, -1);
         return command;

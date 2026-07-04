@@ -66,7 +66,7 @@ public partial class run_viper_morningstar_weapon_ability_regression : SceneTree
             return;
 
         ItemDef rawViper = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_morningstar_viper_206.tres"
+            "res://data/configs/items/weapon_unique_morningstar_viper.tres"
         );
         _test.True(rawViper != null, "毒蛇晨星原始资源应能加载。");
         if (rawViper != null)
@@ -301,6 +301,20 @@ public partial class run_viper_morningstar_weapon_ability_regression : SceneTree
                 1,
                 $"第 {use} 次毒液注入后 venom_primed 应置为 1。"
             );
+            if (use == 1)
+            {
+                BattleSkillAvailabilityView sameTurnView = BuildEquipmentSkillView(fixture, holder, 0);
+                _test.True(
+                    TryFindSkillEntry(sameTurnView, VenomInjectionSkillId, out BattleAvailableSkillEntry sameTurnEntry),
+                    "同一行动回合内毒液注入入口仍应存在。"
+                );
+                _test.False(sameTurnEntry?.IsSelectable ?? true, "同一行动回合内毒液注入不能第二次使用。");
+                _test.Eq(
+                    sameTurnEntry?.DisabledReason ?? new StringName(""),
+                    new StringName("equipment_skill_turn_use_exhausted"),
+                    "同一行动回合第 2 次毒液注入应返回行动回合一次限制原因。"
+                );
+            }
         }
         _test.Eq(
             EquipmentAbilityUsageRuntime.GetUsedCount(
@@ -319,6 +333,7 @@ public partial class run_viper_morningstar_weapon_ability_regression : SceneTree
         );
         _test.True(primedChargeKey != "", "毒液注入应声明并初始化 venom_primed 状态 key。");
 
+        holder.ResetPerTurnCharges();
         BattleSkillAvailabilityView exhaustedView = BuildEquipmentSkillView(fixture, holder, 0);
         _test.True(
             TryFindSkillEntry(exhaustedView, VenomInjectionSkillId, out BattleAvailableSkillEntry exhaustedEntry),

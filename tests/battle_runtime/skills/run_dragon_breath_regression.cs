@@ -398,6 +398,7 @@ public partial class run_dragon_breath_regression : SceneTree
         {
             command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
             unit_id = unitId,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId),
             skill_id = skillId,
             target_coord = targetCoord,
         };

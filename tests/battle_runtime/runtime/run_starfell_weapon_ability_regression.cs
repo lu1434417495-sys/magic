@@ -92,7 +92,7 @@ public partial class run_starfell_weapon_ability_regression : SceneTree
             return;
 
         ItemDef rawStarfell = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_sword_starfell_016.tres"
+            "res://data/configs/items/weapon_unique_greatsword_starfell.tres"
         );
         _test.True(rawStarfell != null, "群星之末原始资源应能加载。");
         if (rawStarfell != null)

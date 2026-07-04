@@ -78,7 +78,7 @@ public partial class run_titanbow_weapon_ability_regression : SceneTree
             return;
 
         ItemDef rawTitanbow = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_bow_titanbow_173.tres"
+            "res://data/configs/items/weapon_unique_longbow_titanbow.tres"
         );
         _test.True(rawTitanbow != null, "泰坦之弓原始资源应能加载。");
         if (rawTitanbow != null)

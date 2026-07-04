@@ -88,7 +88,10 @@ public partial class run_battle_execute_target_gate_regression : SceneTree
         BattleCommand command = MakeUnitCommand(source, target, skill);
         BattlePreview preview = fixture.Runtime.PreviewCommand(command);
 
-        _test.True(preview.allowed, "HP 等于阈值的律令死亡目标应允许 preview。");
+        _test.True(
+            preview.allowed,
+            $"HP 等于阈值的律令死亡目标应允许 preview。preview={FormatPreview(preview)}"
+        );
 
         BattleTestFixture.DisposeBattlePreview(preview);
         GodotSharpCleanup.ClearRuntimeReferences(command);
@@ -208,11 +211,20 @@ public partial class run_battle_execute_target_gate_regression : SceneTree
         {
             command_type = "skill",
             unit_id = source.unit_id,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill(skill.SkillId),
             skill_id = skill.SkillId,
             target_unit_id = target.unit_id,
         };
         command.AddTargetUnitId(target.unit_id);
         command.target_coord = target.coord;
         return command;
+    }
+
+    private static string FormatPreview(BattlePreview preview)
+    {
+        if (preview == null)
+            return "<null>";
+        return
+            $"allowed={preview.allowed}, logs=[{string.Join(" | ", preview.LogLinesTyped)}], target_units=[{string.Join(", ", preview.TargetUnitIdsTyped)}], target_coords=[{string.Join(", ", preview.TargetCoordsTyped)}]";
     }
 }

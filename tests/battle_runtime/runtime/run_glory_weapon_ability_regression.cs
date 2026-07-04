@@ -60,7 +60,7 @@ public partial class run_glory_weapon_ability_regression : SceneTree
             return;
 
         ItemDef rawGlory = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_sword_glory_261.tres"
+            "res://data/configs/items/weapon_unique_longsword_glory.tres"
         );
         _test.True(rawGlory != null, "荣耀之刃原始资源应能加载。");
         if (rawGlory != null)

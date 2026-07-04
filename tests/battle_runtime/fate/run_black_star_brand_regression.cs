@@ -314,6 +314,7 @@ public partial class run_black_star_brand_regression : SceneTree
         command.command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill);
         command.unit_id = unitId;
         command.skill_id = skillId;
+        command.skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId);
         command.target_unit_id = targetUnit?.unit_id ?? default;
         command.target_coord = targetUnit?.coord ?? new Vector2I(-1, -1);
         return command;

@@ -108,6 +108,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
     private void TestEnemyAttackEquipmentProjectsAbilitySourceAndCreatureTags()
     {
         using EncounterRosterBuilder builder = new();
+        StringName grantedSkillId = "enemy_flame_equipment_skill";
         ItemDef weapon = MakeWeapon("enemy_flame_blade");
         weapon.trait_ids = new GStringNameArray { "trait.weapon.flame" };
         weapon.tags = new GStringNameArray { "blade" };
@@ -134,6 +135,16 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
                 RequiredTraitCategories = new HashSet<StringName> { "weapon_feat" },
                 RequiredItemTags = new HashSet<StringName> { "blade" },
                 SupportedEquipmentTypeIds = new HashSet<StringName> { "weapon" },
+                GrantedActions = new EquipmentGrantedActionDefinition[]
+                {
+                    new()
+                    {
+                        GrantedActionId = "grant.enemy_flame_equipment_skill",
+                        GrantedKind = EquipmentGrantedActionKind.Skill,
+                        SkillId = grantedSkillId,
+                        SkillLevel = 1,
+                    },
+                },
             },
         };
         EnemyTemplateDef template = BuildEnemyTemplate("flame_enemy", weapon.item_id);
@@ -197,6 +208,65 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
         _test.True(
             source.AbilityIds.Contains("binding.weapon.flame"),
             "enemy equipment ability source 应列出匹配绑定 id。"
+        );
+
+        SkillDefinition grantedSkill = TestSkillDefinitionProjection.BuildSkill(
+            grantedSkillId,
+            displayName: "enemy flame equipment skill",
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(grantedSkillId)
+        );
+        BattleSkillAvailabilityService service = new(
+            new Dictionary<StringName, SkillDefinition>
+            {
+                [grantedSkillId] = grantedSkill,
+            },
+            bindings
+        );
+        BattleSkillAvailabilityView view = service.BuildView(
+            new BattleSkillAvailabilityQuery
+            {
+                User = unit,
+                IncludeKnownSkills = false,
+                IncludeEquipmentSkills = true,
+                Consumer = BattleSkillAvailabilityConsumer.ManualSelection,
+                WorldStep = 0,
+            }
+        );
+        _test.True(
+            TryFindSkillEntry(view, grantedSkillId, out BattleAvailableSkillEntry entry),
+            "enemy battle-only equipment source 应生成装备技能入口。"
+        );
+        _test.True(entry?.IsSelectable == true, "enemy battle-only 装备技能首次应可用。");
+        _test.True(
+            EquipmentAbilityUsageRuntime.TryCommitUsage(unit, entry, worldStep: 0),
+            "enemy battle-only 装备技能应能用 effective key 提交同回合使用。"
+        );
+        StringName expectedTurnUseKey = new(
+            $"equipment_skill_turn_use:{source.EffectiveInstanceKey}:grant.enemy_flame_equipment_skill"
+        );
+        _test.True(
+            unit.HasPerTurnChargeTyped(expectedTurnUseKey),
+            $"enemy battle-only 装备技能应写入 effective key 同回合 charge。entry_key={entry?.EntryRef.SourceEquipmentEffectiveInstanceKey} source_key={source.EffectiveInstanceKey} charges={SummarizeCharges(unit)}"
+        );
+        BattleSkillAvailabilityView sameTurnView = service.BuildView(
+            new BattleSkillAvailabilityQuery
+            {
+                User = unit,
+                IncludeKnownSkills = false,
+                IncludeEquipmentSkills = true,
+                Consumer = BattleSkillAvailabilityConsumer.ManualSelection,
+                WorldStep = 0,
+            }
+        );
+        _test.True(
+            TryFindSkillEntry(sameTurnView, grantedSkillId, out BattleAvailableSkillEntry sameTurnEntry),
+            "enemy battle-only 装备技能提交后入口仍应可见。"
+        );
+        _test.False(sameTurnEntry?.IsSelectable ?? true, "enemy battle-only 装备技能同一行动回合不能再次使用。");
+        _test.Eq(
+            sameTurnEntry?.DisabledReason ?? new StringName(""),
+            EquipmentAbilityUsageRuntime.PerActionTurnUseExhaustedReason,
+            "enemy battle-only 装备技能同回合限制应使用 effective key 生效。"
         );
     }
 
@@ -274,6 +344,32 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
             );
         }
         return string.Join(" || ", values);
+    }
+
+    private static bool TryFindSkillEntry(
+        BattleSkillAvailabilityView view,
+        StringName skillId,
+        out BattleAvailableSkillEntry result
+    )
+    {
+        result = null;
+        foreach (BattleAvailableSkillEntry entry in view?.SkillEntries ?? new List<BattleAvailableSkillEntry>())
+        {
+            if (entry?.EntryRef.SkillId == skillId)
+            {
+                result = entry;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static string SummarizeCharges(BattleUnitState unit)
+    {
+        List<string> values = new();
+        foreach ((StringName key, int value) in unit?.GetPerTurnChargesTyped() ?? new Dictionary<StringName, int>())
+            values.Add($"{key}:{value}");
+        return string.Join(",", values);
     }
 
     private static BattleUnitState BuildSingleTemplateUnit(

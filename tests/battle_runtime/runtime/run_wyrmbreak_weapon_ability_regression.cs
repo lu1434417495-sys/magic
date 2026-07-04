@@ -85,7 +85,7 @@ public partial class run_wyrmbreak_weapon_ability_regression : SceneTree
         );
 
         ItemDef rawWyrmbreak = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_sword_wyrmbreak_007.tres"
+            "res://data/configs/items/weapon_unique_longsword_wyrmbreak.tres"
         );
         _test.True(rawWyrmbreak != null, "龙骨断剑原始资源应能加载。");
         if (rawWyrmbreak != null)
@@ -365,7 +365,7 @@ public partial class run_wyrmbreak_weapon_ability_regression : SceneTree
 
     private static int MeasureBurstDamage(IReadOnlyList<StringName> targetTags, StringName fireMitigation)
     {
-        using WyrmbreakFixture fixture = WyrmbreakFixture.Build(new GArray());
+        using WyrmbreakFixture fixture = WyrmbreakFixture.Build(new FixedFailedSaveDamageResolver());
         BattleUnitState holder = fixture.BuildWyrmbreakUnit($"burst_{fireMitigation}");
         SetAbilityState(holder, BoneStealingFuryBindingId, DragonSoulFuryStateKey, 5);
         BattleUnitState target = BuildTarget("burst_target", new Vector2I(2, 0), targetTags);
@@ -613,6 +613,11 @@ public partial class run_wyrmbreak_weapon_ability_regression : SceneTree
 
         internal static WyrmbreakFixture Build(GArray damageRolls)
         {
+            return Build(new FixedRollDamageResolver(damageRolls));
+        }
+
+        internal static WyrmbreakFixture Build(BattleDamageResolver damageResolver)
+        {
             ItemContentRegistry itemRegistry = new();
             ProgressionContentRegistry progressionRegistry = new();
             PartyState partyState = BuildPartyState("hero");
@@ -637,7 +642,7 @@ public partial class run_wyrmbreak_weapon_ability_regression : SceneTree
                 trait_defs: progressionRegistry.GetTraitDefsTyped(),
                 equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
             );
-            runtime.ConfigureDamageResolverForTests(new FixedRollDamageResolver(damageRolls));
+            runtime.ConfigureDamageResolverForTests(damageResolver ?? new FixedRollDamageResolver(new GArray()));
             runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
             return new WyrmbreakFixture(itemRegistry, progressionRegistry, partyState, runtime);
         }

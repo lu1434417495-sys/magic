@@ -177,7 +177,21 @@ public partial class run_oathscar_weapon_ability_regression : SceneTree
             }
         );
 
-        BattleEventBatch secondBatch = IssueOathBind(fixture.Runtime, holder, secondTarget, bindEntry);
+        holder.ResetPerTurnCharges();
+        WeaponAbilityCommandTestSupport.PrimeActionResources(holder, ap: 2);
+        BattleAvailableSkillEntry nextTurnBindEntry =
+            FindRequiredEquipmentSkill(fixture, holder, OathBindSkillId, state);
+        _test.True(
+            nextTurnBindEntry.IsSelectable,
+            "下一行动回合誓约绑定入口应恢复可用，之后才能切换誓言目标。"
+        );
+
+        BattleEventBatch secondBatch = IssueOathBind(
+            fixture.Runtime,
+            holder,
+            secondTarget,
+            nextTurnBindEntry
+        );
         _test.True(
             ContainsStringName(secondBatch?.ChangedUnitIdsTyped, secondTarget.unit_id),
             $"第二次绑定应通过真实命令改写目标 B。 | logs={JoinLogs(secondBatch)}"
@@ -559,16 +573,31 @@ public partial class run_oathscar_weapon_ability_regression : SceneTree
 
         fixture.Runtime.ConfigureHitResolverForTests(new FixedMissResolver());
         int blockedHp = target.current_hp;
-        IssueUnitSkillInCurrentState(
-            fixture.Runtime,
+        WeaponAbilityCommandTestSupport.PrimeActionResources(holder);
+        ForceUnitActing(state, holder);
+        BattleCommand blockedCommand = WeaponAbilityCommandTestSupport.BuildUnitSkillCommand(
             holder,
             target,
             judgmentEntry,
-            OathJudgmentSkillId,
-            "oath_judgment_blocked"
+            OathJudgmentSkillId
+        );
+        BattleEventBatch blockedBatch = fixture.Runtime.IssueCommand(blockedCommand);
+        _test.True(
+            HasLogLineContaining(blockedBatch, OathMarkStatusId.ToString()),
+            $"不足 4 层誓约之印时誓约裁决应被目标状态门禁拦截。logs={JoinLogs(blockedBatch)}"
         );
         _test.Eq(target.current_hp, blockedHp, "不足 4 层誓约之印时，誓约裁决不应造成伤害。");
         _test.False(target.HasStatusEffect(StunnedStatusId), "不足 4 层誓约之印时，誓约裁决不应震慑。");
+        BattleSkillAvailabilityView afterBlocked =
+            BuildEquipmentSkillAvailability(fixture, holder, state);
+        _test.True(
+            TryFindSkillEntry(afterBlocked, OathJudgmentSkillId, out BattleAvailableSkillEntry afterBlockedEntry),
+            "目标状态门禁失败后仍应保留誓约裁决入口用于 UI 展示。"
+        );
+        _test.True(
+            afterBlockedEntry?.IsSelectable == true,
+            "目标状态门禁失败不应消耗誓约裁决每场战斗次数或行动回合使用次数。"
+        );
 
         fixture.Runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         for (int hit = 1; hit <= 4; hit++)
@@ -888,8 +917,10 @@ public partial class run_oathscar_weapon_ability_regression : SceneTree
         {
             if (preview?.allowed != true)
             {
+                BattleUnitState stateHolder =
+                    runtime?.GetState()?.GetUnit(holder?.unit_id ?? new StringName(""));
                 throw new InvalidOperationException(
-                    $"oath bind preview blocked for {target?.unit_id}: {JoinLogs(preview)}"
+                    $"oath bind preview blocked for {target?.unit_id}: {JoinLogs(preview)} | entry_selectable={bindEntry?.IsSelectable} entry_disabled={bindEntry?.DisabledReason} holder_charges={SummarizePerTurnCharges(holder)} state_holder_charges={SummarizePerTurnCharges(stateHolder)}"
                 );
             }
         }
@@ -986,6 +1017,16 @@ public partial class run_oathscar_weapon_ability_regression : SceneTree
     private static string JoinLogs(BattleEventBatch batch) =>
         string.Join(" | ", batch?.LogLinesTyped ?? Array.Empty<string>());
 
+    private static bool HasLogLineContaining(BattleEventBatch batch, string expected)
+    {
+        foreach (string line in batch?.LogLinesTyped ?? Array.Empty<string>())
+        {
+            if (!string.IsNullOrEmpty(line) && line.Contains(expected, StringComparison.Ordinal))
+                return true;
+        }
+        return false;
+    }
+
     private static string DumpMarks(BattleState state)
     {
         var entries = new List<string>();
@@ -996,6 +1037,17 @@ public partial class run_oathscar_weapon_ability_regression : SceneTree
             );
         }
         return string.Join(", ", entries);
+    }
+
+    private static string SummarizePerTurnCharges(BattleUnitState unit)
+    {
+        var entries = new List<string>();
+        foreach ((StringName key, int value) in unit?.GetPerTurnChargesTyped() ?? new Dictionary<StringName, int>())
+        {
+            entries.Add($"{key}:{value}");
+        }
+        entries.Sort(StringComparer.Ordinal);
+        return entries.Count == 0 ? "<none>" : string.Join(",", entries);
     }
 
     private static void AddEnemyToState(BattleState state, BattleUnitState unit)

@@ -634,6 +634,7 @@ public partial class run_magic_backlash_regression : SceneTree
         {
             command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
             unit_id = unitId,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill("mage_fireball"),
             skill_id = "mage_fireball",
             target_coord = targetCoord,
         };
@@ -647,6 +648,7 @@ public partial class run_magic_backlash_regression : SceneTree
         {
             command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
             unit_id = unitId,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill("test_slow_bolt"),
             skill_id = "test_slow_bolt",
             target_unit_id = targetUnitId,
         };
@@ -660,6 +662,7 @@ public partial class run_magic_backlash_regression : SceneTree
         {
             command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
             unit_id = unitId,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill("test_slow_ground_burst"),
             skill_id = "test_slow_ground_burst",
             target_coord = targetCoord,
         };

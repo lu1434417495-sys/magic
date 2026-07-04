@@ -95,7 +95,7 @@ public partial class run_heartbane_weapon_ability_regression : SceneTree
             return;
 
         ItemDef rawHeartbane = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_sword_heartbane_004.tres"
+            "res://data/configs/items/weapon_unique_rapier_heartbane.tres"
         );
         _test.True(rawHeartbane != null, "噬心者原始资源应能加载。");
         if (rawHeartbane != null)
@@ -413,6 +413,11 @@ public partial class run_heartbane_weapon_ability_regression : SceneTree
         _test.True(combat != null, "心碎爆发应有战斗配置。");
         _test.Eq(combat.ApCost, 1, "心碎爆发应作为 action 消耗 1AP。");
         _test.Eq(
+            combat.AttackResolutionModeKind,
+            CombatSkillAttackResolutionMode.DirectEffect,
+            "心碎爆发是状态引爆型装备技能，应使用 direct_effect 而不是命中检定。"
+        );
+        _test.Eq(
             combat.CooldownTu,
             0,
             "心碎爆发每场战斗限制应由装备 per-battle charge 表达，不靠技能冷却。"
@@ -469,8 +474,31 @@ public partial class run_heartbane_weapon_ability_regression : SceneTree
             previewCommand: false
         );
         _test.True(blocked != null, "没有 3 层情感撕裂时心碎爆发 IssueCommand 应返回 batch。");
+        _test.True(
+            HasLogLineContaining(blocked, EmotionalRendStatusId.ToString()),
+            $"没有 3 层情感撕裂时心碎爆发应被目标状态门禁拦截。logs={JoinLogs(blocked)}"
+        );
         _test.Eq(target.current_hp, blockedHpBefore, "没有 3 层情感撕裂时，心碎爆发不应造成伤害。");
         _test.False(target.HasStatusEffect(StunnedStatusId), "没有 3 层情感撕裂时，心碎爆发不应震慑。");
+        BattleSkillAvailabilityView afterBlocked =
+            availabilityService.BuildView(
+                new BattleSkillAvailabilityQuery
+                {
+                    User = holder,
+                    IncludeEquipmentSkills = true,
+                    IncludeKnownSkills = false,
+                    Consumer = BattleSkillAvailabilityConsumer.ManualSelection,
+                    WorldStep = 0,
+                }
+            );
+        _test.True(
+            TryFindSkillEntry(afterBlocked, HeartbreakBurstSkillId, out BattleAvailableSkillEntry afterBlockedEntry),
+            "目标状态门禁失败后仍应保留心碎爆发入口用于 UI 展示。"
+        );
+        _test.True(
+            afterBlockedEntry?.IsSelectable == true,
+            $"目标状态门禁失败不应消耗心碎爆发每场战斗次数。logs={JoinLogs(blocked)}"
+        );
 
         target.SetStatusEffect(
             new BattleStatusEffectState
@@ -495,11 +523,14 @@ public partial class run_heartbane_weapon_ability_regression : SceneTree
             previewCommand: false
         );
         _test.True(applied != null, "3 层情感撕裂时心碎爆发 IssueCommand 应返回 batch。");
-        _test.True(target.current_hp < appliedHpBefore, "心碎爆发应通过真实技能命令造成 psychic 伤害。");
-        _test.True(target.HasStatusEffect(StunnedStatusId), "心碎爆发应施加 stunned。");
+        _test.True(
+            target.current_hp < appliedHpBefore,
+            $"心碎爆发应通过真实技能命令造成 psychic 伤害。logs={JoinLogs(applied)}"
+        );
+        _test.True(target.HasStatusEffect(StunnedStatusId), $"心碎爆发应施加 stunned。logs={JoinLogs(applied)}");
         _test.False(
             target.HasStatusEffect(EmotionalRendStatusId),
-            "心碎爆发应消耗目标全部情感撕裂层数。"
+            $"心碎爆发应消耗目标全部情感撕裂层数。logs={JoinLogs(applied)}"
         );
 
         BattleSkillAvailabilityView exhausted =
@@ -549,6 +580,19 @@ public partial class run_heartbane_weapon_ability_regression : SceneTree
         foreach (BattleAttackRollModifierSpec spec in bundle?.Breakdown ?? Array.Empty<BattleAttackRollModifierSpec>())
         {
             if (spec.source_id == sourceId && spec.modifier_delta == delta)
+                return true;
+        }
+        return false;
+    }
+
+    private static string JoinLogs(BattleEventBatch batch) =>
+        string.Join(" | ", batch?.LogLinesTyped ?? Array.Empty<string>());
+
+    private static bool HasLogLineContaining(BattleEventBatch batch, string expected)
+    {
+        foreach (string line in batch?.LogLinesTyped ?? Array.Empty<string>())
+        {
+            if (!string.IsNullOrEmpty(line) && line.Contains(expected))
                 return true;
         }
         return false;

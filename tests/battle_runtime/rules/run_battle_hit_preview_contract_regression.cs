@@ -489,6 +489,7 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         command.command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill);
         command.unit_id = unitId;
         command.skill_id = skillId;
+        command.skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId);
         command.skill_variant_id = variantId;
         command.target_unit_id = targetUnit?.unit_id ?? new StringName("");
         command.target_coord = targetUnit?.coord ?? new Vector2I(-1, -1);

@@ -51,7 +51,7 @@ public partial class run_battle_pwk_hover_preview_regression : SceneTree
         BattlePreview preview = fixture.Runtime.PreviewCommand(MakeUnitCommand(source, target, skill));
         GDictionary branchPreview = preview.save_branch_preview;
 
-        _test.True(preview.allowed, "低 HP PWK preview 应允许。");
+        _test.True(preview.allowed, $"低 HP PWK preview 应允许。 log={string.Join(" | ", preview.log_lines)}");
         _test.Eq(DictStringName(branchPreview, "kind"), new StringName("execute"), "低 HP PWK preview 应输出 execute 分支。");
         _test.True(DictInt(branchPreview, "hit_chance_basis_points") > 0, "低 HP PWK preview 应输出玩家命中率。");
 
@@ -236,6 +236,7 @@ public partial class run_battle_pwk_hover_preview_regression : SceneTree
             CommandKind = BattleCommandKind.Skill,
             unit_id = source.unit_id,
             skill_id = skill.SkillId,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill(skill.SkillId),
             target_unit_id = target.unit_id,
             target_coord = target.coord,
         };

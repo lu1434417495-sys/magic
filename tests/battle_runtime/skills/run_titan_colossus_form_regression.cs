@@ -46,9 +46,11 @@ public partial class run_titan_colossus_form_regression : SceneTree
         {
             command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
             unit_id = titan.unit_id,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill(TitanColossusForm),
             skill_id = TitanColossusForm,
             target_unit_id = titan.unit_id,
         };
+        command.AddTargetUnitId(titan.unit_id);
 
         BattlePreview preview = runtime.PreviewCommand(command);
         _test.True(preview != null && preview.allowed, "Titan Colossus Form 应允许自施放。");

@@ -72,7 +72,7 @@ public partial class run_butcher_weapon_ability_regression : SceneTree
             return;
 
         ItemDef rawButcher = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_axe_butcher_094.tres"
+            "res://data/configs/items/weapon_unique_greataxe_butcher.tres"
         );
         _test.True(rawButcher != null, "屠夫原始资源应能加载。");
         if (rawButcher != null)

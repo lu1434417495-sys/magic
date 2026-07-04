@@ -104,7 +104,7 @@ public partial class run_last_lesson_weapon_ability_regression : SceneTree
             return;
 
         ItemDef raw = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_sword_last_lesson_020.tres"
+            "res://data/configs/items/weapon_unique_longsword_last_lesson.tres"
         );
         _test.True(raw != null, "最后一课原始物品资源应能加载。");
         if (raw != null)

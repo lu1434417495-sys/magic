@@ -74,7 +74,7 @@ public partial class run_double_edged_weapon_ability_regression : SceneTree
             return;
 
         ItemDef raw = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_sword_double_edged_263.tres"
+            "res://data/configs/items/weapon_unique_longsword_double_edged.tres"
         );
         _test.True(raw != null, "双面刃原始资源应能加载。");
         if (raw != null)
