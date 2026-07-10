@@ -1,0 +1,112 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=24 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="3_reaction"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionGroupDef.cs" id="4_condition_group"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionDef.cs" id="5_condition"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/CompareFactConditionPayloadDef.cs" id="6_compare_payload"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityFactQueryDef.cs" id="7_fact_query"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionDef.cs" id="8_dice"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionTermDef.cs" id="9_dice_term"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityActionDef.cs" id="10_action"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AddDamageDiceActionPayloadDef.cs" id="11_add_damage"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentGrantedActionDef.cs" id="12_grant"]
+
+[sub_resource type="Resource" id="Fact_target_creature_type"]
+script = ExtResource("7_fact_query")
+query_kind = &"fact"
+fact_id = &"creature_type_tags"
+subject = &"target"
+value_kind = &"string_name_set"
+
+[sub_resource type="Resource" id="Literal_beast"]
+script = ExtResource("7_fact_query")
+query_kind = &"literal"
+value_kind = &"string_name"
+string_name_literal = &"beast"
+
+[sub_resource type="Resource" id="Compare_target_beast"]
+script = ExtResource("6_compare_payload")
+left = SubResource("Fact_target_creature_type")
+compare = &"contains"
+right = SubResource("Literal_beast")
+
+[sub_resource type="Resource" id="Condition_target_beast"]
+script = ExtResource("5_condition")
+condition_id = &"condition.hunter_axe.beast_slayer.target_beast"
+kind = &"compare_fact"
+payload = SubResource("Compare_target_beast")
+
+[sub_resource type="Resource" id="Condition_group_target_beast"]
+script = ExtResource("4_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_target_beast")])
+
+[sub_resource type="Resource" id="Dice_term_2d6"]
+script = ExtResource("9_dice_term")
+dice_count = 2
+dice_sides = 6
+
+[sub_resource type="Resource" id="Dice_2d6"]
+script = ExtResource("8_dice")
+terms = Array[Resource]([SubResource("Dice_term_2d6")])
+
+[sub_resource type="Resource" id="Action_beast_slayer_damage_payload"]
+script = ExtResource("11_add_damage")
+target_selector = &"attack_target"
+dice = SubResource("Dice_2d6")
+damage_type = &"physical_slash"
+damage_tags = Array[StringName]([&"physical_slash"])
+
+[sub_resource type="Resource" id="Action_beast_slayer_damage"]
+script = ExtResource("10_action")
+action_id = &"action.hunter_axe.beast_slayer.add_beast_damage"
+kind = &"add_damage_dice"
+payload = SubResource("Action_beast_slayer_damage_payload")
+
+[sub_resource type="Resource" id="Reaction_beast_slayer_hit"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.hunter_axe.beast_slayer.after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+condition_group = SubResource("Condition_group_target_beast")
+actions = Array[Resource]([SubResource("Action_beast_slayer_damage")])
+
+[sub_resource type="Resource" id="Grant_hunter_mark_skill"]
+script = ExtResource("12_grant")
+granted_action_id = &"grant.hunter_axe.hunter_mark.skill"
+granted_kind = &"skill"
+skill_id = &"archer_hunter_mark"
+skill_level = 3
+display_category = &"equipment"
+display_priority = 100
+
+[sub_resource type="Resource" id="Binding_beast_slayer"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.axe.hunter.beast_slayer"
+trait_id = &"weapon.axe.hunter.beast_slayer"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"hunter_axe"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_beast_slayer_hit")])
+
+[sub_resource type="Resource" id="Binding_hunter_mark"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.axe.hunter.hunter_mark"
+trait_id = &"weapon.axe.hunter.hunter_mark"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"hunter_axe"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+granted_actions = Array[Resource]([SubResource("Grant_hunter_mark_skill")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability.weapon.axe.hunter"
+schema_version = 1
+load_order = 111
+bindings = Array[Resource]([SubResource("Binding_beast_slayer"), SubResource("Binding_hunter_mark")])

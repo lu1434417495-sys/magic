@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Dice_one_handed"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 6
+flat_bonus = 3
+
+[sub_resource type="Resource" id="Profile_shortsword"]
+script = ExtResource("2_profile")
+weapon_type_id = &"shortsword"
+family = &"sword"
+damage_tag = &"physical_pierce"
+attack_range = 1
+one_handed_dice = SubResource("Dice_one_handed")
+properties_mode = 2
+properties = Array[StringName]([&"finesse", &"light"])
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_shortsword_cowardice"
+base_item_id = &"weapon_type_shortsword_base"
+display_name = "懦弱之刃"
+description = "这柄短剑薄如阴影，护手处嵌着一枚总是避开视线的冷铁眼。它不会奖赏勇敢，只会替最会逃的人记住下一次刺入缝隙的机会。"
+is_stackable = false
+base_price = 48000
+buy_price = 48000
+sell_price = 24000
+sellable = true
+max_stack = 1
+tags = Array[StringName]([&"cowardice", &"shortsword", &"finesse", &"light", &"sword"])
+trait_ids = Array[StringName]([&"weapon.sword.cowardice.gap_backstab", &"weapon.sword.cowardice.frontal_fragility", &"weapon.sword.cowardice.fleeing_instinct", &"weapon.sword.cowardice.cowardly_counter"])
+weapon_profile = SubResource("Profile_shortsword")

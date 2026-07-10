@@ -1,0 +1,321 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=59 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="3_reaction"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionGroupDef.cs" id="4_condition_group"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionDef.cs" id="5_condition"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/CompareFactConditionPayloadDef.cs" id="6_compare_payload"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityFactQueryDef.cs" id="7_fact_query"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionDef.cs" id="8_dice"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionTermDef.cs" id="9_dice_term"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityActionDef.cs" id="10_action"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AddDamageDiceActionPayloadDef.cs" id="11_add_damage"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ApplyStatusActionPayloadDef.cs" id="12_apply_status"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AttackRollBonusActionPayloadDef.cs" id="13_attack_bonus"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ModifyActionPointsActionPayloadDef.cs" id="14_modify_ap"]
+
+[sub_resource type="Resource" id="Literal_zero"]
+script = ExtResource("7_fact_query")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 0
+
+[sub_resource type="Resource" id="Literal_one"]
+script = ExtResource("7_fact_query")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 1
+
+[sub_resource type="Resource" id="Literal_plant"]
+script = ExtResource("7_fact_query")
+query_kind = &"literal"
+value_kind = &"string_name"
+string_name_literal = &"plant"
+
+[sub_resource type="Resource" id="Fact_target_notch"]
+script = ExtResource("7_fact_query")
+query_kind = &"fact"
+fact_id = &"status_stacks"
+subject = &"target"
+status_id = &"lumberjack_chop_notch"
+require_source_unit_match = true
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Fact_target_hp_percent"]
+script = ExtResource("7_fact_query")
+query_kind = &"fact"
+fact_id = &"hp_percent_bp"
+subject = &"target"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Fact_target_creature_type"]
+script = ExtResource("7_fact_query")
+query_kind = &"fact"
+fact_id = &"creature_type_tags"
+subject = &"target"
+value_kind = &"string_name_set"
+
+[sub_resource type="Resource" id="Fact_kill_source_attack"]
+script = ExtResource("7_fact_query")
+query_kind = &"fact"
+fact_id = &"kill_source_is_attack"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Fact_kill_source_equipment_match"]
+script = ExtResource("7_fact_query")
+query_kind = &"fact"
+fact_id = &"kill_source_equipment_instance_matches"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Compare_notch_gte_one"]
+script = ExtResource("6_compare_payload")
+left = SubResource("Fact_target_notch")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Compare_target_alive"]
+script = ExtResource("6_compare_payload")
+left = SubResource("Fact_target_hp_percent")
+compare = &"gt"
+right = SubResource("Literal_zero")
+
+[sub_resource type="Resource" id="Compare_target_plant"]
+script = ExtResource("6_compare_payload")
+left = SubResource("Fact_target_creature_type")
+compare = &"contains"
+right = SubResource("Literal_plant")
+
+[sub_resource type="Resource" id="Compare_kill_source_attack"]
+script = ExtResource("6_compare_payload")
+left = SubResource("Fact_kill_source_attack")
+compare = &"eq"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Compare_kill_source_equipment_match"]
+script = ExtResource("6_compare_payload")
+left = SubResource("Fact_kill_source_equipment_match")
+compare = &"eq"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Condition_notch"]
+script = ExtResource("5_condition")
+condition_id = &"condition.lumberjack.chopping_rhythm.source_notch"
+kind = &"compare_fact"
+payload = SubResource("Compare_notch_gte_one")
+
+[sub_resource type="Resource" id="Condition_target_alive"]
+script = ExtResource("5_condition")
+condition_id = &"condition.lumberjack.chopping_rhythm.target_alive"
+kind = &"compare_fact"
+payload = SubResource("Compare_target_alive")
+
+[sub_resource type="Resource" id="Condition_target_plant"]
+script = ExtResource("5_condition")
+condition_id = &"condition.lumberjack.plant_slayer.target_plant"
+kind = &"compare_fact"
+payload = SubResource("Compare_target_plant")
+
+[sub_resource type="Resource" id="Condition_kill_source_attack"]
+script = ExtResource("5_condition")
+condition_id = &"condition.lumberjack.felling_momentum.kill_source_attack"
+kind = &"compare_fact"
+payload = SubResource("Compare_kill_source_attack")
+
+[sub_resource type="Resource" id="Condition_kill_source_equipment_match"]
+script = ExtResource("5_condition")
+condition_id = &"condition.lumberjack.felling_momentum.kill_source_equipment_match"
+kind = &"compare_fact"
+payload = SubResource("Compare_kill_source_equipment_match")
+
+[sub_resource type="Resource" id="Condition_group_notch"]
+script = ExtResource("4_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_notch")])
+
+[sub_resource type="Resource" id="Condition_group_target_alive"]
+script = ExtResource("4_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_target_alive")])
+
+[sub_resource type="Resource" id="Condition_group_target_plant"]
+script = ExtResource("4_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_target_plant")])
+
+[sub_resource type="Resource" id="Condition_group_felling_momentum"]
+script = ExtResource("4_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_notch"), SubResource("Condition_kill_source_attack"), SubResource("Condition_kill_source_equipment_match")])
+
+[sub_resource type="Resource" id="Dice_term_1d4"]
+script = ExtResource("9_dice_term")
+dice_count = 1
+dice_sides = 4
+
+[sub_resource type="Resource" id="Dice_1d4"]
+script = ExtResource("8_dice")
+terms = Array[Resource]([SubResource("Dice_term_1d4")])
+
+[sub_resource type="Resource" id="Dice_term_2d6"]
+script = ExtResource("9_dice_term")
+dice_count = 2
+dice_sides = 6
+
+[sub_resource type="Resource" id="Dice_2d6"]
+script = ExtResource("8_dice")
+terms = Array[Resource]([SubResource("Dice_term_2d6")])
+
+[sub_resource type="Resource" id="Action_accuracy_payload"]
+script = ExtResource("13_attack_bonus")
+target_selector = &"attack_target"
+bonus = 1
+stack_mode = &"max"
+label = "顺纹连斩"
+require_weapon_damage = true
+
+[sub_resource type="Resource" id="Action_accuracy"]
+script = ExtResource("10_action")
+action_id = &"action.lumberjack.chopping_rhythm.attack_roll_bonus"
+kind = &"attack_roll_bonus"
+payload = SubResource("Action_accuracy_payload")
+
+[sub_resource type="Resource" id="Action_follow_up_damage_payload"]
+script = ExtResource("11_add_damage")
+target_selector = &"attack_target"
+dice = SubResource("Dice_1d4")
+damage_type = &"physical_slash"
+damage_tags = Array[StringName]([&"physical_slash"])
+
+[sub_resource type="Resource" id="Action_follow_up_damage"]
+script = ExtResource("10_action")
+action_id = &"action.lumberjack.chopping_rhythm.add_follow_up_damage"
+kind = &"add_damage_dice"
+payload = SubResource("Action_follow_up_damage_payload")
+
+[sub_resource type="Resource" id="Action_notch_payload"]
+script = ExtResource("12_apply_status")
+target_selector = &"attack_target"
+status_id = &"lumberjack_chop_notch"
+duration_tu = 60
+stack_delta = 1
+stack_behavior = &"refresh"
+stack_limit = 1
+display_label = "劈痕"
+attack_roll_penalty = 0
+counts_as_debuff_override = true
+counts_as_debuff = true
+undispellable = true
+
+[sub_resource type="Resource" id="Action_notch"]
+script = ExtResource("10_action")
+action_id = &"action.lumberjack.chopping_rhythm.apply_notch"
+kind = &"apply_status"
+payload = SubResource("Action_notch_payload")
+
+[sub_resource type="Resource" id="Action_plant_damage_payload"]
+script = ExtResource("11_add_damage")
+target_selector = &"attack_target"
+dice = SubResource("Dice_2d6")
+damage_type = &"physical_slash"
+damage_tags = Array[StringName]([&"physical_slash"])
+
+[sub_resource type="Resource" id="Action_plant_damage"]
+script = ExtResource("10_action")
+action_id = &"action.lumberjack.plant_slayer.add_plant_damage"
+kind = &"add_damage_dice"
+payload = SubResource("Action_plant_damage_payload")
+
+[sub_resource type="Resource" id="Action_restore_ap_payload"]
+script = ExtResource("14_modify_ap")
+target_selector = &"source"
+mode = &"restore_current_action_points_capped"
+amount = 1
+display_label = "倒木回势"
+
+[sub_resource type="Resource" id="Action_restore_ap"]
+script = ExtResource("10_action")
+action_id = &"action.lumberjack.felling_momentum.restore_ap"
+kind = &"modify_action_points"
+payload = SubResource("Action_restore_ap_payload")
+
+[sub_resource type="Resource" id="Reaction_accuracy"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.lumberjack.chopping_rhythm.accuracy_before_hit"
+trigger = &"on_hit"
+timing = &"before_hit"
+condition_group = SubResource("Condition_group_notch")
+actions = Array[Resource]([SubResource("Action_accuracy")])
+
+[sub_resource type="Resource" id="Reaction_follow_up_damage"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.lumberjack.chopping_rhythm.damage_after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+condition_group = SubResource("Condition_group_notch")
+actions = Array[Resource]([SubResource("Action_follow_up_damage")])
+
+[sub_resource type="Resource" id="Reaction_apply_notch"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.lumberjack.chopping_rhythm.notch_after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+priority = 20
+condition_group = SubResource("Condition_group_target_alive")
+actions = Array[Resource]([SubResource("Action_notch")])
+
+[sub_resource type="Resource" id="Reaction_plant_damage"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.lumberjack.plant_slayer.damage_after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+condition_group = SubResource("Condition_group_target_plant")
+actions = Array[Resource]([SubResource("Action_plant_damage")])
+
+[sub_resource type="Resource" id="Reaction_felling_momentum"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.lumberjack.felling_momentum.after_kill"
+trigger = &"on_kill"
+timing = &"after_kill"
+condition_group = SubResource("Condition_group_felling_momentum")
+actions = Array[Resource]([SubResource("Action_restore_ap")])
+
+[sub_resource type="Resource" id="Binding_chopping_rhythm"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.axe.lumberjack.chopping_rhythm"
+trait_id = &"weapon.axe.lumberjack.chopping_rhythm"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"lumberjack_axe"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_accuracy"), SubResource("Reaction_follow_up_damage"), SubResource("Reaction_apply_notch")])
+
+[sub_resource type="Resource" id="Binding_plant_slayer"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.axe.lumberjack.plant_slayer"
+trait_id = &"weapon.axe.lumberjack.plant_slayer"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"lumberjack_axe"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_plant_damage")])
+
+[sub_resource type="Resource" id="Binding_felling_momentum"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.axe.lumberjack.felling_momentum"
+trait_id = &"weapon.axe.lumberjack.felling_momentum"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"lumberjack_axe"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_felling_momentum")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability.weapon.axe.lumberjack"
+schema_version = 1
+load_order = 112
+bindings = Array[Resource]([SubResource("Binding_chopping_rhythm"), SubResource("Binding_plant_slayer"), SubResource("Binding_felling_momentum")])

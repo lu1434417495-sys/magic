@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Resource_one_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 6
+flat_bonus = 1
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+one_handed_dice = SubResource("Resource_one_handed_dice")
+properties_mode = 2
+properties = Array[StringName]([&"light", &"thrown"])
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_axe_echo_095"
+base_item_id = &"weapon_type_handaxe_base"
+display_name = "回音"
+description = "一柄刃脊会回荡低鸣的手斧。持有者可将其掷成直线回声，对路径上的敌人造成挥砍伤害；投掷击伤越多目标，下一次真实命中积蓄的余音就越强，并在命中后全部释放。"
+is_stackable = false
+base_price = 36000
+buy_price = 36000
+sell_price = 18000
+sellable = true
+max_stack = 1
+tags = Array[StringName]([&"echo", &"handaxe", &"axe", &"light", &"thrown", &"thunder"])
+trait_ids = Array[StringName]([&"weapon.axe.echo.echo_throw", &"weapon.axe.echo.echo_cut"])
+weapon_profile = SubResource("Resource_weapon_profile")

@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="TraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"weapon.axe.hunter.hunter_mark"
+display_name = "猎人标记"
+description = "装备时提供猎人标记装备技能；未学习时按固定3级生效且不写入技能进度，已学习时取已学等级与3级较高者，后续标记追伤会给猎人标记本体增加熟练度。"
+categories = Array[StringName]([&"weapon_feat"])
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+effect_type = &"equipment_ability"
+trigger_type = &"passive"
+stack_policy = &"stack_by_instance"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="TraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"weapon.axe.echo.echo_throw"
+display_name = "回音投掷"
+description = "获得装备技能回音投掷：1AP、40体力、冷却 90TU；选择同列或同行 6 格内地面，将路径格上的敌人造成 1D6+1 挥砍伤害。每个实际受伤敌人为持有者获得 1 层余音，最多 5 层，持续 60TU。"
+categories = Array[StringName]([&"weapon_feat"])
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+effect_type = &"equipment_ability"
+trigger_type = &"passive"
+stack_policy = &"stack_by_instance"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+save_advantage_tags = Array[StringName]([])
+damage_resistance_entries = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

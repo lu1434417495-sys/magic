@@ -1,0 +1,575 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=128 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="3_reaction"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionGroupDef.cs" id="4_condition_group"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionDef.cs" id="5_condition"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/CompareFactConditionPayloadDef.cs" id="6_compare_payload"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityFactQueryDef.cs" id="7_fact_query"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionDef.cs" id="8_dice"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionTermDef.cs" id="9_dice_term"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentRollGateDef.cs" id="10_roll_gate"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentOutcomeTableDef.cs" id="11_outcome_table"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentOutcomeEntryDef.cs" id="12_outcome_entry"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityActionDef.cs" id="13_action"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DealDamageActionPayloadDef.cs" id="14_deal_damage"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ApplyStatusActionPayloadDef.cs" id="15_apply_status"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AttackRollBonusActionPayloadDef.cs" id="16_attack_roll_bonus"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ConsumeStatusStacksActionPayloadDef.cs" id="17_consume_status"]
+
+[sub_resource type="Resource" id="Literal_one"]
+script = ExtResource("7_fact_query")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 1
+
+[sub_resource type="Resource" id="Fact_cold_echo_stacks"]
+script = ExtResource("7_fact_query")
+query_kind = &"fact"
+fact_id = &"status_stacks"
+subject = &"target"
+status_id = &"smiths_regret_flaw_cold"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Fact_fire_echo_stacks"]
+script = ExtResource("7_fact_query")
+query_kind = &"fact"
+fact_id = &"status_stacks"
+subject = &"target"
+status_id = &"smiths_regret_flaw_fire"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Fact_paralysis_echo_stacks"]
+script = ExtResource("7_fact_query")
+query_kind = &"fact"
+fact_id = &"status_stacks"
+subject = &"target"
+status_id = &"smiths_regret_flaw_paralysis"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Fact_poison_echo_stacks"]
+script = ExtResource("7_fact_query")
+query_kind = &"fact"
+fact_id = &"status_stacks"
+subject = &"target"
+status_id = &"smiths_regret_flaw_poison"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Fact_grace_stacks"]
+script = ExtResource("7_fact_query")
+query_kind = &"fact"
+fact_id = &"status_stacks"
+subject = &"source"
+status_id = &"smiths_regret_moradin_grace"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Compare_cold_echo_payload"]
+script = ExtResource("6_compare_payload")
+left = SubResource("Fact_cold_echo_stacks")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Compare_fire_echo_payload"]
+script = ExtResource("6_compare_payload")
+left = SubResource("Fact_fire_echo_stacks")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Compare_paralysis_echo_payload"]
+script = ExtResource("6_compare_payload")
+left = SubResource("Fact_paralysis_echo_stacks")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Compare_poison_echo_payload"]
+script = ExtResource("6_compare_payload")
+left = SubResource("Fact_poison_echo_stacks")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Compare_grace_payload"]
+script = ExtResource("6_compare_payload")
+left = SubResource("Fact_grace_stacks")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Condition_cold_echo"]
+script = ExtResource("5_condition")
+condition_id = &"condition.smiths_regret.echo.cold"
+kind = &"compare_fact"
+payload = SubResource("Compare_cold_echo_payload")
+
+[sub_resource type="Resource" id="Condition_fire_echo"]
+script = ExtResource("5_condition")
+condition_id = &"condition.smiths_regret.echo.fire"
+kind = &"compare_fact"
+payload = SubResource("Compare_fire_echo_payload")
+
+[sub_resource type="Resource" id="Condition_paralysis_echo"]
+script = ExtResource("5_condition")
+condition_id = &"condition.smiths_regret.echo.paralysis"
+kind = &"compare_fact"
+payload = SubResource("Compare_paralysis_echo_payload")
+
+[sub_resource type="Resource" id="Condition_poison_echo"]
+script = ExtResource("5_condition")
+condition_id = &"condition.smiths_regret.echo.poison"
+kind = &"compare_fact"
+payload = SubResource("Compare_poison_echo_payload")
+
+[sub_resource type="Resource" id="Condition_grace"]
+script = ExtResource("5_condition")
+condition_id = &"condition.smiths_regret.moradin_grace.active"
+kind = &"compare_fact"
+payload = SubResource("Compare_grace_payload")
+
+[sub_resource type="Resource" id="Condition_group_grace_active"]
+script = ExtResource("4_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_grace")])
+
+[sub_resource type="Resource" id="Condition_group_fire_echo"]
+script = ExtResource("4_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_fire_echo")])
+
+[sub_resource type="Resource" id="Condition_group_cold_echo"]
+script = ExtResource("4_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_cold_echo")])
+
+[sub_resource type="Resource" id="Condition_group_paralysis_or_poison_echo"]
+script = ExtResource("4_condition_group")
+mode = &"any"
+conditions = Array[Resource]([SubResource("Condition_paralysis_echo"), SubResource("Condition_poison_echo")])
+
+[sub_resource type="Resource" id="Condition_group_cold_or_fire_or_poison_echo"]
+script = ExtResource("4_condition_group")
+mode = &"any"
+conditions = Array[Resource]([SubResource("Condition_cold_echo"), SubResource("Condition_fire_echo"), SubResource("Condition_poison_echo")])
+
+[sub_resource type="Resource" id="Condition_group_cold_or_fire_or_paralysis_echo"]
+script = ExtResource("4_condition_group")
+mode = &"any"
+conditions = Array[Resource]([SubResource("Condition_cold_echo"), SubResource("Condition_fire_echo"), SubResource("Condition_paralysis_echo")])
+
+[sub_resource type="Resource" id="Roll_term_d100"]
+script = ExtResource("9_dice_term")
+dice_count = 1
+dice_sides = 100
+
+[sub_resource type="Resource" id="Roll_d100"]
+script = ExtResource("8_dice")
+terms = Array[Resource]([SubResource("Roll_term_d100")])
+
+[sub_resource type="Resource" id="Roll_gate_flaw"]
+script = ExtResource("10_roll_gate")
+rng_stream = &"equipment_ability.smiths_regret.flaw_trigger"
+roll = SubResource("Roll_d100")
+compare = &"lte"
+threshold = 20
+
+[sub_resource type="Resource" id="Roll_term_d4"]
+script = ExtResource("9_dice_term")
+dice_count = 1
+dice_sides = 4
+
+[sub_resource type="Resource" id="Roll_d4"]
+script = ExtResource("8_dice")
+terms = Array[Resource]([SubResource("Roll_term_d4")])
+
+[sub_resource type="Resource" id="Dice_term_1d6"]
+script = ExtResource("9_dice_term")
+dice_count = 1
+dice_sides = 6
+
+[sub_resource type="Resource" id="Dice_1d6"]
+script = ExtResource("8_dice")
+terms = Array[Resource]([SubResource("Dice_term_1d6")])
+
+[sub_resource type="Resource" id="Dice_term_2d6"]
+script = ExtResource("9_dice_term")
+dice_count = 2
+dice_sides = 6
+
+[sub_resource type="Resource" id="Dice_2d6"]
+script = ExtResource("8_dice")
+terms = Array[Resource]([SubResource("Dice_term_2d6")])
+
+[sub_resource type="Resource" id="Payload_damage_1d6_freeze"]
+script = ExtResource("14_deal_damage")
+target_selector = &"attack_target"
+dice = SubResource("Dice_1d6")
+damage_type = &"freeze"
+damage_tags = Array[StringName]([&"freeze"])
+
+[sub_resource type="Resource" id="Payload_damage_1d6_fire"]
+script = ExtResource("14_deal_damage")
+target_selector = &"attack_target"
+dice = SubResource("Dice_1d6")
+damage_type = &"fire"
+damage_tags = Array[StringName]([&"fire"])
+
+[sub_resource type="Resource" id="Payload_overload_2d6_force"]
+script = ExtResource("14_deal_damage")
+target_selector = &"attack_target"
+dice = SubResource("Dice_2d6")
+damage_type = &"force"
+damage_tags = Array[StringName]([&"force"])
+
+[sub_resource type="Resource" id="Payload_overload_2d6_freeze"]
+script = ExtResource("14_deal_damage")
+target_selector = &"attack_target"
+dice = SubResource("Dice_2d6")
+damage_type = &"freeze"
+damage_tags = Array[StringName]([&"freeze"])
+
+[sub_resource type="Resource" id="Payload_overload_2d6_fire"]
+script = ExtResource("14_deal_damage")
+target_selector = &"attack_target"
+dice = SubResource("Dice_2d6")
+damage_type = &"fire"
+damage_tags = Array[StringName]([&"fire"])
+
+[sub_resource type="Resource" id="Payload_overload_2d6_poison"]
+script = ExtResource("14_deal_damage")
+target_selector = &"attack_target"
+dice = SubResource("Dice_2d6")
+damage_type = &"poison"
+damage_tags = Array[StringName]([&"poison"])
+
+[sub_resource type="Resource" id="Action_cold_damage"]
+script = ExtResource("13_action")
+action_id = &"action.smiths_regret.flawed_beauty.cold.damage"
+kind = &"deal_damage"
+payload = SubResource("Payload_damage_1d6_freeze")
+
+[sub_resource type="Resource" id="Action_fire_damage"]
+script = ExtResource("13_action")
+action_id = &"action.smiths_regret.flawed_beauty.fire.damage"
+kind = &"deal_damage"
+payload = SubResource("Payload_damage_1d6_fire")
+
+[sub_resource type="Resource" id="Action_overload_cold_fire_force"]
+script = ExtResource("13_action")
+action_id = &"action.smiths_regret.elemental_overload.cold_fire.force"
+kind = &"deal_damage"
+payload = SubResource("Payload_overload_2d6_force")
+condition_group = SubResource("Condition_group_fire_echo")
+
+[sub_resource type="Resource" id="Action_overload_fire_cold_force"]
+script = ExtResource("13_action")
+action_id = &"action.smiths_regret.elemental_overload.fire_cold.force"
+kind = &"deal_damage"
+payload = SubResource("Payload_overload_2d6_force")
+condition_group = SubResource("Condition_group_cold_echo")
+
+[sub_resource type="Resource" id="Action_overload_cold_other_freeze"]
+script = ExtResource("13_action")
+action_id = &"action.smiths_regret.elemental_overload.cold_other.freeze"
+kind = &"deal_damage"
+payload = SubResource("Payload_overload_2d6_freeze")
+condition_group = SubResource("Condition_group_paralysis_or_poison_echo")
+
+[sub_resource type="Resource" id="Action_overload_fire_other_fire"]
+script = ExtResource("13_action")
+action_id = &"action.smiths_regret.elemental_overload.fire_other.fire"
+kind = &"deal_damage"
+payload = SubResource("Payload_overload_2d6_fire")
+condition_group = SubResource("Condition_group_paralysis_or_poison_echo")
+
+[sub_resource type="Resource" id="Action_overload_paralysis_force"]
+script = ExtResource("13_action")
+action_id = &"action.smiths_regret.elemental_overload.paralysis.force"
+kind = &"deal_damage"
+payload = SubResource("Payload_overload_2d6_force")
+condition_group = SubResource("Condition_group_cold_or_fire_or_poison_echo")
+
+[sub_resource type="Resource" id="Action_overload_poison_poison"]
+script = ExtResource("13_action")
+action_id = &"action.smiths_regret.elemental_overload.poison.poison"
+kind = &"deal_damage"
+payload = SubResource("Payload_overload_2d6_poison")
+condition_group = SubResource("Condition_group_cold_or_fire_or_paralysis_echo")
+
+[sub_resource type="Resource" id="Payload_slow"]
+script = ExtResource("15_apply_status")
+target_selector = &"attack_target"
+status_id = &"slow"
+duration_tu = 60
+stack_delta = 1
+stack_behavior = &"refresh"
+stack_limit = 1
+display_label = "迟缓"
+counts_as_debuff_override = true
+counts_as_debuff = true
+dispellable_harmful_magic = true
+
+[sub_resource type="Resource" id="Payload_burning"]
+script = ExtResource("15_apply_status")
+target_selector = &"attack_target"
+status_id = &"burning"
+duration_tu = 60
+stack_delta = 1
+stack_behavior = &"add"
+stack_limit = 3
+display_label = "燃烧"
+counts_as_debuff_override = true
+counts_as_debuff = true
+dispellable_harmful_magic = true
+tick_interval_tu = 10
+
+[sub_resource type="Resource" id="Payload_paralyzed"]
+script = ExtResource("15_apply_status")
+target_selector = &"attack_target"
+status_id = &"paralyzed"
+duration_tu = 60
+stack_delta = 1
+stack_behavior = &"refresh"
+stack_limit = 1
+display_label = "麻痹"
+counts_as_debuff_override = true
+counts_as_debuff = true
+dispellable_harmful_magic = true
+save_dc = 13
+save_ability = &"constitution"
+save_tag = &"paralysis"
+apply_on_save_failure = true
+
+[sub_resource type="Resource" id="Payload_poisoned"]
+script = ExtResource("15_apply_status")
+target_selector = &"attack_target"
+status_id = &"poisoned"
+duration_tu = 600
+stack_delta = 1
+stack_behavior = &"refresh"
+stack_limit = 1
+display_label = "中毒"
+counts_as_debuff_override = true
+counts_as_debuff = true
+dispellable_harmful_magic = true
+save_dc = 13
+save_ability = &"constitution"
+save_tag = &"poison"
+apply_on_save_failure = true
+
+[sub_resource type="Resource" id="Payload_echo_cold"]
+script = ExtResource("15_apply_status")
+target_selector = &"attack_target"
+status_id = &"smiths_regret_flaw_cold"
+duration_tu = 120
+stack_delta = 1
+stack_behavior = &"refresh"
+stack_limit = 1
+display_label = "寒冷缺陷共鸣"
+undispellable = true
+
+[sub_resource type="Resource" id="Payload_echo_fire"]
+script = ExtResource("15_apply_status")
+target_selector = &"attack_target"
+status_id = &"smiths_regret_flaw_fire"
+duration_tu = 120
+stack_delta = 1
+stack_behavior = &"refresh"
+stack_limit = 1
+display_label = "火焰缺陷共鸣"
+undispellable = true
+
+[sub_resource type="Resource" id="Payload_echo_paralysis"]
+script = ExtResource("15_apply_status")
+target_selector = &"attack_target"
+status_id = &"smiths_regret_flaw_paralysis"
+duration_tu = 120
+stack_delta = 1
+stack_behavior = &"refresh"
+stack_limit = 1
+display_label = "麻痹缺陷共鸣"
+undispellable = true
+
+[sub_resource type="Resource" id="Payload_echo_poison"]
+script = ExtResource("15_apply_status")
+target_selector = &"attack_target"
+status_id = &"smiths_regret_flaw_poison"
+duration_tu = 120
+stack_delta = 1
+stack_behavior = &"refresh"
+stack_limit = 1
+display_label = "毒性缺陷共鸣"
+undispellable = true
+
+[sub_resource type="Resource" id="Payload_grace"]
+script = ExtResource("15_apply_status")
+target_selector = &"source"
+status_id = &"smiths_regret_moradin_grace"
+duration_tu = 60
+stack_delta = 1
+stack_behavior = &"refresh"
+stack_limit = 1
+display_label = "摩拉丁的谅解"
+dispellable_beneficial_magic = true
+
+[sub_resource type="Resource" id="Action_apply_slow"]
+script = ExtResource("13_action")
+action_id = &"action.smiths_regret.flawed_beauty.cold.slow"
+kind = &"apply_status"
+payload = SubResource("Payload_slow")
+
+[sub_resource type="Resource" id="Action_apply_burning"]
+script = ExtResource("13_action")
+action_id = &"action.smiths_regret.flawed_beauty.fire.burning"
+kind = &"apply_status"
+payload = SubResource("Payload_burning")
+
+[sub_resource type="Resource" id="Action_apply_paralyzed"]
+script = ExtResource("13_action")
+action_id = &"action.smiths_regret.flawed_beauty.paralysis.paralyzed"
+kind = &"apply_status"
+payload = SubResource("Payload_paralyzed")
+
+[sub_resource type="Resource" id="Action_apply_poisoned"]
+script = ExtResource("13_action")
+action_id = &"action.smiths_regret.flawed_beauty.poison.poisoned"
+kind = &"apply_status"
+payload = SubResource("Payload_poisoned")
+
+[sub_resource type="Resource" id="Action_echo_cold"]
+script = ExtResource("13_action")
+action_id = &"action.smiths_regret.imperfect_resonance.cold"
+kind = &"apply_status"
+payload = SubResource("Payload_echo_cold")
+
+[sub_resource type="Resource" id="Action_echo_fire"]
+script = ExtResource("13_action")
+action_id = &"action.smiths_regret.imperfect_resonance.fire"
+kind = &"apply_status"
+payload = SubResource("Payload_echo_fire")
+
+[sub_resource type="Resource" id="Action_echo_paralysis"]
+script = ExtResource("13_action")
+action_id = &"action.smiths_regret.imperfect_resonance.paralysis"
+kind = &"apply_status"
+payload = SubResource("Payload_echo_paralysis")
+
+[sub_resource type="Resource" id="Action_echo_poison"]
+script = ExtResource("13_action")
+action_id = &"action.smiths_regret.imperfect_resonance.poison"
+kind = &"apply_status"
+payload = SubResource("Payload_echo_poison")
+
+[sub_resource type="Resource" id="Action_apply_grace"]
+script = ExtResource("13_action")
+action_id = &"action.smiths_regret.moradin_forgiveness.apply_grace"
+kind = &"apply_status"
+payload = SubResource("Payload_grace")
+
+[sub_resource type="Resource" id="Outcome_cold"]
+script = ExtResource("12_outcome_entry")
+min_roll = 1
+max_roll = 1
+actions = Array[Resource]([SubResource("Action_overload_cold_fire_force"), SubResource("Action_overload_cold_other_freeze"), SubResource("Action_cold_damage"), SubResource("Action_apply_slow"), SubResource("Action_echo_cold"), SubResource("Action_apply_grace")])
+
+[sub_resource type="Resource" id="Outcome_fire"]
+script = ExtResource("12_outcome_entry")
+min_roll = 2
+max_roll = 2
+actions = Array[Resource]([SubResource("Action_overload_fire_cold_force"), SubResource("Action_overload_fire_other_fire"), SubResource("Action_fire_damage"), SubResource("Action_apply_burning"), SubResource("Action_echo_fire"), SubResource("Action_apply_grace")])
+
+[sub_resource type="Resource" id="Outcome_paralysis"]
+script = ExtResource("12_outcome_entry")
+min_roll = 3
+max_roll = 3
+actions = Array[Resource]([SubResource("Action_overload_paralysis_force"), SubResource("Action_apply_paralyzed"), SubResource("Action_echo_paralysis"), SubResource("Action_apply_grace")])
+
+[sub_resource type="Resource" id="Outcome_poison"]
+script = ExtResource("12_outcome_entry")
+min_roll = 4
+max_roll = 4
+actions = Array[Resource]([SubResource("Action_overload_poison_poison"), SubResource("Action_apply_poisoned"), SubResource("Action_echo_poison"), SubResource("Action_apply_grace")])
+
+[sub_resource type="Resource" id="Outcome_table_flaws"]
+script = ExtResource("11_outcome_table")
+table_id = &"outcome.smiths_regret.flawed_beauty.d4"
+roll = SubResource("Roll_d4")
+entries = Array[Resource]([SubResource("Outcome_cold"), SubResource("Outcome_fire"), SubResource("Outcome_paralysis"), SubResource("Outcome_poison")])
+
+[sub_resource type="Resource" id="Reaction_flawed_beauty"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.smiths_regret.flawed_beauty.after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+roll_gate = SubResource("Roll_gate_flaw")
+outcome_table = SubResource("Outcome_table_flaws")
+
+[sub_resource type="Resource" id="Binding_flawed_beauty"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.smiths_regret.flawed_beauty"
+trait_id = &"weapon.sword.smiths_regret.flawed_beauty"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"smiths_regret"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_flawed_beauty")])
+
+[sub_resource type="Resource" id="Payload_attack_bonus_grace"]
+script = ExtResource("16_attack_roll_bonus")
+target_selector = &"attack_target"
+bonus = 2
+stack_mode = &"max"
+label = "摩拉丁的谅解"
+require_weapon_damage = true
+
+[sub_resource type="Resource" id="Action_attack_bonus_grace"]
+script = ExtResource("13_action")
+action_id = &"action.smiths_regret.moradin_forgiveness.attack_bonus"
+kind = &"attack_roll_bonus"
+payload = SubResource("Payload_attack_bonus_grace")
+
+[sub_resource type="Resource" id="Payload_consume_grace"]
+script = ExtResource("17_consume_status")
+target_selector = &"source"
+status_id = &"smiths_regret_moradin_grace"
+count = 1
+require_source_unit_match = true
+selection_mode = &"highest_stacks"
+
+[sub_resource type="Resource" id="Action_consume_grace"]
+script = ExtResource("13_action")
+action_id = &"action.smiths_regret.moradin_forgiveness.consume_grace"
+kind = &"consume_status_stacks"
+payload = SubResource("Payload_consume_grace")
+
+[sub_resource type="Resource" id="Reaction_grace_before_hit"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.smiths_regret.moradin_forgiveness.before_hit"
+trigger = &"on_hit"
+timing = &"before_hit"
+condition_group = SubResource("Condition_group_grace_active")
+actions = Array[Resource]([SubResource("Action_attack_bonus_grace")])
+
+[sub_resource type="Resource" id="Reaction_grace_after_attack_check"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.smiths_regret.moradin_forgiveness.after_attack_check"
+trigger = &"on_attack_check"
+timing = &"after_attack_check"
+condition_group = SubResource("Condition_group_grace_active")
+actions = Array[Resource]([SubResource("Action_consume_grace")])
+
+[sub_resource type="Resource" id="Binding_moradin_forgiveness"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.smiths_regret.moradin_forgiveness"
+trait_id = &"weapon.sword.smiths_regret.moradin_forgiveness"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"smiths_regret"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_grace_before_hit"), SubResource("Reaction_grace_after_attack_check")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability.weapon.sword.smiths_regret"
+schema_version = 1
+load_order = 260
+bindings = Array[Resource]([SubResource("Binding_flawed_beauty"), SubResource("Binding_moradin_forgiveness")])

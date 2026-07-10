@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Dice_one_handed"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 8
+flat_bonus = 3
+
+[sub_resource type="Resource" id="Dice_two_handed"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 10
+flat_bonus = 3
+
+[sub_resource type="Resource" id="Profile_longsword"]
+script = ExtResource("2_profile")
+one_handed_dice = SubResource("Dice_one_handed")
+two_handed_dice = SubResource("Dice_two_handed")
+properties_mode = 2
+properties = Array[StringName]([&"versatile"])
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_longsword_courage"
+base_item_id = &"weapon_type_longsword_base"
+display_name = "勇气之刃"
+description = "一柄以古战场旗钉与银钢重铸的长剑。剑脊刻有誓言纹路，靠近并肩作战者时会发出温暖的鸣响。"
+is_stackable = false
+base_price = 72000
+buy_price = 72000
+sell_price = 36000
+sellable = true
+max_stack = 1
+tags = Array[StringName]([&"courage", &"longsword", &"versatile", &"sword"])
+trait_ids = Array[StringName]([&"weapon.sword.courage.fearless", &"weapon.sword.courage.inspire", &"weapon.sword.courage.courage_charge", &"weapon.sword.courage.lonely_cowardice"])
+weapon_profile = SubResource("Profile_longsword")

@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="TraitDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"weapon.sword.courage.inspire"
+display_name = "鼓舞"
+description = "装备者获得装备技能：鼓舞。选择 6 格内盟友，使其 60TU 内下一次攻击检定和下一次豁免各获得 +2。冷却 60TU，0AP。"
+categories = Array[StringName]([&"weapon_feat"])
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+effect_type = &"equipment_ability"
+trigger_type = &"passive"
+stack_policy = &"stack_by_instance"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

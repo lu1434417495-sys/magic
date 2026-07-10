@@ -1,0 +1,60 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+
+[sub_resource type="Resource" id="Effect_scurry_move"]
+script = ExtResource("1_effect")
+effect_type = &"forced_move"
+forced_move_mode = &"evasive"
+forced_move_distance = 2
+
+[sub_resource type="Resource" id="Effect_counter_ready"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+effect_target_team_filter = &"self"
+status_id = &"cowardice_counter_ready"
+power = 1
+duration_tu = 60
+stack_behavior = &"refresh"
+stack_limit = 1
+display_name = "怯懦反击预备"
+dispellable_beneficial_magic = true
+attack_roll_advantage = true
+consume_on_next_attack_check = true
+
+[sub_resource type="Resource" id="Combat_scurry"]
+script = ExtResource("2_combat")
+skill_id = &"weapon_sword_cowardice_scurry"
+target_mode = &"unit"
+target_team_filter = &"self"
+target_selection_mode = &"self"
+range_pattern = &"single"
+range_value = 0
+area_pattern = &"single"
+area_value = 0
+ap_cost = 0
+cooldown_tu = 60
+attack_resolution_mode = &"direct_effect"
+min_target_count = 1
+max_target_count = 1
+allow_repeat_target = false
+selection_order_mode = &"stable"
+delivery_categories = Array[StringName]([&"equipment", &"cowardice", &"weapon", &"mobility"])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_scurry_move"), SubResource("Effect_counter_ready")])
+required_weapon_families = Array[StringName]([&"sword"])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"weapon_sword_cowardice_scurry"
+display_name = "逃窜"
+icon_id = &"weapon_sword_cowardice_scurry"
+description = "装备技能。生命值不高于 50% 时可用；自身闪避移动 2 格并获得 60TU 的怯懦反击预备，使下一次真实攻击检定获得优势并消耗该状态。0AP，冷却 60TU。"
+skill_type = &"active"
+max_level = 1
+non_core_max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"equipment", &"cowardice", &"shortsword", &"weapon", &"mobility"])
+learn_source = &"innate"
+combat_profile = SubResource("Combat_scurry")

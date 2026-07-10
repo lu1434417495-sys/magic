@@ -1,0 +1,56 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="3_reaction"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityActionDef.cs" id="4_action"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ApplyEdgeFeatureActionPayloadDef.cs" id="5_apply_edge"]
+
+[sub_resource type="Resource" id="Action_boundary_cut_payload"]
+script = ExtResource("5_apply_edge")
+from_selector = &"source"
+to_selector = &"attack_target"
+duration_tu = 80
+max_active_edges = 3
+refresh_existing = true
+require_adjacent = true
+feature_kind = &"wall"
+render_kind = &"wall"
+render_layers = 1
+blocks_move = true
+blocks_occupancy = true
+blocks_los = false
+interaction_kind = &"none"
+state_tag = &"void_rift"
+
+[sub_resource type="Resource" id="Action_boundary_cut"]
+script = ExtResource("4_action")
+action_id = &"action.void_axe.boundary_cut.apply_edge_rift"
+kind = &"apply_edge_feature"
+payload = SubResource("Action_boundary_cut_payload")
+
+[sub_resource type="Resource" id="Reaction_boundary_cut"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.void_axe.boundary_cut.after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+once_scope = &"turn"
+actions = Array[Resource]([SubResource("Action_boundary_cut")])
+
+[sub_resource type="Resource" id="Binding_boundary_cut"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.axe.void.boundary_cut"
+trait_id = &"weapon.axe.void.boundary_cut"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"void_axe"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_boundary_cut")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability.weapon.axe.void"
+schema_version = 1
+load_order = 400
+bindings = Array[Resource]([SubResource("Binding_boundary_cut")])

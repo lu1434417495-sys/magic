@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="TraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"weapon.bow.windbow.wind_guided_shot"
+display_name = "风引射击"
+description = "使用本武器进行普通武器攻击时，将完整 perception_modifier 加入攻击检定。"
+categories = Array[StringName]([&"weapon_feat"])
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+effect_type = &"equipment_ability"
+trigger_type = &"passive"
+stack_policy = &"stack_by_instance"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+save_advantage_tags = Array[StringName]([])
+damage_resistance_entries = Array[Resource]([])
+save_bonus_entries = Array[Resource]([])
+passive_status_effects = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

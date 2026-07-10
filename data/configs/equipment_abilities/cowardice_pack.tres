@@ -1,0 +1,224 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=44 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="3_reaction"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionGroupDef.cs" id="4_condition_group"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionDef.cs" id="5_condition"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/CompareFactConditionPayloadDef.cs" id="6_compare"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityFactQueryDef.cs" id="7_fact"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/HasStatusConditionPayloadDef.cs" id="8_has_status"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionDef.cs" id="9_dice"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionTermDef.cs" id="10_dice_term"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityActionDef.cs" id="11_action"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AddDamageDiceActionPayloadDef.cs" id="12_add_damage"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AttackRollBonusActionPayloadDef.cs" id="13_attack_bonus"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentGrantedActionDef.cs" id="14_grant"]
+
+[sub_resource type="Resource" id="Literal_one"]
+script = ExtResource("7_fact")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 1
+
+[sub_resource type="Resource" id="Literal_5000"]
+script = ExtResource("7_fact")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 5000
+
+[sub_resource type="Resource" id="Fact_target_nearby_ally_radius_6"]
+script = ExtResource("7_fact")
+query_kind = &"fact"
+fact_id = &"nearby_ally_count"
+subject = &"target"
+value_kind = &"int"
+int_literal = 6
+
+[sub_resource type="Resource" id="Fact_source_hp_percent_bp"]
+script = ExtResource("7_fact")
+query_kind = &"fact"
+fact_id = &"hp_percent_bp"
+subject = &"source"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Compare_target_nearby_ally_lt_1"]
+script = ExtResource("6_compare")
+left = SubResource("Fact_target_nearby_ally_radius_6")
+compare = &"lt"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Compare_target_nearby_ally_gte_1"]
+script = ExtResource("6_compare")
+left = SubResource("Fact_target_nearby_ally_radius_6")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Compare_source_hp_lte_50"]
+script = ExtResource("6_compare")
+left = SubResource("Fact_source_hp_percent_bp")
+compare = &"lte"
+right = SubResource("Literal_5000")
+
+[sub_resource type="Resource" id="Has_source_counter_ready"]
+script = ExtResource("8_has_status")
+subject = &"source"
+status_id = &"cowardice_counter_ready"
+
+[sub_resource type="Resource" id="Condition_gap_target_isolated"]
+script = ExtResource("5_condition")
+condition_id = &"condition.cowardice.gap_backstab.target_isolated"
+kind = &"compare_fact"
+payload = SubResource("Compare_target_nearby_ally_lt_1")
+
+[sub_resource type="Resource" id="Condition_frontal_target_supported"]
+script = ExtResource("5_condition")
+condition_id = &"condition.cowardice.frontal_fragility.target_supported"
+kind = &"compare_fact"
+payload = SubResource("Compare_target_nearby_ally_gte_1")
+
+[sub_resource type="Resource" id="Condition_source_counter_ready"]
+script = ExtResource("5_condition")
+condition_id = &"condition.cowardice.source_counter_ready"
+kind = &"has_status"
+payload = SubResource("Has_source_counter_ready")
+
+[sub_resource type="Resource" id="Condition_source_hp_lte_50"]
+script = ExtResource("5_condition")
+condition_id = &"condition.cowardice.scurry.source_hp_lte_50"
+kind = &"compare_fact"
+payload = SubResource("Compare_source_hp_lte_50")
+
+[sub_resource type="Resource" id="Condition_group_gap_backstab"]
+script = ExtResource("4_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_gap_target_isolated")])
+
+[sub_resource type="Resource" id="Condition_group_source_not_counter_ready"]
+script = ExtResource("4_condition_group")
+mode = &"all"
+negate = true
+conditions = Array[Resource]([SubResource("Condition_source_counter_ready")])
+
+[sub_resource type="Resource" id="Condition_group_frontal_fragility"]
+script = ExtResource("4_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_frontal_target_supported")])
+groups = Array[Resource]([SubResource("Condition_group_source_not_counter_ready")])
+
+[sub_resource type="Resource" id="Condition_group_scurry_hp"]
+script = ExtResource("4_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_source_hp_lte_50")])
+
+[sub_resource type="Resource" id="DiceTerm_gap_backstab"]
+script = ExtResource("10_dice_term")
+dice_count = 2
+dice_sides = 6
+
+[sub_resource type="Resource" id="Dice_gap_backstab"]
+script = ExtResource("9_dice")
+terms = Array[Resource]([SubResource("DiceTerm_gap_backstab")])
+
+[sub_resource type="Resource" id="Action_gap_backstab_payload"]
+script = ExtResource("12_add_damage")
+target_selector = &"attack_target"
+dice = SubResource("Dice_gap_backstab")
+damage_type = &"physical_pierce"
+damage_tags = Array[StringName]([&"physical_pierce"])
+
+[sub_resource type="Resource" id="Action_gap_backstab"]
+script = ExtResource("11_action")
+action_id = &"action.cowardice.gap_backstab.add_damage"
+kind = &"add_damage_dice"
+payload = SubResource("Action_gap_backstab_payload")
+
+[sub_resource type="Resource" id="Reaction_gap_backstab"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.cowardice.gap_backstab.after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+condition_group = SubResource("Condition_group_gap_backstab")
+actions = Array[Resource]([SubResource("Action_gap_backstab")])
+
+[sub_resource type="Resource" id="Action_frontal_fragility_payload"]
+script = ExtResource("13_attack_bonus")
+target_selector = &"attack_target"
+bonus = -3
+stack_mode = &"max"
+label = "正面脆弱"
+require_weapon_damage = true
+
+[sub_resource type="Resource" id="Action_frontal_fragility"]
+script = ExtResource("11_action")
+action_id = &"action.cowardice.frontal_fragility.attack_penalty"
+kind = &"attack_roll_bonus"
+payload = SubResource("Action_frontal_fragility_payload")
+
+[sub_resource type="Resource" id="Reaction_frontal_fragility"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.cowardice.frontal_fragility.before_hit"
+trigger = &"on_hit"
+timing = &"before_hit"
+condition_group = SubResource("Condition_group_frontal_fragility")
+actions = Array[Resource]([SubResource("Action_frontal_fragility")])
+
+[sub_resource type="Resource" id="Grant_scurry_skill"]
+script = ExtResource("14_grant")
+granted_action_id = &"grant.cowardice.scurry.skill"
+granted_kind = &"skill"
+skill_id = &"weapon_sword_cowardice_scurry"
+skill_level = 1
+display_category = &"equipment"
+display_priority = 100
+availability_conditions = SubResource("Condition_group_scurry_hp")
+
+[sub_resource type="Resource" id="Binding_gap_backstab"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.cowardice.gap_backstab"
+trait_id = &"weapon.sword.cowardice.gap_backstab"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"cowardice"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_gap_backstab")])
+
+[sub_resource type="Resource" id="Binding_frontal_fragility"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.cowardice.frontal_fragility"
+trait_id = &"weapon.sword.cowardice.frontal_fragility"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"cowardice"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_frontal_fragility")])
+
+[sub_resource type="Resource" id="Binding_fleeing_instinct"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.cowardice.fleeing_instinct"
+trait_id = &"weapon.sword.cowardice.fleeing_instinct"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"cowardice"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+granted_actions = Array[Resource]([SubResource("Grant_scurry_skill")])
+
+[sub_resource type="Resource" id="Binding_cowardly_counter"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.cowardice.cowardly_counter"
+trait_id = &"weapon.sword.cowardice.cowardly_counter"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"cowardice"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability.weapon.sword.cowardice"
+schema_version = 1
+load_order = 214
+bindings = Array[Resource]([SubResource("Binding_gap_backstab"), SubResource("Binding_frontal_fragility"), SubResource("Binding_fleeing_instinct"), SubResource("Binding_cowardly_counter")])

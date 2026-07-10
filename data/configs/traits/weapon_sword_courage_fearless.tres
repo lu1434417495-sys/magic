@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="TraitDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+[ext_resource type="Script" path="res://scripts/player/progression/TraitPassiveStatusEffectDef.cs" id="2_passive_status"]
+
+[sub_resource type="Resource" id="Status_courage_fearless"]
+script = ExtResource("2_passive_status")
+status_id = &"courage_fearless"
+display_label = "无畏"
+undispellable = true
+save_immunity_tags = Array[StringName]([&"frightened"])
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"weapon.sword.courage.fearless"
+display_name = "无畏"
+description = "装备者免疫 frightened。"
+categories = Array[StringName]([&"weapon_feat"])
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+effect_type = &"equipment_ability"
+trigger_type = &"passive"
+stack_policy = &"stack_by_instance"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+passive_status_effects = Array[Resource]([SubResource("Status_courage_fearless")])
+roll_value_schema = Array[Resource]([])

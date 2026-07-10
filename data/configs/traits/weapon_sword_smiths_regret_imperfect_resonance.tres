@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="TraitDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"weapon.sword.smiths_regret.imperfect_resonance"
+display_name = "不完美共鸣"
+description = "每次缺陷都会在目标身上留下 120 TU 的可见共鸣标记，用于记录刚被锻造缺陷触碰过的痕迹。"
+source_scope = &"equipment_fixed"
+categories = Array[StringName]([&"weapon_feat"])
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+effect_type = &"equipment_ability"
+trigger_type = &"passive"
+stack_policy = &"stack_by_instance"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+roll_value_schema = Array[Resource]([])
