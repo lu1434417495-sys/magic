@@ -18,6 +18,11 @@ public partial class run_enemy_template_schema_boundary_regression : SceneTree
         TestSaveAdvantageTagsAcceptSupportedSaveModes();
         TestSaveAdvantageTagsRejectEmptyTag();
         TestSaveAdvantageTagsRejectUnsupportedBaseTag();
+        TestDamageResistancesAcceptSupportedTagsAndTiers();
+        TestDamageResistancesRejectUnsupportedDamageTag();
+        TestDamageResistancesRejectUnsupportedMitigationTier();
+        TestDerivedHpAndAttackBonusFollowLevelFormula();
+        TestCreatureLevelAndHitDieValidation();
         TestSkillLevelMapValidationRemainsUnchanged();
 
         Quit(_test.Finish("Enemy template schema boundary regression"));
@@ -203,6 +208,148 @@ public partial class run_enemy_template_schema_boundary_regression : SceneTree
         _test.True(
             ContainsError(errors, "unsupported_save_advantage"),
             $"save_advantage_tags 应按去除后缀后的基础豁免标签校验并拒绝未知标签。 errors={FormatErrors(errors)}"
+        );
+    }
+
+    private void TestDamageResistancesAcceptSupportedTagsAndTiers()
+    {
+        EnemyTemplateDef template = BuildValidTemplate(
+            "damage_resist_schema_template",
+            "damage_resist_schema_weapon"
+        );
+        template.damage_resistances = new GDictionary
+        {
+            [new StringName("physical_pierce")] = new StringName("half"),
+            [new StringName("fire")] = new StringName("double"),
+            [new StringName("freeze")] = new StringName("immune"),
+            [new StringName("magic")] = new StringName("normal"),
+        };
+
+        GStringArray errors = ValidateWithReferenceTables(template);
+        _test.True(
+            errors.Count == 0,
+            $"damage_resistances 应接受合法伤害标签与 mitigation tier。 errors={FormatErrors(errors)}"
+        );
+
+        IReadOnlyDictionary<StringName, StringName> typed = template.GetDamageResistancesTyped();
+        _test.True(
+            typed.Count == 4
+                && typed[new StringName("physical_pierce")] == new StringName("half")
+                && typed[new StringName("fire")] == new StringName("double"),
+            "GetDamageResistancesTyped() 应完整投影合法条目。"
+        );
+    }
+
+    private void TestDamageResistancesRejectUnsupportedDamageTag()
+    {
+        EnemyTemplateDef template = BuildValidTemplate(
+            "damage_resist_bad_tag_template",
+            "damage_resist_bad_tag_weapon"
+        );
+        template.damage_resistances = new GDictionary
+        {
+            [new StringName("shadow")] = new StringName("half"),
+        };
+
+        GStringArray errors = ValidateWithReferenceTables(template);
+        _test.True(
+            ContainsError(errors, "shadow"),
+            $"damage_resistances 应拒绝未知伤害标签。 errors={FormatErrors(errors)}"
+        );
+    }
+
+    private void TestDamageResistancesRejectUnsupportedMitigationTier()
+    {
+        EnemyTemplateDef template = BuildValidTemplate(
+            "damage_resist_bad_tier_template",
+            "damage_resist_bad_tier_weapon"
+        );
+        template.damage_resistances = new GDictionary
+        {
+            [new StringName("fire")] = new StringName("quarter"),
+        };
+
+        GStringArray errors = ValidateWithReferenceTables(template);
+        _test.True(
+            ContainsError(errors, "quarter"),
+            $"damage_resistances 应拒绝未知 mitigation tier。 errors={FormatErrors(errors)}"
+        );
+    }
+
+    private void TestDerivedHpAndAttackBonusFollowLevelFormula()
+    {
+        EnemyTemplateDef template = BuildValidTemplate(
+            "formula_schema_template",
+            "formula_schema_weapon"
+        );
+        template.creature_level = 10;
+        template.hit_die_sides = 12;
+        template.body_size = BattleUnitState.BodySizeLarge;
+        template.base_attribute_overrides[new StringName("strength")] = 18;
+        template.base_attribute_overrides[new StringName("constitution")] = 16;
+
+        _test.Eq(
+            template.GetDerivedHpMaxTyped(),
+            500,
+            "派生 HP 应为 等级10 × (d12均值6.5 + 体质修正3×2) × 2x2占位4格 = 500。"
+        );
+
+        var itemDefIndex = new Dictionary<StringName, ItemDef>
+        {
+            [template.attack_equipment_item_id] = MakeWeapon(
+                template.attack_equipment_item_id,
+                "formula_schema_weapon_type"
+            ),
+        };
+        _test.Eq(
+            template.GetDerivedAttackBonusTyped(itemDefIndex),
+            4,
+            "近战武器的派生攻击加值应等于力量修正 (18 → +4)。"
+        );
+
+        GStringArray errors = ValidateWithReferenceTables(template);
+        _test.True(
+            errors.Count == 0,
+            $"声明 creature_level/hit_die_sides 的模板应通过 schema 校验。 errors={FormatErrors(errors)}"
+        );
+
+        EnemyTemplateDef rangedTemplate = BuildValidTemplate(
+            "formula_schema_ranged_template",
+            "formula_schema_ranged_weapon"
+        );
+        rangedTemplate.tags = new GStringNameArray { "beast" };
+        rangedTemplate.natural_weapon_damage_tag = "physical_pierce";
+        rangedTemplate.natural_weapon_attack_range = 5;
+        rangedTemplate.base_attribute_overrides[new StringName("perception")] = 12;
+        _test.Eq(
+            rangedTemplate.GetDerivedAttackBonusTyped(),
+            1,
+            "远程(攻击范围>2)天生武器的派生攻击加值应等于感知修正 (12 → +1)。"
+        );
+    }
+
+    private void TestCreatureLevelAndHitDieValidation()
+    {
+        EnemyTemplateDef levelTemplate = BuildValidTemplate(
+            "bad_level_schema_template",
+            "bad_level_schema_weapon"
+        );
+        levelTemplate.creature_level = 0;
+        GStringArray levelErrors = ValidateWithReferenceTables(levelTemplate);
+        _test.True(
+            ContainsError(levelErrors, "creature_level"),
+            $"creature_level < 1 应被 schema 拒绝。 errors={FormatErrors(levelErrors)}"
+        );
+
+        EnemyTemplateDef dieTemplate = BuildValidTemplate(
+            "bad_die_schema_template",
+            "bad_die_schema_weapon"
+        );
+        dieTemplate.hit_die_sides = 7;
+        GStringArray dieErrors = ValidateWithReferenceTables(dieTemplate);
+        _test.True(
+            ContainsError(dieErrors, "hit_die_sides"),
+            $"非法生命骰面数应被 schema 拒绝。 errors={FormatErrors(dieErrors)}"
         );
     }
 

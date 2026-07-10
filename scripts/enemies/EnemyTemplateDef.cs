@@ -46,6 +46,12 @@ public partial class EnemyTemplateDef : Resource
     public int body_size { get; set; } = BattleUnitState.BodySizeMedium;
 
     [Export]
+    public int creature_level { get; set; } = 1;
+
+    [Export]
+    public int hit_die_sides { get; set; } = 8;
+
+    [Export]
     public int action_threshold { get; set; } = BattleUnitState.DefaultActionThreshold;
 
     [Export]
@@ -53,6 +59,9 @@ public partial class EnemyTemplateDef : Resource
 
     [Export]
     public Godot.Collections.Array<StringName> save_advantage_tags { get; set; } = new();
+
+    [Export]
+    public Godot.Collections.Dictionary damage_resistances { get; set; } = new();
 
     [Export]
     public StringName attack_equipment_item_id { get; set; } = "";
@@ -186,6 +195,65 @@ public partial class EnemyTemplateDef : Resource
     internal IReadOnlyDictionary<StringName, int> GetAttributeOverridesTyped() =>
         BuildIntDictionary(attribute_overrides);
 
+    internal int GetFootprintCellCountTyped()
+    {
+        Vector2I footprint = BattleUnitState.GetFootprintSizeForBodySize(
+            Mathf.Max(body_size, 1)
+        );
+        return Mathf.Max(footprint.X * footprint.Y, 1);
+    }
+
+    internal int GetDerivedHpMaxTyped()
+    {
+        int level = Mathf.Max(creature_level, 1);
+        int sides = Mathf.Max(hit_die_sides, 1);
+        IReadOnlyDictionary<StringName, int> baseAttributes =
+            GetBaseAttributeOverridesResolvedTyped();
+        int constitution = baseAttributes.TryGetValue("constitution", out int conValue)
+            ? conValue
+            : 0;
+        int constitutionModifier = AttributeSnapshot.CalculateScoreModifier(constitution);
+        double hpPerLevel = Math.Max(1.0, (sides + 1) / 2.0 + constitutionModifier * 2);
+        return Mathf.FloorToInt((float)(level * hpPerLevel)) * GetFootprintCellCountTyped();
+    }
+
+    internal int GetDerivedAttackBonusTyped(
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs = null
+    )
+    {
+        WeaponProjection projection = GetWeaponProjectionTyped(itemDefs);
+        int attackRange =
+            projection != null && !projection.IsEmpty() ? projection.weapon_attack_range : 1;
+        StringName abilityId = attackRange > 2 ? "perception" : "strength";
+        IReadOnlyDictionary<StringName, int> baseAttributes =
+            GetBaseAttributeOverridesResolvedTyped();
+        int abilityScore = baseAttributes.TryGetValue(abilityId, out int scoreValue)
+            ? scoreValue
+            : 0;
+        return AttributeSnapshot.CalculateScoreModifier(abilityScore);
+    }
+
+    internal IReadOnlyDictionary<StringName, StringName> GetDamageResistancesTyped()
+    {
+        var result = new Dictionary<StringName, StringName>();
+        if (damage_resistances == null)
+            return result;
+        foreach (Variant rawKey in damage_resistances.Keys)
+        {
+            if (rawKey.VariantType != VT.StringName)
+                continue;
+            StringName damageTag = rawKey.AsStringName();
+            Variant rawValue = damage_resistances[rawKey];
+            if (rawValue.VariantType != VT.StringName)
+                continue;
+            StringName tier = rawValue.AsStringName();
+            if (damageTag == "" || tier == "")
+                continue;
+            result[damageTag] = tier;
+        }
+        return result;
+    }
+
     internal int GetSkillLevelTyped(StringName skillId, int fallback = 1)
     {
         if (skillId == "")
@@ -228,6 +296,19 @@ public partial class EnemyTemplateDef : Resource
             errors.Add($"Enemy template {template_id} must have enemy_count >= 1.");
         if (body_size <= 0)
             errors.Add($"Enemy template {template_id} must have body_size >= 1.");
+        if (creature_level < 1)
+            errors.Add($"Enemy template {template_id} must have creature_level >= 1.");
+        if (
+            hit_die_sides != 4
+            && hit_die_sides != 6
+            && hit_die_sides != 8
+            && hit_die_sides != 10
+            && hit_die_sides != 12
+            && hit_die_sides != 20
+        )
+            errors.Add(
+                $"Enemy template {template_id} hit_die_sides must be one of 4, 6, 8, 10, 12, 20; got {hit_die_sides}."
+            );
         if (action_threshold <= 0)
             errors.Add($"Enemy template {template_id} action_threshold must be > 0.");
         else if (action_threshold % 5 != 0)
@@ -239,6 +320,8 @@ public partial class EnemyTemplateDef : Resource
                 $"Enemy template {template_id} target_rank must be normal, elite, or boss; got {target_rank}."
             );
         foreach (var e in _validate_save_advantage_tags())
+            errors.Add(e);
+        foreach (var e in _validate_damage_resistances())
             errors.Add(e);
         foreach (
             var e in _validate_int_dictionary_key_types(
@@ -321,6 +404,51 @@ public partial class EnemyTemplateDef : Resource
                 );
             if (entry.quantity <= 0)
                 errors.Add($"Enemy template {template_id} drop {dei} must have quantity >= 1.");
+        }
+        return errors;
+    }
+
+    private Godot.Collections.Array<string> _validate_damage_resistances()
+    {
+        var errors = new Godot.Collections.Array<string>();
+        if (damage_resistances == null)
+            return errors;
+        foreach (Variant rawKey in damage_resistances.Keys)
+        {
+            if (rawKey.VariantType != VT.StringName)
+            {
+                errors.Add(
+                    $"Enemy template {template_id} damage_resistances key {rawKey} must be a StringName."
+                );
+                continue;
+            }
+            StringName damageTag = rawKey.AsStringName();
+            if (
+                DamageTagContentRules.ToDamageTagKind(damageTag) == DamageTagKind.Unknown
+            )
+            {
+                errors.Add(
+                    $"Enemy template {template_id} damage_resistances declares unsupported damage tag {damageTag}; expected one of {DamageTagContentRules.ValidDamageTagLabel()}."
+                );
+            }
+            Variant rawValue = damage_resistances[rawKey];
+            if (rawValue.VariantType != VT.StringName)
+            {
+                errors.Add(
+                    $"Enemy template {template_id} damage_resistances value for {rawKey} must be a StringName mitigation tier."
+                );
+                continue;
+            }
+            StringName tier = rawValue.AsStringName();
+            if (
+                DamageTagContentRules.ToMitigationTierKind(tier)
+                == DamageMitigationTierKind.Unknown
+            )
+            {
+                errors.Add(
+                    $"Enemy template {template_id} damage_resistances tier {tier} for {damageTag} is not supported; expected one of {DamageTagContentRules.ValidMitigationTierLabel()}."
+                );
+            }
         }
         return errors;
     }

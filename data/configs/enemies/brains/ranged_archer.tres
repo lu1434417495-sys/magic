@@ -19,8 +19,8 @@ script = ExtResource("10_adv_pos")
 action_id = &"archer_survival_position"
 score_bucket_id = &"archer_survival"
 target_selector = &"nearest_enemy"
-desired_min_distance = 3
-desired_max_distance = 5
+desired_min_distance = 2
+desired_max_distance = 3
 range_skill_ids = Array[StringName]([&"archer_aimed_shot", &"archer_multishot", &"basic_attack"])
 minimum_safe_distance = 3
 positioning_mode = &"survival"
@@ -30,8 +30,8 @@ script = ExtResource("10_adv_pos")
 action_id = &"archer_high_ground_position"
 score_bucket_id = &"archer_positioning"
 target_selector = &"nearest_enemy"
-desired_min_distance = 3
-desired_max_distance = 5
+desired_min_distance = 2
+desired_max_distance = 3
 range_skill_ids = Array[StringName]([&"archer_aimed_shot", &"archer_multishot", &"basic_attack"])
 minimum_safe_distance = 3
 positioning_mode = &"high_ground"
@@ -43,8 +43,8 @@ action_id = &"archer_aimed_shot"
 score_bucket_id = &"archer_pressure"
 skill_ids = Array[StringName]([&"archer_aimed_shot", &"basic_attack"])
 target_selector = &"lowest_hp_enemy"
-desired_min_distance = 3
-desired_max_distance = 5
+desired_min_distance = 2
+desired_max_distance = 3
 distance_reference = &"target_unit"
 
 [sub_resource type="Resource" id="Action_pressure_multishot"]
@@ -53,8 +53,8 @@ action_id = &"archer_multishot"
 score_bucket_id = &"archer_pressure"
 skill_ids = Array[StringName]([&"archer_multishot"])
 target_selector = &"lowest_hp_enemy"
-desired_min_distance = 3
-desired_max_distance = 5
+desired_min_distance = 2
+desired_max_distance = 3
 distance_reference = &"target_unit"
 
 [sub_resource type="Resource" id="Action_multishot_position"]
@@ -63,32 +63,32 @@ action_id = &"archer_multishot_position"
 score_bucket_id = &"archer_pressure"
 skill_ids = Array[StringName]([&"archer_multishot"])
 target_selector = &"lowest_hp_enemy"
-desired_min_distance = 3
-desired_max_distance = 5
+desired_min_distance = 2
+desired_max_distance = 3
 distance_reference = &"target_unit"
 
 [sub_resource type="Resource" id="Action_engage_move"]
 script = ExtResource("5_move")
 action_id = &"archer_take_position"
 target_selector = &"nearest_enemy"
-desired_min_distance = 3
-desired_max_distance = 5
+desired_min_distance = 2
+desired_max_distance = 3
 range_skill_ids = Array[StringName]([&"archer_aimed_shot", &"archer_multishot", &"basic_attack"])
 
 [sub_resource type="Resource" id="Action_pressure_move"]
 script = ExtResource("5_move")
 action_id = &"archer_keep_range"
 target_selector = &"nearest_enemy"
-desired_min_distance = 3
-desired_max_distance = 5
+desired_min_distance = 2
+desired_max_distance = 3
 range_skill_ids = Array[StringName]([&"archer_aimed_shot", &"archer_multishot", &"basic_attack"])
 
 [sub_resource type="Resource" id="Action_melee_fallback"]
 script = ExtResource("5_move")
 action_id = &"archer_retreat_from_melee"
 target_selector = &"nearest_enemy"
-desired_min_distance = 3
-desired_max_distance = 5
+desired_min_distance = 2
+desired_max_distance = 3
 range_skill_ids = Array[StringName]([&"archer_aimed_shot", &"archer_multishot", &"basic_attack"])
 
 [sub_resource type="Resource" id="Action_wait"]
@@ -105,8 +105,8 @@ action_families = Array[StringName]([&"use_unit_skill", &"use_random_chain_skill
 style_template_action_id = &"archer_aimed_shot"
 score_bucket_id = &"archer_pressure"
 target_selector = &"lowest_hp_enemy"
-desired_min_distance = 3
-desired_max_distance = 5
+desired_min_distance = 2
+desired_max_distance = 3
 distance_reference = &"target_unit"
 
 [sub_resource type="Resource" id="Slot_engage_multi"]
@@ -119,8 +119,8 @@ action_families = Array[StringName]([&"use_multi_unit_skill"])
 style_template_action_id = &"archer_multishot"
 score_bucket_id = &"archer_pressure"
 target_selector = &"lowest_hp_enemy"
-desired_min_distance = 3
-desired_max_distance = 5
+desired_min_distance = 2
+desired_max_distance = 3
 distance_reference = &"target_unit"
 
 [sub_resource type="Resource" id="Slot_engage_position"]
@@ -133,8 +133,8 @@ action_families = Array[StringName]([&"move_to_range", &"move_to_multi_unit_skil
 style_template_action_id = &"archer_multishot_position"
 score_bucket_id = &"archer_positioning"
 target_selector = &"nearest_enemy"
-desired_min_distance = 3
-desired_max_distance = 5
+desired_min_distance = 2
+desired_max_distance = 3
 distance_reference = &"target_unit"
 
 [sub_resource type="Resource" id="State_engage"]
@@ -149,8 +149,8 @@ action_id = &"archer_retreat_shot"
 score_bucket_id = &"archer_pressure"
 skill_ids = Array[StringName]([&"archer_aimed_shot", &"basic_attack"])
 target_selector = &"nearest_enemy"
-desired_min_distance = 3
-desired_max_distance = 5
+desired_min_distance = 2
+desired_max_distance = 3
 distance_reference = &"target_unit"
 
 [sub_resource type="Resource" id="Action_retreat_move"]
@@ -171,8 +171,8 @@ action_families = Array[StringName]([&"use_unit_skill", &"use_random_chain_skill
 style_template_action_id = &"archer_aimed_shot"
 score_bucket_id = &"archer_pressure"
 target_selector = &"lowest_hp_enemy"
-desired_min_distance = 3
-desired_max_distance = 5
+desired_min_distance = 2
+desired_max_distance = 3
 distance_reference = &"target_unit"
 
 [sub_resource type="Resource" id="Slot_pressure_multi"]
@@ -185,8 +185,8 @@ action_families = Array[StringName]([&"use_multi_unit_skill"])
 style_template_action_id = &"archer_multishot"
 score_bucket_id = &"archer_pressure"
 target_selector = &"lowest_hp_enemy"
-desired_min_distance = 3
-desired_max_distance = 5
+desired_min_distance = 2
+desired_max_distance = 3
 distance_reference = &"target_unit"
 
 [sub_resource type="Resource" id="Slot_pressure_position"]
@@ -199,8 +199,8 @@ action_families = Array[StringName]([&"move_to_range", &"move_to_multi_unit_skil
 style_template_action_id = &"archer_multishot_position"
 score_bucket_id = &"archer_positioning"
 target_selector = &"nearest_enemy"
-desired_min_distance = 3
-desired_max_distance = 5
+desired_min_distance = 2
+desired_max_distance = 3
 distance_reference = &"target_unit"
 
 [sub_resource type="Resource" id="State_pressure"]
@@ -219,8 +219,8 @@ action_families = Array[StringName]([&"use_unit_skill", &"use_random_chain_skill
 style_template_action_id = &"archer_retreat_shot"
 score_bucket_id = &"archer_pressure"
 target_selector = &"nearest_enemy"
-desired_min_distance = 3
-desired_max_distance = 5
+desired_min_distance = 2
+desired_max_distance = 3
 distance_reference = &"target_unit"
 
 [sub_resource type="Resource" id="State_retreat"]
@@ -242,12 +242,12 @@ state_ids = Array[StringName]([&"pressure"])
 [sub_resource type="Resource" id="Condition_pressure_sticky_distance"]
 script = ExtResource("13_transition_condition")
 predicate = &"nearest_enemy_distance_at_or_below"
-max_distance = 6
+max_distance = 4
 
 [sub_resource type="Resource" id="Condition_pressure_enter_distance"]
 script = ExtResource("13_transition_condition")
 predicate = &"nearest_enemy_distance_at_or_below"
-max_distance = 5
+max_distance = 3
 
 [sub_resource type="Resource" id="Condition_always"]
 script = ExtResource("13_transition_condition")

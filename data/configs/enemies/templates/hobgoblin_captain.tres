@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="EnemyTemplateDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="1_template"]
+[ext_resource type="Script" path="res://scripts/enemies/DropEntryDef.cs" id="2_dropdef"]
+
+[sub_resource type="Resource" id="Resource_drop_hobgoblin_spear"]
+script = ExtResource("2_dropdef")
+drop_entry_id = &"hobgoblin_spear"
+drop_type = &"random_equipment"
+item_id = &"militia_spear"
+quantity = 1
+
+[resource]
+script = ExtResource("1_template")
+template_id = &"hobgoblin_captain"
+display_name = "大哥布林队长"
+brain_id = &"frontline_bulwark"
+initial_state_id = &"engage"
+creature_level = 4
+hit_die_sides = 8
+action_threshold = 45
+tags = Array[StringName]([&"humanoid", &"goblinoid"])
+attack_equipment_item_id = &"militia_spear"
+base_attribute_overrides = {
+&"strength": 15,
+&"agility": 11,
+&"constitution": 14,
+&"perception": 11,
+&"intelligence": 10,
+&"willpower": 11,
+}
+skill_ids = Array[StringName]([&"warrior_shield_bash", &"warrior_taunt", &"warrior_guard"])
+target_rank = &"elite"
+drop_entries = Array[Resource]([SubResource("Resource_drop_hobgoblin_spear")])
+attribute_overrides = {
+&"mp_max": 0,
+&"action_points": 2,
+&"deflection_bonus": 3,
+}

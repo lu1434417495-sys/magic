@@ -23,6 +23,8 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
             TestWolfTemplatesSpawnWithPositiveStaminaPool();
             TestBattleStartUsesBuildContextItemDefsForEnemyWeaponProjection();
             TestEnemyTemplateSaveAdvantageTagsProjectToBattleUnit();
+            TestEnemyTemplateDamageResistancesProjectToBattleUnit();
+            TestEnemyTemplateDerivesHpAndAttackFromFormulaWhenNotOverridden();
         }
         catch (Exception exception)
         {
@@ -41,7 +43,7 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
             expectedEnemyCount: 2,
             expectedBrainId: "melee_aggressor",
             expectedStateId: "engage",
-            requiredSkillIds: new[] { "charge", "basic_attack" }
+            requiredSkillIds: new[] { "basic_attack" }
         );
         AssertTemplateStart(
             "encounter_vanguard",
@@ -50,7 +52,7 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
             expectedEnemyCount: 1,
             expectedBrainId: "frontline_bulwark",
             expectedStateId: "engage",
-            requiredSkillIds: new[] { "charge", "warrior_guard" }
+            requiredSkillIds: new[] { "warrior_heavy_strike", "basic_attack" }
         );
         AssertTemplateStart(
             "encounter_harrier",
@@ -69,6 +71,15 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
             expectedBrainId: "healer_controller",
             expectedStateId: "pressure",
             requiredSkillIds: new[] { "mage_temporal_rewind", "mage_glacial_prison" }
+        );
+        AssertTemplateStart(
+            "encounter_red_dragon",
+            "red_dragon",
+            "红龙",
+            expectedEnemyCount: 1,
+            expectedBrainId: "dragon_tyrant",
+            expectedStateId: "engage",
+            requiredSkillIds: new[] { "dragon_breath_fire_cone", "dragon_breath_fire_line", "basic_attack" }
         );
     }
 
@@ -288,6 +299,185 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
             _test.True(
                 saveResult.Immune,
                 "投影出的 illusion_immunity 应让 illusion 豁免在掷骰前免疫。"
+            );
+        }
+        finally
+        {
+            if (enemyUnits != null)
+            {
+                foreach (Variant enemyUnitValue in enemyUnits)
+                {
+                    if (BattleUnitState.TryReadUnitPayload(enemyUnitValue, out BattleUnitState unit))
+                        BattleTestFixture.DisposeBattleUnit(unit);
+                }
+                enemyUnits.Clear();
+            }
+        }
+    }
+
+    private void TestEnemyTemplateDerivesHpAndAttackFromFormulaWhenNotOverridden()
+    {
+        using var gameSessionScope = new GameSessionScope();
+        GameSession gameSession = gameSessionScope.Session;
+        StringName templateId = "runtime_start_formula_dragonling_template";
+        var itemDefs = new Dictionary<StringName, ItemDef>(gameSession.GetItemDefsTyped());
+
+        EnemyTemplateDef template = TestResourceOwnership.Own(
+            new EnemyTemplateDef
+            {
+                template_id = templateId,
+                display_name = "公式幼龙",
+                brain_id = "melee_aggressor",
+                enemy_count = 1,
+                body_size = BattleUnitState.BodySizeLarge,
+                creature_level = 10,
+                hit_die_sides = 12,
+                action_threshold = BattleUnitState.DefaultActionThreshold,
+                tags = new GStringNameArray { "dragon", "beast" },
+                natural_weapon_damage_tag = "physical_pierce",
+                natural_weapon_attack_range = 2,
+                skill_ids = new GStringNameArray { "basic_attack" },
+                base_attribute_overrides = new GDictionary
+                {
+                    ["strength"] = 18,
+                    ["agility"] = 8,
+                    ["constitution"] = 16,
+                    ["perception"] = 12,
+                    ["intelligence"] = 12,
+                    ["willpower"] = 14,
+                },
+            },
+            "EnemyTemplateRuntimeStart.BuildFormulaDragonling"
+        );
+        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDef>
+        {
+            [templateId] = template,
+        };
+        using var builder = new EncounterRosterBuilder();
+        EncounterAnchorData anchor = BuildEncounterAnchor(
+            "encounter_runtime_start_formula_dragonling",
+            templateId,
+            "公式幼龙"
+        );
+        GArray enemyUnits = null;
+        try
+        {
+            enemyUnits = builder.BuildEnemyUnitsTyped(
+                anchor,
+                gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
+                enemyTemplates,
+                gameSession.GetEnemyAiBrainsTyped(),
+                itemDefs
+            );
+            _test.Eq(enemyUnits.Count, 1, "公式幼龙模板应生成一个敌方单位。");
+            BattleUnitState enemyUnit = enemyUnits.Count > 0
+                && BattleUnitState.TryReadUnitPayload(enemyUnits[0], out BattleUnitState parsedEnemyUnit)
+                    ? parsedEnemyUnit
+                    : null;
+            _test.True(enemyUnit != null, "公式幼龙生成的单位应可读取。");
+            if (enemyUnit == null)
+            {
+                return;
+            }
+
+            _test.Eq(
+                enemyUnit.current_hp,
+                500,
+                "无 hp_max override 时应按 等级10 × (d12均值+体质修正×2) × 4格 派生出 500 HP。"
+            );
+            var snapshot = enemyUnit.attribute_snapshot as AttributeSnapshot;
+            _test.True(snapshot != null, "公式幼龙单位应携带 attribute snapshot。");
+            if (snapshot != null)
+            {
+                _test.Eq(
+                    snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)),
+                    500,
+                    "快照 hp_max 应等于公式派生值 500。"
+                );
+                _test.Eq(
+                    snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus)),
+                    4,
+                    "无 attack_bonus override 时近战应派生力量修正 +4。"
+                );
+            }
+        }
+        finally
+        {
+            if (enemyUnits != null)
+            {
+                foreach (Variant enemyUnitValue in enemyUnits)
+                {
+                    if (BattleUnitState.TryReadUnitPayload(enemyUnitValue, out BattleUnitState unit))
+                        BattleTestFixture.DisposeBattleUnit(unit);
+                }
+                enemyUnits.Clear();
+            }
+        }
+    }
+
+    private void TestEnemyTemplateDamageResistancesProjectToBattleUnit()
+    {
+        using var gameSessionScope = new GameSessionScope();
+        GameSession gameSession = gameSessionScope.Session;
+        StringName templateId = "runtime_start_damage_resist_enemy_template";
+        var itemDefs = new Dictionary<StringName, ItemDef>(gameSession.GetItemDefsTyped());
+        ItemDef customWeapon = MakeWeapon(
+            "runtime_start_damage_resist_enemy_blade",
+            "damage_resist_blade",
+            "physical_slash",
+            1,
+            MakeWeaponDice(1, 6, 0),
+            null,
+            Array.Empty<StringName>()
+        );
+        itemDefs[customWeapon.item_id] = customWeapon;
+
+        EnemyTemplateDef template = BuildCustomEnemyTemplate(templateId, customWeapon.item_id);
+        template.damage_resistances = new GDictionary
+        {
+            [new StringName("physical_pierce")] = new StringName("half"),
+            [new StringName("fire")] = new StringName("double"),
+        };
+        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDef>
+        {
+            [templateId] = template,
+        };
+        using var builder = new EncounterRosterBuilder();
+        EncounterAnchorData anchor = BuildEncounterAnchor(
+            "encounter_runtime_start_damage_resist_enemy",
+            templateId,
+            "抗性敌人"
+        );
+        GArray enemyUnits = null;
+        try
+        {
+            enemyUnits = builder.BuildEnemyUnitsTyped(
+                anchor,
+                gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
+                enemyTemplates,
+                gameSession.GetEnemyAiBrainsTyped(),
+                itemDefs
+            );
+            _test.Eq(enemyUnits.Count, 1, "自定义抗性敌方模板应生成一个敌方单位。");
+            BattleUnitState enemyUnit = enemyUnits.Count > 0
+                && BattleUnitState.TryReadUnitPayload(enemyUnits[0], out BattleUnitState parsedEnemyUnit)
+                    ? parsedEnemyUnit
+                    : null;
+            _test.True(enemyUnit != null, "自定义抗性敌方模板生成的单位应可读取。");
+            if (enemyUnit == null)
+            {
+                return;
+            }
+
+            _test.Eq(
+                enemyUnit.damage_resistances.Get(new StringName("physical_pierce")),
+                new StringName("half"),
+                "EnemyTemplateDef.damage_resistances 应投影到 BattleUnitState.damage_resistances。"
+            );
+            _test.Eq(
+                enemyUnit.damage_resistances.Get(new StringName("fire")),
+                new StringName("double"),
+                "EnemyTemplateDef.damage_resistances 易伤条目应投影到 BattleUnitState.damage_resistances。"
             );
         }
         finally

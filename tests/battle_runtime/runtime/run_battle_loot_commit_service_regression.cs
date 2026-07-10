@@ -384,12 +384,12 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
                 "headless snapshot 的 overflow_entry_count 应匹配正式 overflow_entries 数量。"
             );
             _test.True(
-                HasLootEntry(lootEntries, "beast_hide", 4),
-                $"headless snapshot 应暴露本次战斗原始 loot entry。 entries={lootEntries}"
+                HasLootEntry(lootEntries, "beast_hide", 6),
+                $"headless snapshot 应暴露本次战斗原始 loot entry（4 荒狼各 1 张 + 狼王 2 张兽皮）。 entries={lootEntries}"
             );
             _test.True(
-                HasLootEntry(overflowEntries, "beast_hide", 4),
-                $"headless snapshot 应暴露本次战斗 overflow entry。 entries={overflowEntries}"
+                HasLootEntry(overflowEntries, "beast_hide", 6),
+                $"headless snapshot 应暴露本次战斗 overflow entry（4 荒狼各 1 张 + 狼王 2 张兽皮）。 entries={overflowEntries}"
             );
 
             GDictionary resolvedLog = FindRecentLogEntry(

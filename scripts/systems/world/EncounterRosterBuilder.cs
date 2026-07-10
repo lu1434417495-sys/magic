@@ -649,7 +649,10 @@ public sealed class EncounterRosterBuilder : IDisposable
                     buildContext.TraitDefs,
                     buildContext.ItemDefs
                 );
-            unitState.attribute_snapshot = BuildEnemySnapshotFromTemplate(template);
+            unitState.attribute_snapshot = BuildEnemySnapshotFromTemplate(
+                template,
+                buildContext.ItemDefs
+            );
             var snapshot = unitState.attribute_snapshot as AttributeSnapshot;
             unitState.SetCombatResources(
                 snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)) : 0,
@@ -660,6 +663,12 @@ public sealed class EncounterRosterBuilder : IDisposable
                 BattleUnitState.DefaultMovePointsPerTurn
             );
             unitState.save_advantage_tags = CopyTemplateSaveAdvantageTags(template);
+            if (template != null)
+            {
+                unitState.damage_resistances.ReplaceWithTyped(
+                    template.GetDamageResistancesTyped()
+                );
+            }
             unitState.SetKnownActiveSkillIds(
                 template != null
                     ? new GStringNameArray(template.skill_ids)
@@ -732,7 +741,10 @@ public sealed class EncounterRosterBuilder : IDisposable
         return new StringName($"{anchorId}_{index + 1:00}");
     }
 
-    private AttributeSnapshot BuildEnemySnapshotFromTemplate(EnemyTemplateDef template)
+    private AttributeSnapshot BuildEnemySnapshotFromTemplate(
+        EnemyTemplateDef template,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+    )
     {
         IReadOnlyDictionary<StringName, int> baseAttributes =
             template?.GetBaseAttributeOverridesResolvedTyped() ?? EmptyIntMap;
@@ -751,11 +763,35 @@ public sealed class EncounterRosterBuilder : IDisposable
         attributeService.Setup(unitProgress);
         AttributeSnapshot snapshot = attributeService.GetSnapshot();
         ApplyEnemyAttributeOverrides(snapshot, stats);
+        ApplyEnemyDerivedCombatStats(snapshot, template, stats, itemDefs);
         if (template != null)
         {
             ApplyEnemyTargetRank(snapshot, template.TargetRankKind);
         }
         return snapshot;
+    }
+
+    private static void ApplyEnemyDerivedCombatStats(
+        AttributeSnapshot snapshot,
+        EnemyTemplateDef template,
+        IReadOnlyDictionary<StringName, int> declaredStats,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+    )
+    {
+        if (snapshot == null || template == null)
+        {
+            return;
+        }
+        StringName hpMaxId = AttributeService.ToStringName(AttributeIdKind.HpMax);
+        if (!declaredStats.ContainsKey(hpMaxId))
+        {
+            snapshot.SetValue(hpMaxId, template.GetDerivedHpMaxTyped());
+        }
+        StringName attackBonusId = AttributeService.ToStringName(AttributeIdKind.AttackBonus);
+        if (!declaredStats.ContainsKey(attackBonusId))
+        {
+            snapshot.SetValue(attackBonusId, template.GetDerivedAttackBonusTyped(itemDefs));
+        }
     }
 
     private static void ApplyEnemyTargetRank(

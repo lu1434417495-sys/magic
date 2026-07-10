@@ -1,0 +1,44 @@
+[gd_resource type="Resource" script_class="EnemyTemplateDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="1_template"]
+[ext_resource type="Script" path="res://scripts/enemies/DropEntryDef.cs" id="2_dropdef"]
+
+[sub_resource type="Resource" id="Resource_drop_wight_scimitar"]
+script = ExtResource("2_dropdef")
+drop_entry_id = &"wight_scimitar"
+drop_type = &"random_equipment"
+item_id = &"curved_scimitar"
+quantity = 1
+
+[resource]
+script = ExtResource("1_template")
+template_id = &"wight_blade"
+display_name = "亡灵剑士"
+brain_id = &"melee_aggressor"
+initial_state_id = &"engage"
+creature_level = 5
+hit_die_sides = 8
+action_threshold = 40
+tags = Array[StringName]([&"undead", &"wight"])
+save_advantage_tags = Array[StringName]([&"sleep_immunity", &"charm_immunity", &"poison_immunity", &"frightened_immunity"])
+damage_resistances = {
+&"negative_energy": &"immune",
+&"radiant": &"double",
+}
+attack_equipment_item_id = &"curved_scimitar"
+base_attribute_overrides = {
+&"strength": 16,
+&"agility": 12,
+&"constitution": 14,
+&"perception": 10,
+&"intelligence": 11,
+&"willpower": 13,
+}
+skill_ids = Array[StringName]([&"warrior_heavy_strike"])
+target_rank = &"elite"
+drop_entries = Array[Resource]([SubResource("Resource_drop_wight_scimitar")])
+attribute_overrides = {
+&"mp_max": 0,
+&"action_points": 2,
+&"deflection_bonus": 4,
+}

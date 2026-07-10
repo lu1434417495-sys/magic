@@ -1,6 +1,14 @@
-[gd_resource type="Resource" script_class="EnemyTemplateDef" format=3]
+[gd_resource type="Resource" script_class="EnemyTemplateDef" load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="1_template"]
+[ext_resource type="Script" path="res://scripts/enemies/DropEntryDef.cs" id="2_dropdef"]
+
+[sub_resource type="Resource" id="Resource_drop_weaver_herb"]
+script = ExtResource("2_dropdef")
+drop_entry_id = &"weaver_herb"
+drop_type = &"item"
+item_id = &"moonfern_sample"
+quantity = 2
 
 [resource]
 script = ExtResource("1_template")
@@ -9,7 +17,13 @@ display_name = "雾沼织咒者"
 brain_id = &"healer_controller"
 initial_state_id = &"pressure"
 action_threshold = 45
-tags = Array[StringName]([&"mist", &"weaver"])
+tags = Array[StringName]([&"mist", &"weaver", &"magical_beast"])
+save_advantage_tags = Array[StringName]([&"illusion_advantage", &"temporal_advantage"])
+damage_resistances = {
+&"physical_pierce": &"half",
+&"fire": &"double",
+&"freeze": &"half",
+}
 attack_equipment_item_id = &"watchman_mace"
 base_attribute_overrides = {
 &"strength": 4,
@@ -25,6 +39,8 @@ skill_level_map = {
 &"mage_glacial_prison": 3,
 &"mage_ice_lance": 3,
 }
+target_rank = &"elite"
+drop_entries = Array[Resource]([SubResource("Resource_drop_weaver_herb")])
 attribute_overrides = {
 &"hp_max": 24,
 &"mp_max": 120,

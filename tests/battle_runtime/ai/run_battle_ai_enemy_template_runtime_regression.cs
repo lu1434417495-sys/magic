@@ -37,7 +37,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             expectedEnemyCount: 2,
             expectedBrainId: "melee_aggressor",
             expectedStateId: "engage",
-            requiredSkills: new[] { "charge", "basic_attack" }
+            requiredSkills: new[] { "basic_attack" }
         );
         AssertTemplateStartBattle(
             "encounter_vanguard",
@@ -46,7 +46,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             expectedEnemyCount: 1,
             expectedBrainId: "frontline_bulwark",
             expectedStateId: "engage",
-            requiredSkills: new[] { "charge", "warrior_guard" }
+            requiredSkills: new[] { "warrior_heavy_strike", "basic_attack" }
         );
         AssertTemplateStartBattle(
             "encounter_harrier",
@@ -65,6 +65,15 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             expectedBrainId: "healer_controller",
             expectedStateId: "pressure",
             requiredSkills: new[] { "mage_temporal_rewind", "mage_glacial_prison" }
+        );
+        AssertTemplateStartBattle(
+            "encounter_red_dragon",
+            "red_dragon",
+            "红龙",
+            expectedEnemyCount: 1,
+            expectedBrainId: "dragon_tyrant",
+            expectedStateId: "engage",
+            requiredSkills: new[] { "dragon_breath_fire_cone", "dragon_breath_fire_line", "basic_attack" }
         );
     }
 

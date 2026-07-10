@@ -1,7 +1,15 @@
-[gd_resource type="Resource" script_class="EnemyTemplateDef" format=3]
+[gd_resource type="Resource" script_class="EnemyTemplateDef" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="1_template"]
 [ext_resource type="Texture2D" path="res://assets/main/battle/units/enemy/wolf_board.png" id="2_wolf_sprite"]
+[ext_resource type="Script" path="res://scripts/enemies/DropEntryDef.cs" id="3_dropdef"]
+
+[sub_resource type="Resource" id="Resource_drop_shaman_herb"]
+script = ExtResource("3_dropdef")
+drop_entry_id = &"shaman_herb"
+drop_type = &"item"
+item_id = &"moonfern_sample"
+quantity = 1
 
 [resource]
 script = ExtResource("1_template")
@@ -12,6 +20,10 @@ brain_id = &"ranged_controller"
 initial_state_id = &"support"
 action_threshold = 45
 tags = Array[StringName]([&"wolf", &"shaman"])
+save_advantage_tags = Array[StringName]([&"willpower_advantage"])
+damage_resistances = {
+&"freeze": &"half",
+}
 attack_equipment_item_id = &"watchman_mace"
 base_attribute_overrides = {
 &"strength": 5,
@@ -26,6 +38,8 @@ skill_level_map = {
 &"mage_ice_lance": 3,
 &"mage_temporal_rewind": 3,
 }
+target_rank = &"elite"
+drop_entries = Array[Resource]([SubResource("Resource_drop_shaman_herb")])
 attribute_overrides = {
 &"hp_max": 22,
 &"mp_max": 120,
