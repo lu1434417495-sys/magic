@@ -4,10 +4,15 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 [GlobalClass]
-public partial class WorldMapSystem : Control
+public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
 {
+    private const string ApplicationShutdownParticipantId = "world-map-system";
+    private const ApplicationShutdownParticipantStage ApplicationShutdownStage =
+        ApplicationShutdownParticipantStage.Runtime;
+    private const int ApplicationShutdownOrder = 0;
     private const float WORLD_MOVE_REPEAT_INTERVAL = 0.5f;
     private const string STARTUP_SCENE_SETTING = "application/run/main_scene";
     private const string BATTLE_LOADING_LABEL_TEXT = "LOADING...";
@@ -69,6 +74,25 @@ public partial class WorldMapSystem : Control
     internal WorldMapRuntimeProxy _runtime_proxy = new WorldMapRuntimeProxy();
     public List<Key> _held_world_move_keys = new();
     public float _world_move_repeat_timer;
+    private ApplicationLifetimeCoordinator _applicationLifetimeCoordinator;
+    private bool _signalsConnected;
+    private bool _closed;
+
+    string IApplicationShutdownParticipant.ShutdownParticipantId =>
+        ApplicationShutdownParticipantId;
+
+    ApplicationShutdownParticipantStage IApplicationShutdownParticipant.ShutdownStage =>
+        ApplicationShutdownStage;
+
+    int IApplicationShutdownParticipant.ShutdownOrder => ApplicationShutdownOrder;
+
+    ValueTask IApplicationShutdownParticipant.CloseForApplicationShutdownAsync(
+        ShutdownReport report
+    )
+    {
+        CloseRuntimeOwner();
+        return ValueTask.CompletedTask;
+    }
 
     public override void _Ready()
     {
@@ -96,10 +120,12 @@ public partial class WorldMapSystem : Control
         var proxy = new WorldMapRuntimeProxy();
         _runtime_proxy = proxy;
         proxy.Setup(_runtime, this);
+        RegisterApplicationShutdownParticipant();
 
         battle_map_panel.SetupRuntimeContext(_runtime_proxy, _runtime, _game_session);
 
         Resized += _update_responsive_log_layout;
+        _signalsConnected = true;
         if (runtime_log_dock != null)
             runtime_log_dock.panel_layout_changed += _update_responsive_log_layout;
         _update_responsive_log_layout();
@@ -132,55 +158,73 @@ public partial class WorldMapSystem : Control
         RenderFromRuntime(true, new GDictionary());
     }
 
-    public override void _ExitTree()
+    public override void _ExitTree() => CloseRuntimeOwner();
+
+    private void CloseRuntimeOwner()
     {
-        DisconnectSignals();
-        if (battle_map_panel != null)
-            battle_map_panel.SetupRuntimeContext(null, null, null);
-        SuppressNodeFieldFinalizers();
-        _runtime_proxy?.Dispose();
-        _runtime?.Dispose();
-        _clear_world_move_hold();
-        ClearNodeRefs();
-        _runtime = null;
-        GC.SuppressFinalize(this);
+        if (_closed)
+        {
+            UnregisterApplicationShutdownParticipant();
+            return;
+        }
+        _closed = true;
+        UnregisterApplicationShutdownParticipant();
+
+        try
+        {
+            if (_signalsConnected)
+            {
+                _signalsConnected = false;
+                DisconnectSignals();
+            }
+            if (battle_map_panel != null)
+                battle_map_panel.SetupRuntimeContext(null, null, null);
+        }
+        finally
+        {
+            WorldMapRuntimeProxy runtimeProxy = _runtime_proxy;
+            GameRuntimeFacade runtime = _runtime;
+            _runtime_proxy = null;
+            _runtime = null;
+            try
+            {
+                runtimeProxy?.Dispose();
+            }
+            finally
+            {
+                runtime?.Dispose();
+                _clear_world_move_hold();
+                ClearNodeRefs();
+                _game_session = null;
+            }
+        }
     }
 
-    private void SuppressNodeFieldFinalizers()
+    private void RegisterApplicationShutdownParticipant()
     {
-        SuppressGodotFinalizer(world_map_view);
-        SuppressGodotFinalizer(map_viewport);
-        SuppressGodotFinalizer(world_map_background);
-        SuppressGodotFinalizer(battle_map_panel);
-        SuppressGodotFinalizer(runtime_log_dock);
-        SuppressGodotFinalizer(status_label);
-        SuppressGodotFinalizer(settlement_window);
-        SuppressGodotFinalizer(contract_board_service_modal);
-        SuppressGodotFinalizer(shop_service_modal);
-        SuppressGodotFinalizer(forge_service_modal);
-        SuppressGodotFinalizer(stagecoach_service_modal);
-        SuppressGodotFinalizer(npc_quest_offer_dialog);
-        SuppressGodotFinalizer(character_info_window);
-        SuppressGodotFinalizer(party_management_window);
-        SuppressGodotFinalizer(contingency_setup_window);
-        SuppressGodotFinalizer(party_warehouse_window);
-        SuppressGodotFinalizer(promotion_choice_window);
-        SuppressGodotFinalizer(character_reward_window);
-        SuppressGodotFinalizer(submap_entry_window);
-        SuppressGodotFinalizer(submap_hint_panel);
-        SuppressGodotFinalizer(submap_hint_label);
-        SuppressGodotFinalizer(bottom_action_bar);
-        SuppressGodotFinalizer(party_button);
-        SuppressGodotFinalizer(battle_loading_overlay);
-        SuppressGodotFinalizer(battle_loading_label);
-        SuppressGodotFinalizer(battle_loading_progress_bar);
-        SuppressGodotFinalizer(battle_loading_percent_label);
+        ApplicationLifetimeCoordinator coordinator = GetTree()
+            ?.Root.GetNodeOrNull<ApplicationLifetimeCoordinator>(
+                "ApplicationLifetimeCoordinator"
+            );
+        if (coordinator == null)
+        {
+            throw new InvalidOperationException(
+                "WorldMapSystem requires ApplicationLifetimeCoordinator."
+            );
+        }
+
+        coordinator.RegisterParticipant(this);
+        _applicationLifetimeCoordinator = coordinator;
     }
 
-    private static void SuppressGodotFinalizer(GodotObject instance)
+    private void UnregisterApplicationShutdownParticipant()
     {
-        if (instance != null)
-            GC.SuppressFinalize(instance);
+        ApplicationLifetimeCoordinator coordinator = _applicationLifetimeCoordinator;
+        _applicationLifetimeCoordinator = null;
+        if (coordinator == null || !GodotObject.IsInstanceValid(coordinator))
+            return;
+
+        coordinator.UnregisterParticipant(this);
     }
 
     public void _update_responsive_log_layout()

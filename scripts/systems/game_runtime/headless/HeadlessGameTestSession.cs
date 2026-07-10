@@ -1,13 +1,19 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 // Development-only headless bridge for automation and debugging.
 // This is not a player-facing startup path or UI layer.
-public sealed class HeadlessGameTestSession : IDisposable
+public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownParticipant
 {
+    private const string ApplicationShutdownParticipantId = "headless-game-test-session";
+    private const ApplicationShutdownParticipantStage ApplicationShutdownStage =
+        ApplicationShutdownParticipantStage.Runtime;
+    private const int ApplicationShutdownOrder = 0;
+
     internal readonly struct SessionCommandOutcome
     {
         public SessionCommandOutcome(
@@ -55,8 +61,25 @@ public sealed class HeadlessGameTestSession : IDisposable
     private GameRuntimeFacade _runtime;
     private bool _ownsGameSession;
     private bool _disposed;
+    private ApplicationLifetimeCoordinator _applicationLifetimeCoordinator;
     private EncounterAnchorData _activeHeadlessEncounterAnchor;
     private string _lastBattleStartDiagnostic = "";
+
+    string IApplicationShutdownParticipant.ShutdownParticipantId =>
+        ApplicationShutdownParticipantId;
+
+    ApplicationShutdownParticipantStage IApplicationShutdownParticipant.ShutdownStage =>
+        ApplicationShutdownStage;
+
+    int IApplicationShutdownParticipant.ShutdownOrder => ApplicationShutdownOrder;
+
+    ValueTask IApplicationShutdownParticipant.CloseForApplicationShutdownAsync(
+        ShutdownReport report
+    )
+    {
+        Dispose(false);
+        return ValueTask.CompletedTask;
+    }
 
     public void initialize()
     {
@@ -608,9 +631,11 @@ public sealed class HeadlessGameTestSession : IDisposable
     {
         if (_disposed)
         {
+            UnregisterApplicationShutdownParticipant();
             return;
         }
         _disposed = true;
+        UnregisterApplicationShutdownParticipant();
         UnloadWorldScene();
         if (_gameSession != null && GodotObject.IsInstanceValid(_gameSession))
         {
@@ -626,14 +651,13 @@ public sealed class HeadlessGameTestSession : IDisposable
         _gameSession = null;
         _ownsGameSession = false;
         _activeHeadlessEncounterAnchor = null;
-        GC.SuppressFinalize(this);
-        GodotObjectLifecycle.PrepareForFinalizerDrain();
     }
 
     private void EnsureGameSession()
     {
         if (_gameSession != null && GodotObject.IsInstanceValid(_gameSession))
         {
+            RegisterApplicationShutdownParticipantIfAvailable();
             return;
         }
 
@@ -648,6 +672,7 @@ public sealed class HeadlessGameTestSession : IDisposable
         {
             GC.KeepAlive(_gameSession);
             _ownsGameSession = false;
+            RegisterApplicationShutdownParticipantIfAvailable();
             return;
         }
 
@@ -656,6 +681,37 @@ public sealed class HeadlessGameTestSession : IDisposable
         sceneTree.Root.AddChild(_gameSession);
         _ownsGameSession = true;
         SettleFrames(1);
+        RegisterApplicationShutdownParticipantIfAvailable();
+    }
+
+    private void RegisterApplicationShutdownParticipantIfAvailable()
+    {
+        if (_disposed)
+            return;
+
+        SceneTree sceneTree = GetSceneTree();
+        ApplicationLifetimeCoordinator coordinator = sceneTree
+            ?.Root.GetNodeOrNull<ApplicationLifetimeCoordinator>(
+                "ApplicationLifetimeCoordinator"
+            );
+        if (coordinator == null)
+            return;
+        if (ReferenceEquals(_applicationLifetimeCoordinator, coordinator))
+            return;
+
+        UnregisterApplicationShutdownParticipant();
+        coordinator.RegisterParticipant(this);
+        _applicationLifetimeCoordinator = coordinator;
+    }
+
+    private void UnregisterApplicationShutdownParticipant()
+    {
+        ApplicationLifetimeCoordinator coordinator = _applicationLifetimeCoordinator;
+        _applicationLifetimeCoordinator = null;
+        if (coordinator == null || !GodotObject.IsInstanceValid(coordinator))
+            return;
+
+        coordinator.UnregisterParticipant(this);
     }
 
     private void UnloadWorldScene()

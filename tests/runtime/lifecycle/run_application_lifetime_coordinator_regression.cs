@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using Godot;
 
@@ -95,10 +96,163 @@ public partial class run_application_lifetime_coordinator_regression : SceneTree
         _test.False(AutoAcceptQuit, "coordinator disables automatic quit acceptance");
 
         TestRealGameSessionRegistrationContract(coordinator, gameSession);
+        await TestRealRuntimeParticipantRegistrationContracts(coordinator);
         await TestOffMainThreadRequestFailsBeforeShutdown(coordinator);
         await TestApplicationCloseConvergesOnOneShotNormalClose();
         await TestParticipantContractsAndSkippedHistory(gameSession);
         await TestIdempotentRequestAndSuccessfulHistory(coordinator, gameSession);
+    }
+
+    private async Task TestRealRuntimeParticipantRegistrationContracts(
+        ApplicationLifetimeCoordinator coordinator
+    )
+    {
+        var report = new ShutdownReport(
+            new ShutdownRequest(0, ShutdownReason.RequestedExit)
+        );
+
+        var headlessSession = new HeadlessGameTestSession();
+        headlessSession.initialize();
+        IApplicationShutdownParticipant headlessParticipant = headlessSession;
+        _test.Eq(
+            headlessParticipant.ShutdownParticipantId,
+            "headless-game-test-session",
+            "HeadlessGameTestSession participant ID is stable"
+        );
+        _test.Eq(
+            headlessParticipant.ShutdownStage,
+            ApplicationShutdownParticipantStage.Runtime,
+            "HeadlessGameTestSession participates at the Runtime stage"
+        );
+        _test.Eq(
+            headlessParticipant.ShutdownOrder,
+            0,
+            "HeadlessGameTestSession participant order is stable"
+        );
+        AssertRealParticipantRegistered(
+            coordinator,
+            headlessParticipant,
+            "HeadlessGameTestSession registers when initialized"
+        );
+        AssertRealParticipantUnregistersIdempotently(
+            coordinator,
+            headlessParticipant,
+            "HeadlessGameTestSession unregister is idempotent and permits re-registration"
+        );
+        await headlessParticipant.CloseForApplicationShutdownAsync(report);
+        await headlessParticipant.CloseForApplicationShutdownAsync(report);
+        _test.True(
+            headlessSession.GetGameSessionTyped() == null,
+            "HeadlessGameTestSession application close is idempotent"
+        );
+        bool headlessRegistrationReleased = true;
+        var releasedIdProbe = new FakeParticipant(
+            headlessParticipant.ShutdownParticipantId,
+            headlessParticipant.ShutdownStage,
+            headlessParticipant.ShutdownOrder,
+            new List<string>()
+        );
+        try
+        {
+            coordinator.RegisterParticipant(releasedIdProbe);
+            coordinator.UnregisterParticipant(releasedIdProbe);
+        }
+        catch (Exception)
+        {
+            headlessRegistrationReleased = false;
+        }
+        _test.True(
+            headlessRegistrationReleased,
+            "HeadlessGameTestSession close releases its participant registration"
+        );
+
+        Type worldMapParticipantType = typeof(WorldMapSystem);
+        _test.True(
+            typeof(IApplicationShutdownParticipant).IsAssignableFrom(worldMapParticipantType),
+            "WorldMapSystem implements the shutdown participant contract"
+        );
+        _test.Eq(
+            ReadPrivateConstant<string>(
+                worldMapParticipantType,
+                "ApplicationShutdownParticipantId"
+            ),
+            "world-map-system",
+            "WorldMapSystem participant ID is stable"
+        );
+        _test.Eq(
+            ReadPrivateConstant<ApplicationShutdownParticipantStage>(
+                worldMapParticipantType,
+                "ApplicationShutdownStage"
+            ),
+            ApplicationShutdownParticipantStage.Runtime,
+            "WorldMapSystem participates at the Runtime stage"
+        );
+        _test.Eq(
+            ReadPrivateConstant<int>(
+                worldMapParticipantType,
+                "ApplicationShutdownOrder"
+            ),
+            0,
+            "WorldMapSystem participant order is stable"
+        );
+        _test.True(
+            worldMapParticipantType
+                .GetInterfaceMap(typeof(IApplicationShutdownParticipant))
+                .TargetMethods.Any(method =>
+                    method.Name.Contains("CloseForApplicationShutdownAsync", StringComparison.Ordinal)
+                ),
+            "WorldMapSystem exposes the application-shutdown close path"
+        );
+    }
+
+    private static T ReadPrivateConstant<T>(Type ownerType, string fieldName) =>
+        (T)ownerType
+            .GetField(fieldName, BindingFlags.Static | BindingFlags.NonPublic)
+            .GetRawConstantValue();
+
+    private void AssertRealParticipantRegistered(
+        ApplicationLifetimeCoordinator coordinator,
+        IApplicationShutdownParticipant participant,
+        string message
+    )
+    {
+        bool duplicateRejected = false;
+        try
+        {
+            coordinator.RegisterParticipant(
+                new FakeParticipant(
+                    participant.ShutdownParticipantId,
+                    participant.ShutdownStage,
+                    participant.ShutdownOrder,
+                    new List<string>()
+                )
+            );
+        }
+        catch (InvalidOperationException)
+        {
+            duplicateRejected = true;
+        }
+        _test.True(duplicateRejected, message);
+    }
+
+    private void AssertRealParticipantUnregistersIdempotently(
+        ApplicationLifetimeCoordinator coordinator,
+        IApplicationShutdownParticipant participant,
+        string message
+    )
+    {
+        bool unregisterWasIdempotent = true;
+        try
+        {
+            coordinator.UnregisterParticipant(participant);
+            coordinator.UnregisterParticipant(participant);
+            coordinator.RegisterParticipant(participant);
+        }
+        catch (Exception)
+        {
+            unregisterWasIdempotent = false;
+        }
+        _test.True(unregisterWasIdempotent, message);
     }
 
     private void TestRealGameSessionRegistrationContract(
@@ -377,8 +531,26 @@ public partial class run_application_lifetime_coordinator_regression : SceneTree
     )
     {
         var calls = new List<string>();
+        var headlessSession = new HeadlessGameTestSession();
+        headlessSession.initialize();
+        IApplicationShutdownParticipant headlessParticipant = headlessSession;
+
         GameContentCatalog catalog = gameSession.GetContentCatalogTyped();
         long revisionBeforeShutdown = catalog.GetRevision();
+        var runtimeBefore = new FakeParticipant(
+            "runtime-before-real-owners",
+            ApplicationShutdownParticipantStage.Runtime,
+            -1,
+            calls,
+            onClose: () =>
+            {
+                _test.True(
+                    headlessSession.GetGameSessionTyped() != null,
+                    "lower-order Runtime participant closes before real Runtime owners"
+                );
+                return ValueTask.CompletedTask;
+            }
+        );
         var started = new TaskCompletionSource<bool>(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
@@ -393,7 +565,23 @@ public partial class run_application_lifetime_coordinator_regression : SceneTree
             started: started,
             release: release
         );
+        var runtimeAfter = new FakeParticipant(
+            "runtime-after-real-owners",
+            ApplicationShutdownParticipantStage.Runtime,
+            1,
+            calls,
+            onClose: () =>
+            {
+                _test.True(
+                    headlessSession.GetGameSessionTyped() == null,
+                    "higher-order Runtime participant closes after real Runtime owners"
+                );
+                return ValueTask.CompletedTask;
+            }
+        );
+        coordinator.RegisterParticipant(runtimeBefore);
         coordinator.RegisterParticipant(blocker);
+        coordinator.RegisterParticipant(runtimeAfter);
         var sessionBefore = new FakeParticipant(
             "session-before-game-session",
             ApplicationShutdownParticipantStage.Session,
@@ -486,8 +674,14 @@ public partial class run_application_lifetime_coordinator_regression : SceneTree
         );
         _test.Eq(
             string.Join(",", calls),
-            "blocking-runtime,session-before-game-session,session-after-game-session",
+            "runtime-before-real-owners,blocking-runtime,runtime-after-real-owners,session-before-game-session,session-after-game-session",
             "idempotent requests close each participant once"
+        );
+        await headlessParticipant.CloseForApplicationShutdownAsync(report);
+        _test.True(
+            headlessSession.GetRuntimeFacadeTyped() == null
+                && headlessSession.GetGameSessionTyped() == null,
+            "real Runtime participants remain closed after repeated close paths"
         );
         _test.Eq(
             catalog.GetRevision(),
