@@ -261,8 +261,7 @@ public partial class GameSession : Node
             return;
         }
         bool sessionInTree = IsSessionInTree();
-        GC.SuppressFinalize(this);
-        DisposeManagedSession(sessionInTree);
+        CloseNormal();
         if (GodotObject.IsInstanceValid(this))
         {
             if (sessionInTree)
@@ -272,21 +271,18 @@ public partial class GameSession : Node
         }
     }
 
-    public override void _ExitTree()
-    {
-        DisposeManagedSession(suppressContentFinalizers: true);
-    }
+    public override void _ExitTree() => CloseNormal();
 
     protected override void Dispose(bool disposing)
     {
         if (disposing)
         {
-            DisposeManagedSession(IsSessionInTree());
+            CloseNormal();
         }
         base.Dispose(disposing);
     }
 
-    private void DisposeManagedSession(bool suppressContentFinalizers = false)
+    internal void CloseNormal()
     {
         if (_disposed)
         {
@@ -295,8 +291,13 @@ public partial class GameSession : Node
         _disposed = true;
         DisposePartyStateGraph(_party_state);
         _party_state = null;
-        DisposeOwnedRuntimeResources(suppressContentFinalizers);
+        DisposeOwnedRuntimeResources();
         _log_service = null;
+        RemoveLogSink();
+    }
+
+    private void RemoveLogSink()
+    {
         if (_log_sink != null)
         {
             GameLog.RemoveSink(_log_sink);
@@ -304,18 +305,11 @@ public partial class GameSession : Node
         }
     }
 
-    internal void DisposeOwnedRuntimeResources(bool suppressContentFinalizers = false)
+    internal void DisposeOwnedRuntimeResources()
     {
-        HashSet<GodotObject> shutdownSuppressionVisited = suppressContentFinalizers
-            ? new HashSet<GodotObject>()
-            : null;
-        if (shutdownSuppressionVisited != null)
-        {
-            SuppressOwnedContentFinalizerGraphsForShutdown(shutdownSuppressionVisited);
-        }
         _game_root?.Dispose();
         _game_root = null;
-        ClearSessionGodotObjectReferences(shutdownSuppressionVisited);
+        ClearSessionGodotObjectReferences();
         _progression_content_registry?.Dispose();
         _progression_content_registry = null;
         _item_content_registry?.Dispose();

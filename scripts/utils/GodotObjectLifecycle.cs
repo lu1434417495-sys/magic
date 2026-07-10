@@ -5,7 +5,10 @@ internal static class GodotObjectLifecycle
 {
     static GodotObjectLifecycle()
     {
-        AppDomain.CurrentDomain.ProcessExit += (_, _) => PrepareForProcessExitFinalizerDrain();
+        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+            ApplicationLifetimeDiagnostics.RecordProcessExit(
+                ApplicationLifetimeDiagnostics.CurrentPhase
+            );
     }
 
     internal static void CollectPendingFinalizers()
@@ -20,13 +23,6 @@ internal static class GodotObjectLifecycle
     {
         RuntimeStateLifecycle.SuppressRuntimeStateGraphsForFinalizerDrain();
         GodotContentOwnership.RetainStaticContentForFinalizerDrain();
-    }
-
-    internal static void PrepareForProcessExitFinalizerDrain()
-    {
-        RuntimeStateLifecycle.SuppressRuntimeStateGraphsForFinalizerDrain();
-        GodotContentOwnership.SuppressBorrowedContentForProcessExit();
-        SuppressGameSessionContentForProcessExit();
     }
 
     internal static void DisposeGodotObject(FileAccess owned) => DisposeNativeIoWrapper(owned);
@@ -48,23 +44,4 @@ internal static class GodotObjectLifecycle
         }
     }
 
-    private static void SuppressGameSessionContentForProcessExit()
-    {
-        try
-        {
-            if (Engine.GetMainLoop() is not SceneTree tree)
-                return;
-            Node root = tree.Root;
-            if (root == null)
-                return;
-            foreach (Node child in root.GetChildren())
-            {
-                if (child is GameSession session)
-                    session.SuppressContentFinalizersForFinalizerDrain();
-            }
-        }
-        catch (Exception)
-        {
-        }
-    }
 }

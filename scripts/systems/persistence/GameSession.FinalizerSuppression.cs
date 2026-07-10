@@ -235,19 +235,17 @@ public partial class GameSession
         }
     }
 
-    private void ClearSessionGodotObjectReferences(HashSet<GodotObject> finalizerSuppressionVisited)
+    private void ClearSessionGodotObjectReferences()
     {
-        if (finalizerSuppressionVisited != null)
-            SuppressGodotObjectFinalizerGraph(_generation_config, finalizerSuppressionVisited);
         _generation_config = null;
-        ClearResourceDictionaryProjection(_profession_defs, finalizerSuppressionVisited);
-        ClearResourceDictionaryProjection(_achievement_defs, finalizerSuppressionVisited);
-        ClearResourceDictionaryProjection(_quest_defs, finalizerSuppressionVisited);
-        ClearResourceDictionaryProjection(_item_defs, finalizerSuppressionVisited);
-        ClearResourceDictionaryProjection(_recipe_defs, finalizerSuppressionVisited);
-        ClearResourceDictionaryProjection(_enemy_templates, finalizerSuppressionVisited);
-        ClearResourceDictionaryProjection(_enemy_ai_brains, finalizerSuppressionVisited);
-        ClearResourceDictionaryProjection(_wild_encounter_rosters, finalizerSuppressionVisited);
+        ClearResourceDictionaryProjection(_profession_defs);
+        ClearResourceDictionaryProjection(_achievement_defs);
+        ClearResourceDictionaryProjection(_quest_defs);
+        ClearResourceDictionaryProjection(_item_defs);
+        ClearResourceDictionaryProjection(_recipe_defs);
+        ClearResourceDictionaryProjection(_enemy_templates);
+        ClearResourceDictionaryProjection(_enemy_ai_brains);
+        ClearResourceDictionaryProjection(_wild_encounter_rosters);
         _skillDefinitionIndex.Clear();
         _profession_defs = new GDictionary();
         _achievement_defs = new GDictionary();
@@ -268,16 +266,13 @@ public partial class GameSession
         _wildEncounterRosterIndex.Clear();
     }
 
-    private static void ClearResourceDictionaryProjection(
-        GDictionary projection,
-        HashSet<GodotObject> finalizerSuppressionVisited
-    )
+    private static void ClearResourceDictionaryProjection(GDictionary projection)
     {
         if (projection == null)
             return;
-        SuppressResourceDictionaryProjectionFinalizers(
+        RegisterContentProjectionWrapper(
             projection,
-            finalizerSuppressionVisited
+            "GameSession.ClearResourceDictionaryProjection"
         );
         projection.Clear();
     }

@@ -10,6 +10,7 @@ public sealed class GameRoot : IDisposable
 {
     private readonly GameContentCatalog _contentCatalog = new();
     private System.WeakReference<GameSession> _sessionRef;
+    private bool _disposed;
 
     internal void BindSession(GameSession session)
     {
@@ -23,6 +24,9 @@ public sealed class GameRoot : IDisposable
     /// </summary>
     internal void DisposeOwnedRuntimeResources()
     {
+        if (_disposed)
+            return;
+        _disposed = true;
         _contentCatalog.ClearSessionBinding();
         _sessionRef = null;
     }
