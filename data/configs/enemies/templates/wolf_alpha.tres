@@ -18,23 +18,23 @@ display_name = "荒狼头目"
 battle_sprite_texture = ExtResource("2_wolf_alpha_sprite")
 brain_id = &"melee_aggressor"
 initial_state_id = &"engage"
+creature_level = 4
+hit_die_sides = 10
 action_threshold = 30
 tags = Array[StringName]([&"beast", &"wolf", &"bite"])
 save_advantage_tags = Array[StringName]([&"charm_advantage", &"frightened_immunity"])
 base_attribute_overrides = {
-&"strength": 7,
-&"agility": 8,
-&"constitution": 6,
-&"perception": 6,
+&"strength": 15,
+&"agility": 16,
+&"constitution": 15,
+&"perception": 14,
 &"intelligence": 4,
-&"willpower": 5,
+&"willpower": 8,
 }
 skill_ids = Array[StringName]([&"charge", &"warrior_guard_break"])
 target_rank = &"elite"
 drop_entries = Array[Resource]([SubResource("Resource_drop_alpha_hide")])
 attribute_overrides = {
-&"hp_max": 34,
 &"mp_max": 0,
 &"action_points": 2,
-&"attack_bonus": 6,
 }

@@ -290,8 +290,8 @@ public partial class run_enemy_template_schema_boundary_regression : SceneTree
 
         _test.Eq(
             template.GetDerivedHpMaxTyped(),
-            500,
-            "派生 HP 应为 等级10 × (d12均值6.5 + 体质修正3×2) × 2x2占位4格 = 500。"
+            520,
+            "派生 HP 应为 首级取骰面最大值 (12+6) + 后9级 × (d12均值6.5 + 体质修正3×2)，向下取整后 × 2x2占位4格 = 520。"
         );
 
         var itemDefIndex = new Dictionary<StringName, ItemDef>

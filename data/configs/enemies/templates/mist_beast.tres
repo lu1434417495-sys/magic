@@ -17,6 +17,8 @@ display_name = "雾沼异兽"
 brain_id = &"ranged_controller"
 initial_state_id = &"pressure"
 enemy_count = 2
+creature_level = 3
+hit_die_sides = 8
 action_threshold = 45
 tags = Array[StringName]([&"beast", &"mist", &"magical_beast"])
 save_advantage_tags = Array[StringName]([&"illusion_advantage", &"temporal_advantage"])
@@ -25,12 +27,12 @@ damage_resistances = {
 &"fire": &"double",
 }
 base_attribute_overrides = {
-&"strength": 5,
-&"agility": 5,
-&"constitution": 5,
-&"perception": 6,
-&"intelligence": 6,
-&"willpower": 6,
+&"strength": 10,
+&"agility": 12,
+&"constitution": 12,
+&"perception": 14,
+&"intelligence": 12,
+&"willpower": 13,
 }
 skill_ids = Array[StringName]([&"mage_fireball", &"mage_ice_lance", &"mage_temporal_rewind"])
 skill_level_map = {
@@ -40,9 +42,7 @@ skill_level_map = {
 }
 drop_entries = Array[Resource]([SubResource("Resource_drop_mist_herb")])
 attribute_overrides = {
-&"hp_max": 24,
 &"mp_max": 120,
 &"action_points": 2,
-&"attack_bonus": 6,
 &"deflection_bonus": 4,
 }

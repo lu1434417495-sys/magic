@@ -19,23 +19,23 @@ battle_sprite_texture = ExtResource("2_militia_sprite")
 brain_id = &"melee_aggressor"
 initial_state_id = &"engage"
 enemy_count = 2
+creature_level = 1
+hit_die_sides = 8
 action_threshold = 35
 tags = Array[StringName]([&"humanoid", &"militia", &"spear"])
 save_advantage_tags = Array[StringName]([&"frightened_disadvantage"])
 attack_equipment_item_id = &"militia_spear"
 base_attribute_overrides = {
-&"strength": 5,
-&"agility": 5,
-&"constitution": 5,
-&"perception": 4,
-&"intelligence": 4,
-&"willpower": 4,
+&"strength": 11,
+&"agility": 10,
+&"constitution": 11,
+&"perception": 10,
+&"intelligence": 10,
+&"willpower": 9,
 }
 skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
 drop_entries = Array[Resource]([SubResource("Resource_drop_militia_cloth")])
 attribute_overrides = {
-&"hp_max": 22,
 &"mp_max": 0,
 &"action_points": 2,
-&"attack_bonus": 4,
 }

@@ -382,8 +382,8 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
 
             _test.Eq(
                 enemyUnit.current_hp,
-                500,
-                "无 hp_max override 时应按 等级10 × (d12均值+体质修正×2) × 4格 派生出 500 HP。"
+                520,
+                "无 hp_max override 时应按 首级满骰 + 后续均值 的公式派生出 520 HP(×4格)。"
             );
             var snapshot = enemyUnit.attribute_snapshot as AttributeSnapshot;
             _test.True(snapshot != null, "公式幼龙单位应携带 attribute snapshot。");
@@ -391,8 +391,8 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
             {
                 _test.Eq(
                     snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)),
-                    500,
-                    "快照 hp_max 应等于公式派生值 500。"
+                    520,
+                    "快照 hp_max 应等于公式派生值 520。"
                 );
                 _test.Eq(
                     snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus)),

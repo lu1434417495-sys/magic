@@ -213,8 +213,12 @@ public partial class EnemyTemplateDef : Resource
             ? conValue
             : 0;
         int constitutionModifier = AttributeSnapshot.CalculateScoreModifier(constitution);
-        double hpPerLevel = Math.Max(1.0, (sides + 1) / 2.0 + constitutionModifier * 2);
-        return Mathf.FloorToInt((float)(level * hpPerLevel)) * GetFootprintCellCountTyped();
+        // 半点定点整数运算：×2 表示 0.5 粒度，末尾整除 2 取整。
+        // 首级取骰面最大值，后续每级取骰均值 (sides+1)/2；每级最低半点 2（即 1 HP）。
+        int firstLevelHalfPoints = Math.Max(2, (sides + constitutionModifier * 2) * 2);
+        int perLevelHalfPoints = Math.Max(2, (sides + 1) + constitutionModifier * 4);
+        int totalHalfPoints = firstLevelHalfPoints + perLevelHalfPoints * (level - 1);
+        return (totalHalfPoints / 2) * GetFootprintCellCountTyped();
     }
 
     internal int GetDerivedAttackBonusTyped(
