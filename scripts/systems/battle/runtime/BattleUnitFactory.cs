@@ -373,13 +373,13 @@ internal sealed class BattleUnitFactory
         _apply_member_weapon_projection(us, us.source_member_id, us.GetEquipmentView());
     }
 
-    internal void RefreshEquipmentProjection(BattleUnitState us)
+    internal IReadOnlyList<StringName> RefreshEquipmentProjection(BattleUnitState us)
     {
         if (us == null || (string)us.source_member_id == "" || _runtime == null)
-            return;
+            return Array.Empty<StringName>();
         PartyMemberState ms = GetMemberState(us.source_member_id);
         if (ms == null)
-            return;
+            return Array.Empty<StringName>();
         var snap =
             _build_member_attribute_snapshot(
                 ms,
@@ -409,6 +409,10 @@ internal sealed class BattleUnitFactory
         us.attribute_snapshot = snap;
         _apply_member_effective_trait_projection(us, us.source_member_id, us.GetEquipmentView());
         _apply_player_equipment_ability_projection(us);
+        IReadOnlyList<StringName> changedUnitIds = _runtime
+            .GetEquipmentAbilityRuntimeService()
+            ?.ClearTargetMarksForRemovedEquipmentSources(_runtime.GetState(), us)
+            ?? Array.Empty<StringName>();
         TraitTriggerHooks.ReconcileChargesAfterEffectiveTraitProjection(
             us,
             previousEffectiveTraitInstances
@@ -435,6 +439,7 @@ internal sealed class BattleUnitFactory
         _sync_passive_battle_statuses(us, prog, ms);
         _sync_trait_passive_projection(us);
         us.RefreshFootprint();
+        return changedUnitIds;
     }
 
     internal IReadOnlyList<BattleUnitState> BuildEnemyUnits(

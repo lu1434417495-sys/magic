@@ -786,6 +786,37 @@ internal sealed class BattleAiMutationGuard
         return result;
     }
 
+    private static List<StableValue> StableTemporaryEdgeFeatureList(
+        IEnumerable<BattleTemporaryEdgeFeatureState> values
+    )
+    {
+        List<StableValue> result = new();
+        foreach (
+            BattleTemporaryEdgeFeatureState feature in values
+                ?? System.Array.Empty<BattleTemporaryEdgeFeatureState>()
+        )
+        {
+            if (feature?.IsValid != true)
+                continue;
+            StableMap map = new();
+            map.Set("origin_coord", StableValue.FromVector2I(feature.OriginCoord));
+            map.Set("direction", StableValue.FromVector2I(feature.Direction));
+            map.Set("source_unit_id", StableValue.FromText(feature.SourceUnitId.ToString()));
+            map.Set(
+                "source_equipment_instance_id",
+                StableValue.FromText(feature.SourceEquipmentInstanceId.ToString())
+            );
+            map.Set("binding_id", StableValue.FromText(feature.BindingId.ToString()));
+            map.Set("action_id", StableValue.FromText(feature.ActionId.ToString()));
+            map.Set("created_at_tu", StableValue.FromInteger(feature.CreatedAtTu));
+            map.Set("expires_at_tu", StableValue.FromInteger(feature.ExpiresAtTu));
+            map.Set("sequence", StableValue.FromInteger(feature.Sequence));
+            map.Set("feature", StableValue.FromMap(StableEdgeFeature(feature.Feature)));
+            result.Add(StableValue.FromMap(map));
+        }
+        return result;
+    }
+
     private static StableMap StableWarehouse(WarehouseState warehouse)
     {
         StableMap result = new();
@@ -1146,6 +1177,7 @@ internal sealed class BattleAiMutationGuard
         private List<KnownFieldSnapshot> _promotionQueue = new();
         private StringName _modalState = "";
         private LayeredBarrierFieldsSnapshot _layeredBarrierFields = new();
+        private List<BattleTemporaryEdgeFeatureState> _temporaryEdgeFeatures = new();
 
         public static BattleStateFieldsSnapshot Empty() => new();
 
@@ -1188,6 +1220,9 @@ internal sealed class BattleAiMutationGuard
             snapshot._modalState = state.modal_state;
             snapshot._layeredBarrierFields =
                 LayeredBarrierFieldsSnapshot.Capture(state.LayeredBarrierStore.SnapshotEntries());
+            snapshot._temporaryEdgeFeatures = DuplicateTemporaryEdgeFeatures(
+                state.GetTemporaryEdgeFeaturesTyped()
+            );
             return snapshot;
         }
 
@@ -1219,6 +1254,7 @@ internal sealed class BattleAiMutationGuard
             state.SetPromotionQueue(BuildDictionaryArray(_promotionQueue));
             state.modal_state = _modalState;
             state.ReplaceLayeredBarrierFieldsTyped(_layeredBarrierFields.ToBarrierEntries());
+            state.ReplaceTemporaryEdgeFeaturesTyped(_temporaryEdgeFeatures);
         }
 
         public StableMap ToStableMap()
@@ -1245,6 +1281,10 @@ internal sealed class BattleAiMutationGuard
             result.Set("promotion_queue", StableValue.FromArray(StableKnownFieldSnapshotList(_promotionQueue)));
             result.Set("modal_state", StableValue.FromText(_modalState.ToString()));
             result.Set("layered_barrier_fields", StableValue.FromMap(_layeredBarrierFields.ToStableMap()));
+            result.Set(
+                "temporary_edge_features",
+                StableValue.FromArray(StableTemporaryEdgeFeatureList(_temporaryEdgeFeatures))
+            );
             return result;
         }
     }
@@ -2395,6 +2435,10 @@ internal sealed class BattleAiMutationGuard
                 effect.source_bound_incoming_attack_roll_bonus_per_stack,
             source_bound_incoming_attack_roll_bonus_min_stacks =
                 effect.source_bound_incoming_attack_roll_bonus_min_stacks,
+            attack_roll_bonus = effect.attack_roll_bonus,
+            attack_roll_advantage = effect.attack_roll_advantage,
+            consume_on_next_attack_check = effect.consume_on_next_attack_check,
+            consume_on_next_save = effect.consume_on_next_save,
             undispellable = effect.undispellable,
             dispellable_magic = effect.dispellable_magic,
             dispellable_harmful_magic = effect.dispellable_harmful_magic,
@@ -2672,6 +2716,22 @@ internal sealed class BattleAiMutationGuard
         foreach (StringName value in values ?? System.Array.Empty<StringName>())
         {
             result.Add(StableValue.FromText(value.ToString()));
+        }
+        return result;
+    }
+
+    private static List<BattleTemporaryEdgeFeatureState> DuplicateTemporaryEdgeFeatures(
+        IEnumerable<BattleTemporaryEdgeFeatureState> values
+    )
+    {
+        var result = new List<BattleTemporaryEdgeFeatureState>();
+        foreach (
+            BattleTemporaryEdgeFeatureState value in values
+                ?? System.Array.Empty<BattleTemporaryEdgeFeatureState>()
+        )
+        {
+            if (value?.IsValid == true)
+                result.Add(value.DuplicateState());
         }
         return result;
     }

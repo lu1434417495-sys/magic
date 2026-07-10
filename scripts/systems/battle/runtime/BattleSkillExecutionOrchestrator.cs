@@ -12,6 +12,9 @@ using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 internal sealed partial class BattleSkillExecutionOrchestrator
 {
     private static readonly StringName STATUS_GUARDING = "guarding";
+    private StringName _scopedCommandSkillUnitId = "";
+    private StringName _scopedCommandSkillId = "";
+    private int _scopedCommandSkillLevel;
     private readonly record struct ChainDamageParameters(
         int BaseRadius,
         StringName BonusTerrainEffectId,
@@ -468,6 +471,23 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         {
             return;
         }
+        int fallbackSkillLevel = _get_unit_skill_level(active_unit, skillDefinition.SkillId);
+        int commandSkillLevel =
+            Runtime?.ResolveSkillCommandEntryLevel(
+                command,
+                BattleSkillAvailabilityConsumer.PreviewExecution,
+                fallbackSkillLevel
+            ) ?? fallbackSkillLevel;
+        using IDisposable scopedCommandLevel = PushScopedCommandSkillLevel(
+            active_unit,
+            skillDefinition.SkillId,
+            commandSkillLevel
+        );
+        using IDisposable scopedResolutionLevel = Runtime?._skill_resolution_rules?.PushScopedSkillLevel(
+            active_unit,
+            skillDefinition.SkillId,
+            commandSkillLevel
+        );
         bool allowRepeat = skillDefinition.CombatProfile.AllowRepeatTarget;
         BattleSkillResolutionPolicy policy = Runtime?._skill_resolution_rules
             ?.BuildSkillResolutionPolicy(
@@ -538,7 +558,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                     BuildEquipmentSkillUseOutcome(outcomeSnapshot)
                 );
             }
-            if (definitionApplied)
+            if (definitionApplied && ShouldGrantSkillMasteryForCommand(command, active_unit, skillDefinition))
             {
                 _grant_skill_mastery_if_needed(active_unit, skillDefinition, batch);
             }
@@ -573,7 +593,10 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             if (meteorApplied)
             {
                 Runtime?.CommitEquipmentSkillUsageIfNeeded(active_unit, command, batch);
-                _grant_skill_mastery_if_needed(active_unit, skillDefinition, batch);
+                if (ShouldGrantSkillMasteryForCommand(command, active_unit, skillDefinition))
+                {
+                    _grant_skill_mastery_if_needed(active_unit, skillDefinition, batch);
+                }
             }
             Runtime._skill_mastery_service.Clear();
             return;
@@ -598,6 +621,15 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             }
             _record_skill_attempt(active_unit, command?.skill_id ?? new StringName(""));
             Runtime?._skill_mastery_service.Clear();
+            BattleSkillUseOutcomeSnapshot outcomeSnapshot =
+                IsEquipmentSkillCommand(command)
+                    ? CaptureGroundSkillUseOutcomeSnapshot(
+                        active_unit,
+                        skillDefinition,
+                        policy.GroundCastVariantDefinition,
+                        command
+                    )
+                    : BattleSkillUseOutcomeSnapshot.Empty;
             bool definitionApplied = _handle_ground_skill_command(
                 active_unit,
                 command,
@@ -607,9 +639,14 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             );
             if (definitionApplied || IsEquipmentSkillCommand(command))
             {
-                Runtime?.CommitEquipmentSkillUsageIfNeeded(active_unit, command, batch);
+                Runtime?.CommitEquipmentSkillUsageIfNeeded(
+                    active_unit,
+                    command,
+                    batch,
+                    BuildEquipmentSkillUseOutcome(outcomeSnapshot)
+                );
             }
-            if (definitionApplied)
+            if (definitionApplied && ShouldGrantSkillMasteryForCommand(command, active_unit, skillDefinition))
             {
                 _grant_skill_mastery_if_needed(active_unit, skillDefinition, batch);
             }
@@ -629,6 +666,99 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         return skillEntryId.ToString().StartsWith("equipment_skill:", StringComparison.Ordinal);
     }
 
+    private static bool ShouldGrantSkillMasteryForCommand(
+        BattleCommand command,
+        BattleUnitState activeUnit,
+        SkillDefinition skillDefinition
+    )
+    {
+        if (!IsEquipmentSkillCommand(command))
+        {
+            return true;
+        }
+
+        StringName skillId = ProgressionDataUtils.to_string_name(
+            skillDefinition?.SkillId ?? command?.skill_id ?? new StringName("")
+        );
+        return UnitHasLearnedActiveSkill(activeUnit, skillId);
+    }
+
+    private static bool UnitHasLearnedActiveSkill(BattleUnitState unit, StringName skillId)
+    {
+        if (unit == null || skillId == "")
+        {
+            return false;
+        }
+        if (unit.KnowsActiveSkill(skillId))
+        {
+            return true;
+        }
+        return unit.GetKnownSkillLevelTyped(skillId, 0) > 0;
+    }
+
+    private IDisposable PushScopedCommandSkillLevel(
+        BattleUnitState unitState,
+        StringName skillId,
+        int skillLevel
+    )
+    {
+        StringName previousUnitId = _scopedCommandSkillUnitId;
+        StringName previousSkillId = _scopedCommandSkillId;
+        int previousSkillLevel = _scopedCommandSkillLevel;
+        _scopedCommandSkillUnitId = ProgressionDataUtils.to_string_name(unitState?.unit_id ?? "");
+        _scopedCommandSkillId = ProgressionDataUtils.to_string_name(skillId);
+        _scopedCommandSkillLevel = Math.Max(skillLevel, 0);
+        return new ScopedCommandSkillLevelScope(
+            this,
+            previousUnitId,
+            previousSkillId,
+            previousSkillLevel
+        );
+    }
+
+    private void RestoreScopedCommandSkillLevel(
+        StringName unitId,
+        StringName skillId,
+        int skillLevel
+    )
+    {
+        _scopedCommandSkillUnitId = ProgressionDataUtils.to_string_name(unitId);
+        _scopedCommandSkillId = ProgressionDataUtils.to_string_name(skillId);
+        _scopedCommandSkillLevel = Math.Max(skillLevel, 0);
+    }
+
+    private sealed class ScopedCommandSkillLevelScope : IDisposable
+    {
+        private BattleSkillExecutionOrchestrator _owner;
+        private readonly StringName _previousUnitId;
+        private readonly StringName _previousSkillId;
+        private readonly int _previousSkillLevel;
+
+        internal ScopedCommandSkillLevelScope(
+            BattleSkillExecutionOrchestrator owner,
+            StringName previousUnitId,
+            StringName previousSkillId,
+            int previousSkillLevel
+        )
+        {
+            _owner = owner;
+            _previousUnitId = previousUnitId;
+            _previousSkillId = previousSkillId;
+            _previousSkillLevel = previousSkillLevel;
+        }
+
+        public void Dispose()
+        {
+            BattleSkillExecutionOrchestrator owner = _owner;
+            _owner = null;
+            owner?.RestoreScopedCommandSkillLevel(
+                _previousUnitId,
+                _previousSkillId,
+                _previousSkillLevel
+            );
+        }
+    }
+
     private BattleSkillUseOutcomeSnapshot CaptureSkillUseOutcomeSnapshot(
         BattleCommand command,
         bool allowRepeat
@@ -638,6 +768,71 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         if (state == null || command == null)
             return BattleSkillUseOutcomeSnapshot.Empty;
         GStringNameArray targetUnitIds = _normalize_target_unit_ids(command, allowRepeat);
+        return CaptureSkillUseOutcomeSnapshot(targetUnitIds);
+    }
+
+    private BattleSkillUseOutcomeSnapshot CaptureGroundSkillUseOutcomeSnapshot(
+        BattleUnitState activeUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        BattleCommand command
+    )
+    {
+        BattleState state = RtState();
+        if (
+            state == null
+            || Runtime == null
+            || activeUnit == null
+            || skillDefinition == null
+            || castVariantDefinition == null
+            || command == null
+        )
+        {
+            return BattleSkillUseOutcomeSnapshot.Empty;
+        }
+
+        BattleGroundSkillValidationResult validation =
+            Runtime.ValidateGroundSkillCommandResultTyped(
+                activeUnit,
+                skillDefinition,
+                castVariantDefinition,
+                command
+            );
+        if (!validation.Allowed)
+        {
+            return BattleSkillUseOutcomeSnapshot.Empty;
+        }
+
+        IReadOnlyList<Vector2I> targetCoords = validation.TargetCoords ?? Array.Empty<Vector2I>();
+        IReadOnlyList<Vector2I> effectCoords = Runtime.BuildGroundEffectCoordsTyped(
+            skillDefinition,
+            targetCoords,
+            activeUnit.coord,
+            activeUnit,
+            castVariantDefinition
+        );
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions =
+            Runtime.CollectGroundUnitEffectDefinitionsTyped(
+                skillDefinition,
+                castVariantDefinition,
+                activeUnit
+            );
+        IReadOnlyList<StringName> targetUnitIds = Runtime.CollectGroundPreviewUnitIdsTyped(
+            activeUnit,
+            skillDefinition,
+            effectDefinitions,
+            effectCoords
+        );
+        return CaptureSkillUseOutcomeSnapshot(targetUnitIds);
+    }
+
+    private BattleSkillUseOutcomeSnapshot CaptureSkillUseOutcomeSnapshot(
+        IEnumerable<StringName> targetUnitIds
+    )
+    {
+        BattleState state = RtState();
+        if (state == null)
+            return BattleSkillUseOutcomeSnapshot.Empty;
         var snapshots = new Dictionary<StringName, BattleSkillTargetBeforeState>();
         foreach (StringName rawId in targetUnitIds)
         {
@@ -712,11 +907,9 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         StringName sourceActionId
     )
     {
-        if (sourceUnit == null || !ResultIncludesWeaponDamage(result))
-            return BattleKillProvenance.None;
-        return BattleKillProvenance.ForEquipmentAttack(
-            sourceUnit.GetEquipmentView()?.GetEquippedInstanceId("main_hand") ?? new StringName(""),
-            "",
+        return BattleKillProvenance.FromWeaponAttackResult(
+            sourceUnit,
+            result,
             sourceActionId
         );
     }
@@ -3018,6 +3211,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             {
                 BattleState = RtState(),
                 SkillId = skillDefinition?.SkillId ?? new StringName(""),
+                EventBatch = batch,
             };
             if (forceHitNoCrit)
             {
@@ -3160,6 +3354,12 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             skillDefinition,
             damageResult,
             effectDefinitions
+        );
+        Runtime?._apply_source_bound_weapon_bonus_mastery_grants(
+            active_unit,
+            target_unit,
+            damageResult,
+            batch
         );
         _flush_last_stand_mastery_records(batch);
         BattleSkillMasteryGrant guardMasteryGrant =
@@ -3456,7 +3656,6 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         }
         if (destroyedAny)
         {
-            _refresh_target_after_equipment_destruction(target_unit);
             _append_changed_unit_id(batch, target_unit.unit_id);
             _append_changed_unit_coords(batch, target_unit);
         }
@@ -3492,48 +3691,6 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 $"{skill_subject} 解除 {target_unit.display_name} 身上的 {string.Join("、", labels)}。"
             );
         }
-    }
-
-    internal void _refresh_target_after_equipment_destruction(BattleUnitState target_unit)
-    {
-        BattleUnitFactory unitFactory = Runtime?._unit_factory;
-        if (target_unit == null || Runtime == null || unitFactory == null)
-        {
-            return;
-        }
-        if (!StringNameIsEmpty(target_unit.source_member_id))
-        {
-            unitFactory.RefreshEquipmentProjection(target_unit);
-        }
-        _clamp_target_resources_after_equipment_projection(target_unit);
-    }
-
-    internal void _clamp_target_resources_after_equipment_projection(BattleUnitState target_unit)
-    {
-        AttributeSnapshot snapshot = target_unit?.attribute_snapshot;
-        if (target_unit == null || snapshot == null)
-        {
-            return;
-        }
-        target_unit.SetCurrentHpClamped(
-            target_unit.current_hp,
-            Math.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)), 1)
-        );
-        target_unit.SetCurrentMp(Math.Clamp(
-            target_unit.current_mp,
-            0,
-            Math.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax)), 0)
-        ));
-        target_unit.SetCurrentStamina(Math.Clamp(
-            target_unit.current_stamina,
-            0,
-            Math.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax)), 0)
-        ));
-        target_unit.SetCurrentAura(Math.Clamp(
-            target_unit.current_aura,
-            0,
-            Math.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AuraMax)), 0)
-        ));
     }
 
     internal void _apply_chain_damage_effects(
@@ -3604,6 +3761,11 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                                     ),
                                     1
                                 )
+                            )
+                            .WithDamageApplicationHookContext(
+                                batch,
+                                Runtime?.CurrentEffectOriginForContingency
+                                    ?? BattleEffectOrigin.PlayerCommand()
                             )
                     ) ?? new AttackEffectResolutionResult
                     {

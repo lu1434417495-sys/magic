@@ -1268,6 +1268,18 @@ public sealed partial class BattleRuntimeModule : IDisposable
         );
     }
 
+    internal int ResolveSkillCommandEntryLevel(
+        BattleCommand command,
+        BattleSkillAvailabilityConsumer consumer,
+        int fallback = 0
+    )
+    {
+        BattleSkillAccessResult accessResult = ValidateSkillCommandEntryAccess(command, consumer);
+        return accessResult.Allowed && accessResult.Entry != null
+            ? accessResult.Entry.SkillLevel
+            : fallback;
+    }
+
     internal int GetBattleWorldStep() =>
         _state?.GetEnvironmentSnapshot()?.WorldStep ?? -1;
 

@@ -1906,7 +1906,10 @@ internal sealed class BattleRuntimeSkillTurnResolver
         {
             return false;
         }
-        bool changed = false;
+        bool changed =
+            _runtime
+                ?.GetEquipmentAbilityRuntimeService()
+                ?.AdvanceTargetMarkDurations(unit_state, elapsed_tu, batch) == true;
         var expiredStatusIds = new List<StringName>();
         var expiredStatusEntries = new Dictionary<StringName, BattleStatusEffectState>();
         foreach (BattleStatusEffectState statusEntry in unit_state.GetStatusEffectsTyped())
@@ -1957,6 +1960,9 @@ internal sealed class BattleRuntimeSkillTurnResolver
             }
             if (shouldEraseStatus)
             {
+                _runtime
+                    ?.GetEquipmentAbilityRuntimeService()
+                    ?.ResolveTargetMarkExpired(unit_state, expiredStatusEntry, batch);
                 EraseStatusEffect(unit_state, expiredStatusId);
             }
         }

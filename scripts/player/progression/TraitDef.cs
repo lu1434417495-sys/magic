@@ -55,6 +55,10 @@ public partial class TraitDef : Resource
     public Godot.Collections.Array<TraitSaveBonusEntryDef> save_bonus_entries { get; set; } = new();
 
     [Export]
+    public Godot.Collections.Array<TraitPassiveStatusEffectDef> passive_status_effects { get; set; } =
+        new();
+
+    [Export]
     public Godot.Collections.Array<TraitRollValueSchemaEntry> roll_value_schema { get; set; } =
         new();
 

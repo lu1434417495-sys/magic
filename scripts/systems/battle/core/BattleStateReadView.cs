@@ -364,6 +364,9 @@ internal readonly struct BattleStatusReadView
 
     internal bool IsValid => _status != null;
     internal StringName StatusId => _status?.status_id ?? "";
+    internal StringName SourceUnitId => _status?.source_unit_id ?? "";
+    internal string DisplayLabel => _status?.display_label ?? "";
+    internal int Stacks => _status?.stacks ?? 0;
     internal bool CountsAsDebuffOverride => _status?.counts_as_debuff_override ?? false;
     internal bool CountsAsDebuff => _status?.counts_as_debuff ?? false;
     internal int MainSkillLockOtherDebuffCount =>
@@ -372,6 +375,16 @@ internal readonly struct BattleStatusReadView
     internal bool LockGuard => _status?.lock_guard ?? false;
     internal int Power => _status?.power ?? 0;
     internal int RangeBonus => _status?.range_bonus ?? 0;
+    internal int AttackRollBonus => _status?.attack_roll_bonus ?? 0;
+    internal bool AttackRollAdvantage => _status?.attack_roll_advantage ?? false;
+    internal int SourceBoundAttackRollPenalty =>
+        _status?.source_bound_attack_roll_penalty ?? 0;
+    internal int SourceBoundAttackRollPenaltyMinStacks =>
+        _status?.source_bound_attack_roll_penalty_min_stacks ?? 1;
+    internal int SourceBoundIncomingAttackRollBonusPerStack =>
+        _status?.source_bound_incoming_attack_roll_bonus_per_stack ?? 0;
+    internal int SourceBoundIncomingAttackRollBonusMinStacks =>
+        _status?.source_bound_incoming_attack_roll_bonus_min_stacks ?? 1;
 }
 
 internal readonly struct BattleCellReadView

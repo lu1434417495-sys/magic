@@ -179,6 +179,7 @@ public struct DamageEventResult
     public DamageDiceRollDetail CriticalExtraBonusDamageDice;
     public DamageDiceRollDetail CriticalExtraWeaponDamageDice;
     public DamageDiceRollDetail TraitExtraWeaponDamageDice;
+    public StringName[] SourceBoundWeaponBonusSkillIds;
     public double OffenseMultiplier;
     public int RolledDamage;
     public int TierAdjustedDamage;
@@ -904,6 +905,12 @@ internal static class AttackEffectResolutionResultReader
             value.TraitExtraWeaponDamageDice,
             includeBonus: false
         );
+        if (value.SourceBoundWeaponBonusSkillIds != null && value.SourceBoundWeaponBonusSkillIds.Length > 0)
+        {
+            payload["source_bound_weapon_bonus_skill_ids"] = BuildStringNameArrayPayload(
+                value.SourceBoundWeaponBonusSkillIds
+            );
+        }
         payload["damage_dice_high_total_roll"] = value.DamageDiceHighTotalRoll;
         payload["damage_dice_high_total_roll_reason"] =
             (value.DamageDiceHighTotalRollReason ?? new StringName("")).ToString();
@@ -1269,6 +1276,10 @@ internal static class AttackEffectResolutionResultReader
                 "trait_extra_weapon_damage_dice",
                 includeBonus: false
             ),
+            SourceBoundWeaponBonusSkillIds = ReadStringNameArray(
+                evt,
+                "source_bound_weapon_bonus_skill_ids"
+            ).ToArray(),
             OffenseMultiplier = ReadDouble(evt, "offense_multiplier", 0.0),
             RolledDamage = PayloadReader.ReadInt(evt, "rolled_damage", 0),
             TierAdjustedDamage = PayloadReader.ReadInt(evt, "tier_adjusted_damage", 0),

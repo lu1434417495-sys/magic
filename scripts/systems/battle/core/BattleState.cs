@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
@@ -134,12 +135,14 @@ public partial class BattleState
 
     private readonly BattleBarrierStore _layeredBarrierStore = new();
     private readonly List<BattleEquipmentTargetMarkState> _equipmentTargetMarks = new();
+    private readonly List<BattleTemporaryEdgeFeatureState> _temporaryEdgeFeatures = new();
 
     private readonly Dictionary<Vector2I, BattleCellState> _cellsByCoord = new();
     private readonly Dictionary<StringName, BattleUnitState> _unitsById = new();
     private int _log_text_byte_size;
     private long _movement_geometry_revision;
     private ulong _next_cast_sequence = 1;
+    private int _next_temporary_edge_feature_sequence = 1;
 
     internal IReadOnlyDictionary<Vector2I, BattleCellState> CellIndex => _cellsByCoord;
     internal IReadOnlyDictionary<StringName, BattleUnitState> UnitIndex => _unitsById;
@@ -149,6 +152,7 @@ public partial class BattleState
     internal int RuntimeEdgeFaceCount => _runtimeEdgeFaces.Count;
     internal int LayeredBarrierFieldCount => _layeredBarrierStore.Count;
     internal int EquipmentTargetMarkCount => _equipmentTargetMarks.Count;
+    internal int TemporaryEdgeFeatureCount => _temporaryEdgeFeatures.Count;
     internal int ReportEntryCount => _reportEntries.Count;
     internal BattleBarrierStore LayeredBarrierStore => _layeredBarrierStore;
     internal long MovementGeometryRevision => _movement_geometry_revision;
@@ -374,6 +378,12 @@ public partial class BattleState
         }
     }
 
+    internal void MarkTemporaryEdgeGeometryChanged()
+    {
+        runtime_edges_dirty = true;
+        MarkMovementGeometryChanged();
+    }
+
     public void NormalizeUnitIdArrays()
     {
         ally_unit_ids = _normalize_string_name_array(ally_unit_ids);
@@ -551,13 +561,15 @@ public partial class BattleState
 
     internal void ClearBattleTopology()
     {
-        bool changed = _cellsByCoord.Count > 0 || _unitsById.Count > 0;
+        bool changed =
+            _cellsByCoord.Count > 0 || _unitsById.Count > 0 || _temporaryEdgeFeatures.Count > 0;
         DisposeStoredCellColumns();
         DisposeStoredRuntimeEdgeFaces();
         _cellsByCoord.Clear();
         _unitsById.Clear();
         _cellColumns.Clear();
         _runtimeEdgeFaces.Clear();
+        _temporaryEdgeFeatures.Clear();
         if (changed)
             MarkMovementGeometryChanged();
     }
@@ -926,6 +938,119 @@ public partial class BattleState
         return false;
     }
 
+    internal IReadOnlyList<BattleTemporaryEdgeFeatureState> GetTemporaryEdgeFeaturesTyped()
+    {
+        var result = new List<BattleTemporaryEdgeFeatureState>();
+        foreach (BattleTemporaryEdgeFeatureState feature in _temporaryEdgeFeatures)
+            if (feature?.IsValid == true)
+                result.Add(feature.DuplicateState());
+        return result;
+    }
+
+    internal IReadOnlyList<BattleTemporaryEdgeFeatureState> GetTemporaryEdgeFeaturesForProjection()
+    {
+        var result = new List<BattleTemporaryEdgeFeatureState>();
+        int currentTu = Math.Max(timeline?.current_tu ?? 0, 0);
+        foreach (BattleTemporaryEdgeFeatureState feature in _temporaryEdgeFeatures)
+        {
+            if (feature?.IsValid != true || feature.IsExpired(currentTu))
+                continue;
+            if (feature.SourceUnitId != "")
+            {
+                BattleUnitState sourceUnit = GetUnit(feature.SourceUnitId);
+                if (sourceUnit == null || !sourceUnit.is_alive)
+                    continue;
+            }
+            result.Add(feature.DuplicateState());
+        }
+        return result;
+    }
+
+    internal bool PutTemporaryEdgeFeature(
+        BattleTemporaryEdgeFeatureState feature,
+        bool refreshExisting,
+        int maxActiveEdges
+    )
+    {
+        if (feature?.IsValid != true)
+            return false;
+
+        bool changed = RemoveInvalidTemporaryEdgeFeatures();
+        if (refreshExisting)
+        {
+            for (int index = _temporaryEdgeFeatures.Count - 1; index >= 0; index--)
+            {
+                BattleTemporaryEdgeFeatureState existing = _temporaryEdgeFeatures[index];
+                if (
+                    existing?.IsValid == true
+                    && existing.SameSource(feature)
+                    && existing.SameEdge(feature)
+                )
+                {
+                    _temporaryEdgeFeatures.RemoveAt(index);
+                    changed = true;
+                }
+            }
+        }
+
+        BattleTemporaryEdgeFeatureState stored = CopyTemporaryEdgeFeatureWithSequence(
+            feature,
+            _next_temporary_edge_feature_sequence++
+        );
+        _temporaryEdgeFeatures.Add(stored);
+        changed = true;
+        changed |= EnforceTemporaryEdgeFeatureLimit(stored, Math.Max(maxActiveEdges, 0));
+        if (changed)
+            MarkTemporaryEdgeGeometryChanged();
+        return true;
+    }
+
+    internal int RemoveExpiredTemporaryEdgeFeatures()
+    {
+        int currentTu = Math.Max(timeline?.current_tu ?? 0, 0);
+        int removed = 0;
+        for (int index = _temporaryEdgeFeatures.Count - 1; index >= 0; index--)
+        {
+            BattleTemporaryEdgeFeatureState feature = _temporaryEdgeFeatures[index];
+            bool remove =
+                feature?.IsValid != true
+                || feature.IsExpired(currentTu)
+                || (
+                    feature.SourceUnitId != ""
+                    && (GetUnit(feature.SourceUnitId)?.is_alive != true)
+                );
+            if (!remove)
+                continue;
+            _temporaryEdgeFeatures.RemoveAt(index);
+            removed++;
+        }
+        if (removed > 0)
+            MarkTemporaryEdgeGeometryChanged();
+        return removed;
+    }
+
+    internal void ReplaceTemporaryEdgeFeaturesTyped(
+        IEnumerable<BattleTemporaryEdgeFeatureState> features
+    )
+    {
+        _temporaryEdgeFeatures.Clear();
+        int maxSequence = 0;
+        if (features != null)
+        {
+            foreach (BattleTemporaryEdgeFeatureState feature in features)
+            {
+                if (feature?.IsValid != true)
+                    continue;
+                BattleTemporaryEdgeFeatureState copy = feature.DuplicateState();
+                _temporaryEdgeFeatures.Add(copy);
+                if (copy.Sequence > maxSequence)
+                    maxSequence = copy.Sequence;
+            }
+        }
+        _next_temporary_edge_feature_sequence = Math.Max(maxSequence + 1, 1);
+        MarkTemporaryEdgeGeometryChanged();
+    }
+
     internal List<BattleCellEntry> GetCellEntriesTyped() => CellEntries();
 
     internal bool TryGetCellTyped(Vector2I coord, out BattleCellState cellState)
@@ -983,6 +1108,93 @@ public partial class BattleState
     private void DisposeStoredRuntimeEdgeFaces()
     {
         _runtimeEdgeFaces.Clear();
+    }
+
+    private bool RemoveInvalidTemporaryEdgeFeatures()
+    {
+        bool removed = false;
+        for (int index = _temporaryEdgeFeatures.Count - 1; index >= 0; index--)
+        {
+            if (_temporaryEdgeFeatures[index]?.IsValid == true)
+                continue;
+            _temporaryEdgeFeatures.RemoveAt(index);
+            removed = true;
+        }
+        return removed;
+    }
+
+    private bool EnforceTemporaryEdgeFeatureLimit(
+        BattleTemporaryEdgeFeatureState sourceFeature,
+        int maxActiveEdges
+    )
+    {
+        if (sourceFeature == null || maxActiveEdges <= 0)
+            return false;
+
+        bool changed = false;
+        while (CountTemporaryEdgeFeaturesForSource(sourceFeature) > maxActiveEdges)
+        {
+            int oldestIndex = FindOldestTemporaryEdgeFeatureIndex(sourceFeature);
+            if (oldestIndex < 0)
+                break;
+            _temporaryEdgeFeatures.RemoveAt(oldestIndex);
+            changed = true;
+        }
+        return changed;
+    }
+
+    private int CountTemporaryEdgeFeaturesForSource(BattleTemporaryEdgeFeatureState sourceFeature)
+    {
+        int count = 0;
+        foreach (BattleTemporaryEdgeFeatureState feature in _temporaryEdgeFeatures)
+            if (feature?.IsValid == true && feature.SameSource(sourceFeature))
+                count++;
+        return count;
+    }
+
+    private int FindOldestTemporaryEdgeFeatureIndex(BattleTemporaryEdgeFeatureState sourceFeature)
+    {
+        int oldestIndex = -1;
+        BattleTemporaryEdgeFeatureState oldest = null;
+        for (int index = 0; index < _temporaryEdgeFeatures.Count; index++)
+        {
+            BattleTemporaryEdgeFeatureState feature = _temporaryEdgeFeatures[index];
+            if (feature?.IsValid != true || !feature.SameSource(sourceFeature))
+                continue;
+            if (
+                oldest == null
+                || feature.CreatedAtTu < oldest.CreatedAtTu
+                || (
+                    feature.CreatedAtTu == oldest.CreatedAtTu
+                    && feature.Sequence < oldest.Sequence
+                )
+            )
+            {
+                oldest = feature;
+                oldestIndex = index;
+            }
+        }
+        return oldestIndex;
+    }
+
+    private static BattleTemporaryEdgeFeatureState CopyTemporaryEdgeFeatureWithSequence(
+        BattleTemporaryEdgeFeatureState feature,
+        int sequence
+    )
+    {
+        return new BattleTemporaryEdgeFeatureState
+        {
+            OriginCoord = feature.OriginCoord,
+            Direction = feature.Direction,
+            SourceUnitId = feature.SourceUnitId,
+            SourceEquipmentInstanceId = feature.SourceEquipmentInstanceId,
+            BindingId = feature.BindingId,
+            ActionId = feature.ActionId,
+            CreatedAtTu = feature.CreatedAtTu,
+            ExpiresAtTu = feature.ExpiresAtTu,
+            Sequence = sequence,
+            Feature = feature.Feature?.DuplicateFeature(),
+        };
     }
 
     private static void DisposeCellColumn(List<BattleCellState> column)

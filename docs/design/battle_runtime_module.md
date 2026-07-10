@@ -1,6 +1,6 @@
 # 战斗运行时模块可重建规格说明
 
-更新日期：`2026-06-17`
+更新日期：`2026-07-10`
 
 ## 目标与边界
 
@@ -78,6 +78,8 @@ MovementQuery/Service 负责：边界、footprint、占用、terrain cost、reac
 5. 提交 outcome：写 BattleState、event batch、contribution、mastery。
 
 特殊技能 resolver（meteor swarm、charge、barrier、shield、special profile）由 runtime service 负责，不放 UI。
+
+装备耐久归零后的投影刷新由 `BattleDamageResolver` 在完整 `ResolveEffects(...)` / `ResolveAttackEffects(...)` 结束后统一触发，并委托 `BattleEquipmentAbilityRuntimeService.RefreshEquipmentProjectionAfterDurabilityDestruction(...)` 重建装备来源、清理失效目标标记和传播 changed unit id。直接装备耐久 action 在 commit 返回 destroyed 后调用同一 helper；`BattleSkillExecutionOrchestrator._apply_equipment_durability_result(...)` 只负责日志与 changed unit report。
 
 ## AI
 
@@ -467,8 +469,7 @@ AI 决策必须使用 snapshot/value object：
 - `internal void _shuffle_random_chain_pool(GArray chain_pool)`
 - `internal GStringNameArray _sort_target_unit_ids_for_execution(GStringNameArray target_unit_ids)`
 - `internal bool _is_multi_unit_skill(SkillDefinition skillDefinition)`
-- `internal void _refresh_target_after_equipment_destruction(BattleUnitState target_unit)`
-- `internal void _clamp_target_resources_after_equipment_projection(BattleUnitState target_unit)`
+- `internal void _apply_equipment_durability_result(BattleUnitState target_unit, AttackEffectResolutionResult result, BattleEventBatch batch)`
 - `internal GVector2IArray _get_line_coords(Vector2I from, Vector2I to)`
 - `internal bool _is_chain_path_clear(BattleUnitState source_unit, BattleUnitState target_unit)`
 - `internal IReadOnlyList<BattleUnitState> _collect_units_in_coords_typed(GVector2IArray effect_coords)`

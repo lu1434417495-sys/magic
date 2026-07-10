@@ -308,9 +308,9 @@ public partial class BattleDamageResolver
         {
             return false;
         }
-        BattleExecuteSoulFractureParams resolvedParams = soulFractureParams.HasValue
-            ? soulFractureParams
-            : BattleExecuteSoulFractureParams.DefaultResisted;
+        if (!soulFractureParams.HasValue)
+            return false;
+        BattleExecuteSoulFractureParams resolvedParams = soulFractureParams;
         BattleStatusEffectState statusEntry = BuildSoulFractureStatusEntry(
             targetUnit,
             sourceUnit,

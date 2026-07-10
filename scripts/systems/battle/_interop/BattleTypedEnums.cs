@@ -186,6 +186,7 @@ internal enum CombatSkillMasteryTriggerMode
     EffectApplied,
     IncomingPhysicalHit,
     SecondaryHit,
+    SourceBoundWeaponBonusDamage,
 }
 
 internal enum CombatSkillMasteryAmountMode
@@ -305,6 +306,8 @@ internal static class BattleTypedNames
     internal static readonly StringName MasteryTriggerIncomingPhysicalHit =
         "incoming_physical_hit";
     internal static readonly StringName MasteryTriggerSecondaryHit = "secondary_hit";
+    internal static readonly StringName MasteryTriggerSourceBoundWeaponBonusDamage =
+        "source_bound_weapon_bonus_damage";
     internal static readonly StringName MasteryAmountPerTargetRank = "per_target_rank";
     internal static readonly StringName MasteryAmountPerCastHpRatio = "per_cast_hp_ratio";
     internal static readonly StringName EnemyTargetRankNormal = "normal";
@@ -834,6 +837,8 @@ internal static class BattleTypedNames
             return CombatSkillMasteryTriggerMode.IncomingPhysicalHit;
         if (value == MasteryTriggerSecondaryHit)
             return CombatSkillMasteryTriggerMode.SecondaryHit;
+        if (value == MasteryTriggerSourceBoundWeaponBonusDamage)
+            return CombatSkillMasteryTriggerMode.SourceBoundWeaponBonusDamage;
         return CombatSkillMasteryTriggerMode.Unknown;
     }
 
@@ -851,6 +856,8 @@ internal static class BattleTypedNames
             CombatSkillMasteryTriggerMode.IncomingPhysicalHit =>
                 MasteryTriggerIncomingPhysicalHit,
             CombatSkillMasteryTriggerMode.SecondaryHit => MasteryTriggerSecondaryHit,
+            CombatSkillMasteryTriggerMode.SourceBoundWeaponBonusDamage =>
+                MasteryTriggerSourceBoundWeaponBonusDamage,
             _ => Empty,
         };
     }

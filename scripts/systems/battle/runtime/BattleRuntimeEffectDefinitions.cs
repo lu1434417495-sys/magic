@@ -31,7 +31,8 @@ internal static class BattleRuntimeEffectDefinitions
         bool dispellableBeneficialMagic = false,
         bool lockCounterattack = false,
         bool lockGuard = false,
-        bool lockDodgeBonus = false
+        bool lockDodgeBonus = false,
+        bool attackRollAdvantage = false
     )
     {
         IReadOnlyDictionary<string, Variant> mergedParameters = parameters;
@@ -80,7 +81,8 @@ internal static class BattleRuntimeEffectDefinitions
             countsAsDebuff: countsAsDebuff,
             lockCounterattack: lockCounterattack,
             lockGuard: lockGuard,
-            lockDodgeBonus: lockDodgeBonus
+            lockDodgeBonus: lockDodgeBonus,
+            attackRollAdvantage: attackRollAdvantage
         );
     }
 
@@ -248,6 +250,10 @@ internal static class BattleRuntimeEffectDefinitions
         int minHpAfterDamage = 1,
         int deathPreventionPriority = 0,
         int attackRollPenalty = -1,
+        int attackRollBonus = 0,
+        bool attackRollAdvantage = false,
+        bool consumeOnNextAttackCheck = false,
+        bool consumeOnNextSave = false,
         bool undispellable = false,
         bool dispellableMagic = false,
         bool dispellableHarmfulMagic = false,
@@ -410,7 +416,11 @@ internal static class BattleRuntimeEffectDefinitions
             saveTags ?? EmptyStringNames,
             bonusConditionCreatureTypeTag: Normalize(bonusConditionCreatureTypeTag),
             mitigationBypassDamageTags: mitigationBypassDamageTags ?? EmptyStringNames,
-            mitigationBypassTiers: mitigationBypassTiers ?? EmptyStringNames
+            mitigationBypassTiers: mitigationBypassTiers ?? EmptyStringNames,
+            attackRollBonus: attackRollBonus,
+            attackRollAdvantage: attackRollAdvantage,
+            consumeOnNextAttackCheck: consumeOnNextAttackCheck,
+            consumeOnNextSave: consumeOnNextSave
         );
     }
 

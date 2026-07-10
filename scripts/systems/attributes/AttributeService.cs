@@ -247,6 +247,7 @@ public sealed class AttributeService
 
         foreach (StringName attributeId in UnitBaseAttributes.GetBaseAttributeIdsTyped())
             snapshot.SetValue(attributeId, GetDictInt(resolvedBaseValues, attributeId, 0));
+        ApplyBaseAttributeModifierOverlays(snapshot, modifierEntries);
 
         foreach (StringName attributeId in GetKnownNonBaseAttributeIds())
         {
@@ -405,6 +406,34 @@ public sealed class AttributeService
                 modifierEntries
             );
         return resolvedValues;
+    }
+
+    private void ApplyBaseAttributeModifierOverlays(
+        AttributeSnapshot snapshot,
+        List<AttributeModifierEntry> modifierEntries
+    )
+    {
+        if (snapshot == null || modifierEntries == null || modifierEntries.Count == 0)
+            return;
+
+        foreach (StringName baseAttributeId in UnitBaseAttributes.GetBaseAttributeIdsTyped())
+        {
+            StringName modifierAttributeId =
+                AttributeSnapshot.GetBaseAttributeModifierId(baseAttributeId);
+            if (
+                modifierAttributeId == ""
+                || !HasModifierEntryForAttribute(modifierAttributeId, modifierEntries)
+            )
+                continue;
+            snapshot.SetValue(
+                modifierAttributeId,
+                ApplyModifierPipeline(
+                    modifierAttributeId,
+                    snapshot.GetValue(modifierAttributeId),
+                    modifierEntries
+                )
+            );
+        }
     }
 
     private List<AttributeModifierEntry> CollectAllModifierEntries()
@@ -828,6 +857,17 @@ public sealed class AttributeService
             return true;
         return attributeId == ARMOR_CLASS
             && ContainsAttributeId(AC_COMPONENT_ATTRIBUTE_IDS, modifierAttributeId);
+    }
+
+    private static bool HasModifierEntryForAttribute(
+        StringName attributeId,
+        List<AttributeModifierEntry> modifierEntries
+    )
+    {
+        foreach (var entry in modifierEntries)
+            if (ModifierEntryAppliesToAttribute(attributeId, entry.AttributeId))
+                return true;
+        return false;
     }
 
     private static int ClampAttributeValue(StringName attributeId, int value)

@@ -51,6 +51,10 @@ public class SkillContentRegistry : System.IDisposable
             { "heal_multiplier_percent", "heal_multiplier_percent" },
             { "shield_gain_multiplier_percent", "shield_gain_multiplier_percent" },
             { "attack_roll_penalty", "attack_roll_penalty" },
+            { "attack_roll_bonus", "attack_roll_bonus" },
+            { "attack_roll_advantage", "attack_roll_advantage" },
+            { "consume_on_next_attack_check", "consume_on_next_attack_check" },
+            { "consume_on_next_save", "consume_on_next_save" },
             { "undispellable", "undispellable" },
             { "dispellable_magic", "dispellable_magic" },
             { "dispellable_harmful_magic", "dispellable_harmful_magic" },
@@ -1165,6 +1169,21 @@ public class SkillContentRegistry : System.IDisposable
                 errors.Add(
                     $"Skill {skillId} status effect in {contextLabel} params.range_bonus is unsupported; use CombatEffectDef.range_bonus."
                 );
+            bool hasSourceBoundWeaponBonusDice =
+                effectDef.source_bound_weapon_bonus_damage_dice_count > 0
+                || effectDef.source_bound_weapon_bonus_damage_dice_sides > 0
+                || effectDef.source_bound_weapon_bonus_damage_dice_bonus != 0;
+            if (hasSourceBoundWeaponBonusDice)
+            {
+                if (effectDef.source_bound_weapon_bonus_damage_dice_count < 1)
+                    errors.Add(
+                        $"Skill {skillId} status effect in {contextLabel} source_bound_weapon_bonus_damage_dice_count must be positive."
+                    );
+                if (effectDef.source_bound_weapon_bonus_damage_dice_sides < 1)
+                    errors.Add(
+                        $"Skill {skillId} status effect in {contextLabel} source_bound_weapon_bonus_damage_dice_sides must be positive."
+                    );
+            }
             AppendStatusDamageFilterValidationErrors(
                 errors,
                 skillId,
@@ -1690,10 +1709,16 @@ public class SkillContentRegistry : System.IDisposable
             0,
             100
         );
-        if (effectDef.soul_fracture_duration_tu <= 0 || !IsValidTuValue(effectDef.soul_fracture_duration_tu))
+        if (
+            effectDef.soul_fracture_duration_tu < 0
+            || (
+                effectDef.soul_fracture_duration_tu > 0
+                && !IsValidTuValue(effectDef.soul_fracture_duration_tu)
+            )
+        )
         {
             errors.Add(
-                $"Skill {skillId} effect {contextLabel}.soul_fracture_duration_tu must be > 0 and divisible by {TuGranularity}."
+                $"Skill {skillId} effect {contextLabel}.soul_fracture_duration_tu must be 0 or a positive value divisible by {TuGranularity}."
             );
         }
         if (effectDef.@params != null && effectDef.@params.Count > 0)

@@ -11,9 +11,6 @@ public readonly record struct BattleExecuteSoulFractureParams(
 {
     public static BattleExecuteSoulFractureParams Empty =>
         new(false, BattleExecutionRules.SoulFractureStatusId, 0, 100, 100);
-
-    public static BattleExecuteSoulFractureParams DefaultResisted =>
-        new(false, BattleExecutionRules.SoulFractureStatusId, 60, 100, 100);
 }
 
 public readonly record struct BattleExecutePlan(

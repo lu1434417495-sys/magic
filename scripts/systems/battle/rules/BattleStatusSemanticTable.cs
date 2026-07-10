@@ -416,6 +416,10 @@ public static class BattleStatusSemanticTable
             effectDefinition.GetStringNameIntMapParamTyped("save_bonus_by_tag")
         );
         statusEntry.attack_roll_penalty = effectDefinition.AttackRollPenalty;
+        statusEntry.attack_roll_bonus = effectDefinition.AttackRollBonus;
+        statusEntry.attack_roll_advantage = effectDefinition.AttackRollAdvantage;
+        statusEntry.consume_on_next_attack_check = effectDefinition.ConsumeOnNextAttackCheck;
+        statusEntry.consume_on_next_save = effectDefinition.ConsumeOnNextSave;
         statusEntry.source_bound_attack_roll_penalty =
             effectDefinition.GetIntParamTyped("source_bound_attack_roll_penalty", 0);
         statusEntry.source_bound_attack_roll_penalty_min_stacks = Math.Max(
@@ -434,6 +438,16 @@ public static class BattleStatusSemanticTable
             ),
             1
         );
+        statusEntry.source_bound_weapon_bonus_damage_dice_count = Math.Max(
+            effectDefinition.SourceBoundWeaponBonusDamageDiceCount,
+            0
+        );
+        statusEntry.source_bound_weapon_bonus_damage_dice_sides = Math.Max(
+            effectDefinition.SourceBoundWeaponBonusDamageDiceSides,
+            0
+        );
+        statusEntry.source_bound_weapon_bonus_damage_dice_bonus =
+            effectDefinition.SourceBoundWeaponBonusDamageDiceBonus;
         statusEntry.undispellable = effectDefinition.Undispellable;
         statusEntry.dispellable_magic = effectDefinition.DispellableMagic;
         statusEntry.dispellable_harmful_magic = effectDefinition.DispellableHarmfulMagic;

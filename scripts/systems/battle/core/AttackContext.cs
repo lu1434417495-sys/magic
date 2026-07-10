@@ -13,6 +13,7 @@ public sealed class AttackContext
     public bool HasIsAdvantage;
     public bool IsAdvantage;
     public bool ForceHitNoCrit;
+    public BattleEventBatch EventBatch;
     public int AttackRollOverride;
     public IReadOnlyList<int> SaveRollOverrides => _saveRollOverrides;
 

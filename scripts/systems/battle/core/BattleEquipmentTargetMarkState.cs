@@ -8,6 +8,7 @@ internal sealed class BattleEquipmentTargetMarkState
     public StringName BindingId { get; init; } = "";
     public StringName StateKey { get; init; } = "";
     public int Stacks { get; init; }
+    public int RemainingDurationTu { get; init; } = -1;
     public bool RemoveOnSourceMissing { get; init; }
 
     public bool IsValid =>
@@ -32,6 +33,20 @@ internal sealed class BattleEquipmentTargetMarkState
             BindingId = BindingId,
             StateKey = StateKey,
             Stacks = Stacks,
+            RemainingDurationTu = RemainingDurationTu,
+            RemoveOnSourceMissing = RemoveOnSourceMissing,
+        };
+
+    public BattleEquipmentTargetMarkState WithRemainingDurationTu(int remainingDurationTu) =>
+        new()
+        {
+            SourceUnitId = SourceUnitId,
+            TargetUnitId = TargetUnitId,
+            SourceEquipmentInstanceId = SourceEquipmentInstanceId,
+            BindingId = BindingId,
+            StateKey = StateKey,
+            Stacks = Stacks,
+            RemainingDurationTu = remainingDurationTu,
             RemoveOnSourceMissing = RemoveOnSourceMissing,
         };
 }

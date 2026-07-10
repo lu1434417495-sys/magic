@@ -146,6 +146,15 @@ public partial class CombatEffectDef : Resource
     public int bonus_damage_dice_bonus { get; set; }
 
     [Export]
+    public int source_bound_weapon_bonus_damage_dice_count { get; set; }
+
+    [Export]
+    public int source_bound_weapon_bonus_damage_dice_sides { get; set; }
+
+    [Export]
+    public int source_bound_weapon_bonus_damage_dice_bonus { get; set; }
+
+    [Export]
     public bool add_weapon_dice { get; set; }
 
     [Export]
@@ -219,6 +228,18 @@ public partial class CombatEffectDef : Resource
 
     [Export]
     public int attack_roll_penalty { get; set; } = -1;
+
+    [Export]
+    public int attack_roll_bonus { get; set; }
+
+    [Export]
+    public bool attack_roll_advantage { get; set; }
+
+    [Export]
+    public bool consume_on_next_attack_check { get; set; }
+
+    [Export]
+    public bool consume_on_next_save { get; set; }
 
     [Export]
     public bool undispellable { get; set; }

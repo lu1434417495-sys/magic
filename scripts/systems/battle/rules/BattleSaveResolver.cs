@@ -197,7 +197,7 @@ public static class BattleSaveResolver
         BattleSaveTagState tagState = CollectSaveTagState(target_unit, saveTag);
         if (tagState.Immune)
         {
-            return new BattleSaveResult(
+            BattleSaveResult immuneResult = new(
                 true,
                 true,
                 true,
@@ -215,6 +215,8 @@ public static class BattleSaveResolver
             {
                 Degree = BattleSaveDegreeKind.CriticalSuccess,
             };
+            ConsumeOneShotSaveStatuses(target_unit);
+            return immuneResult;
         }
 
         StringName advantageState = ResolveAdvantageState(tagState);
@@ -231,7 +233,7 @@ public static class BattleSaveResolver
             abilityModifier,
             saveBonus
         );
-        return new BattleSaveResult(
+        BattleSaveResult result = new(
             true,
             false,
             success,
@@ -249,6 +251,23 @@ public static class BattleSaveResolver
         {
             Degree = ResolveSaveDegree(naturalRoll, rollTotal, resolvedDc),
         };
+        ConsumeOneShotSaveStatuses(target_unit);
+        return result;
+    }
+
+    private static void ConsumeOneShotSaveStatuses(BattleUnitState targetUnit)
+    {
+        if (targetUnit == null)
+            return;
+        List<StringName> consumedStatusIds = new();
+        foreach (StringName statusId in targetUnit.GetSortedStatusEffectIdsTyped())
+        {
+            BattleStatusEffectState status = targetUnit.GetStatusEffect(statusId);
+            if (status?.consume_on_next_save == true)
+                consumedStatusIds.Add(statusId);
+        }
+        foreach (StringName statusId in consumedStatusIds)
+            targetUnit.EraseStatusEffect(statusId);
     }
 
     internal static BattleSaveDegreeKind ResolveSaveDegree(int naturalRoll, int rollTotal, int dc)

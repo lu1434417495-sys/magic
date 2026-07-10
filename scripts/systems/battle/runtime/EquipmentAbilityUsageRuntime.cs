@@ -244,6 +244,17 @@ internal static class EquipmentAbilityUsageRuntime
             value = Math.Max(battleState?.timeline?.current_tu ?? -1, -1);
             return value >= 0;
         }
+        if (query.QueryKind == "fact" && query.FactId == "hp_percent_bp")
+        {
+            StringName subject = NormalizeStringName(query.Subject);
+            if (subject != "" && subject != "source" && subject != "self" && subject != "holder")
+                return false;
+            if (unit?.attribute_snapshot == null)
+                return false;
+            int maxHp = Math.Max(unit.attribute_snapshot.GetValue(AttributeService.HP_MAX), 1);
+            value = Mathf.Clamp(unit.current_hp * 10000 / maxHp, 0, 10000);
+            return true;
+        }
         if (query.QueryKind == "fact" && query.FactId == "equipment_ability_state")
         {
             EquipmentAbilityBindingDefinition stateBinding = ResolveStateBinding(

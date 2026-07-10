@@ -1400,7 +1400,8 @@ internal class BattleGroundEffectService
                     sourceUnit,
                     targetUnit,
                     skillDefinition,
-                    applicableEffects
+                    applicableEffects,
+                    batch
                 );
             AttackEffectResolutionResult damageResult = effectResolution.Result;
             Runtime?._skill_mastery_service?.RecordTargetResult(
@@ -1538,7 +1539,14 @@ internal class BattleGroundEffectService
                     sourceUnit,
                     batch,
                     $"{DisplayName(targetUnit)} 被击倒。",
-                    new BattleDefeatHandlingOptions(recordEnemyDefeatedAchievement: true)
+                    new BattleDefeatHandlingOptions(
+                        recordEnemyDefeatedAchievement: true,
+                        killProvenance: BattleKillProvenance.FromWeaponAttackResult(
+                            sourceUnit,
+                            damageResult,
+                            skillDefinition.SkillId
+                        )
+                    )
                 );
             }
             if (sourceUnit != null && targetUnit != null)
@@ -1594,14 +1602,16 @@ internal class BattleGroundEffectService
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         SkillDefinition skillDefinition,
-        IReadOnlyList<CombatEffectDefinition> effectDefinitions
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        BattleEventBatch batch = null
     )
     {
         return _resolve_ground_unit_effect_resolution(
             sourceUnit,
             targetUnit,
             skillDefinition,
-            effectDefinitions
+            effectDefinitions,
+            batch
         ).Result;
     }
 
@@ -1609,7 +1619,8 @@ internal class BattleGroundEffectService
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         SkillDefinition skillDefinition,
-        IReadOnlyList<CombatEffectDefinition> effectDefinitions
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        BattleEventBatch batch = null
     )
     {
         IReadOnlyList<CombatEffectDefinition> normalizedEffectDefinitions =
@@ -1651,6 +1662,7 @@ internal class BattleGroundEffectService
                     {
                         BattleState = State,
                         SkillId = skillDefinition != null ? skillDefinition.SkillId : Empty,
+                        EventBatch = batch,
                     }
                 )
             );
@@ -1662,7 +1674,13 @@ internal class BattleGroundEffectService
                     sourceUnit,
                     targetUnit,
                     normalizedEffectDefinitions,
-                    DamageResolutionContext.ForSkill(skillId)
+                    DamageResolutionContext
+                        .ForSkill(skillId)
+                        .WithDamageApplicationHookContext(
+                            batch,
+                            Runtime?.CurrentEffectOriginForContingency
+                                ?? BattleEffectOrigin.PlayerCommand()
+                        )
                 )
         );
     }
@@ -2419,6 +2437,15 @@ internal class BattleGroundEffectService
             {
                 return deniedResult with { Message = "目标地格超出技能施放距离。" };
             }
+            string casterLineMessage = GetCasterTargetVectorLineValidationMessage(
+                activeUnit.coord,
+                coord,
+                combatProfile
+            );
+            if (!string.IsNullOrEmpty(casterLineMessage))
+            {
+                return deniedResult with { Message = casterLineMessage };
+            }
             if (!GridService.HasCell(State, coord))
             {
                 return deniedResult with { Message = "目标地格数据不可用。" };
@@ -2583,6 +2610,15 @@ internal class BattleGroundEffectService
             {
                 return deniedResult with { Message = "目标地格超出技能施放距离。" };
             }
+            string casterLineMessage = GetCasterTargetVectorLineValidationMessage(
+                activeUnit.Coord,
+                coord,
+                combatProfile
+            );
+            if (!string.IsNullOrEmpty(casterLineMessage))
+            {
+                return deniedResult with { Message = casterLineMessage };
+            }
             if (!GridService.HasCell(State, coord))
             {
                 return deniedResult with { Message = "目标地格数据不可用。" };
@@ -2721,6 +2757,33 @@ internal class BattleGroundEffectService
     )
     {
         return Math.Max(castVariantDefinition?.RequiredCoordCount ?? 0, 0);
+    }
+
+    private static string GetCasterTargetVectorLineValidationMessage(
+        Vector2I sourceCoord,
+        Vector2I targetCoord,
+        CombatSkillDefinition combatProfile
+    )
+    {
+        if (
+            combatProfile == null
+            || BattleTypedNames.ToAreaPattern(combatProfile.AreaPattern) != BattleAreaPattern.Line
+            || combatProfile.AreaOriginModeKind != CombatAreaOriginMode.Caster
+            || combatProfile.AreaDirectionModeKind != CombatAreaDirectionMode.TargetVector
+        )
+        {
+            return "";
+        }
+        Vector2I delta = targetCoord - sourceCoord;
+        if (delta == Vector2I.Zero)
+        {
+            return "直线技能不能选择使用者所在格。";
+        }
+        if (delta.X != 0 && delta.Y != 0)
+        {
+            return "直线技能目标必须与使用者同行或同列。";
+        }
+        return "";
     }
 
     private static CombatCastFootprintPattern ResolveGroundFootprintPattern(

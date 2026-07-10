@@ -130,6 +130,70 @@ internal sealed class BattleSkillMasteryService : IDisposable
         return total;
     }
 
+    internal IReadOnlyList<BattleSkillMasteryGrant> BuildSourceBoundWeaponBonusMasteryGrants(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        AttackEffectResolutionResult result,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
+    )
+    {
+        if (sourceUnit == null || targetUnit == null || result.DamageEvents == null)
+            return Array.Empty<BattleSkillMasteryGrant>();
+        if (sourceUnit.source_member_id == "")
+            return Array.Empty<BattleSkillMasteryGrant>();
+
+        var amountsBySkillId = new Dictionary<StringName, int>();
+        foreach (DamageEventResult damageEvent in result.DamageEvents)
+        {
+            if (damageEvent.HpDamage <= 0)
+                continue;
+            foreach (StringName rawSkillId in damageEvent.SourceBoundWeaponBonusSkillIds ?? Array.Empty<StringName>())
+            {
+                StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
+                if (
+                    skillId == ""
+                    || !UnitHasLearnedActiveSkill(sourceUnit, skillId)
+                    || !TryGetSkillDefinition(skillDefinitions, skillId, out SkillDefinition skillDefinition)
+                    || _GetSkillMasteryTriggerMode(skillDefinition)
+                        != CombatSkillMasteryTriggerMode.SourceBoundWeaponBonusDamage
+                )
+                {
+                    continue;
+                }
+
+                int amount = _ResolveSkillMasteryTargetAmount(
+                    sourceUnit,
+                    targetUnit,
+                    skillDefinition
+                );
+                if (amount <= 0)
+                    continue;
+                amountsBySkillId.TryGetValue(skillId, out int existingAmount);
+                amountsBySkillId[skillId] = existingAmount + amount;
+            }
+        }
+
+        if (amountsBySkillId.Count == 0)
+            return Array.Empty<BattleSkillMasteryGrant>();
+
+        var grants = new List<BattleSkillMasteryGrant>();
+        foreach (KeyValuePair<StringName, int> entry in amountsBySkillId)
+        {
+            grants.Add(
+                new BattleSkillMasteryGrant
+                {
+                    MemberId = sourceUnit.source_member_id,
+                    SkillId = entry.Key,
+                    Amount = entry.Value,
+                    SourceType = "battle",
+                    SourceLabel = "战斗",
+                    ReasonText = "来源绑定武器追加伤害",
+                }
+            );
+        }
+        return grants;
+    }
+
     public StringName ResolveMasteryRewardSkillId(BattleUnitState sourceUnit, StringName skillId)
     {
         var normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
@@ -338,6 +402,8 @@ internal sealed class BattleSkillMasteryService : IDisposable
                 return false;
             case CombatSkillMasteryTriggerMode.SecondaryHit:
                 return result.SecondaryHitSuccess;
+            case CombatSkillMasteryTriggerMode.SourceBoundWeaponBonusDamage:
+                return false;
             case CombatSkillMasteryTriggerMode.SkillDamageDiceMax:
                 if (!result.HasEffectiveDamageOrAbsorb)
                     return false;
@@ -370,6 +436,8 @@ internal sealed class BattleSkillMasteryService : IDisposable
                 return false;
             case CombatSkillMasteryTriggerMode.SecondaryHit:
                 return result.SecondaryHitSuccess;
+            case CombatSkillMasteryTriggerMode.SourceBoundWeaponBonusDamage:
+                return false;
             case CombatSkillMasteryTriggerMode.SkillDamageDiceMax:
                 if (!_ResultHasEffectiveDamageOrAbsorb(result))
                     return false;
@@ -448,6 +516,26 @@ internal sealed class BattleSkillMasteryService : IDisposable
                 return true;
         }
         return false;
+    }
+
+    private static bool UnitHasLearnedActiveSkill(BattleUnitState unit, StringName skillId)
+    {
+        if (unit == null || skillId == "")
+            return false;
+        return unit.KnowsActiveSkill(skillId) || unit.GetKnownSkillLevelTyped(skillId, 0) > 0;
+    }
+
+    private static bool TryGetSkillDefinition(
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        StringName skillId,
+        out SkillDefinition skillDefinition
+    )
+    {
+        skillDefinition = null;
+        return skillId != ""
+            && skillDefinitions != null
+            && skillDefinitions.TryGetValue(skillId, out skillDefinition)
+            && skillDefinition != null;
     }
 
     private GArray _CollectVajraBodyMasterySourceIds(

@@ -35,7 +35,12 @@ public class IdentityContentRegistryBase : System.IDisposable
         var allowed = new HashSet<StringName>();
 
         foreach (var attributeId in UnitBaseAttributes.GetBaseAttributeIdsTyped())
+        {
             allowed.Add(attributeId);
+            StringName modifierId = AttributeSnapshot.GetBaseAttributeModifierId(attributeId);
+            if (modifierId != "")
+                allowed.Add(modifierId);
+        }
 
         foreach (var attributeId in ResourceAttributeIds)
             allowed.Add(attributeId);
@@ -336,7 +341,7 @@ public class IdentityContentRegistryBase : System.IDisposable
             )
             {
                 errors.Add(
-                    $"{modifierLabel}.attribute_id {attrId} is not a recognized base/resource/combat attribute id."
+                    $"{modifierLabel}.attribute_id {attrId} is not a recognized base/resource/combat/derived attribute id."
                 );
             }
 

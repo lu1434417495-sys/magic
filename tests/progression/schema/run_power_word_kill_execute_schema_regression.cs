@@ -19,6 +19,7 @@ public partial class run_power_word_kill_execute_schema_regression : SceneTree
         TestFormalPwkShapePasses();
         TestExecuteRejectsWrongSaveAndTargeting();
         TestExecuteRejectsSiblingPassiveSpecialAndGroundShapes();
+        TestExecuteSoulFractureDurationBoundary();
         TestExecuteRejectsOldFieldsAndHiddenSiblings();
         TestFormalResourceLoadsAndValidates();
 
@@ -131,12 +132,33 @@ public partial class run_power_word_kill_execute_schema_regression : SceneTree
         string errors = FormatErrors(ValidateSkill(skill));
 
         AssertContains(errors, "threshold_cap_max_hp_ratio_percent", "execute cap should be >= threshold ratio.");
-        AssertContains(errors, "soul_fracture_duration_tu", "soul fracture duration should be positive TU granularity.");
+        AssertContains(errors, "soul_fracture_duration_tu", "soul fracture duration should use non-negative TU granularity.");
         AssertContains(errors, "heal_multiplier_percent", "heal multiplier should be clamped by schema.");
         AssertContains(errors, "shield_gain_multiplier_percent", "shield multiplier should be clamped by schema.");
         AssertContains(errors, "trigger_event", "execute should not carry hidden trigger event.");
         AssertContains(errors, "trigger_condition", "execute should not carry hidden trigger condition.");
         AssertContains(errors, "must not use params payload", "execute should reject old params payload.");
+    }
+
+    private void TestExecuteSoulFractureDurationBoundary()
+    {
+        SkillDef disabledSoulFracture = FormalPwkSkill();
+        disabledSoulFracture.combat_profile.effect_defs[0].soul_fracture_duration_tu = 0;
+        GStringArray disabledErrors = ValidateSkill(disabledSoulFracture);
+        _test.Eq(
+            disabledErrors.Count,
+            0,
+            $"zero soul fracture duration should explicitly disable the status. errors={FormatErrors(disabledErrors)}"
+        );
+
+        SkillDef negativeSoulFracture = FormalPwkSkill();
+        negativeSoulFracture.combat_profile.effect_defs[0].soul_fracture_duration_tu = -5;
+        string negativeErrors = FormatErrors(ValidateSkill(negativeSoulFracture));
+        AssertContains(
+            negativeErrors,
+            "soul_fracture_duration_tu",
+            "negative soul fracture duration should be rejected."
+        );
     }
 
     private void TestFormalResourceLoadsAndValidates()

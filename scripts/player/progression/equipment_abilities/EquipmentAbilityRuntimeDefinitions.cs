@@ -20,6 +20,8 @@ public enum EquipmentAbilityTriggerKind
     OnDamageRoll,
     OnDamageApplied,
     OnHitReceived,
+    OnAttackCheck,
+    OnTargetMarkExpired,
 }
 
 public enum EquipmentAbilityTimingKind
@@ -33,6 +35,8 @@ public enum EquipmentAbilityTimingKind
     BeforeDamage,
     AfterDamage,
     AfterHitReceived,
+    AfterAttackCheck,
+    AfterStatusExpired,
 }
 
 public enum EquipmentGrantedActionKind
@@ -268,6 +272,7 @@ public sealed class EquipmentAbilityFactQueryDefinition
     public StringName BindingId { get; init; } = "";
     public StringName StateKey { get; init; } = "";
     public StringName StatusId { get; init; } = "";
+    public bool RequireSourceUnitMatch { get; init; }
     public StringName AttributeId { get; init; } = "";
     public StringName Aggregation { get; init; } = "";
     public StringName ValueKind { get; init; } = "";
@@ -347,8 +352,10 @@ public sealed class AttackRollBonusActionPayloadDefinition
 {
     public StringName TargetSelector { get; init; } = "";
     public int Bonus { get; init; }
+    public StringName AttributeModifierId { get; init; } = "";
     public StringName StackMode { get; init; } = "";
     public string Label { get; init; } = "";
+    public bool RequireWeaponDamage { get; init; }
 }
 
 public sealed class AttackRollAdvantageActionPayloadDefinition
@@ -357,6 +364,14 @@ public sealed class AttackRollAdvantageActionPayloadDefinition
     public StringName TargetSelector { get; init; } = "";
     public StringName Mode { get; init; } = "";
     public StringName StackMode { get; init; } = "";
+    public string Label { get; init; } = "";
+}
+
+public sealed class CriticalHitOverrideActionPayloadDefinition
+    : EquipmentAbilityActionPayloadDefinition
+{
+    public StringName TargetSelector { get; init; } = "";
+    public bool RequireWeaponDamage { get; init; }
     public string Label { get; init; } = "";
 }
 
@@ -427,6 +442,8 @@ public sealed class ApplyStatusActionPayloadDefinition
     public int SourceBoundAttackRollPenaltyMinStacks { get; init; } = 1;
     public int SourceBoundIncomingAttackRollBonusPerStack { get; init; }
     public int SourceBoundIncomingAttackRollBonusMinStacks { get; init; } = 1;
+    public bool OverrideHealMultiplierPercent { get; init; }
+    public int HealMultiplierPercent { get; init; } = 100;
     public int MovePointCapacityDelta { get; init; }
     public bool ForcedMoveImmune { get; init; }
     public bool CountsAsDebuffOverride { get; init; }
@@ -513,6 +530,25 @@ public sealed class ApplyBattleTerrainEffectAfterCheckActionPayloadDefinition
     public bool NaturalOneAutoFailure { get; init; }
 }
 
+public sealed class ApplyEdgeFeatureActionPayloadDefinition
+    : EquipmentAbilityActionPayloadDefinition
+{
+    public StringName FromSelector { get; init; } = "";
+    public StringName ToSelector { get; init; } = "";
+    public int DurationTu { get; init; }
+    public int MaxActiveEdges { get; init; }
+    public bool RefreshExisting { get; init; }
+    public bool RequireAdjacent { get; init; }
+    public StringName FeatureKind { get; init; } = "";
+    public StringName RenderKind { get; init; } = "";
+    public int RenderLayers { get; init; }
+    public bool BlocksMove { get; init; }
+    public bool BlocksOccupancy { get; init; }
+    public bool BlocksLos { get; init; }
+    public StringName InteractionKind { get; init; } = "";
+    public StringName StateTag { get; init; } = "";
+}
+
 public sealed class ModifyAbilityStateActionPayloadDefinition
     : EquipmentAbilityActionPayloadDefinition
 {
@@ -549,6 +585,19 @@ public sealed class ClearStatusActionPayloadDefinition
     public StringName MarkBindingId { get; init; } = "";
     public StringName MarkStateKey { get; init; } = "";
     public bool RequireSourceUnitMatch { get; init; }
+    public bool ClearTargetMark { get; init; }
+}
+
+public sealed class TriggerSkillActionPayloadDefinition
+    : EquipmentAbilityActionPayloadDefinition
+{
+    public StringName SkillId { get; init; } = "";
+    public int SkillLevel { get; init; }
+    public StringName TargetSelector { get; init; } = "";
+    public bool MergeIntoParentResult { get; init; }
+    public bool HandleTargetDefeat { get; init; }
+    public string ActivationLog { get; init; } = "";
+    public string SaveLogLabel { get; init; } = "";
 }
 
 public sealed class ConsumeStatusStacksActionPayloadDefinition

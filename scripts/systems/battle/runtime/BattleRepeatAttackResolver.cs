@@ -153,7 +153,8 @@ internal sealed class BattleRepeatAttackResolver
                 repeat_attack_effect,
                 stageSpec,
                 stageIndex,
-                stageEffects
+                stageEffects,
+                batch
             );
 
             int stageSuccessRate = stageResult.SuccessRatePercent;
@@ -183,6 +184,12 @@ internal sealed class BattleRepeatAttackResolver
                     target_unit,
                     skill_definition,
                     stageResult
+                );
+                _runtime?._apply_source_bound_weapon_bonus_mastery_grants(
+                    active_unit,
+                    target_unit,
+                    stageResult,
+                    batch
                 );
                 if (stageIndex >= 4)
                 {
@@ -244,7 +251,14 @@ internal sealed class BattleRepeatAttackResolver
                     active_unit,
                     batch,
                     $"{DisplayName(target_unit)} 被击倒。",
-                    new BattleDefeatHandlingOptions(recordEnemyDefeatedAchievement: true)
+                    new BattleDefeatHandlingOptions(
+                        recordEnemyDefeatedAchievement: true,
+                        killProvenance: BattleKillProvenance.FromWeaponAttackResult(
+                            active_unit,
+                            stageResult,
+                            skill_definition.SkillId
+                        )
+                    )
                 );
                 if (repeatParameters.StopOnTargetDown)
                 {
@@ -697,7 +711,8 @@ internal sealed class BattleRepeatAttackResolver
         CombatEffectDefinition repeat_attack_effect,
         BattleRepeatAttackStageSpec stage_spec,
         int stage_index,
-        IEnumerable<CombatEffectDefinition> stage_effects
+        IEnumerable<CombatEffectDefinition> stage_effects,
+        BattleEventBatch batch
     )
     {
         BattleRuntimeModule runtime = _runtime as BattleRuntimeModule;
@@ -737,6 +752,7 @@ internal sealed class BattleRepeatAttackResolver
             {
                 BattleState = battleState,
                 SkillId = skill_definition != null ? skill_definition.SkillId : new StringName(""),
+                EventBatch = batch,
             };
             result = damageResolver.ResolveAttackEffects(
                 active_unit,

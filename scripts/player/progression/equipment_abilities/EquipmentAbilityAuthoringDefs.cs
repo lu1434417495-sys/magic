@@ -94,6 +94,7 @@ public sealed partial class EquipmentAbilityFactQueryDef : Resource
     [Export] public StringName binding_id { get; set; } = "";
     [Export] public StringName state_key { get; set; } = "";
     [Export] public StringName status_id { get; set; } = "";
+    [Export] public bool require_source_unit_match { get; set; }
     [Export] public StringName attribute_id { get; set; } = "";
     [Export] public StringName aggregation { get; set; } = "";
     [Export] public StringName value_kind { get; set; } = "";
@@ -190,8 +191,10 @@ public sealed partial class AttackRollBonusActionPayloadDef : Resource
 {
     [Export] public StringName target_selector { get; set; } = "";
     [Export] public int bonus { get; set; }
+    [Export] public StringName attribute_modifier_id { get; set; } = "";
     [Export] public StringName stack_mode { get; set; } = "max";
     [Export] public string label { get; set; } = "";
+    [Export] public bool require_weapon_damage { get; set; }
 }
 
 [GlobalClass]
@@ -200,6 +203,14 @@ public sealed partial class AttackRollAdvantageActionPayloadDef : Resource
     [Export] public StringName target_selector { get; set; } = "";
     [Export] public StringName mode { get; set; } = "advantage";
     [Export] public StringName stack_mode { get; set; } = "max";
+    [Export] public string label { get; set; } = "";
+}
+
+[GlobalClass]
+public sealed partial class CriticalHitOverrideActionPayloadDef : Resource
+{
+    [Export] public StringName target_selector { get; set; } = "target";
+    [Export] public bool require_weapon_damage { get; set; } = true;
     [Export] public string label { get; set; } = "";
 }
 
@@ -246,6 +257,8 @@ public sealed partial class ApplyStatusActionPayloadDef : Resource
     [Export] public int source_bound_attack_roll_penalty_min_stacks { get; set; } = 1;
     [Export] public int source_bound_incoming_attack_roll_bonus_per_stack { get; set; }
     [Export] public int source_bound_incoming_attack_roll_bonus_min_stacks { get; set; } = 1;
+    [Export] public bool override_heal_multiplier_percent { get; set; }
+    [Export] public int heal_multiplier_percent { get; set; } = 100;
     [Export] public int move_point_capacity_delta { get; set; }
     [Export] public bool forced_move_immune { get; set; }
     [Export] public bool counts_as_debuff_override { get; set; }
@@ -313,6 +326,19 @@ public sealed partial class ClearStatusActionPayloadDef : Resource
     [Export] public StringName mark_binding_id { get; set; } = "";
     [Export] public StringName mark_state_key { get; set; } = "";
     [Export] public bool require_source_unit_match { get; set; }
+    [Export] public bool clear_target_mark { get; set; }
+}
+
+[GlobalClass]
+public sealed partial class TriggerSkillActionPayloadDef : Resource
+{
+    [Export] public StringName skill_id { get; set; } = "";
+    [Export] public int skill_level { get; set; } = 1;
+    [Export] public StringName target_selector { get; set; } = "target";
+    [Export] public bool merge_into_parent_result { get; set; }
+    [Export] public bool handle_target_defeat { get; set; }
+    [Export] public string activation_log { get; set; } = "";
+    [Export] public string save_log_label { get; set; } = "";
 }
 
 [GlobalClass]

@@ -5,6 +5,7 @@ public sealed class BattleFatePreviewData
 {
     public bool UsesFateAttack { get; init; }
     public bool ForceHitNoCrit { get; init; }
+    public bool ForceCriticalOnHit { get; init; }
     public bool IsDisadvantage { get; init; }
     public int EffectiveLuck { get; init; }
     public int CritGateDie { get; init; }
@@ -23,6 +24,7 @@ public sealed class BattleFatePreviewData
             && attackCheck.FumbleLowEnd <= 0
             && attackCheck.CritThreshold <= 0
             && !attackCheck.ForceHitNoCrit
+            && !attackCheck.ForceCriticalOnHit
         )
             return null;
 
@@ -30,6 +32,10 @@ public sealed class BattleFatePreviewData
         {
             UsesFateAttack = true,
             ForceHitNoCrit = attackCheck.ForceHitNoCrit,
+            ForceCriticalOnHit =
+                attackCheck.ForceCriticalOnHit
+                && !attackCheck.CritLocked
+                && !attackCheck.ForceHitNoCrit,
             IsDisadvantage = attackCheck.IsDisadvantage,
             EffectiveLuck = attackCheck.EffectiveLuck,
             CritGateDie = attackCheck.CritGateDie,
@@ -52,6 +58,7 @@ public sealed class BattleFatePreviewData
         {
             ["uses_fate_attack"] = UsesFateAttack,
             ["force_hit_no_crit"] = ForceHitNoCrit,
+            ["force_critical_on_hit"] = ForceCriticalOnHit,
             ["is_disadvantage"] = IsDisadvantage,
             ["effective_luck"] = EffectiveLuck,
             ["crit_gate_die"] = CritGateDie,
@@ -69,6 +76,7 @@ public sealed class BattleFatePreviewData
         {
             UsesFateAttack = ReadBool(source, "uses_fate_attack"),
             ForceHitNoCrit = ReadBool(source, "force_hit_no_crit"),
+            ForceCriticalOnHit = ReadBool(source, "force_critical_on_hit"),
             IsDisadvantage = ReadBool(source, "is_disadvantage"),
             EffectiveLuck = ReadInt(source, "effective_luck"),
             CritGateDie = ReadInt(source, "crit_gate_die"),

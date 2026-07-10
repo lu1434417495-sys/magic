@@ -269,6 +269,60 @@ public class TraitContentRegistry : IdentityContentRegistryBase
                 errors.Add($"{entryLabel}.bonus must be non-zero.");
             }
         }
+
+        HashSet<StringName> seenPassiveStatuses = new();
+        for (int index = 0; index < traitDef.passive_status_effects.Count; index++)
+        {
+            TraitPassiveStatusEffectDef entry = traitDef.passive_status_effects[index];
+            string entryLabel = $"{ownerLabel}.passive_status_effects[{index}]";
+            if (entry == null)
+            {
+                errors.Add($"{entryLabel} must be a TraitPassiveStatusEffectDef.");
+                continue;
+            }
+
+            StringName statusId = ProgressionDataUtils.to_string_name(entry.status_id);
+            if (statusId == "")
+            {
+                errors.Add($"{entryLabel}.status_id must be a non-empty StringName.");
+            }
+            else if (!seenPassiveStatuses.Add(statusId))
+            {
+                errors.Add($"{entryLabel}.status_id duplicates passive status {statusId}.");
+            }
+
+            if (entry.power <= 0)
+                errors.Add($"{entryLabel}.power must be positive.");
+            if (entry.stacks <= 0)
+                errors.Add($"{entryLabel}.stacks must be positive.");
+            if (entry.counts_as_debuff && !entry.counts_as_debuff_override)
+                errors.Add($"{entryLabel}.counts_as_debuff requires counts_as_debuff_override.");
+
+            HashSet<StringName> seenImmunityTags = new();
+            for (int tagIndex = 0; tagIndex < entry.save_immunity_tags.Count; tagIndex++)
+            {
+                StringName saveTag = ProgressionDataUtils.to_string_name(
+                    entry.save_immunity_tags[tagIndex]
+                );
+                if (saveTag == "")
+                {
+                    errors.Add($"{entryLabel}.save_immunity_tags[{tagIndex}] must be non-empty.");
+                    continue;
+                }
+                if (!BattleSaveContentRules.IsValidSaveTag(saveTag))
+                {
+                    errors.Add(
+                        $"{entryLabel}.save_immunity_tags[{tagIndex}] references unsupported save tag {saveTag}."
+                    );
+                }
+                if (!seenImmunityTags.Add(saveTag))
+                {
+                    errors.Add(
+                        $"{entryLabel}.save_immunity_tags[{tagIndex}] duplicates save tag {saveTag}."
+                    );
+                }
+            }
+        }
     }
 
     private static void AppendSourceValidationErrors(

@@ -310,7 +310,8 @@ public class BattleSpecialSkillResolver
                 target_unit ?? active_unit,
                 effectDefinition,
                 batch,
-                forced_move_context
+                forced_move_context,
+                BattleSaveContext.ForSkill(skillDefinition.SkillId)
             );
             if (movedSteps > 0)
             {
@@ -800,7 +801,8 @@ public class BattleSpecialSkillResolver
         BattleUnitState unitState,
         CombatEffectDefinition effectDefinition,
         BattleEventBatch eventBatch,
-        BattleForcedMoveContext forcedMoveContext
+        BattleForcedMoveContext forcedMoveContext,
+        BattleSaveContext saveContext = default
     )
     {
         BattleState state = RtState();
@@ -811,6 +813,10 @@ public class BattleSpecialSkillResolver
         }
         int moveDistance = Math.Max(effectDefinition.ForcedMoveDistance, 0);
         if (moveDistance <= 0)
+        {
+            return 0;
+        }
+        if (ForcedMoveSaveBlocksEffect(sourceUnit, unitState, effectDefinition, saveContext, eventBatch))
         {
             return 0;
         }
@@ -896,6 +902,32 @@ public class BattleSpecialSkillResolver
             AppendChangedUnitId(eventBatch, unitState.unit_id);
         }
         return movedSteps;
+    }
+
+    private static bool ForcedMoveSaveBlocksEffect(
+        BattleUnitState sourceUnit,
+        BattleUnitState unitState,
+        CombatEffectDefinition effectDefinition,
+        BattleSaveContext saveContext,
+        BattleEventBatch eventBatch
+    )
+    {
+        BattleSaveResult saveResult = BattleSaveResolver.ResolveSaveResult(
+            sourceUnit,
+            unitState,
+            effectDefinition,
+            saveContext
+        );
+        if (!saveResult.HasSave || !saveResult.Success)
+        {
+            return false;
+        }
+        eventBatch?.AddLogLine(
+            saveResult.Immune
+                ? $"{unitState.display_name} 免疫本次强制位移。"
+                : $"{unitState.display_name} 抵抗了本次强制位移。"
+        );
+        return true;
     }
 
     private BodySizeOverrideResult ApplyBodySizeCategoryOverrideEffectResult(

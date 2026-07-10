@@ -370,7 +370,11 @@ internal sealed class BattleSkillAvailabilityService
                                 source.EffectiveInstanceKey
                             ),
                             SkillDefinition = skillDefinition,
-                            SkillLevel = Mathf.Max(grant.SkillLevel, 1),
+                            SkillLevel = ResolveEquipmentGrantedSkillLevel(
+                                user,
+                                skillId,
+                                grant.SkillLevel
+                            ),
                             IsSelectable = isSelectable,
                             DisabledReason = disabledReason,
                             SuppressedSourceKeys = System.Array.Empty<StringName>(),
@@ -412,6 +416,16 @@ internal sealed class BattleSkillAvailabilityService
             return explicitLevel;
         }
         return user.KnowsActiveSkill(skillId) ? 1 : 0;
+    }
+
+    private static int ResolveEquipmentGrantedSkillLevel(
+        BattleUnitState user,
+        StringName skillId,
+        int grantSkillLevel
+    )
+    {
+        int learnedSkillLevel = ResolveKnownSkillLevel(user, skillId);
+        return Mathf.Max(Mathf.Max(grantSkillLevel, 1), learnedSkillLevel);
     }
 
     private static StringName NormalizeStringName(StringName value) =>

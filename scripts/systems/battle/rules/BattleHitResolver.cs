@@ -871,6 +871,12 @@ public class BattleHitResolver : IDisposable
                 attackDelta = Math.Max(statusEntry.power, statusEntry.stacks);
             }
         }
+        foreach (StringName statusId in active_unit.GetSortedStatusEffectIdsTyped())
+        {
+            var statusEntry = active_unit.GetStatusEffect(statusId);
+            if (statusEntry?.attack_roll_bonus > 0)
+                attackDelta = Math.Max(attackDelta, statusEntry.attack_roll_bonus);
+        }
         return attackDelta - _get_attacker_status_attack_penalty(active_unit);
     }
 
@@ -891,6 +897,11 @@ public class BattleHitResolver : IDisposable
                 active_unit.GetStatusPower(STATUS_ATTACK_ROLL_BONUS_UP),
                 active_unit.GetStatusStacks(STATUS_ATTACK_ROLL_BONUS_UP)
             );
+        }
+        foreach (BattleStatusReadView status in active_unit.StatusEffects())
+        {
+            if (status.AttackRollBonus > 0)
+                attackDelta = Math.Max(attackDelta, status.AttackRollBonus);
         }
         return attackDelta - _get_attacker_status_attack_penalty(active_unit);
     }
@@ -1153,8 +1164,12 @@ public class BattleHitResolver : IDisposable
 
         if (BattleFateAttackRules.DoesAttackRollHit(hitRoll, attack_check))
         {
-            metadata.AttackResolution = ATTACK_RESOLUTION_HIT;
+            bool forcedCritical = attack_check.ForceCriticalOnHit && !critLocked;
+            metadata.AttackResolution = forcedCritical
+                ? ATTACK_RESOLUTION_CRITICAL_HIT
+                : ATTACK_RESOLUTION_HIT;
             metadata.AttackSuccess = true;
+            metadata.CriticalHit = forcedCritical;
             return metadata;
         }
 
@@ -2322,6 +2337,10 @@ public class BattleHitResolver : IDisposable
             critGateDie: critGateDie ?? source.CritGateDie,
             effectiveLuck: effectiveLuck ?? source.EffectiveLuck,
             forceHitNoCrit: source.ForceHitNoCrit,
+            forceCriticalOnHit: source.ForceCriticalOnHit,
+            forcedCriticalSourceEquipmentInstanceId: source.ForcedCriticalSourceEquipmentInstanceId,
+            forcedCriticalSourceBindingId: source.ForcedCriticalSourceBindingId,
+            forcedCriticalSourceActionId: source.ForcedCriticalSourceActionId,
             skillId: source.SkillId,
             followUpAttackPenalty: source.FollowUpAttackPenalty,
             exponentialPenalty: source.ExponentialPenalty,

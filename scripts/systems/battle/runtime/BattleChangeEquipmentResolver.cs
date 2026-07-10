@@ -212,7 +212,7 @@ internal class BattleChangeEquipmentResolver
         int apBefore = activeUnit.current_ap;
         activeUnit.SetEquipmentView(equipmentView);
         RuntimeState()?.SetPartyBackpackView(backpackView);
-        RefreshChangeEquipmentProjection(activeUnit, applyResult);
+        RefreshChangeEquipmentProjection(activeUnit, applyResult, batch);
         activeUnit.SetCurrentAp(activeUnit.current_ap - CHANGE_EQUIPMENT_AP_COST);
         applyResult.ApBefore = apBefore;
         applyResult.ApAfter = activeUnit.current_ap;
@@ -228,7 +228,8 @@ internal class BattleChangeEquipmentResolver
 
     private void RefreshChangeEquipmentProjection(
         BattleUnitState activeUnit,
-        BattleChangeEquipmentResult result
+        BattleChangeEquipmentResult result,
+        BattleEventBatch batch
     )
     {
         if (activeUnit == null)
@@ -242,7 +243,11 @@ internal class BattleChangeEquipmentResolver
             && _runtime?.GetCharacterGatewayTyped() != null
         )
         {
-            _runtime._unit_factory?.RefreshEquipmentProjection(activeUnit);
+            IReadOnlyList<StringName> changedUnitIds =
+                _runtime._unit_factory?.RefreshEquipmentProjection(activeUnit)
+                ?? Array.Empty<StringName>();
+            foreach (StringName changedUnitId in changedUnitIds)
+                batch?.AddChangedUnitId(changedUnitId);
         }
         int hpMaxAfter = ComputeUnitHpMax(activeUnit);
         bool hpClamped = false;

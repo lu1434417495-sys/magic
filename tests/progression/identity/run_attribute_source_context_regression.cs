@@ -18,6 +18,7 @@ public partial class run_attribute_source_context_regression : SceneTree
     {
         TestAttributeSourceContextNoLongerRequiresGodotRegistration();
         TestAttributeSnapshotExposesBaseAttributeModifiers();
+        TestAttributeModifierOverlayCanTargetDerivedAbilityModifier();
         TestAttributeServiceSetupContextAppliesIdentityModifiers();
         TestAttributeServiceSetupBoundaryIndexesTypedDefinitions();
         TestAttributeServiceSetupContextUsesExactDefinitionKeys();
@@ -86,6 +87,36 @@ public partial class run_attribute_source_context_regression : SceneTree
             snapshot.ToDictionary()["strength_modifier"].AsInt32(),
             -1,
             "snapshot 字典应包含力量调整值。"
+        );
+    }
+
+    private void TestAttributeModifierOverlayCanTargetDerivedAbilityModifier()
+    {
+        UnitProgress progress = MakeProgress("modifier_overlay");
+        progress.unit_base_attributes.SetAttributeValue("perception", 12);
+        AttributeModifier equipmentPerceptionModifier =
+            Modifier(AttributeService.ToStringName(AttributeIdKind.PerceptionModifier), 3);
+
+        AttributeService service = new();
+        service.SetupContext(
+            new AttributeSourceContext
+            {
+                unit_progress = progress,
+                equipment_state = new List<AttributeModifier> { equipmentPerceptionModifier },
+            }
+        );
+
+        AttributeSnapshot snapshot = service.GetSnapshot();
+        _test.Eq(snapshot.GetValue("perception"), 12, "调整值加值不应改写基础感知。");
+        _test.Eq(
+            snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.PerceptionModifier)),
+            4,
+            "perception_modifier 应等于基础感知 12 的 +1 再叠加装备 +3。"
+        );
+        _test.Eq(
+            progress.unit_base_attributes.GetAttributeValue("perception"),
+            12,
+            "装备调整值加值不应持久改写 UnitProgress 基础感知。"
         );
     }
 

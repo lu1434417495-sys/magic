@@ -35,13 +35,13 @@ public sealed class BattleEdgeService
         {
             return;
         }
-        state.ReplaceRuntimeEdgeFaces(
-            BuildEdgeFacesForCells(
-                state.CellIndex,
-                state.map_size,
-                state.ProjectCellColumnsTyped()
-            )
+        Dictionary<Vector3I, BattleEdgeFaceState> edgeFaces = BuildEdgeFacesForCells(
+            state.CellIndex,
+            state.map_size,
+            state.ProjectCellColumnsTyped()
         );
+        ApplyTemporaryEdgeFeatures(edgeFaces, state.GetTemporaryEdgeFeaturesForProjection());
+        state.ReplaceRuntimeEdgeFaces(edgeFaces);
         state.runtime_edges_dirty = false;
     }
 
@@ -265,6 +265,27 @@ public sealed class BattleEdgeService
         edgeFace.feature_blocks_los = featureState.blocks_los;
         edgeFace.feature_interaction_kind = featureState.interaction_kind;
         edgeFace.feature_state_tag = featureState.state_tag;
+    }
+
+    private static void ApplyTemporaryEdgeFeatures(
+        Dictionary<Vector3I, BattleEdgeFaceState> edgeFaces,
+        IReadOnlyList<BattleTemporaryEdgeFeatureState> temporaryFeatures
+    )
+    {
+        if (edgeFaces == null || temporaryFeatures == null || temporaryFeatures.Count == 0)
+            return;
+        foreach (BattleTemporaryEdgeFeatureState temporaryFeature in temporaryFeatures)
+        {
+            if (temporaryFeature?.IsValid != true)
+                continue;
+            Vector3I key = BuildEdgeKey(
+                temporaryFeature.OriginCoord,
+                GetDirectionIndex(temporaryFeature.Direction)
+            );
+            if (!edgeFaces.TryGetValue(key, out BattleEdgeFaceState edgeFace) || edgeFace == null)
+                continue;
+            ApplyAuthoredFeature(edgeFace, temporaryFeature.Feature);
+        }
     }
 
     private static EdgeLookup ResolveLookupKey(Vector2I fromCoord, Vector2I toCoord)

@@ -70,6 +70,12 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
                     typeof(AttackRollAdvantageActionPayloadDefinition),
                     consumerSupport: ConsumerSupport(includePreview: true)
                 ),
+                ["critical_hit_override"] = Action(
+                    "critical_hit_override",
+                    typeof(CriticalHitOverrideActionPayloadDef),
+                    typeof(CriticalHitOverrideActionPayloadDefinition),
+                    consumerSupport: ConsumerSupport(includePreview: true)
+                ),
                 ["attack_defense_modifier"] = Action(
                     "attack_defense_modifier",
                     typeof(EquipmentAttackDefenseModifierDef),
@@ -113,6 +119,11 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
                     typeof(ApplyBattleTerrainEffectAfterCheckActionPayloadDef),
                     typeof(ApplyBattleTerrainEffectAfterCheckActionPayloadDefinition)
                 ),
+                ["apply_edge_feature"] = Action(
+                    "apply_edge_feature",
+                    typeof(ApplyEdgeFeatureActionPayloadDef),
+                    typeof(ApplyEdgeFeatureActionPayloadDefinition)
+                ),
                 ["modify_ability_state"] = Action(
                     "modify_ability_state",
                     typeof(ModifyAbilityStateActionPayloadDef),
@@ -129,6 +140,11 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
                     "clear_status",
                     typeof(ClearStatusActionPayloadDef),
                     typeof(ClearStatusActionPayloadDefinition)
+                ),
+                ["trigger_skill"] = Action(
+                    "trigger_skill",
+                    typeof(TriggerSkillActionPayloadDef),
+                    typeof(TriggerSkillActionPayloadDefinition)
                 ),
                 ["grant_skill"] = Action(
                     "grant_skill",
@@ -229,6 +245,20 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
                     Trigger = EquipmentAbilityTriggerKind.OnHitReceived,
                     AllowedTimings = EquipmentAbilityReadOnlySet<EquipmentAbilityTimingKind>.From(
                         new[] { EquipmentAbilityTimingKind.AfterHitReceived }
+                    ),
+                },
+                [EquipmentAbilityTriggerKind.OnAttackCheck] = new()
+                {
+                    Trigger = EquipmentAbilityTriggerKind.OnAttackCheck,
+                    AllowedTimings = EquipmentAbilityReadOnlySet<EquipmentAbilityTimingKind>.From(
+                        new[] { EquipmentAbilityTimingKind.AfterAttackCheck }
+                    ),
+                },
+                [EquipmentAbilityTriggerKind.OnTargetMarkExpired] = new()
+                {
+                    Trigger = EquipmentAbilityTriggerKind.OnTargetMarkExpired,
+                    AllowedTimings = EquipmentAbilityReadOnlySet<EquipmentAbilityTimingKind>.From(
+                        new[] { EquipmentAbilityTimingKind.AfterStatusExpired }
                     ),
                 },
             }

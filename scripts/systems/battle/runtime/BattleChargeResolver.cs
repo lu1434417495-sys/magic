@@ -825,6 +825,7 @@ internal sealed class BattleChargeResolver
             "BattleChargeResolver.CloneStateForPreview.promotion_queue"
         );
         clonedState.modal_state = state.modal_state;
+        clonedState.ReplaceTemporaryEdgeFeaturesTyped(state.GetTemporaryEdgeFeaturesTyped());
         clonedState.ClearRuntimeEdgeFaces();
         clonedState.runtime_edges_dirty = true;
         return clonedState;
@@ -910,6 +911,7 @@ internal sealed class BattleChargeResolver
                     {
                         BattleState = State,
                         SkillId = skillDefinition?.SkillId ?? new StringName(""),
+                        EventBatch = batch,
                     }
                 );
             }
@@ -929,6 +931,12 @@ internal sealed class BattleChargeResolver
                     targetUnit,
                     skillDefinition,
                     stageResult
+                );
+                Runtime?._apply_source_bound_weapon_bonus_mastery_grants(
+                    activeUnit,
+                    targetUnit,
+                    stageResult,
+                    batch
                 );
             }
 
@@ -973,7 +981,14 @@ internal sealed class BattleChargeResolver
                     activeUnit,
                     batch,
                     $"{targetUnit.display_name} 被击倒。",
-                    new BattleDefeatHandlingOptions(recordEnemyDefeatedAchievement: true)
+                    new BattleDefeatHandlingOptions(
+                        recordEnemyDefeatedAchievement: true,
+                        killProvenance: BattleKillProvenance.FromWeaponAttackResult(
+                            activeUnit,
+                            stageResult,
+                            skillDefinition.SkillId
+                        )
+                    )
                 );
             }
         }

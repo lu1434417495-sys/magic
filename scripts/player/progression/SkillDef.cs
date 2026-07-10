@@ -14,6 +14,7 @@ internal enum SkillLearnSourceKind
     Unknown = 0,
     Book,
     Innate,
+    Internal,
     Player,
     Profession,
     Race,
@@ -57,6 +58,7 @@ public partial class SkillDef : Resource
     private static readonly StringName SkillTypePassive = "passive";
     private static readonly StringName LearnSourceBook = "book";
     private static readonly StringName LearnSourceInnate = "innate";
+    private static readonly StringName LearnSourceInternal = "internal";
     private static readonly StringName LearnSourcePlayer = "player";
     private static readonly StringName LearnSourceProfession = "profession";
     private static readonly StringName LearnSourceRace = "race";
@@ -569,6 +571,8 @@ public partial class SkillDef : Resource
             return SkillLearnSourceKind.Book;
         if (value == LearnSourceInnate)
             return SkillLearnSourceKind.Innate;
+        if (value == LearnSourceInternal)
+            return SkillLearnSourceKind.Internal;
         if (value == LearnSourcePlayer)
             return SkillLearnSourceKind.Player;
         if (value == LearnSourceProfession)
@@ -590,6 +594,7 @@ public partial class SkillDef : Resource
         {
             SkillLearnSourceKind.Book => LearnSourceBook,
             SkillLearnSourceKind.Innate => LearnSourceInnate,
+            SkillLearnSourceKind.Internal => LearnSourceInternal,
             SkillLearnSourceKind.Player => LearnSourcePlayer,
             SkillLearnSourceKind.Profession => LearnSourceProfession,
             SkillLearnSourceKind.Race => LearnSourceRace,

@@ -356,6 +356,28 @@ public sealed partial class BattleRuntimeModule
         );
     }
 
+    internal void _apply_source_bound_weapon_bonus_mastery_grants(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        AttackEffectResolutionResult result,
+        BattleEventBatch batch
+    )
+    {
+        if (_skill_mastery_service == null)
+            return;
+        IReadOnlyList<BattleSkillMasteryGrant> grants =
+            _skill_mastery_service.BuildSourceBoundWeaponBonusMasteryGrants(
+                sourceUnit,
+                targetUnit,
+                result,
+                GetSkillDefinitionIndexTyped()
+            );
+        foreach (BattleSkillMasteryGrant grant in grants ?? Array.Empty<BattleSkillMasteryGrant>())
+        {
+            ApplySkillMasteryGrantTyped(sourceUnit, grant, batch);
+        }
+    }
+
     internal void ApplySkillMasteryGrantTyped(
         BattleUnitState unitState,
         BattleSkillMasteryGrant grant,

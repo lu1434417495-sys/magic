@@ -807,6 +807,9 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             case AttackRollAdvantageActionPayloadDef payload:
                 ValidateAttackRollAdvantagePayload(payload, path, errors);
                 break;
+            case CriticalHitOverrideActionPayloadDef payload:
+                ValidateCriticalHitOverridePayload(payload, path, errors);
+                break;
             case EquipmentAttackDefenseModifierDef payload:
                 ValidateAttackDefenseModifierPayload(payload, path, errors);
                 break;
@@ -831,6 +834,9 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             case ApplyBattleTerrainEffectAfterCheckActionPayloadDef payload:
                 ValidateApplyBattleTerrainEffectAfterCheckPayload(payload, path, errors);
                 break;
+            case ApplyEdgeFeatureActionPayloadDef payload:
+                ValidateApplyEdgeFeaturePayload(payload, path, errors);
+                break;
             case ModifyAbilityStateActionPayloadDef payload:
                 ValidateModifyAbilityStatePayload(payload, path, errors);
                 break;
@@ -839,6 +845,9 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 break;
             case ClearStatusActionPayloadDef payload:
                 ValidateClearStatusPayload(payload, context, path, errors);
+                break;
+            case TriggerSkillActionPayloadDef payload:
+                ValidateTriggerSkillPayload(payload, context, path, errors);
                 break;
             case GrantSkillActionPayloadDef payload:
                 ValidateSkillReference(payload.skill_id, context, $"{path}.payload.skill_id", errors);
@@ -1255,13 +1264,15 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         List<string> errors
     )
     {
-        if (payload.target_selector == "" || payload.bonus == 0)
+        bool hasDynamicBonus =
+            ProgressionDataUtils.to_string_name(payload.attribute_modifier_id) != "";
+        if (payload.target_selector == "" || (payload.bonus == 0 && !hasDynamicBonus))
         {
             AddError(
                 errors,
                 "EQA_ACTION_REQUIRED_FIELD_MISSING",
                 path,
-                "attack_roll_bonus requires target_selector and non-zero bonus"
+                "attack_roll_bonus requires target_selector and non-zero bonus or attribute_modifier_id"
             );
         }
     }
@@ -1557,6 +1568,15 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 "apply_status source_bound_incoming_attack_roll_bonus_min_stacks must be positive"
             );
         }
+        if (payload.heal_multiplier_percent < 0 || payload.heal_multiplier_percent > 100)
+        {
+            AddError(
+                errors,
+                "EQA_STATUS_HEAL_MULTIPLIER_INVALID",
+                $"{path}.payload.heal_multiplier_percent",
+                "apply_status heal_multiplier_percent must be between 0 and 100"
+            );
+        }
         if (payload.save_dc > 0 && (payload.save_ability == "" || payload.save_tag == ""))
         {
             AddError(
@@ -1641,6 +1661,7 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             mode != ""
             && mode != "add_base_action_points"
             && mode != "subtract_current_action_points"
+            && mode != "restore_current_action_points_capped"
             && mode != "set_next_turn_ap_to_zero"
         )
         {
@@ -1667,6 +1688,15 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 "EQA_ACTION_AMOUNT_INVALID",
                 $"{path}.payload.amount",
                 "modify_action_points subtract_current_action_points requires positive amount"
+            );
+        }
+        if (mode == "restore_current_action_points_capped" && payload.amount <= 0)
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_AMOUNT_INVALID",
+                $"{path}.payload.amount",
+                "modify_action_points restore_current_action_points_capped requires positive amount"
             );
         }
         if (mode == "set_next_turn_ap_to_zero")
@@ -1959,6 +1989,42 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         ValidateStatusReference(payload.status_id, context, $"{path}.payload.status_id", errors);
     }
 
+    private static void ValidateCriticalHitOverridePayload(
+        CriticalHitOverrideActionPayloadDef payload,
+        string path,
+        List<string> errors
+    )
+    {
+        if (payload.target_selector == "")
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "critical_hit_override requires target_selector"
+            );
+        }
+    }
+
+    private static void ValidateTriggerSkillPayload(
+        TriggerSkillActionPayloadDef payload,
+        EquipmentAbilityContentValidationContext context,
+        string path,
+        List<string> errors
+    )
+    {
+        if (payload.skill_id == "" || payload.skill_level <= 0 || payload.target_selector == "")
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "trigger_skill requires skill_id, positive skill_level, and target_selector"
+            );
+        }
+        ValidateSkillReference(payload.skill_id, context, $"{path}.payload.skill_id", errors);
+    }
+
     private static void ValidateStatusSemanticPayload(
         StringName stackBehavior,
         int stackLimit,
@@ -2228,6 +2294,106 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         }
     }
 
+    private static void ValidateApplyEdgeFeaturePayload(
+        ApplyEdgeFeatureActionPayloadDef payload,
+        string path,
+        List<string> errors
+    )
+    {
+        if (
+            payload.from_selector == ""
+            || payload.to_selector == ""
+            || payload.duration_tu <= 0
+            || payload.feature_kind == ""
+            || payload.render_kind == ""
+            || payload.interaction_kind == ""
+            || payload.state_tag == ""
+        )
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "apply_edge_feature requires from_selector, to_selector, positive duration_tu, feature_kind, render_kind, interaction_kind, and state_tag"
+            );
+        }
+        if (payload.duration_tu > 0 && payload.duration_tu % TuGranularity != 0)
+        {
+            AddError(
+                errors,
+                "EQA_TU_GRANULARITY_INVALID",
+                $"{path}.payload.duration_tu",
+                $"apply_edge_feature duration_tu must be a multiple of {TuGranularity}"
+            );
+        }
+        if (payload.max_active_edges < 0)
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_INVALID_VALUE",
+                $"{path}.payload.max_active_edges",
+                "apply_edge_feature max_active_edges must be >= 0"
+            );
+        }
+        if (payload.render_layers < 0)
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_INVALID_VALUE",
+                $"{path}.payload.render_layers",
+                "apply_edge_feature render_layers must be >= 0"
+            );
+        }
+        if (!IsValidEdgeEndpointSelector(payload.from_selector, sourceOnly: true))
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_INVALID_VALUE",
+                $"{path}.payload.from_selector",
+                "apply_edge_feature from_selector must be source, owner, attacker, or source_attacker"
+            );
+        }
+        if (!IsValidEdgeEndpointSelector(payload.to_selector, sourceOnly: false))
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_INVALID_VALUE",
+                $"{path}.payload.to_selector",
+                "apply_edge_feature to_selector must be target or attack_target"
+            );
+        }
+        if (BattleEdgeFeatureState.ToFeatureKind(payload.feature_kind) == BattleEdgeFeatureKind.Unknown)
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_INVALID_VALUE",
+                $"{path}.payload.feature_kind",
+                $"apply_edge_feature feature_kind {payload.feature_kind} is not supported"
+            );
+        }
+        if (BattleEdgeFeatureState.ToRenderKind(payload.render_kind) == BattleEdgeRenderKind.Unknown)
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_INVALID_VALUE",
+                $"{path}.payload.render_kind",
+                $"apply_edge_feature render_kind {payload.render_kind} is not supported"
+            );
+        }
+        if (
+            BattleEdgeFeatureState.ToInteractionKind(payload.interaction_kind)
+            == BattleEdgeInteractionKind.Unknown
+        )
+        {
+            AddError(
+                errors,
+                "EQA_ACTION_INVALID_VALUE",
+                $"{path}.payload.interaction_kind",
+                $"apply_edge_feature interaction_kind {payload.interaction_kind} is not supported"
+            );
+        }
+    }
+
     private static void ValidateModifyAbilityStatePayload(
         ModifyAbilityStateActionPayloadDef payload,
         string path,
@@ -2252,6 +2418,14 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             "lte" or "lt" or "gte" or "gt" or "eq" => true,
             _ => false,
         };
+    }
+
+    private static bool IsValidEdgeEndpointSelector(StringName selector, bool sourceOnly)
+    {
+        string normalized = ProgressionDataUtils.to_string_name(selector).ToString();
+        if (normalized == "source" || normalized == "owner" || normalized == "attacker" || normalized == "source_attacker")
+            return true;
+        return !sourceOnly && (normalized == "target" || normalized == "attack_target");
     }
 
     private static void ValidateDurabilityPayload(
@@ -2870,8 +3044,10 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             {
                 TargetSelector = attackRoll.target_selector,
                 Bonus = attackRoll.bonus,
+                AttributeModifierId = attackRoll.attribute_modifier_id,
                 StackMode = attackRoll.stack_mode,
                 Label = attackRoll.label ?? "",
+                RequireWeaponDamage = attackRoll.require_weapon_damage,
             },
             AttackRollAdvantageActionPayloadDef attackAdvantage => new AttackRollAdvantageActionPayloadDefinition
             {
@@ -2879,6 +3055,12 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 Mode = attackAdvantage.mode,
                 StackMode = attackAdvantage.stack_mode,
                 Label = attackAdvantage.label ?? "",
+            },
+            CriticalHitOverrideActionPayloadDef critical => new CriticalHitOverrideActionPayloadDefinition
+            {
+                TargetSelector = critical.target_selector,
+                RequireWeaponDamage = critical.require_weapon_damage,
+                Label = critical.label ?? "",
             },
             EquipmentAttackDefenseModifierDef defense => new EquipmentAttackDefenseModifierDefinition
             {
@@ -2936,6 +3118,8 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                     status.source_bound_incoming_attack_roll_bonus_per_stack,
                 SourceBoundIncomingAttackRollBonusMinStacks =
                     status.source_bound_incoming_attack_roll_bonus_min_stacks,
+                OverrideHealMultiplierPercent = status.override_heal_multiplier_percent,
+                HealMultiplierPercent = status.heal_multiplier_percent,
                 MovePointCapacityDelta = status.move_point_capacity_delta,
                 ForcedMoveImmune = status.forced_move_immune,
                 CountsAsDebuffOverride = status.counts_as_debuff_override,
@@ -3016,6 +3200,23 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                     NaturalTwentyAutoSuccess = terrainCheck.natural_twenty_auto_success,
                     NaturalOneAutoFailure = terrainCheck.natural_one_auto_failure,
                 },
+            ApplyEdgeFeatureActionPayloadDef edgeFeature => new ApplyEdgeFeatureActionPayloadDefinition
+            {
+                FromSelector = edgeFeature.from_selector,
+                ToSelector = edgeFeature.to_selector,
+                DurationTu = edgeFeature.duration_tu,
+                MaxActiveEdges = edgeFeature.max_active_edges,
+                RefreshExisting = edgeFeature.refresh_existing,
+                RequireAdjacent = edgeFeature.require_adjacent,
+                FeatureKind = edgeFeature.feature_kind,
+                RenderKind = edgeFeature.render_kind,
+                RenderLayers = edgeFeature.render_layers,
+                BlocksMove = edgeFeature.blocks_move,
+                BlocksOccupancy = edgeFeature.blocks_occupancy,
+                BlocksLos = edgeFeature.blocks_los,
+                InteractionKind = edgeFeature.interaction_kind,
+                StateTag = edgeFeature.state_tag,
+            },
             ModifyAbilityStateActionPayloadDef state => new ModifyAbilityStateActionPayloadDefinition
             {
                 TargetSelector = state.target_selector,
@@ -3046,6 +3247,17 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 MarkBindingId = clear.mark_binding_id,
                 MarkStateKey = clear.mark_state_key,
                 RequireSourceUnitMatch = clear.require_source_unit_match,
+                ClearTargetMark = clear.clear_target_mark,
+            },
+            TriggerSkillActionPayloadDef triggerSkill => new TriggerSkillActionPayloadDefinition
+            {
+                SkillId = triggerSkill.skill_id,
+                SkillLevel = Math.Max(triggerSkill.skill_level, 1),
+                TargetSelector = triggerSkill.target_selector,
+                MergeIntoParentResult = triggerSkill.merge_into_parent_result,
+                HandleTargetDefeat = triggerSkill.handle_target_defeat,
+                ActivationLog = triggerSkill.activation_log ?? "",
+                SaveLogLabel = triggerSkill.save_log_label ?? "",
             },
             GrantSkillActionPayloadDef grant => new GrantSkillActionPayloadDefinition
             {
@@ -3196,6 +3408,7 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             BindingId = value.binding_id,
             StateKey = value.state_key,
             StatusId = value.status_id,
+            RequireSourceUnitMatch = value.require_source_unit_match,
             AttributeId = value.attribute_id,
             Aggregation = value.aggregation,
             ValueKind = value.value_kind,
@@ -3479,6 +3692,16 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             trigger = EquipmentAbilityTriggerKind.OnHitReceived;
             return true;
         }
+        if (value == "on_attack_check")
+        {
+            trigger = EquipmentAbilityTriggerKind.OnAttackCheck;
+            return true;
+        }
+        if (value == "on_target_mark_expired")
+        {
+            trigger = EquipmentAbilityTriggerKind.OnTargetMarkExpired;
+            return true;
+        }
         trigger = EquipmentAbilityTriggerKind.OnHit;
         return false;
     }
@@ -3528,6 +3751,16 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         if (value == "after_hit_received")
         {
             timing = EquipmentAbilityTimingKind.AfterHitReceived;
+            return true;
+        }
+        if (value == "after_attack_check")
+        {
+            timing = EquipmentAbilityTimingKind.AfterAttackCheck;
+            return true;
+        }
+        if (value == "after_status_expired")
+        {
+            timing = EquipmentAbilityTimingKind.AfterStatusExpired;
             return true;
         }
         timing = EquipmentAbilityTimingKind.AfterHit;

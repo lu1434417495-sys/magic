@@ -479,7 +479,8 @@ public sealed class ProgressionService
     private static bool IsManualSkillLearnSourceBlocked(SkillLearnSourceKind learnSource)
     {
         return learnSource
-            is SkillLearnSourceKind.Profession
+            is SkillLearnSourceKind.Internal
+                or SkillLearnSourceKind.Profession
                 or SkillLearnSourceKind.Race
                 or SkillLearnSourceKind.Subrace
                 or SkillLearnSourceKind.Ascension

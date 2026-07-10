@@ -54,6 +54,13 @@ public class BattleStatusEffectState
         "source_bound_attack_roll_penalty_min_stacks",
         "source_bound_incoming_attack_roll_bonus_per_stack",
         "source_bound_incoming_attack_roll_bonus_min_stacks",
+        "source_bound_weapon_bonus_damage_dice_count",
+        "source_bound_weapon_bonus_damage_dice_sides",
+        "source_bound_weapon_bonus_damage_dice_bonus",
+        "attack_roll_bonus",
+        "attack_roll_advantage",
+        "consume_on_next_attack_check",
+        "consume_on_next_save",
         "move_point_capacity_delta",
         "undispellable",
         "dispellable_magic",
@@ -111,6 +118,13 @@ public class BattleStatusEffectState
     public int source_bound_attack_roll_penalty_min_stacks { get; set; } = 1;
     public int source_bound_incoming_attack_roll_bonus_per_stack { get; set; }
     public int source_bound_incoming_attack_roll_bonus_min_stacks { get; set; } = 1;
+    public int source_bound_weapon_bonus_damage_dice_count { get; set; }
+    public int source_bound_weapon_bonus_damage_dice_sides { get; set; }
+    public int source_bound_weapon_bonus_damage_dice_bonus { get; set; }
+    public int attack_roll_bonus { get; set; }
+    public bool attack_roll_advantage { get; set; }
+    public bool consume_on_next_attack_check { get; set; }
+    public bool consume_on_next_save { get; set; }
     public int move_point_capacity_delta { get; set; }
     public bool undispellable { get; set; }
     public bool dispellable_magic { get; set; }
@@ -240,6 +254,16 @@ public class BattleStatusEffectState
                 source_bound_incoming_attack_roll_bonus_per_stack,
             source_bound_incoming_attack_roll_bonus_min_stacks =
                 source_bound_incoming_attack_roll_bonus_min_stacks,
+            source_bound_weapon_bonus_damage_dice_count =
+                source_bound_weapon_bonus_damage_dice_count,
+            source_bound_weapon_bonus_damage_dice_sides =
+                source_bound_weapon_bonus_damage_dice_sides,
+            source_bound_weapon_bonus_damage_dice_bonus =
+                source_bound_weapon_bonus_damage_dice_bonus,
+            attack_roll_bonus = attack_roll_bonus,
+            attack_roll_advantage = attack_roll_advantage,
+            consume_on_next_attack_check = consume_on_next_attack_check,
+            consume_on_next_save = consume_on_next_save,
             move_point_capacity_delta = move_point_capacity_delta,
             undispellable = undispellable,
             dispellable_magic = dispellable_magic,
@@ -610,6 +634,19 @@ public class BattleStatusEffectState
                 ReadOptionalIntParam(parameters, "source_bound_incoming_attack_roll_bonus_per_stack") ?? 0,
             source_bound_incoming_attack_roll_bonus_min_stacks =
                 ReadOptionalIntParam(parameters, "source_bound_incoming_attack_roll_bonus_min_stacks") ?? 1,
+            source_bound_weapon_bonus_damage_dice_count =
+                ReadOptionalIntParam(parameters, "source_bound_weapon_bonus_damage_dice_count") ?? 0,
+            source_bound_weapon_bonus_damage_dice_sides =
+                ReadOptionalIntParam(parameters, "source_bound_weapon_bonus_damage_dice_sides") ?? 0,
+            source_bound_weapon_bonus_damage_dice_bonus =
+                ReadOptionalIntParam(parameters, "source_bound_weapon_bonus_damage_dice_bonus") ?? 0,
+            attack_roll_bonus = ReadOptionalIntParam(parameters, "attack_roll_bonus") ?? 0,
+            attack_roll_advantage = ReadOptionalBoolParam(parameters, "attack_roll_advantage"),
+            consume_on_next_attack_check = ReadOptionalBoolParam(
+                parameters,
+                "consume_on_next_attack_check"
+            ),
+            consume_on_next_save = ReadOptionalBoolParam(parameters, "consume_on_next_save"),
             move_point_capacity_delta =
                 ReadOptionalIntParam(parameters, "move_point_capacity_delta") ?? 0,
             undispellable = ReadOptionalBoolParam(parameters, "undispellable"),
@@ -724,6 +761,34 @@ public class BattleStatusEffectState
                 source_bound_incoming_attack_roll_bonus_per_stack;
             projected["source_bound_incoming_attack_roll_bonus_min_stacks"] =
                 Mathf.Max(source_bound_incoming_attack_roll_bonus_min_stacks, 1);
+        }
+        if (source_bound_weapon_bonus_damage_dice_count > 0)
+        {
+            projected["source_bound_weapon_bonus_damage_dice_count"] =
+                source_bound_weapon_bonus_damage_dice_count;
+            projected["source_bound_weapon_bonus_damage_dice_sides"] =
+                source_bound_weapon_bonus_damage_dice_sides;
+            if (source_bound_weapon_bonus_damage_dice_bonus != 0)
+            {
+                projected["source_bound_weapon_bonus_damage_dice_bonus"] =
+                    source_bound_weapon_bonus_damage_dice_bonus;
+            }
+        }
+        if (attack_roll_bonus != 0)
+        {
+            projected["attack_roll_bonus"] = attack_roll_bonus;
+        }
+        if (attack_roll_advantage)
+        {
+            projected["attack_roll_advantage"] = true;
+        }
+        if (consume_on_next_attack_check)
+        {
+            projected["consume_on_next_attack_check"] = true;
+        }
+        if (consume_on_next_save)
+        {
+            projected["consume_on_next_save"] = true;
         }
         if (move_point_capacity_delta != 0)
         {

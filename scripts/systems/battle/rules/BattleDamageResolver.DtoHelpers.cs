@@ -6,6 +6,15 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class BattleDamageResolver
 {
+    private readonly record struct SourceBoundWeaponBonusDamageRoll(
+        DicePoolRollResult Roll,
+        IReadOnlyList<StringName> SkillIds
+    )
+    {
+        public static SourceBoundWeaponBonusDamageRoll Empty =>
+            new(DicePoolRollResult.Empty, Array.Empty<StringName>());
+    }
+
     private DicePoolRollResult RollDamageDice(
         CombatEffectDefinition effectDefinition,
         bool includeBonus = true,
@@ -267,6 +276,53 @@ public partial class BattleDamageResolver
         );
         return requiredTag != ""
             && targetUnit?.creature_type_tags?.Contains(requiredTag) == true;
+    }
+
+    private SourceBoundWeaponBonusDamageRoll RollSourceBoundWeaponBonusDamageDice(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        bool attackIncludesWeaponDamage,
+        StringName rollMode
+    )
+    {
+        if (sourceUnit == null || targetUnit == null || !attackIncludesWeaponDamage)
+        {
+            return SourceBoundWeaponBonusDamageRoll.Empty;
+        }
+
+        DicePoolRollResult result = DicePoolRollResult.Empty;
+        var skillIds = new List<StringName>();
+        foreach (StringName statusId in targetUnit.GetSortedStatusEffectIdsTyped())
+        {
+            BattleStatusEffectState statusEntry = targetUnit.GetStatusEffect(statusId);
+            if (
+                statusEntry == null
+                || statusEntry.source_unit_id != sourceUnit.unit_id
+                || statusEntry.source_bound_weapon_bonus_damage_dice_count <= 0
+                || statusEntry.source_bound_weapon_bonus_damage_dice_sides <= 0
+            )
+            {
+                continue;
+            }
+
+            DicePoolRollResult statusRoll = RollDicePool(
+                statusEntry.source_bound_weapon_bonus_damage_dice_count,
+                statusEntry.source_bound_weapon_bonus_damage_dice_sides,
+                statusEntry.source_bound_weapon_bonus_damage_dice_bonus,
+                "source_bound_weapon_bonus_damage_dice",
+                IsEmpty(rollMode) ? DamagePreviewRollModeRandom : rollMode
+            );
+            result = CombineDicePoolRolls(result, statusRoll);
+            StringName sourceSkillId = ProgressionDataUtils.to_string_name(
+                statusEntry.source_skill_id
+            );
+            if (sourceSkillId != "" && !skillIds.Contains(sourceSkillId))
+            {
+                skillIds.Add(sourceSkillId);
+            }
+        }
+
+        return new SourceBoundWeaponBonusDamageRoll(result, skillIds);
     }
 
     private static bool IsTargetLowHp(
@@ -1591,7 +1647,8 @@ public partial class BattleDamageResolver
         BattleUnitState targetUnit,
         BattleUnitState sourceUnit,
         CombatEffectDefinition effectDefinition,
-        StringName statusIdOverride = default
+        StringName statusIdOverride = default,
+        DamageResolutionContext context = null
     )
     {
         if (targetUnit == null || effectDefinition == null)
@@ -1618,6 +1675,15 @@ public partial class BattleDamageResolver
         if (statusEntry == null)
         {
             return false;
+        }
+        StringName sourceSkillId = ProgressionDataUtils.to_string_name(context?.SkillId ?? "");
+        if (statusEntry.source_skill_id == "" && sourceSkillId != "")
+        {
+            statusEntry.source_skill_id = sourceSkillId;
+        }
+        if (!statusEntry.source_skill_level.HasValue && (context?.SourceSkillLevel ?? 0) > 0)
+        {
+            statusEntry.source_skill_level = context.SourceSkillLevel;
         }
         targetUnit.SetStatusEffect(statusEntry);
         return true;

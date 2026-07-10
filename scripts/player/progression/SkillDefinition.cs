@@ -1589,7 +1589,14 @@ public sealed class CombatEffectDefinition
         IReadOnlyList<StringName> mitigationBypassDamageTags = null,
         IReadOnlyList<StringName> mitigationBypassTiers = null,
         IReadOnlyList<CombatDamageSegmentDefinition> extraDamageSegments = null,
-        IReadOnlyList<CombatTargetDamageMultiplierRuleDefinition> targetDamageMultiplierRules = null
+        IReadOnlyList<CombatTargetDamageMultiplierRuleDefinition> targetDamageMultiplierRules = null,
+        int attackRollBonus = 0,
+        bool consumeOnNextAttackCheck = false,
+        bool consumeOnNextSave = false,
+        bool attackRollAdvantage = false,
+        int sourceBoundWeaponBonusDamageDiceCount = 0,
+        int sourceBoundWeaponBonusDamageDiceSides = 0,
+        int sourceBoundWeaponBonusDamageDiceBonus = 0
     )
     {
         EffectType = effectType;
@@ -1619,6 +1626,9 @@ public sealed class CombatEffectDefinition
         BonusDamageDiceCount = bonusDamageDiceCount;
         BonusDamageDiceSides = bonusDamageDiceSides;
         BonusDamageDiceBonus = bonusDamageDiceBonus;
+        SourceBoundWeaponBonusDamageDiceCount = sourceBoundWeaponBonusDamageDiceCount;
+        SourceBoundWeaponBonusDamageDiceSides = sourceBoundWeaponBonusDamageDiceSides;
+        SourceBoundWeaponBonusDamageDiceBonus = sourceBoundWeaponBonusDamageDiceBonus;
         SaveDc = saveDc;
         SaveDcMode = saveDcMode;
         SaveDcSourceAbility = saveDcSourceAbility;
@@ -1678,6 +1688,10 @@ public sealed class CombatEffectDefinition
         MinHpAfterDamage = minHpAfterDamage;
         DeathPreventionPriority = deathPreventionPriority;
         AttackRollPenalty = attackRollPenalty;
+        AttackRollBonus = attackRollBonus;
+        AttackRollAdvantage = attackRollAdvantage;
+        ConsumeOnNextAttackCheck = consumeOnNextAttackCheck;
+        ConsumeOnNextSave = consumeOnNextSave;
         Undispellable = undispellable;
         DispellableMagic = dispellableMagic;
         DispellableHarmfulMagic = dispellableHarmfulMagic;
@@ -1752,6 +1766,9 @@ public sealed class CombatEffectDefinition
     public int BonusDamageDiceCount { get; }
     public int BonusDamageDiceSides { get; }
     public int BonusDamageDiceBonus { get; }
+    public int SourceBoundWeaponBonusDamageDiceCount { get; }
+    public int SourceBoundWeaponBonusDamageDiceSides { get; }
+    public int SourceBoundWeaponBonusDamageDiceBonus { get; }
     public int SaveDc { get; }
     public StringName SaveDcMode { get; }
     public StringName SaveDcSourceAbility { get; }
@@ -1809,6 +1826,10 @@ public sealed class CombatEffectDefinition
     public int MinHpAfterDamage { get; }
     public int DeathPreventionPriority { get; }
     public int AttackRollPenalty { get; }
+    public int AttackRollBonus { get; }
+    public bool AttackRollAdvantage { get; }
+    public bool ConsumeOnNextAttackCheck { get; }
+    public bool ConsumeOnNextSave { get; }
     public bool Undispellable { get; }
     public bool DispellableMagic { get; }
     public bool DispellableHarmfulMagic { get; }
@@ -2097,7 +2118,14 @@ public sealed class CombatEffectDefinition
             MitigationBypassDamageTags,
             MitigationBypassTiers,
             ExtraDamageSegments,
-            TargetDamageMultiplierRules
+            TargetDamageMultiplierRules,
+            attackRollAdvantage: AttackRollAdvantage,
+            attackRollBonus: AttackRollBonus,
+            consumeOnNextAttackCheck: ConsumeOnNextAttackCheck,
+            consumeOnNextSave: ConsumeOnNextSave,
+            sourceBoundWeaponBonusDamageDiceCount: SourceBoundWeaponBonusDamageDiceCount,
+            sourceBoundWeaponBonusDamageDiceSides: SourceBoundWeaponBonusDamageDiceSides,
+            sourceBoundWeaponBonusDamageDiceBonus: SourceBoundWeaponBonusDamageDiceBonus
         );
     }
 
@@ -2230,7 +2258,14 @@ public sealed class CombatEffectDefinition
             MitigationBypassDamageTags,
             MitigationBypassTiers,
             ExtraDamageSegments,
-            TargetDamageMultiplierRules
+            TargetDamageMultiplierRules,
+            attackRollAdvantage: AttackRollAdvantage,
+            attackRollBonus: AttackRollBonus,
+            consumeOnNextAttackCheck: ConsumeOnNextAttackCheck,
+            consumeOnNextSave: ConsumeOnNextSave,
+            sourceBoundWeaponBonusDamageDiceCount: SourceBoundWeaponBonusDamageDiceCount,
+            sourceBoundWeaponBonusDamageDiceSides: SourceBoundWeaponBonusDamageDiceSides,
+            sourceBoundWeaponBonusDamageDiceBonus: SourceBoundWeaponBonusDamageDiceBonus
         );
     }
 
@@ -2369,7 +2404,17 @@ public sealed class CombatEffectDefinition
                 CombatDamageSegmentDefinition.ProjectArray(source.extra_damage_segments),
                 CombatTargetDamageMultiplierRuleDefinition.ProjectArray(
                     source.target_damage_multiplier_rules
-                )
+                ),
+                attackRollBonus: source.attack_roll_bonus,
+                attackRollAdvantage: source.attack_roll_advantage,
+                consumeOnNextAttackCheck: source.consume_on_next_attack_check,
+                consumeOnNextSave: source.consume_on_next_save,
+                sourceBoundWeaponBonusDamageDiceCount:
+                    source.source_bound_weapon_bonus_damage_dice_count,
+                sourceBoundWeaponBonusDamageDiceSides:
+                    source.source_bound_weapon_bonus_damage_dice_sides,
+                sourceBoundWeaponBonusDamageDiceBonus:
+                    source.source_bound_weapon_bonus_damage_dice_bonus
             );
     }
 

@@ -27,12 +27,17 @@ public partial class FixedHitResolver : BattleHitResolver
         AttackContext attack_context
     )
     {
+        bool forcedCritical =
+            attack_check.ForceCriticalOnHit
+            && !attack_check.ForceHitNoCrit
+            && !attack_check.CritLocked
+            && attack_context?.ForceHitNoCrit != true;
         return BuildFixedAttackMetadata(
             attack_check,
             attack_context,
-            AttackResolutionHit,
+            forcedCritical ? AttackResolutionCriticalHit : AttackResolutionHit,
             true,
-            false,
+            forcedCritical,
             false
         );
     }
@@ -147,7 +152,7 @@ public partial class FixedHitResolver : BattleHitResolver
             HiddenLuckAtBirth = 0,
             FaithLuckBonus = 0,
             EffectiveLuck = 0,
-            CritLocked = attackContext?.ForceHitNoCrit ?? false,
+            CritLocked = attackCheck.CritLocked || (attackContext?.ForceHitNoCrit ?? false),
             CritGateDie = 20,
             CritGateRoll = 0,
             HitRoll = fixed_roll,

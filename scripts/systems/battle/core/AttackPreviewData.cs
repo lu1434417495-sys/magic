@@ -54,6 +54,7 @@ public class AttackPreviewData
 	public int BaseHitRatePercent { get; set; }
 
 	public bool ForceHitNoCrit { get; set; }
+	public bool ForceCriticalOnHit { get; set; }
 	public bool CritLocked { get; set; }
 	public BattleFatePreviewData FatePreview { get; set; }
 
@@ -85,6 +86,7 @@ public class AttackPreviewData
 			["success_rate_percent"] = SuccessRatePercent,
 			["base_hit_rate_percent"] = BaseHitRatePercent,
 			["force_hit_no_crit"] = ForceHitNoCrit,
+			["force_critical_on_hit"] = ForceCriticalOnHit,
 			["crit_locked"] = CritLocked,
 			["stage_hit_rates"] = StageHitRates,
 			["stage_success_rates"] = StageSuccessRates,

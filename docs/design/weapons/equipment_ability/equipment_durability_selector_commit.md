@@ -23,7 +23,9 @@ EquipmentAbilityTargetSelectorResolver
   -> EquipmentAbilityEquipmentMutationAdapter
   -> ApplyEquipmentDurabilityDamageToSelection(...)
   -> AttackEffectResolutionResult.EquipmentDurabilityEvents
-  -> BattleSkillExecutionOrchestrator._apply_equipment_durability_result(...)
+  -> BattleDamageResolver post-resolution durability reconciliation
+  -> BattleEquipmentAbilityRuntimeService.RefreshEquipmentProjectionAfterDurabilityDestruction(...)
+  -> BattleSkillExecutionOrchestrator._apply_equipment_durability_result(...) logging/report only
 ```
 
 `ApplyEquipmentDurabilityDamageToSelection(...)` 是唯一 selected-target commit。它接受已经选中的装备引用，只 revalidate，不重新随机，不 fallback 到同槽位其它装备。
@@ -39,7 +41,9 @@ EquipmentAbilityTargetSelectorResolver
 | `scripts/player/equipment/EquipmentEntryState.cs` | `item_id`、`instance_id`、`occupied_slot_ids`、`GetEquipmentInstance()` 是 entry 事实 | selector 只复制稳定 identity，不把 entry live object 暴露给 handler |
 | `scripts/player/warehouse/EquipmentInstanceState.cs` | `current_durability` 是正式耐久事实 owner | 只能由 selected-target commit 经 battle equipment view 修改 |
 | `scripts/systems/battle/core/AttackEffectResolutionResult.cs` | `EquipmentDurabilityEventResult` 和 `EquipmentDurabilityEvents` 是 battle result payload | 装备能力耐久 action 继续使用同一 payload，不新增 sidecar result |
-| `scripts/systems/battle/runtime/BattleSkillExecutionOrchestrator.cs` | `_apply_equipment_durability_result(...)` 负责 log、destroyed 刷新和 changed unit report | 装备能力路径必须产出同一 result，再复用该函数 |
+| `scripts/systems/battle/rules/BattleDamageResolver.cs` | `ResolveEffects(...)` / `ResolveAttackEffects(...)` 完成整组效果后检查 destroyed durability event，并统一触发 projection refresh | 所有 resolver 入口共享同一销毁后刷新边界，避免 charge、repeat、ground、internal immediate 等旁路残留旧投影 |
+| `scripts/systems/battle/runtime/BattleEquipmentAbilityRuntimeService.cs` | `RefreshEquipmentProjectionAfterDurabilityDestruction(...)` 重建装备投影、清理失效装备来源标记并传播 changed unit id；直接装备耐久 action 在 commit destroyed 时显式调用 | 作为销毁后 projection refresh 的唯一 runtime owner |
+| `scripts/systems/battle/runtime/BattleSkillExecutionOrchestrator.cs` | `_apply_equipment_durability_result(...)` 只负责 log 与 changed unit report | 装备能力路径继续产出同一 result 供日志消费，不再由该函数刷新投影 |
 | `scripts/systems/game_runtime/GameRuntimeBattleWritebackService.cs` | battle-local `equipment_view` 写回 party state | V1 不新增装备能力专属写回 |
 
 现有回归 `tests/battle_runtime/skills/run_spell_disjunction_equipment_durability_regression.cs` 已覆盖旧语义：耐久失败扣减、归零摧毁、`require_damage_applied`、save 成功仍产出 event、稀有度 bonus 影响 save。拆分后这些行为必须保持。
@@ -332,7 +336,7 @@ selected-target commit 成功进入 resolver 后，必须保持旧 `ApplyEquipme
 - save 失败时 `DurabilityLoss = Math.Min(effect.Power, before)`。
 - `after <= 0` 时调用 `EquipmentState.ClearEntrySlot(EntrySlotId)`，event 标记 `Destroyed = true`。
 - `after > 0` 时只写 battle-local `equipmentInstance.current_durability = after`。
-- 返回 `AttackEffectResolutionResult.EquipmentDurabilityEvents`，交给 `_apply_equipment_durability_result(...)` 统一产生日志、projection refresh 和 changed unit report。
+- 返回 `AttackEffectResolutionResult.EquipmentDurabilityEvents`；`BattleDamageResolver` 在整组效果完成后统一检查 destroyed event，并调用 `RefreshEquipmentProjectionAfterDurabilityDestruction(...)` 重建投影和清理失效标记；`_apply_equipment_durability_result(...)` 只产生日志与 changed unit report。直接装备耐久 action 不经过 resolver result 汇总时，在 commit 返回 `Destroyed` 后显式调用同一 refresh helper。
 
 注意：selection RNG 和 save RNG 是两件事。
 
@@ -375,7 +379,7 @@ AI 建议评分：
 3. 为 selected-target commit 增加 focused regression：同一目标装备上有两件候选时，explicit ref 指向 A，commit 只能扣 A，不可随机到 B。
 4. 增加 stale ref regression：selector 后替换同槽位装备，commit 返回 `target_equipment_changed`，不扣新装备。
 5. 增加 save success regression：explicit ref save 成功仍产出 durability event，且不刷新 projection。
-6. 增加 destruction regression：explicit ref 归零时 `ClearEntrySlot(EntrySlotId)`，`_apply_equipment_durability_result(...)` 仍刷新 target projection。
+6. 增加 destruction regression：explicit ref 归零时 `ClearEntrySlot(EntrySlotId)`；resolver 路径在完整效果解析后、直接装备耐久 action 在 commit 后调用同一 refresh helper，且 `_apply_equipment_durability_result(...)` 仍产生日志与 changed unit report。
 7. 接入 `EquipmentAbilityEquipmentTargetSelector`，让 equipment target selector 使用同一 candidate builder。
 8. 接入 `EquipmentAbilityEquipmentMutationAdapter`，只把 payload 转 effect + explicit ref commit。
 9. 接入 preview/AI，只读候选与权重，不调用 commit。

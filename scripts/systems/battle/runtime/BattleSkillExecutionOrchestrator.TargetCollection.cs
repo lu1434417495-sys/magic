@@ -252,6 +252,14 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         {
             return _scopedAutoCastSkillLevel;
         }
+        if (
+            unit_state.unit_id == _scopedCommandSkillUnitId
+            && skill_id == _scopedCommandSkillId
+            && _scopedCommandSkillLevel > 0
+        )
+        {
+            return _scopedCommandSkillLevel;
+        }
         if (unit_state.HasKnownSkillLevelTyped(skill_id))
         {
             return unit_state.GetKnownSkillLevelTyped(skill_id);

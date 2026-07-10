@@ -205,6 +205,7 @@ internal sealed class BattleTimelineDriver
             state.timeline.current_tu += tuDelta;
             ResolveTimelineStatusPhase(batch, tuDelta);
         }
+        state.RemoveExpiredTemporaryEdgeFeatures();
         runtime?._delayed_area_effect_system?.ProcessDueEffects(batch);
         runtime?._terrain_effect_system?.ProcessTimedTerrainEffects(batch);
         runtime?._layered_barrier_service?.AdvanceBarrierDurations(tuDelta, batch);
