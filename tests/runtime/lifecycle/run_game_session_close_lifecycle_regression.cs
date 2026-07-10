@@ -15,6 +15,7 @@ public partial class run_game_session_close_lifecycle_regression : SceneTree
     private async void Run()
     {
         await TestNormalCloseKeepsProcessContentAvailableForNextSession();
+        TestExitTreeCloseStillAllowsExplicitNativeDispose();
         Quit(_test.Finish("GameSession normal-close lifecycle regression"));
     }
 
@@ -71,6 +72,39 @@ public partial class run_game_session_close_lifecycle_regression : SceneTree
             audit.CaptureSnapshot().NormalPhaseSuppressCount,
             suppressCountBefore,
             "normal session close must not suppress process content finalizers."
+        );
+    }
+
+    private void TestExitTreeCloseStillAllowsExplicitNativeDispose()
+    {
+        GameSession session = new() { Name = "ExitTreeFirstLifecycleSession" };
+        Root.AddChild(session);
+        GameContentCatalog catalog = session.GetContentCatalogTyped();
+        long revisionBeforeExit = catalog.GetRevision();
+
+        Root.RemoveChild(session);
+
+        long revisionAfterExit = catalog.GetRevision();
+        _test.Eq(
+            revisionAfterExit,
+            revisionBeforeExit + 1,
+            "exit-tree normal close should invalidate the catalog exactly once."
+        );
+        _test.True(
+            GodotObject.IsInstanceValid(session),
+            "removing a session from the tree should leave its native object valid until disposed."
+        );
+
+        session.Dispose();
+
+        _test.Eq(
+            catalog.GetRevision(),
+            revisionAfterExit,
+            "explicit Dispose after exit-tree close should not invalidate the catalog again."
+        );
+        _test.False(
+            GodotObject.IsInstanceValid(session),
+            "explicit Dispose after exit-tree close should release the native session object."
         );
     }
 

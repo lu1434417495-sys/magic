@@ -256,10 +256,6 @@ public partial class GameSession : Node
 
     public new void Dispose()
     {
-        if (_disposed)
-        {
-            return;
-        }
         bool sessionInTree = IsSessionInTree();
         CloseNormal();
         if (GodotObject.IsInstanceValid(this))
