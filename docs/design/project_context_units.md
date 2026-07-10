@@ -109,6 +109,8 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 ### CU-02 GameSession、存档、序列化、全局内容缓存
 
 - 文件：
+  - `docs/superpowers/specs/2026-07-10-godotsharp-lifecycle-architecture-design.md`
+  - `project.godot`
   - `scripts/systems/persistence/*.cs`
   - `scripts/systems/content/GameRoot.cs`
   - `scripts/systems/content/GameContentCatalog.cs`
@@ -119,6 +121,8 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/enemies/EnemyContentSeed.cs`
   - `scripts/systems/battle/core/special_profiles/BattleSpecialProfileRegistry.cs`
   - `scripts/utils/GodotObjectOwnership.cs`
+  - `scripts/utils/GodotObjectLifecycle.cs`
+  - `scripts/utils/RuntimeStateLifecycle.cs`
   - `scripts/utils/GodotTypedResourceGraphWalker.cs`
 - 负责：active save、slot meta、save payload/index、内容注册表、全局会话边界。
 - 边界：`GameSession` 是会话根、持有 `GameRoot`；`GameContentCatalog` 是正式内容类型的组合根读入口，持有 typed 内容快照缓存并带 revision，生命周期绑定 owning `GameRoot`（root dispose 后 catalog 失效）。`SaveRepository` 拥有底层 save 文件 IO，`GameSession` 拥有 active save / schema / meta / index 归并；`world_data` 的 runtime owner 是 `WorldRuntimeData`，只在 save payload 入口/出口投影。子 payload 破坏性 schema 变化时同步升级 owning save version，且只接受当前版本、不做 legacy 兼容迁移。
@@ -464,6 +468,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 ### CU-19 自动化回归与截图辅助
 
 - 文件：
+  - `docs/superpowers/specs/2026-07-10-godotsharp-lifecycle-architecture-design.md`
   - `tests/run_regression_suite.py`
   - `tests/shared/*`
   - `tests/equipment/*`
@@ -477,7 +482,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `tools/*.py`
   - `tools/*.gd`
 - 负责：headless 回归、contract 验证、fixture、截图/签名辅助。
-- 边界：`TestHarness.Finish(...)` 是测试退出前集中生命周期闸口（drain 后再 quit，idempotent）；功能测试读取正式 `SkillDef` `.tres` 经 `TestSkillDefinitionProjection.LoadSkillDefinition(...)` 在加载边界投影为 `SkillDefinition`，不把 `SkillDef` 传入服务。
+- 边界：`TestHarness.Finish(...)` 当前集中汇总结果并执行 test-local drain，但不能替代 SceneTree/autoload owner teardown；GodotSharp 生命周期或退出顺序改动必须同时读取 lifecycle architecture spec。功能测试读取正式 `SkillDef` `.tres` 经 `TestSkillDefinitionProjection.LoadSkillDefinition(...)` 在加载边界投影为 `SkillDefinition`，不把 `SkillDef` 传入服务。
 - 适合：补回归、跑局部验证、定位改动影响面。
 - 邻接单元：按业务域补 CU-10、CU-12、CU-15、CU-17、CU-18、CU-21。
 
@@ -595,6 +600,13 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 
 - 必带：CU-21、CU-19
 - 按需补：CU-06，以及对应业务单元
+
+### 只改 GodotSharp 生命周期、内容 owner、projection lease 或退出屏障
+
+- 必带：CU-02、CU-19
+- 设计必读：`docs/superpowers/specs/2026-07-10-godotsharp-lifecycle-architecture-design.md`
+- 启动必读：`project.godot`
+- 按需补：CU-06、CU-15、CU-16、CU-18、CU-21
 
 ## 不推荐的切法
 
