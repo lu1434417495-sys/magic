@@ -122,6 +122,9 @@ internal sealed class ShutdownReport
     {
         lock (_sync)
         {
+            if (nextPhase == ApplicationShutdownPhase.FinalizerBarrierSkipped)
+                return false;
+
             if (!_stateMachine.TryAdvance(nextPhase))
                 return false;
 
@@ -147,20 +150,13 @@ internal sealed class ShutdownReport
     {
         lock (_sync)
         {
-            _finalizerBarrierSkipped = true;
-            if (_stateMachine.TryAdvance(ApplicationShutdownPhase.FinalizerBarrierSkipped))
-                _phaseHistory.Add(ApplicationShutdownPhase.FinalizerBarrierSkipped);
-            else if (_stateMachine.Phase != ApplicationShutdownPhase.FinalizerBarrierSkipped)
-            {
-                _failures.Add(
-                    new ShutdownFailure(
-                        "finalizer-barrier",
-                        $"Cannot mark the finalizer barrier skipped from phase {_stateMachine.Phase}.",
-                        string.Empty
-                    )
-                );
-            }
+            if (_finalizerBarrierSkipped)
+                return;
+            if (!_stateMachine.TryAdvance(ApplicationShutdownPhase.FinalizerBarrierSkipped))
+                return;
 
+            _phaseHistory.Add(ApplicationShutdownPhase.FinalizerBarrierSkipped);
+            _finalizerBarrierSkipped = true;
             _failures.Add(
                 new ShutdownFailure(
                     "finalizer-barrier",

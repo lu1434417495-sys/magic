@@ -15,6 +15,7 @@ public partial class run_application_shutdown_contract_regression : SceneTree
     {
         TestShutdownStateMachineContracts();
         TestShutdownReportContracts();
+        TestShutdownReportSkippedBarrierInvariant();
         TestLifecycleAuditRegistryContracts();
 
         return _test.Finish("Application shutdown contract regression");
@@ -323,6 +324,80 @@ public partial class run_application_shutdown_contract_regression : SceneTree
         _test.Eq(violated.UnknownCount, 1L, "unknown total is captured");
         _test.Eq(violated.ViolationCount, 3L, "all registry violations are monotonic");
         _test.True(violated.HasLifecycleViolation, "violation summary is explicit");
+    }
+
+    private void TestShutdownReportSkippedBarrierInvariant()
+    {
+        var request = new ShutdownRequest(
+            0,
+            ShutdownReason.TestComplete,
+            new ShutdownCallerResult("skip-invariant", true)
+        );
+        var report = new ShutdownReport(request);
+        _test.True(
+            report.TryAdvancePhase(ApplicationShutdownPhase.Quiescing),
+            "skip invariant reaches quiescing"
+        );
+
+        _test.False(
+            report.TryAdvancePhase(ApplicationShutdownPhase.FinalizerBarrierSkipped),
+            "generic phase API rejects the dedicated skipped state"
+        );
+        _test.Eq(
+            report.FinalPhase,
+            ApplicationShutdownPhase.Quiescing,
+            "generic skipped transition leaves phase unchanged"
+        );
+        _test.False(
+            report.FinalizerBarrierSkipped,
+            "generic skipped transition leaves flag unchanged"
+        );
+        _test.Eq(report.EffectiveExitCode, 0, "generic skipped transition leaves code unchanged");
+        _test.Eq(report.PhaseHistory.Count, 2, "generic skipped transition leaves history unchanged");
+        _test.Eq(report.Failures.Count, 0, "generic skipped transition records no failure");
+
+        report.MarkFinalizerBarrierSkipped("unsafe active owner");
+        _test.Eq(
+            report.FinalPhase,
+            ApplicationShutdownPhase.FinalizerBarrierSkipped,
+            "dedicated marker enters skipped phase"
+        );
+        _test.True(report.FinalizerBarrierSkipped, "dedicated marker sets skipped flag");
+        _test.Eq(report.EffectiveExitCode, 1, "dedicated marker forces nonzero exit");
+        _test.Eq(report.PhaseHistory.Count, 3, "dedicated marker records phase history");
+        _test.Eq(
+            report.PhaseHistory[2],
+            ApplicationShutdownPhase.FinalizerBarrierSkipped,
+            "dedicated marker appends skipped phase"
+        );
+        _test.Eq(report.Failures.Count, 1, "dedicated marker records one failure");
+        _test.Eq(
+            report.Failures[0].Stage,
+            "finalizer-barrier",
+            "dedicated marker records failure stage"
+        );
+        _test.Eq(
+            report.Failures[0].Message,
+            "unsafe active owner",
+            "dedicated marker records failure reason"
+        );
+
+        report.MarkFinalizerBarrierSkipped("duplicate marker");
+        _test.Eq(report.PhaseHistory.Count, 3, "duplicate marker is history-idempotent");
+        _test.Eq(report.Failures.Count, 1, "duplicate marker is failure-idempotent");
+        _test.Eq(report.EffectiveExitCode, 1, "duplicate marker cannot change failure code");
+
+        var illegal = new ShutdownReport(request);
+        illegal.MarkFinalizerBarrierSkipped("illegal from running");
+        _test.Eq(
+            illegal.FinalPhase,
+            ApplicationShutdownPhase.Running,
+            "illegal marker leaves phase unchanged"
+        );
+        _test.False(illegal.FinalizerBarrierSkipped, "illegal marker leaves flag unchanged");
+        _test.Eq(illegal.EffectiveExitCode, 0, "illegal marker leaves code unchanged");
+        _test.Eq(illegal.PhaseHistory.Count, 1, "illegal marker leaves history unchanged");
+        _test.Eq(illegal.Failures.Count, 0, "illegal marker records no contradictory failure");
     }
 
     private void AssertFailureBranch(string label, params ApplicationShutdownPhase[] prefix)
