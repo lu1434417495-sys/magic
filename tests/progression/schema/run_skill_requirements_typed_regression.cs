@@ -60,7 +60,7 @@ public partial class run_skill_requirements_typed_regression : SceneTree
 
     private void TestOfficialSkillResourcesExposeTypedRequirementsAndSources()
     {
-        ProgressionContentRegistry registry = new();
+        using ProgressionContentRegistry registry = new();
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             registry.GetSkillDefinitionsTyped();
 
@@ -123,17 +123,14 @@ public partial class run_skill_requirements_typed_regression : SceneTree
 
     private static SkillDef BuildSkill(StringName skillId)
     {
-        return TestResourceOwnership.Own(
-            new SkillDef
-            {
-                skill_id = skillId,
-                display_name = skillId.ToString(),
-                learn_source = "book",
-                max_level = 1,
-                mastery_curve = new[] { 10 },
-            },
-            "SkillRequirementsTyped.BuildSkill"
-        );
+        return new SkillDef
+        {
+            skill_id = skillId,
+            display_name = skillId.ToString(),
+            learn_source = "book",
+            max_level = 1,
+            mastery_curve = new[] { 10 },
+        };
     }
 
     private static GStringArray CollectValidationErrors(params SkillDef[] skillDefs)
@@ -145,7 +142,7 @@ public partial class run_skill_requirements_typed_regression : SceneTree
                 indexedSkillDefs[skillDef.skill_id] = skillDef;
         }
 
-        ProgressionContentRegistry registry = new();
+        using ProgressionContentRegistry registry = new();
         registry.ReplaceValidationSources(
             new GDictionary
             {

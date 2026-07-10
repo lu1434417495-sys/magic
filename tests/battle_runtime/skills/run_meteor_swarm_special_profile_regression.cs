@@ -40,7 +40,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
                 "mage_meteor_swarm"
             );
             BattleMeteorSwarmResolver resolver = setup.Runtime._meteor_swarm_resolver;
-            centerCommand = BuildCommand(setup.Caster, new Vector2I(4, 4));
+            centerCommand = setup.Track(BuildCommand(setup.Caster, new Vector2I(4, 4)));
             MeteorSwarmTargetPlan centerPlan = resolver.BuildTargetPlanTyped(
                 resolver.BuildCastContextTyped(
                     setup.Caster,
@@ -54,7 +54,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
             _test.Eq(centerPlan.affected_coords.Count, 49, "开放棋盘中心陨星雨应覆盖 7x7 共 49 格。");
             _test.Eq(centerPlan.GetRingForCoord(new Vector2I(1, 1)), 3, "最外层 d==3 应使用 Chebyshev ring。");
 
-            edgeCommand = BuildCommand(setup.Caster, new Vector2I(0, 4));
+            edgeCommand = setup.Track(BuildCommand(setup.Caster, new Vector2I(0, 4)));
             MeteorSwarmTargetPlan edgePlan = resolver.BuildTargetPlanTyped(
                 resolver.BuildCastContextTyped(
                     setup.Caster,
@@ -67,7 +67,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
             );
             _test.Eq(edgePlan.affected_coords.Count, 28, "贴边中心应裁剪为 4x7 共 28 格。");
 
-            cornerCommand = BuildCommand(setup.Caster, Vector2I.Zero);
+            cornerCommand = setup.Track(BuildCommand(setup.Caster, Vector2I.Zero));
             MeteorSwarmTargetPlan cornerPlan = resolver.BuildTargetPlanTyped(
                 resolver.BuildCastContextTyped(
                     setup.Caster,
@@ -102,22 +102,27 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
                 new[] { enemyCenter, enemyOuter, allyInner },
                 poisonLegacyArea: true
             );
-            command = BuildCommand(setup.Caster, new Vector2I(4, 4));
-            preview = setup.Runtime.PreviewCommand(command);
+            command = setup.Track(BuildCommand(setup.Caster, new Vector2I(4, 4)));
+            preview = setup.Track(setup.Runtime.PreviewCommand(command));
 
             _test.True(preview != null && preview.allowed, "陨星雨 typed preview 应可用。");
-            _test.True(preview.special_profile_preview_facts != null, "preview 应暴露 special_profile_preview_facts。");
+            BattleSpecialProfilePreviewFacts previewFacts = preview?.special_profile_preview_facts;
+            _test.True(previewFacts != null, "preview 应暴露 special_profile_preview_facts。");
+            if (preview == null || previewFacts == null)
+            {
+                return;
+            }
             _test.Eq(preview.target_coords.Count, 49, "poisoned legacy area_value 不应改变 typed 7x7 target plan。");
             _test.True(preview.target_unit_ids.Contains(enemyCenter.unit_id), "preview 应包含中心敌人。");
             _test.True(preview.target_unit_ids.Contains(enemyOuter.unit_id), "preview 应包含最外层敌人。");
             _test.True(preview.target_unit_ids.Contains(allyInner.unit_id), "preview 友伤应走同一份全量 target plan。");
             _test.True(
-                preview.special_profile_preview_facts.GetFriendlyFireNumericSummary().Count == 1,
+                previewFacts.GetFriendlyFireNumericSummary().Count == 1,
                 "友军波及时应输出 numeric friendly fire summary。"
             );
 
             GArray targetSummaries = MeteorSwarmProjection.Project(
-                    preview.special_profile_preview_facts
+                    previewFacts
                 )
                 .GetValueOrDefault("target_numeric_summary", new GArray())
                 .AsGodotArray();
@@ -135,7 +140,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
                 DictBool(saveEstimate, "save_partial_on_success", false),
                 "meteor_dex_half 成功豁免应保留半伤。"
             );
-            batch = setup.Runtime.IssueCommand(command);
+            batch = setup.Track(setup.Runtime.IssueCommand(command));
             _test.True(
                 batch != null && batch.report_entries.Count >= 1,
                 $"execute 应写入陨星雨聚合战报。logs={FormatLogs(batch?.log_lines)}"
@@ -178,8 +183,8 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         {
             setup = BuildRuntimeFixture(new Vector2I(9, 9), Array.Empty<BattleUnitState>());
             setup.Runtime._initialize_battle_metrics();
-            invalidCommand = BuildCommand(setup.Caster, new Vector2I(-1, -1));
-            invalidBatch = new BattleEventBatch();
+            invalidCommand = setup.Track(BuildCommand(setup.Caster, new Vector2I(-1, -1)));
+            invalidBatch = setup.Track(new BattleEventBatch());
             setup.Runtime._skill_orchestrator._handle_skill_command(setup.Caster, invalidCommand, invalidBatch);
             GDictionary casterMetrics = BattleMetricsProjection.Project(setup.Runtime.GetBattleMetricsTyped())
                 .GetValueOrDefault("units", new GDictionary())
@@ -189,8 +194,8 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
             GDictionary attemptCounts = casterMetrics.GetValueOrDefault("skill_attempt_counts", new GDictionary()).AsGodotDictionary();
             _test.Eq(DictInt(attemptCounts, "mage_meteor_swarm", 0), 0, "陨星雨运行期校验失败不应记录 skill attempt。");
 
-            validCommand = BuildCommand(setup.Caster, new Vector2I(4, 4));
-            validBatch = new BattleEventBatch();
+            validCommand = setup.Track(BuildCommand(setup.Caster, new Vector2I(4, 4)));
+            validBatch = setup.Track(new BattleEventBatch());
             setup.Runtime._skill_orchestrator._handle_skill_command(setup.Caster, validCommand, validBatch);
             casterMetrics = BattleMetricsProjection.Project(setup.Runtime.GetBattleMetricsTyped())
                 .GetValueOrDefault("units", new GDictionary())
@@ -220,8 +225,8 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
                 new[] { enemyCenter, enemyOuter },
                 poisonLegacyArea: true
             );
-            command = BuildCommand(setup.Caster, new Vector2I(4, 4));
-            batch = setup.Runtime.IssueCommand(command);
+            command = setup.Track(BuildCommand(setup.Caster, new Vector2I(4, 4)));
+            batch = setup.Track(setup.Runtime.IssueCommand(command));
 
             BattleCellState centerCell = Cell(setup.Runtime.GetState(), new Vector2I(4, 4));
             _test.True(centerCell != null, "中心格应存在。");
@@ -277,7 +282,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
             BattleMeteorSwarmResolver resolver = setup.Runtime._meteor_swarm_resolver;
             Vector2I nominalAnchor = new(4, 4);
             Vector2I driftedAnchor = new(5, 5);
-            command = BuildCommand(setup.Caster, nominalAnchor);
+            command = setup.Track(BuildCommand(setup.Caster, nominalAnchor));
             MeteorSwarmTargetPlan plan = resolver.BuildTargetPlanTyped(
                 resolver.BuildCastContextTyped(
                     setup.Caster,
@@ -515,6 +520,7 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
         {
             command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
             unit_id = caster.unit_id,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill("mage_meteor_swarm"),
             skill_id = "mage_meteor_swarm",
             target_coord = anchorCoord,
         };
@@ -601,11 +607,22 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
 
     private sealed class Fixture : IDisposable
     {
+        private readonly List<object> _ownedObjects = new();
+
         public BattleRuntimeModule Runtime;
         public BattleState State;
         public BattleUnitState Caster;
         public MeteorSwarmProfile MeteorProfile;
         public IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitionIndex;
+
+        public T Track<T>(T ownedObject)
+        {
+            if (ownedObject != null)
+            {
+                _ownedObjects.Add(ownedObject);
+            }
+            return ownedObject;
+        }
 
         public void Dispose()
         {
@@ -613,7 +630,12 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
             {
                 skillDefinitionIndex.Clear();
             }
-            Runtime?.dispose();
+            for (int index = _ownedObjects.Count - 1; index >= 0; index--)
+            {
+                BattleTestFixture.DisposeFixtureObject(_ownedObjects[index]);
+            }
+            _ownedObjects.Clear();
+            BattleTestFixture.DisposeBattleFixture(Runtime, State);
             Runtime = null;
             State = null;
             Caster = null;

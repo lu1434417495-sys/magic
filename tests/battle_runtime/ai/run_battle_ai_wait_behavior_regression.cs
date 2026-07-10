@@ -189,32 +189,32 @@ public partial class run_battle_ai_wait_behavior_regression : SceneTree
         var pressureState = new EnemyAiStateDef { state_id = "pressure" };
         pressureState.actions.Add(basicAction);
         pressureState.actions.Add(waitAction);
-        var brain = TestResourceOwnership.Own(
-            new EnemyAiBrainDef
-            {
-                brain_id = "active_rest_probe_brain",
-                default_state_id = "pressure",
-            },
+        var brain = new EnemyAiBrainDef
+        {
+            brain_id = "active_rest_probe_brain",
+            default_state_id = "pressure",
+        };
+        brain.states.Add(pressureState);
+        return TestResourceOwnership.Own(
+            brain,
             "BattleAiWaitBehavior.BuildActiveRestProbeBrain"
         );
-        brain.states.Add(pressureState);
-        return brain;
     }
 
     private static EnemyAiBrainDef BuildFallbackRestProbeBrain()
     {
         var engageState = new EnemyAiStateDef { state_id = "engage" };
         engageState.actions.Add(new WaitAction { action_id = "fallback_rest_wait" });
-        var brain = TestResourceOwnership.Own(
-            new EnemyAiBrainDef
-            {
-                brain_id = "fallback_rest_probe_brain",
-                default_state_id = "engage",
-            },
+        var brain = new EnemyAiBrainDef
+        {
+            brain_id = "fallback_rest_probe_brain",
+            default_state_id = "engage",
+        };
+        brain.states.Add(engageState);
+        return TestResourceOwnership.Own(
+            brain,
             "BattleAiWaitBehavior.BuildFallbackRestProbeBrain"
         );
-        brain.states.Add(engageState);
-        return brain;
     }
 
     private static BattleRuntimeScope BuildRuntimeWithEnemyContent(params EnemyAiBrainDef[] extraBrains)

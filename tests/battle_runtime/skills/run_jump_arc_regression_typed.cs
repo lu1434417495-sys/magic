@@ -4,16 +4,24 @@ using Godot;
 
 public partial class run_jump_arc_regression_typed : SceneTree
 {
+    public override void _Initialize()
+    {
+        Quit(RunForWrapper());
+    }
+
+    public static int RunForWrapper() => JumpArcRegressionRunner.RunAll();
+}
+
+internal sealed class JumpArcRegressionRunner
+{
     private readonly TestHarness _test = new();
     private BattleGridService _gridService = null!;
 
-    public override void _Initialize()
+    public static int RunAll()
     {
-        int exitCode = Run();
-        Quit(exitCode);
+        var runner = new JumpArcRegressionRunner();
+        return runner.Run();
     }
-
-    public int RunForWrapper() => Run();
 
     private int Run()
     {

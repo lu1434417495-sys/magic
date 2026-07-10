@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import math
 import os
+import signal
 import shutil
 import subprocess
 import sys
@@ -16,8 +18,15 @@ from pathlib import Path
 
 
 SLOW_TEST_SECONDS = 30.0
+DEFAULT_TEST_TIMEOUT_SECONDS = 180.0
+TEST_TIMEOUT_EXIT_CODE = 124
 LEAKED_UNSAFE_REFERENCE_MARKER = "Leaked unsafe reference to object:"
 LEAKED_UNSAFE_REFERENCE_STACK = "at: finalize (modules/mono/csharp_script.cpp:177)"
+OUTPUT_ERROR_PREFIXES = (
+	"ERROR:",
+	"SCRIPT ERROR:",
+	"FATAL:",
+)
 
 
 @dataclass(frozen=True)
@@ -31,6 +40,7 @@ class TestRunResult:
 	elapsed: float
 	user_data_dir: str = ""
 	finalizer_crash_retries: int = 0
+	output_error_lines: tuple[str, ...] = ()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -68,7 +78,28 @@ def build_parser() -> argparse.ArgumentParser:
 		action="store_true",
 		help="Keep the temporary per-test user data directory created for --jobs > 1. Failed parallel runs keep it automatically.",
 	)
+	parser.add_argument(
+		"--fail-on-output-error",
+		action="store_true",
+		help="Treat Godot ERROR/SCRIPT ERROR/FATAL output as a failed test even when Godot exits 0, excluding known shutdown-only resource reports.",
+	)
+	parser.add_argument(
+		"--test-timeout-seconds",
+		type=positive_finite_seconds,
+		default=DEFAULT_TEST_TIMEOUT_SECONDS,
+		help=f"Terminate an individual Godot test after this many seconds. Default: {DEFAULT_TEST_TIMEOUT_SECONDS:.0f}.",
+	)
 	return parser
+
+
+def positive_finite_seconds(value: str) -> float:
+	try:
+		seconds = float(value)
+	except ValueError as exc:
+		raise argparse.ArgumentTypeError("must be a finite number greater than 0") from exc
+	if not math.isfinite(seconds) or seconds <= 0:
+		raise argparse.ArgumentTypeError("must be a finite number greater than 0")
+	return seconds
 
 
 def resolve_godot_command(command: str) -> str | None:
@@ -146,13 +177,100 @@ def is_godot_finalizer_crash(returncode: int, stderr: str) -> bool:
 	)
 
 
+def find_output_error_lines(stdout: str, stderr: str, max_lines: int = 20) -> tuple[str, ...]:
+	candidates: list[tuple[str, str, str]] = []
+	for stream_name, text in (("stdout", stdout or ""), ("stderr", stderr or "")):
+		for line in text.splitlines():
+			normalized = line.lstrip("\ufeff").strip()
+			if normalized.startswith(OUTPUT_ERROR_PREFIXES):
+				candidates.append((stream_name, line, normalized))
+	has_borrowed_resource_shutdown_report = any(
+		normalized.startswith("ERROR: Leaked unsafe reference to object:")
+		for _stream_name, _line, normalized in candidates
+	)
+	has_objectdb_shutdown_report = any(
+		line.lstrip("\ufeff").strip().startswith("WARNING: ObjectDB instances leaked at exit")
+		for text in (stdout or "", stderr or "")
+		for line in text.splitlines()
+	)
+	matches: list[str] = []
+	for stream_name, line, normalized in candidates:
+		if normalized.startswith("ERROR: Leaked unsafe reference to object:"):
+			continue
+		if (
+			(has_borrowed_resource_shutdown_report or has_objectdb_shutdown_report)
+			and normalized.startswith("ERROR:")
+			and " resources still in use at exit" in normalized
+		):
+			continue
+		matches.append(f"{stream_name}: {line}")
+		if len(matches) >= max_lines:
+			break
+	return tuple(matches)
+
+
+def terminate_process_tree(process: subprocess.Popen[str]) -> None:
+	if os.name == "nt":
+		try:
+			subprocess.run(
+				["taskkill", "/PID", str(process.pid), "/T", "/F"],
+				stdout=subprocess.DEVNULL,
+				stderr=subprocess.DEVNULL,
+				check=False,
+				timeout=10,
+			)
+		except (OSError, subprocess.TimeoutExpired):
+			pass
+		try:
+			process.wait(timeout=3)
+		except subprocess.TimeoutExpired:
+			try:
+				process.kill()
+			except OSError:
+				pass
+			try:
+				process.wait(timeout=3)
+			except subprocess.TimeoutExpired:
+				pass
+		return
+
+	try:
+		os.killpg(process.pid, signal.SIGTERM)
+	except (OSError, ProcessLookupError):
+		pass
+	try:
+		process.wait(timeout=3)
+	except subprocess.TimeoutExpired:
+		pass
+	try:
+		os.killpg(process.pid, signal.SIGKILL)
+	except (OSError, ProcessLookupError):
+		pass
+	try:
+		process.wait(timeout=3)
+	except subprocess.TimeoutExpired:
+		pass
+
+
+def join_output_threads(
+	stdout_thread: threading.Thread,
+	stderr_thread: threading.Thread,
+	timeout_seconds: float = 5.0,
+) -> bool:
+	stdout_thread.join(timeout=timeout_seconds)
+	stderr_thread.join(timeout=timeout_seconds)
+	stalled = stdout_thread.is_alive() or stderr_thread.is_alive()
+	return stalled
+
+
 def run_godot_process(
 	godot_command: str,
 	repo_root: Path,
 	test_path: str,
 	env: dict[str, str] | None,
 	realtime_output: bool,
-) -> tuple[int, str, str]:
+	test_timeout_seconds: float,
+) -> tuple[int, str, str, tuple[str, ...]]:
 	process = subprocess.Popen(
 		[godot_command, "--headless", "--script", test_path],
 		cwd=repo_root,
@@ -163,16 +281,19 @@ def run_godot_process(
 		encoding="utf-8",
 		errors="replace",
 		bufsize=1,
+		start_new_session=os.name != "nt",
 	)
 	stdout_result: dict[str, object] = {}
 	stderr_result: dict[str, object] = {}
 
 	def collect_stream(stream, sink: dict[str, object], echo: bool) -> None:
 		lines: list[str] = []
+		raw_lines: list[str] = []
 		leaked_unsafe_count = 0
 		skip_finalize_stack = False
 		try:
 			for line in stream:
+				raw_lines.append(line)
 				if LEAKED_UNSAFE_REFERENCE_MARKER in line:
 					leaked_unsafe_count += 1
 					skip_finalize_stack = True
@@ -184,12 +305,15 @@ def run_godot_process(
 				lines.append(line)
 				if echo:
 					print(line, end="", flush=True)
+		except (OSError, ValueError):
+			pass
 		finally:
 			try:
 				stream.close()
 			except Exception:
 				pass
 		sink["text"] = "".join(lines)
+		sink["raw_text"] = "".join(raw_lines)
 		sink["leaked_unsafe_count"] = leaked_unsafe_count
 
 	stdout_thread = threading.Thread(
@@ -204,12 +328,19 @@ def run_godot_process(
 	)
 	stdout_thread.start()
 	stderr_thread.start()
-	returncode = process.wait()
-	stdout_thread.join()
-	stderr_thread.join()
+	timed_out = False
+	try:
+		returncode = process.wait(timeout=test_timeout_seconds)
+	except subprocess.TimeoutExpired:
+		timed_out = True
+		terminate_process_tree(process)
+		returncode = TEST_TIMEOUT_EXIT_CODE
+	output_threads_stalled = join_output_threads(stdout_thread, stderr_thread)
 
 	stdout = str(stdout_result.get("text", ""))
 	stderr = str(stderr_result.get("text", ""))
+	raw_stdout = str(stdout_result.get("raw_text", ""))
+	raw_stderr = str(stderr_result.get("raw_text", ""))
 	stdout_leaks = int(stdout_result.get("leaked_unsafe_count", 0))
 	stderr_leaks = int(stderr_result.get("leaked_unsafe_count", 0))
 	if stdout_leaks > 0:
@@ -222,7 +353,14 @@ def run_godot_process(
 			f"[godot] suppressed {stderr_leaks} leaked unsafe reference log entries "
 			"from stderr.\n"
 		)
-	return returncode, stdout, stderr
+	if timed_out:
+		timeout_text = f"[runner] test timed out after {test_timeout_seconds:g} seconds.\n"
+		stderr += timeout_text
+		if realtime_output:
+			print(timeout_text, end="", file=sys.stderr, flush=True)
+	if output_threads_stalled:
+		stderr += "[runner] output reader threads did not stop cleanly after process exit.\n"
+	return returncode, stdout, stderr, find_output_error_lines(raw_stdout, raw_stderr)
 
 
 def run_one_test(
@@ -234,6 +372,8 @@ def run_one_test(
 	realtime_output: bool,
 	user_data_root: Path | None,
 	finalizer_crash_retries: int,
+	fail_on_output_error: bool,
+	test_timeout_seconds: float,
 ) -> TestRunResult:
 	start = time.perf_counter()
 	user_data_dir = ""
@@ -244,20 +384,26 @@ def run_one_test(
 	stderr = ""
 	returncode = 0
 	retry_count = 0
+	output_error_lines: tuple[str, ...] = ()
 	max_attempts = max(finalizer_crash_retries, 0) + 1
 	for attempt in range(max_attempts):
 		env = None
 		if user_data_root is not None:
 			attempt_root = Path(user_data_dir) / f"attempt_{attempt + 1}"
 			env = prepare_user_data_env(os.environ, attempt_root)
-		returncode, stdout, stderr = run_godot_process(
+		returncode, stdout, stderr, detected_output_error_lines = run_godot_process(
 			godot_command,
 			repo_root,
 			test_path,
 			env,
 			realtime_output,
+			test_timeout_seconds,
 		)
 		if not is_godot_finalizer_crash(returncode, stderr) or attempt + 1 >= max_attempts:
+			if fail_on_output_error:
+				output_error_lines = detected_output_error_lines
+				if returncode == 0 and output_error_lines:
+					returncode = 1
 			break
 		retry_count += 1
 	elapsed = time.perf_counter() - start
@@ -271,6 +417,7 @@ def run_one_test(
 		elapsed=elapsed,
 		user_data_dir=user_data_dir,
 		finalizer_crash_retries=retry_count,
+		output_error_lines=output_error_lines,
 	)
 
 
@@ -299,6 +446,10 @@ def print_test_result(result: TestRunResult, show_output: bool) -> None:
 			f"失败 exit={result.returncode} ({result.elapsed:.2f}s{retry_suffix})",
 			flush=True,
 		)
+	if result.output_error_lines:
+		print("--- output error markers ---", flush=True)
+		for line in result.output_error_lines:
+			print(line, flush=True)
 	if show_output and result.stdout:
 		print("--- stdout ---", flush=True)
 		print(result.stdout, flush=True)
@@ -322,6 +473,8 @@ def run_tests_serial(
 	verbose: bool,
 	stop_on_failure: bool,
 	finalizer_crash_retries: int,
+	fail_on_output_error: bool,
+	test_timeout_seconds: float,
 ) -> tuple[int, list[TestRunResult]]:
 	failed_tests: list[TestRunResult] = []
 	passed_count = 0
@@ -340,6 +493,8 @@ def run_tests_serial(
 			realtime_output=True,
 			user_data_root=None,
 			finalizer_crash_retries=finalizer_crash_retries,
+			fail_on_output_error=fail_on_output_error,
+			test_timeout_seconds=test_timeout_seconds,
 		)
 		if result.returncode == 0:
 			passed_count += 1
@@ -361,6 +516,8 @@ def run_tests_parallel(
 	stop_on_failure: bool,
 	user_data_root: Path,
 	finalizer_crash_retries: int,
+	fail_on_output_error: bool,
+	test_timeout_seconds: float,
 ) -> tuple[int, list[TestRunResult]]:
 	failed_tests: list[TestRunResult] = []
 	passed_count = 0
@@ -387,6 +544,8 @@ def run_tests_parallel(
 			False,
 			user_data_root,
 			finalizer_crash_retries,
+			fail_on_output_error,
+			test_timeout_seconds,
 		)
 		active[future] = test_path
 
@@ -465,7 +624,6 @@ def main() -> int:
 	if not tests:
 		print("No matching regression tests found.", file=sys.stderr)
 		return 1
-
 	if args.offset:
 		tests = tests[args.offset:]
 	if args.limit:
@@ -486,6 +644,8 @@ def main() -> int:
 			args.verbose,
 			args.stop_on_failure,
 			args.finalizer_crash_retries,
+			args.fail_on_output_error,
+			args.test_timeout_seconds,
 		)
 	else:
 		user_data_root, cleanup_user_data_root = create_user_data_root(args)
@@ -504,6 +664,8 @@ def main() -> int:
 				args.stop_on_failure,
 				user_data_root,
 				args.finalizer_crash_retries,
+				args.fail_on_output_error,
+				args.test_timeout_seconds,
 			)
 		finally:
 			if cleanup_user_data_root and not failed_tests:
@@ -524,7 +686,14 @@ def main() -> int:
 				if result.finalizer_crash_retries > 0
 				else ""
 			)
-			print(f"- {result.test_path} exit={result.returncode}{suffix}{retry_suffix}")
+			output_error_suffix = (
+				f" output_errors={len(result.output_error_lines)}"
+				if result.output_error_lines
+				else ""
+			)
+			print(
+				f"- {result.test_path} exit={result.returncode}{suffix}{retry_suffix}{output_error_suffix}"
+			)
 		return 1
 
 	return 0

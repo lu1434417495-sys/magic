@@ -174,6 +174,7 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
 
     private async Task DisposeFixture(RuntimeFixture fixture)
     {
+        fixture.GameSession?.DiscardPendingSave();
         fixture.Runtime?.Dispose();
         if (fixture.GameSession != null)
         {
@@ -204,6 +205,7 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
             ["settlements"] = settlementArray,
             ["world_events"] = new GArray(),
             ["encounter_anchors"] = new GArray(),
+            ["resource_nodes"] = new GArray(),
             ["mounted_submaps"] = new GDictionary(),
             ["world_npcs"] = new GArray(),
             ["player_start_coord"] = Vector2I.Zero,

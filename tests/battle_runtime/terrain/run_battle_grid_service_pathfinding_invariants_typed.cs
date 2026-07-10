@@ -4,6 +4,16 @@ using Godot;
 
 public partial class run_battle_grid_service_pathfinding_invariants_typed : SceneTree
 {
+    public override void _Initialize()
+    {
+        Quit(RunForWrapper());
+    }
+
+    public static int RunForWrapper() => BattleGridServicePathfindingInvariantsRunner.RunAll();
+}
+
+internal sealed class BattleGridServicePathfindingInvariantsRunner
+{
     private static readonly StringName[] AllTerrains =
     {
         "land",
@@ -21,13 +31,11 @@ public partial class run_battle_grid_service_pathfinding_invariants_typed : Scen
         new("battle_grid_service_pathfinding_invariants", quarantineOnDrain: true);
     private BattleGridService _grid = null!;
 
-    public override void _Initialize()
+    public static int RunAll()
     {
-        int exitCode = Run();
-        Quit(exitCode);
+        var runner = new BattleGridServicePathfindingInvariantsRunner();
+        return runner.Run();
     }
-
-    public int RunForWrapper() => Run();
 
     private int Run()
     {
