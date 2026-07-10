@@ -280,6 +280,11 @@ V1 正常进程只有一个 active snapshot。`GameSession` 不再重建 raw reg
 
 - `SkillDefinition`、`TraitDefinition`、`ProfessionDefinition`、`AchievementDefinition`、
   `QuestDefinition`；
+- `RaceDefinition`、`SubraceDefinition`、`AgeProfileDefinition`、`BloodlineDefinition`/
+  `BloodlineStageDefinition`、`AscensionDefinition`/`AscensionStageDefinition`、
+  `StageAdvancementDefinition`、`FaithDeityDefinition`/`FaithRankDefinition`、
+  `BarrierProfileDefinition` 与
+  `ContingencySetupTemplateDefinition`；
 - `ItemDefinition`、`RecipeDefinition`、equipment ability pack/binding definition；
 - `EnemyTemplateDefinition`、`EnemyAiBrainDefinition`、`EnemyAiActionDefinition`、
   `WildEncounterRosterDefinition`；
@@ -450,9 +455,11 @@ Running
 → QuitRequested
 ```
 
-`ContentReleased → FinalizersDrained` 只在 barrier gate 通过且 GC barrier 成功时发生；gate 失败或
-barrier 抛错时进入 `FinalizerBarrierSkipped`，effective exit code 强制非零，然后才允许进入
-`QuitRequested`。两个 phase 不能共用一个成功状态。
+`ContentReleased → FinalizersDrained` 只在 barrier gate 通过且 GC barrier 成功时发生。runtime/
+scene drain 异常、content-release gate 失败、content release 异常、finalizer gate 失败或 barrier
+抛错时，从当前 `Quiescing`/`RuntimeDrained`/`SceneDrained`/`ContentReleased` 状态进入
+`FinalizerBarrierSkipped`，effective exit code 强制非零，然后才允许进入 `QuitRequested`。未通过
+content-release gate 时不能清 snapshot/canonical roots，也不能记录 `ContentReleased`。
 
 固定顺序：
 
@@ -564,12 +571,15 @@ domain 的 wrapper/resource-in-use 计数必须精确记录为 baseline，不能
 
 - 把 raw registry load 移到 process host；
 - 禁止修改 loaded `.tres`；
-- 迁 Trait、Profession、Achievement、Quest、Item、Recipe、world config；
+- 迁 Trait、Profession、Achievement、Quest、Item、Recipe、Race、Subrace、AgeProfile、
+  Bloodline/Stage、Ascension/Stage、StageAdvancementModifier、FaithDeity/FaithRank、BarrierProfile、
+  ContingencySetupTemplate 与 world config；
 - 迁 derived Resource 和 special-profile Dictionary 为 plain definition；
 - 递归移除 typed definition 内的 `Variant.Type.Object`。
 
-阶段 3 期间，尚未迁移的 EnemyTemplate/Brain/Action/Roster 保持在现有 raw registry 路径并登记为
-`LegacyDebt`；它们不进入已经迁移的 `ContentSnapshot` domain，也不能扩散到新的 runtime API。
+阶段 3 期间，尚未迁移的 EnemyTemplate/Brain/Action/Roster、BattleAiScoreProfile，以及依赖这些
+raw AI Resource 的 BattleSimProfile/override patch 保持在同一个 legacy enemy/AI catalog 边界并
+登记为 `LegacyDebt`；它们不进入已经迁移的 `ContentSnapshot` domain，也不能扩散到新的 runtime API。
 阶段 4 必须整体迁移并删除这条现有边界，不能长期形成双 catalog。
 
 ### 阶段 4：Enemy/AI authored content 与剩余边界
@@ -578,7 +588,8 @@ domain 的 wrapper/resource-in-use 计数必须精确记录为 baseline，不能
   definitions；
 - 把 EnemyAiAction 的条件、参数和 transition payload 全量归一化为 typed action definition；
 - runtime plan 不再按 Resource instance id 建 metadata；
-- 清除 mutation guard、preview clone 和 simulation fixture 中不必要的 Godot collection 中转。
+- 迁 BattleAiScoreProfile、BattleSimProfile/simulation override，并清除剩余 AI/simulation
+  Godot collection 中转。
 
 ### 阶段 5：删除止血基础设施并收紧 CI
 
@@ -599,8 +610,8 @@ Resource；阶段 5 才执行本 spec 的全部静态、行为和稳定性合同
 |---|---|---|---|
 | 1 | lifecycle-order strict、retries=0、shutdown phase/幂等、被测域零 fatal | 阶段矩阵精确登记的 `LegacyDebt` 与未迁移域 baseline | 普通 session/process shutdown 混用、TestHarness 提前 GC、NoGCRegion |
 | 2 | runtime lease/scope 回基线、Battle/AI borrower 清空、被迁移 projection 零 escape | process content static pool | production BattleBoard quarantine、被迁移域 RuntimeStateLifecycle 调用 |
-| 3 | canonical path 不增长、session A/B 复用、已迁移 snapshot domain 无 Resource/Object Variant | 精确登记的现有 Enemy/AI raw registry `LegacyDebt` | 已迁移 content domain 的全 wrapper 强持有与 reflection cleanup |
-| 4 | Enemy/AI catalog 与 plan/decision 全 typed、热路径无 authored Resource/Godot collection 中转 | 仅最终兼容性 smoke runner | Enemy/AI raw registry debt、Resource action fallback、instance-id metadata |
+| 3 | canonical path 不增长、session A/B 复用、已迁移 snapshot domain 无 Resource/Object Variant | 精确登记的 legacy Enemy/AI 与 AI-dependent BattleSim `LegacyDebt` | 已迁移 content domain 的全 wrapper 强持有与 reflection cleanup |
+| 4 | Enemy/AI catalog 与 plan/decision 全 typed、热路径无 authored Resource/Godot collection 中转 | 现有 full-suite retry=1/output baseline，阶段 5 删除 | Enemy/AI/BattleSim raw debt、Resource action fallback、instance-id metadata |
 | 5 | 本 spec 全部静态/行为/稳定性合同 | 无 | 剩余 suppress、reflection walker、quarantine、retry 与宽泛日志豁免 |
 
 ## 验收合同
@@ -640,7 +651,11 @@ Resource；阶段 5 才执行本 spec 的全部静态、行为和稳定性合同
    `GC.Collect → WaitForPendingFinalizers → GC.Collect`，再等待 1 帧并采样
    `GC.GetTotalMemory(false)`、`Process.GetCurrentProcess().PrivateMemorySize64` 和 lifecycle owner
    counters。owner/root/lease 的 warm-up 基线定义为第 10 轮 GC 后的完整 counter vector，后续每轮
-   必须与该 vector 精确相等。内存 baseline 定义为第 11–20 轮样本中位数；第 101–110 轮中位数
+   必须与该 vector 精确相等。该 vector 按 Session/Battle/Decision/Request/SceneTree owner、native/
+   projection lease domain、snapshot epoch 和 canonical root path/type 拆分，不能只比较可能相互抵消
+   的总数；unknown/conflict/escaped/close-after-use、normal suppress 和 quarantine 必须为 0。累计
+   created/closed/disposed/transferred 计数比较每轮增量平衡，不要求跨轮绝对值相等。内存 baseline
+   定义为第 11–20 轮样本中位数；第 101–110 轮中位数
    相对该 baseline，managed heap 增量不得超过 `max(8 MiB, baseline × 5%)`，process-private 增量
    不得超过 `max(32 MiB, baseline × 10%)`；后 100 轮最小二乘趋势斜率分别不得高于 64 KiB/轮
    和 256 KiB/轮。
