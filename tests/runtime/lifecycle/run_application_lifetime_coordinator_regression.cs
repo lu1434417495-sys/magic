@@ -12,6 +12,7 @@ public partial class run_application_lifetime_coordinator_regression : SceneTree
         private readonly bool _throws;
         private readonly TaskCompletionSource<bool> _started;
         private readonly TaskCompletionSource<bool> _release;
+        private readonly Func<ValueTask> _onClose;
 
         internal FakeParticipant(
             string participantId,
@@ -20,7 +21,8 @@ public partial class run_application_lifetime_coordinator_regression : SceneTree
             List<string> calls,
             bool throws = false,
             TaskCompletionSource<bool> started = null,
-            TaskCompletionSource<bool> release = null
+            TaskCompletionSource<bool> release = null,
+            Func<ValueTask> onClose = null
         )
         {
             ShutdownParticipantId = participantId;
@@ -30,6 +32,7 @@ public partial class run_application_lifetime_coordinator_regression : SceneTree
             _throws = throws;
             _started = started;
             _release = release;
+            _onClose = onClose;
         }
 
         public string ShutdownParticipantId { get; }
@@ -42,6 +45,8 @@ public partial class run_application_lifetime_coordinator_regression : SceneTree
             _started?.TrySetResult(true);
             if (_release != null)
                 await _release.Task;
+            if (_onClose != null)
+                await _onClose();
             if (_throws)
                 throw new InvalidOperationException($"{ShutdownParticipantId} failed");
         }
@@ -89,9 +94,96 @@ public partial class run_application_lifetime_coordinator_regression : SceneTree
         );
         _test.False(AutoAcceptQuit, "coordinator disables automatic quit acceptance");
 
+        TestRealGameSessionRegistrationContract(coordinator, gameSession);
         await TestOffMainThreadRequestFailsBeforeShutdown(coordinator);
-        await TestParticipantContractsAndSkippedHistory();
-        await TestIdempotentRequestAndSuccessfulHistory(coordinator);
+        await TestApplicationCloseConvergesOnOneShotNormalClose();
+        await TestParticipantContractsAndSkippedHistory(gameSession);
+        await TestIdempotentRequestAndSuccessfulHistory(coordinator, gameSession);
+    }
+
+    private void TestRealGameSessionRegistrationContract(
+        ApplicationLifetimeCoordinator coordinator,
+        GameSession gameSession
+    )
+    {
+        IApplicationShutdownParticipant participant = gameSession;
+        _test.Eq(
+            participant.ShutdownParticipantId,
+            "game-session",
+            "GameSession participant ID is stable"
+        );
+        _test.Eq(
+            participant.ShutdownStage,
+            ApplicationShutdownParticipantStage.Session,
+            "GameSession participates at the Session stage"
+        );
+        _test.Eq(participant.ShutdownOrder, 0, "GameSession participant order is stable");
+
+        bool activationRegisteredParticipant = false;
+        try
+        {
+            coordinator.RegisterParticipant(
+                new FakeParticipant(
+                    participant.ShutdownParticipantId,
+                    ApplicationShutdownParticipantStage.Session,
+                    participant.ShutdownOrder,
+                    new List<string>()
+                )
+            );
+        }
+        catch (InvalidOperationException)
+        {
+            activationRegisteredParticipant = true;
+        }
+        _test.True(
+            activationRegisteredParticipant,
+            "canonical GameSession registers when its owner activates"
+        );
+
+        bool realUnregisterIsIdempotent = true;
+        try
+        {
+            coordinator.UnregisterParticipant(participant);
+            coordinator.UnregisterParticipant(participant);
+            coordinator.RegisterParticipant(participant);
+        }
+        catch (Exception)
+        {
+            realUnregisterIsIdempotent = false;
+        }
+        _test.True(
+            realUnregisterIsIdempotent,
+            "real GameSession unregister is idempotent and permits re-registration"
+        );
+    }
+
+    private async Task TestApplicationCloseConvergesOnOneShotNormalClose()
+    {
+        GameSession session = new() { Name = "ApplicationCloseLifecycleSession" };
+        IApplicationShutdownParticipant participant = session;
+        GameContentCatalog catalog = session.GetContentCatalogTyped();
+        long revisionBeforeClose = catalog.GetRevision();
+        var report = new ShutdownReport(
+            new ShutdownRequest(0, ShutdownReason.RequestedExit)
+        );
+
+        await participant.CloseForApplicationShutdownAsync(report);
+        await participant.CloseForApplicationShutdownAsync(report);
+        _test.Eq(
+            catalog.GetRevision(),
+            revisionBeforeClose + 1,
+            "application shutdown and repeated close share one-shot normal close"
+        );
+        _test.True(
+            GodotObject.IsInstanceValid(session),
+            "application close leaves later explicit native Dispose available"
+        );
+
+        session.Dispose();
+        _test.False(
+            GodotObject.IsInstanceValid(session),
+            "explicit Dispose after application close releases the native session object"
+        );
     }
 
     private async Task TestOffMainThreadRequestFailsBeforeShutdown(
@@ -123,7 +215,7 @@ public partial class run_application_lifetime_coordinator_regression : SceneTree
         );
     }
 
-    private async Task TestParticipantContractsAndSkippedHistory()
+    private async Task TestParticipantContractsAndSkippedHistory(GameSession gameSession)
     {
         var localCoordinator = new ApplicationLifetimeCoordinator
         {
@@ -223,7 +315,17 @@ public partial class run_application_lifetime_coordinator_regression : SceneTree
         var report = new ShutdownReport(
             new ShutdownRequest(0, ShutdownReason.RequestedExit)
         );
-        ShutdownReport result = await pipeline.RunAsync(report);
+        StringName originalGameSessionName = gameSession.Name;
+        gameSession.Name = "GameSessionParticipantProbe";
+        ShutdownReport result;
+        try
+        {
+            result = await pipeline.RunAsync(report);
+        }
+        finally
+        {
+            gameSession.Name = originalGameSessionName;
+        }
 
         _test.Eq(
             string.Join(",", calls),
@@ -267,16 +369,16 @@ public partial class run_application_lifetime_coordinator_regression : SceneTree
         if (GodotObject.IsInstanceValid(localCoordinator))
             localCoordinator.Free();
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
-
-        var gameSessionDrainProbe = new Node { Name = "GameSession" };
-        Root.AddChild(gameSessionDrainProbe);
     }
 
     private async Task TestIdempotentRequestAndSuccessfulHistory(
-        ApplicationLifetimeCoordinator coordinator
+        ApplicationLifetimeCoordinator coordinator,
+        GameSession gameSession
     )
     {
         var calls = new List<string>();
+        GameContentCatalog catalog = gameSession.GetContentCatalogTyped();
+        long revisionBeforeShutdown = catalog.GetRevision();
         var started = new TaskCompletionSource<bool>(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
@@ -292,6 +394,38 @@ public partial class run_application_lifetime_coordinator_regression : SceneTree
             release: release
         );
         coordinator.RegisterParticipant(blocker);
+        var sessionBefore = new FakeParticipant(
+            "session-before-game-session",
+            ApplicationShutdownParticipantStage.Session,
+            -1,
+            calls,
+            onClose: () =>
+            {
+                _test.Eq(
+                    catalog.GetRevision(),
+                    revisionBeforeShutdown,
+                    "lower-order Session participant closes before GameSession"
+                );
+                return ValueTask.CompletedTask;
+            }
+        );
+        var sessionAfter = new FakeParticipant(
+            "session-after-game-session",
+            ApplicationShutdownParticipantStage.Session,
+            1,
+            calls,
+            onClose: () =>
+            {
+                _test.Eq(
+                    catalog.GetRevision(),
+                    revisionBeforeShutdown + 1,
+                    "higher-order Session participant closes after GameSession"
+                );
+                return ValueTask.CompletedTask;
+            }
+        );
+        coordinator.RegisterParticipant(sessionBefore);
+        coordinator.RegisterParticipant(sessionAfter);
 
         Task<ShutdownReport> first = coordinator
             .RequestShutdownAsync(
@@ -352,8 +486,13 @@ public partial class run_application_lifetime_coordinator_regression : SceneTree
         );
         _test.Eq(
             string.Join(",", calls),
-            "blocking-runtime",
+            "blocking-runtime,session-before-game-session,session-after-game-session",
             "idempotent requests close each participant once"
+        );
+        _test.Eq(
+            catalog.GetRevision(),
+            revisionBeforeShutdown + 1,
+            "participant close plus SceneTree teardown closes GameSession exactly once"
         );
         _test.True(
             Root.GetNodeOrNull<Node>("GameSession") == null,

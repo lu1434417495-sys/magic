@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -9,8 +10,10 @@ using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 [GlobalClass]
-public partial class GameSession : Node
+public partial class GameSession : Node, IApplicationShutdownParticipant
 {
+    private const string ApplicationShutdownParticipantId = "game-session";
+    private const int ApplicationShutdownOrder = 0;
     private const string SaveDirectory = "user://saves";
     private const string SaveIndexPath = "user://saves/index.dat";
     private const int SaveVersion = 12;
@@ -225,6 +228,7 @@ public partial class GameSession : Node
     public WorldMapContentValidator _world_content_validator = new();
     private IGameLogSink _log_sink;
     private bool _disposed;
+    private ApplicationLifetimeCoordinator _applicationLifetimeCoordinator;
 
     private List<Dictionary<string, object>> _saveIndexEntriesCache = new();
     private bool _saveIndexCacheValid;
@@ -252,6 +256,41 @@ public partial class GameSession : Node
 
         _log_sink = new GameSessionLogSink(this);
         GameLog.AddSink(_log_sink);
+    }
+
+    string IApplicationShutdownParticipant.ShutdownParticipantId =>
+        ApplicationShutdownParticipantId;
+
+    ApplicationShutdownParticipantStage IApplicationShutdownParticipant.ShutdownStage =>
+        ApplicationShutdownParticipantStage.Session;
+
+    int IApplicationShutdownParticipant.ShutdownOrder => ApplicationShutdownOrder;
+
+    ValueTask IApplicationShutdownParticipant.CloseForApplicationShutdownAsync(
+        ShutdownReport report
+    )
+    {
+        CloseNormal();
+        return ValueTask.CompletedTask;
+    }
+
+    public override void _Ready()
+    {
+        SceneTree tree = GetTree();
+        if (!ReferenceEquals(tree.Root.GetNodeOrNull<GameSession>("GameSession"), this))
+            return;
+
+        _applicationLifetimeCoordinator = tree.Root.GetNodeOrNull<ApplicationLifetimeCoordinator>(
+            "ApplicationLifetimeCoordinator"
+        );
+        if (_applicationLifetimeCoordinator == null)
+        {
+            throw new InvalidOperationException(
+                "The canonical GameSession owner requires ApplicationLifetimeCoordinator."
+            );
+        }
+
+        _applicationLifetimeCoordinator.RegisterParticipant(this);
     }
 
     public new void Dispose()
@@ -282,14 +321,26 @@ public partial class GameSession : Node
     {
         if (_disposed)
         {
+            UnregisterApplicationShutdownParticipant();
             return;
         }
         _disposed = true;
+        UnregisterApplicationShutdownParticipant();
         DisposePartyStateGraph(_party_state);
         _party_state = null;
         DisposeOwnedRuntimeResources();
         _log_service = null;
         RemoveLogSink();
+    }
+
+    private void UnregisterApplicationShutdownParticipant()
+    {
+        ApplicationLifetimeCoordinator coordinator = _applicationLifetimeCoordinator;
+        _applicationLifetimeCoordinator = null;
+        if (coordinator == null || !GodotObject.IsInstanceValid(coordinator))
+            return;
+
+        coordinator.UnregisterParticipant(this);
     }
 
     private void RemoveLogSink()

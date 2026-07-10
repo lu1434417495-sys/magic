@@ -13,7 +13,6 @@ internal static class GodotObjectLifecycle
 
     internal static void CollectPendingFinalizers()
     {
-        PrepareForFinalizerDrain();
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
