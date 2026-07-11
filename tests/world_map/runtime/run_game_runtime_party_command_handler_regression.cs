@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_game_runtime_party_command_handler_regression : LifecycleTestSceneTree
 {
@@ -113,8 +112,8 @@ public partial class run_game_runtime_party_command_handler_regression : Lifecyc
         {
             leader_member_id = "hero",
             main_character_member_id = "hero",
-            active_member_ids = new GStringNameArray { new StringName("hero") },
-            reserve_member_ids = new GStringNameArray { new StringName("mage") },
+            active_member_ids = new StringNameList { new StringName("hero") },
+            reserve_member_ids = new StringNameList { new StringName("mage") },
         };
         partyState.SetMemberState(BuildMember("hero", "Hero"));
         partyState.SetMemberState(BuildMember("mage", "Mage"));
@@ -174,7 +173,7 @@ public partial class run_game_runtime_party_command_handler_regression : Lifecyc
         };
     }
 
-    private static bool HasMemberId(GStringNameArray memberIds, StringName memberId)
+    private static bool HasMemberId(StringNameList memberIds, StringName memberId)
     {
         if (memberIds == null)
         {
@@ -190,7 +189,7 @@ public partial class run_game_runtime_party_command_handler_regression : Lifecyc
         return false;
     }
 
-    private static string MemberIdList(GStringNameArray memberIds)
+    private static string MemberIdList(StringNameList memberIds)
     {
         if (memberIds == null)
         {

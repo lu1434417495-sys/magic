@@ -1,7 +1,6 @@
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GArray = Godot.Collections.Array;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_settlement_shop_stock_persistence_regression : LifecycleTestSceneTree
 {
@@ -39,7 +38,7 @@ public partial class run_settlement_shop_stock_persistence_regression : Lifecycl
                 new PartyState
                 {
                     gold = 100,
-                    active_member_ids = new GStringNameArray { new StringName("hero") },
+                    active_member_ids = new StringNameList { new StringName("hero") },
                     leader_member_id = "hero",
                     main_character_member_id = "hero",
                 },

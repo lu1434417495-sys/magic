@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using RuntimeCommandResult = GameRuntimeFacade.RuntimeCommandResult;
 
 public partial class run_world_map_runtime_proxy_regression : LifecycleTestSceneTree
@@ -467,8 +466,8 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
         {
             leader_member_id = "hero",
             main_character_member_id = "hero",
-            active_member_ids = new GStringNameArray { "hero" },
-            reserve_member_ids = new GStringNameArray { "mage" },
+            active_member_ids = new StringNameList { "hero" },
+            reserve_member_ids = new StringNameList { "mage" },
         };
         partyState.SetMemberState(BuildMember("hero", "Hero"));
         partyState.SetMemberState(BuildMember("mage", "Mage"));

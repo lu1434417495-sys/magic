@@ -3,7 +3,6 @@ using System.Threading.Tasks;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_game_runtime_settlement_command_handler_regression : LifecycleTestSceneTree
 {
@@ -1493,7 +1492,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
         {
             leader_member_id = "hero",
             main_character_member_id = "hero",
-            active_member_ids = new GStringNameArray { "hero" },
+            active_member_ids = new StringNameList { "hero" },
             gold = gold,
         };
         var hero = new PartyMemberState

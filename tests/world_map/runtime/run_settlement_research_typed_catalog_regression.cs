@@ -1,7 +1,6 @@
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_settlement_research_typed_catalog_regression : LifecycleTestSceneTree
 {
@@ -36,7 +35,7 @@ public partial class run_settlement_research_typed_catalog_regression : Lifecycl
         var party = new PartyState();
         party.SetGold(250);
         party.leader_member_id = "hero";
-        party.active_member_ids = new GStringNameArray { "hero" };
+        party.active_member_ids = new StringNameList { "hero" };
         party.SetMemberState(
             new PartyMemberState
             {

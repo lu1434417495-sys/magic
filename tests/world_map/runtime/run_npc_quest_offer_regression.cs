@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 {
@@ -1737,7 +1736,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
         {
             leader_member_id = "hero",
             main_character_member_id = "hero",
-            active_member_ids = new GStringNameArray { "hero" },
+            active_member_ids = new StringNameList { "hero" },
             gold = gold,
         };
         var hero = new PartyMemberState

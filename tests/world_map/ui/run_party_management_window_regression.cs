@@ -3,7 +3,6 @@ using System.Threading.Tasks;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_party_management_window_regression : LifecycleTestSceneTree
 {
@@ -61,18 +60,18 @@ public partial class run_party_management_window_regression : LifecycleTestScene
         PartyMemberState leader = MakeMember("leader", "队长");
         PartyMemberState ally = MakeMember("ally", "队友");
         partyState.leader_member_id = "leader";
-        partyState.active_member_ids = new GStringNameArray { "leader", "ally" };
-        partyState.reserve_member_ids = new GStringNameArray();
+        partyState.active_member_ids = new StringNameList { "leader", "ally" };
+        partyState.reserve_member_ids = new StringNameList();
         partyState.SetMemberState(leader);
         partyState.SetMemberState(ally);
 
         var eventOrder = new List<string>();
-        var rosterPayloads = new List<(GStringNameArray Active, GStringNameArray Reserve)>();
+        var rosterPayloads = new List<(StringNameList Active, StringNameList Reserve)>();
         var leaderPayloads = new List<StringName>();
         window.roster_change_requested += (activeMemberIds, reserveMemberIds) =>
         {
             eventOrder.Add("roster");
-            rosterPayloads.Add((new GStringNameArray(activeMemberIds), new GStringNameArray(reserveMemberIds)));
+            rosterPayloads.Add((new StringNameList(activeMemberIds), new StringNameList(reserveMemberIds)));
         };
         window.leader_change_requested += memberId =>
         {
@@ -134,8 +133,8 @@ public partial class run_party_management_window_regression : LifecycleTestScene
         );
         _test.True(hero.equipment_state != null, "测试装备状态应能通过字典入口构造双手武器。");
         partyState.leader_member_id = "hero";
-        partyState.active_member_ids = new GStringNameArray { "hero" };
-        partyState.reserve_member_ids = new GStringNameArray();
+        partyState.active_member_ids = new StringNameList { "hero" };
+        partyState.reserve_member_ids = new StringNameList();
         partyState.SetMemberState(hero);
 
         window.ShowParty(partyState);
@@ -254,8 +253,8 @@ public partial class run_party_management_window_regression : LifecycleTestScene
         foreach (StringName memberId in memberIds)
             partyState.SetMemberState(MakeMember(memberId, memberId.ToString()));
         partyState.leader_member_id = memberIds.Count > 0 ? memberIds[0] : new StringName("");
-        partyState.active_member_ids = new GStringNameArray(memberIds);
-        partyState.reserve_member_ids = new GStringNameArray();
+        partyState.active_member_ids = new StringNameList(memberIds);
+        partyState.reserve_member_ids = new StringNameList();
         return partyState;
     }
 

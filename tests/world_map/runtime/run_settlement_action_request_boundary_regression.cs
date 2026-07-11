@@ -3,7 +3,6 @@ using System.Threading.Tasks;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_settlement_action_request_boundary_regression : LifecycleTestSceneTree
 {
@@ -347,7 +346,7 @@ public partial class run_settlement_action_request_boundary_regression : Lifecyc
         {
             leader_member_id = "hero",
             main_character_member_id = "hero",
-            active_member_ids = new GStringNameArray { "hero" },
+            active_member_ids = new StringNameList { "hero" },
             gold = 100,
         };
         var hero = new PartyMemberState

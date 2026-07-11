@@ -3,7 +3,6 @@ using System.Threading.Tasks;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_contingency_setup_window_regression : LifecycleTestSceneTree
 {
@@ -196,8 +195,8 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
         PartyState partyState = new()
         {
             leader_member_id = member.member_id,
-            active_member_ids = new GStringNameArray { member.member_id },
-            reserve_member_ids = new GStringNameArray(),
+            active_member_ids = new StringNameList { member.member_id },
+            reserve_member_ids = new StringNameList(),
         };
         partyState.SetMemberState(member);
         return partyState;

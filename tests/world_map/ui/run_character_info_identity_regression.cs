@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GDictionaryArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_character_info_identity_regression : LifecycleTestSceneTree
 {
@@ -162,7 +161,7 @@ public partial class run_character_info_identity_regression : LifecycleTestScene
         {
             leader_member_id = "hero",
             main_character_member_id = "hero",
-            active_member_ids = new GStringNameArray { "hero" },
+            active_member_ids = new StringNameList { "hero" },
         };
         partyState.SetMemberState(
             new PartyMemberState

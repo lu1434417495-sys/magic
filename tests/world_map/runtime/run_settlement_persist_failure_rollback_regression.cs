@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_settlement_persist_failure_rollback_regression : LifecycleTestSceneTree
 {
@@ -802,7 +801,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
         {
             leader_member_id = "hero",
             main_character_member_id = "hero",
-            active_member_ids = new GStringNameArray { "hero" },
+            active_member_ids = new StringNameList { "hero" },
             gold = gold,
         };
         var hero = new PartyMemberState
