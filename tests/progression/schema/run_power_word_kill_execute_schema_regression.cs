@@ -239,7 +239,7 @@ public partial class run_power_word_kill_execute_schema_regression : LifecycleTe
         string path = $"{TempSkillDirectory}/{skill.skill_id}_{_validationCaseIndex}.tres";
         _test.Eq(ResourceSaver.Save(skill, path), Error.Ok, "should save temp skill resource.");
 
-        using SkillContentRegistry registry = new();
+        using SkillContentRegistry registry = new(new TestContentResourceLoader());
         registry.LoadFromDirectory(TempSkillDirectory);
         return registry.Validate();
     }

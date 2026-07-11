@@ -1,11 +1,5 @@
 using Godot;
 
-internal enum WorldEventTypeKind
-{
-    Unknown = 0,
-    EnterSubmap,
-}
-
 [GlobalClass]
 public partial class WorldEventConfig : Resource
 {
@@ -35,9 +29,12 @@ public partial class WorldEventConfig : Resource
     [Export(PropertyHint.MultilineText)]
     public string prompt_text = "";
 
+    internal WorldEventDefinition ToDefinition(string path) =>
+        WorldEventDefinition.FromResource(this, path);
+
     internal static StringName ToStringName(WorldEventTypeKind kind) =>
-        kind == WorldEventTypeKind.EnterSubmap ? EventTypeEnterSubmap : "";
+        WorldEventDefinition.ToStringName(kind);
 
     internal static WorldEventTypeKind ToEventTypeKind(StringName eventType) =>
-        eventType == EventTypeEnterSubmap ? WorldEventTypeKind.EnterSubmap : WorldEventTypeKind.Unknown;
+        WorldEventDefinition.ToEventTypeKind(eventType);
 }

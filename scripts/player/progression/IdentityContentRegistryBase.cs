@@ -55,12 +55,15 @@ public class IdentityContentRegistryBase : System.IDisposable
     }
 
     protected string _registry_label = "IdentityContentRegistry";
+    private protected readonly IContentResourceLoader _resourceLoader;
 
     protected System.Collections.Generic.List<string> _validation_errors = new();
     private bool _disposed;
 
-    public IdentityContentRegistryBase()
+    internal IdentityContentRegistryBase(IContentResourceLoader resourceLoader)
     {
+        _resourceLoader = resourceLoader
+            ?? throw new System.ArgumentNullException(nameof(resourceLoader));
     }
 
     public void Dispose()

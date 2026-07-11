@@ -12,7 +12,7 @@ public partial class run_identity_sub_registry_schema_regression : LifecycleTest
 
     private void TestIdentityCatalogLoadsTypedContent()
     {
-        using var registry = new ProgressionContentRegistry();
+        using var registry = new ProgressionContentRegistry(new TestContentResourceLoader());
         ProgressionIdentityCatalogData catalog = registry.GetIdentityCatalogTyped();
 
         _test.True(

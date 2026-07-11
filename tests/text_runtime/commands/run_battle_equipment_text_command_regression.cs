@@ -27,10 +27,7 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
 
     private void Run()
     {
-        var runner = new GameTextCommandRunner();
-        runner.initialize();
-
-        InstallBattleEquipmentTestItems(runner);
+        GameTextCommandRunner runner = CreateRunnerWithBattleEquipmentContent();
         RunCommand(runner, "game new test");
         RunCommand(runner, "warehouse capacity 10");
         RunCommand(runner, "warehouse add bronze_sword 1");
@@ -220,41 +217,45 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
             : null;
     }
 
-    private void InstallBattleEquipmentTestItems(GameTextCommandRunner runner)
+    private GameTextCommandRunner CreateRunnerWithBattleEquipmentContent()
     {
-        GameSession gameSession = runner.GetSession().GetGameSession();
-        _test.True(gameSession != null, "战斗换装回归前置：应存在 GameSession。");
-        if (gameSession == null)
-            return;
-        _test.Eq(
-            (Error)gameSession.InstallItemDefinitionForTests(
-                BuildVersatileTestWeaponDef().ToDefinition()
-            ),
-            Error.Ok,
-            "应能注册战斗换装测试用 versatile 武器。"
+        var runner = new GameTextCommandRunner();
+        ItemDefinition[] definitions =
+        {
+            OwnItemDefinition(BuildVersatileTestWeaponDef(), "versatile_weapon"),
+            OwnItemDefinition(BuildOffhandTestItemDef(), "offhand_item"),
+            OwnItemDefinition(BuildRestrictedTestHelmDef(), "restricted_helm"),
+            OwnItemDefinition(BuildDuplicateTestCharmDef(), "duplicate_charm"),
+        };
+        GameSession gameSession = GameSessionTestFactory.CreateSynthetic(
+            runner.GetSession(),
+            seed =>
+            {
+                var items = new Dictionary<StringName, ItemDefinition>(seed.Items);
+                foreach (ItemDefinition definition in definitions)
+                    items[definition.ItemId] = definition;
+                seed.Items = items;
+            },
+            GameSessionTestFactory.CreateLoadedLegacyEnemyContent()
         );
-        _test.Eq(
-            (Error)gameSession.InstallItemDefinitionForTests(
-                BuildOffhandTestItemDef().ToDefinition()
-            ),
-            Error.Ok,
-            "应能注册战斗换装测试用副手物品。"
-        );
-        _test.Eq(
-            (Error)gameSession.InstallItemDefinitionForTests(
-                BuildRestrictedTestHelmDef().ToDefinition()
-            ),
-            Error.Ok,
-            "应能注册战斗换装测试用受限头盔。"
-        );
-        _test.Eq(
-            (Error)gameSession.InstallItemDefinitionForTests(
-                BuildDuplicateTestCharmDef().ToDefinition()
-            ),
-            Error.Ok,
-            "应能注册战斗换装测试用重复饰品。"
-        );
+        runner.initialize();
+        foreach (ItemDefinition definition in definitions)
+        {
+            _test.True(
+                gameSession.GetItemDefsTyped().ContainsKey(definition.ItemId),
+                $"战斗换装测试内容应在 runtime setup 前绑定：{definition.ItemId}。"
+            );
+        }
+        return runner;
     }
+
+    private static ItemDefinition OwnItemDefinition(ItemDef resource, string fixtureId) =>
+        TestResourceOwnership
+            .Own(
+                resource,
+                $"run_battle_equipment_text_command_regression.{fixtureId}"
+            )
+            .ToDefinition();
 
     private void InstallStringKeyOnlyBattleItemInstance(GameTextCommandRunner runner)
     {

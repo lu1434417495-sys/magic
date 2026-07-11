@@ -1039,7 +1039,7 @@ internal sealed class BattleMeteorSwarmResolver
         int worstShieldRemaining = targetUnit.CurrentShieldHp;
         var resistanceTiers = new Dictionary<StringName, StringName>();
 
-        List<MeteorSwarmImpactComponentData> impactComponents =
+        IReadOnlyList<MeteorSwarmImpactComponentData> impactComponents =
             plan.profile?.impact_components;
         if (impactComponents != null)
         {

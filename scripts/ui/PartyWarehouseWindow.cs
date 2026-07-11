@@ -362,11 +362,14 @@ public partial class PartyWarehouseWindow : Control
             && _has_target_member(_selectedTargetMemberId);
     }
 
-    private static Texture2D _load_icon_texture(string icon_path)
+    private Texture2D _load_icon_texture(string icon_path)
     {
-        if (string.IsNullOrEmpty(icon_path))
+        if (
+            string.IsNullOrEmpty(icon_path)
+            || !ResourceLoader.Exists(icon_path, "Texture2D")
+        )
             return null;
-        return GD.Load<Texture2D>(icon_path);
+        return EngineAssetAccess.ResolveBorrowed<Texture2D>(this, icon_path);
     }
 
     private void _on_stack_selected(int index)

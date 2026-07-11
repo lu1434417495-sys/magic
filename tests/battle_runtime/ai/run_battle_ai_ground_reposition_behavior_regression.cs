@@ -95,7 +95,7 @@ public partial class run_battle_ai_ground_reposition_behavior_regression : Lifec
 
     private static BattleRuntimeScope BuildRuntimeWithContent()
     {
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,

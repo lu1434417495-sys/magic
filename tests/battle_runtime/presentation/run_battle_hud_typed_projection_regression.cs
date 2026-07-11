@@ -295,8 +295,7 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
         LifecycleAuditSnapshot prePanelBaseline =
             LifecycleAuditRegistry.Shared.CaptureSnapshot();
         const string panelScenePath = "res://scenes/ui/battle_map_panel.tscn";
-        PackedScene scene = GD.Load<PackedScene>(panelScenePath);
-        GodotContentOwnership.RegisterBorrowedContent(scene, panelScenePath);
+        PackedScene scene = EngineAssetAccess.ResolveBorrowed<PackedScene>(panelScenePath);
         BattleMapPanel panel = scene.Instantiate<BattleMapPanel>();
         Root.AddChild(panel);
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
@@ -354,7 +353,7 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
         LifecycleAuditSnapshot active = LifecycleAuditRegistry.Shared.CaptureSnapshot();
         _test.Eq(active.ActiveLeaseCount, readyBaseline.ActiveLeaseCount + 1, "panel presentation lease should be audited.");
         _test.Eq(active.ActiveOwnerCount, readyBaseline.ActiveOwnerCount + 1, "panel should own exactly the pathless material root.");
-        _test.Eq(active.ActiveContentBorrowerCount, readyBaseline.ActiveContentBorrowerCount + 2, "panel should audit shader and texture borrows.");
+        _test.Eq(active.ActiveContentBorrowerCount, readyBaseline.ActiveContentBorrowerCount, "process-owned shader and texture assets should not create scene borrowers.");
 
         bool treeExitObserved = false;
         bool iconBindingsClearedBeforeFree = false;

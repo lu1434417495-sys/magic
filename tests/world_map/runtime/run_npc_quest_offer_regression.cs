@@ -1332,14 +1332,18 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
         IReadOnlyDictionary<StringName, QuestDefinition> questDefs
     )
     {
-        GameSession gameSession = await InstallGameSession($"NpcQuestOfferGameSession_{suffix}");
+        IReadOnlyDictionary<StringName, QuestDefinition> contentQuestDefs =
+            questDefs ?? new Dictionary<StringName, QuestDefinition>();
+        GameSession gameSession = await InstallGameSession(
+            $"NpcQuestOfferGameSession_{suffix}",
+            contentQuestDefs
+        );
         GDictionary worldData = BuildWorldData(settlements);
         ConfigureSessionForRuntimeTest(
             gameSession,
             $"npc_quest_offer_{suffix}",
             worldData,
-            partyState,
-            questDefs ?? new Dictionary<StringName, QuestDefinition>()
+            partyState
         );
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = gameSession.GetItemDefsTyped();
 
@@ -1356,7 +1360,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
         runtime._world_map_data_context.BindRootWorldData(worldData);
         var contextGrid = new WorldMapGridSystem();
         runtime._world_map_data_context.SyncActiveWorldContext(
-            gameSession._generation_config,
+            gameSession._generation_definition,
             contextGrid,
             Vector2I.Zero,
             Vector2I.Zero
@@ -1394,8 +1398,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
         GameSession gameSession,
         string saveId,
         GDictionary worldData,
-        PartyState partyState,
-        IReadOnlyDictionary<StringName, QuestDefinition> questDefs
+        PartyState partyState
     )
     {
         gameSession.ConfigureRuntimeWorldForTests(
@@ -1403,14 +1406,17 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
             TestConfigPath,
             worldData,
             partyState,
-            questDefs ?? new Dictionary<StringName, QuestDefinition>(),
             "npc_quest_offer_test",
             "NPC Quest Offer Test",
-            new Vector2I(8, 8)
+            new Vector2I(8, 8),
+            TestWorldGenerationDefinitionFactory.Load(TestConfigPath)
         );
     }
 
-    private async Task<GameSession> InstallGameSession(string nodeName)
+    private async Task<GameSession> InstallGameSession(
+        string nodeName,
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs
+    )
     {
         foreach (Node child in Root.GetChildren())
         {
@@ -1420,7 +1426,10 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
             }
         }
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
-        var gameSession = new GameSession { Name = nodeName };
+        GameSession gameSession = GameSessionTestFactory.CreateSyntheticFromProcessSnapshot(
+            seed => seed.Quests = questDefs
+        );
+        gameSession.Name = nodeName;
         Root.AddChild(gameSession);
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
         return gameSession;

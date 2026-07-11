@@ -8,7 +8,8 @@ public class SubraceContentRegistry : IdentityContentRegistryBase
 
     private readonly Dictionary<StringName, SubraceDefinition> _subrace_defs = new();
 
-    public SubraceContentRegistry()
+    internal SubraceContentRegistry(IContentResourceLoader resourceLoader)
+        : base(resourceLoader)
     {
         _registry_label = "SubraceContentRegistry";
         Rebuild();
@@ -43,13 +44,12 @@ public class SubraceContentRegistry : IdentityContentRegistryBase
 
     protected override void _register_resource(string resourcePath)
     {
-        var resource = GD.Load<Resource>(resourcePath);
+        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
         if (resource == null)
         {
             _validation_errors.Add($"Failed to load subrace config {resourcePath}.");
             return;
         }
-        GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
         if (resource is not SubraceDef subraceDef)
         {
             _validation_errors.Add($"Subrace config {resourcePath} is not a SubraceDef.");

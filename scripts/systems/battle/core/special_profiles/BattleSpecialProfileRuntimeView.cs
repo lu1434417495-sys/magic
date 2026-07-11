@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Godot;
 
 public interface IBattleSpecialProfileView
@@ -21,10 +22,21 @@ internal sealed class BattleSpecialProfileRuntimeView : IBattleSpecialProfileVie
         IReadOnlyDictionary<StringName, MeteorSwarmProfileData> meteorProfiles
     )
     {
-        _meteorProfiles =
-            meteorProfiles != null
-                ? new Dictionary<StringName, MeteorSwarmProfileData>(meteorProfiles)
-                : new Dictionary<StringName, MeteorSwarmProfileData>();
+        System.ArgumentNullException.ThrowIfNull(meteorProfiles);
+        var copiedProfiles = new Dictionary<StringName, MeteorSwarmProfileData>();
+        foreach (
+            (StringName profileId, MeteorSwarmProfileData profile) in meteorProfiles
+        )
+        {
+            if (StringNameIsEmpty(profileId))
+                throw new System.ArgumentException("Special profile id must not be empty.", nameof(meteorProfiles));
+            if (profile == null)
+                throw new System.ArgumentException($"Special profile {profileId} must not be null.", nameof(meteorProfiles));
+            copiedProfiles[profileId] = MeteorSwarmProfileData.CopyOf(profile);
+        }
+        _meteorProfiles = new ReadOnlyDictionary<StringName, MeteorSwarmProfileData>(
+            copiedProfiles
+        );
     }
 
     internal static BattleSpecialProfileRuntimeView ForMeteorSwarm(
@@ -33,11 +45,10 @@ internal sealed class BattleSpecialProfileRuntimeView : IBattleSpecialProfileVie
     )
     {
         MeteorSwarmProfileData data = MeteorSwarmProfileData.FromResource(profileId, profile);
-        var profiles = new Dictionary<StringName, MeteorSwarmProfileData>();
-        if (data != null)
+        var profiles = new Dictionary<StringName, MeteorSwarmProfileData>
         {
-            profiles[profileId] = data;
-        }
+            [profileId] = data,
+        };
         return new BattleSpecialProfileRuntimeView(profiles);
     }
 
@@ -51,7 +62,18 @@ internal sealed class BattleSpecialProfileRuntimeView : IBattleSpecialProfileVie
         {
             return false;
         }
-        return _meteorProfiles.TryGetValue(profileId, out profile) && profile != null;
+        if (
+            !_meteorProfiles.TryGetValue(
+                profileId,
+                out MeteorSwarmProfileData storedProfile
+            )
+            || storedProfile == null
+        )
+        {
+            return false;
+        }
+        profile = MeteorSwarmProfileData.CopyOf(storedProfile);
+        return true;
     }
 
     private static bool StringNameIsEmpty(StringName value) =>

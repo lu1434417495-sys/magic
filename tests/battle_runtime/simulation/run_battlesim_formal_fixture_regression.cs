@@ -326,8 +326,9 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
         BattleSimFormalRosterOptionsData rosterOptions = null
     )
     {
-        ProgressionContentRegistry progressionRegistry = new();
-        ItemContentRegistry itemRegistry = new();
+        var loader = new TestContentResourceLoader();
+        ProgressionContentRegistry progressionRegistry = new(loader);
+        ItemContentRegistry itemRegistry = new(loader);
         BattleSimFormalCombatFixture fixture = new();
         bool keepFixture = false;
         try

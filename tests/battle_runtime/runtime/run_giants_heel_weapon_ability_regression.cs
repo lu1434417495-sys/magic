@@ -636,8 +636,8 @@ public partial class run_giants_heel_weapon_ability_regression : LifecycleTestSc
 
         internal static GiantsHeelFixture Build(GArray damageRolls)
         {
-            ItemContentRegistry itemRegistry = new();
-            ProgressionContentRegistry progressionRegistry = new();
+            ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
+            ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
             PartyState partyState = BuildPartyState("hero", "large", strength: 18);
             CharacterManagementModule characterManagement = new();
             characterManagement.setup(

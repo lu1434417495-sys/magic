@@ -27,7 +27,7 @@ public partial class run_game_session_transaction_regression : LifecycleTestScen
 
     private void TestSettersStageRuntimeWithoutDiskWrite()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         try
         {
             Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
@@ -57,7 +57,7 @@ public partial class run_game_session_transaction_regression : LifecycleTestScen
 
     private void TestCommitRuntimeStatePersistsCompleteSnapshot()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         try
         {
             Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
@@ -93,7 +93,7 @@ public partial class run_game_session_transaction_regression : LifecycleTestScen
 
     private void TestCommitFailureKeepsDirtyAndLastError()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         try
         {
             Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
@@ -132,7 +132,7 @@ public partial class run_game_session_transaction_regression : LifecycleTestScen
 
     private void TestUnloadCommitsPendingRuntimeState()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         try
         {
             Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);

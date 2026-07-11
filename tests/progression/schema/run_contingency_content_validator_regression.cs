@@ -37,7 +37,7 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
 
     private void TestCatalogContainsRealChainContingencySkill()
     {
-        using GameSession session = new();
+        using GameSession session = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         IReadOnlyDictionary<StringName, SkillDefinition> skills =
             session.GetContentCatalogTyped().GetSkillDefinitionsTyped();
 
@@ -57,7 +57,7 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
 
     private void TestCatalogContainsV1StorableAutomationProfiles()
     {
-        using GameSession session = new();
+        using GameSession session = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         IReadOnlyDictionary<StringName, SkillDefinition> skills =
             session.GetContentCatalogTyped().GetSkillDefinitionsTyped();
 
@@ -365,7 +365,7 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
 
     private void TestLoadSaveFailsWhenPersistedSetupReferencesInvalidStoredSkill()
     {
-        GameSession session = new();
+        GameSession session = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         try
         {
             Error createError = (Error)session.CreateNewSave(TestWorldConfig);

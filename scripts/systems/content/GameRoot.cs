@@ -3,8 +3,8 @@ using Godot;
 
 /// <summary>
 /// 统一组合根：持有 owning <see cref="GameSession"/> 的弱引用与正式内容读入口
-/// <see cref="GameContentCatalog"/>。content catalog 实例由 root 拥有并原地重建，
-/// 下游应通过当前 root/session 解析 catalog，而不是长期缓存可能失效的旧实例。
+/// <see cref="GameContentCatalog"/>。content catalog 借用 process snapshot，root 关闭时
+/// 会原地使 catalog 失效；下游不应跨 root 生命周期缓存 catalog。
 /// </summary>
 public sealed class GameRoot : IDisposable
 {
@@ -12,10 +12,27 @@ public sealed class GameRoot : IDisposable
     private System.WeakReference<GameSession> _sessionRef;
     private bool _disposed;
 
-    internal void BindSession(GameSession session)
+    internal void BindSnapshot(
+        GameSession session,
+        ContentSnapshot snapshot,
+        ILegacyEnemyContentCatalog legacyEnemyContent
+    )
     {
-        _sessionRef = session != null ? new System.WeakReference<GameSession>(session) : null;
-        _contentCatalog.BindSession(session);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(legacyEnemyContent);
+        _sessionRef = new System.WeakReference<GameSession>(session);
+        try
+        {
+            _contentCatalog.BindSnapshot(session, snapshot, legacyEnemyContent);
+        }
+        catch
+        {
+            _contentCatalog.ClearSessionBinding();
+            _sessionRef = null;
+            throw;
+        }
     }
 
     /// <summary>
@@ -27,6 +44,14 @@ public sealed class GameRoot : IDisposable
         if (_disposed)
             return;
         _disposed = true;
+        _contentCatalog.ClearSessionBinding();
+        _sessionRef = null;
+    }
+
+    internal void ClearSnapshotBindingForRetry()
+    {
+        if (_disposed)
+            return;
         _contentCatalog.ClearSessionBinding();
         _sessionRef = null;
     }

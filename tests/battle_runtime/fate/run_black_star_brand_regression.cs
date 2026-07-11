@@ -218,7 +218,7 @@ public partial class run_black_star_brand_regression : LifecycleTestSceneTree
 
     private BattleRuntimeModule BuildRuntime()
     {
-        var registry = new ProgressionContentRegistry();
+        var registry = new ProgressionContentRegistry(new TestContentResourceLoader());
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,

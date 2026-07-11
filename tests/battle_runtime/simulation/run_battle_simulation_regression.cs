@@ -30,7 +30,9 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
 
     private void TestReadyQueueDoesNotConsumeTimelineTicks()
     {
-        var runner = new BattleSimRunner();
+        var runner = new BattleSimRunner(
+            new BattleSimContentProvider(new TestContentResourceLoader())
+        );
         BattleSimScenarioReport report = runner.RunScenario(
             BuildReadyQueueScenario(),
             new List<BattleSimProfileDef> { BuildBaselineProfile() }
@@ -67,7 +69,9 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
 
     private void TestSimulationReportIncludesTraceAndPatchedSkillFallback()
     {
-        var runner = new BattleSimRunner();
+        var runner = new BattleSimRunner(
+            new BattleSimContentProvider(new TestContentResourceLoader())
+        );
         BattleSimScenarioReport report = runner.RunScenario(
             BuildScenario(),
             new List<BattleSimProfileDef>

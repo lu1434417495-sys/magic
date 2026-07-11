@@ -365,8 +365,8 @@ public partial class run_void_axe_weapon_ability_regression : LifecycleTestScene
 
         internal static Fixture Build(GArray damageRolls)
         {
-            ItemContentRegistry items = new();
-            ProgressionContentRegistry progression = new();
+            ItemContentRegistry items = new(new TestContentResourceLoader());
+            ProgressionContentRegistry progression = new(new TestContentResourceLoader());
             PartyState party = BuildPartyState("hero");
             CharacterManagementModule management = new();
             management.setup(

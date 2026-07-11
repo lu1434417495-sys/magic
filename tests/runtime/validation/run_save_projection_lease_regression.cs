@@ -16,7 +16,7 @@ public partial class run_save_projection_lease_regression : LifecycleTestSceneTr
 
     private void Run()
     {
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         try
         {
             _test.Eq(

@@ -180,10 +180,10 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Life
 
     private Fixture BuildRuntimeFixture(Vector2I mapSize, BattleUnitState[] extraUnits)
     {
-        var progressionRegistry = new ProgressionContentRegistry();
+        var progressionRegistry = new ProgressionContentRegistry(new TestContentResourceLoader());
         IReadOnlyDictionary<StringName, SkillDefinition> typedSkillDefinitions =
             progressionRegistry.GetSkillDefinitionsTyped();
-        var specialRegistry = new BattleSpecialProfileRegistry();
+        var specialRegistry = new BattleSpecialProfileRegistry(new TestContentResourceLoader());
         specialRegistry.Rebuild(typedSkillDefinitions);
         _test.True(specialRegistry.Validate().Count == 0, "正式 special profile registry 应可用于 preview surface fixture。");
         var runtime = new BattleRuntimeModule();
@@ -192,7 +192,6 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Life
             enemy_templates: new Dictionary<StringName, EnemyTemplateDef>(),
             enemy_ai_brains: new Dictionary<StringName, EnemyAiBrainDef>(),
             item_defs: new Dictionary<StringName, ItemDefinition>(),
-            battle_special_profile_registry_snapshot: specialRegistry.GetRuntimeSnapshotPayload(),
             battle_special_profile_view: specialRegistry.BuildRuntimeProfileView()
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));

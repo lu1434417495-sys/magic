@@ -131,7 +131,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         }
     }
 
-    internal WorldMapGenerationConfig _generation_config;
+    internal WorldGenerationDefinition _generation_definition;
     internal GameSession _game_session;
     internal GameRoot _game_root;
     internal GameContentCatalog _content_catalog;
@@ -266,13 +266,17 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     public void Setup(GameSession game_session)
     {
         _game_session = game_session;
-        _game_root = _game_session?.GetGameRootTyped();
-        _content_catalog = _game_root?.GetContentCatalogTyped();
-        if (_game_session == null || !_game_session.HasActiveWorld())
+        if (_game_session == null)
             return;
 
-        _generation_config = _game_session.GetGenerationConfig();
-        if (_generation_config == null)
+        _ = _game_session.GetContentSnapshotEpoch();
+        _game_root = _game_session.GetGameRootTyped();
+        _content_catalog = _game_root.GetContentCatalogTyped();
+        if (!_game_session.HasActiveWorld())
+            return;
+
+        _generation_definition = _game_session.GetGenerationDefinition();
+        if (_generation_definition == null)
             return;
 
         _world_map_data_context.BindRootWorldData(
@@ -326,7 +330,6 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             trait_defs: _content_catalog.GetTraitDefsTyped(),
             equipment_ability_bindings: _content_catalog.GetEquipmentAbilityBindingDefinitionsTyped(),
             equipment_instance_id_allocator: GetEquipmentInstanceIdAllocator(),
-            battle_special_profile_registry_snapshot: _content_catalog.GetBattleSpecialProfileRegistryRuntimeSnapshot(),
             skill_catalog: _content_catalog.GetSkillCatalogTyped(),
             skill_definitions: _content_catalog.GetSkillDefinitionsTyped(),
             battle_special_profile_view: _content_catalog.GetBattleSpecialProfileView(),
@@ -447,7 +450,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         _game_session = null;
         _game_root = null;
         _content_catalog = null;
-        _generation_config = null;
+        _generation_definition = null;
         _world_map_data_context.Dispose();
         _pending_submap_prompt.Clear();
         _pending_battle_start_prompt.Clear();
@@ -770,8 +773,8 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     internal WorldRuntimeData GetActiveWorldRuntimeData() =>
         _world_map_data_context.ActiveRuntimeData;
 
-    internal WorldMapGenerationConfig GetGenerationConfig() =>
-        _world_map_data_context.GetActiveGenerationConfig();
+    internal WorldGenerationDefinition GetGenerationDefinition() =>
+        _world_map_data_context.GetActiveGenerationDefinition();
 
     public Vector2I GetPlayerCoord() => _player_coord;
 
@@ -1463,7 +1466,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     public bool advance(float delta)
     {
         _last_advance_battle_refresh_mode = BattleRefreshMode.None;
-        if (_generation_config == null)
+        if (_generation_definition == null)
             return false;
         if (_try_complete_pending_battle_start())
         {
@@ -1747,7 +1750,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
 
     private void _RefreshFog()
     {
-        if (_world_map_data_context.active_generation_config == null)
+        if (_world_map_data_context.active_generation_definition == null)
             return;
         string leaderMemberId = "player_main";
         if (_party_state != null && _party_state.leader_member_id != "")
@@ -1756,7 +1759,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         {
             source_id = leaderMemberId,
             center = _player_coord,
-            range = _world_map_data_context.active_generation_config.player_vision_range,
+            range = _world_map_data_context.active_generation_definition.PlayerVisionRange,
             faction_id = _player_faction_id,
         };
         _fog_system.RebuildVisibilityForFaction(_player_faction_id, new[] { visionSource });

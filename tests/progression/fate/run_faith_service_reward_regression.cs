@@ -26,7 +26,7 @@ public partial class run_faith_service_reward_regression : LifecycleTestSceneTre
     private void TestFortunaRankRewardUsesTypedRewardEntryFields()
     {
         PartyState partyState = BuildPartyState();
-        var faithRegistry = new FaithContentRegistry();
+        var faithRegistry = new FaithContentRegistry(new TestContentResourceLoader());
         faithRegistry.Rebuild();
         var faithService = new FaithService(faithRegistry.GetFaithDeityDefsTyped());
 

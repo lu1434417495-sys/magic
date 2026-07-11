@@ -327,7 +327,7 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
 
     private void TestTemporalContentValidationRules()
     {
-        using SkillContentRegistry registry = new();
+        using SkillContentRegistry registry = new(new TestContentResourceLoader());
 
         // 1) 施加 time_stasis 必须带 temporal tag / temporal save_tag / save。
         var missingErrors = new Godot.Collections.Array<string>();

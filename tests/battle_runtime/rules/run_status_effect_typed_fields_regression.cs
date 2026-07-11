@@ -41,7 +41,7 @@ public partial class run_status_effect_typed_fields_regression : LifecycleTestSc
 
     private void TestEffectSchemaRejectsLegacyLockGuardParam()
     {
-        var registry = new SkillContentRegistry();
+        var registry = new SkillContentRegistry(new TestContentResourceLoader());
         var errors = new GStringArray();
         var effectDef = TestResourceOwnership.Own(
             new CombatEffectDef

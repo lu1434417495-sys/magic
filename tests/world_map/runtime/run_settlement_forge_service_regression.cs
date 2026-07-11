@@ -324,7 +324,7 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
         runtime._world_map_data_context.BindRootWorldData(worldData);
         var contextGrid = new WorldMapGridSystem();
         runtime._world_map_data_context.SyncActiveWorldContext(
-            gameSession._generation_config,
+            gameSession._generation_definition,
             contextGrid,
             Vector2I.Zero,
             Vector2I.Zero
@@ -357,10 +357,10 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
             TestConfigPath,
             worldData,
             partyState,
-            null,
             "forge_handler_test",
             "Forge Handler Test",
-            new Vector2I(8, 8)
+            new Vector2I(8, 8),
+            TestWorldGenerationDefinitionFactory.Load(TestConfigPath)
         );
     }
 
@@ -374,7 +374,7 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
             }
         }
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
-        var gameSession = new GameSession { Name = nodeName };
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot(nodeName);
         Root.AddChild(gameSession);
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
         return gameSession;
@@ -576,7 +576,7 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
 
     private static IReadOnlyDictionary<StringName, ItemDefinition> LoadItemDefs()
     {
-        using ItemContentRegistry registry = new();
+        using ItemContentRegistry registry = new(new TestContentResourceLoader());
         return new Dictionary<StringName, ItemDefinition>(registry.GetItemDefsTyped());
     }
 
@@ -584,7 +584,7 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs
     )
     {
-        using RecipeContentRegistry registry = new();
+        using RecipeContentRegistry registry = new(new TestContentResourceLoader());
         registry.Setup(itemDefs);
         return new Dictionary<StringName, RecipeDefinition>(registry.GetRecipeDefsTyped());
     }

@@ -379,7 +379,7 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
 
     private GameSession CreateTestSession()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
         _test.True(
             createError == Error.Ok,
@@ -419,7 +419,6 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
                 facade.GetItemDefsTyped(),
                 null,
                 facade.GetEquipmentInstanceIdAllocator(),
-                catalog?.GetBattleSpecialProfileRegistryRuntimeSnapshot(),
                 facade.GetSkillCatalogTyped(),
                 catalog?.GetBattleSpecialProfileView()
             );

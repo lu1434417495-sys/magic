@@ -7,6 +7,12 @@ public partial class WorldMapSettlementNamePool : Resource
     [Export]
     public Array<string> settlement_display_names = new();
 
+    internal Array<string> SettlementDisplayNamesProjectionBorrowed =>
+        settlement_display_names;
+
+    internal WorldMapSettlementNamePoolDefinition ToDefinition(string path) =>
+        WorldMapSettlementNamePoolDefinition.FromResource(this, path);
+
     public Array<string> BuildUniqueDisplayNames()
     {
         var uniqueNames = new Array<string>();

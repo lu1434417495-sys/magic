@@ -618,8 +618,8 @@ public partial class run_wyrmbreak_weapon_ability_regression : LifecycleTestScen
 
         internal static WyrmbreakFixture Build(BattleDamageResolver damageResolver)
         {
-            ItemContentRegistry itemRegistry = new();
-            ProgressionContentRegistry progressionRegistry = new();
+            ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
+            ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
             PartyState partyState = BuildPartyState("hero");
             CharacterManagementModule characterManagement = new();
             characterManagement.setup(

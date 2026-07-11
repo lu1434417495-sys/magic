@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_contingency_autocast_origin_regression : LifecycleTestSceneTree
@@ -423,7 +422,6 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
         runtime.setup(
             character_gateway: gateway,
             skill_definitions: new Dictionary<StringName, SkillDefinition> { [meteorSkill.SkillId] = meteorSkill },
-            battle_special_profile_registry_snapshot: BuildMeteorSpecialProfileSnapshot(meteorProfile),
             battle_special_profile_view: BattleSpecialProfileRuntimeView.ForMeteorSwarm(
                 "meteor_swarm",
                 meteorProfile
@@ -889,36 +887,6 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
     private static ContingencyTargetResolverState Resolver(string type) =>
         ContingencyTargetResolverState.FromDictionary(new GDictionary { ["type"] = type });
 
-    private static GDictionary BuildMeteorSpecialProfileSnapshot(MeteorSwarmProfile meteorProfile)
-    {
-        GDictionary profiles = new()
-        {
-            ["meteor_swarm"] = new GDictionary
-            {
-                ["profile_id"] = "meteor_swarm",
-                ["runtime_resolver_id"] = "meteor_swarm",
-                ["owning_skill_ids"] = new GStringArray { "mage_meteor_swarm" },
-                ["profile_resource_path"] = meteorProfile?.ResourcePath ?? "",
-                ["presentation_metadata"] = new GDictionary
-                {
-                    ["display_name"] = "陨星雨",
-                    ["coverage_shape_id"] = "square_7x7",
-                    ["radius"] = 3,
-                },
-                ["required_regression_tests"] = new GStringArray(),
-            },
-        };
-        return new GDictionary
-        {
-            ["ok"] = true,
-            ["errors"] = new GStringArray(),
-            ["profiles"] = profiles,
-            ["profile_id_by_skill_id"] = new GDictionary
-            {
-                ["mage_meteor_swarm"] = "meteor_swarm",
-            },
-        };
-    }
 
     private static string DictString(GDictionary source, string key, string fallback = "")
     {

@@ -24,7 +24,8 @@ public partial class run_enemy_content_registry_typed_regression : LifecycleTest
 
     private void TestRebuildClearsOfficialCatalogBeforeLoadingInvalidSeed()
     {
-        using EnemyContentRegistry registry = new();
+        using TestContentResourceLoader loader = new();
+        using EnemyContentRegistry registry = new(loader);
         registry.ConfigureSeedResource(OfficialSeedPath, true, true);
         registry.ConfigureSeedResource(InvalidReferenceSeedPath, true, false);
 

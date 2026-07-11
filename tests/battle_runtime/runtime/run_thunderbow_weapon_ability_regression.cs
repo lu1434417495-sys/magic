@@ -553,8 +553,8 @@ public partial class run_thunderbow_weapon_ability_regression : LifecycleTestSce
 
         internal static ThunderbowFixture Build(GArray damageRolls)
         {
-            ItemContentRegistry itemRegistry = new();
-            ProgressionContentRegistry progressionRegistry = new();
+            ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
+            ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
             PartyState partyState = BuildPartyState("hero");
             CharacterManagementModule characterManagement = new();
             characterManagement.setup(

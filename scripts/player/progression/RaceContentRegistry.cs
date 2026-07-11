@@ -8,7 +8,8 @@ public class RaceContentRegistry : IdentityContentRegistryBase
 
     private readonly Dictionary<StringName, RaceDefinition> _race_defs = new();
 
-    public RaceContentRegistry()
+    internal RaceContentRegistry(IContentResourceLoader resourceLoader)
+        : base(resourceLoader)
     {
         _registry_label = "RaceContentRegistry";
         Rebuild();
@@ -43,13 +44,12 @@ public class RaceContentRegistry : IdentityContentRegistryBase
 
     protected override void _register_resource(string resourcePath)
     {
-        var resource = GD.Load<Resource>(resourcePath);
+        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
         if (resource == null)
         {
             _validation_errors.Add($"Failed to load race config {resourcePath}.");
             return;
         }
-        GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
         if (resource is not RaceDef raceDef)
         {
             _validation_errors.Add($"Race config {resourcePath} is not a RaceDef.");

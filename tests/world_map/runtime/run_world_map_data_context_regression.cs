@@ -396,6 +396,16 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
                 },
             };
             context.BindRootWorldData(rootWorldData);
+            WorldGenerationDefinition rootDefinition = BuildConfig(
+                "ash_submap",
+                TestWorldConfig
+            );
+            context.SyncActiveWorldContext(
+                rootDefinition,
+                grid,
+                new Vector2I(1, 1),
+                new Vector2I(1, 1)
+            );
 
             WorldMapSubmapEnterResult enterResult = context.EnterSubmap(
                 "ash_submap",
@@ -415,7 +425,7 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
             _test.Eq(returnEntry["coord"].AsVector2I(), new Vector2I(1, 1), "Submap entry should preserve source coord.");
 
             context.SyncActiveWorldContext(
-                BuildConfig(),
+                rootDefinition,
                 grid,
                 enterResult.PlayerCoord,
                 enterResult.PlayerCoord
@@ -452,6 +462,7 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
     private void TestEnsureSubmapGeneratedBuildsTypedWorldData()
     {
         WorldMapDataContext context = new();
+        WorldMapGridSystem grid = new();
         try
         {
             GDictionary rootWorldData = BuildRootWorldData();
@@ -468,6 +479,12 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
                 },
             };
             context.BindRootWorldData(rootWorldData);
+            context.SyncActiveWorldContext(
+                BuildConfig("generated_submap", TestWorldConfig),
+                grid,
+                Vector2I.Zero,
+                Vector2I.Zero
+            );
 
             _test.True(
                 context.EnsureSubmapGenerated("generated_submap"),
@@ -552,13 +569,44 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
         }
     }
 
-    private static WorldMapGenerationConfig BuildConfig() =>
-        new()
+    private static WorldGenerationDefinition BuildConfig()
+    {
+        WorldMapGenerationConfig source = new()
         {
             world_size_in_chunks = new Vector2I(1, 1),
             chunk_size = new Vector2I(4, 4),
             player_start_coord = new Vector2I(1, 1),
         };
+        return TestWorldGenerationDefinitionFactory.Project(
+            "res://tests/world_map/runtime/data_context_generation.tres",
+            source
+        );
+    }
+
+    private static WorldGenerationDefinition BuildConfig(
+        string submapId,
+        string generationConfigPath
+    )
+    {
+        WorldMapGenerationConfig source = new()
+        {
+            world_size_in_chunks = new Vector2I(1, 1),
+            chunk_size = new Vector2I(4, 4),
+            player_start_coord = new Vector2I(1, 1),
+        };
+        source.mounted_submaps.Add(
+            new MountedSubmapConfig
+            {
+                submap_id = submapId,
+                display_name = submapId,
+                generation_config_path = generationConfigPath,
+            }
+        );
+        return TestWorldGenerationDefinitionFactory.Project(
+            $"res://tests/world_map/runtime/data_context_{submapId}_generation.tres",
+            source
+        );
+    }
 
     private static GDictionary BuildRootWorldData() =>
         new()

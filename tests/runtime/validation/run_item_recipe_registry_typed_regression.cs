@@ -35,7 +35,8 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
 
     private void TestOfficialItemRegistryTypedBoundaryMatchesPublicBoundary()
     {
-        using ItemContentRegistry registry = new();
+        using TestContentResourceLoader loader = new();
+        using ItemContentRegistry registry = new(loader);
 
         IReadOnlyDictionary<StringName, ItemDefinition> typedItemDefs =
             registry.GetItemDefsTyped();
@@ -70,8 +71,9 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
 
     private void TestOfficialRecipeRegistryTypedBoundaryMatchesPublicBoundary()
     {
-        using ItemContentRegistry itemRegistry = new();
-        using RecipeContentRegistry recipeRegistry = new();
+        using TestContentResourceLoader loader = new();
+        using ItemContentRegistry itemRegistry = new(loader);
+        using RecipeContentRegistry recipeRegistry = new(loader);
 
         recipeRegistry.Setup(itemRegistry.GetItemDefsTyped());
 
@@ -104,8 +106,9 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
 
     private void TestInvalidRecipeRegistryTypedBoundaryMatchesPublicBoundary()
     {
-        using ItemContentRegistry itemRegistry = new();
-        using RecipeContentRegistry recipeRegistry = new();
+        using TestContentResourceLoader loader = new();
+        using ItemContentRegistry itemRegistry = new(loader);
+        using RecipeContentRegistry recipeRegistry = new(loader);
 
         recipeRegistry.Setup(itemRegistry.GetItemDefsTyped());
         recipeRegistry.LoadFromDirectory(InvalidRecipeDirectory);

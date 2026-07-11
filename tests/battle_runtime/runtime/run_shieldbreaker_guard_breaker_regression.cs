@@ -453,8 +453,8 @@ public partial class run_shieldbreaker_guard_breaker_regression : LifecycleTestS
 
         internal static ShieldbreakerFixture Build(GArray damageRolls = null)
         {
-            ItemContentRegistry itemRegistry = new();
-            ProgressionContentRegistry progressionRegistry = new();
+            ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
+            ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
             Dictionary<StringName, ItemDefinition> itemDefs = new(
                 itemRegistry.GetItemDefsTyped()
             );

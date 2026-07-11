@@ -25,7 +25,7 @@ public partial class run_battle_session_promotion_prompt_regression : LifecycleT
 
     private void TestPromotionPromptFiltersInvalidCandidates()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         GameRuntimeFacade runtime = new();
         BattleSessionFacade facade = new();
         try
@@ -112,7 +112,7 @@ public partial class run_battle_session_promotion_prompt_regression : LifecycleT
 
     private void TestPromotionPromptCapturesBatchProjection()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         GameRuntimeFacade runtime = new();
         BattleSessionFacade facade = new();
         try

@@ -119,7 +119,7 @@ public partial class run_world_map_view_color_config_regression : LifecycleTestS
         _gameSession = Root.GetNodeOrNull<GameSession>("GameSession");
         if (_gameSession != null)
             return;
-        _gameSession = new GameSession { Name = "GameSession" };
+        _gameSession = GameSessionTestFactory.CreateForCoordinatorAttachment();
         Root.AddChild(_gameSession);
         await ProcessFrames(1);
     }

@@ -22,7 +22,7 @@ public partial class run_skill_attribute_growth_typed_regression : LifecycleTest
 
     private void TestAttributeGrowthSchemaValidation()
     {
-        SkillContentRegistry registry = new();
+        SkillContentRegistry registry = new(new TestContentResourceLoader());
 
         SkillDef validSkill = BuildGrowthSchemaSkill(
             "valid_growth_schema_skill",
@@ -110,7 +110,7 @@ public partial class run_skill_attribute_growth_typed_regression : LifecycleTest
 
     private void TestOfficialSkillResourcesExposeTypedAttributeGrowth()
     {
-        ProgressionContentRegistry registry = new();
+        ProgressionContentRegistry registry = new(new TestContentResourceLoader());
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             registry.GetSkillDefinitionsTyped();
 

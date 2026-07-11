@@ -20,7 +20,7 @@ public partial class run_skill_tags_typed_regression : LifecycleTestSceneTree
 
     private void TestOfficialSkillResourcesExposeTypedTags()
     {
-        ProgressionContentRegistry registry = new();
+        ProgressionContentRegistry registry = new(new TestContentResourceLoader());
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             registry.GetSkillDefinitionsTyped();
 

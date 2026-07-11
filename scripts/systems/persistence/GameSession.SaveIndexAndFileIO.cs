@@ -490,16 +490,10 @@ public partial class GameSession
                     saveMeta,
                     "generation_config_path"
                 );
-                WorldMapGenerationConfig generationConfig = LoadGenerationConfig(
-                    generationConfigPath
-                );
-                if (generationConfig == null)
-                    continue;
                 if (
                     !_save_serializer.TryDecodePayload(
                         plainPayload,
                         generationConfigPath,
-                        generationConfig,
                         saveMeta,
                         out SaveDecodeResult decodeResult
                     )

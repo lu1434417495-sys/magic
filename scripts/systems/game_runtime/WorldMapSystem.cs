@@ -29,9 +29,8 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
     private const float BATTLE_LOADING_PROGRESS_MIN = 0.0f;
     private const float BATTLE_LOADING_PROGRESS_MAX = 100.0f;
     private const string BATTLE_LOADING_MODAL_ID = "battle_loading";
-    private static readonly PackedScene ContingencySetupWindowScene = GD.Load<PackedScene>(
-        "res://scenes/ui/contingency_setup_window.tscn"
-    );
+    private const string ContingencySetupWindowScenePath =
+        "res://scenes/ui/contingency_setup_window.tscn";
     private const float LOG_DOCK_DESIGN_TOP_MARGIN = 60.0f;
     private const float LOG_DOCK_DESIGN_BOTTOM_MARGIN = 60.0f;
     private const float LOG_DOCK_DESIGN_RIGHT_MARGIN = 12.0f;
@@ -107,9 +106,9 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             GameLog.Error("World map requires an active save loaded in GameSession.", "worldmap.no_active_save", "worldmap");
             return;
         }
-        if (_game_session.GetGenerationConfig() == null)
+        if (_game_session.GetGenerationDefinition() == null)
         {
-            GameLog.Error("GameSession is missing an active world generation config.", "worldmap.missing_generation_config", "worldmap");
+            GameLog.Error("GameSession is missing an active world generation definition.", "worldmap.missing_generation_definition", "worldmap");
             return;
         }
 
@@ -1174,9 +1173,11 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         character_info_window = GetNode<CharacterInfoWindow>("CharacterInfoWindow");
         party_management_window = GetNode<PartyManagementWindow>("PartyManagementWindow");
         contingency_setup_window = GetNodeOrNull<ContingencySetupWindow>("ContingencySetupWindow");
-        if (contingency_setup_window == null && ContingencySetupWindowScene != null)
+        if (contingency_setup_window == null)
         {
-            contingency_setup_window = ContingencySetupWindowScene.Instantiate<ContingencySetupWindow>();
+            contingency_setup_window = EngineAssetAccess
+                .ResolveBorrowed<PackedScene>(this, ContingencySetupWindowScenePath)
+                .Instantiate<ContingencySetupWindow>();
             contingency_setup_window.Name = "ContingencySetupWindow";
             AddChild(contingency_setup_window);
         }

@@ -27,7 +27,7 @@ public partial class run_skill_catalog_query_regression : LifecycleTestSceneTree
 
     private void Run()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         try
         {
             GameContentCatalog contentCatalog = gameSession.GetContentCatalogTyped();

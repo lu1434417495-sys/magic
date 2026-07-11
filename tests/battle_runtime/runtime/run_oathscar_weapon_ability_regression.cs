@@ -1151,8 +1151,8 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
 
         internal static OathscarFixture Build(GArray damageRolls)
         {
-            ItemContentRegistry itemRegistry = new();
-            ProgressionContentRegistry progressionRegistry = new();
+            ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
+            ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
             PartyState partyState = BuildPartyState("hero");
             CharacterManagementModule characterManagement = new();
             characterManagement.setup(

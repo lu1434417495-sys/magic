@@ -24,18 +24,18 @@ public partial class run_world_map_spawn_typed_regression : LifecycleTestSceneTr
 
     private void TestTypedWorldBuildProjectsSettlementsAndAnchors()
     {
-        WorldMapGenerationConfig config = ResourceLoader.Load<WorldMapGenerationConfig>(
+        WorldGenerationDefinition definition = TestWorldGenerationDefinitionFactory.Load(
             TestWorldConfig
         );
-        _test.True(config != null, "typed world build regression 需要可加载的测试世界配置。");
-        if (config == null)
+        _test.True(definition != null, "typed world build regression 需要可投影的测试世界配置。");
+        if (definition == null)
             return;
 
         WorldMapGridSystem gridSystem = new();
-        gridSystem.Setup(config.world_size_in_chunks, config.chunk_size);
+        gridSystem.Setup(definition.WorldSizeInChunks, definition.ChunkSize);
         WorldMapSpawnSystem spawnSystem = new();
         WorldMapSpawnSystem.WorldBuildData typedWorld = spawnSystem.BuildWorldTyped(
-            config,
+            definition,
             gridSystem
         );
         GDictionary projectedWorld = WorldMapSpawnProjection.Project(typedWorld);
@@ -136,18 +136,18 @@ public partial class run_world_map_spawn_typed_regression : LifecycleTestSceneTr
 
     private void TestTypedWorldBuildGeneratesResourceNodes()
     {
-        WorldMapGenerationConfig config = ResourceLoader.Load<WorldMapGenerationConfig>(
+        WorldGenerationDefinition definition = TestWorldGenerationDefinitionFactory.Load(
             TestWorldConfig
         );
-        _test.True(config != null, "resource node generation regression 需要可加载的测试世界配置。");
-        if (config == null)
+        _test.True(definition != null, "resource node generation regression 需要可投影的测试世界配置。");
+        if (definition == null)
             return;
 
         WorldMapGridSystem gridSystem = new();
-        gridSystem.Setup(config.world_size_in_chunks, config.chunk_size);
+        gridSystem.Setup(definition.WorldSizeInChunks, definition.ChunkSize);
         WorldMapSpawnSystem spawnSystem = new();
         WorldMapSpawnSystem.WorldBuildData typedWorld = spawnSystem.BuildWorldTyped(
-            config,
+            definition,
             gridSystem
         );
 

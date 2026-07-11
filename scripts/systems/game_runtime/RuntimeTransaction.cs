@@ -220,7 +220,7 @@ internal sealed class RuntimeTransactionRollbackState
         if (worldOrCoordRestored)
         {
             runtime._world_map_data_context.SyncActiveWorldContext(
-                runtime.GetGenerationConfig(),
+                runtime.GetGenerationDefinition(),
                 runtime.GetGridSystem(),
                 runtime.GetPlayerCoord(),
                 runtime.GetSelectedCoord()

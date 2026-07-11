@@ -151,7 +151,7 @@ public partial class run_world_map_battle_loading_overlay_regression : Lifecycle
         _gameSession = Root.GetNodeOrNull<GameSession>("GameSession");
         if (_gameSession != null)
             return;
-        _gameSession = new GameSession { Name = "GameSession" };
+        _gameSession = GameSessionTestFactory.CreateForCoordinatorAttachment();
         Root.AddChild(_gameSession);
         await ProcessFrames(1);
     }

@@ -746,8 +746,8 @@ public partial class run_last_lesson_weapon_ability_regression : LifecycleTestSc
 
         internal static LastLessonFixture Build(GArray damageRolls)
         {
-            ItemContentRegistry itemRegistry = new();
-            ProgressionContentRegistry progressionRegistry = new();
+            ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
+            ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
             PartyState partyState = BuildPartyState("hero");
             CharacterManagementModule characterManagement = new();
             characterManagement.setup(

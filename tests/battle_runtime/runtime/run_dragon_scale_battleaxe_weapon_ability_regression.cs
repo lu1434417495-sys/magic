@@ -630,8 +630,8 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
 
         internal static DragonScaleFixture Build(GArray damageRolls)
         {
-            ItemContentRegistry itemRegistry = new();
-            ProgressionContentRegistry progressionRegistry = new();
+            ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
+            ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
             PartyState partyState = BuildPartyState("hero");
             CharacterManagementModule characterManagement = new();
             characterManagement.setup(

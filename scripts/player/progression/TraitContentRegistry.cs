@@ -10,7 +10,8 @@ public class TraitContentRegistry : IdentityContentRegistryBase
 
     private readonly Dictionary<StringName, TraitDefinition> _traitDefinitions = new();
 
-    public TraitContentRegistry()
+    internal TraitContentRegistry(IContentResourceLoader resourceLoader)
+        : base(resourceLoader)
     {
         _registry_label = "TraitContentRegistry";
         Rebuild();
@@ -63,13 +64,12 @@ public class TraitContentRegistry : IdentityContentRegistryBase
 
     protected override void _register_resource(string resourcePath)
     {
-        Resource resource = GD.Load<Resource>(resourcePath);
+        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
         if (resource == null)
         {
             _validation_errors.Add($"Failed to load trait config {resourcePath}.");
             return;
         }
-        GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
         if (resource is not TraitDef traitDef)
         {
             _validation_errors.Add($"Trait config {resourcePath} is not a TraitDef.");

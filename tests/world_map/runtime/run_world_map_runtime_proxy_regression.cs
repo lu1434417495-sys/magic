@@ -337,12 +337,17 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
         Dictionary<StringName, SkillDefinition> skillDefinitions = BuildSkillDefinitions();
         GDictionary itemDefs = BuildItemDefs();
         WorldMapGenerationConfig generationConfig = new();
+        WorldGenerationDefinition generationDefinition =
+            TestWorldGenerationDefinitionFactory.Project(
+                "res://tests/world_map/runtime/runtime_proxy_generation.tres",
+                generationConfig
+            );
         GameRuntimeFacade runtime = new()
         {
             _party_state = partyState,
-            _generation_config = generationConfig,
+            _generation_definition = generationDefinition,
         };
-        runtime._world_map_data_context.active_generation_config = generationConfig;
+        runtime._world_map_data_context.active_generation_definition = generationDefinition;
         runtime._world_map_data_context.active_world_data = new GDictionary
         {
             ["world_step"] = 0,

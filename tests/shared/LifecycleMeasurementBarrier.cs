@@ -10,8 +10,14 @@ internal static class LifecycleMeasurementBarrier
 
         await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
         await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
-        GC.Collect();
-        GC.WaitForPendingFinalizers();
+        for (int wave = 0; wave < GodotObjectLifecycle.FinalizerDrainWaveLimit; wave++)
+        {
+            GC.Collect();
+            long pendingFinalizers = GC.GetGCMemoryInfo().FinalizationPendingCount;
+            GC.WaitForPendingFinalizers();
+            if (pendingFinalizers == 0)
+                break;
+        }
         GC.Collect();
         await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
     }

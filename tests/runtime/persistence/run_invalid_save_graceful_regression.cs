@@ -28,7 +28,7 @@ public partial class run_invalid_save_graceful_regression : LifecycleTestSceneTr
         if (saveResourceError != Error.Ok)
             return;
 
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         Error createError = (Error)gameSession.CreateNewSave(InvalidGenerationConfigPath);
         _test.Eq(createError, Error.CantOpen, "类型错误的 generation config 应通过 create_new_save() 返回错误，不应中止进程。");
         _test.False(gameSession.HasActiveWorld(), "类型错误的 generation config 不应留下 active world。");
@@ -38,7 +38,7 @@ public partial class run_invalid_save_graceful_regression : LifecycleTestSceneTr
 
     private void TestLoadSaveRejectsBadWorldDataWithoutQuit()
     {
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
         _test.Eq(createError, Error.Ok, "坏 world_data 回归前置：应能创建测试存档。");
         if (createError != Error.Ok)
@@ -79,7 +79,7 @@ public partial class run_invalid_save_graceful_regression : LifecycleTestSceneTr
 
     private void TestCreateNewSaveRejectsBadCreationIdentityWithoutCreatingSlot()
     {
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         Error clearError = (Error)gameSession.ClearPersistedGame();
         _test.Eq(clearError, Error.Ok, "坏建卡 identity 建档回归前置：应能清理旧存档。");
 
@@ -97,7 +97,7 @@ public partial class run_invalid_save_graceful_regression : LifecycleTestSceneTr
 
     private void TestCreateNewSaveAcceptsValidCreationIdentityPayload()
     {
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         Error createError = (Error)gameSession.CreateNewSave(
             TestWorldConfig,
             "",

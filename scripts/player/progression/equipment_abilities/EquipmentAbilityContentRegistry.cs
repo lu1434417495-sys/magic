@@ -29,6 +29,11 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
     private int _revision;
     private bool _disposed;
 
+    internal EquipmentAbilityContentRegistry(IContentResourceLoader resourceLoader)
+    {
+        ArgumentNullException.ThrowIfNull(resourceLoader);
+    }
+
     public void Dispose()
     {
         if (_disposed)

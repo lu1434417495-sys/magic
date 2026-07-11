@@ -534,14 +534,16 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
         IReadOnlyDictionary<StringName, QuestDefinition> questDefs = null
     )
     {
-        GameSession gameSession = await InstallGameSession($"SettlementPersistFailure_{suffix}");
+        GameSession gameSession = await InstallGameSession(
+            $"SettlementPersistFailure_{suffix}",
+            questDefs
+        );
         GDictionary worldData = BuildWorldData(settlements);
         ConfigureSessionForRuntimeTest(
             gameSession,
             $"settlement_persist_failure_{suffix}",
             worldData,
-            partyState,
-            questDefs
+            partyState
         );
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = gameSession.GetItemDefsTyped();
 
@@ -558,7 +560,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
         runtime._world_map_data_context.BindRootWorldData(worldData);
         var contextGrid = new WorldMapGridSystem();
         runtime._world_map_data_context.SyncActiveWorldContext(
-            gameSession._generation_config,
+            gameSession._generation_definition,
             contextGrid,
             Vector2I.Zero,
             Vector2I.Zero
@@ -606,8 +608,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
         GameSession gameSession,
         string saveId,
         GDictionary worldData,
-        PartyState partyState,
-        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = null
+        PartyState partyState
     )
     {
         gameSession.ConfigureRuntimeWorldForTests(
@@ -615,14 +616,17 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
             TestConfigPath,
             worldData,
             partyState,
-            questDefs ?? new Dictionary<StringName, QuestDefinition>(),
             "settlement_persist_failure_test",
             "Settlement Persist Failure Test",
-            new Vector2I(8, 8)
+            new Vector2I(8, 8),
+            TestWorldGenerationDefinitionFactory.Load(TestConfigPath)
         );
     }
 
-    private async Task<GameSession> InstallGameSession(string nodeName)
+    private async Task<GameSession> InstallGameSession(
+        string nodeName,
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = null
+    )
     {
         foreach (Node child in Root.GetChildren())
         {
@@ -630,7 +634,12 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
                 child.QueueFree();
         }
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
-        var gameSession = new GameSession { Name = nodeName };
+        GameSession gameSession = questDefs == null
+            ? GameSessionTestFactory.CreateBorrowingProcessSnapshot(nodeName)
+            : GameSessionTestFactory.CreateSyntheticFromProcessSnapshot(
+                seed => seed.Quests = questDefs
+            );
+        gameSession.Name = nodeName;
         Root.AddChild(gameSession);
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
         return gameSession;

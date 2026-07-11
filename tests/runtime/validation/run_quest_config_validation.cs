@@ -12,7 +12,7 @@ public partial class run_quest_config_validation : LifecycleTestSceneTree
 
     private void Run()
     {
-        var registry = new QuestContentRegistry();
+        var registry = new QuestContentRegistry(new TestContentResourceLoader());
         registry.LoadFromDirectory("res://data/configs/quests");
 
         IReadOnlyList<string> registryErrors = registry.GetValidationErrors();
@@ -24,9 +24,9 @@ public partial class run_quest_config_validation : LifecycleTestSceneTree
         IReadOnlyDictionary<StringName, QuestDefinition> questDefs =
             registry.GetQuestDefsTyped();
 
-        using ItemContentRegistry itemRegistry = new();
-        using SkillContentRegistry skillRegistry = new();
-        using EnemyContentRegistry enemyRegistry = new();
+        using ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
+        using SkillContentRegistry skillRegistry = new(new TestContentResourceLoader());
+        using EnemyContentRegistry enemyRegistry = new(new TestContentResourceLoader());
 
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = itemRegistry.GetItemDefsTyped();
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =

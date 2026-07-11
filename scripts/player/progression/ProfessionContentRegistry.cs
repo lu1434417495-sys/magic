@@ -21,6 +21,7 @@ public class ProfessionContentRegistry : System.IDisposable
 
     private readonly System.Collections.Generic.Dictionary<StringName, ProfessionDefinition>
         _professionDefinitions = new();
+    private readonly IContentResourceLoader _resourceLoader;
     private readonly List<string> _validationErrors = new();
     public Array<string> _validation_errors
     {
@@ -38,8 +39,9 @@ public class ProfessionContentRegistry : System.IDisposable
         SnapshotDefinitions<SkillDefinition>(null);
     private bool _disposed;
 
-    public ProfessionContentRegistry()
+    internal ProfessionContentRegistry(IContentResourceLoader resourceLoader)
     {
+        _resourceLoader = resourceLoader ?? throw new ArgumentNullException(nameof(resourceLoader));
         Setup();
     }
 
@@ -141,13 +143,12 @@ public class ProfessionContentRegistry : System.IDisposable
 
     private void RegisterProfessionResource(string resourcePath)
     {
-        var resource = GD.Load<Resource>(resourcePath);
+        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
         if (resource == null)
         {
             _validationErrors.Add($"Failed to load profession config {resourcePath}.");
             return;
         }
-        GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
         if (resource is not ProfessionDef professionDef)
         {
             _validationErrors.Add($"Profession config {resourcePath} is not a ProfessionDef.");

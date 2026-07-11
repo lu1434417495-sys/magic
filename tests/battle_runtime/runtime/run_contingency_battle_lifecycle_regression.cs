@@ -372,10 +372,10 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
             TestConfigPath,
             worldData,
             partyState,
-            new Dictionary<StringName, QuestDefinition>(),
             "contingency_battle_lifecycle_test",
             "Contingency Battle Lifecycle Test",
-            new Vector2I(8, 8)
+            new Vector2I(8, 8),
+            TestWorldGenerationDefinitionFactory.Load(TestConfigPath)
         );
         gameSession.SetBattleSaveLock(true);
 
@@ -389,7 +389,7 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
         };
         runtime._world_map_data_context.BindRootWorldData(worldData);
         runtime._world_map_data_context.SyncActiveWorldContext(
-            gameSession.GetGenerationConfig(),
+            gameSession.GetGenerationDefinition(),
             runtime._grid_system,
             Vector2I.Zero,
             Vector2I.Zero
@@ -421,9 +421,8 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
             gameSession.GetItemDefsTyped(),
             null,
             gameSession.AllocateEquipmentInstanceId,
-            gameSession.GetBattleSpecialProfileRegistryRuntimeSnapshot(),
             gameSession.GetGameRootTyped()?.GetContentCatalogTyped()?.GetSkillCatalogTyped(),
-            gameSession.GetBattleSpecialProfileRuntimeView()
+            gameSession.GetBattleSpecialProfileView()
         );
 
         BattleUnitState heroUnit = BattleUnit("hero_unit", "hero", alive: true, currentHp: 20, currentMp: 28);
@@ -658,7 +657,7 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
                 child.QueueFree();
         }
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
-        GameSession gameSession = new() { Name = nodeName };
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot(nodeName);
         Root.AddChild(gameSession);
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
         return gameSession;

@@ -20,7 +20,7 @@ public partial class run_skill_description_consistency_regression : LifecycleTes
 
     private void TestChainLightningDescriptionInputsMatchSaveEnabledEffects()
     {
-        using ProgressionContentRegistry registry = new();
+        using ProgressionContentRegistry registry = new(new TestContentResourceLoader());
         SkillDefinition chainLightningDefinition = GetSkillDefinition(
             registry.GetSkillDefinitionsTyped(),
             "mage_chain_lightning"

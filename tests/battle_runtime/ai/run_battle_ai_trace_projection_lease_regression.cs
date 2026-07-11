@@ -989,7 +989,9 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
     private void AssertProgressLogExceptionCleanup(LifecycleAuditSnapshot baseline)
     {
         const string path = "user://battle_sim_progress_scope_exception_regression.log";
-        var runner = new BattleSimRunner();
+        var runner = new BattleSimRunner(
+            new BattleSimContentProvider(new TestContentResourceLoader())
+        );
         runner.SetProgressLoggingEnabled(true);
         runner.SetProgressLogPath(path);
         _test.True(

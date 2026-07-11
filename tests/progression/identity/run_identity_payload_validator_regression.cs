@@ -438,7 +438,7 @@ public partial class run_identity_payload_validator_regression : LifecycleTestSc
 
     private static ProgressionContentRegistry MakeRegistry(GDictionary bundle)
     {
-        ProgressionContentRegistry registry = new();
+        ProgressionContentRegistry registry = new(new TestContentResourceLoader());
         registry.ReplaceDefinitionsForValidation(
             new ProgressionDefinitionSources
             {

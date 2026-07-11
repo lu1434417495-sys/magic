@@ -1423,7 +1423,7 @@ public partial class run_game_runtime_snapshot_builder_regression : LifecycleTes
 
     private GameSession CreateTestSession()
     {
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         int createError = gameSession.CreateNewSave(TestWorldConfig);
         _test.Eq(createError, (int)Error.Ok, "GameSession 应能基于测试世界配置创建新存档。");
         if (createError != (int)Error.Ok)

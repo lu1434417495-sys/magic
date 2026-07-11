@@ -145,7 +145,7 @@ public partial class run_world_map_runtime_log_dock_regression : LifecycleTestSc
         _gameSession = Root.GetNodeOrNull<GameSession>("GameSession");
         if (_gameSession != null)
             return;
-        _gameSession = new GameSession { Name = "GameSession" };
+        _gameSession = GameSessionTestFactory.CreateForCoordinatorAttachment();
         Root.AddChild(_gameSession);
         await ProcessFrames(1);
     }

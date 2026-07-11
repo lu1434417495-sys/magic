@@ -294,9 +294,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
     internal BattleSkillExecutionOrchestrator _skill_orchestrator = new();
     internal BattleCastingTimeService _casting_time_service = new();
     internal TraitTriggerHooks _trait_trigger_hooks = new();
-    internal readonly Dictionary<string, object> _special_profile_registry_snapshot = new(
-        StringComparer.Ordinal
-    );
     private IBattleSpecialProfileView _special_profile_view = BattleSpecialProfileRuntimeView.Empty;
 	internal BattleSpecialProfileGate _special_profile_gate;
 	internal BattleMeteorSwarmResolver _meteor_swarm_resolver;
@@ -376,7 +373,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
         IReadOnlyDictionary<StringName, ItemDefinition> item_defs = null,
         BattleTerrainGenerator terrain_generator = null,
         Func<StringName> equipment_instance_id_allocator = null,
-        GDictionary battle_special_profile_registry_snapshot = null,
         ISkillCatalog skill_catalog = null,
         IBattleSpecialProfileView battle_special_profile_view = null,
         IReadOnlyDictionary<StringName, TraitDefinition> trait_defs = null,
@@ -393,7 +389,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
             skill_definitions
             ?? catalogSkillDefinitions;
         ApplySkillDefinitionsTyped(resolvedSkillDefinitions);
-        ReplaceSpecialProfileRegistrySnapshot(battle_special_profile_registry_snapshot);
         _special_profile_view = battle_special_profile_view ?? BattleSpecialProfileRuntimeView.Empty;
         BindDamageResolver();
 
@@ -473,23 +468,18 @@ public sealed partial class BattleRuntimeModule : IDisposable
     internal void _setup_special_profile_runtime()
     {
         _special_profile_gate ??= new BattleSpecialProfileGate();
-        using GodotProjectionLease<GDictionary> specialProfileRegistryLease =
-            RuntimePlainPayload.ProjectDictionaryLease(
-                _special_profile_registry_snapshot,
-                "battle-runtime-special-profile-setup",
-                LifetimeDomain.Battle,
-                "BattleRuntimeModule.special_profile_registry_snapshot"
-            );
-        GDictionary specialProfileRegistrySnapshot = specialProfileRegistryLease.Value;
-        _special_profile_gate.Setup(specialProfileRegistrySnapshot);
+        _special_profile_gate.Setup(GetSpecialProfileView());
         _skill_outcome_committer ??= new BattleSkillOutcomeCommitter();
         _skill_outcome_committer.Setup(this);
 
         _meteor_swarm_resolver?.Dispose();
         _meteor_swarm_resolver = null;
-        using GDictionary profiles = GetDict(specialProfileRegistrySnapshot, "profiles");
-        using GDictionary meteorProfileSnapshot = GetDict(profiles, "meteor_swarm");
-        if (GetString(meteorProfileSnapshot, "runtime_resolver_id") != "meteor_swarm")
+        if (
+            !GetSpecialProfileView().TryGetMeteorSwarmProfile(
+                "meteor_swarm",
+                out MeteorSwarmProfileData _
+            )
+        )
             return;
         _meteor_swarm_resolver = new BattleMeteorSwarmResolver();
         _meteor_swarm_resolver.Setup(this, _attack_check_policy_service);

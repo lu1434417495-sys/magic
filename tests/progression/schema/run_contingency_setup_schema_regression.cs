@@ -306,7 +306,6 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
         bool decoded = serializer.TryDecodePayload(
             payload,
             "res://data/configs/world_map/default_world_generation.tres",
-            new WorldMapGenerationConfig(),
             saveMeta,
             out SaveDecodeResult decodeResult
         );

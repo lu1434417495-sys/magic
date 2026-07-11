@@ -24,7 +24,9 @@ public partial class run_game_session_close_lifecycle_regression : LifecycleTest
         LifecycleAuditRegistry audit = LifecycleAuditRegistry.Shared;
         long suppressCountBefore = audit.CaptureSnapshot().NormalPhaseSuppressCount;
 
-        GameSession sessionA = new() { Name = "LifecycleSessionA" };
+        GameSession sessionA = GameSessionTestFactory.CreateBorrowingProcessSnapshot(
+            "LifecycleSessionA"
+        );
         Root.AddChild(sessionA);
         GameRoot rootA = sessionA.GetGameRootTyped();
         GameContentCatalog catalogA = sessionA.GetContentCatalogTyped();
@@ -60,7 +62,9 @@ public partial class run_game_session_close_lifecycle_regression : LifecycleTest
 
         await LifecycleMeasurementBarrier.RunAsync(this);
 
-        GameSession sessionB = new() { Name = "LifecycleSessionB" };
+        GameSession sessionB = GameSessionTestFactory.CreateBorrowingProcessSnapshot(
+            "LifecycleSessionB"
+        );
         Root.AddChild(sessionB);
         GameContentCatalog catalogB = sessionB.GetContentCatalogTyped();
         AssertKnownContent(catalogB, "session B after session A GC barrier");
@@ -77,7 +81,9 @@ public partial class run_game_session_close_lifecycle_regression : LifecycleTest
 
     private void TestExitTreeCloseStillAllowsExplicitNativeDispose()
     {
-        GameSession session = new() { Name = "ExitTreeFirstLifecycleSession" };
+        GameSession session = GameSessionTestFactory.CreateBorrowingProcessSnapshot(
+            "ExitTreeFirstLifecycleSession"
+        );
         Root.AddChild(session);
         GameContentCatalog catalog = session.GetContentCatalogTyped();
         long revisionBeforeExit = catalog.GetRevision();

@@ -159,7 +159,7 @@ public partial class run_titan_colossus_form_regression : LifecycleTestSceneTree
 
     private static BattleRuntimeModule BuildRuntime()
     {
-        ProgressionContentRegistry registry = new();
+        ProgressionContentRegistry registry = new(new TestContentResourceLoader());
         BattleRuntimeModule runtime = new();
         runtime.setup(
             null,

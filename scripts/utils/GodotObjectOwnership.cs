@@ -16,7 +16,8 @@ internal enum GodotWrapperOwnershipKind
 
 internal static class GodotLifecycleLegacyDebtManifest
 {
-    internal static bool IsDeclared(LifecycleLegacyDebtSnapshot debt) => false;
+    internal static bool IsDeclared(LifecycleLegacyDebtSnapshot debt) =>
+        debt == LegacyEnemyContentDebt.Record;
 }
 
 internal static class GodotWrapperOwnershipRegistry
@@ -403,6 +404,15 @@ internal static class GodotContentOwnership
         GodotWrapperReferenceComparer.Instance
     );
     private static readonly HashSet<string> StaticStrongKeys = new(StringComparer.Ordinal);
+
+    internal static int StaticStrongWrapperCount
+    {
+        get
+        {
+            lock (StaticSync)
+                return StaticStrongWrappers.Count;
+        }
+    }
 
     internal static void RegisterBorrowedContent(Resource root, string reason)
     {

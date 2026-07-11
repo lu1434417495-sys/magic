@@ -421,8 +421,9 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
         PartyWarehouseService warehouseService = new();
         warehouseService.Setup(partyState, itemDefinitions);
 
-        GameSession gameSession = new();
-        gameSession.ReplaceItemDefinitionsForTests(itemDefinitions);
+        GameSession gameSession = GameSessionTestFactory.CreateSyntheticFromProcessSnapshot(
+            seed => seed.Items = itemDefinitions
+        );
         GameRuntimeFacade runtime = new()
         {
             _game_session = gameSession,
@@ -484,7 +485,7 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
 
     private BattleSessionFacadeFixture BuildBattleSessionInvalidRewardFixture()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         int createError = gameSession.CreateNewSave(TestWorldConfig);
         _test.Eq(
             createError,
@@ -565,7 +566,7 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
 
     private static WorldBattleFixture BuildWorldBattleFixture()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         int createError = gameSession.CreateNewSave(TestWorldConfig);
         if (createError != (int)Error.Ok)
         {

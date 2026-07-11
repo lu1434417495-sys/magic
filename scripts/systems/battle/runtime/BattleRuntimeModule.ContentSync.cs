@@ -55,12 +55,6 @@ public sealed partial class BattleRuntimeModule
     internal IReadOnlyDictionary<StringName, EnemyTemplateDef> GetEnemyTemplateIndexTyped() =>
         _enemyTemplateIndex;
 
-    internal GDictionary GetSpecialProfileRegistrySnapshotPayload() =>
-        RuntimePlainPayload.ProjectDictionary(
-            _special_profile_registry_snapshot,
-            "BattleRuntimeModule.GetSpecialProfileRegistrySnapshotPayload"
-        );
-
     internal IBattleSpecialProfileView GetSpecialProfileView() =>
         _special_profile_view ?? BattleSpecialProfileRuntimeView.Empty;
 
@@ -141,25 +135,6 @@ public sealed partial class BattleRuntimeModule
         }
     }
 
-    private void ReplaceSpecialProfileRegistrySnapshot(GDictionary snapshot)
-    {
-        _special_profile_registry_snapshot.Clear();
-        if (snapshot == null)
-        {
-            return;
-        }
-
-        Dictionary<string, object> normalized =
-            RuntimePlainPayload.NormalizeDictionary(
-                snapshot,
-                "BattleRuntimeModule.special_profile_registry_snapshot"
-            );
-        foreach (KeyValuePair<string, object> entry in normalized)
-        {
-            _special_profile_registry_snapshot[entry.Key] = entry.Value;
-        }
-    }
-
     internal void ReplaceEnemyAiBrainsTyped(
         IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains
     )
@@ -212,7 +187,6 @@ public sealed partial class BattleRuntimeModule
         _itemDefIndex.Clear();
         _enemyTemplateIndex.Clear();
         _enemyAiBrainIndex.Clear();
-        _special_profile_registry_snapshot.Clear();
         _special_profile_view = BattleSpecialProfileRuntimeView.Empty;
         _special_profile_gate = null;
         _encounter_builder = null;
@@ -230,7 +204,6 @@ public sealed partial class BattleRuntimeModule
         || _itemDefIndex.Count != 0
         || _enemyTemplateIndex.Count != 0
         || _enemyAiBrainIndex.Count != 0
-        || _special_profile_registry_snapshot.Count != 0
         || !ReferenceEquals(_special_profile_view, BattleSpecialProfileRuntimeView.Empty)
         || _special_profile_gate != null
         || _encounter_builder != null

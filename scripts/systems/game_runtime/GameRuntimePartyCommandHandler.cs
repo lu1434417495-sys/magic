@@ -28,7 +28,7 @@ public sealed class GameRuntimePartyCommandHandler
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
-        if (!HasGenerationConfig())
+        if (!HasGenerationDefinition())
             return CommandErrorTyped("世界地图尚未初始化。");
         if (IsBattleActive())
             return CommandErrorTyped("当前处于战斗中，不能打开队伍管理。");
@@ -566,11 +566,11 @@ public sealed class GameRuntimePartyCommandHandler
         );
     }
 
-    private bool HasGenerationConfig()
+    private bool HasGenerationDefinition()
     {
         if (!HasRuntime())
             return false;
-        return _runtime.GetGenerationConfig() != null;
+        return _runtime.GetGenerationDefinition() != null;
     }
 
     private bool IsBattleActive()

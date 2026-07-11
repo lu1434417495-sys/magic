@@ -9,7 +9,8 @@ public class AscensionContentRegistry : IdentityContentRegistryBase
     private readonly Dictionary<StringName, AscensionDefinition> _ascension_defs = new();
     private readonly Dictionary<StringName, AscensionStageDefinition> _ascension_stage_defs = new();
 
-    public AscensionContentRegistry()
+    internal AscensionContentRegistry(IContentResourceLoader resourceLoader)
+        : base(resourceLoader)
     {
         _registry_label = "AscensionContentRegistry";
         Rebuild();
@@ -47,13 +48,12 @@ public class AscensionContentRegistry : IdentityContentRegistryBase
 
     protected override void _register_resource(string resourcePath)
     {
-        var resource = GD.Load<Resource>(resourcePath);
+        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
         if (resource == null)
         {
             _validation_errors.Add($"Failed to load ascension config {resourcePath}.");
             return;
         }
-        GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
         if (resource is AscensionDef ascensionDef)
         {
             _register_ascension(resourcePath, ascensionDef);

@@ -319,7 +319,7 @@ public partial class run_crown_break_regression : LifecycleTestSceneTree
     private BattleRuntimeModule BuildRuntime()
     {
         var runtime = new BattleRuntimeModule();
-        var registry = new ProgressionContentRegistry();
+        var registry = new ProgressionContentRegistry(new TestContentResourceLoader());
         try
         {
             runtime.setup(

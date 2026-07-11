@@ -9,10 +9,7 @@ public class ItemContentRegistry : System.IDisposable
     private const string ItemConfigDirectory = "res://data/configs/items";
     private const string ItemTemplateDirectory = "res://data/configs/items_templates";
 
-    private static bool _defaultSnapshotBuilt;
-    private static readonly Dictionary<StringName, ItemDefinition> _defaultItemDefs = new();
-    private static readonly List<string> _defaultValidationErrors = new();
-
+    private readonly IContentResourceLoader _loader;
     private readonly Dictionary<StringName, ItemDefinition> _itemDefs = new();
     private readonly Dictionary<StringName, ItemDefinition> _templateDefs = new();
     private readonly Dictionary<StringName, ItemDefinition> _resolvedTemplateCache = new();
@@ -20,9 +17,10 @@ public class ItemContentRegistry : System.IDisposable
     private bool _hasBuilt;
     private bool _disposed;
 
-    public ItemContentRegistry() { }
-
-    public ItemContentRegistry(bool autoRebuild) { }
+    internal ItemContentRegistry(IContentResourceLoader loader)
+    {
+        _loader = loader ?? throw new System.ArgumentNullException(nameof(loader));
+    }
 
     public void Dispose()
     {
@@ -49,16 +47,10 @@ public class ItemContentRegistry : System.IDisposable
 
     public void Rebuild()
     {
-        EnsureDefaultSnapshotBuilt();
-        _itemDefs.Clear();
-        _templateDefs.Clear();
-        _resolvedTemplateCache.Clear();
-        _validationErrors.Clear();
-        foreach (var entry in _defaultItemDefs)
-            _itemDefs[entry.Key] = entry.Value;
-        foreach (string error in _defaultValidationErrors)
-            _validationErrors.Add(error);
-        _hasBuilt = true;
+        RebuildFromDirectories(
+            new Godot.Collections.Array { ItemConfigDirectory },
+            new Godot.Collections.Array { ItemTemplateDirectory }
+        );
     }
 
     public void RebuildFromDirectories(
@@ -118,28 +110,6 @@ public class ItemContentRegistry : System.IDisposable
             Rebuild();
     }
 
-    private static void EnsureDefaultSnapshotBuilt()
-    {
-        if (_defaultSnapshotBuilt)
-            return;
-
-        using var registry = new ItemContentRegistry(false);
-        registry.RebuildFromDirectories(
-            new Godot.Collections.Array { ItemConfigDirectory },
-            new Godot.Collections.Array { ItemTemplateDirectory }
-        );
-
-        _defaultItemDefs.Clear();
-        foreach (var entry in registry._itemDefs)
-            _defaultItemDefs[entry.Key] = entry.Value;
-
-        _defaultValidationErrors.Clear();
-        foreach (string error in registry._validationErrors)
-            _defaultValidationErrors.Add(error);
-
-        _defaultSnapshotBuilt = true;
-    }
-
     private void ScanTemplateDirectory(string directoryPath)
     {
         if (!DirAccess.DirExistsAbsolute(ProjectSettings.GlobalizePath(directoryPath)))
@@ -183,13 +153,12 @@ public class ItemContentRegistry : System.IDisposable
 
     private void RegisterTemplateResource(string resourcePath)
     {
-        var resource = ResourceLoader.Load<Resource>(resourcePath);
+        var resource = _loader.LoadCanonical<Resource>(resourcePath);
         if (resource == null)
         {
             _validationErrors.Add($"Failed to load item template {resourcePath}.");
             return;
         }
-        GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
         if (resource is not ItemDef templateDef)
         {
             _validationErrors.Add($"Item template {resourcePath} is not an ItemDef.");
@@ -288,13 +257,12 @@ public class ItemContentRegistry : System.IDisposable
 
     private void RegisterItemResource(string resourcePath)
     {
-        var resource = ResourceLoader.Load<Resource>(resourcePath);
+        var resource = _loader.LoadCanonical<Resource>(resourcePath);
         if (resource == null)
         {
             _validationErrors.Add($"Failed to load item config {resourcePath}.");
             return;
         }
-        GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
         if (resource is not ItemDef rawDef)
         {
             _validationErrors.Add($"Item config {resourcePath} is not an ItemDef.");

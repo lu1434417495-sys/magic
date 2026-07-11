@@ -18,7 +18,7 @@ public sealed partial class GameRuntimeFacade
             new GDictionary { ["direction"] = direction, ["count"] = count },
             () =>
             {
-                if (_generation_config == null)
+                if (_generation_definition == null)
                     return BuildCommandErrorResult("世界地图尚未初始化。");
                 if (IsBattleActive())
                     return BuildCommandErrorResult("当前处于战斗中，不能执行大地图移动。");
@@ -44,7 +44,7 @@ public sealed partial class GameRuntimeFacade
             new GDictionary { ["coord"] = coord },
             () =>
             {
-                if (_generation_config == null)
+                if (_generation_definition == null)
                     return BuildCommandErrorResult("世界地图尚未初始化。");
                 if (IsBattleActive())
                     return BuildCommandErrorResult("当前处于战斗中，不能选择大地图坐标。");
@@ -68,7 +68,7 @@ public sealed partial class GameRuntimeFacade
             new GDictionary { ["coord"] = coord },
             () =>
             {
-                if (_generation_config == null)
+                if (_generation_definition == null)
                     return BuildCommandErrorResult("世界地图尚未初始化。");
                 if (IsBattleActive())
                     return BuildCommandErrorResult("当前处于战斗中，不能打开据点。");
@@ -92,7 +92,7 @@ public sealed partial class GameRuntimeFacade
             new GDictionary { ["coord"] = coord },
             () =>
             {
-                if (_generation_config == null)
+                if (_generation_definition == null)
                     return BuildCommandErrorResult("世界地图尚未初始化。");
                 if (IsBattleActive())
                     return BuildCommandErrorResult("当前处于战斗中，不能查看大地图人物。");

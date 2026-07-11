@@ -28,9 +28,10 @@ public sealed class WorldMapDataContext
     }
     public string active_map_id = "";
     public string active_map_display_name = "";
-    public WorldMapGenerationConfig active_generation_config;
+    public WorldGenerationDefinition active_generation_definition;
+    private WorldGenerationDefinition _rootGenerationDefinition;
     private readonly Dictionary<Vector2I, WorldMapEventData> _worldEventByCoord = new();
-    private readonly Dictionary<string, WorldMapGenerationConfig> _submapGenerationConfigs =
+    private readonly Dictionary<string, WorldGenerationDefinition> _submapGenerationDefinitions =
         new(StringComparer.Ordinal);
     private readonly Dictionary<Vector2I, WorldMapSettlementRecordData> _settlementByCoord =
         new();
@@ -60,9 +61,10 @@ public sealed class WorldMapDataContext
         _activeWorldUsesRoot = true;
         active_map_id = "";
         active_map_display_name = "";
-        active_generation_config = null;
+        active_generation_definition = null;
+        _rootGenerationDefinition = null;
         _worldEventByCoord.Clear();
-        _submapGenerationConfigs.Clear();
+        _submapGenerationDefinitions.Clear();
         _settlementByCoord.Clear();
         _worldNpcByCoord.Clear();
         _settlementsById.Clear();
@@ -88,7 +90,8 @@ public sealed class WorldMapDataContext
 
     public Godot.Collections.Dictionary GetActiveWorldData() => ActiveWorldDataPayload();
 
-    internal WorldMapGenerationConfig GetActiveGenerationConfig() => active_generation_config;
+    internal WorldGenerationDefinition GetActiveGenerationDefinition() =>
+        active_generation_definition;
 
     internal GDictionary GetActiveWorldFogState()
     {
@@ -100,7 +103,7 @@ public sealed class WorldMapDataContext
 
     public bool SaveActiveWorldFogState(WorldMapFogSystem fogSystem)
     {
-        if (active_generation_config == null || fogSystem == null || _activeRuntimeData == null)
+        if (active_generation_definition == null || fogSystem == null || _activeRuntimeData == null)
             return false;
         GDictionary fogStates = fogSystem.ExportPersistentState();
         // Write fog directly into the typed active world data — no whole-world
@@ -128,7 +131,7 @@ public sealed class WorldMapDataContext
     }
 
     internal Vector2I GetActiveWorldSizeCells() =>
-        active_generation_config?.GetWorldSizeCells() ?? Vector2I.Zero;
+        active_generation_definition?.GetWorldSizeCells() ?? Vector2I.Zero;
 
     public string GetActiveMapId() => active_map_id;
 
@@ -147,7 +150,7 @@ public sealed class WorldMapDataContext
     }
 
     public WorldMapContextSyncResult SyncActiveWorldContext(
-        WorldMapGenerationConfig rootGenConfig,
+        WorldGenerationDefinition rootGenerationDefinition,
         WorldMapGridSystem gridSystem,
         Vector2I playerCoord,
         Vector2I selectedCoord
@@ -182,12 +185,13 @@ public sealed class WorldMapDataContext
         {
             ReplaceActiveWorldDataPayload(WorldMapDataProjection.Project(_activeRuntimeData));
         }
-        active_generation_config = _resolve_active_generation_config(rootGenConfig);
+        BindGenerationDefinitions(rootGenerationDefinition);
+        active_generation_definition = ResolveActiveGenerationDefinition();
         active_map_display_name = _resolve_active_map_display_name();
-        if (active_generation_config != null && gridSystem != null)
+        if (active_generation_definition != null && gridSystem != null)
             gridSystem.Setup(
-                active_generation_config.world_size_in_chunks,
-                active_generation_config.chunk_size
+                active_generation_definition.WorldSizeInChunks,
+                active_generation_definition.ChunkSize
             );
         _refresh_world_event_discovery();
         _rebuild_world_coord_lookups();
@@ -506,13 +510,13 @@ public sealed class WorldMapDataContext
         WorldMapMountedSubmapData submap = WorldMapMountedSubmapData.FromDictionary(submapEntry);
         if (submap.IsGenerated && submap.ProjectWorldDataPayload().Count > 0)
             return true;
-        var sgc = LoadSubmapGenerationConfig(submapId);
-        if (sgc == null)
+        WorldGenerationDefinition generationDefinition = GetSubmapGenerationDefinition(submapId);
+        if (generationDefinition == null)
             return false;
         var gg = new WorldMapGridSystem();
-        gg.Setup(sgc.world_size_in_chunks, sgc.chunk_size);
+        gg.Setup(generationDefinition.WorldSizeInChunks, generationDefinition.ChunkSize);
         var ss = new WorldMapSpawnSystem();
-        WorldMapSpawnSystem.WorldBuildData swd = ss.BuildWorldTyped(sgc, gg);
+        WorldMapSpawnSystem.WorldBuildData swd = ss.BuildWorldTyped(generationDefinition, gg);
         submapEntry["world_data"] = WorldMapSpawnProjection.Project(swd);
         submapEntry["player_coord"] = swd.PlayerStartCoord;
         submapEntry["is_generated"] = true;
@@ -520,27 +524,16 @@ public sealed class WorldMapDataContext
         return true;
     }
 
-    internal WorldMapGenerationConfig LoadSubmapGenerationConfig(string submapId)
+    internal WorldGenerationDefinition GetSubmapGenerationDefinition(string submapId)
     {
-        if (
-            !string.IsNullOrEmpty(submapId)
-            && _submapGenerationConfigs.TryGetValue(submapId, out WorldMapGenerationConfig cached)
-        )
-            return cached;
-        WorldMapMountedSubmapData submap = WorldMapMountedSubmapData.FromDictionary(
-            GetMountedSubmapEntry(submapId)
-        );
-        string gcp = submap.GenerationConfigPath;
-        if (gcp.Length == 0)
+        if (string.IsNullOrEmpty(submapId))
             return null;
-        var gc = GD.Load<Resource>(gcp);
-        if (gc is WorldMapGenerationConfig config)
-        {
-            GodotContentOwnership.RegisterBorrowedContent(config, gcp);
-            _submapGenerationConfigs[submapId] = config;
-            return config;
-        }
-        return null;
+        return _submapGenerationDefinitions.TryGetValue(
+            submapId,
+            out WorldGenerationDefinition definition
+        )
+            ? definition
+            : null;
     }
 
     private void _register_settlement_footprints(WorldMapGridSystem gridSystem)
@@ -618,10 +611,38 @@ public sealed class WorldMapDataContext
         return swd.Count > 0 ? swd : RootWorldDataPayload();
     }
 
-    private WorldMapGenerationConfig _resolve_active_generation_config(
-        WorldMapGenerationConfig rootGenConfig
-    ) =>
-        active_map_id.Length == 0 ? rootGenConfig : LoadSubmapGenerationConfig(active_map_id);
+    private void BindGenerationDefinitions(WorldGenerationDefinition rootDefinition)
+    {
+        if (ReferenceEquals(_rootGenerationDefinition, rootDefinition))
+            return;
+        _rootGenerationDefinition = rootDefinition;
+        _submapGenerationDefinitions.Clear();
+        IndexMountedSubmapDefinitions(rootDefinition);
+    }
+
+    private void IndexMountedSubmapDefinitions(WorldGenerationDefinition definition)
+    {
+        if (definition == null)
+            return;
+        foreach (MountedSubmapDefinition submap in definition.MountedSubmaps)
+        {
+            if (submap == null || submap.SubmapId == "" || submap.Generation == null)
+                continue;
+            string submapId = submap.SubmapId.ToString();
+            if (!_submapGenerationDefinitions.TryAdd(submapId, submap.Generation))
+            {
+                throw new InvalidOperationException(
+                    $"Duplicate mounted submap definition id '{submapId}'."
+                );
+            }
+            IndexMountedSubmapDefinitions(submap.Generation);
+        }
+    }
+
+    private WorldGenerationDefinition ResolveActiveGenerationDefinition() =>
+        active_map_id.Length == 0
+            ? _rootGenerationDefinition
+            : GetSubmapGenerationDefinition(active_map_id);
 
     private string _resolve_active_map_display_name()
     {
@@ -1410,7 +1431,7 @@ public sealed class WorldMapEventData
 
     public bool IsTriggerableSubmapEntry =>
         IsDiscovered
-        && WorldEventConfig.ToEventTypeKind(EventType) == WorldEventTypeKind.EnterSubmap
+        && WorldEventDefinition.IsEnterSubmapEventType(EventType)
         && TargetSubmapId != "";
 
     public static WorldMapEventData FromDictionary(GDictionary data)

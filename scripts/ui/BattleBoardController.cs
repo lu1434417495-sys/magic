@@ -96,17 +96,8 @@ public sealed class BattleBoardController : IDisposable
     private static readonly StringName SOURCE_PREVIEW = "preview";
     private static readonly Vector2I INVALID_OPTION_COORD = new(-999999, -999999);
     private static readonly StringName PROP_SPIKE_BARRICADE = "spike_barricade";
-    private static readonly PackedScene BattleBoardPropScene = GD.Load<PackedScene>(
-        "res://scenes/common/battle_board_prop.tscn"
-    );
-
-    static BattleBoardController()
-    {
-        GodotContentOwnership.RegisterBorrowedContent(
-            BattleBoardPropScene,
-            "BattleBoardController:BattleBoardPropScene"
-        );
-    }
+    private const string BattleBoardPropScenePath =
+        "res://scenes/common/battle_board_prop.tscn";
 
     public TileMapLayer _input_layer;
     public readonly List<TileMapLayer> _top_layers = new();
@@ -1374,7 +1365,9 @@ public sealed class BattleBoardController : IDisposable
         int stack_index
     )
     {
-        Node propInstance = BattleBoardPropScene.Instantiate();
+        Node propInstance = EngineAssetAccess
+            .ResolveBorrowed<PackedScene>(BattleBoardPropScenePath)
+            .Instantiate();
         BattleBoardProp propNode = propInstance as BattleBoardProp;
         if (propNode == null)
             return null;
@@ -1691,12 +1684,8 @@ public sealed class BattleBoardController : IDisposable
         if (_texture_cache.TryGetValue(path, out Texture2D cachedTexture))
             return cachedTexture;
         Texture2D texture = null;
-        if (FileAccess.FileExists($"{path}.import"))
-            texture = ResourceLoader.Load<Texture2D>(
-                path,
-                "Texture2D",
-                ResourceLoader.CacheMode.Reuse
-            );
+        if (ResourceLoader.Exists(path, "Texture2D"))
+            texture = EngineAssetAccess.ResolveBorrowed<Texture2D>(path);
         if (texture == null && FileAccess.FileExists(path))
         {
             var image = OwnRenderResource(new Image(), $"image_loader:{path}");
@@ -1707,13 +1696,6 @@ public sealed class BattleBoardController : IDisposable
                     $"image_texture:{path}"
                 );
         }
-        texture ??= ResourceLoader.Load<Texture2D>(
-            path,
-            "Texture2D",
-            ResourceLoader.CacheMode.Reuse
-        );
-        if (texture != null)
-            RegisterTextureOwnership(texture, path);
         _texture_cache[path] = texture;
         return texture;
     }
@@ -1846,13 +1828,6 @@ public sealed class BattleBoardController : IDisposable
     {
         if (_disposed)
             throw new ObjectDisposedException(nameof(BattleBoardController));
-    }
-
-    private void RegisterTextureOwnership(Texture2D texture, string reason)
-    {
-        if (texture == null)
-            return;
-        OwnRenderResource(texture, $"texture:{reason}");
     }
 
     private float _get_visual_height_step()

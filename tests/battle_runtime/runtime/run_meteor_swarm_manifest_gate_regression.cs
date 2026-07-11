@@ -14,8 +14,8 @@ public partial class run_meteor_swarm_manifest_gate_regression : LifecycleTestSc
 
     private TestResult Run()
     {
-
-        using var progressionRegistry = new ProgressionContentRegistry();
+        using var contentLoader = new TestContentResourceLoader();
+        using var progressionRegistry = new ProgressionContentRegistry(contentLoader);
         IReadOnlyDictionary<StringName, SkillDefinition> typedSkillDefinitions =
             progressionRegistry.GetSkillDefinitionsTyped();
         SkillDefinition meteorSkillDefinition = GetSkillDefinition(
@@ -48,7 +48,7 @@ public partial class run_meteor_swarm_manifest_gate_regression : LifecycleTestSc
         );
         _test.Eq(combatProfile.AreaValue, 3, "陨星雨 shell 的最外层应为 7x7。");
 
-        var registry = new BattleSpecialProfileRegistry();
+        using var registry = new BattleSpecialProfileRegistry(contentLoader);
         registry.Rebuild(typedSkillDefinitions);
         IReadOnlyList<string> typedErrors = registry.ValidateTyped();
         Godot.Collections.Array<string> errors = registry.Validate();
@@ -58,26 +58,32 @@ public partial class run_meteor_swarm_manifest_gate_regression : LifecycleTestSc
             "battle special profile registry typed/public validation errors 应保持一致。"
         );
         _test.True(errors.Count == 0, $"正式 battle special profile manifest 应通过校验：{FormatArray(errors)}");
-        Godot.Collections.Dictionary snapshot = registry.GetSnapshot();
-        _test.True(GetBool(snapshot, "ok"), "battle special profile snapshot 应为 ok。");
-
-        Godot.Collections.Dictionary profileIdBySkillId = GetDictionary(snapshot, "profile_id_by_skill_id");
-        _test.Eq(
-            GetString(profileIdBySkillId, "mage_meteor_swarm"),
-            "meteor_swarm",
-            "snapshot 应映射 mage_meteor_swarm -> meteor_swarm。"
+        IBattleSpecialProfileView profileView = registry.BuildRuntimeProfileView();
+        _test.True(
+            profileView.TryGetMeteorSwarmProfile(
+                "meteor_swarm",
+                out MeteorSwarmProfileData meteorProfileData
+            ),
+            "battle special profile typed view 应包含 meteor_swarm profile。"
         );
-        Godot.Collections.Dictionary profiles = GetDictionary(snapshot, "profiles");
-        _test.True(profiles.ContainsKey("meteor_swarm"), "snapshot 应包含 meteor_swarm profile。");
-        Godot.Collections.Dictionary meteorProfileSnapshot = GetDictionary(profiles, "meteor_swarm");
         _test.Eq(
-            GetString(meteorProfileSnapshot, "runtime_resolver_id"),
+            meteorProfileData?.profile_id.ToString() ?? "",
             "meteor_swarm",
-            "runtime resolver id 必须走 hardcoded meteor_swarm。"
+            "typed view 应保留 hardcoded meteor_swarm profile id。"
+        );
+        _test.True(
+            meteorProfileData?.impact_components.Count >= 4,
+            "meteor_swarm typed view 应声明 impact components。"
+        );
+        _test.True(
+            meteorProfileData?.terrain_profiles.Count >= 5,
+            "meteor_swarm typed view 应声明 terrain profiles。"
         );
 
-        Resource profileResource = GetResource(meteorProfileSnapshot, "profile_resource");
-        _test.True(profileResource != null, "snapshot 应携带已加载 profile_resource。");
+        Resource profileResource = contentLoader.LoadCanonical<MeteorSwarmProfile>(
+            "res://data/configs/skill_special_profiles/profiles/meteor_swarm_profile.tres"
+        );
+        _test.True(profileResource != null, "registry authoring boundary 应持有已加载 profile_resource。");
         var meteorProfile = profileResource as MeteorSwarmProfile;
         _test.True(meteorProfile != null, "profile_resource 应为 MeteorSwarmProfile。");
         if (meteorProfile != null)
@@ -97,34 +103,30 @@ public partial class run_meteor_swarm_manifest_gate_regression : LifecycleTestSc
         TestManifestValidatorRejectsDuplicateComponentId(profileResource);
         TestManifestValidatorRejectsComponentRingOutsideRadius(profileResource);
         TestManifestValidatorRejectsTerrainRingOutsideRadius(profileResource);
-        TestRegistryUsesExactSkillDefinitionKeys(meteorSkillDefinition);
-        TestGateAllowsValidManifest(meteorSkillDefinition, snapshot);
+        TestRegistryUsesExactSkillDefinitionKeys(meteorSkillDefinition, contentLoader);
+        TestGateAllowsValidManifest(meteorSkillDefinition, profileView);
         TestGateFailsClosedForInvalidManifest(meteorSkillDefinition);
 
         return Finish();
     }
 
-    private void TestRegistryUsesExactSkillDefinitionKeys(SkillDefinition meteorSkillDefinition)
+    private void TestRegistryUsesExactSkillDefinitionKeys(
+        SkillDefinition meteorSkillDefinition,
+        IContentResourceLoader contentLoader
+    )
     {
         var wrongKeySkillDefinitions = new Dictionary<StringName, SkillDefinition>
         {
             [new StringName("wrong_meteor_swarm_key")] = meteorSkillDefinition,
         };
-        var registry = new BattleSpecialProfileRegistry();
+        using var registry = new BattleSpecialProfileRegistry(contentLoader);
         registry.Rebuild(wrongKeySkillDefinitions);
 
-        Godot.Collections.Dictionary snapshot = registry.GetSnapshot();
-        Godot.Collections.Dictionary profileIdBySkillId = GetDictionary(
-            snapshot,
-            "profile_id_by_skill_id"
-        );
-        _test.Eq(
-            GetString(profileIdBySkillId, "mage_meteor_swarm"),
-            "",
-            "special profile registry 不应从 value.skill_id 恢复错误 key 的 skill/profile 映射。"
-        );
         _test.False(
-            GetBool(snapshot, "ok"),
+            registry.BuildRuntimeProfileView().TryGetMeteorSwarmProfile(
+                "meteor_swarm",
+                out MeteorSwarmProfileData _
+            ),
             "special profile registry 应把错误 key 的 skill_defs 判为无效输入。"
         );
     }
@@ -210,11 +212,11 @@ public partial class run_meteor_swarm_manifest_gate_regression : LifecycleTestSc
 
     private void TestGateAllowsValidManifest(
         SkillDefinition meteorSkillDefinition,
-        Godot.Collections.Dictionary snapshot
+        IBattleSpecialProfileView profileView
     )
     {
         var gate = new BattleSpecialProfileGate();
-        gate.Setup(snapshot);
+        gate.Setup(profileView);
         BattleSpecialProfileGateResult allowedResult = gate.PreviewSkill(
             meteorSkillDefinition,
             new BattleCommand(),
@@ -232,15 +234,7 @@ public partial class run_meteor_swarm_manifest_gate_regression : LifecycleTestSc
     private void TestGateFailsClosedForInvalidManifest(SkillDefinition meteorSkillDefinition)
     {
         var invalidGate = new BattleSpecialProfileGate();
-        invalidGate.Setup(
-            new Godot.Collections.Dictionary
-            {
-                ["ok"] = false,
-                ["errors"] = new Godot.Collections.Array<string> { "fixture error" },
-                ["profiles"] = new Godot.Collections.Dictionary(),
-                ["profile_id_by_skill_id"] = new Godot.Collections.Dictionary(),
-            }
-        );
+        invalidGate.Setup(BattleSpecialProfileRuntimeView.Empty);
         BattleSpecialProfileGateResult blockedResult = invalidGate.PreviewSkill(
             meteorSkillDefinition,
             new BattleCommand(),
@@ -268,6 +262,13 @@ public partial class run_meteor_swarm_manifest_gate_regression : LifecycleTestSc
 
     private TestResult Finish() => _test.Finish("Meteor swarm manifest gate regression");
 
+    private static string GetString(Godot.Collections.Dictionary source, string key)
+    {
+        if (source == null || !source.ContainsKey(key))
+            return "";
+        return source[key].ToString();
+    }
+
     private static SkillDefinition GetSkillDefinition(
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         StringName skillId
@@ -289,69 +290,6 @@ public partial class run_meteor_swarm_manifest_gate_regression : LifecycleTestSc
         );
         _test.True(profile != null, $"{preconditionLabel}：profile 应能 duplicate。");
         return profile;
-    }
-
-    private static Godot.Collections.Dictionary GetDictionary(Godot.Collections.Dictionary source, string key)
-    {
-        if (!TryGetValue(source, key, out Variant value))
-            return new Godot.Collections.Dictionary();
-        return value.AsGodotDictionary();
-    }
-
-    private static Resource GetResource(Godot.Collections.Dictionary source, string key)
-    {
-        if (!TryGetValue(source, key, out Variant value))
-            return null;
-        return value.AsGodotObject() as Resource;
-    }
-
-    private static bool GetBool(Godot.Collections.Dictionary source, string key)
-    {
-        return TryGetValue(source, key, out Variant value) && value.AsBool();
-    }
-
-    private static string GetString(Godot.Collections.Dictionary source, string key)
-    {
-        return TryGetValue(source, key, out Variant value) ? value.ToString() : "";
-    }
-
-    private static bool TryGetValue(Godot.Collections.Dictionary source, string key, out Variant value)
-    {
-        value = default;
-        if (source == null)
-            return false;
-        if (source.ContainsKey(key))
-        {
-            value = source[key];
-            return true;
-        }
-        var stringNameKey = new StringName(key);
-        if (source.ContainsKey(stringNameKey))
-        {
-            value = source[stringNameKey];
-            return true;
-        }
-        return false;
-    }
-
-    private static bool IsGodotPayloadType(Type type)
-    {
-        if (type == typeof(Variant) || type == typeof(Godot.Collections.Dictionary))
-            return true;
-        if (type.Namespace == "Godot.Collections")
-            return true;
-        if (typeof(Godot.Collections.Array).IsAssignableFrom(type))
-            return true;
-        if (type.IsGenericType)
-        {
-            Type genericType = type.GetGenericTypeDefinition();
-            if (
-                genericType == typeof(Godot.Collections.Array<>)
-                || genericType == typeof(Godot.Collections.Dictionary<,>)
-            )
-                return true;
-        }
-        return false;
     }
 
     private static string FormatArray(Godot.Collections.Array<string> values)

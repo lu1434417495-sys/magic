@@ -10,6 +10,7 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
     private const string WILD_ENCOUNTER_ROSTER_CONFIG_DIRECTORY =
         "res://data/configs/enemies/rosters";
 
+    private readonly IContentResourceLoader _loader;
     private readonly Dictionary<StringName, EnemyTemplateDef> _enemy_templates = new();
     private readonly Dictionary<StringName, EnemyAiBrainDef> _enemy_ai_brains = new();
     private readonly Dictionary<StringName, WildEncounterRosterDef> _wild_encounter_rosters = new();
@@ -30,8 +31,9 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
     );
     private bool _disposed;
 
-    public EnemyContentRegistry()
+    internal EnemyContentRegistry(IContentResourceLoader loader)
     {
+        _loader = loader ?? throw new System.ArgumentNullException(nameof(loader));
         Rebuild();
     }
 
@@ -143,7 +145,7 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
 
     private void _register_seed_resource(string resourcePath)
     {
-        var r = GD.Load<Resource>(resourcePath);
+        var r = _loader.LoadCanonical<Resource>(resourcePath);
         if (r == null)
         {
             _validation_errors.Add($"Failed to load enemy content seed {resourcePath}.");
@@ -156,7 +158,6 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
             );
             return;
         }
-        GodotContentOwnership.RegisterBorrowedContent(seed, resourcePath);
         foreach (var b in seed.enemy_ai_brains)
         {
             _remember_seed_resource_path(_seed_enemy_ai_brain_paths, b);
@@ -312,19 +313,19 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
 
     private void _register_brain_resource(string rp)
     {
-        var r = GD.Load<Resource>(rp);
+        var r = _loader.LoadCanonical<Resource>(rp);
         _register_brain_entry(r, rp);
     }
 
     private void _register_template_resource(string rp)
     {
-        var r = GD.Load<Resource>(rp);
+        var r = _loader.LoadCanonical<Resource>(rp);
         _register_template_entry(r, rp);
     }
 
     private void _register_wild_encounter_roster_resource(string rp)
     {
-        var r = GD.Load<Resource>(rp);
+        var r = _loader.LoadCanonical<Resource>(rp);
         _register_wild_encounter_roster_entry(r, rp);
     }
 
@@ -340,7 +341,6 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
             _validation_errors.Add($"Enemy brain config {sourceLabel} is not an EnemyAiBrainDef.");
             return;
         }
-        GodotContentOwnership.RegisterBorrowedContent(brain, sourceLabel);
         if (_enemy_ai_brains.ContainsKey(brain.brain_id))
         {
             _validation_errors.Add($"Duplicate enemy brain_id registered: {brain.brain_id}");
@@ -363,7 +363,6 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
             );
             return;
         }
-        GodotContentOwnership.RegisterBorrowedContent(tmpl, sourceLabel);
         if (tmpl.template_id == "")
         {
             var knownBrains = new Dictionary<StringName, EnemyAiBrainDef>(_enemy_ai_brains);
@@ -397,7 +396,6 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
             );
             return;
         }
-        GodotContentOwnership.RegisterBorrowedContent(roster, sourceLabel);
         if (_wild_encounter_rosters.ContainsKey(roster.profile_id))
         {
             _validation_errors.Add(
@@ -460,15 +458,15 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
         return e;
     }
 
-    private static IReadOnlyDictionary<StringName, ItemDefinition> _get_item_defs_for_validation_typed()
+    private IReadOnlyDictionary<StringName, ItemDefinition> _get_item_defs_for_validation_typed()
     {
-        using var ir = new ItemContentRegistry();
+        using var ir = new ItemContentRegistry(_loader);
         return new Dictionary<StringName, ItemDefinition>(ir.GetItemDefsTyped());
     }
 
-    private static IReadOnlyDictionary<StringName, SkillDefinition> _get_skill_definitions_for_validation_typed()
+    private IReadOnlyDictionary<StringName, SkillDefinition> _get_skill_definitions_for_validation_typed()
     {
-        using var sr = new SkillContentRegistry();
+        using var sr = new SkillContentRegistry(_loader);
         return EnemyTemplateDef.CloneSkillDefinitionIndex(sr.GetSkillDefinitionsTyped());
     }
 

@@ -22,7 +22,7 @@ public partial class run_skill_attribute_modifiers_typed_regression : LifecycleT
 
     private void TestOfficialSkillResourcesExposeTypedAttributeModifiers()
     {
-        ProgressionContentRegistry registry = new();
+        ProgressionContentRegistry registry = new(new TestContentResourceLoader());
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             registry.GetSkillDefinitionsTyped();
 

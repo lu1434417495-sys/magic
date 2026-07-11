@@ -235,7 +235,7 @@ public partial class run_fortuna_guidance_regression : LifecycleTestSceneTree
         partyState.SetMemberState(BuildMemberState());
 
         CharacterManagementModule manager = new();
-        using ProgressionContentRegistry progressionRegistry = new();
+        using ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
         manager.setup(
             partyState,
             new Dictionary<StringName, SkillDefinition>(),
@@ -250,7 +250,7 @@ public partial class run_fortuna_guidance_regression : LifecycleTestSceneTree
         FortunaGuidanceService guidance = new();
         guidance.Setup(manager);
 
-        FaithContentRegistry faithRegistry = new();
+        FaithContentRegistry faithRegistry = new(new TestContentResourceLoader());
         faithRegistry.Rebuild();
         FaithService faith = new(faithRegistry.GetFaithDeityDefsTyped());
         return new TestContext(partyState, manager, guidance, faith);

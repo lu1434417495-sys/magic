@@ -35,7 +35,9 @@ public partial class run_battle_ai_vs_ai_simulation_regression : LifecycleTestSc
         if (scenario == null || baselineProfile == null)
             return _test.Finish("Battle AI vs AI simulation regression");
 
-        var runner = new BattleSimRunner();
+        var runner = new BattleSimRunner(
+            new BattleSimContentProvider(new TestContentResourceLoader())
+        );
         BattleSimScenarioReport report = runner.RunScenario(
             scenario,
             new List<BattleSimProfileDef> { baselineProfile }

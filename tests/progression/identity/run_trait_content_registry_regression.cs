@@ -21,7 +21,7 @@ public partial class run_trait_content_registry_regression : LifecycleTestSceneT
 
     private void TestOfficialTraitRegistryValidatesWithoutErrors()
     {
-        using TraitContentRegistry registry = new();
+        using TraitContentRegistry registry = new(new TestContentResourceLoader());
         List<string> errors = ToList(registry.Validate());
         _test.Eq(
             errors.Count,
@@ -32,7 +32,7 @@ public partial class run_trait_content_registry_regression : LifecycleTestSceneT
 
     private void TestOfficialTraitRegistryUsesGenericIdentityDefs()
     {
-        using TraitContentRegistry registry = new();
+        using TraitContentRegistry registry = new(new TestContentResourceLoader());
         IReadOnlyDictionary<StringName, TraitDefinition> traitDefs =
             registry.GetTraitDefsTyped();
 
@@ -81,7 +81,7 @@ public partial class run_trait_content_registry_regression : LifecycleTestSceneT
 
     private void TestInvalidTraitFixturesAreRejected()
     {
-        using TraitContentRegistry registry = new();
+        using TraitContentRegistry registry = new(new TestContentResourceLoader());
         registry.LoadFromDirectories(
             new Godot.Collections.Array<string>
             {

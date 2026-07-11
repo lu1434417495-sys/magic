@@ -72,11 +72,12 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
             return 1;
         }
 
-        var contentProvider = new BattleSimContentProvider();
+        var contentLoader = new TestContentResourceLoader();
+        var contentProvider = new BattleSimContentProvider(contentLoader);
         var overrideApplier = new BattleSimOverrideApplier();
         var terrainGenerator = new BattleTerrainGenerator();
-        var progressionRegistry = new ProgressionContentRegistry();
-        var itemRegistry = new ItemContentRegistry();
+        var progressionRegistry = new ProgressionContentRegistry(contentLoader);
+        var itemRegistry = new ItemContentRegistry(contentLoader);
 
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             contentProvider.GetSkillDefinitionsTyped();
@@ -359,8 +360,7 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
                 default,
                 fixture.GetItemDefsTyped(),
                 useFormalTerrain ? null : terrainGenerator,
-                default,
-                new GDictionary()
+                default
             );
             PrintProgress($"[Progress] run seed={seed} runtime setup done");
             runtime.SetAiTraceEnabled(traceAi);

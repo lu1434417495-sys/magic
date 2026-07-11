@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
@@ -6,6 +7,10 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
 {
     private const string TempSkillDirectory = "user://phantasmal_kill_schema_regression";
     private readonly TestHarness _test = new();
+    private readonly List<SkillDef> _validationSkillRoots = new();
+    private readonly List<SkillContentRegistry> _validationRegistries = new();
+    private readonly List<TestContentResourceLoader> _validationLoaders = new();
+    private readonly List<GStringArray> _validationResults = new();
     private int _validationCaseIndex;
 
     public override void _Initialize()
@@ -26,7 +31,9 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
             TestPhantasmalKillRequiresNineLevelDescriptionCoverage();
         }
 
-        RequestTestExit(_test.Finish("Phantasmal Kill schema regression"));
+        TestResult result = _test.Finish("Phantasmal Kill schema regression");
+        ReleaseValidationResources();
+        RequestTestExit(result);
     }
 
     private void TestFormalPhantasmalKillShapePasses()
@@ -42,7 +49,8 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
     private void TestFormalResourceLoadsAndValidates()
     {
         SkillDef skill = ResourceLoader.Load<SkillDef>(
-            "res://data/configs/skills/mage_phantasmal_kill.tres"
+            "res://data/configs/skills/mage_phantasmal_kill.tres",
+            cacheMode: ResourceLoader.CacheMode.IgnoreDeep
         );
         _test.True(skill != null, "formal mage_phantasmal_kill resource should load.");
         if (skill == null)
@@ -308,6 +316,7 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
 
     private GStringArray ValidateSkill(SkillDef skill)
     {
+        _validationSkillRoots.Add(skill);
         CleanupTempSkillDirectory();
         _test.Eq(
             DirAccess.MakeDirRecursiveAbsolute(ProjectSettings.GlobalizePath(TempSkillDirectory)),
@@ -318,9 +327,27 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
         string path = $"{TempSkillDirectory}/{skill.skill_id}_{_validationCaseIndex}.tres";
         _test.Eq(ResourceSaver.Save(skill, path), Error.Ok, "should save temp skill resource.");
 
-        using SkillContentRegistry registry = new();
+        var loader = new TestContentResourceLoader();
+        var registry = new SkillContentRegistry(loader, loadDefaultContent: false);
+        _validationLoaders.Add(loader);
+        _validationRegistries.Add(registry);
         registry.LoadFromDirectory(TempSkillDirectory);
-        return registry.Validate();
+        GStringArray validationResult = registry.Validate();
+        _validationResults.Add(validationResult);
+        return validationResult;
+    }
+
+    private void ReleaseValidationResources()
+    {
+        _validationResults.Clear();
+        for (int index = _validationRegistries.Count - 1; index >= 0; index--)
+            _validationRegistries[index].Dispose();
+        _validationRegistries.Clear();
+        for (int index = _validationLoaders.Count - 1; index >= 0; index--)
+            _validationLoaders[index].Dispose();
+        _validationLoaders.Clear();
+        _validationSkillRoots.Clear();
+        CleanupTempSkillDirectory();
     }
 
     private static void CleanupTempSkillDirectory()

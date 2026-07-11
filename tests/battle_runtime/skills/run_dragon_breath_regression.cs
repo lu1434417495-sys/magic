@@ -25,7 +25,7 @@ public partial class run_dragon_breath_regression : LifecycleTestSceneTree
 
     private void TestOfficialDragonBreathSkillResourcesAreSchemaStable()
     {
-        using SkillContentRegistry registry = new();
+        using SkillContentRegistry registry = new(new TestContentResourceLoader());
         AssertCurrentOfficialSkillValidationErrors(
             registry.Validate(),
             "official skill registry should validate cleanly."

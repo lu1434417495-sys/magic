@@ -225,7 +225,7 @@ public partial class run_battle_ai_wait_behavior_regression : LifecycleTestScene
 
     private static BattleRuntimeScope BuildRuntimeWithEnemyContent(params EnemyAiBrainDef[] extraBrains)
     {
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         var runtime = new BattleRuntimeModule();
         var enemyAiBrains = new Dictionary<StringName, EnemyAiBrainDef>(
             gameSession.GetEnemyAiBrainsTyped()

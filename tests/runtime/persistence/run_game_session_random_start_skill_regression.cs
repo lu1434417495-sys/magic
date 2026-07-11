@@ -21,7 +21,7 @@ public partial class run_game_session_random_start_skill_regression : LifecycleT
 
     private void TestStartingEquipmentMatchesRandomSkillWithTypedLookup()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         try
         {
             Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);

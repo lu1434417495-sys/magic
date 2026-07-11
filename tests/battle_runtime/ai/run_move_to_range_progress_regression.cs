@@ -465,7 +465,7 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
 
     private static BattleRuntimeScope BuildRuntimeWithEnemyContent()
     {
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,

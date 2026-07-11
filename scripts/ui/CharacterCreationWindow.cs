@@ -111,7 +111,7 @@ public partial class CharacterCreationWindow : Control
     private ulong _lastLabelRefreshMsec;
     private StyleBoxFlat _rowStyleNormal;
     private StyleBoxFlat _rowStyleMet;
-    private ProgressionContentRegistry _progressionContentRegistry = new ProgressionContentRegistry();
+    private GameContentCatalog _contentCatalog;
     private List<StringName> _raceIds = new();
     private List<StringName> _subraceIds = new();
     private GStringNameArray _ageStageIds = new();
@@ -136,11 +136,11 @@ public partial class CharacterCreationWindow : Control
         HideWindow();
     }
 
-    public void SetProgressionContentRegistry(ProgressionContentRegistry registry)
+    public void SetContentCatalog(GameContentCatalog catalog)
     {
-        if (registry == null)
+        if (catalog == null)
             return;
-        _progressionContentRegistry = registry;
+        _contentCatalog = catalog;
         _rebuild_creation_identity_options();
     }
 
@@ -893,7 +893,8 @@ public partial class CharacterCreationWindow : Control
 
     public void _rebuild_creation_identity_options()
     {
-        if (_progressionContentRegistry == null)
+        ProgressionIdentityCatalogData identityCatalog = GetIdentityCatalog();
+        if (identityCatalog == null)
         {
             _raceIds.Clear();
             _subraceIds.Clear();
@@ -908,7 +909,7 @@ public partial class CharacterCreationWindow : Control
 
         _raceIds = new List<StringName>(
             CharacterCreationIdentityOptionService.CollectCreationRaceIds(
-                _progressionContentRegistry
+                identityCatalog
             )
         );
         _selected_race_id = _choose_race_id(_selected_race_id);
@@ -931,7 +932,7 @@ public partial class CharacterCreationWindow : Control
     private StringName _choose_race_id(StringName currentId)
     {
         return CharacterCreationIdentityOptionService.ChooseRaceId(
-            _progressionContentRegistry,
+            GetIdentityCatalog(),
             currentId,
             DefaultCreationRaceId
         );
@@ -941,7 +942,7 @@ public partial class CharacterCreationWindow : Control
     {
         _subraceIds = _collect_subrace_ids_for_race(_selected_race_id);
         return CharacterCreationIdentityOptionService.ChooseSubraceId(
-            _progressionContentRegistry,
+            GetIdentityCatalog(),
             _selected_race_id,
             currentId
         );
@@ -951,7 +952,7 @@ public partial class CharacterCreationWindow : Control
     {
         return new List<StringName>(
             CharacterCreationIdentityOptionService.CollectSubraceIdsForRace(
-                _progressionContentRegistry,
+                GetIdentityCatalog(),
                 raceId
             )
         );
@@ -1232,7 +1233,7 @@ public partial class CharacterCreationWindow : Control
     {
         if (
             !CharacterCreationIdentityOptionService.IsValidCreationRaceSubracePair(
-                _progressionContentRegistry,
+                GetIdentityCatalog(),
                 _selected_race_id,
                 _selected_subrace_id
             )
@@ -1522,10 +1523,11 @@ public partial class CharacterCreationWindow : Control
         RaceDefinition raceDef = _get_selected_race_def();
         if (raceDef == null)
             return null;
-        if (_progressionContentRegistry == null)
+        ProgressionIdentityCatalogData identityCatalog = GetIdentityCatalog();
+        if (identityCatalog == null)
             return null;
         IReadOnlyDictionary<StringName, AgeProfileDefinition> ageProfileDefs =
-            _progressionContentRegistry.GetAgeProfileDefsTyped();
+            identityCatalog.AgeProfileDefs;
         return ageProfileDefs.TryGetValue(
             raceDef.AgeProfileId,
             out AgeProfileDefinition ageProfile
@@ -1536,19 +1538,21 @@ public partial class CharacterCreationWindow : Control
 
     private RaceDefinition _get_race_def(StringName raceId)
     {
-        if (raceId == (StringName)"" || _progressionContentRegistry == null)
+        ProgressionIdentityCatalogData identityCatalog = GetIdentityCatalog();
+        if (raceId == (StringName)"" || identityCatalog == null)
             return null;
         IReadOnlyDictionary<StringName, RaceDefinition> raceDefs =
-            _progressionContentRegistry.GetRaceDefsTyped();
+            identityCatalog.RaceDefs;
         return raceDefs.TryGetValue(raceId, out RaceDefinition raceDef) ? raceDef : null;
     }
 
     private SubraceDefinition _get_subrace_def(StringName subraceId)
     {
-        if (subraceId == (StringName)"" || _progressionContentRegistry == null)
+        ProgressionIdentityCatalogData identityCatalog = GetIdentityCatalog();
+        if (subraceId == (StringName)"" || identityCatalog == null)
             return null;
         IReadOnlyDictionary<StringName, SubraceDefinition> subraceDefs =
-            _progressionContentRegistry.GetSubraceDefsTyped();
+            identityCatalog.SubraceDefs;
         return subraceDefs.TryGetValue(subraceId, out SubraceDefinition subraceDef)
             ? subraceDef
             : null;
@@ -1556,12 +1560,15 @@ public partial class CharacterCreationWindow : Control
 
     private TraitDefinition _get_trait_def(StringName traitId)
     {
-        if (traitId == (StringName)"" || _progressionContentRegistry == null)
+        if (traitId == (StringName)"" || _contentCatalog == null)
             return null;
         IReadOnlyDictionary<StringName, TraitDefinition> traitDefs =
-            _progressionContentRegistry.GetTraitDefsTyped();
+            _contentCatalog.GetTraitDefsTyped();
         return traitDefs.TryGetValue(traitId, out TraitDefinition traitDef) ? traitDef : null;
     }
+
+    private ProgressionIdentityCatalogData GetIdentityCatalog() =>
+        _contentCatalog?.GetProgressionIdentityCatalogTyped();
 
     private static AgeStageRuleDefinition _get_age_stage_rule(
         AgeProfileDefinition ageProfile,

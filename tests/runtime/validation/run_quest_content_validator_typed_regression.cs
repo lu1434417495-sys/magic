@@ -25,9 +25,9 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
 
     private void TestOfficialQuestValidationTypedBoundary()
     {
-        using ProgressionContentRegistry progressionRegistry = new();
-        using ItemContentRegistry itemRegistry = new();
-        using EnemyContentRegistry enemyRegistry = new();
+        using ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
+        using ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
+        using EnemyContentRegistry enemyRegistry = new(new TestContentResourceLoader());
 
         IReadOnlyDictionary<StringName, QuestDefinition> questDefs =
             progressionRegistry.GetQuestDefsTyped();
@@ -55,9 +55,9 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
 
     private void TestMissingReferenceErrorsUseTypedBoundary()
     {
-        using ItemContentRegistry itemRegistry = new();
-        using SkillContentRegistry skillRegistry = new();
-        using EnemyContentRegistry enemyRegistry = new();
+        using ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
+        using SkillContentRegistry skillRegistry = new(new TestContentResourceLoader());
+        using EnemyContentRegistry enemyRegistry = new(new TestContentResourceLoader());
         QuestDefinition invalidQuest = BuildInvalidQuestDefinition();
 
         Dictionary<StringName, QuestDefinition> typedQuestDefs = new()
@@ -86,9 +86,9 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
 
     private void TestNpcProviderAcceptsNonServiceInteractionId()
     {
-        using ItemContentRegistry itemRegistry = new();
-        using SkillContentRegistry skillRegistry = new();
-        using EnemyContentRegistry enemyRegistry = new();
+        using ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
+        using SkillContentRegistry skillRegistry = new(new TestContentResourceLoader());
+        using EnemyContentRegistry enemyRegistry = new(new TestContentResourceLoader());
         QuestDefinition npcQuest = BuildQuestDefinition(
             "npc_regression_quest",
             providerKind: "npc",

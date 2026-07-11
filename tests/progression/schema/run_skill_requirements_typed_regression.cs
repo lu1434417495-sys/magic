@@ -60,7 +60,7 @@ public partial class run_skill_requirements_typed_regression : LifecycleTestScen
 
     private void TestOfficialSkillResourcesExposeTypedRequirementsAndSources()
     {
-        using ProgressionContentRegistry registry = new();
+        using ProgressionContentRegistry registry = new(new TestContentResourceLoader());
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             registry.GetSkillDefinitionsTyped();
 
@@ -142,7 +142,7 @@ public partial class run_skill_requirements_typed_regression : LifecycleTestScen
                 indexedSkillDefs[skillDef.skill_id] = skillDef;
         }
 
-        using ProgressionContentRegistry registry = new();
+        using ProgressionContentRegistry registry = new(new TestContentResourceLoader());
         registry.ReplaceSkillAuthoringResourcesForValidation(indexedSkillDefs);
         return registry.CollectValidationErrors();
     }

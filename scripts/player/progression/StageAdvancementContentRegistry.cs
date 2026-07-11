@@ -9,7 +9,8 @@ public class StageAdvancementContentRegistry : IdentityContentRegistryBase
 
     private readonly Dictionary<StringName, StageAdvancementDefinition> _stage_advancement_defs = new();
 
-    public StageAdvancementContentRegistry()
+    internal StageAdvancementContentRegistry(IContentResourceLoader resourceLoader)
+        : base(resourceLoader)
     {
         _registry_label = "StageAdvancementContentRegistry";
         Rebuild();
@@ -42,13 +43,12 @@ public class StageAdvancementContentRegistry : IdentityContentRegistryBase
 
     protected override void _register_resource(string resourcePath)
     {
-        var resource = GD.Load<Resource>(resourcePath);
+        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
         if (resource == null)
         {
             _validation_errors.Add($"Failed to load stage advancement config {resourcePath}.");
             return;
         }
-        GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
         if (resource is not StageAdvancementModifier modifier)
         {
             _validation_errors.Add(

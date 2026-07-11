@@ -12,9 +12,6 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
     private const ApplicationShutdownParticipantStage ApplicationShutdownStage =
         ApplicationShutdownParticipantStage.Runtime;
     private const int ApplicationShutdownOrder = 0;
-    private const string CoordinatorlessOwnedGameSessionName =
-        "HeadlessGameTestSessionGameSession";
-
     internal readonly struct SessionCommandOutcome
     {
         public SessionCommandOutcome(
@@ -61,6 +58,7 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
     private GameSession _gameSession;
     private GameRuntimeFacade _runtime;
     private bool _ownsGameSession;
+    private bool _initialized;
     private bool _disposed;
     private ApplicationLifetimeCoordinator _applicationLifetimeCoordinator;
     private EncounterAnchorData _activeHeadlessEncounterAnchor;
@@ -84,7 +82,35 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
 
     public void initialize()
     {
+        _initialized = true;
         EnsureGameSession();
+    }
+
+    internal void BindOwnedGameSessionForTests(GameSession gameSession)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(gameSession);
+        if (
+            _initialized
+            || _gameSession != null
+            || _runtime != null
+            || _ownsGameSession
+        )
+        {
+            throw new InvalidOperationException(
+                "A test-owned GameSession must be bound before headless initialization."
+            );
+        }
+        if (!GodotObject.IsInstanceValid(gameSession) || gameSession.IsClosed)
+        {
+            throw new ArgumentException(
+                "The test-owned GameSession must be valid and open.",
+                nameof(gameSession)
+            );
+        }
+
+        _gameSession = gameSession;
+        _ownsGameSession = true;
     }
 
     public GameSession GetGameSession()
@@ -721,20 +747,10 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
             return;
         }
 
-        bool hasApplicationLifetimeCoordinator =
-            sceneTree.Root.GetNodeOrNull<ApplicationLifetimeCoordinator>(
-                "ApplicationLifetimeCoordinator"
-            ) != null;
-        _gameSession = new GameSession
-        {
-            Name = hasApplicationLifetimeCoordinator
-                ? "GameSession"
-                : CoordinatorlessOwnedGameSessionName,
-        };
-        sceneTree.Root.AddChild(_gameSession);
-        _ownsGameSession = true;
-        SettleFrames(1);
-        RegisterApplicationShutdownParticipantIfAvailable();
+        throw new InvalidOperationException(
+            "HeadlessGameTestSession requires the canonical GameSession or an explicit "
+                + "BindOwnedGameSessionForTests call before initialization."
+        );
     }
 
     private void RegisterApplicationShutdownParticipantIfAvailable()

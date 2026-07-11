@@ -21,17 +21,17 @@ public sealed partial class GameRuntimeFacade
     {
         _save_active_fog_state_to_world_data();
         WorldMapContextSyncResult syncResult = _world_map_data_context.SyncActiveWorldContext(
-            _generation_config,
+            _generation_definition,
             _grid_system,
             _player_coord,
             _selected_coord
         );
         _player_coord = syncResult.PlayerCoord;
         _selected_coord = syncResult.SelectedCoord;
-        if (_world_map_data_context.active_generation_config != null)
+        if (_world_map_data_context.active_generation_definition != null)
         {
             _fog_system.Setup(
-                _world_map_data_context.active_generation_config.GetWorldSizeCells(),
+                _world_map_data_context.active_generation_definition.GetWorldSizeCells(),
                 _get_active_world_fog_state()
             );
             _world_map_data_context.ValidateWorldSystemSizeConsistency(
@@ -235,8 +235,8 @@ public sealed partial class GameRuntimeFacade
     private bool _ensure_submap_generated(string submap_id) =>
         _world_map_data_context.EnsureSubmapGenerated(submap_id);
 
-    private WorldMapGenerationConfig _load_submap_generation_config(string submap_id) =>
-        _world_map_data_context.LoadSubmapGenerationConfig(submap_id);
+    private WorldGenerationDefinition _get_submap_generation_definition(string submap_id) =>
+        _world_map_data_context.GetSubmapGenerationDefinition(submap_id);
 
     private GDictionary _get_mounted_submap_entry(string submap_id) =>
         _world_map_data_context.GetMountedSubmapEntry(submap_id);

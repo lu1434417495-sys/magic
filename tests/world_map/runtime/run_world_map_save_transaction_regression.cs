@@ -77,7 +77,7 @@ public partial class run_world_map_save_transaction_regression : LifecycleTestSc
 
     private RuntimeContext CreateRuntimeContext()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         int createError = gameSession.CreateNewSave(TestWorldConfig);
         _test.Eq(createError, (int)Error.Ok, "大地图保存事务回归前置：应能创建测试存档。");
         if (createError != (int)Error.Ok)

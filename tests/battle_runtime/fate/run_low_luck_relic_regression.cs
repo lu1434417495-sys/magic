@@ -312,7 +312,7 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
 
     private static IReadOnlyDictionary<StringName, ItemDefinition> LoadLowLuckItemDefinitions()
     {
-        using ItemContentRegistry registry = new();
+        using ItemContentRegistry registry = new(new TestContentResourceLoader());
         return new Dictionary<StringName, ItemDefinition>(registry.GetItemDefsTyped());
     }
 

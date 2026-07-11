@@ -89,7 +89,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
 
     private void TestItemRegistryAcceptsEquipmentSeedData()
     {
-        ItemContentRegistry registry = new();
+        ItemContentRegistry registry = new(new TestContentResourceLoader());
         _test.Eq(registry.Validate().Count, 0, "Equipment seed item definitions should validate.");
 
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = registry.GetItemDefsTyped();
@@ -323,7 +323,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
     private void TestEquipmentModifiersChangeAttributeSnapshotAndRoundTrip()
     {
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
-        ProgressionContentRegistry progressionRegistry = new();
+        ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
 
         CharacterManagementModule baselineManager = new();
@@ -498,7 +498,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
     private void TestTwoHandedWeaponAttributeNotDoubleCounted()
     {
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
-        ProgressionContentRegistry progressionRegistry = new();
+        ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         warehouseService.AddItemTyped("iron_greatsword", 1);
@@ -582,7 +582,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
     private void TestArmorMaxDexBonusCapsPositiveAgilityAc()
     {
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
-        ProgressionContentRegistry progressionRegistry = new();
+        ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         partyState.GetMemberState("hero").progression.unit_base_attributes.SetAttributeValue("agility", 18);
 
@@ -1280,7 +1280,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
     }
 
     private static IReadOnlyDictionary<StringName, ItemDefinition> ItemDefinitions() =>
-        new ItemContentRegistry().GetItemDefsTyped();
+        new ItemContentRegistry(new TestContentResourceLoader()).GetItemDefsTyped();
 
     private static ItemDefinition GetItemDef(
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,

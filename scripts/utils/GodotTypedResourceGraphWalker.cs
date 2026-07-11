@@ -7,7 +7,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 internal static class GodotTypedResourceGraphWalker
 {
-    private const int MaxDepth = 12;
+    private const int MaxDepth = 32;
     private static readonly Type GenericGodotArrayType =
         typeof(Godot.Collections.Array).Assembly.GetType("Godot.Collections.IGenericGodotArray");
     private static readonly PropertyInfo GenericGodotArrayUnderlyingArrayProperty =

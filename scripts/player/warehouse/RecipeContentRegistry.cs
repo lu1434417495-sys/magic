@@ -9,12 +9,19 @@ public class RecipeContentRegistry : IValidatableRegistry, System.IDisposable
 
     private const int RECIPE_QUANTITY_MAX = 9999;
 
+    private readonly IContentResourceLoader _loader;
+
     private readonly Dictionary<StringName, RecipeDefinition> _recipe_defs = new();
 
     private readonly List<string> _validation_errors = new();
 
     private Dictionary<StringName, ItemDefinition> _item_defs = new();
     private bool _disposed;
+
+    internal RecipeContentRegistry(IContentResourceLoader loader)
+    {
+        _loader = loader ?? throw new System.ArgumentNullException(nameof(loader));
+    }
 
     public void Dispose()
     {
@@ -115,13 +122,12 @@ public class RecipeContentRegistry : IValidatableRegistry, System.IDisposable
 
     private void _register_recipe_resource(string resourcePath)
     {
-        var resource = GD.Load<Resource>(resourcePath);
+        var resource = _loader.LoadCanonical<Resource>(resourcePath);
         if (resource == null)
         {
             _validation_errors.Add($"Failed to load recipe config {resourcePath}.");
             return;
         }
-        GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
         if (resource is not RecipeDef rd)
         {
             _validation_errors.Add($"Recipe config {resourcePath} is not a RecipeDef.");

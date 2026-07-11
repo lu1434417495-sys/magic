@@ -7,17 +7,16 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_contingency_setup_window_regression : LifecycleTestSceneTree
 {
-    private static readonly PackedScene PartyManagementWindowScene = GD.Load<PackedScene>(
-        "res://scenes/ui/party_management_window.tscn"
-    );
-    private static readonly PackedScene ContingencySetupWindowScene = GD.Load<PackedScene>(
-        "res://scenes/ui/contingency_setup_window.tscn"
-    );
+    private const string PartyManagementWindowScenePath =
+        "res://scenes/ui/party_management_window.tscn";
+    private const string ContingencySetupWindowScenePath =
+        "res://scenes/ui/contingency_setup_window.tscn";
 
     private readonly TestHarness _test = new();
 
     public override async void _Initialize()
     {
+        await ProcessFrames(1);
         await TestPartyManagementExposesContingencyEntrySignal();
         await TestContingencyWindowRendersUnchargedSetup();
         await TestUnchargedTemplateSelectionEmitsSelectedPayload();
@@ -172,7 +171,9 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
 
     private async Task<PartyManagementWindow> CreatePartyWindow()
     {
-        var window = PartyManagementWindowScene.Instantiate<PartyManagementWindow>();
+        var window = EngineAssetAccess
+            .ResolveBorrowed<PackedScene>(PartyManagementWindowScenePath)
+            .Instantiate<PartyManagementWindow>();
         Root.AddChild(window);
         await ProcessFrames(1);
         return window;
@@ -180,8 +181,11 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
 
     private async Task<ContingencySetupWindow> CreateContingencyWindow()
     {
-        _test.True(ContingencySetupWindowScene != null, "Contingency setup scene should exist.");
-        var window = ContingencySetupWindowScene.Instantiate<ContingencySetupWindow>();
+        PackedScene scene = EngineAssetAccess.ResolveBorrowed<PackedScene>(
+            ContingencySetupWindowScenePath
+        );
+        _test.True(scene != null, "Contingency setup scene should exist.");
+        var window = scene.Instantiate<ContingencySetupWindow>();
         Root.AddChild(window);
         await ProcessFrames(1);
         return window;

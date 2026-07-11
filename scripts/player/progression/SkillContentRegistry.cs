@@ -109,6 +109,7 @@ public class SkillContentRegistry : System.IDisposable
     private static readonly StringName[] PracticeTrackTags = { "meditation", "cultivation" };
 
     public Dictionary _skill_defs { get; set; } = new();
+    private readonly IContentResourceLoader _resourceLoader;
     private readonly List<string> _validationErrors = new();
     public Array<string> _validation_errors
     {
@@ -150,9 +151,18 @@ public class SkillContentRegistry : System.IDisposable
         }
     }
 
-    public SkillContentRegistry()
+    internal SkillContentRegistry(IContentResourceLoader resourceLoader)
+        : this(resourceLoader, loadDefaultContent: true) { }
+
+    internal SkillContentRegistry(
+        IContentResourceLoader resourceLoader,
+        bool loadDefaultContent
+    )
     {
-        Rebuild();
+        _resourceLoader = resourceLoader
+            ?? throw new System.ArgumentNullException(nameof(resourceLoader));
+        if (loadDefaultContent)
+            Rebuild();
     }
 
     public void Dispose()
@@ -271,7 +281,7 @@ public class SkillContentRegistry : System.IDisposable
 
     private void RegisterSkillResource(string resourcePath)
     {
-        var resource = GD.Load<Resource>(resourcePath);
+        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
         if (resource == null)
         {
             _validationErrors.Add($"Failed to load skill config {resourcePath}.");
@@ -282,8 +292,6 @@ public class SkillContentRegistry : System.IDisposable
             _validationErrors.Add($"Skill config {resourcePath} is not a SkillDef.");
             return;
         }
-        GodotContentOwnership.RegisterBorrowedContent(skillDef, resourcePath);
-
         if (skillDef.skill_id == "")
         {
             _validationErrors.Add($"Skill config {resourcePath} is missing skill_id.");

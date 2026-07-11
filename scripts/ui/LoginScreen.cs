@@ -404,9 +404,7 @@ public partial class LoginScreen : Control
         GameSession gameSession = _get_game_session();
         if (gameSession == null)
             return;
-        character_creation_window.SetProgressionContentRegistry(
-            gameSession.GetProgressionContentRegistry()
-        );
+        character_creation_window.SetContentCatalog(gameSession.GetContentCatalogTyped());
     }
 
     public GameSession _get_game_session()

@@ -509,7 +509,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
             }
         }
 
-        var progressionRegistry = new ProgressionContentRegistry();
+        var progressionRegistry = new ProgressionContentRegistry(new TestContentResourceLoader());
         var characterManagement = new CharacterManagementModule();
         characterManagement.setup(
             partyState,
@@ -540,7 +540,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
             )
         );
 
-        var progressionRegistry = new ProgressionContentRegistry();
+        var progressionRegistry = new ProgressionContentRegistry(new TestContentResourceLoader());
         var traitDefs = new Dictionary<StringName, TraitDefinition>
         {
             ["halfling_luck"] = BuildTraitDefinition(
@@ -581,7 +581,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
     private static BattleRuntimeScope BuildRuntimeWithEquipmentTrait(ItemDef itemDef)
     {
         PartyState partyState = BuildPartyState("hero");
-        var progressionRegistry = new ProgressionContentRegistry();
+        var progressionRegistry = new ProgressionContentRegistry(new TestContentResourceLoader());
         var itemDefs = new Dictionary<StringName, ItemDefinition>();
         if (itemDef != null)
         {
@@ -628,7 +628,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
     private static BattleRuntimeScope BuildRuntimeWithEquipmentAbilityBinding(ItemDef itemDef)
     {
         PartyState partyState = BuildPartyState("hero");
-        var progressionRegistry = new ProgressionContentRegistry();
+        var progressionRegistry = new ProgressionContentRegistry(new TestContentResourceLoader());
         var itemDefs = new Dictionary<StringName, ItemDefinition>();
         if (itemDef != null)
         {

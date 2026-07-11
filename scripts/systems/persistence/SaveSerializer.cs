@@ -23,7 +23,6 @@ internal sealed class SaveDecodeResult
         PartyState partyState,
         string activeSaveId,
         string generationConfigPath,
-        WorldMapGenerationConfig generationConfig,
         Vector2I playerCoord,
         string playerFactionId
     )
@@ -35,7 +34,6 @@ internal sealed class SaveDecodeResult
         PartyState = partyState ?? new PartyState();
         ActiveSaveId = activeSaveId ?? "";
         GenerationConfigPath = generationConfigPath ?? "";
-        GenerationConfig = generationConfig;
         PlayerCoord = playerCoord;
         PlayerFactionId = playerFactionId ?? "player";
     }
@@ -46,7 +44,6 @@ internal sealed class SaveDecodeResult
     internal PartyState PartyState { get; }
     internal string ActiveSaveId { get; }
     internal string GenerationConfigPath { get; }
-    internal WorldMapGenerationConfig GenerationConfig { get; }
     internal Vector2I PlayerCoord { get; }
     internal string PlayerFactionId { get; }
 }
@@ -120,7 +117,6 @@ public sealed class SaveSerializer
     internal bool TryDecodePayload(
         IReadOnlyDictionary<string, object> payload,
         string generationConfigPath,
-        WorldMapGenerationConfig generationConfig,
         IReadOnlyDictionary<string, object> saveMeta,
         out SaveDecodeResult result
     )
@@ -262,7 +258,6 @@ public sealed class SaveSerializer
             partyState,
             activeSaveId,
             generationConfigPath,
-            generationConfig,
             playerCoord,
             playerFactionId
         );

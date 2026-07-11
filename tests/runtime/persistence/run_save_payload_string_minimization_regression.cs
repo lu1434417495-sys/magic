@@ -25,7 +25,7 @@ public partial class run_save_payload_string_minimization_regression : Lifecycle
 
     private void TestSavePayloadMinimizesIdentityStrings()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         try
         {
             Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
@@ -154,7 +154,6 @@ public partial class run_save_payload_string_minimization_regression : Lifecycle
             bool decoded = serializer.TryDecodePayload(
                 payloadPlain,
                 gameSession.GetGenerationConfigPath(),
-                gameSession.GetGenerationConfig(),
                 gameSession.CaptureActiveSaveMetaPlain(),
                 out SaveDecodeResult decodeResult
             );

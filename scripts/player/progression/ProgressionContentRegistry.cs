@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
@@ -72,18 +71,19 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private readonly Dictionary<StringName, StageAdvancementDefinition> _stageAdvancementDefIndex =
         new();
 
-    private readonly SkillContentRegistry _skillContentRegistry = new();
-    private readonly ProfessionContentRegistry _professionContentRegistry = new();
-    private readonly RaceContentRegistry _raceContentRegistry = new();
-    private readonly SubraceContentRegistry _subraceContentRegistry = new();
-    private readonly TraitContentRegistry _traitContentRegistry = new();
-    private readonly AgeContentRegistry _ageContentRegistry = new();
-    private readonly BloodlineContentRegistry _bloodlineContentRegistry = new();
-    private readonly AscensionContentRegistry _ascensionContentRegistry = new();
-    private readonly StageAdvancementContentRegistry _stageAdvancementContentRegistry = new();
-    private readonly QuestContentRegistry _questContentRegistry = new();
-    private readonly ContingencyTemplateContentRegistry _contingencyTemplateContentRegistry = new();
-    private readonly EquipmentAbilityContentRegistry _equipmentAbilityContentRegistry = new();
+    private readonly IContentResourceLoader _resourceLoader;
+    private readonly SkillContentRegistry _skillContentRegistry;
+    private readonly ProfessionContentRegistry _professionContentRegistry;
+    private readonly RaceContentRegistry _raceContentRegistry;
+    private readonly SubraceContentRegistry _subraceContentRegistry;
+    private readonly TraitContentRegistry _traitContentRegistry;
+    private readonly AgeContentRegistry _ageContentRegistry;
+    private readonly BloodlineContentRegistry _bloodlineContentRegistry;
+    private readonly AscensionContentRegistry _ascensionContentRegistry;
+    private readonly StageAdvancementContentRegistry _stageAdvancementContentRegistry;
+    private readonly QuestContentRegistry _questContentRegistry;
+    private readonly ContingencyTemplateContentRegistry _contingencyTemplateContentRegistry;
+    private readonly EquipmentAbilityContentRegistry _equipmentAbilityContentRegistry;
 
     private GStringArray _validationErrors = new();
     private readonly List<string> _questRegistrationErrors = new();
@@ -107,8 +107,24 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         }
     }
 
-    public ProgressionContentRegistry()
+    internal ProgressionContentRegistry(IContentResourceLoader resourceLoader)
     {
+        _resourceLoader = resourceLoader
+            ?? throw new System.ArgumentNullException(nameof(resourceLoader));
+        _skillContentRegistry = new SkillContentRegistry(_resourceLoader);
+        _professionContentRegistry = new ProfessionContentRegistry(_resourceLoader);
+        _raceContentRegistry = new RaceContentRegistry(_resourceLoader);
+        _subraceContentRegistry = new SubraceContentRegistry(_resourceLoader);
+        _traitContentRegistry = new TraitContentRegistry(_resourceLoader);
+        _ageContentRegistry = new AgeContentRegistry(_resourceLoader);
+        _bloodlineContentRegistry = new BloodlineContentRegistry(_resourceLoader);
+        _ascensionContentRegistry = new AscensionContentRegistry(_resourceLoader);
+        _stageAdvancementContentRegistry = new StageAdvancementContentRegistry(_resourceLoader);
+        _questContentRegistry = new QuestContentRegistry(_resourceLoader);
+        _contingencyTemplateContentRegistry = new ContingencyTemplateContentRegistry(
+            _resourceLoader
+        );
+        _equipmentAbilityContentRegistry = new EquipmentAbilityContentRegistry(_resourceLoader);
         Rebuild();
     }
 
@@ -147,10 +163,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         ClearRuntimeCaches();
 
         _skillContentRegistry.Rebuild();
-        _skillDefs = RegisterDefinitionBucket(
-            _skillContentRegistry.DuplicateSkillResourceBucketForProgressionRegistry(),
-            "SkillContentRegistry.skill_defs"
-        );
+        _skillDefs = _skillContentRegistry.DuplicateSkillResourceBucketForProgressionRegistry();
         ReplaceDefinitionIndex(
             _skillDefinitionIndex,
             _skillContentRegistry.GetSkillDefinitionsTyped()
@@ -235,7 +248,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
 
     internal GDictionary DuplicateSkillResourceBucketForValidation()
     {
-        return DuplicateDictionary(_skillDefs, "skill_defs.validation_snapshot");
+        return DuplicateDictionary(_skillDefs);
     }
 
     internal IReadOnlyList<Resource> GetLoadedSkillResourcesForFinalizerDrain()
@@ -414,7 +427,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
 
     internal void ReplaceSkillAuthoringResourcesForValidation(GDictionary skillResources)
     {
-        _skillDefs = DuplicateDictionary(skillResources, "skill_defs.validation_input");
+        _skillDefs = DuplicateDictionary(skillResources);
         ReplaceDefinitionIndex(
             _skillDefinitionIndex,
             SkillDefinition.ProjectIndex(BuildSkillDefIndex())
@@ -616,7 +629,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         _usesReplacementDefinitionsForValidation = false;
     }
 
-    private static IReadOnlyList<EquipmentAbilityContentPackDef> LoadEquipmentAbilityContentPacks()
+    private IReadOnlyList<EquipmentAbilityContentPackDef> LoadEquipmentAbilityContentPacks()
     {
         var packs = new List<EquipmentAbilityContentPackDef>();
         string globalPath = ProjectSettings.GlobalizePath(EquipmentAbilityConfigDirectory);
@@ -627,7 +640,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         return packs;
     }
 
-    private static void ScanEquipmentAbilityContentDirectory(
+    private void ScanEquipmentAbilityContentDirectory(
         string directoryPath,
         List<EquipmentAbilityContentPackDef> packs
     )
@@ -656,10 +669,9 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
                     continue;
 
-                Resource resource = ResourceLoader.Load<Resource>(entryPath);
+                Resource resource = _resourceLoader.LoadCanonical<Resource>(entryPath);
                 if (resource is not EquipmentAbilityContentPackDef pack)
                     continue;
-                GodotContentOwnership.RegisterBorrowedContent(pack, entryPath);
                 packs.Add(pack);
             }
             directory.ListDirEnd();
@@ -2104,12 +2116,9 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         }
     }
 
-    private static GDictionary DuplicateDictionary(GDictionary source, string reason)
+    private static GDictionary DuplicateDictionary(GDictionary source)
     {
-        return RegisterDefinitionBucket(
-            source != null ? source.Duplicate() : new GDictionary(),
-            $"DuplicateDictionary:{reason}"
-        );
+        return source != null ? source.Duplicate() : new GDictionary();
     }
 
     private Dictionary<StringName, SkillDef> BuildSkillDefIndex()
@@ -2167,17 +2176,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         if (source == null || source.Count == 0)
             return EquipmentAbilityReadOnlySet<StringName>.Empty;
         return EquipmentAbilityReadOnlySet<StringName>.From(source.Keys);
-    }
-
-    private static GDictionary RegisterDefinitionBucket(GDictionary bucket, string reason)
-    {
-        bucket ??= new GDictionary();
-        GodotContentOwnership.RegisterDerivedWrapper(
-            bucket,
-            $"ProgressionContentRegistry.definition_bucket:{reason}:{RuntimeHelpers.GetHashCode(bucket)}",
-            "ProgressionContentRegistry.RegisterDefinitionBucket"
-        );
-        return bucket;
     }
 
     private static void ReplaceDefinitionIndex<T>(

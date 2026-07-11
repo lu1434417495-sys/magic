@@ -4,9 +4,17 @@ using Godot;
 
 public sealed class BattleSimContentProvider : IDisposable
 {
-    private ProgressionContentRegistry _progression_content_registry = new();
-    private BarrierContentRegistry _barrier_content_registry = new();
-    private EnemyContentRegistry _enemy_content_registry = new();
+    private ProgressionContentRegistry _progression_content_registry;
+    private BarrierContentRegistry _barrier_content_registry;
+    private EnemyContentRegistry _enemy_content_registry;
+
+    internal BattleSimContentProvider(IContentResourceLoader loader)
+    {
+        ArgumentNullException.ThrowIfNull(loader);
+        _progression_content_registry = new ProgressionContentRegistry(loader);
+        _barrier_content_registry = new BarrierContentRegistry(loader);
+        _enemy_content_registry = new EnemyContentRegistry(loader);
+    }
 
     public void Dispose()
     {

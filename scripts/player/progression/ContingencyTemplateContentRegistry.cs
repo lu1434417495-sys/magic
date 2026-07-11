@@ -10,6 +10,13 @@ internal sealed class ContingencyTemplateContentRegistry
     private readonly Dictionary<StringName, ContingencySetupTemplateDefinition> _templateDefs =
         new();
     private readonly List<string> _validationErrors = new();
+    private readonly IContentResourceLoader _resourceLoader;
+
+    internal ContingencyTemplateContentRegistry(IContentResourceLoader resourceLoader)
+    {
+        _resourceLoader = resourceLoader
+            ?? throw new System.ArgumentNullException(nameof(resourceLoader));
+    }
 
     public void Rebuild()
     {
@@ -59,7 +66,7 @@ internal sealed class ContingencyTemplateContentRegistry
 
     private void RegisterTemplateResource(string resourcePath)
     {
-        Resource resource = ResourceLoader.Load<Resource>(resourcePath);
+        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
         if (resource == null)
         {
             _validationErrors.Add(
@@ -75,8 +82,6 @@ internal sealed class ContingencyTemplateContentRegistry
             );
             return;
         }
-
-        GodotContentOwnership.RegisterBorrowedContent(templateDef, resourcePath);
 
         StringName templateId = templateDef.template_id;
         if (templateId == "")

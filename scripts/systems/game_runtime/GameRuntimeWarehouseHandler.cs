@@ -983,7 +983,7 @@ public sealed class GameRuntimeWarehouseHandler
 
         dataContext.BindRootWorldData(restoredWorldData);
         dataContext.SyncActiveWorldContext(
-            _runtime.GetGenerationConfig(),
+            _runtime.GetGenerationDefinition(),
             _runtime.GetGridSystem(),
             _runtime.GetPlayerCoord(),
             _runtime.GetSelectedCoord()

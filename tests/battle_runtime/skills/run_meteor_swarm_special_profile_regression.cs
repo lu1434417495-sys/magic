@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_meteor_swarm_special_profile_regression : LifecycleTestSceneTree
 {
@@ -17,6 +16,7 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
 
     private TestResult Run()
     {
+        TestTypedProfileViewReturnsDeepReadOnlyCopies();
         TestTargetPlanUsesSquare7x7AndEdgeClipping();
         TestPreviewAndExecuteUseTypedProfileNotLegacyArea();
         TestMeteorAttemptMetricsStartAfterRuntimeValidation();
@@ -24,6 +24,81 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
         TestMeteorSwarmDriftChangesFinalAnchorAndTerrain();
 
         return _test.Finish("Meteor swarm special profile regression");
+    }
+
+    private void TestTypedProfileViewReturnsDeepReadOnlyCopies()
+    {
+        MeteorSwarmProfile authoredProfile = GD.Load<MeteorSwarmProfile>(
+            "res://data/configs/skill_special_profiles/profiles/meteor_swarm_profile.tres"
+        );
+        _test.True(authoredProfile != null, "陨星雨 immutable view 回归需要正式 profile 资源。");
+        if (authoredProfile == null)
+            return;
+
+        IBattleSpecialProfileView view = BattleSpecialProfileRuntimeView.ForMeteorSwarm(
+            "meteor_swarm",
+            authoredProfile
+        );
+        _test.True(
+            view.TryGetMeteorSwarmProfile(
+                "meteor_swarm",
+                out MeteorSwarmProfileData first
+            ),
+            "typed view 应返回 meteor_swarm profile。"
+        );
+        _test.True(
+            view.TryGetMeteorSwarmProfile(
+                "meteor_swarm",
+                out MeteorSwarmProfileData second
+            ),
+            "typed view 应支持重复查询。"
+        );
+        _test.True(
+            first != null && second != null && !ReferenceEquals(first, second),
+            "typed view 每次查询应返回防御性深副本。"
+        );
+        _test.True(
+            first?.impact_components is ICollection<MeteorSwarmImpactComponentData> impactValues
+                && impactValues.IsReadOnly,
+            "impact_components 应暴露只读集合。"
+        );
+        _test.True(
+            first?.terrain_profiles is ICollection<MeteorSwarmTerrainProfileData> terrainValues
+                && terrainValues.IsReadOnly,
+            "terrain_profiles 应暴露只读集合。"
+        );
+        _test.True(
+            first != null
+                && second != null
+                && first.impact_components.Count > 0
+                && second.impact_components.Count > 0
+                && !ReferenceEquals(first.impact_components[0], second.impact_components[0]),
+            "impact component 也应深拷贝。"
+        );
+        _test.True(
+            first != null
+                && second != null
+                && first.terrain_profiles.Count > 0
+                && second.terrain_profiles.Count > 0
+                && !ReferenceEquals(first.terrain_profiles[0], second.terrain_profiles[0]),
+            "terrain profile 也应深拷贝。"
+        );
+        _test.True(
+            typeof(MeteorSwarmProfileData).GetProperty(nameof(MeteorSwarmProfileData.radius))
+                ?.SetMethod == null,
+            "MeteorSwarmProfileData scalar properties 应不可写。"
+        );
+
+        bool nullProfileRejected = false;
+        try
+        {
+            BattleSpecialProfileRuntimeView.ForMeteorSwarm("meteor_swarm", null);
+        }
+        catch (ArgumentNullException)
+        {
+            nullProfileRejected = true;
+        }
+        _test.True(nullProfileRejected, "typed profile projection 应对 null Resource fail-fast。");
     }
 
     private void TestTargetPlanUsesSquare7x7AndEdgeClipping()
@@ -344,14 +419,12 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
             "res://data/configs/skill_special_profiles/profiles/meteor_swarm_profile.tres"
         );
         _test.True(meteorProfile != null, "陨星雨正式 special profile 资源应可加载。");
-        GDictionary specialProfileSnapshot = BuildMeteorSpecialProfileSnapshot(meteorProfile);
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             skill_definitions: typedSkillDefinitions,
             enemy_templates: new Dictionary<StringName, EnemyTemplateDef>(),
             enemy_ai_brains: new Dictionary<StringName, EnemyAiBrainDef>(),
             item_defs: new Dictionary<StringName, ItemDefinition>(),
-            battle_special_profile_registry_snapshot: specialProfileSnapshot,
             battle_special_profile_view: BattleSpecialProfileRuntimeView.ForMeteorSwarm(
                 "meteor_swarm",
                 meteorProfile
@@ -401,37 +474,6 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
             Caster = caster,
             MeteorProfile = meteorProfile,
             SkillDefinitionIndex = typedSkillDefinitions,
-        };
-    }
-
-    private static GDictionary BuildMeteorSpecialProfileSnapshot(MeteorSwarmProfile meteorProfile)
-    {
-        var profiles = new GDictionary
-        {
-            ["meteor_swarm"] = new GDictionary
-            {
-                ["profile_id"] = "meteor_swarm",
-                ["runtime_resolver_id"] = "meteor_swarm",
-                ["owning_skill_ids"] = new GStringArray { "mage_meteor_swarm" },
-                ["profile_resource_path"] = meteorProfile?.ResourcePath ?? "",
-                ["presentation_metadata"] = new GDictionary
-                {
-                    ["display_name"] = "陨星雨",
-                    ["coverage_shape_id"] = "square_7x7",
-                    ["radius"] = 3,
-                },
-                ["required_regression_tests"] = new GStringArray(),
-            },
-        };
-        return new GDictionary
-        {
-            ["ok"] = true,
-            ["errors"] = new GStringArray(),
-            ["profiles"] = profiles,
-            ["profile_id_by_skill_id"] = new GDictionary
-            {
-                ["mage_meteor_swarm"] = "meteor_swarm",
-            },
         };
     }
 

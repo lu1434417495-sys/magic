@@ -234,7 +234,7 @@ public partial class run_battle_validation_result_projection_regression : Lifecy
     private void TestRuntimeUnitSkillEffectTypedProjectionPreservesCritLock()
     {
         var runtime = new BattleRuntimeModule();
-        ProgressionContentRegistry progressionContent = new();
+        ProgressionContentRegistry progressionContent = new(new TestContentResourceLoader());
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             progressionContent.GetSkillDefinitionsTyped();
         runtime.setup(

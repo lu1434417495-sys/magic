@@ -66,16 +66,17 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
 
     private void Run()
     {
-        using ProgressionContentRegistry progressionRegistry = new();
-        using ItemContentRegistry itemRegistry = new();
-        using EnemyContentRegistry enemyRegistry = new();
+        using TestContentResourceLoader contentLoader = new();
+        using ProgressionContentRegistry progressionRegistry = new(contentLoader);
+        using ItemContentRegistry itemRegistry = new(contentLoader);
+        using EnemyContentRegistry enemyRegistry = new(contentLoader);
 
         GDictionary skillDefs = progressionRegistry.DuplicateSkillResourceBucketForValidation();
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs =
             itemRegistry.GetItemDefsTyped();
-        GDictionary enemyTemplates = ProjectEnemyTemplates(enemyRegistry.GetEnemyTemplatesTyped());
-        GDictionary wildEncounterRosters = ProjectEnemyRosters(
-            enemyRegistry.GetWildEncounterRostersTyped()
+        HashSet<StringName> enemyTemplateIds = new(enemyRegistry.GetEnemyTemplatesTyped().Keys);
+        HashSet<StringName> wildEncounterRosterIds = new(
+            enemyRegistry.GetWildEncounterRostersTyped().Keys
         );
         IReadOnlyDictionary<StringName, ItemDefinition> typedItemDefs = itemDefs;
         IReadOnlyDictionary<StringName, SkillDefinition> typedSkillDefinitions =
@@ -107,7 +108,10 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
                 officialItemResult,
                 ContentValidationRunner.ValidateRecipeDirectory(OFFICIAL_RECIPE_DIRECTORY, itemDefs),
                 officialEnemyResult,
-                ContentValidationRunner.ValidateWorldPresets(enemyTemplates, wildEncounterRosters),
+                ContentValidationRunner.ValidateWorldPresets(
+                    enemyTemplateIds,
+                    wildEncounterRosterIds
+                ),
                 ContentValidationRunner.ValidateQuestEntries(
                     "official_quests",
                     BuildQuestEntriesFromTyped(
@@ -335,9 +339,9 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             );
         ValidationDomainResult worldResult = ContentValidationRunner.ValidateWorldGenerationConfig(
             "invalid_world_generation_config",
-            BuildInvalidWorldGenerationConfig(),
-            enemyTemplates,
-            wildEncounterRosters
+            BuildInvalidWorldGenerationDefinition(),
+            enemyTemplateIds,
+            wildEncounterRosterIds
         );
         ValidationDomainResult questResult = ContentValidationRunner.ValidateQuestEntries(
             "invalid_quest_entries",
@@ -467,7 +471,8 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
 
     private void TestItemRegistryDirectoryRebuildClearsTemplateCache()
     {
-        using ItemContentRegistry registry = new();
+        using TestContentResourceLoader loader = new();
+        using ItemContentRegistry registry = new(loader);
         registry.RebuildFromDirectories(
             new GArray { ITEM_TEMPLATE_ISOLATED_ITEM_DIRECTORY },
             new GArray { ITEM_TEMPLATE_ISOLATED_TEMPLATE_DIRECTORY }
@@ -658,38 +663,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
         {
             [skillId] = skillDefinition,
         };
-    }
-
-    private static GDictionary ProjectEnemyTemplates(
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates
-    )
-    {
-        GDictionary result = new();
-        if (enemyTemplates == null)
-            return result;
-        foreach ((StringName templateId, EnemyTemplateDef templateDef) in enemyTemplates)
-        {
-            if (templateId == "" || templateDef == null)
-                continue;
-            result[templateId] = templateDef;
-        }
-        return result;
-    }
-
-    private static GDictionary ProjectEnemyRosters(
-        IReadOnlyDictionary<StringName, WildEncounterRosterDef> rosters
-    )
-    {
-        GDictionary result = new();
-        if (rosters == null)
-            return result;
-        foreach ((StringName rosterId, WildEncounterRosterDef rosterDef) in rosters)
-        {
-            if (rosterId == "" || rosterDef == null)
-                continue;
-            result[rosterId] = rosterDef;
-        }
-        return result;
     }
 
     private string PrepareEmptyBattleSpecialProfileManifestDir(string fixtureId)
@@ -990,209 +963,22 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             ""
         );
 
-    private static WorldMapGenerationConfig BuildInvalidWorldGenerationConfig()
+    private static WorldGenerationDefinition BuildInvalidWorldGenerationDefinition()
     {
-        FacilityConfig validFacility = new()
+        const string resourcePath =
+            "res://synthetic/resource_validation_invalid_world_generation.tres";
+        using TestContentResourceLoader loader = new();
+        using WorldMapGenerationConfig source = new()
         {
-            facility_id = "known_facility",
-            display_name = "Known Facility",
-            interaction_type = "service_known",
-            allowed_slot_tags = new Godot.Collections.Array<string> { "core" },
+            world_size_in_chunks = Vector2I.Zero,
+            chunk_size = Vector2I.Zero,
+            starting_wild_spawn_min_distance = 2,
+            starting_wild_spawn_max_distance = 1,
         };
-        FacilityConfig duplicateFacility = new()
-        {
-            facility_id = "known_facility",
-            display_name = "Duplicate Facility",
-            interaction_type = "service_duplicate",
-            allowed_slot_tags = new Godot.Collections.Array<string> { "core" },
-        };
-        FacilityConfig missingIdFacility = new()
-        {
-            display_name = "Missing Id Facility",
-            interaction_type = "service_missing_id",
-            allowed_slot_tags = new Godot.Collections.Array<string> { "core" },
-        };
-
-        FacilitySlotConfig knownSlot = new() { slot_id = "core_slot", slot_tag = "core" };
-        WeightedFacilityEntry optionalMissingFacility = new()
-        {
-            facility_id = "missing_optional_facility",
-            weight = 1,
-        };
-        SettlementConfig settlement = new()
-        {
-            settlement_id = "known_settlement",
-            display_name = "Known Settlement",
-            facility_slots = new Godot.Collections.Array<Resource> { knownSlot },
-            guaranteed_facility_ids = new Godot.Collections.Array<string> { "missing_facility" },
-            optional_facility_pool = new Godot.Collections.Array<Resource> { optionalMissingFacility },
-        };
-        SettlementConfig duplicateSettlement = new()
-        {
-            settlement_id = "known_settlement",
-            display_name = "Duplicate Settlement",
-            facility_slots = new Godot.Collections.Array<Resource> { knownSlot },
-        };
-        SettlementConfig missingIdSettlement = new()
-        {
-            display_name = "Missing Id Settlement",
-            facility_slots = new Godot.Collections.Array<Resource> { knownSlot },
-        };
-
-        SettlementDistributionRule missingDistribution = new()
-        {
-            settlement_id = "missing_settlement",
-            faction_id = "neutral",
-        };
-
-        WildSpawnRule missingWildRule = new()
-        {
-            region_tag = "invalid_wilds",
-            enemy_roster_template_id = "missing_enemy",
-            encounter_profile_id = "missing_roster",
-            density_per_chunk = 1,
-        };
-        WildSpawnRule wildEmptyChunks = new()
-        {
-            region_tag = "empty_chunks_patch",
-            enemy_roster_template_id = "missing_enemy",
-            density_per_chunk = 1,
-            chunk_coords = new Godot.Collections.Array<Vector2I>(),
-        };
-        WildSpawnRule wildOobChunks = new()
-        {
-            region_tag = "oob_chunks_patch",
-            enemy_roster_template_id = "missing_enemy",
-            density_per_chunk = 1,
-            chunk_coords = new Godot.Collections.Array<Vector2I>
-            {
-                new(-1, 0),
-                new(0, -1),
-                new(99, 0),
-            },
-        };
-        WildSpawnRule wildNegativeDistance = new()
-        {
-            region_tag = "negative_distance_patch",
-            enemy_roster_template_id = "missing_enemy",
-            density_per_chunk = 1,
-            min_distance_to_settlement = -3,
-            chunk_coords = new Godot.Collections.Array<Vector2I> { new(0, 0) },
-        };
-
-        SettlementConfig badScriptSubmap = new();
-        MountedSubmapConfig missingIdSubmap = new()
-        {
-            display_name = "Missing Id Submap",
-            generation_config_path = "res://nonexistent/never_loaded.tres",
-        };
-        MountedSubmapConfig duplicateSubmapA = new()
-        {
-            submap_id = "duplicate_submap",
-            display_name = "Duplicate Submap A",
-            generation_config_path = "res://nonexistent/never_loaded_a.tres",
-        };
-        MountedSubmapConfig duplicateSubmapB = new()
-        {
-            submap_id = "duplicate_submap",
-            display_name = "Duplicate Submap B",
-            generation_config_path = "res://nonexistent/never_loaded_b.tres",
-        };
-        MountedSubmapConfig emptyPathSubmap = new()
-        {
-            submap_id = "empty_path_submap",
-            display_name = "Empty Path Submap",
-            generation_config_path = "",
-        };
-        MountedSubmapConfig unloadableSubmap = new()
-        {
-            submap_id = "unloadable_submap",
-            display_name = "Unloadable Submap",
-            generation_config_path = "res://does_not_exist/missing_world_config.tres",
-        };
-
-        SettlementConfig badScriptEvent = new();
-        WorldEventConfig missingIdEvent = new() { world_coord = new Vector2I(0, 0) };
-        WorldEventConfig duplicateEventA = new()
-        {
-            event_id = "duplicate_event",
-            event_type = "enter_submap",
-            target_submap_id = "duplicate_submap",
-            world_coord = new Vector2I(0, 0),
-        };
-        WorldEventConfig duplicateEventB = new()
-        {
-            event_id = "duplicate_event",
-            event_type = "enter_submap",
-            target_submap_id = "duplicate_submap",
-            world_coord = new Vector2I(1, 1),
-        };
-        WorldEventConfig oobCoordEvent = new()
-        {
-            event_id = "oob_coord_event",
-            event_type = "enter_submap",
-            target_submap_id = "duplicate_submap",
-            world_coord = new Vector2I(99, 99),
-        };
-        WorldEventConfig missingTargetEvent = new()
-        {
-            event_id = "missing_target_event",
-            event_type = "enter_submap",
-            target_submap_id = "",
-            world_coord = new Vector2I(0, 0),
-        };
-        WorldEventConfig unknownTargetEvent = new()
-        {
-            event_id = "unknown_target_event",
-            event_type = "enter_submap",
-            target_submap_id = "never_declared_submap",
-            world_coord = new Vector2I(0, 0),
-        };
-
-        return new WorldMapGenerationConfig
-        {
-            world_size_in_chunks = new Vector2I(1, 1),
-            chunk_size = new Vector2I(4, 4),
-            settlement_library = new Godot.Collections.Array<Resource>
-            {
-                settlement,
-                duplicateSettlement,
-                missingIdSettlement,
-            },
-            facility_library = new Godot.Collections.Array<Resource>
-            {
-                validFacility,
-                duplicateFacility,
-                missingIdFacility,
-            },
-            settlement_distribution = new Godot.Collections.Array<Resource> { missingDistribution },
-            wild_monster_distribution = new Godot.Collections.Array<Resource>
-            {
-                missingWildRule,
-                wildEmptyChunks,
-                wildOobChunks,
-                wildNegativeDistance,
-            },
-            mounted_submaps = new Godot.Collections.Array<Resource>
-            {
-                badScriptSubmap,
-                missingIdSubmap,
-                duplicateSubmapA,
-                duplicateSubmapB,
-                emptyPathSubmap,
-                unloadableSubmap,
-            },
-            world_events = new Godot.Collections.Array<Resource>
-            {
-                badScriptEvent,
-                missingIdEvent,
-                duplicateEventA,
-                duplicateEventB,
-                oobCoordEvent,
-                missingTargetEvent,
-                unknownTargetEvent,
-            },
-        };
+        loader.RegisterCanonical(resourcePath, source);
+        WorldMapGenerationConfig canonicalSource =
+            loader.LoadCanonical<WorldMapGenerationConfig>(resourcePath);
+        return canonicalSource.ToDefinition(resourcePath, loader);
     }
 
     private static Godot.Collections.Array<GDictionary> DuplicateDictArray(

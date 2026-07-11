@@ -65,7 +65,11 @@ public partial class run_settlement_action_request_boundary_regression : Lifecyc
 
     private async Task<RuntimeFixture> BuildRuntimeFixture()
     {
-        GameSession gameSession = await InstallGameSession("SettlementActionBoundaryGameSession");
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildQuestDefs();
+        GameSession gameSession = await InstallGameSession(
+            "SettlementActionBoundaryGameSession",
+            questDefs
+        );
         PartyState partyState = BuildPartyState();
         GDictionary worldData = BuildWorldData(
             new[]
@@ -78,7 +82,7 @@ public partial class run_settlement_action_request_boundary_regression : Lifecyc
                 ),
             }
         );
-        ConfigureSessionForRuntimeTest(gameSession, worldData, partyState, BuildQuestDefs());
+        ConfigureSessionForRuntimeTest(gameSession, worldData, partyState);
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = gameSession.GetItemDefsTyped();
 
         var runtime = new GameRuntimeFacade
@@ -94,7 +98,7 @@ public partial class run_settlement_action_request_boundary_regression : Lifecyc
         runtime._world_map_data_context.BindRootWorldData(worldData);
         var contextGrid = new WorldMapGridSystem();
         runtime._world_map_data_context.SyncActiveWorldContext(
-            gameSession._generation_config,
+            gameSession._generation_definition,
             contextGrid,
             Vector2I.Zero,
             Vector2I.Zero
@@ -140,8 +144,7 @@ public partial class run_settlement_action_request_boundary_regression : Lifecyc
     private static void ConfigureSessionForRuntimeTest(
         GameSession gameSession,
         GDictionary worldData,
-        PartyState partyState,
-        IReadOnlyDictionary<StringName, QuestDefinition> questDefs
+        PartyState partyState
     )
     {
         gameSession.ConfigureRuntimeWorldForTests(
@@ -149,14 +152,17 @@ public partial class run_settlement_action_request_boundary_regression : Lifecyc
             TestConfigPath,
             worldData,
             partyState,
-            questDefs,
             "settlement_action_boundary_test",
             "Settlement Action Boundary Test",
-            new Vector2I(8, 8)
+            new Vector2I(8, 8),
+            TestWorldGenerationDefinitionFactory.Load(TestConfigPath)
         );
     }
 
-    private async Task<GameSession> InstallGameSession(string nodeName)
+    private async Task<GameSession> InstallGameSession(
+        string nodeName,
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs
+    )
     {
         foreach (Node child in Root.GetChildren())
         {
@@ -166,7 +172,10 @@ public partial class run_settlement_action_request_boundary_regression : Lifecyc
             }
         }
         await ToSignal(this, SignalName.ProcessFrame);
-        var gameSession = new GameSession { Name = nodeName };
+        GameSession gameSession = GameSessionTestFactory.CreateSyntheticFromProcessSnapshot(
+            seed => seed.Quests = questDefs
+        );
+        gameSession.Name = nodeName;
         Root.AddChild(gameSession);
         await ToSignal(this, SignalName.ProcessFrame);
         return gameSession;

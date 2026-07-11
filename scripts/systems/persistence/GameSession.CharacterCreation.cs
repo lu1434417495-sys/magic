@@ -42,10 +42,10 @@ public partial class GameSession
         }
 
         if (
-            !CharacterCreationService.ApplyCharacterCreationPayloadToMemberForContentSource(
+            !CharacterCreationService.ApplyCharacterCreationPayloadToMemberForIdentityCatalog(
                 memberState,
                 payload,
-                _progression_content_registry,
+                GetProgressionIdentityCatalogTyped(),
                 new CharacterCreationOptions(bakeRerollLuck: true)
             )
         )
@@ -213,10 +213,11 @@ public partial class GameSession
 
     private StringName ResolveBodySizeCategoryForMember(PartyMemberState member_state)
     {
-        if (member_state == null || _progression_content_registry == null)
+        if (member_state == null)
             return "";
+        ContentSnapshot snapshot = RequireContentSnapshot();
         IReadOnlyDictionary<StringName, AscensionStageDefinition> ascensionStageDefs =
-            _progression_content_registry.GetAscensionStageDefsTyped();
+            snapshot.AscensionStages;
         ascensionStageDefs.TryGetValue(
             member_state.ascension_stage_id,
             out AscensionStageDefinition ascensionStageDef
@@ -232,7 +233,7 @@ public partial class GameSession
             return ascensionStageDef.BodySizeCategoryOverride;
         }
         IReadOnlyDictionary<StringName, SubraceDefinition> subraceDefs =
-            _progression_content_registry.GetSubraceDefsTyped();
+            snapshot.Subraces;
         subraceDefs.TryGetValue(member_state.subrace_id, out SubraceDefinition subraceDef);
         if (
             subraceDef != null
@@ -243,7 +244,7 @@ public partial class GameSession
             return subraceDef.BodySizeCategoryOverride;
         }
         IReadOnlyDictionary<StringName, RaceDefinition> raceDefs =
-            _progression_content_registry.GetRaceDefsTyped();
+            snapshot.Races;
         raceDefs.TryGetValue(member_state.race_id, out RaceDefinition raceDef);
         if (
             raceDef != null
@@ -462,7 +463,7 @@ public partial class GameSession
         if (itemId == "")
             return;
         if (
-            !_itemDefinitionIndex.TryGetValue(itemId, out ItemDefinition itemDefinition)
+            !GetItemDefsTyped().TryGetValue(itemId, out ItemDefinition itemDefinition)
             || !itemDefinition.IsWeapon()
         )
             return;
@@ -560,7 +561,7 @@ public partial class GameSession
             if (itemId == "")
                 continue;
             if (
-                _itemDefinitionIndex.TryGetValue(itemId, out ItemDefinition itemDefinition)
+                GetItemDefsTyped().TryGetValue(itemId, out ItemDefinition itemDefinition)
                 && itemDefinition.IsWeapon()
             )
                 return itemId;
@@ -576,7 +577,7 @@ public partial class GameSession
         progressionService.SetupDefinitions(
             progression,
             GetRandomStartSkillDefinitions(),
-            _professionDefIndex
+            GetProfessionDefsTyped()
         );
         progressionService.RefreshRuntimeState();
     }

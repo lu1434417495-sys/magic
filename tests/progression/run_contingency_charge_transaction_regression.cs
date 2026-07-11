@@ -456,10 +456,10 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
             TestConfigPath,
             BuildWorldData(),
             partyState,
-            new Dictionary<StringName, QuestDefinition>(),
             "contingency_charge_transaction",
             "Contingency Charge Transaction",
-            new Vector2I(8, 8)
+            new Vector2I(8, 8),
+            TestWorldGenerationDefinitionFactory.Load(TestConfigPath)
         );
 
         GameRuntimeFacade runtime = new()
@@ -472,7 +472,7 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
         };
         runtime._world_map_data_context.BindRootWorldData(gameSession.GetWorldData());
         runtime._world_map_data_context.SyncActiveWorldContext(
-            gameSession._generation_config,
+            gameSession._generation_definition,
             new WorldMapGridSystem(),
             Vector2I.Zero,
             Vector2I.Zero
@@ -514,7 +514,7 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
                 child.QueueFree();
         }
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
-        GameSession gameSession = new() { Name = nodeName };
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot(nodeName);
         Root.AddChild(gameSession);
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
         return gameSession;

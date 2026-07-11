@@ -8,7 +8,8 @@ public class AgeContentRegistry : IdentityContentRegistryBase
 
     private readonly Dictionary<StringName, AgeProfileDefinition> _age_profile_defs = new();
 
-    public AgeContentRegistry()
+    internal AgeContentRegistry(IContentResourceLoader resourceLoader)
+        : base(resourceLoader)
     {
         _registry_label = "AgeContentRegistry";
         Rebuild();
@@ -41,13 +42,12 @@ public class AgeContentRegistry : IdentityContentRegistryBase
 
     protected override void _register_resource(string resourcePath)
     {
-        var resource = GD.Load<Resource>(resourcePath);
+        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
         if (resource == null)
         {
             _validation_errors.Add($"Failed to load age profile config {resourcePath}.");
             return;
         }
-        GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
         if (resource is not AgeProfileDef profileDef)
         {
             _validation_errors.Add($"Age profile config {resourcePath} is not an AgeProfileDef.");

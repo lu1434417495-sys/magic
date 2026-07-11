@@ -9,6 +9,13 @@ internal sealed class QuestContentRegistry
 
     private readonly Dictionary<StringName, QuestDefinition> _questDefs = new();
     private readonly List<string> _validationErrors = new();
+    private readonly IContentResourceLoader _resourceLoader;
+
+    internal QuestContentRegistry(IContentResourceLoader resourceLoader)
+    {
+        _resourceLoader = resourceLoader
+            ?? throw new System.ArgumentNullException(nameof(resourceLoader));
+    }
 
     public void Rebuild()
     {
@@ -54,7 +61,7 @@ internal sealed class QuestContentRegistry
 
     private void RegisterQuestResource(string resourcePath)
     {
-        Resource resource = ResourceLoader.Load<Resource>(resourcePath);
+        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
         if (resource == null)
         {
             _validationErrors.Add($"QuestContentRegistry failed to load {resourcePath}.");
@@ -66,11 +73,6 @@ internal sealed class QuestContentRegistry
             _validationErrors.Add($"QuestContentRegistry: {resourcePath} is not a QuestDef.");
             return;
         }
-
-        GodotContentOwnership.RegisterBorrowedContent(
-            questDef,
-            resourcePath
-        );
 
         StringName questId = questDef.quest_id;
         if (questId == "")

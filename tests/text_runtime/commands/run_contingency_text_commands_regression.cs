@@ -17,12 +17,10 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
 
     private void Run()
     {
-        var runner = new GameTextCommandRunner();
-        runner.initialize();
+        GameTextCommandRunner runner = CreateRunnerWithGemContent();
         try
         {
             RunCommand(runner, "game new test");
-            InstallGemItemDef(runner);
 
             string missingSkillMemberId = PrepareContingencyMemberFixture(
                 runner,
@@ -99,19 +97,33 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
 
     private static string CommandPrefix(string memberId) => "party contingency";
 
-    private void InstallGemItemDef(GameTextCommandRunner runner)
+    private GameTextCommandRunner CreateRunnerWithGemContent()
     {
-        GameSession gameSession = runner.GetSession().GetGameSessionTyped();
-        _test.True(gameSession != null, "contingency text fixture requires a GameSession.");
-        if (gameSession == null)
-            return;
-        _test.Eq(
-            (Error)gameSession.InstallItemDefinitionForTests(
-                BuildGemItemDef().ToDefinition()
-            ),
-            Error.Ok,
-            "contingency text fixture should install the contingency gem item def."
+        var runner = new GameTextCommandRunner();
+        ItemDefinition gemDefinition = TestResourceOwnership
+            .Own(
+                BuildGemItemDef(),
+                "run_contingency_text_commands_regression.gem_item"
+            )
+            .ToDefinition();
+        GameSession gameSession = GameSessionTestFactory.CreateSynthetic(
+            runner.GetSession(),
+            seed =>
+            {
+                var items = new Dictionary<StringName, ItemDefinition>(seed.Items)
+                {
+                    [gemDefinition.ItemId] = gemDefinition,
+                };
+                seed.Items = items;
+            },
+            GameSessionTestFactory.CreateLoadedLegacyEnemyContent()
         );
+        runner.initialize();
+        _test.True(
+            gameSession.GetItemDefsTyped().ContainsKey(GemId),
+            "contingency text fixture should bind the contingency gem before runtime setup."
+        );
+        return runner;
     }
 
     private string PrepareContingencyMemberFixture(
@@ -254,12 +266,10 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
 
     private void TestHeadlessBattleContingencySnapshot()
     {
-        GameTextCommandRunner runner = new();
-        runner.initialize();
+        GameTextCommandRunner runner = CreateRunnerWithGemContent();
         try
         {
             RunCommand(runner, "game new test");
-            InstallGemItemDef(runner);
             string memberId = PrepareContingencyMemberFixture(runner, "player_sword_01");
             RunCommand(runner, $"{CommandPrefix(memberId)} save {memberId} hp_mirror_self");
             RunCommand(runner, $"{CommandPrefix(memberId)} charge {memberId} hp_mirror_self");
@@ -308,12 +318,10 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
 
     private void TestHeadlessBattleContingencyReportEntries()
     {
-        GameTextCommandRunner runner = new();
-        runner.initialize();
+        GameTextCommandRunner runner = CreateRunnerWithGemContent();
         try
         {
             RunCommand(runner, "game new test");
-            InstallGemItemDef(runner);
             string memberId = PrepareContingencyMemberFixture(runner, "player_sword_01");
             InstallOwnerTurnContingencySetup(runner, memberId);
             using BattleEventBatch ownerTurnBatch = new();

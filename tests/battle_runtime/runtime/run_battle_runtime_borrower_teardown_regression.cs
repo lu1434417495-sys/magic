@@ -151,40 +151,12 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
 
     private static void SetupRuntime(BattleRuntimeModule runtime, ContentFixture content)
     {
-        using GodotProjectionLease<GDictionary> specialSnapshot =
-            RuntimePlainPayload.ProjectDictionaryLease(
-                new Dictionary<string, object>(StringComparer.Ordinal)
-                {
-                    ["ok"] = true,
-                    ["errors"] = Array.Empty<object>(),
-                    ["profile_id_by_skill_id"] = new Dictionary<string, object>(
-                        StringComparer.Ordinal
-                    )
-                    {
-                        ["borrower_probe_skill"] = "borrower_probe_profile",
-                    },
-                    ["profiles"] = new Dictionary<string, object>(StringComparer.Ordinal)
-                    {
-                        ["borrower_probe_profile"] = new Dictionary<string, object>(
-                            StringComparer.Ordinal
-                        )
-                        {
-                            ["profile_id"] = "borrower_probe_profile",
-                            ["runtime_resolver_id"] = "borrower_probe_profile",
-                        },
-                    },
-                },
-                "battle-runtime-teardown-test-special-profile",
-                LifetimeDomain.Request,
-                "special-profile-snapshot"
-            );
         runtime.setup(
             skill_definitions: content.SkillDefinitions,
             enemy_templates: content.EnemyTemplates,
             enemy_ai_brains: content.EnemyBrains,
             item_defs: content.ItemDefs,
             equipment_instance_id_allocator: () => "teardown-equipment-instance",
-            battle_special_profile_registry_snapshot: specialSnapshot.Value,
             skill_catalog: new SkillCatalog(null),
             battle_special_profile_view: new ProbeSpecialProfileView(),
             trait_defs: content.TraitDefs,

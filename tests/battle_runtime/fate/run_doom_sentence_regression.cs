@@ -241,7 +241,7 @@ public partial class run_doom_sentence_regression : LifecycleTestSceneTree
 
     private BattleRuntimeModule BuildRuntime()
     {
-        var registry = new ProgressionContentRegistry();
+        var registry = new ProgressionContentRegistry(new TestContentResourceLoader());
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,

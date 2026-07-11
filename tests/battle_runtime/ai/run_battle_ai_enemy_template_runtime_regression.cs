@@ -392,7 +392,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
 
     private static BattleRuntimeScope BuildRuntimeWithEnemyContent()
     {
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
@@ -711,7 +711,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
     {
         internal GameSessionScope()
         {
-            Session = new GameSession();
+            Session = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         }
 
         internal GameSession Session { get; }

@@ -40,7 +40,9 @@ public partial class run_battle_balance_simulation : LifecycleTestSceneTree
             profiles.Add(profile);
         }
 
-        var runner = new BattleSimRunner();
+        var runner = new BattleSimRunner(
+            new BattleSimContentProvider(new TestContentResourceLoader())
+        );
         runner.SetProgressLoggingEnabled(true);
         runner.SetProgressLogPath("res://battle_sim_progress.log");
         BattleSimScenarioReport report = runner.RunScenario(scenario, profiles);

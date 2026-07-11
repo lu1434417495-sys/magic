@@ -10,7 +10,7 @@ public sealed class BattleSimRunner
 
     private BattleSimOverrideApplier _overrideApplier = new();
     private BattleSimReportBuilder _reportBuilder = new();
-    private BattleSimContentProvider _contentProvider = new();
+    private BattleSimContentProvider _contentProvider;
     private BattleTerrainGenerator _terrainGenerator = new();
     private BattleSimExecutionLoop _executionLoop = new();
     private BattleSimTraceSummaryBuilder _traceSummaryBuilder = new();
@@ -20,12 +20,19 @@ public sealed class BattleSimRunner
     private FileAccess _progressLogFile = null;
     private NativeLeaseScope _progressLogScope = null;
 
+    internal BattleSimRunner(BattleSimContentProvider contentProvider)
+    {
+        _contentProvider = contentProvider
+            ?? throw new System.ArgumentNullException(nameof(contentProvider));
+    }
+
     public void Setup(
-        BattleSimContentProvider contentProvider = null,
+        BattleSimContentProvider contentProvider,
         BattleTerrainGenerator terrainGenerator = null
     )
     {
-        _contentProvider = contentProvider ?? new BattleSimContentProvider();
+        _contentProvider = contentProvider
+            ?? throw new System.ArgumentNullException(nameof(contentProvider));
         _terrainGenerator = terrainGenerator ?? new BattleTerrainGenerator();
     }
 

@@ -337,7 +337,7 @@ public partial class WorldMapView : Control
 
     private void _draw_settlement_body(Rect2 rect, int tier, Color color, bool isExplored)
     {
-        if (tier == (int)SettlementConfig.SettlementTier.VILLAGE && village_settlement_texture != null)
+        if (tier == (int)SettlementTierKind.Village && village_settlement_texture != null)
         {
             DrawTextureRect(
                 village_settlement_texture,
@@ -629,17 +629,17 @@ public partial class WorldMapView : Control
 
     public Color _get_settlement_color(int tier)
     {
-        if (tier == (int)SettlementConfig.SettlementTier.VILLAGE)
+        if (tier == (int)SettlementTierKind.Village)
             return village_tier_color;
-        if (tier == (int)SettlementConfig.SettlementTier.TOWN)
+        if (tier == (int)SettlementTierKind.Town)
             return town_tier_color;
-        if (tier == (int)SettlementConfig.SettlementTier.CITY)
+        if (tier == (int)SettlementTierKind.City)
             return city_tier_color;
-        if (tier == (int)SettlementConfig.SettlementTier.CAPITAL)
+        if (tier == (int)SettlementTierKind.Capital)
             return capital_tier_color;
-        if (tier == (int)SettlementConfig.SettlementTier.WORLD_STRONGHOLD)
+        if (tier == (int)SettlementTierKind.WorldStronghold)
             return world_stronghold_tier_color;
-        if (tier == (int)SettlementConfig.SettlementTier.METROPOLIS)
+        if (tier == (int)SettlementTierKind.Metropolis)
             return metropolis_tier_color;
         return fallback_tier_color;
     }

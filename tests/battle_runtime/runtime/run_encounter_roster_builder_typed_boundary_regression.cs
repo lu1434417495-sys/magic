@@ -24,7 +24,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
 
     private void TestTypedEnemyUnitBuildMatchesPublicBoundary()
     {
-        using GameSession gameSession = new();
+        using GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         using EncounterRosterBuilder builder = new();
         using BattleRuntimeModule runtime = new();
         builder.Setup(
@@ -81,7 +81,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
 
     private void TestEncounterBuilderUnlocksCasterMpResources()
     {
-        using GameSession gameSession = new();
+        using GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         using EncounterRosterBuilder builder = new();
         builder.Setup(
             gameSession.GetWildEncounterRostersTyped(),
@@ -291,7 +291,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
 
     private void TestPlainLootPreviewMatchesTypedDefinitions()
     {
-        using GameSession gameSession = new();
+        using GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         using EncounterRosterBuilder builder = new();
         builder.Setup(
             gameSession.GetWildEncounterRostersTyped(),

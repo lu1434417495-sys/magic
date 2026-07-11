@@ -3,6 +3,8 @@ using Godot;
 
 internal static class GodotObjectLifecycle
 {
+    internal const int FinalizerDrainWaveLimit = 16;
+
     static GodotObjectLifecycle()
     {
         AppDomain.CurrentDomain.ProcessExit += (_, _) =>
@@ -13,8 +15,17 @@ internal static class GodotObjectLifecycle
 
     internal static void CollectPendingFinalizers()
     {
-        GC.Collect();
-        GC.WaitForPendingFinalizers();
+        // Finalizing a RefCounted authored root can release nested C# Resource
+        // handles one layer at a time. Drain a bounded number of waves while
+        // Godot is still alive, then finish with a collection-only pass.
+        for (int wave = 0; wave < FinalizerDrainWaveLimit; wave++)
+        {
+            GC.Collect();
+            long pendingFinalizers = GC.GetGCMemoryInfo().FinalizationPendingCount;
+            GC.WaitForPendingFinalizers();
+            if (pendingFinalizers == 0)
+                break;
+        }
         GC.Collect();
     }
 

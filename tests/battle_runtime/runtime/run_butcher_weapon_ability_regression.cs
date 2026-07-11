@@ -554,8 +554,8 @@ public partial class run_butcher_weapon_ability_regression : LifecycleTestSceneT
 
         internal static ButcherFixture Build(GArray damageRolls = null)
         {
-            ItemContentRegistry itemRegistry = new();
-            ProgressionContentRegistry progressionRegistry = new();
+            ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
+            ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
             Dictionary<StringName, EnemyTemplateDef> enemyTemplates = new()
             {
                 ["butcher_loot_beast"] = BuildEnemyTemplate("butcher_loot_beast"),

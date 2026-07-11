@@ -94,7 +94,7 @@ public partial class run_battle_permadeath_regression : LifecycleTestSceneTree
                 "只有主角死亡时才应进入 GameOver。"
             );
 
-            reloadedSession = new GameSession();
+            reloadedSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
             int loadError = reloadedSession.LoadSave(gameSession.GetActiveSaveId());
             _test.Eq(loadError, (int)Error.Ok, "真实死亡结果应能通过存档重新加载。");
             if (loadError == (int)Error.Ok)
@@ -206,7 +206,7 @@ public partial class run_battle_permadeath_regression : LifecycleTestSceneTree
 
     private GameSession CreateTestSession()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         gameSession.ClearPersistedGame();
         int createError = gameSession.CreateNewSave(TestWorldConfig);
         _test.Eq(createError, (int)Error.Ok, "测试会话应能创建测试世界存档。");

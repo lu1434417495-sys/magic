@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using Godot;
 
 internal enum CombatSpellFateMode
@@ -326,31 +325,14 @@ public partial class CombatSkillDef : Resource
     public Godot.Collections.Array<CombatCastVariantDef> GetUnlockedCastVariants(int skillLevel)
     {
         var r = new Godot.Collections.Array<CombatCastVariantDef>();
-        string skillKey = skill_id == "" ? "anonymous_skill" : (string)skill_id;
-        int variantIndex = 0;
         foreach (var cv in cast_variants)
         {
             if (cv != null && skillLevel >= cv.min_skill_level)
             {
                 CombatCastVariantDef variant = (CombatCastVariantDef)cv.Duplicate(true);
-                string variantKey =
-                    variant.variant_id == ""
-                        ? $"index_{variantIndex}"
-                        : (string)variant.variant_id;
-                GodotContentOwnership.RegisterDerivedContent(
-                    variant,
-                    $"skill:{skillKey}:level:{skillLevel}:variant:{variantKey}:{variantIndex}",
-                    "CombatSkillDef.GetUnlockedCastVariants"
-                );
                 r.Add(variant);
-                variantIndex += 1;
             }
         }
-        GodotContentOwnership.RegisterDerivedWrapper(
-            r,
-            $"skill:{skillKey}:level:{skillLevel}:unlocked_cast_variants",
-            "CombatSkillDef.GetUnlockedCastVariants"
-        );
         return r;
     }
 
@@ -382,11 +364,6 @@ public partial class CombatSkillDef : Resource
         Godot.Collections.Dictionary duplicate = DuplicateLevelOverride(
             GetCachedLevelOverride(skillLevel)
         );
-        RegisterLevelOverrideWrapper(
-            duplicate,
-            $"read:{skillLevel}:{RuntimeHelpers.GetHashCode(duplicate)}",
-            "CombatSkillDef.GetLevelOverride"
-        );
         return duplicate;
     }
 
@@ -398,11 +375,6 @@ public partial class CombatSkillDef : Resource
         }
 
         Godot.Collections.Dictionary merged = BuildLevelOverride(skillLevel);
-        RegisterLevelOverrideWrapper(
-            merged,
-            $"cache:{skillLevel}",
-            "CombatSkillDef.GetCachedLevelOverride"
-        );
         _mergedLevelOverrideCache[skillLevel] = merged;
         return merged;
     }
@@ -442,22 +414,6 @@ public partial class CombatSkillDef : Resource
         }
 
         return merged;
-    }
-
-    private void RegisterLevelOverrideWrapper(
-        Godot.Collections.Dictionary wrapper,
-        string key,
-        string reason
-    )
-    {
-        if (wrapper == null)
-            return;
-        string skillKey = skill_id == "" ? "anonymous_skill" : skill_id.ToString();
-        GodotContentOwnership.RegisterDerivedWrapper(
-            wrapper,
-            $"combat_skill:{skillKey}:level_override:{key}",
-            reason
-        );
     }
 
     private static Godot.Collections.Dictionary DuplicateLevelOverride(

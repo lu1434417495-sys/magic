@@ -10,11 +10,14 @@ public class BarrierContentRegistry : System.IDisposable
     private readonly Dictionary<StringName, BarrierProfileDefinition> _profile_defs = new();
 
     private readonly List<string> _validation_errors = new();
+    private readonly IContentResourceLoader _resourceLoader;
 
     private bool _disposed;
 
-    public BarrierContentRegistry()
+    internal BarrierContentRegistry(IContentResourceLoader resourceLoader)
     {
+        _resourceLoader = resourceLoader
+            ?? throw new System.ArgumentNullException(nameof(resourceLoader));
         Rebuild();
     }
 
@@ -117,8 +120,7 @@ public class BarrierContentRegistry : System.IDisposable
 
     private void _register_profile_resource(string resourcePath)
     {
-        var resource = GD.Load<Resource>(resourcePath);
-        GodotContentOwnership.RegisterBorrowedContent(resource, resourcePath);
+        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
         var profile = resource as BarrierProfileDef;
 
         if (profile == null)

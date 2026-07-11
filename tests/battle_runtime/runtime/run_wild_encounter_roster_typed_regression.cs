@@ -108,7 +108,7 @@ public partial class run_wild_encounter_roster_typed_regression : LifecycleTestS
 
     private void TestEncounterRosterBuilderBuildsMixedMistHollowUnits()
     {
-        using GameSession gameSession = new();
+        using GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         using EncounterRosterBuilder builder = new();
         builder.Setup(
             gameSession.GetWildEncounterRostersTyped(),

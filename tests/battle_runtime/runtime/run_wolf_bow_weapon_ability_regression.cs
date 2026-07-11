@@ -682,8 +682,8 @@ public partial class run_wolf_bow_weapon_ability_regression : LifecycleTestScene
 
         internal static WolfFixture Build(GArray damageRolls = null)
         {
-            ItemContentRegistry itemRegistry = new();
-            ProgressionContentRegistry progressionRegistry = new();
+            ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
+            ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
             PartyState partyState = BuildPartyState("hero");
             CharacterManagementModule characterManagement = new();
             characterManagement.setup(

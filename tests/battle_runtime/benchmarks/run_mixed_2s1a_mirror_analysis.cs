@@ -34,11 +34,12 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
             return 1;
         }
 
-        var contentProvider = new BattleSimContentProvider();
+        var contentLoader = new TestContentResourceLoader();
+        var contentProvider = new BattleSimContentProvider(contentLoader);
         var overrideApplier = new BattleSimOverrideApplier();
         var terrainGenerator = new BattleTerrainGenerator();
-        var progressionRegistry = new ProgressionContentRegistry();
-        var itemRegistry = new ItemContentRegistry();
+        var progressionRegistry = new ProgressionContentRegistry(contentLoader);
+        var itemRegistry = new ItemContentRegistry(contentLoader);
 
         try
         {

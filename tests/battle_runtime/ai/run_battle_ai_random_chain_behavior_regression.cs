@@ -188,7 +188,7 @@ public partial class run_battle_ai_random_chain_behavior_regression : LifecycleT
 
     private static BattleRuntimeScope BuildRuntimeWithEnemyContent(params SkillDefinition[] extraSkills)
     {
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         var runtime = new BattleRuntimeModule();
         var skillDefinitions = new Dictionary<StringName, SkillDefinition>(
             gameSession.GetSkillDefinitionsTyped()

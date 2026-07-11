@@ -9,6 +9,13 @@ internal sealed class FaithContentRegistry
 
     private readonly Dictionary<StringName, FaithDeityDefinition> _faithDeityDefs = new();
     private readonly List<string> _validationErrors = new();
+    private readonly IContentResourceLoader _resourceLoader;
+
+    internal FaithContentRegistry(IContentResourceLoader resourceLoader)
+    {
+        _resourceLoader = resourceLoader
+            ?? throw new System.ArgumentNullException(nameof(resourceLoader));
+    }
 
     public void Rebuild()
     {
@@ -76,7 +83,7 @@ internal sealed class FaithContentRegistry
 
     private void RegisterDeityResource(string resourcePath)
     {
-        Resource resource = ResourceLoader.Load<Resource>(resourcePath);
+        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
         if (resource == null)
         {
             _validationErrors.Add($"Failed to load faith config {resourcePath}.");
@@ -100,7 +107,6 @@ internal sealed class FaithContentRegistry
             return;
         }
 
-        GodotContentOwnership.RegisterBorrowedContent(deityDef, resourcePath);
         try
         {
             FaithDeityDefinition definition = FaithDeityDefinition.FromResource(

@@ -79,7 +79,7 @@ public partial class run_world_map_settlement_entry_regression : LifecycleTestSc
 
     private RuntimeContext CreateRuntimeContext()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         int createError = gameSession.CreateNewSave(TestWorldConfig);
         _test.Eq(createError, (int)Error.Ok, "测试世界应能成功创建新存档。");
         if (createError != (int)Error.Ok)

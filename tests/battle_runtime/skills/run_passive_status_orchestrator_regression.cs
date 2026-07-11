@@ -34,7 +34,7 @@ public partial class run_passive_status_orchestrator_regression : LifecycleTestS
 
     private void TestFactoryProjectsIdentityPassivesFromCharacterGateway()
     {
-        ProgressionContentRegistry registry = new();
+        ProgressionContentRegistry registry = new(new TestContentResourceLoader());
         PartyState partyState = MakePartyState(new[] { new StringName("hero") });
         CharacterManagementModule gateway = new();
         gateway.setup(
@@ -148,7 +148,7 @@ public partial class run_passive_status_orchestrator_regression : LifecycleTestS
 
     private void TestOrchestratorProjectsShootingSpecializationBowOnlyRangeBonus()
     {
-        ProgressionContentRegistry registry = new();
+        ProgressionContentRegistry registry = new(new TestContentResourceLoader());
         BattleUnitState unit = MakeBattleUnit("shooting_specialization_unit");
         PassiveSourceContext context = new()
         {

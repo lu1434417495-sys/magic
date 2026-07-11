@@ -33,7 +33,7 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
             return 1;
         }
 
-        var contentProvider = new BattleSimContentProvider();
+        var contentProvider = new BattleSimContentProvider(new TestContentResourceLoader());
         var overrideApplier = new BattleSimOverrideApplier();
         var terrainGenerator = new BattleTerrainGenerator();
 

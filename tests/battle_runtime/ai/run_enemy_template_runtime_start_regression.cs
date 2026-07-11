@@ -571,7 +571,7 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
 
     private static BattleRuntimeScope BuildRuntimeWithEnemyContent()
     {
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
@@ -764,7 +764,7 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
     {
         internal GameSessionScope()
         {
-            Session = new GameSession();
+            Session = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         }
 
         internal GameSession Session { get; }

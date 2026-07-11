@@ -298,8 +298,9 @@ public partial class run_party_equipment_service_regression : LifecycleTestScene
         PartyWarehouseService warehouseService = new();
         warehouseService.Setup(partyState, itemDefinitions);
 
-        GameSession gameSession = new();
-        gameSession.ReplaceItemDefinitionsForTests(itemDefinitions);
+        GameSession gameSession = GameSessionTestFactory.CreateSyntheticFromProcessSnapshot(
+            seed => seed.Items = itemDefinitions
+        );
         GameRuntimeFacade runtime = new()
         {
             _game_session = gameSession,

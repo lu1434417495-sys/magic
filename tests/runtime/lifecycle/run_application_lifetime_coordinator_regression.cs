@@ -387,7 +387,9 @@ public partial class run_application_lifetime_coordinator_regression : Lifecycle
 
     private async Task TestApplicationCloseConvergesOnOneShotNormalClose()
     {
-        GameSession session = new() { Name = "ApplicationCloseLifecycleSession" };
+        GameSession session = GameSessionTestFactory.CreateBorrowingProcessSnapshot(
+            "ApplicationCloseLifecycleSession"
+        );
         IApplicationShutdownParticipant participant = session;
         GameContentCatalog catalog = session.GetContentCatalogTyped();
         long revisionBeforeClose = catalog.GetRevision();

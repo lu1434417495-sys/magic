@@ -1,19 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Runtime.CompilerServices;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 /// <summary>
-/// 正式内容的组合根读入口。catalog 自己持有 typed 内容快照，由所属 <see cref="GameSession"/>
-/// 在刷新内容后调用 <see cref="Rebuild"/> 重建；getter 返回 catalog 自己缓存的只读视图，
-/// 而不是每次转发回 GameSession 重建 typed index。
+/// 正式内容的组合根读入口。catalog 借用 process <see cref="ContentSnapshot"/> 的不可变
+/// typed 字典，并单独借用 Phase 4 前保留的 legacy enemy 边界。
 ///
 /// 两条防御性不变量：
-/// 1. typed 字典 getter 返回 <see cref="ReadOnlyDictionary{TKey, TValue}"/> 包装，下游即便
-///    downcast 也拿不到内部可变 <see cref="Dictionary{TKey, TValue}"/>，不能改写 catalog 快照。
-/// 2. <see cref="ClearSessionBinding"/>（owning root dispose 时调用）会同时清空 typed 快照并
+/// 1. 非 AI 内容只来自构建期冻结的 process snapshot，session/catalog 不再复制或重建 registry。
+/// 2. <see cref="ClearSessionBinding"/>（owning root dispose 时调用）会同时清空 typed 引用并
 ///    自增 revision，使任何仍持有旧 catalog 引用的下游读到的是空内容而非 stale 快照，并可用
 ///    revision 变化察觉失效。
 /// </summary>
@@ -22,8 +18,7 @@ public sealed class GameContentCatalog
     private WeakReference<GameSession> _sessionRef;
     private long _revision;
     private SkillCatalog _skillCatalog;
-
-    private ProgressionContentRegistry _progressionContentRegistry;
+    private long _snapshotEpoch;
     private ProgressionIdentityCatalogData _progressionIdentityCatalog;
     private IReadOnlyDictionary<StringName, SkillDefinition> _skillDefinitions;
     private IReadOnlyDictionary<StringName, TraitDefinition> _traitDefs;
@@ -39,20 +34,12 @@ public sealed class GameContentCatalog
     private IReadOnlyDictionary<StringName, EnemyTemplateDef> _enemyTemplates;
     private IReadOnlyDictionary<StringName, EnemyAiBrainDef> _enemyAiBrains;
     private IReadOnlyDictionary<StringName, WildEncounterRosterDef> _wildEncounterRosters;
-    private GDictionary _battleSpecialProfileSnapshot;
-    private readonly Dictionary<string, object> _battleSpecialProfileRuntimeSnapshot = new(
-        StringComparer.Ordinal
-    );
     private IBattleSpecialProfileView _battleSpecialProfileView;
 
     public GameContentCatalog()
     {
+        LegacyEnemyContentDebt.Register();
         ResetSnapshot();
-    }
-
-    internal void BindSession(GameSession session)
-    {
-        _sessionRef = session != null ? new WeakReference<GameSession>(session) : null;
     }
 
     /// <summary>
@@ -67,57 +54,42 @@ public sealed class GameContentCatalog
     }
 
     /// <summary>
-    /// 从当前 owning session 的正式内容缓存重建 catalog 自己的 typed 快照。
-    /// 由 <see cref="GameSession"/> 在刷新 progression / item / recipe / enemy /
-    /// battle special profile 内容后显式调用。
+    /// Bind the catalog once to the session's immutable process snapshot.
     /// </summary>
-    internal void Rebuild(GameSession session)
+    internal void BindSnapshot(
+        GameSession session,
+        ContentSnapshot snapshot,
+        ILegacyEnemyContentCatalog legacyEnemyContent
+    )
     {
-        BindSession(session);
-        if (session == null)
-        {
-            ResetSnapshot();
-            _revision++;
-            return;
-        }
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(legacyEnemyContent);
 
-        _progressionContentRegistry = session.GetProgressionContentRegistry();
-        _progressionIdentityCatalog =
-            session.GetProgressionIdentityCatalogTyped() ?? new ProgressionIdentityCatalogData();
-        _skillDefinitions = SnapshotTyped(session.GetSkillDefinitionsTyped());
-        _traitDefs = SnapshotTyped(session.GetTraitDefsTyped());
-        _professionDefs = SnapshotTyped(session.GetProfessionDefsTyped());
-        _achievementDefs = SnapshotTyped(session.GetAchievementDefsTyped());
-        _questDefs = SnapshotTyped(session.GetQuestDefsTyped());
-        _equipmentAbilityContentRevision = session.GetEquipmentAbilityContentRevision();
-        _equipmentAbilityPacks = SnapshotTyped(session.GetEquipmentAbilityPackDefinitionsTyped());
-        _equipmentAbilityBindings = SnapshotTyped(
-            session.GetEquipmentAbilityBindingDefinitionsTyped()
-        );
-        _barrierProfileDefinitions = SnapshotTyped(
-            session.GetBarrierProfileDefinitionsTyped()
-        );
-        _itemDefinitions = SnapshotTyped(session.GetItemDefsTyped());
-        _recipeDefinitions = SnapshotTyped(session.GetRecipeDefsTyped());
-        _enemyTemplates = SnapshotTyped(session.GetEnemyTemplatesTyped());
-        _enemyAiBrains = SnapshotTyped(session.GetEnemyAiBrainsTyped());
-        _wildEncounterRosters = SnapshotTyped(session.GetWildEncounterRostersTyped());
-        _battleSpecialProfileSnapshot = RegisterBattleSpecialProfileSnapshot(
-            session.GetBattleSpecialProfileRegistrySnapshot() ?? new GDictionary(),
-            "GameContentCatalog.Rebuild"
-        );
-        ReplaceBattleSpecialProfileRuntimeSnapshot(
-            session.GetBattleSpecialProfileRegistryRuntimeSnapshot() ?? new GDictionary(),
-            "GameContentCatalog.Rebuild.runtime"
-        );
-        _battleSpecialProfileView =
-            session.GetBattleSpecialProfileRuntimeView() ?? BattleSpecialProfileRuntimeView.Empty;
+        _sessionRef = new WeakReference<GameSession>(session);
+        _snapshotEpoch = snapshot.Epoch;
+        _progressionIdentityCatalog = snapshot.IdentityCatalog;
+        _skillDefinitions = snapshot.Skills;
+        _traitDefs = snapshot.Traits;
+        _professionDefs = snapshot.Professions;
+        _achievementDefs = snapshot.Achievements;
+        _questDefs = snapshot.Quests;
+        _equipmentAbilityContentRevision = checked((int)snapshot.Epoch);
+        _equipmentAbilityPacks = snapshot.EquipmentAbilityPacks;
+        _equipmentAbilityBindings = snapshot.EquipmentAbilityBindings;
+        _barrierProfileDefinitions = snapshot.BarrierProfiles;
+        _itemDefinitions = snapshot.Items;
+        _recipeDefinitions = snapshot.Recipes;
+        _enemyTemplates = legacyEnemyContent.EnemyTemplates;
+        _enemyAiBrains = legacyEnemyContent.EnemyBrains;
+        _wildEncounterRosters = legacyEnemyContent.EncounterRosters;
+        _battleSpecialProfileView = snapshot.BattleSpecialProfiles;
         _revision++;
     }
 
     private void ResetSnapshot()
     {
-        _progressionContentRegistry = null;
+        _snapshotEpoch = 0;
         _progressionIdentityCatalog = new ProgressionIdentityCatalogData();
         _skillDefinitions = EmptyTyped<SkillDefinition>();
         _traitDefs = EmptyTyped<TraitDefinition>();
@@ -133,18 +105,10 @@ public sealed class GameContentCatalog
         _enemyTemplates = EmptyTyped<EnemyTemplateDef>();
         _enemyAiBrains = EmptyTyped<EnemyAiBrainDef>();
         _wildEncounterRosters = EmptyTyped<WildEncounterRosterDef>();
-        _battleSpecialProfileSnapshot = RegisterBattleSpecialProfileSnapshot(
-            new GDictionary(),
-            "GameContentCatalog.ResetSnapshot"
-        );
-        ReplaceBattleSpecialProfileRuntimeSnapshot(
-            new GDictionary(),
-            "GameContentCatalog.ResetSnapshot.runtime"
-        );
         _battleSpecialProfileView = BattleSpecialProfileRuntimeView.Empty;
     }
 
-    /// <summary>catalog 快照版本号；每次 <see cref="Rebuild"/> 或 <see cref="ClearSessionBinding"/>
+    /// <summary>catalog 绑定版本号；每次 snapshot bind 或 <see cref="ClearSessionBinding"/>
     /// 自增，供下游做有效性 / 版本校验。</summary>
     public long GetRevision() => _revision;
 
@@ -162,11 +126,10 @@ public sealed class GameContentCatalog
             && ReferenceEquals(bound, session);
     }
 
-    public ProgressionContentRegistry GetProgressionContentRegistryTyped() =>
-        _progressionContentRegistry;
-
     public ProgressionIdentityCatalogData GetProgressionIdentityCatalogTyped() =>
         _progressionIdentityCatalog;
+
+    internal long GetSnapshotEpoch() => _snapshotEpoch;
 
     public IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionsTyped() =>
         _skillDefinitions;
@@ -176,7 +139,7 @@ public sealed class GameContentCatalog
     /// <summary>
     /// 技能内容门面。门面只持有本 catalog 引用、每次查询都读当前 typed 快照与 revision，
     /// derived effective profile 由门面按 revision 缓存，因此随
-    /// <see cref="Rebuild"/> / <see cref="ClearSessionBinding"/> 自动失效，无需每次重建；
+    /// snapshot rebind / <see cref="ClearSessionBinding"/> 自动失效，无需每次重建；
     /// 跨调用返回同一实例。
     /// </summary>
     public ISkillCatalog GetSkillCatalogTyped() => _skillCatalog ??= new SkillCatalog(this);
@@ -213,6 +176,8 @@ public sealed class GameContentCatalog
     public IReadOnlyDictionary<StringName, RecipeDefinition> GetRecipeDefsTyped() =>
         _recipeDefinitions;
 
+    // Phase 3 debt: these three getters are intentionally the only raw content
+    // surface on this catalog. See LegacyEnemyContentDebt.BorrowerOwners.
     public IReadOnlyDictionary<StringName, EnemyTemplateDef> GetEnemyTemplatesTyped() =>
         _enemyTemplates;
 
@@ -222,58 +187,8 @@ public sealed class GameContentCatalog
     public IReadOnlyDictionary<StringName, WildEncounterRosterDef> GetWildEncounterRostersTyped() =>
         _wildEncounterRosters;
 
-    public GDictionary GetBattleSpecialProfileRegistrySnapshot() =>
-        RegisterBattleSpecialProfileSnapshot(
-            _battleSpecialProfileSnapshot.Duplicate(true),
-            "GameContentCatalog.GetBattleSpecialProfileRegistrySnapshot"
-        );
-
-    public GDictionary GetBattleSpecialProfileRegistryRuntimeSnapshot() =>
-        RuntimePlainPayload.ProjectDictionary(
-            _battleSpecialProfileRuntimeSnapshot,
-            "GameContentCatalog.GetBattleSpecialProfileRegistryRuntimeSnapshot"
-        );
-
     internal IBattleSpecialProfileView GetBattleSpecialProfileView() =>
         _battleSpecialProfileView ?? BattleSpecialProfileRuntimeView.Empty;
-
-    private static GDictionary RegisterBattleSpecialProfileSnapshot(
-        GDictionary snapshot,
-        string reason
-    )
-    {
-        if (snapshot == null)
-            return new GDictionary();
-        GodotContentOwnership.RegisterDerivedWrapper(
-            snapshot,
-            $"battle_special_profile_snapshot:{RuntimeHelpers.GetHashCode(snapshot)}",
-            reason
-        );
-        return snapshot;
-    }
-
-    private void ReplaceBattleSpecialProfileRuntimeSnapshot(
-        GDictionary snapshot,
-        string reason
-    )
-    {
-        _battleSpecialProfileRuntimeSnapshot.Clear();
-        Dictionary<string, object> normalized =
-            RuntimePlainPayload.NormalizeDictionary(snapshot ?? new GDictionary(), reason);
-        foreach (KeyValuePair<string, object> entry in normalized)
-        {
-            _battleSpecialProfileRuntimeSnapshot[entry.Key] = entry.Value;
-        }
-    }
-
-    private static IReadOnlyDictionary<StringName, T> SnapshotTyped<T>(
-        IReadOnlyDictionary<StringName, T> source
-    )
-    {
-        return source == null
-            ? EmptyTyped<T>()
-            : new ReadOnlyDictionary<StringName, T>(new Dictionary<StringName, T>(source));
-    }
 
     private static IReadOnlyDictionary<StringName, T> EmptyTyped<T>()
     {

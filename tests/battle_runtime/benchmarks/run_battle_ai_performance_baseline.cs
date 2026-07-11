@@ -330,7 +330,7 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
 
         try
         {
-            GameSession gameSession = new();
+            GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
             _sessionKeepAlive.Add(gameSession);
             GameContentCatalog catalog = gameSession.GetContentCatalogTyped();
             BattleRuntimeModule runtime = new();
@@ -340,7 +340,6 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
                 enemy_templates: catalog.GetEnemyTemplatesTyped(),
                 enemy_ai_brains: catalog.GetEnemyAiBrainsTyped(),
                 item_defs: catalog.GetItemDefsTyped(),
-                battle_special_profile_registry_snapshot: catalog.GetBattleSpecialProfileRegistryRuntimeSnapshot(),
                 skill_catalog: catalog.GetSkillCatalogTyped(),
                 battle_special_profile_view: catalog.GetBattleSpecialProfileView()
             );

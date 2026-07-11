@@ -727,7 +727,7 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
 
     private void TestWarriorHeavyStrikeUsesWeaponPlusSkillDiceTemplate()
     {
-        using var registry = new ProgressionContentRegistry();
+        using var registry = new ProgressionContentRegistry(new TestContentResourceLoader());
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             registry.GetSkillDefinitionsTyped();
         skillDefinitions.TryGetValue("warrior_heavy_strike", out SkillDefinition skillDefinition);

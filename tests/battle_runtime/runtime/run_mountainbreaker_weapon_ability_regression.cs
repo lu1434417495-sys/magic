@@ -411,8 +411,8 @@ public partial class run_mountainbreaker_weapon_ability_regression : LifecycleTe
 
         internal static Fixture Build(GArray damageRolls = null)
         {
-            ItemContentRegistry items = new();
-            ProgressionContentRegistry progression = new();
+            ItemContentRegistry items = new(new TestContentResourceLoader());
+            ProgressionContentRegistry progression = new(new TestContentResourceLoader());
             PartyState party = BuildPartyState("hero", 20);
             CharacterManagementModule management = new();
             management.setup(

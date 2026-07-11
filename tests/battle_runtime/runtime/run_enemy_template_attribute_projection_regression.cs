@@ -20,7 +20,7 @@ public partial class run_enemy_template_attribute_projection_regression : Lifecy
 
     private void TestEnemyTemplateTypedOverridesProjectIntoEncounterRosterBuilder()
     {
-        using GameSession gameSession = new();
+        using GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         using EnemyTemplateDef template = BuildTemplate();
         using EncounterRosterBuilder builder = new();
 

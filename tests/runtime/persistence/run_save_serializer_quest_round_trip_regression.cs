@@ -26,7 +26,7 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
 
     private void TestSaveSerializerRoundTripPreservesPartyQuestSchema()
     {
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
         _test.Eq(createError, Error.Ok, "GameSession 应能基于测试世界配置创建新存档。");
         if (createError != Error.Ok)
@@ -70,7 +70,6 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         bool decoded = serializer.TryDecodePayload(
             payloadPlain,
             gameSession.GetGenerationConfigPath(),
-            gameSession.GetGenerationConfig(),
             gameSession.CaptureActiveSaveMetaPlain(),
             out SaveDecodeResult decodeResult
         );
@@ -111,7 +110,7 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
 
     private void TestRootVersion10PartyVersion6OldEquipmentPayloadIsRejectedByVersionGate()
     {
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
         _test.Eq(createError, Error.Ok, "旧装备存档 version gate 回归需要可创建的测试世界。");
         if (createError != Error.Ok)
@@ -148,7 +147,6 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         bool decoded = serializer.TryDecodePayload(
             payload,
             gameSession.GetGenerationConfigPath(),
-            gameSession.GetGenerationConfig(),
             gameSession.CaptureActiveSaveMetaPlain(),
             out SaveDecodeResult decodeResult
         );
@@ -162,7 +160,7 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
     {
         foreach (string fieldName in new[] { "main_character_member_id", "claimable_quests" })
         {
-            var gameSession = new GameSession();
+            var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
             Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
             _test.Eq(createError, Error.Ok, $"缺 {fieldName} 字段的存档回归需要可创建的测试世界。");
             if (createError != Error.Ok)
@@ -186,7 +184,6 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
             bool decoded = serializer.TryDecodePayload(
                 payload,
                 gameSession.GetGenerationConfigPath(),
-                gameSession.GetGenerationConfig(),
                 gameSession.CaptureActiveSaveMetaPlain(),
                 out SaveDecodeResult decodeResult
             );
@@ -199,7 +196,7 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
 
     private void TestExtractSaveMetaRejectsMissingSlotFields()
     {
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
         _test.Eq(createError, Error.Ok, "Save meta 严格校验回归需要可创建的测试世界。");
         if (createError != Error.Ok)
@@ -229,7 +226,6 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         bool decoded = serializer.TryDecodePayload(
             payload,
             gameSession.GetGenerationConfigPath(),
-            gameSession.GetGenerationConfig(),
             activeSaveMeta,
             out SaveDecodeResult decodeResult
         );

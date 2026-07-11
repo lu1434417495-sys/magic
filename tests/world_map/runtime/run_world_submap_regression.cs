@@ -417,7 +417,7 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
 
     private RuntimeContext CreateAshenRuntimeContext()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         int createError = gameSession.CreateNewSave(AshenWorldConfig);
         _test.True(createError == (int)Error.Ok, "灰烬交界预设应能创建新存档。");
         if (createError != (int)Error.Ok)

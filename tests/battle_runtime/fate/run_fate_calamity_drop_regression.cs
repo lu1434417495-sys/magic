@@ -324,7 +324,7 @@ public partial class run_fate_calamity_drop_regression : LifecycleTestSceneTree
 
     private GameSession CreateTestSession()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         int createError = gameSession.CreateNewSave(TestWorldConfig);
         _test.Eq(createError, (int)Error.Ok, "GameSession 应能为灾厄掉落回归创建测试存档。");
         if (createError == (int)Error.Ok)

@@ -73,8 +73,8 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
 
     private bool RequiredContentExists()
     {
-        using ItemContentRegistry items = new();
-        using ProgressionContentRegistry progression = new();
+        using ItemContentRegistry items = new(new TestContentResourceLoader());
+        using ProgressionContentRegistry progression = new(new TestContentResourceLoader());
         return items.GetItemDefsTyped().ContainsKey(ItemId)
             && progression.GetTraitDefsTyped().ContainsKey(ExecutionTraitId)
             && progression.GetTraitDefsTyped().ContainsKey(DeathSentenceTraitId)
@@ -1514,8 +1514,8 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
 
         internal static ExecutionerFixture Build()
         {
-            ItemContentRegistry itemRegistry = new();
-            ProgressionContentRegistry progressionRegistry = new();
+            ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
+            ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
             PartyState partyState = BuildPartyState("hero");
             CharacterManagementModule characterManagement = new();
             characterManagement.setup(

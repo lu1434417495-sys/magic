@@ -579,8 +579,8 @@ public partial class run_double_edged_weapon_ability_regression : LifecycleTestS
 
         internal static DoubleEdgedFixture Build(BattleDamageResolver damageResolver)
         {
-            ItemContentRegistry itemRegistry = new();
-            ProgressionContentRegistry progressionRegistry = new();
+            ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
+            ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
             PartyState partyState = BuildPartyState("hero");
             CharacterManagementModule characterManagement = new();
             characterManagement.setup(

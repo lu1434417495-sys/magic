@@ -441,7 +441,7 @@ public partial class run_shieldbreaker_weapon_projection_regression : LifecycleT
 
         internal static ContentScope Load()
         {
-            return new ContentScope(new ItemContentRegistry(), new ProgressionContentRegistry());
+            return new ContentScope(new ItemContentRegistry(new TestContentResourceLoader()), new ProgressionContentRegistry(new TestContentResourceLoader()));
         }
 
         public void Dispose()

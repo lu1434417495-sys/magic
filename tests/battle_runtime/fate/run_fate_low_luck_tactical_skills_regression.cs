@@ -483,7 +483,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
     {
         if (_skillDefinitions != null)
             return _skillDefinitions;
-        _progressionContentRegistry = new ProgressionContentRegistry();
+        _progressionContentRegistry = new ProgressionContentRegistry(new TestContentResourceLoader());
         _skillDefinitions = _progressionContentRegistry.GetSkillDefinitionsTyped();
         return _skillDefinitions;
     }

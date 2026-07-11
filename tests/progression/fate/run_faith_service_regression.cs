@@ -420,7 +420,7 @@ public partial class run_faith_service_regression : LifecycleTestSceneTree
 
     private static FaithContentRegistry BuildFaithContentRegistry()
     {
-        var registry = new FaithContentRegistry();
+        var registry = new FaithContentRegistry(new TestContentResourceLoader());
         registry.Rebuild();
         return registry;
     }

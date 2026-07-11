@@ -67,6 +67,8 @@ public partial class BattleMapPanel : Control
     private const string SKILL_ICON_FALLBACK_KEY = "warrior_whirlwind_slash";
     private const string SKILL_ICON_GRAYSCALE_SHADER =
         "res://assets/shaders/skill_icon_grayscale.gdshader";
+    private const string BATTLE_BOARD_SCENE_PATH =
+        "res://scenes/ui/battle_board_2d.tscn";
     private static readonly Color SKILL_ICON_DISABLED_MODULATE = new(0.62f, 0.62f, 0.62f, 0.85f);
     private ShaderMaterial _skill_icon_grayscale_material;
     private GodotProjectionLease<ShaderMaterial> _presentationLease;
@@ -74,7 +76,6 @@ public partial class BattleMapPanel : Control
     private readonly BattleHudAdapter _hud_adapter = new();
     private readonly Dictionary<string, Texture2D> _skill_icon_cache = new();
     private readonly List<TextureRect> _skill_icon_nodes = new();
-    private static readonly PackedScene BATTLE_BOARD_SCENE = LoadBorrowedBattleBoardScene();
 
     private SubViewport _map_subviewport;
     private ColorRect _battle_background_rect;
@@ -171,15 +172,6 @@ public partial class BattleMapPanel : Control
     private BattleState _hover_preview_battle_state;
 
     public static Vector2I INVALID_HOVER_COORD() => InvalidHoverCoord;
-
-    private static PackedScene LoadBorrowedBattleBoardScene()
-    {
-        const string path = "res://scenes/ui/battle_board_2d.tscn";
-        PackedScene scene = GD.Load<PackedScene>(path);
-        if (scene != null)
-            GodotContentOwnership.RegisterBorrowedContent(scene, path);
-        return scene;
-    }
 
     public override void _Ready()
     {
@@ -882,7 +874,9 @@ public partial class BattleMapPanel : Control
         };
         _map_subviewport.AddChild(_battle_background_rect);
 
-        Node boardInstance = BATTLE_BOARD_SCENE.Instantiate();
+        Node boardInstance = EngineAssetAccess
+            .ResolveBorrowed<PackedScene>(this, BATTLE_BOARD_SCENE_PATH)
+            .Instantiate();
         _battle_board = boardInstance as BattleBoard2D;
         if (_battle_board == null)
             return;
@@ -2583,17 +2577,7 @@ public partial class BattleMapPanel : Control
         string path = $"{SKILL_ICON_DIR}{icon_key}.png";
         Texture2D texture = null;
         if (ResourceLoader.Exists(path, "Texture2D"))
-        {
-            texture = ResourceLoader.Load<Texture2D>(path);
-            if (texture != null)
-            {
-                GodotContentOwnership.RegisterBorrowedContent(texture, path);
-                EnsurePresentationLease().Borrow(
-                    texture,
-                    $"BattleMapPanel.skill_icon:{path}"
-                );
-            }
-        }
+            texture = EngineAssetAccess.ResolveBorrowed<Texture2D>(this, path);
         _skill_icon_cache[icon_key] = texture;
         return texture;
     }
@@ -2603,16 +2587,11 @@ public partial class BattleMapPanel : Control
         if (_skill_icon_grayscale_material?.Shader != null)
             return _skill_icon_grayscale_material;
         if (ResourceLoader.Exists(SKILL_ICON_GRAYSCALE_SHADER, "Shader")
-            && ResourceLoader.Load<Shader>(SKILL_ICON_GRAYSCALE_SHADER) is Shader shader)
-        {
-            GodotContentOwnership.RegisterBorrowedContent(
-                shader,
+            && EngineAssetAccess.ResolveBorrowed<Shader>(
+                this,
                 SKILL_ICON_GRAYSCALE_SHADER
-            );
-            EnsurePresentationLease().Borrow(
-                shader,
-                $"BattleMapPanel.skill_icon_shader:{SKILL_ICON_GRAYSCALE_SHADER}"
-            );
+            ) is Shader shader)
+        {
             _skill_icon_grayscale_material = EnsurePresentationLease().Value;
             _skill_icon_grayscale_material.Shader = shader;
         }
@@ -2655,7 +2634,7 @@ public partial class BattleMapPanel : Control
         _presentationLease != null;
 
     internal static PackedScene BattleBoardSceneForTest() =>
-        BATTLE_BOARD_SCENE;
+        EngineAssetAccess.ResolveBorrowed<PackedScene>(BATTLE_BOARD_SCENE_PATH);
 
     private void _apply_button_skin(Button button, bool is_compact, bool is_primary = false)
     {

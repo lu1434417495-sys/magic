@@ -79,8 +79,8 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         ItemContentRegistry item_registry
     )
     {
-        progression_registry ??= new ProgressionContentRegistry();
-        item_registry ??= new ItemContentRegistry();
+        ArgumentNullException.ThrowIfNull(progression_registry);
+        ArgumentNullException.ThrowIfNull(item_registry);
         IReadOnlyDictionary<StringName, SkillDefinition> typedSkillDefinitions =
             progression_registry.GetSkillDefinitionsTyped();
         _apply_content_catalogs(
@@ -99,8 +99,8 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         IReadOnlyDictionary<StringName, SkillDefinition> skill_definitions_override
     )
     {
-        progression_registry ??= new ProgressionContentRegistry();
-        item_registry ??= new ItemContentRegistry();
+        ArgumentNullException.ThrowIfNull(progression_registry);
+        ArgumentNullException.ThrowIfNull(item_registry);
         IReadOnlyDictionary<StringName, SkillDefinition> typedSkillDefinitions =
             skill_definitions_override != null && skill_definitions_override.Count > 0
                 ? new Dictionary<StringName, SkillDefinition>(skill_definitions_override)

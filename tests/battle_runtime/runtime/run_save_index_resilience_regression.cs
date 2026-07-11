@@ -22,7 +22,7 @@ public partial class run_save_index_resilience_regression : LifecycleTestSceneTr
 
     private void TestCorruptSaveIndexRecoversCleanly()
     {
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         _test.Eq((Error)gameSession.ClearPersistedGame(), Error.Ok, "测试前应能清理旧存档目录。");
         _test.Eq(
             DirAccess.MakeDirRecursiveAbsolute(ProjectSettings.GlobalizePath(SaveDirectory)),
@@ -63,7 +63,7 @@ public partial class run_save_index_resilience_regression : LifecycleTestSceneTr
 
     private void TestSaveIndexSchemaRejectsOldEntryShapes()
     {
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         _test.Eq((Error)gameSession.ClearPersistedGame(), Error.Ok, "save index schema 回归前应能清理旧存档目录。");
         Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
         _test.Eq(createError, Error.Ok, "save index schema 回归应能创建测试存档。");

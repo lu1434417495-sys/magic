@@ -29,7 +29,7 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
 
     private void _TestForceHitSkillRuntimePreviewIsGuaranteed()
     {
-        var registry = new ProgressionContentRegistry();
+        var registry = new ProgressionContentRegistry(new TestContentResourceLoader());
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             registry.GetSkillDefinitionsTyped();
         skillDefinitions.TryGetValue(
@@ -112,7 +112,7 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
 
     private async Task _TestSingleHitSkillHudSurfacesRuntimePreview()
     {
-        var registry = new ProgressionContentRegistry();
+        var registry = new ProgressionContentRegistry(new TestContentResourceLoader());
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             registry.GetSkillDefinitionsTyped();
         skillDefinitions.TryGetValue(
@@ -364,7 +364,7 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
             }
         }
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         gameSession.Name = "GameSession";
         int createError = gameSession.CreateNewSave(TestWorldConfig);
         _test.Eq(

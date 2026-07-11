@@ -760,7 +760,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
     {
         var shopService = new SettlementShopService();
         Dictionary<StringName, ItemDefinition> itemDefs = new(
-            new ItemContentRegistry().GetItemDefsTyped()
+            new ItemContentRegistry(new TestContentResourceLoader()).GetItemDefsTyped()
         );
         GDictionary settlementRecord = MinimalSettlementRecord("spring_village_01", "春泉村", Vector2I.Zero, new GArray());
         PartyState validParty = BuildPartyState(10, 100);
@@ -1102,14 +1102,18 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
         IReadOnlyList<GDictionary> settlements,
         IReadOnlyDictionary<StringName, QuestDefinition> questDefs)
     {
-        GameSession gameSession = await InstallGameSession($"SettlementHandlerGameSession_{suffix}");
+        IReadOnlyDictionary<StringName, QuestDefinition> contentQuestDefs =
+            questDefs ?? new Dictionary<StringName, QuestDefinition>();
+        GameSession gameSession = await InstallGameSession(
+            $"SettlementHandlerGameSession_{suffix}",
+            contentQuestDefs
+        );
         GDictionary worldData = BuildWorldData(settlements);
         ConfigureSessionForRuntimeTest(
             gameSession,
             $"settlement_handler_{suffix}",
             worldData,
-            partyState,
-            questDefs ?? new Dictionary<StringName, QuestDefinition>()
+            partyState
         );
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = gameSession.GetItemDefsTyped();
 
@@ -1126,7 +1130,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
         runtime._world_map_data_context.BindRootWorldData(worldData);
         var contextGrid = new WorldMapGridSystem();
         runtime._world_map_data_context.SyncActiveWorldContext(
-            gameSession._generation_config,
+            gameSession._generation_definition,
             contextGrid,
             Vector2I.Zero,
             Vector2I.Zero
@@ -1164,8 +1168,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
         GameSession gameSession,
         string saveId,
         GDictionary worldData,
-        PartyState partyState,
-        IReadOnlyDictionary<StringName, QuestDefinition> questDefs
+        PartyState partyState
     )
     {
         gameSession.ConfigureRuntimeWorldForTests(
@@ -1173,14 +1176,17 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             TestConfigPath,
             worldData,
             partyState,
-            questDefs ?? new Dictionary<StringName, QuestDefinition>(),
             "settlement_handler_test",
             "Settlement Handler Test",
-            new Vector2I(8, 8)
+            new Vector2I(8, 8),
+            TestWorldGenerationDefinitionFactory.Load(TestConfigPath)
         );
     }
 
-    private async Task<GameSession> InstallGameSession(string nodeName)
+    private async Task<GameSession> InstallGameSession(
+        string nodeName,
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = null
+    )
     {
         foreach (Node child in Root.GetChildren())
         {
@@ -1190,7 +1196,12 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             }
         }
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
-        var gameSession = new GameSession { Name = nodeName };
+        GameSession gameSession = questDefs == null
+            ? GameSessionTestFactory.CreateBorrowingProcessSnapshot(nodeName)
+            : GameSessionTestFactory.CreateSyntheticFromProcessSnapshot(
+                seed => seed.Quests = questDefs
+            );
+        gameSession.Name = nodeName;
         Root.AddChild(gameSession);
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
         return gameSession;

@@ -285,7 +285,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
 
     private static BattleRuntimeScope BuildRuntimeWithEnemyContent()
     {
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,

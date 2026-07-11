@@ -55,7 +55,7 @@ public partial class run_game_runtime_party_command_handler_regression : Lifecyc
 
     private static GameRuntimeFacade BuildRuntime(PartyState partyState, bool addBronzeSword)
     {
-        IReadOnlyDictionary<StringName, ItemDefinition> typedItemDefs = new ItemContentRegistry().GetItemDefsTyped();
+        IReadOnlyDictionary<StringName, ItemDefinition> typedItemDefs = new ItemContentRegistry(new TestContentResourceLoader()).GetItemDefsTyped();
         int equipmentSerial = 1;
         Func<StringName> equipmentInstanceIdAllocator = () =>
             new StringName($"eq_party_command_{equipmentSerial++:000}");
@@ -63,11 +63,10 @@ public partial class run_game_runtime_party_command_handler_regression : Lifecyc
         GameRuntimeFacade runtime = new()
         {
             _party_state = partyState,
-            _generation_config =
-                ResourceLoader.Load<WorldMapGenerationConfig>(TestConfigPath)
-                ?? new WorldMapGenerationConfig(),
+            _generation_definition = TestWorldGenerationDefinitionFactory.Load(TestConfigPath),
         };
-        runtime._world_map_data_context.active_generation_config = runtime._generation_config;
+        runtime._world_map_data_context.active_generation_definition =
+            runtime._generation_definition;
         runtime._character_management.setup(
             partyState,
             new Dictionary<StringName, SkillDefinition>(),

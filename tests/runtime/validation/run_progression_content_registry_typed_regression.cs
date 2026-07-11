@@ -25,7 +25,7 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
 
     private void TestOfficialProgressionRegistryTypedBoundaryMatchesPublicBoundary()
     {
-        using ProgressionContentRegistry registry = new();
+        using ProgressionContentRegistry registry = new(new TestContentResourceLoader());
 
         IReadOnlyList<string> typedErrors = registry.ValidateTyped();
         GStringArray projectedErrors = registry.Validate();
@@ -52,7 +52,7 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
 
     private void TestPureDefinitionReplacementFeedsTypedValidation()
     {
-        using ProgressionContentRegistry registry = new();
+        using ProgressionContentRegistry registry = new(new TestContentResourceLoader());
         registry.ReplaceDefinitionsForValidation(BuildCustomDefinitionSources());
 
         IReadOnlyList<string> typedErrors = registry.ValidateTyped();
@@ -112,7 +112,7 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
 
     private void TestDefinitionReplacementProducesDefensiveSnapshots()
     {
-        using ProgressionContentRegistry registry = new();
+        using ProgressionContentRegistry registry = new(new TestContentResourceLoader());
         ProgressionDefinitionSources sources = BuildCustomDefinitionSources();
         registry.ReplaceDefinitionsForValidation(sources);
 
@@ -143,7 +143,7 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
 
     private void TestTraitDefinitionReplacementFeedsIdentityValidation()
     {
-        using ProgressionContentRegistry registry = new();
+        using ProgressionContentRegistry registry = new(new TestContentResourceLoader());
         TraitDefinition customTrait = BuildIdentityTrait("custom_identity_trait");
         RaceDefinition customRace = BuildRace(
             "custom_race",
@@ -177,7 +177,7 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
 
     private void TestIdentityCatalogUsesDefinitionIndexes()
     {
-        using ProgressionContentRegistry registry = new();
+        using ProgressionContentRegistry registry = new(new TestContentResourceLoader());
         registry.ReplaceDefinitionsForValidation(BuildCustomDefinitionSources());
 
         ProgressionIdentityCatalogData catalog = registry.GetIdentityCatalogTyped();

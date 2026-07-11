@@ -185,7 +185,7 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
 
     private static BattleRuntimeScope BuildRuntimeWithEnemyContent()
     {
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,

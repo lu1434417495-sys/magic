@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Godot;
 using GArray = Godot.Collections.Array;
@@ -219,7 +217,9 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
     internal string _active_save_path = "";
     private readonly Dictionary<string, object> _activeSaveMeta = new(StringComparer.Ordinal);
     internal string _generation_config_path = "";
-    internal WorldMapGenerationConfig _generation_config;
+    internal WorldGenerationDefinition _generation_definition;
+    private string _bound_generation_definition_path = "";
+    private WorldGenerationDefinition _bound_generation_definition;
     private readonly Dictionary<string, object> _worldData = new(StringComparer.Ordinal);
     internal Vector2I _player_coord = Vector2I.Zero;
     internal string _player_faction_id = "player";
@@ -235,35 +235,20 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
     internal bool _post_decode_save_pending;
     internal StringNameList _post_decode_save_reasons = new();
 
-    public ProgressionContentRegistry _progression_content_registry = new();
-    private BarrierContentRegistry _barrier_content_registry = new();
-    public ItemContentRegistry _item_content_registry = new();
-    public RecipeContentRegistry _recipe_content_registry = new();
-    public EnemyContentRegistry _enemy_content_registry = new();
-    internal BattleSpecialProfileRegistry _battle_special_profile_registry = new();
+    private ContentSnapshot _contentSnapshot;
+    private ILegacyEnemyContentCatalog _legacyEnemyContent;
+    private ProcessContentHost _contentBorrowerHost;
+    private string _contentBorrowerId = "";
     internal GameRoot _game_root = new();
-
-    public GDictionary _enemy_templates = new();
-    public GDictionary _enemy_ai_brains = new();
-    public GDictionary _wild_encounter_rosters = new();
     private ContentValidationSnapshotData _contentValidationSnapshotData = new();
-    private List<string> _itemValidationErrorsForTests = new();
-    private Dictionary<StringName, SkillDefinition> _skillDefinitionIndex = new();
-    private Dictionary<StringName, ProfessionDefinition> _professionDefIndex = new();
-    private Dictionary<StringName, AchievementDefinition> _achievementDefIndex = new();
-    private Dictionary<StringName, QuestDefinition> _questDefIndex = new();
-    private Dictionary<StringName, ItemDefinition> _itemDefinitionIndex = new();
-    private Dictionary<StringName, RecipeDefinition> _recipeDefinitionIndex = new();
-    private Dictionary<StringName, EnemyTemplateDef> _enemyTemplateIndex = new();
-    private Dictionary<StringName, EnemyAiBrainDef> _enemyAiBrainIndex = new();
-    private Dictionary<StringName, WildEncounterRosterDef> _wildEncounterRosterIndex = new();
 
     public SaveSerializer _save_serializer = new();
     private SaveRepository _save_repository;
     private GameLogService _log_service = new();
-    public WorldMapContentValidator _world_content_validator = new();
     private IGameLogSink _log_sink;
     private bool _disposed;
+    private bool _contentBindingEstablished;
+    private bool _ownedRuntimeResourcesDisposed;
     private ApplicationLifetimeCoordinator _applicationLifetimeCoordinator;
 
     private List<Dictionary<string, object>> _saveIndexEntriesCache = new();
@@ -282,16 +267,135 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         );
         _save_repository = BuildSaveRepository();
 
-        RefreshProgressionContent();
-        RefreshBattleSpecialProfiles();
-        RefreshItemContent();
-        RefreshRecipeContent();
-        RefreshEnemyContent();
-        RefreshContentValidationSnapshotState();
-        ReportContentValidationErrors();
-
         _log_sink = new GameSessionLogSink(this);
         GameLog.AddSink(_log_sink);
+    }
+
+    internal void BindContent(
+        ContentSnapshot snapshot,
+        ILegacyEnemyContentCatalog legacyEnemyContent
+    )
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(legacyEnemyContent);
+        if (_contentBindingEstablished)
+            throw new InvalidOperationException("GameSession content is already bound.");
+
+        GameRoot gameRoot = EnsureGameRoot();
+        try
+        {
+            gameRoot.BindSnapshot(this, snapshot, legacyEnemyContent);
+            _contentSnapshot = snapshot;
+            _legacyEnemyContent = legacyEnemyContent;
+            _contentBindingEstablished = true;
+            RefreshContentValidationSnapshotState();
+            ReportContentValidationErrors();
+        }
+        catch
+        {
+            ClearContentBindingForRetry(snapshot);
+            throw;
+        }
+    }
+
+    internal void BindContentBorrower(ProcessContentHost host, string borrowerId)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(host);
+        if (string.IsNullOrWhiteSpace(borrowerId))
+            throw new ArgumentException("Content borrower ID is required.", nameof(borrowerId));
+        if (_contentSnapshot == null || !ReferenceEquals(host.GetSnapshot(), _contentSnapshot))
+        {
+            throw new InvalidOperationException(
+                "GameSession may only release the process host snapshot it currently borrows."
+            );
+        }
+        if (_contentBorrowerHost != null || _contentBorrowerId.Length != 0)
+            throw new InvalidOperationException("GameSession content borrower is already bound.");
+
+        _contentBorrowerHost = host;
+        _contentBorrowerId = borrowerId;
+    }
+
+    internal void RollBackFailedContentAttachment(
+        ContentSnapshot snapshot,
+        ProcessContentHost host,
+        string borrowerId,
+        ApplicationLifetimeCoordinator coordinator
+    )
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(coordinator);
+
+        if (ReferenceEquals(_applicationLifetimeCoordinator, coordinator))
+            _applicationLifetimeCoordinator = null;
+        if (
+            ReferenceEquals(_contentBorrowerHost, host)
+            && string.Equals(_contentBorrowerId, borrowerId, StringComparison.Ordinal)
+        )
+        {
+            _contentBorrowerHost = null;
+            _contentBorrowerId = "";
+        }
+        ClearContentBindingForRetry(snapshot);
+    }
+
+    private void ClearContentBindingForRetry(ContentSnapshot expectedSnapshot)
+    {
+        if (!ReferenceEquals(_contentSnapshot, expectedSnapshot))
+            return;
+
+        _game_root?.ClearSnapshotBindingForRetry();
+        _contentSnapshot = null;
+        _legacyEnemyContent = null;
+        _contentBindingEstablished = false;
+        _contentValidationSnapshotData = new ContentValidationSnapshotData();
+    }
+
+    internal bool IsClosed => _disposed;
+
+    internal void BindApplicationLifetimeCoordinator(
+        ApplicationLifetimeCoordinator coordinator
+    )
+    {
+        ArgumentNullException.ThrowIfNull(coordinator);
+        if (
+            _applicationLifetimeCoordinator != null
+            && !ReferenceEquals(_applicationLifetimeCoordinator, coordinator)
+        )
+        {
+            throw new InvalidOperationException(
+                "GameSession is already attached to another lifetime coordinator."
+            );
+        }
+        _applicationLifetimeCoordinator = coordinator;
+    }
+
+    internal long GetContentSnapshotEpoch() => RequireContentSnapshot().Epoch;
+
+    private ContentSnapshot RequireContentSnapshot() =>
+        _contentSnapshot
+        ?? throw new InvalidOperationException(
+            "GameSession content must be explicitly bound before runtime use."
+        );
+
+    private ILegacyEnemyContentCatalog RequireLegacyEnemyContent() =>
+        _legacyEnemyContent
+        ?? throw new InvalidOperationException(
+            "GameSession legacy enemy content must be explicitly bound before runtime use."
+        );
+
+    private void ReleaseContentBorrower()
+    {
+        ProcessContentHost host = _contentBorrowerHost;
+        string borrowerId = _contentBorrowerId;
+        _contentBorrowerHost = null;
+        _contentBorrowerId = "";
+        if (host == null || borrowerId.Length == 0)
+            return;
+        host.UnregisterSnapshotBorrower(borrowerId);
     }
 
     string IApplicationShutdownParticipant.ShutdownParticipantId =>
@@ -326,7 +430,10 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
             );
         }
 
-        _applicationLifetimeCoordinator.RegisterParticipant(this);
+        if (!_applicationLifetimeCoordinator.CanAttachSession)
+            return;
+
+        _applicationLifetimeCoordinator.AttachSession(this);
     }
 
     public new void Dispose()
@@ -358,6 +465,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         if (_disposed)
         {
             UnregisterApplicationShutdownParticipant();
+            ReleaseContentBorrower();
             return;
         }
         _disposed = true;
@@ -377,6 +485,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
             return;
 
         coordinator.UnregisterParticipant(this);
+        coordinator.NotifySessionClosed(this);
     }
 
     private void RemoveLogSink()
@@ -390,25 +499,20 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
 
     internal void DisposeOwnedRuntimeResources()
     {
+        if (_ownedRuntimeResourcesDisposed)
+            return;
+        _ownedRuntimeResourcesDisposed = true;
         _game_root?.Dispose();
         _game_root = null;
         ClearSessionGodotObjectReferences();
-        _progression_content_registry?.Dispose();
-        _progression_content_registry = null;
-        _barrier_content_registry?.Dispose();
-        _barrier_content_registry = null;
-        _item_content_registry?.Dispose();
-        _item_content_registry = null;
-        _recipe_content_registry?.Dispose();
-        _recipe_content_registry = null;
-        _enemy_content_registry?.Dispose();
-        _enemy_content_registry = null;
-        _battle_special_profile_registry?.Dispose();
-        _battle_special_profile_registry = null;
+        _contentSnapshot = null;
+        _legacyEnemyContent = null;
+        ReleaseContentBorrower();
     }
 
     public int EnsureWorldReady(string generation_config_path)
     {
+        generation_config_path = ContentPathCanonicalizer.Canonicalize(generation_config_path);
         int contentValidationError = RequireContentValidationForRuntime("ensure_world_ready");
         if (contentValidationError != (int)Error.Ok)
             return contentValidationError;
@@ -421,11 +525,18 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
 
     private GameRoot EnsureGameRoot()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_ownedRuntimeResourcesDisposed)
+        {
+            throw new ObjectDisposedException(
+                nameof(GameRoot),
+                "GameSession owned runtime resources have already been released."
+            );
+        }
         if (_game_root == null)
         {
             _game_root = new GameRoot();
         }
-        _game_root.BindSession(this);
         return _game_root;
     }
 
@@ -466,22 +577,27 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         if (contentValidationError != (int)Error.Ok)
             return contentValidationError;
 
-        GDictionary previousRuntimeState = CaptureRuntimeState();
         if (string.IsNullOrEmpty(generation_config_path))
         {
             throw new InvalidOperationException(
                 "GameSession requires a generation config path."
             );
         }
+        generation_config_path = ContentPathCanonicalizer.Canonicalize(generation_config_path);
 
-        WorldMapGenerationConfig generationConfig = LoadGenerationConfig(generation_config_path);
-        if (generationConfig == null)
+        WorldGenerationDefinition generationDefinition = ResolveBoundGenerationDefinition(
+            generation_config_path
+        );
+        if (generationDefinition == null)
             return (int)Error.CantOpen;
 
-        int prepareError = PrepareNewWorld(generation_config_path, generationConfig);
+        GDictionary previousRuntimeState = CaptureRuntimeState();
+        WorldGenerationDefinition previousGenerationDefinition = _generation_definition;
+
+        int prepareError = PrepareNewWorld(generation_config_path, generationDefinition);
         if (prepareError != (int)Error.Ok)
         {
-            RestoreRuntimeState(previousRuntimeState);
+            RestoreRuntimeState(previousRuntimeState, previousGenerationDefinition);
             return prepareError;
         }
 
@@ -490,7 +606,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         );
         if (characterCreationError != (int)Error.Ok)
         {
-            RestoreRuntimeState(previousRuntimeState);
+            RestoreRuntimeState(previousRuntimeState, previousGenerationDefinition);
             return characterCreationError;
         }
 
@@ -498,7 +614,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         string saveId = GenerateUniqueSaveId(timestamp);
         if (string.IsNullOrEmpty(saveId))
         {
-            RestoreRuntimeState(previousRuntimeState);
+            RestoreRuntimeState(previousRuntimeState, previousGenerationDefinition);
             throw new InvalidOperationException(
                 "GameSession failed to allocate a unique save id."
             );
@@ -515,7 +631,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
             generation_config_path,
             preset_id,
             resolvedPresetName,
-            generationConfig.GetWorldSizeCells(),
+            generationDefinition.GetWorldSizeCells(),
             timestamp,
             timestamp
         ));
@@ -539,7 +655,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         }
         else
         {
-            RestoreRuntimeState(previousRuntimeState);
+            RestoreRuntimeState(previousRuntimeState, previousGenerationDefinition);
         }
         return persistError;
     }
@@ -598,16 +714,19 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
             );
         }
 
-        WorldMapGenerationConfig generationConfig = LoadGenerationConfig(generationConfigPath);
-        if (generationConfig == null)
+        WorldGenerationDefinition generationDefinition = ResolveBoundGenerationDefinition(
+            generationConfigPath
+        );
+        if (generationDefinition == null)
             return (int)Error.CantOpen;
 
         GDictionary previousRuntimeState = CaptureRuntimeState();
+        WorldGenerationDefinition previousGenerationDefinition = _generation_definition;
         _pending_load_error_reason = "";
         int loadError = LoadCurrentPayload(
             plainPayload,
             generationConfigPath,
-            generationConfig,
+            generationDefinition,
             saveMeta
         );
         if (loadError == (int)Error.Ok)
@@ -629,7 +748,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         {
             StringName loadErrorReason =
                 _pending_load_error_reason != "" ? _pending_load_error_reason : "load_save";
-            RestoreRuntimeState(previousRuntimeState);
+            RestoreRuntimeState(previousRuntimeState, previousGenerationDefinition);
             RecordSaveError(loadError, loadErrorReason);
         }
         _pending_load_error_reason = "";
@@ -672,87 +791,36 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         return GetContentValidationSnapshot();
     }
 
-    internal IReadOnlyDictionary<StringName, QuestDefinition> GetQuestDefsSnapshotForTests() =>
-        new Dictionary<StringName, QuestDefinition>(_questDefIndex);
-
-    internal void ReplaceQuestDefsForTests(
-        IReadOnlyDictionary<StringName, QuestDefinition> questDefinitions
-    )
-    {
-        _questDefIndex = questDefinitions != null
-            ? new Dictionary<StringName, QuestDefinition>(questDefinitions)
-            : new Dictionary<StringName, QuestDefinition>();
-        RefreshContentCatalog();
-    }
-
-    internal void InstallQuestDefinitionForTests(QuestDefinition questDefinition)
-    {
-        ArgumentNullException.ThrowIfNull(questDefinition);
-        if (questDefinition.QuestId == "")
-            throw new ArgumentException("Quest definition must have a non-empty id.", nameof(questDefinition));
-        _questDefIndex[questDefinition.QuestId] = questDefinition;
-        RefreshContentCatalog();
-    }
-
-    internal void ReplaceItemDefinitionsForTests(
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
-    )
-    {
-        _itemDefinitionIndex = itemDefinitions != null
-            ? new Dictionary<StringName, ItemDefinition>(itemDefinitions)
-            : new Dictionary<StringName, ItemDefinition>();
-        RefreshRecipeContent();
-        RefreshContentCatalog();
-    }
-
-    internal int InstallItemDefinitionForTests(ItemDefinition itemDefinition)
-    {
-        if (itemDefinition == null || itemDefinition.ItemId == "")
-            return (int)Error.InvalidParameter;
-        _itemDefinitionIndex[itemDefinition.ItemId] = itemDefinition;
-        RefreshRecipeContent();
-        RefreshContentCatalog();
-        return (int)Error.Ok;
-    }
-
-    internal void SetItemValidationErrorsForTests(IReadOnlyList<string> errors)
-    {
-        _itemValidationErrorsForTests = errors != null
-            ? new List<string>(errors)
-            : new List<string>();
-    }
-
-    internal WorldMapContentValidator GetWorldContentValidatorForTests() =>
-        _world_content_validator;
-
-    internal void SetWorldContentValidatorForTests(WorldMapContentValidator validator) =>
-        _world_content_validator = validator ?? new WorldMapContentValidator();
-
     internal void ConfigureRuntimeWorldForTests(
         string saveId,
         string generationConfigPath,
         GDictionary worldData,
         PartyState partyState,
-        IReadOnlyDictionary<StringName, QuestDefinition> questDefinitions = null,
         string saveKind = "runtime_test",
         string displayName = "Runtime Test",
-        Vector2I? mapSize = null
+        Vector2I? mapSize = null,
+        WorldGenerationDefinition generationDefinition = null
     )
     {
         int now = (int)Time.GetUnixTimeFromSystem();
         _active_save_id = saveId ?? "";
         _active_save_path = BuildSaveFilePath(_active_save_id);
-        _generation_config_path = generationConfigPath ?? "";
-        _generation_config = ResourceLoader.Load<WorldMapGenerationConfig>(_generation_config_path);
-        RegisterStaticContentOwnership(_generation_config);
+        if (generationDefinition != null)
+            BindGenerationDefinition(generationConfigPath, generationDefinition);
+        WorldGenerationDefinition resolvedGenerationDefinition =
+            ResolveBoundGenerationDefinition(generationConfigPath);
+        if (resolvedGenerationDefinition == null)
+            throw new InvalidOperationException(
+                "Runtime world tests require the bound snapshot to contain the requested WorldGenerationDefinition."
+            );
+        _generation_config_path = ContentPathCanonicalizer.Canonicalize(generationConfigPath);
+        _generation_definition = resolvedGenerationDefinition;
         ReplaceWorldDataPayload(worldData ?? new GDictionary());
         _player_coord = Vector2I.Zero;
         _player_faction_id = "player";
         PartyState previousPartyState = _party_state;
         _party_state = partyState ?? new PartyState();
         DisposePartyStateGraph(previousPartyState, _party_state);
-        if (questDefinitions != null)
-            _questDefIndex = new Dictionary<StringName, QuestDefinition>(questDefinitions);
         _has_active_world = true;
         _battle_save_lock_enabled = false;
         ReplaceActiveSaveMetaPlain(BuildSaveMetaPlain(
@@ -766,10 +834,10 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
             now
         ));
         DiscardPendingSave();
-        RefreshContentCatalog();
     }
 
-    public bool IsContentValidationOk() => _contentValidationSnapshotData?.Ok ?? false;
+    public bool IsContentValidationOk() =>
+        _contentSnapshot != null && (_contentValidationSnapshotData?.Ok ?? false);
 
     public void LogEvent(
         string level,
@@ -787,7 +855,25 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         LogEvent(level, domain, event_id, message, "");
     }
 
-    public WorldMapGenerationConfig GetGenerationConfig() => _generation_config;
+    internal void BindGenerationDefinition(
+        string canonicalPath,
+        WorldGenerationDefinition definition
+    )
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        string normalizedPath = ContentPathCanonicalizer.Canonicalize(canonicalPath);
+        string definitionPath = ContentPathCanonicalizer.Canonicalize(definition.CanonicalPath);
+        if (!string.Equals(normalizedPath, definitionPath, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"World generation definition path mismatch: requested {normalizedPath}, definition {definitionPath}."
+            );
+        }
+        _bound_generation_definition_path = normalizedPath;
+        _bound_generation_definition = definition;
+    }
+
+    public WorldGenerationDefinition GetGenerationDefinition() => _generation_definition;
 
     public string GetGenerationConfigPath() => _generation_config_path;
 
@@ -1049,9 +1135,6 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         }
     }
 
-    public ProgressionContentRegistry GetProgressionContentRegistry() =>
-        _progression_content_registry;
-
     public GameRoot GetGameRootTyped() => EnsureGameRoot();
 
     public GameContentCatalog GetContentCatalogTyped() =>
@@ -1059,230 +1142,85 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
 
     public ProgressionIdentityCatalogData GetProgressionIdentityCatalogTyped()
     {
-        return _progression_content_registry?.GetIdentityCatalogTyped()
-            ?? new ProgressionIdentityCatalogData();
+        return RequireContentSnapshot().IdentityCatalog;
     }
 
-    public IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionsTyped()
-    {
-        if (_skillDefinitionIndex.Count > 0 || _progression_content_registry == null)
-            return new Dictionary<StringName, SkillDefinition>(_skillDefinitionIndex);
-        return _progression_content_registry.GetSkillDefinitionsTyped();
-    }
+    public IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionsTyped() =>
+        RequireContentSnapshot().Skills;
 
-    public IReadOnlyDictionary<StringName, TraitDefinition> GetTraitDefsTyped()
-    {
-        return _progression_content_registry?.GetTraitDefsTyped()
-            ?? new Dictionary<StringName, TraitDefinition>();
-    }
+    public IReadOnlyDictionary<StringName, TraitDefinition> GetTraitDefsTyped() =>
+        RequireContentSnapshot().Traits;
 
-    public EquipmentAbilityRegistryBuildResult GetEquipmentAbilityLastBuildResultTyped()
-    {
-        return _progression_content_registry?.GetEquipmentAbilityLastBuildResultTyped()
-            ?? new EquipmentAbilityRegistryBuildResult
-            {
-                Success = true,
-                Revision = 0,
-                Errors = Array.Empty<string>(),
-            };
-    }
-
-    public int GetEquipmentAbilityContentRevision()
-    {
-        return _progression_content_registry?.GetEquipmentAbilityContentRevision() ?? 0;
-    }
+    public int GetEquipmentAbilityContentRevision() =>
+        checked((int)RequireContentSnapshot().Epoch);
 
     public IReadOnlyDictionary<StringName, EquipmentAbilityContentPackDefinition> GetEquipmentAbilityPackDefinitionsTyped()
     {
-        return _progression_content_registry?.GetEquipmentAbilityPackDefinitionsTyped()
-            ?? new Dictionary<StringName, EquipmentAbilityContentPackDefinition>();
+        return RequireContentSnapshot().EquipmentAbilityPacks;
     }
 
     public IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> GetEquipmentAbilityBindingDefinitionsTyped()
     {
-        return _progression_content_registry?.GetEquipmentAbilityBindingDefinitionsTyped()
-            ?? new Dictionary<StringName, EquipmentAbilityBindingDefinition>();
+        return RequireContentSnapshot().EquipmentAbilityBindings;
     }
 
-    public GDictionary GetBattleSpecialProfileRegistrySnapshot() =>
-        _battle_special_profile_registry != null
-            ? _battle_special_profile_registry.GetSnapshot()
-            : new GDictionary();
+    internal IBattleSpecialProfileView GetBattleSpecialProfileView() =>
+        RequireContentSnapshot().BattleSpecialProfiles;
 
-    public GDictionary GetBattleSpecialProfileRegistryRuntimeSnapshot() =>
-        _battle_special_profile_registry != null
-            ? _battle_special_profile_registry.GetRuntimeSnapshotPayload()
-            : new GDictionary();
+    public IReadOnlyDictionary<StringName, ProfessionDefinition> GetProfessionDefsTyped() =>
+        RequireContentSnapshot().Professions;
 
-    internal IBattleSpecialProfileView GetBattleSpecialProfileRuntimeView() =>
-        _battle_special_profile_registry != null
-            ? _battle_special_profile_registry.BuildRuntimeProfileView()
-            : BattleSpecialProfileRuntimeView.Empty;
-
-    public IReadOnlyDictionary<StringName, ProfessionDefinition> GetProfessionDefsTyped()
-    {
-        return new ReadOnlyDictionary<StringName, ProfessionDefinition>(
-            new Dictionary<StringName, ProfessionDefinition>(_professionDefIndex)
-        );
-    }
-
-    public IReadOnlyDictionary<StringName, AchievementDefinition> GetAchievementDefsTyped()
-    {
-        return new ReadOnlyDictionary<StringName, AchievementDefinition>(
-            new Dictionary<StringName, AchievementDefinition>(_achievementDefIndex)
-        );
-    }
+    public IReadOnlyDictionary<StringName, AchievementDefinition> GetAchievementDefsTyped() =>
+        RequireContentSnapshot().Achievements;
 
     public QuestDefinition GetQuestDef(StringName quest_id)
     {
         if (quest_id == "")
             return null;
-        return _questDefIndex.TryGetValue(quest_id, out QuestDefinition questDefinition)
+        return RequireContentSnapshot().Quests.TryGetValue(
+            quest_id,
+            out QuestDefinition questDefinition
+        )
             ? questDefinition
             : null;
     }
 
-    public IReadOnlyDictionary<StringName, QuestDefinition> GetQuestDefsTyped()
-    {
-        return new ReadOnlyDictionary<StringName, QuestDefinition>(
-            new Dictionary<StringName, QuestDefinition>(_questDefIndex)
-        );
-    }
+    public IReadOnlyDictionary<StringName, QuestDefinition> GetQuestDefsTyped() =>
+        RequireContentSnapshot().Quests;
 
     public IReadOnlyDictionary<StringName, ContingencySetupTemplateDefinition> GetContingencySetupTemplatesTyped()
     {
-        return _progression_content_registry?.GetContingencySetupTemplatesTyped()
-            ?? new Dictionary<StringName, ContingencySetupTemplateDefinition>();
+        return RequireContentSnapshot().ContingencyTemplates;
     }
 
     public IReadOnlyDictionary<StringName, BarrierProfileDefinition> GetBarrierProfileDefinitionsTyped()
     {
-        return _barrier_content_registry?.GetProfileDefsTyped()
-            ?? new Dictionary<StringName, BarrierProfileDefinition>();
+        return RequireContentSnapshot().BarrierProfiles;
     }
 
     public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsTyped()
     {
-        return new Dictionary<StringName, ItemDefinition>(_itemDefinitionIndex);
+        return RequireContentSnapshot().Items;
     }
 
     public IReadOnlyDictionary<StringName, RecipeDefinition> GetRecipeDefsTyped()
     {
-        return new Dictionary<StringName, RecipeDefinition>(_recipeDefinitionIndex);
+        return RequireContentSnapshot().Recipes;
     }
 
     public IReadOnlyDictionary<StringName, EnemyTemplateDef> GetEnemyTemplatesTyped()
     {
-        return new Dictionary<StringName, EnemyTemplateDef>(_enemyTemplateIndex);
+        return RequireLegacyEnemyContent().EnemyTemplates;
     }
 
     public IReadOnlyDictionary<StringName, EnemyAiBrainDef> GetEnemyAiBrainsTyped()
     {
-        return new Dictionary<StringName, EnemyAiBrainDef>(_enemyAiBrainIndex);
+        return RequireLegacyEnemyContent().EnemyBrains;
     }
 
     public IReadOnlyDictionary<StringName, WildEncounterRosterDef> GetWildEncounterRostersTyped()
     {
-        return new Dictionary<StringName, WildEncounterRosterDef>(_wildEncounterRosterIndex);
-    }
-
-    public int InstallTestContentDef(
-        StringName domain_id,
-        StringName content_key,
-        Resource content_def
-    )
-    {
-        if (content_def == null)
-            return (int)Error.InvalidParameter;
-        if (content_key.ToString().Length == 0)
-            return (int)Error.InvalidParameter;
-        if (!TryGetTestContentRegistry(domain_id, out var registry, out var refreshBattleSpecialProfiles))
-            return (int)Error.InvalidParameter;
-
-        RegisterStaticContentOwnership(content_def);
-        registry[content_key] = content_def;
-        RebuildTypedContentIndexForDomain(domain_id);
-        if (refreshBattleSpecialProfiles)
-            RefreshBattleSpecialProfiles();
-        RefreshContentCatalog();
-        return (int)Error.Ok;
-    }
-
-    public int InstallTestContentDefStringKey(
-        StringName domain_id,
-        string content_key,
-        Resource content_def
-    )
-    {
-        if (content_def == null)
-            return (int)Error.InvalidParameter;
-        if (string.IsNullOrEmpty(content_key))
-            return (int)Error.InvalidParameter;
-        if (!TryGetTestContentRegistry(domain_id, out var registry, out var refreshBattleSpecialProfiles))
-            return (int)Error.InvalidParameter;
-
-        RegisterStaticContentOwnership(content_def);
-        registry[content_key] = content_def;
-        RebuildTypedContentIndexForDomain(domain_id);
-        if (refreshBattleSpecialProfiles)
-            RefreshBattleSpecialProfiles();
-        RefreshContentCatalog();
-        return (int)Error.Ok;
-    }
-
-    private bool TryGetTestContentRegistry(
-        StringName domain_id,
-        out GDictionary registry,
-        out bool refreshBattleSpecialProfiles
-    )
-    {
-        refreshBattleSpecialProfiles = false;
-        switch (domain_id.ToString())
-        {
-            case "skill":
-                registry = new GDictionary();
-                return false;
-            case "enemy_template":
-                registry = _enemy_templates;
-                return true;
-            case "enemy_ai_brain":
-                registry = _enemy_ai_brains;
-                return true;
-            case "wild_encounter_roster":
-                registry = _wild_encounter_rosters;
-                return true;
-            default:
-                registry = new GDictionary();
-                return false;
-        }
-    }
-
-    private void RebuildTypedContentIndexForDomain(StringName domain_id)
-    {
-        switch (domain_id.ToString())
-        {
-            case "enemy_template":
-                _enemyTemplateIndex = BuildEnemyTemplateIndex(_enemy_templates);
-                break;
-            case "enemy_ai_brain":
-                _enemyAiBrainIndex = BuildEnemyAiBrainIndex(_enemy_ai_brains);
-                break;
-            case "wild_encounter_roster":
-                _wildEncounterRosterIndex = BuildWildEncounterRosterIndex(
-                    _wild_encounter_rosters
-                );
-                break;
-        }
-    }
-
-    internal void SetSkillDefinitionForTests(
-        StringName skillId,
-        SkillDefinition skillDefinition
-    )
-    {
-        if (skillId == "" || skillDefinition == null)
-            return;
-        _skillDefinitionIndex[skillId] = skillDefinition;
+        return RequireLegacyEnemyContent().EncounterRosters;
     }
 
     public int SaveWorldState() => SaveGameState();
@@ -1422,25 +1360,27 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
 
     private int PrepareNewWorld(
         string generation_config_path,
-        WorldMapGenerationConfig generation_config
+        WorldGenerationDefinition generation_definition
     )
     {
-        if (generation_config == null)
+        if (generation_definition == null)
             return (int)Error.InvalidParameter;
 
         var gridSystem = new WorldMapGridSystem();
-        gridSystem.Setup(generation_config.world_size_in_chunks, generation_config.chunk_size);
+        gridSystem.Setup(
+            generation_definition.WorldSizeInChunks,
+            generation_definition.ChunkSize
+        );
 
         var spawnSystem = new WorldMapSpawnSystem();
         WorldMapSpawnSystem.WorldBuildData worldBuild = spawnSystem.BuildWorldTyped(
-            generation_config,
+            generation_definition,
             gridSystem
         );
         GDictionary worldData = WorldMapSpawnProjection.Project(worldBuild);
 
-        _generation_config_path = generation_config_path;
-        _generation_config = generation_config;
-        RegisterStaticContentOwnership(_generation_config);
+        _generation_config_path = ContentPathCanonicalizer.Canonicalize(generation_config_path);
+        _generation_definition = generation_definition;
         ReplaceWorldDataPayload(NormalizeWorldData(worldData));
         _player_coord = worldBuild.PlayerStartCoord;
         _player_faction_id = "player";
@@ -1481,7 +1421,9 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
             _generation_config_path,
             new StringName(ReadPlainString(_activeSaveMeta, "world_preset_id")),
             ReadPlainString(_activeSaveMeta, "world_preset_name"),
-            _generation_config != null ? _generation_config.GetWorldSizeCells() : Vector2I.Zero,
+            _generation_definition != null
+                ? _generation_definition.GetWorldSizeCells()
+                : Vector2I.Zero,
             ReadPlainInt(_activeSaveMeta, "created_at_unix_time", now),
             now
         ));
@@ -1504,7 +1446,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
     private int LoadCurrentPayload(
         IReadOnlyDictionary<string, object> payload,
         string generation_config_path,
-        WorldMapGenerationConfig generation_config,
+        WorldGenerationDefinition generation_definition,
         IReadOnlyDictionary<string, object> save_meta
     )
     {
@@ -1512,7 +1454,6 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
             !_save_serializer.TryDecodePayload(
                 payload,
                 generation_config_path,
-                generation_config,
                 save_meta,
                 out SaveDecodeResult decodeResult
             )
@@ -1552,8 +1493,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         _active_save_path = BuildSaveFilePath(_active_save_id);
         ReplaceActiveSaveMetaPlain(decodeResult.ActiveSaveMeta);
         _generation_config_path = decodeResult.GenerationConfigPath;
-        _generation_config = decodeResult.GenerationConfig ?? generation_config;
-        RegisterStaticContentOwnership(_generation_config);
+        _generation_definition = generation_definition;
         ReplaceWorldDataPlain(decodeResult.WorldData);
         _player_coord = decodeResult.PlayerCoord;
         _player_faction_id = decodeResult.PlayerFactionId;
@@ -1692,44 +1632,49 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         return "";
     }
 
-    private WorldMapGenerationConfig LoadGenerationConfig(string generation_config_path)
+    private WorldGenerationDefinition ResolveBoundGenerationDefinition(
+        string generationConfigPath
+    )
     {
-        WorldMapGenerationConfig generationConfig = null;
+        string canonicalPath;
         try
         {
-            generationConfig = ResourceLoader.Load<WorldMapGenerationConfig>(
-                generation_config_path
-            );
+            canonicalPath = ContentPathCanonicalizer.Canonicalize(generationConfigPath);
         }
-        catch (Exception ex)
+        catch (ArgumentException exception)
         {
             PushSessionError(
-                "session.config.load_failed",
-                $"GameSession failed to load config from {generation_config_path}",
+                "session.config.definition_unavailable",
+                $"GameSession rejected generation config path {generationConfigPath}.",
                 Json.Stringify(
                     new GDictionary
                     {
-                        ["generation_config_path"] = generation_config_path,
-                        ["exception_type"] = ex.GetType().Name,
+                        ["generation_config_path"] = generationConfigPath ?? "",
+                        ["exception_type"] = exception.GetType().Name,
                     }
                 )
             );
             return null;
         }
-        if (generationConfig == null)
+        ContentSnapshot snapshot = _contentSnapshot;
+        if (
+            snapshot == null
+            || !snapshot.WorldGenerations.TryGetValue(
+                canonicalPath,
+                out WorldGenerationDefinition definition
+            )
+            || definition == null
+        )
         {
             PushSessionError(
-                "session.config.load_failed",
-                $"GameSession failed to load config from {generation_config_path}",
-                Json.Stringify(new GDictionary { ["generation_config_path"] = generation_config_path })
+                "session.config.definition_unavailable",
+                $"GameSession snapshot has no world generation definition for {canonicalPath}.",
+                Json.Stringify(new GDictionary { ["generation_config_path"] = canonicalPath })
             );
             return null;
         }
-        GodotContentOwnership.RegisterBorrowedContent(
-            generationConfig,
-            $"GameSession.LoadGenerationConfig:{generation_config_path}"
-        );
-        return generationConfig;
+        BindGenerationDefinition(canonicalPath, definition);
+        return definition;
     }
 
     public int ReadSavePayload(
@@ -1787,14 +1732,26 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
 
     public void RestoreRuntimeState(GDictionary state)
     {
+        RestoreRuntimeState(state, _generation_definition);
+    }
+
+    private void RestoreRuntimeState(
+        GDictionary state,
+        WorldGenerationDefinition generationDefinition
+    )
+    {
         PartyState previousPartyState = _party_state;
         _active_save_id = GetString(state, "active_save_id");
         _active_save_path = GetString(state, "active_save_path");
         ReplaceActiveSaveMetaPayload(GetDictionary(state, "active_save_meta").Duplicate(true));
-        _generation_config_path = GetString(state, "generation_config_path");
-        _generation_config = string.IsNullOrEmpty(_generation_config_path)
-            ? null
-            : LoadGenerationConfig(_generation_config_path);
+        string restoredGenerationPath = GetString(state, "generation_config_path");
+        _generation_config_path = restoredGenerationPath;
+        _generation_definition = DefinitionMatchesPath(
+            generationDefinition,
+            restoredGenerationPath
+        )
+            ? generationDefinition
+            : null;
         ReplaceWorldDataPayload(GetDictionary(state, "world_data").Duplicate(true));
         _player_coord = GetVector2I(state, "player_coord", Vector2I.Zero);
         _player_faction_id = GetString(state, "player_faction_id", "player");
@@ -1824,6 +1781,27 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         );
     }
 
+    private static bool DefinitionMatchesPath(
+        WorldGenerationDefinition definition,
+        string generationConfigPath
+    )
+    {
+        if (definition == null || string.IsNullOrWhiteSpace(generationConfigPath))
+            return false;
+        try
+        {
+            return string.Equals(
+                ContentPathCanonicalizer.Canonicalize(definition.CanonicalPath),
+                ContentPathCanonicalizer.Canonicalize(generationConfigPath),
+                StringComparison.Ordinal
+            );
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
+
     private void ResetRuntimeState(bool dispose_current_party_state = true)
     {
         PartyState previousPartyState = _party_state;
@@ -1831,7 +1809,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         _active_save_path = "";
         ClearActiveSaveMetaPayload();
         _generation_config_path = "";
-        _generation_config = null;
+        _generation_definition = null;
         ClearWorldDataPayload();
         _player_coord = Vector2I.Zero;
         _player_faction_id = "player";

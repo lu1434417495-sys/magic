@@ -19,6 +19,9 @@ public partial class ApplicationLifetimeCoordinator : Node, IApplicationShutdown
     private ApplicationShutdownPipeline _pipeline;
     private Task<ShutdownReport> _completion;
     private ShutdownReport _report;
+    private ProcessContentHost _contentHost;
+    private GameSession _activeSession;
+    private long _nextSessionBorrowerSerial;
     private int _mainThreadId;
     private bool _acceptingRegistrations;
     private bool _quitIssued;
@@ -26,9 +29,227 @@ public partial class ApplicationLifetimeCoordinator : Node, IApplicationShutdown
     public override void _Ready()
     {
         _mainThreadId = System.Environment.CurrentManagedThreadId;
-        GetTree().AutoAcceptQuit = false;
         _pipeline = new ApplicationShutdownPipeline(this, LifecycleAuditRegistry.Shared);
+        GetTree().AutoAcceptQuit = false;
+        if (
+            ReferenceEquals(
+                GetTree().Root.GetNodeOrNull<ApplicationLifetimeCoordinator>(
+                    "ApplicationLifetimeCoordinator"
+                ),
+                this
+            )
+        )
+        {
+            try
+            {
+                _contentHost = new ProcessContentHost();
+                _contentHost.BuildAndSeal();
+            }
+            catch (Exception exception)
+            {
+                Exception cleanupFailure = ReleaseFailedStartupContentHost();
+                BeginStartupFailureShutdown(exception, cleanupFailure);
+                return;
+            }
+        }
         _acceptingRegistrations = true;
+    }
+
+    internal bool CanAttachSession
+    {
+        get
+        {
+            lock (_shutdownSync)
+            {
+                return _acceptingRegistrations
+                    && _report == null
+                    && _contentHost != null;
+            }
+        }
+    }
+
+    internal ProcessContentHost ContentHost =>
+        _contentHost
+        ?? throw new InvalidOperationException(
+            "ApplicationLifetimeCoordinator has not initialized process content."
+        );
+
+    internal void AttachSession(GameSession session)
+    {
+        EnsureMainThread();
+        ArgumentNullException.ThrowIfNull(session);
+        if (!GodotObject.IsInstanceValid(session) || session.IsClosed)
+            throw new ObjectDisposedException(nameof(session));
+
+        lock (_shutdownSync)
+        {
+            if (!_acceptingRegistrations || _report != null)
+            {
+                throw new InvalidOperationException(
+                    "GameSession cannot attach after application quiescing begins."
+                );
+            }
+            if (_activeSession != null)
+            {
+                if (ReferenceEquals(_activeSession, session))
+                    return;
+                throw new InvalidOperationException(
+                    "Only one GameSession may borrow process content at a time."
+                );
+            }
+        }
+
+        ProcessContentHost host = ContentHost;
+        ContentSnapshot snapshot = host.GetSnapshot();
+        string borrowerId =
+            $"game-session:{System.Threading.Interlocked.Increment(ref _nextSessionBorrowerSerial)}";
+        bool contentBound = false;
+        bool borrowerRegistered = false;
+        bool participantRegistered = false;
+        try
+        {
+            session.BindContent(snapshot, host.LegacyEnemyContent);
+            contentBound = true;
+            host.RegisterSnapshotBorrower(borrowerId, session);
+            borrowerRegistered = true;
+            session.BindContentBorrower(host, borrowerId);
+            session.BindApplicationLifetimeCoordinator(this);
+            RegisterParticipant(session);
+            participantRegistered = true;
+
+            lock (_shutdownSync)
+                _activeSession = session;
+        }
+        catch
+        {
+            if (participantRegistered)
+                UnregisterParticipant(session);
+            if (contentBound)
+            {
+                session.RollBackFailedContentAttachment(
+                    snapshot,
+                    host,
+                    borrowerId,
+                    this
+                );
+            }
+            if (borrowerRegistered)
+                host.UnregisterSnapshotBorrower(borrowerId);
+            lock (_shutdownSync)
+            {
+                if (ReferenceEquals(_activeSession, session))
+                    _activeSession = null;
+            }
+            throw;
+        }
+    }
+
+    private Exception ReleaseFailedStartupContentHost()
+    {
+        ProcessContentHost host = _contentHost;
+        _contentHost = null;
+        if (host == null)
+            return null;
+
+        try
+        {
+            host.Quiesce();
+            host.ReleaseSnapshot();
+            host.Dispose();
+            return null;
+        }
+        catch (Exception exception)
+        {
+            return exception;
+        }
+    }
+
+    private void BeginStartupFailureShutdown(
+        Exception startupFailure,
+        Exception cleanupFailure
+    )
+    {
+        var request = new ShutdownRequest(
+            1,
+            ShutdownReason.RequestedExit,
+            new ShutdownCallerResult("Process content startup", false)
+        );
+        var report = new ShutdownReport(request);
+        report.RecordFailure("process-content-startup", startupFailure);
+        if (cleanupFailure != null)
+            report.RecordFailure("process-content-startup-cleanup", cleanupFailure);
+
+        var completionSource = new TaskCompletionSource<ShutdownReport>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        lock (_shutdownSync)
+        {
+            _acceptingRegistrations = false;
+            _report = report;
+            _completion = completionSource.Task;
+        }
+        _ = CompleteShutdownAndQuitAsync(report, completionSource);
+    }
+
+    internal async ValueTask CloseSessionAsync(GameSession session)
+    {
+        EnsureMainThread();
+        if (session == null)
+            return;
+
+        bool attached;
+        lock (_shutdownSync)
+        {
+            attached = ReferenceEquals(_activeSession, session);
+            if (!attached)
+            {
+                if (!GodotObject.IsInstanceValid(session))
+                    return;
+                if (!session.IsClosed)
+                {
+                    throw new InvalidOperationException(
+                        "ApplicationLifetimeCoordinator cannot close a GameSession it did not attach."
+                    );
+                }
+            }
+        }
+
+        try
+        {
+            if (attached)
+                session.CloseNormal();
+            if (!GodotObject.IsInstanceValid(session))
+                return;
+            if (session.IsInsideTree())
+            {
+                session.QueueFree();
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            }
+            else
+            {
+                session.Dispose();
+            }
+        }
+        finally
+        {
+            lock (_shutdownSync)
+            {
+                if (ReferenceEquals(_activeSession, session))
+                    _activeSession = null;
+            }
+        }
+    }
+
+    internal void NotifySessionClosed(GameSession session)
+    {
+        EnsureMainThread();
+        if (session == null)
+            return;
+        lock (_shutdownSync)
+        {
+            if (ReferenceEquals(_activeSession, session))
+                _activeSession = null;
+        }
     }
 
     public override void _Notification(int what)
@@ -159,6 +380,8 @@ public partial class ApplicationLifetimeCoordinator : Node, IApplicationShutdown
         lock (_shutdownSync)
             _acceptingRegistrations = false;
 
+        _contentHost?.Quiesce();
+
         report.CaptureLegacyDebt(LifecycleAuditRegistry.Shared.CaptureSnapshot().LegacyDebt);
         ApplicationLifetimeDiagnostics.RecordPhase(ApplicationShutdownPhase.Quiescing);
         return ValueTask.CompletedTask;
@@ -229,6 +452,9 @@ public partial class ApplicationLifetimeCoordinator : Node, IApplicationShutdown
     ValueTask IApplicationShutdownHooks.ReleaseContentAsync(ShutdownReport report)
     {
         EnsureMainThread();
+        _contentHost?.ReleaseSnapshot();
+        _contentHost?.Dispose();
+        _contentHost = null;
         GodotObjectLifecycle.PrepareForFinalizerDrain();
         ApplicationLifetimeDiagnostics.RecordPhase(ApplicationShutdownPhase.ContentReleased);
         return ValueTask.CompletedTask;
