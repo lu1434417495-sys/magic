@@ -52,6 +52,9 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
             RegexOptions.Compiled
         );
 
+    // These types exist only inside the synchronous content-build scope. The classification
+    // permits authored Resource method signatures; their fields are still scanned and require
+    // an exact member exception below.
     private static readonly HashSet<string> SynchronousAuthoringOwnerAllowlist =
         new(
             new[]
@@ -132,9 +135,9 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
                 "ProfessionPromotionRequirementDefinition.FromResource",
                 "ProfessionRankGateDefinition.FromResource",
                 "ProfessionRankRequirementDefinition.FromResource",
-                "ProjectionContext.LoadRequired",
-                "ProjectionContext.ProjectGeneration",
-                "ProjectionContext.ProjectMountedSubmaps",
+                "WorldGenerationDefinition+ProjectionContext.LoadRequired",
+                "WorldGenerationDefinition+ProjectionContext.ProjectGeneration",
+                "WorldGenerationDefinition+ProjectionContext.ProjectMountedSubmaps",
                 "QuestDefinition.FromResource",
                 "RaceDefinition.FromResource",
                 "RacialGrantedSkillDefinition.FromResource",
@@ -174,7 +177,11 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
             {
                 "BattleBoardController.OwnRenderResource",
                 "BattleBoardController.OwnsRenderResource",
+                "BattleSpecialProfileRegistry._manifestsByProfileId",
                 "BattleSpecialProfileRuntimeView.ForMeteorSwarm",
+                "EnemyContentRegistry._enemy_ai_brains",
+                "EnemyContentRegistry._enemy_templates",
+                "EnemyContentRegistry._wild_encounter_rosters",
                 "EngineAssetAccess.ResolveBorrowed",
                 "EngineAssetResolver._assets",
                 "EngineAssetResolver.ResolveBorrowed",
@@ -198,7 +205,7 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
             new[]
             {
                 "ApplicationLifetimeCoordinator._shutdownSync",
-                "BattleSimOverridePatchDefinition.Value",
+                "BattleSimOverridePatchDefinition._value",
                 "GameLog._lock",
                 "GodotContentOwnership.StaticContentOwner",
                 "GodotObjectOwnershipRegistry.Sync",
@@ -206,13 +213,24 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
                 "LifecycleAuditRegistry._sync",
                 "NativeLeaseScope.OwnershipSync",
                 "ProcessContentHost.ProcessHostSync",
-                "ProjectionRoot.Lease",
-                "ProjectionRoot.Value",
+                "BattleDamagePreviewProjection+ProjectionRoot.Lease",
+                "BattleDamagePreviewProjection+ProjectionRoot.Value",
+                "ProgressionContentRegistry._skillDefs",
+                "ProgressionContentRegistry._validationErrors",
                 "SettlementServiceResultPayloadEntry._value",
                 "ShutdownReport._sync",
+                "SkillContentRegistry._skill_defs",
             },
             StringComparer.Ordinal
         );
+
+    private static readonly IReadOnlyDictionary<string, int> RawBoundaryExpectedOverloadCounts =
+        new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["EngineAssetAccess.ResolveBorrowed"] = 2,
+            ["TraitRollGroupDefinition.FromResource"] = 2,
+            ["TraitRollGroupEntryDefinition.FromResource"] = 2,
+        };
 
     private static readonly LifetimeDomain[] PhaseTwoLeaseDomains =
     {
@@ -596,21 +614,15 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
                 | BindingFlags.Public
                 | BindingFlags.NonPublic
                 | BindingFlags.DeclaredOnly;
-            string topLevelName = WithoutGenericArity(topLevelType.Name);
-            bool synchronousAuthoringOwner =
-                SynchronousAuthoringOwnerAllowlist.Contains(topLevelName);
-            if (!synchronousAuthoringOwner)
+            foreach (FieldInfo field in type.GetFields(flags))
             {
-                foreach (FieldInfo field in type.GetFields(flags))
-                {
-                    AddStoredRuntimeSignatureViolation(
-                        violations,
-                        type,
-                        field,
-                        field.FieldType,
-                        "field"
-                    );
-                }
+                AddStoredRuntimeSignatureViolation(
+                    violations,
+                    type,
+                    field,
+                    field.FieldType,
+                    "field"
+                );
             }
             foreach (ConstructorInfo constructor in type.GetConstructors(flags))
             {
@@ -847,16 +859,22 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
             );
         }
 
-        Type normalized = NormalizeSignatureType(signatureType);
         if (
-            normalized != null
-            && IsOpaqueRuntimeStorageType(normalized)
-            && !ExplicitOpaqueStorageMemberAllowlist.Contains(memberKey)
-            && !ExplicitRawBoundaryMemberAllowlist.Contains(memberKey)
+            ExplicitOpaqueStorageMemberAllowlist.Contains(memberKey)
+            || ExplicitRawBoundaryMemberAllowlist.Contains(memberKey)
         )
         {
+            return;
+        }
+
+        Type normalized = NormalizeSignatureType(signatureType);
+        foreach (Type candidate in EnumerateSignatureTypes(signatureType))
+        {
+            bool directOpaqueObject = candidate == normalized && candidate == typeof(object);
+            if (!directOpaqueObject && !IsOpaqueGodotCarrierType(candidate))
+                continue;
             violations.Add(
-                $"{ownerType.FullName ?? ownerType.Name}.{memberKind} {member.Name} -> opaque {normalized.FullName ?? normalized.Name}"
+                $"{ownerType.FullName ?? ownerType.Name}.{memberKind} {member.Name} -> opaque {candidate.FullName ?? candidate.Name}"
             );
         }
     }
@@ -898,13 +916,40 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
             ExplicitRawBoundaryMemberAllowlist.Contains(memberKey)
             || RuntimeDefinitionProjectionMemberAllowlist.Contains(memberKey)
         )
-            return true;
+            return HasExpectedBoundaryMemberShape(ownerType, member, memberKey);
 
         string ownerName = WithoutGenericArity(GetTopLevelType(ownerType).Name);
         if (SynchronousAuthoringOwnerAllowlist.Contains(ownerName))
             return member is ConstructorInfo || member is MethodInfo;
 
         return false;
+    }
+
+    private static bool HasExpectedBoundaryMemberShape(
+        Type ownerType,
+        MemberInfo member,
+        string memberKey
+    )
+    {
+        if (member is not MethodInfo method)
+            return true;
+        int expectedCount = RawBoundaryExpectedOverloadCounts.TryGetValue(
+            memberKey,
+            out int declaredCount
+        )
+            ? declaredCount
+            : 1;
+        const BindingFlags flags =
+            BindingFlags.Instance
+            | BindingFlags.Static
+            | BindingFlags.Public
+            | BindingFlags.NonPublic
+            | BindingFlags.DeclaredOnly;
+        int actualCount = 0;
+        foreach (MethodInfo candidate in ownerType.GetMethods(flags))
+            if (string.Equals(candidate.Name, method.Name, StringComparison.Ordinal))
+                actualCount++;
+        return actualCount == expectedCount;
     }
 
     private static bool IsProjectAuthoredResourceType(Type type)
@@ -924,9 +969,8 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
             && typeof(Resource).IsAssignableFrom(type);
     }
 
-    private static bool IsOpaqueRuntimeStorageType(Type type) =>
-        type == typeof(object)
-        || type == typeof(Variant)
+    private static bool IsOpaqueGodotCarrierType(Type type) =>
+        type == typeof(Variant)
         || type == typeof(GodotObject)
         || (
             string.Equals(type.Namespace, "Godot.Collections", StringComparison.Ordinal)
@@ -965,7 +1009,8 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
                 normalizedMemberName.Length - ">k__BackingField".Length - 1
             );
         }
-        return $"{WithoutGenericArity(ownerType?.Name)}.{normalizedMemberName}";
+        string ownerName = ownerType?.FullName ?? ownerType?.Name ?? string.Empty;
+        return $"{WithoutGenericArity(ownerName)}.{normalizedMemberName}";
     }
 
     private static IEnumerable<Type> EnumerateSignatureTypes(Type type)

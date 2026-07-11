@@ -15,6 +15,7 @@ public partial class run_battle_sim_definition_patch_regression : LifecycleTestS
     {
         try
         {
+            RunPatchValueIsolationContract();
             RunDefinitionPatchContract();
             RunMageTunerActionPatchContract();
             RunRunnerOverrideFailFastContract();
@@ -24,6 +25,54 @@ public partial class run_battle_sim_definition_patch_regression : LifecycleTestS
             _test.Fail($"Unhandled exception: {exception}");
         }
         RequestTestExit(_test.Finish("Battle sim definition patch regression"));
+    }
+
+    private void RunPatchValueIsolationContract()
+    {
+        var nested = new List<object> { 1 };
+        var source = new Dictionary<string, object> { ["nested"] = nested };
+        var patch = new BattleSimOverridePatchDefinition(
+            "probe",
+            "",
+            "",
+            "",
+            "value",
+            source
+        );
+
+        nested[0] = 9;
+        var first = (Dictionary<string, object>)patch.Value;
+        _test.Eq(
+            ((List<object>)first["nested"])[0],
+            1,
+            "override patch definition must detach its plain value from source mutation"
+        );
+        ((List<object>)first["nested"])[0] = 7;
+        var second = (Dictionary<string, object>)patch.Value;
+        _test.Eq(
+            ((List<object>)second["nested"])[0],
+            1,
+            "override patch definition must not expose its stored plain value by alias"
+        );
+
+        using var objectCarrier = new Resource();
+        bool rejected = false;
+        try
+        {
+            _ = new BattleSimOverridePatchDefinition(
+                "probe",
+                "",
+                "",
+                "",
+                "value",
+                objectCarrier
+            );
+        }
+        catch (InvalidOperationException)
+        {
+            rejected = true;
+        }
+        _test.True(rejected, "override patch definition must reject Godot Object carriers");
     }
 
     private void RunDefinitionPatchContract()
