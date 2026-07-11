@@ -21,13 +21,14 @@ from pathlib import Path
 SLOW_TEST_SECONDS = 30.0
 DEFAULT_TEST_TIMEOUT_SECONDS = 180.0
 TEST_TIMEOUT_EXIT_CODE = 124
-LEAKED_UNSAFE_REFERENCE_MARKER = "Leaked unsafe reference to object:"
-LEAKED_UNSAFE_REFERENCE_STACK = "at: finalize (modules/mono/csharp_script.cpp:177)"
 OUTPUT_ERROR_PREFIXES = (
 	"ERROR:",
 	"SCRIPT ERROR:",
 	"FATAL:",
 )
+LEAKED_UNSAFE_REFERENCE_PREFIX = "ERROR: Leaked unsafe reference to object:"
+OBJECTDB_LEAK_PREFIX = "WARNING: ObjectDB instances leaked at exit"
+RESOURCE_LEAK_PATTERN = re.compile(r"^ERROR:\s+\d+\s+resources still in use at exit\b")
 LIFECYCLE_FATAL_MARKERS = (
 	"gchandle.is_released",
 	"GodotObject.Finalize",
@@ -48,7 +49,6 @@ class TestRunResult:
 	stderr: str
 	elapsed: float
 	user_data_dir: str = ""
-	finalizer_crash_retries: int = 0
 	output_error_lines: tuple[str, ...] = ()
 	lifecycle_fatal_lines: tuple[str, ...] = ()
 
@@ -72,20 +72,11 @@ def build_parser() -> argparse.ArgumentParser:
 	parser.add_argument("--log-file", type=str, default="", help="Append output to this file instead of stdout.")
 	parser.add_argument("--jobs", "-j", default="1", help="Number of tests to run in parallel, or 'auto'. Default: 1.")
 	parser.add_argument(
-		"--finalizer-crash-retries",
-		type=int,
-		default=None,
-		help=(
-			"Retry a test this many times when Godot Mono aborts in GodotObject.Finalize(). "
-			"Default: 3; --lifecycle-correctness requires 0 and defaults to 0."
-		),
-	)
-	parser.add_argument(
 		"--lifecycle-correctness",
 		action="store_true",
 		help=(
-			"Run with strict lifecycle diagnostics, no finalizer retries, retained shutdown "
-			"baselines, fatal post-exit GodotSharp marker detection, and zero legacy debt."
+			"Run with strict lifecycle diagnostics, fatal post-exit GodotSharp marker "
+			"detection, and zero legacy debt."
 		),
 	)
 	parser.add_argument(
@@ -102,7 +93,7 @@ def build_parser() -> argparse.ArgumentParser:
 	parser.add_argument(
 		"--fail-on-output-error",
 		action="store_true",
-		help="Treat Godot ERROR/SCRIPT ERROR/FATAL output as a failed test even when Godot exits 0, excluding known shutdown-only resource reports.",
+		help="Treat Godot ERROR/SCRIPT ERROR/FATAL output as a failed test even when Godot exits 0.",
 	)
 	parser.add_argument(
 		"--test-timeout-seconds",
@@ -128,20 +119,6 @@ def resolve_godot_command(command: str) -> str | None:
 	if candidate.exists():
 		return str(candidate)
 	return shutil.which(command)
-
-
-def resolve_finalizer_crash_retries(
-	requested_retries: int | None,
-	lifecycle_correctness: bool,
-) -> int:
-	if lifecycle_correctness:
-		if requested_retries not in (None, 0):
-			raise ValueError(
-				"--lifecycle-correctness requires --finalizer-crash-retries 0 "
-				"(or omitting the retry option)."
-			)
-		return 0
-	return 3 if requested_retries is None else requested_retries
 
 
 def build_child_process_env(
@@ -215,43 +192,19 @@ def prepare_user_data_env(base_env: dict[str, str], user_data_dir: Path) -> dict
 	return env
 
 
-def is_godot_finalizer_crash(returncode: int, stderr: str) -> bool:
-	return (
-		returncode in (-6, 3221225501, -1073741795)
-		and "gchandle.is_released()" in (stderr or "")
-		and "GodotObject.Finalize()" in (stderr or "")
-	)
-
-
 def find_output_error_lines(stdout: str, stderr: str, max_lines: int = 20) -> tuple[str, ...]:
-	candidates: list[tuple[str, str, str]] = []
+	matches: list[str] = []
 	for stream_name, text in (("stdout", stdout or ""), ("stderr", stderr or "")):
 		for line in text.splitlines():
 			normalized = line.lstrip("\ufeff").strip()
-			if normalized.startswith(OUTPUT_ERROR_PREFIXES):
-				candidates.append((stream_name, line, normalized))
-	has_borrowed_resource_shutdown_report = any(
-		normalized.startswith("ERROR: Leaked unsafe reference to object:")
-		for _stream_name, _line, normalized in candidates
-	)
-	has_objectdb_shutdown_report = any(
-		line.lstrip("\ufeff").strip().startswith("WARNING: ObjectDB instances leaked at exit")
-		for text in (stdout or "", stderr or "")
-		for line in text.splitlines()
-	)
-	matches: list[str] = []
-	for stream_name, line, normalized in candidates:
-		if normalized.startswith("ERROR: Leaked unsafe reference to object:"):
-			continue
-		if (
-			(has_borrowed_resource_shutdown_report or has_objectdb_shutdown_report)
-			and normalized.startswith("ERROR:")
-			and " resources still in use at exit" in normalized
-		):
-			continue
-		matches.append(f"{stream_name}: {line}")
-		if len(matches) >= max_lines:
-			break
+			if not (
+				normalized.startswith(OUTPUT_ERROR_PREFIXES)
+				or normalized.startswith(OBJECTDB_LEAK_PREFIX)
+			):
+				continue
+			matches.append(f"{stream_name}: {line}")
+			if len(matches) >= max_lines:
+				return tuple(matches)
 	return tuple(matches)
 
 
@@ -263,7 +216,13 @@ def find_lifecycle_fatal_lines(
 	matches: list[str] = []
 	for stream_name, text in (("stdout", stdout or ""), ("stderr", stderr or "")):
 		for line in text.splitlines():
+			normalized = line.lstrip("\ufeff").strip()
 			has_fatal_marker = any(marker in line for marker in LIFECYCLE_FATAL_MARKERS)
+			has_shutdown_leak = (
+				normalized.startswith(LEAKED_UNSAFE_REFERENCE_PREFIX)
+				or normalized.startswith(OBJECTDB_LEAK_PREFIX)
+				or RESOURCE_LEAK_PATTERN.search(normalized) is not None
+			)
 			legacy_debt_match = (
 				LIFECYCLE_LEGACY_DEBT_PATTERN.search(line)
 				if LIFECYCLE_SHUTDOWN_REPORT_PREFIX in line
@@ -273,7 +232,7 @@ def find_lifecycle_fatal_lines(
 				legacy_debt_match is not None
 				and int(legacy_debt_match.group("count")) != 0
 			)
-			if not has_fatal_marker and not has_legacy_debt:
+			if not has_fatal_marker and not has_shutdown_leak and not has_legacy_debt:
 				continue
 			matches.append(f"{stream_name}: {line}")
 			if len(matches) >= max_lines:
@@ -342,7 +301,6 @@ def run_godot_process(
 	env: dict[str, str] | None,
 	realtime_output: bool,
 	test_timeout_seconds: float,
-	retain_lifecycle_output: bool = False,
 ) -> tuple[int, str, str, tuple[str, ...]]:
 	process = subprocess.Popen(
 		[godot_command, "--headless", "--script", test_path],
@@ -361,24 +319,8 @@ def run_godot_process(
 
 	def collect_stream(stream, sink: dict[str, object], echo: bool) -> None:
 		lines: list[str] = []
-		raw_lines: list[str] = []
-		leaked_unsafe_count = 0
-		skip_finalize_stack = False
 		try:
 			for line in stream:
-				raw_lines.append(line)
-				if not retain_lifecycle_output and LEAKED_UNSAFE_REFERENCE_MARKER in line:
-					leaked_unsafe_count += 1
-					skip_finalize_stack = True
-					continue
-				if (
-					not retain_lifecycle_output
-					and skip_finalize_stack
-					and LEAKED_UNSAFE_REFERENCE_STACK in line
-				):
-					skip_finalize_stack = False
-					continue
-				skip_finalize_stack = False
 				lines.append(line)
 				if echo:
 					print(line, end="", flush=True)
@@ -390,8 +332,6 @@ def run_godot_process(
 			except Exception:
 				pass
 		sink["text"] = "".join(lines)
-		sink["raw_text"] = "".join(raw_lines)
-		sink["leaked_unsafe_count"] = leaked_unsafe_count
 
 	stdout_thread = threading.Thread(
 		target=collect_stream,
@@ -416,20 +356,6 @@ def run_godot_process(
 
 	stdout = str(stdout_result.get("text", ""))
 	stderr = str(stderr_result.get("text", ""))
-	raw_stdout = str(stdout_result.get("raw_text", ""))
-	raw_stderr = str(stderr_result.get("raw_text", ""))
-	stdout_leaks = int(stdout_result.get("leaked_unsafe_count", 0))
-	stderr_leaks = int(stderr_result.get("leaked_unsafe_count", 0))
-	if stdout_leaks > 0:
-		stdout += (
-			f"[godot] suppressed {stdout_leaks} leaked unsafe reference log entries "
-			"from stdout.\n"
-		)
-	if stderr_leaks > 0:
-		stderr += (
-			f"[godot] suppressed {stderr_leaks} leaked unsafe reference log entries "
-			"from stderr.\n"
-		)
 	if timed_out:
 		timeout_text = f"[runner] test timed out after {test_timeout_seconds:g} seconds.\n"
 		stderr += timeout_text
@@ -437,7 +363,7 @@ def run_godot_process(
 			print(timeout_text, end="", file=sys.stderr, flush=True)
 	if output_threads_stalled:
 		stderr += "[runner] output reader threads did not stop cleanly after process exit.\n"
-	return returncode, stdout, stderr, find_output_error_lines(raw_stdout, raw_stderr)
+	return returncode, stdout, stderr, find_output_error_lines(stdout, stderr)
 
 
 def run_one_test(
@@ -448,7 +374,6 @@ def run_one_test(
 	total: int,
 	realtime_output: bool,
 	user_data_root: Path | None,
-	finalizer_crash_retries: int,
 	fail_on_output_error: bool,
 	test_timeout_seconds: float,
 	child_process_env: dict[str, str] | None = None,
@@ -461,38 +386,23 @@ def run_one_test(
 		user_data_dir = str(test_user_data_dir)
 	stdout = ""
 	stderr = ""
-	returncode = 0
-	retry_count = 0
-	output_error_lines: tuple[str, ...] = ()
-	lifecycle_fatal_lines: tuple[str, ...] = ()
-	max_attempts = max(finalizer_crash_retries, 0) + 1
-	for attempt in range(max_attempts):
-		base_env = child_process_env if child_process_env is not None else os.environ
-		env = build_child_process_env(base_env, lifecycle_correctness)
-		if user_data_root is not None:
-			attempt_root = Path(user_data_dir) / f"attempt_{attempt + 1}"
-			env = prepare_user_data_env(base_env, attempt_root)
-			env = build_child_process_env(env, lifecycle_correctness)
-		returncode, stdout, stderr, detected_output_error_lines = run_godot_process(
-			godot_command,
-			repo_root,
-			test_path,
-			env,
-			realtime_output,
-			test_timeout_seconds,
-			retain_lifecycle_output=lifecycle_correctness,
-		)
-		if not is_godot_finalizer_crash(returncode, stderr) or attempt + 1 >= max_attempts:
-			if lifecycle_correctness:
-				lifecycle_fatal_lines = find_lifecycle_fatal_lines(stdout, stderr)
-				if returncode == 0 and lifecycle_fatal_lines:
-					returncode = 1
-			if fail_on_output_error:
-				output_error_lines = detected_output_error_lines
-				if returncode == 0 and output_error_lines:
-					returncode = 1
-			break
-		retry_count += 1
+	base_env = child_process_env if child_process_env is not None else os.environ
+	env = build_child_process_env(base_env, lifecycle_correctness)
+	if user_data_root is not None:
+		env = prepare_user_data_env(base_env, Path(user_data_dir))
+		env = build_child_process_env(env, lifecycle_correctness)
+	returncode, stdout, stderr, detected_output_error_lines = run_godot_process(
+		godot_command,
+		repo_root,
+		test_path,
+		env,
+		realtime_output,
+		test_timeout_seconds,
+	)
+	lifecycle_fatal_lines = find_lifecycle_fatal_lines(stdout, stderr)
+	output_error_lines = detected_output_error_lines if fail_on_output_error else ()
+	if returncode == 0 and (lifecycle_fatal_lines or output_error_lines):
+		returncode = 1
 	elapsed = time.perf_counter() - start
 	return TestRunResult(
 		index=index,
@@ -503,7 +413,6 @@ def run_one_test(
 		stderr=stderr,
 		elapsed=elapsed,
 		user_data_dir=user_data_dir,
-		finalizer_crash_retries=retry_count,
 		output_error_lines=output_error_lines,
 		lifecycle_fatal_lines=lifecycle_fatal_lines,
 	)
@@ -517,21 +426,15 @@ def print_test_result(result: TestRunResult, show_output: bool) -> None:
 			flush=True,
 		)
 	if result.returncode == 0:
-		retry_suffix = (
-			f", finalizer retries={result.finalizer_crash_retries}"
-			if result.finalizer_crash_retries > 0
-			else ""
-		)
-		print(f"[{result.index}/{result.total}] [DONE] {result.test_path} - 成功 ({result.elapsed:.2f}s{retry_suffix})", flush=True)
-	else:
-		retry_suffix = (
-			f", finalizer retries={result.finalizer_crash_retries}"
-			if result.finalizer_crash_retries > 0
-			else ""
-		)
 		print(
 			f"[{result.index}/{result.total}] [DONE] {result.test_path} - "
-			f"失败 exit={result.returncode} ({result.elapsed:.2f}s{retry_suffix})",
+			f"成功 ({result.elapsed:.2f}s)",
+			flush=True,
+		)
+	else:
+		print(
+			f"[{result.index}/{result.total}] [DONE] {result.test_path} - "
+			f"失败 exit={result.returncode} ({result.elapsed:.2f}s)",
 			flush=True,
 		)
 	if result.output_error_lines:
@@ -564,7 +467,6 @@ def run_tests_serial(
 	tests: list[str],
 	verbose: bool,
 	stop_on_failure: bool,
-	finalizer_crash_retries: int,
 	fail_on_output_error: bool,
 	test_timeout_seconds: float,
 	child_process_env: dict[str, str] | None = None,
@@ -581,12 +483,10 @@ def run_tests_serial(
 			test_path,
 			index,
 			total,
-			# Godot 4.6 Mono can abort during shutdown on Windows when C#
-			# tests write through a redirected child-process pipe. Keep serial
-			# runs on inherited stdout/stderr, matching direct headless usage.
+			# Echo serial child output live while retaining it for strict marker
+			# classification after the process exits.
 			realtime_output=True,
 			user_data_root=None,
-			finalizer_crash_retries=finalizer_crash_retries,
 			fail_on_output_error=fail_on_output_error,
 			test_timeout_seconds=test_timeout_seconds,
 			child_process_env=child_process_env,
@@ -611,7 +511,6 @@ def run_tests_parallel(
 	verbose: bool,
 	stop_on_failure: bool,
 	user_data_root: Path,
-	finalizer_crash_retries: int,
 	fail_on_output_error: bool,
 	test_timeout_seconds: float,
 	child_process_env: dict[str, str] | None = None,
@@ -641,7 +540,6 @@ def run_tests_parallel(
 			total,
 			False,
 			user_data_root,
-			finalizer_crash_retries,
 			fail_on_output_error,
 			test_timeout_seconds,
 			child_process_env,
@@ -686,13 +584,6 @@ def run_tests_parallel(
 def main() -> int:
 	parser = build_parser()
 	args = parser.parse_args()
-	try:
-		finalizer_crash_retries = resolve_finalizer_crash_retries(
-			args.finalizer_crash_retries,
-			args.lifecycle_correctness,
-		)
-	except ValueError as exc:
-		parser.error(str(exc))
 	child_process_env = build_child_process_env(
 		dict(os.environ),
 		args.lifecycle_correctness,
@@ -758,7 +649,6 @@ def main() -> int:
 			tests,
 			args.verbose,
 			args.stop_on_failure,
-			finalizer_crash_retries,
 			args.fail_on_output_error,
 			args.test_timeout_seconds,
 			child_process_env,
@@ -780,7 +670,6 @@ def main() -> int:
 				args.verbose,
 				args.stop_on_failure,
 				user_data_root,
-				finalizer_crash_retries,
 				args.fail_on_output_error,
 				args.test_timeout_seconds,
 				child_process_env,
@@ -800,11 +689,6 @@ def main() -> int:
 		print("Failed tests:")
 		for result in sorted(failed_tests, key=lambda item: item.index):
 			suffix = f" user_data={result.user_data_dir}" if result.user_data_dir else ""
-			retry_suffix = (
-				f" finalizer_retries={result.finalizer_crash_retries}"
-				if result.finalizer_crash_retries > 0
-				else ""
-			)
 			output_error_suffix = (
 				f" output_errors={len(result.output_error_lines)}"
 				if result.output_error_lines
@@ -816,7 +700,7 @@ def main() -> int:
 				else ""
 			)
 			print(
-				f"- {result.test_path} exit={result.returncode}{suffix}{retry_suffix}"
+				f"- {result.test_path} exit={result.returncode}{suffix}"
 				f"{output_error_suffix}{lifecycle_fatal_suffix}"
 			)
 		return 1
