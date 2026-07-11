@@ -93,7 +93,7 @@ public partial class run_game_session_persistence_options_regression
     private void TestLifecycleSoakRootsAreIsolated()
     {
         string suffix =
-            $"{Process.GetCurrentProcess().Id}-{Guid.NewGuid():N}";
+            $"{Process.GetCurrentProcess().Id}-{Guid.NewGuid():N}"[..16];
         GameSessionPersistenceOptions optionsA =
             GameSessionPersistenceOptions.ForLifecycleSoak($"persistence-a-{suffix}");
         GameSessionPersistenceOptions optionsB =

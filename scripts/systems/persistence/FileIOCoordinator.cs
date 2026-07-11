@@ -406,6 +406,9 @@ public static class FileIOCoordinator
                 }
             }
 
+            dir.ListDirEnd();
+            listingStarted = false;
+            directoryScope.Dispose();
             return (int)DirAccess.RemoveAbsolute(absolutePath);
         }
         finally
