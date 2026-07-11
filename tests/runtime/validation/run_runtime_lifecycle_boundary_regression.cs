@@ -26,16 +26,17 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
             @"\bGodotTransientResourceScope\s*\.\s*CreateTestQuarantine\s*\(",
             RegexOptions.Compiled
         );
-    private static readonly Regex BattleBoardLegacyFactoryPattern =
-        new(
-            @"GodotTransientResourceScope\.CreateLegacyQuarantine\s*\(\s*""BattleBoardController""\s*,\s*GodotLifecycleLegacyDebtManifest\.BattleBoardControllerQuarantine\s*\)",
-            RegexOptions.Compiled | RegexOptions.Singleline
-        );
     private static readonly Regex DirectQuarantineRetainPattern =
         new(
             @"\bGodotTestRuntimeQuarantine\s*\.\s*R" + @"etain\s*\(",
             RegexOptions.Compiled
         );
+    private static readonly Regex DynamicAttributeModifierConstructionPattern =
+        new(@"\bnew\s+AttributeModifier\b", RegexOptions.Compiled);
+    private static readonly Regex RuntimeStateLifecycleCallPattern =
+        new(@"\bRuntimeStateLifecycle\s*\.", RegexOptions.Compiled);
+    private static readonly Regex DeferredProcessContentPoolPattern =
+        new(@"\bStaticStrongWrappers\b", RegexOptions.Compiled);
     private static readonly Regex ProductionSceneTreeQuitPattern =
         new(
             @"\bGetTree\s*\(\s*\)\s*\.\s*Q" + @"uit\s*\(",
@@ -56,6 +57,70 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
             @"LifecycleAuditRegistry\.Shared\.RecordNormalPhaseSuppress\s*\(",
             RegexOptions.Compiled
         );
+
+    // These files have a complete Phase 2 owner/surface migration. Shared files with
+    // unrelated Phase 5 cleanup work (RuntimePlainPayload, AiTraceRecorder,
+    // BattleState, and BattleSimFormalCombatFixture) are intentionally not listed.
+    private static readonly string[] PhaseTwoRuntimeStateFreeSurfaces =
+    {
+        "scripts/utils/NativeLeaseScope.cs",
+        "scripts/utils/GodotProjectionLease.cs",
+        "scripts/utils/RuntimeResourceFactories.cs",
+        "scripts/player/progression/AttributeModifierDefinition.cs",
+        "scripts/player/progression/AttributeModifier.cs",
+        "scripts/player/progression/SkillDefinition.cs",
+        "scripts/player/progression/DerivedAttributeRule.cs",
+        "scripts/systems/attributes/AttributeSourceContext.cs",
+        "scripts/systems/attributes/AttributeService.cs",
+        "scripts/systems/inventory/PartyEquipmentService.cs",
+        "scripts/systems/progression/CharacterTraitService.cs",
+        "scripts/systems/progression/CharacterManagementModule.cs",
+        "scripts/systems/settlement/SettlementForgeService.cs",
+        "scripts/systems/battle/core/special_profiles/BattleSpecialProfileManifestValidator.cs",
+        "scripts/systems/progression/CharacterCreationService.cs",
+        "scripts/enemies/EnemyTemplateDef.cs",
+        "scripts/systems/persistence/SaveSerializer.cs",
+        "scripts/systems/persistence/SaveRepository.cs",
+        "scripts/systems/persistence/FileIOCoordinator.cs",
+        "scripts/systems/persistence/GameSession.cs",
+        "scripts/systems/persistence/GameSession.SaveIndexAndFileIO.cs",
+        "scripts/systems/battle/core/BattleEventBatchProjection.cs",
+        "scripts/systems/battle/core/BattlePreviewProjection.cs",
+        "scripts/systems/battle/core/BattleEventBatch.cs",
+        "scripts/systems/battle/core/BattlePreview.cs",
+        "scripts/systems/battle/core/BattleSaveBranchPreviewData.cs",
+        "scripts/systems/battle/rules/BattleDamagePreviewProjection.cs",
+        "scripts/systems/battle/rules/BattleDamagePreviewRangeProjection.cs",
+        "scripts/systems/battle/ai/BattleAiTurnTracePayloadProjection.cs",
+        "scripts/systems/battle/ai/BattleAiTurnTraceProjection.cs",
+        "scripts/enemies/TraceDictionaryProjection.cs",
+        "scripts/systems/battle/runtime/BattleRuntimeModule.AiTrace.cs",
+        "scripts/systems/battle/presentation/BattleHudSnapshot.cs",
+        "scripts/systems/battle/presentation/BattleHoverSnapshot.cs",
+        "scripts/systems/battle/presentation/BattleHudAdapter.cs",
+        "scripts/ui/BattleMapPanel.cs",
+        "scripts/ui/BattleHoverPreviewOverlay.cs",
+        "scripts/ui/BattleBoardRenderProfile.cs",
+        "scripts/ui/BattleBoardController.cs",
+        "scripts/ui/BattleBoard2D.cs",
+        "scripts/systems/battle/ai/BattleAiDecisionResult.cs",
+        "scripts/systems/battle/ai/BattleAiMutationSnapshot.cs",
+        "scripts/systems/battle/ai/BattleAiContext.cs",
+        "scripts/systems/battle/ai/BattleAiService.cs",
+        "scripts/systems/battle/ai/BattleAiScoreService.cs",
+        "scripts/systems/battle/ai/BattleAiRuntimeActionPlan.cs",
+        "scripts/systems/battle/ai/BattleAiMutationGuard.cs",
+        "scripts/systems/battle/runtime/BattleRuntimeServices.cs",
+        "scripts/systems/battle/runtime/BattleRuntimeModule.cs",
+        "scripts/systems/battle/runtime/BattleRuntimeModule.ContentSync.cs",
+    };
+
+    private static readonly LifetimeDomain[] PhaseTwoLeaseDomains =
+    {
+        LifetimeDomain.Request,
+        LifetimeDomain.Battle,
+        LifetimeDomain.SceneTree,
+    };
 
     private readonly TestHarness _test = new();
 
@@ -87,8 +152,12 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
         AssertNoTestLocalFinalizerControl();
         AssertNoDirectTestQuit();
         AssertConcreteRunnersUseLifecycleBase();
+        AssertPhaseTwoLeaseDomainsReturnToBaseline();
+        AssertNoDynamicAttributeModifierConstruction();
+        AssertPhaseTwoRuntimeStateFreeSurfaces();
         AssertExactLegacyDebt();
         AssertExactProductionQuarantine();
+        AssertDeferredProcessContentPoolIsIsolated();
         AssertQuarantineFactorySurface();
         AssertProductionQuitOwner();
         AssertTestAdapterHasNoQuit();
@@ -173,22 +242,18 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
         IReadOnlyList<LifecycleLegacyDebtSnapshot> debt =
             LifecycleAuditRegistry.Shared.CaptureSnapshot().LegacyDebt;
 
-        _test.Eq(debt.Count, 1, "phase 1 permits exactly one lifecycle legacy debt record");
-        if (debt.Count != 1)
-            return;
-
-        _test.Eq(
-            debt[0].DebtId,
-            "battle-board-controller-quarantine",
-            "legacy debt ID is exact"
+        _test.Eq(debt.Count, 0, "Phase 2 permits no declared lifecycle legacy debt");
+        _test.False(
+            GodotLifecycleLegacyDebtManifest.IsDeclared(
+                new LifecycleLegacyDebtSnapshot(
+                    "undeclared-probe",
+                    "tests/runtime/validation/run_runtime_lifecycle_boundary_regression.cs",
+                    "Request",
+                    5
+                )
+            ),
+            "the legacy debt manifest cannot authorize a new quarantine"
         );
-        _test.Eq(
-            debt[0].Source,
-            "scripts/ui/BattleBoardController.cs",
-            "legacy debt source is exact"
-        );
-        _test.Eq(debt[0].OwnerDomain, "SceneTree", "legacy debt owner domain is exact");
-        _test.Eq(debt[0].DeletePhase, 2, "legacy debt deletion phase is exact");
     }
 
     private void AssertExactProductionQuarantine()
@@ -201,24 +266,8 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
 
         _test.Eq(
             quarantineSites.Count,
-            1,
-            "phase 1 permits exactly one production quarantine call site"
-        );
-        if (quarantineSites.Count != 1)
-            return;
-
-        _test.Eq(
-            quarantineSites[0],
-            "ui/BattleBoardController.cs",
-            "production quarantine remains confined to BattleBoardController"
-        );
-
-        string battleBoardSource = File.ReadAllText(
-            Path.Combine(scriptsRoot, "ui", "BattleBoardController.cs")
-        );
-        _test.True(
-            BattleBoardLegacyFactoryPattern.IsMatch(battleBoardSource),
-            "the production quarantine factory receives its exact legacy debt metadata"
+            0,
+            "Phase 2 permits no production legacy quarantine call site"
         );
 
         _test.Eq(
@@ -243,6 +292,179 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
                 "utils/GodotObjectOwnership.cs",
                 "the ownership bridge contains the only direct quarantine retain call"
             );
+        }
+
+        _test.Eq(
+            LifecycleAuditRegistry.Shared.CaptureSnapshot().QuarantineCount,
+            0L,
+            "Phase 2 production execution does not retain any runtime quarantine"
+        );
+    }
+
+    private void AssertPhaseTwoLeaseDomainsReturnToBaseline()
+    {
+        foreach (LifetimeDomain domain in PhaseTwoLeaseDomains)
+        {
+            LifecycleAuditSnapshot projectionBaseline =
+                LifecycleAuditRegistry.Shared.CaptureSnapshot();
+            using (
+                GodotProjectionLease<Godot.Collections.Dictionary> lease =
+                    RuntimePlainPayload.ProjectDictionaryLease(
+                        new Dictionary<string, object>
+                        {
+                            ["domain"] = domain.ToString(),
+                            ["nested"] = new List<object>
+                            {
+                                1L,
+                                new Dictionary<string, object> { ["value"] = true },
+                            },
+                        },
+                        $"phase-two-boundary-{domain}",
+                        domain,
+                        "cumulative projection vector"
+                    )
+            )
+            {
+                LifecycleAuditSnapshot active =
+                    LifecycleAuditRegistry.Shared.CaptureSnapshot();
+                _test.Eq(
+                    active.ActiveLeaseCount,
+                    projectionBaseline.ActiveLeaseCount + 1,
+                    $"{domain} projection opens exactly one lease"
+                );
+                _test.True(
+                    active.ActiveOwnerCount > projectionBaseline.ActiveOwnerCount,
+                    $"{domain} projection explicitly owns its container graph"
+                );
+                _test.Eq(
+                    active.ActiveScopeCount,
+                    projectionBaseline.ActiveScopeCount,
+                    $"{domain} projection does not expose its internal owner as a native scope"
+                );
+            }
+            AssertActiveVector(
+                projectionBaseline,
+                LifecycleAuditRegistry.Shared.CaptureSnapshot(),
+                $"{domain} projection close"
+            );
+
+            LifecycleAuditSnapshot scopeBaseline =
+                LifecycleAuditRegistry.Shared.CaptureSnapshot();
+            using (var scope = new NativeLeaseScope($"phase-two-boundary-{domain}", domain))
+            {
+                scope.Own(
+                    new Godot.Collections.Dictionary(),
+                    "cumulative native owner vector"
+                );
+                LifecycleAuditSnapshot active =
+                    LifecycleAuditRegistry.Shared.CaptureSnapshot();
+                _test.Eq(
+                    active.ActiveOwnerCount,
+                    scopeBaseline.ActiveOwnerCount + 1,
+                    $"{domain} native scope registers one explicit owner"
+                );
+                _test.Eq(
+                    active.ActiveScopeCount,
+                    scopeBaseline.ActiveScopeCount + 1,
+                    $"{domain} native scope registers one scope"
+                );
+            }
+            AssertActiveVector(
+                scopeBaseline,
+                LifecycleAuditRegistry.Shared.CaptureSnapshot(),
+                $"{domain} native scope close"
+            );
+        }
+    }
+
+    private void AssertNoDynamicAttributeModifierConstruction()
+    {
+        string scriptsRoot = ProjectSettings.GlobalizePath("res://scripts");
+        List<string> matches = FindSourceMatches(
+            scriptsRoot,
+            DynamicAttributeModifierConstructionPattern
+        );
+        _test.Eq(
+            matches.Count,
+            0,
+            matches.Count == 0
+                ? "production constructs no runtime AttributeModifier Resource"
+                : $"production constructs runtime AttributeModifier Resource in {string.Join(", ", matches)}"
+        );
+    }
+
+    private void AssertPhaseTwoRuntimeStateFreeSurfaces()
+    {
+        string projectRoot = ProjectSettings.GlobalizePath("res://");
+        foreach (string relativePath in PhaseTwoRuntimeStateFreeSurfaces)
+        {
+            string filePath = Path.Combine(
+                projectRoot,
+                relativePath.Replace('/', Path.DirectorySeparatorChar)
+            );
+            _test.True(File.Exists(filePath), $"Phase 2 surface exists: {relativePath}");
+            if (!File.Exists(filePath))
+                continue;
+
+            _test.False(
+                RuntimeStateLifecycleCallPattern.IsMatch(File.ReadAllText(filePath)),
+                $"fully migrated Phase 2 surface cannot call RuntimeStateLifecycle: {relativePath}"
+            );
+        }
+    }
+
+    private void AssertDeferredProcessContentPoolIsIsolated()
+    {
+        string scriptsRoot = ProjectSettings.GlobalizePath("res://scripts");
+        List<string> matches = FindSourceMatches(
+            scriptsRoot,
+            DeferredProcessContentPoolPattern
+        );
+        _test.True(
+            matches.Count > 0,
+            "the deferred process-content static pool remains visible until the content phases"
+        );
+        foreach (string match in matches)
+        {
+            _test.Eq(
+                match,
+                "utils/GodotObjectOwnership.cs",
+                "deferred StaticStrongWrappers retention is isolated to process-content ownership"
+            );
+        }
+    }
+
+    private void AssertActiveVector(
+        LifecycleAuditSnapshot expected,
+        LifecycleAuditSnapshot actual,
+        string label
+    )
+    {
+        _test.Eq(actual.ActiveContentBorrowerCount, expected.ActiveContentBorrowerCount, $"{label}: borrowers");
+        _test.Eq(actual.ActiveOwnerCount, expected.ActiveOwnerCount, $"{label}: owners");
+        _test.Eq(actual.ActiveLeaseCount, expected.ActiveLeaseCount, $"{label}: leases");
+        _test.Eq(actual.ActiveScopeCount, expected.ActiveScopeCount, $"{label}: scopes");
+        _test.Eq(actual.ActiveJobCount, expected.ActiveJobCount, $"{label}: jobs");
+        _test.Eq(actual.ViolationCount, expected.ViolationCount, $"{label}: violations");
+        _test.Eq(
+            actual.NormalPhaseSuppressCount,
+            expected.NormalPhaseSuppressCount,
+            $"{label}: normal suppressions"
+        );
+        _test.Eq(actual.QuarantineCount, expected.QuarantineCount, $"{label}: quarantine");
+        _test.Eq(
+            actual.ActiveCountsByDomain.Count,
+            expected.ActiveCountsByDomain.Count,
+            $"{label}: active domain count"
+        );
+        foreach (KeyValuePair<string, int> entry in expected.ActiveCountsByDomain)
+        {
+            _test.True(
+                actual.ActiveCountsByDomain.TryGetValue(entry.Key, out int actualCount),
+                $"{label}: active domain remains present: {entry.Key}"
+            );
+            if (actual.ActiveCountsByDomain.TryGetValue(entry.Key, out actualCount))
+                _test.Eq(actualCount, entry.Value, $"{label}: active domain {entry.Key}");
         }
     }
 

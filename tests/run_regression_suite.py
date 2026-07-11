@@ -6,6 +6,7 @@ import argparse
 import concurrent.futures
 import math
 import os
+import re
 import signal
 import shutil
 import subprocess
@@ -33,6 +34,8 @@ LIFECYCLE_FATAL_MARKERS = (
 	"Handle is not initialized",
 	"godotsharp_variant_destroy",
 )
+LIFECYCLE_SHUTDOWN_REPORT_PREFIX = "[lifecycle] shutdown-report "
+LIFECYCLE_LEGACY_DEBT_PATTERN = re.compile(r"\blegacy_debt=(?P<count>\d+)\b")
 
 
 @dataclass(frozen=True)
@@ -82,7 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
 		action="store_true",
 		help=(
 			"Run with strict lifecycle diagnostics, no finalizer retries, retained shutdown "
-			"baselines, and fatal post-exit GodotSharp marker detection."
+			"baselines, fatal post-exit GodotSharp marker detection, and zero legacy debt."
 		),
 	)
 	parser.add_argument(
@@ -260,7 +263,17 @@ def find_lifecycle_fatal_lines(
 	matches: list[str] = []
 	for stream_name, text in (("stdout", stdout or ""), ("stderr", stderr or "")):
 		for line in text.splitlines():
-			if not any(marker in line for marker in LIFECYCLE_FATAL_MARKERS):
+			has_fatal_marker = any(marker in line for marker in LIFECYCLE_FATAL_MARKERS)
+			legacy_debt_match = (
+				LIFECYCLE_LEGACY_DEBT_PATTERN.search(line)
+				if LIFECYCLE_SHUTDOWN_REPORT_PREFIX in line
+				else None
+			)
+			has_legacy_debt = (
+				legacy_debt_match is not None
+				and int(legacy_debt_match.group("count")) != 0
+			)
+			if not has_fatal_marker and not has_legacy_debt:
 				continue
 			matches.append(f"{stream_name}: {line}")
 			if len(matches) >= max_lines:

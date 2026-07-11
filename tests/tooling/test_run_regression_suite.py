@@ -212,6 +212,42 @@ class RegressionSuiteOutputGateTests(unittest.TestCase):
 			self.assertEqual(1, result.returncode)
 			self.assertEqual((f"stderr: fatal detail: {marker}",), result.lifecycle_fatal_lines)
 
+	def test_lifecycle_shutdown_report_allows_zero_legacy_debt(self) -> None:
+		line = (
+			"[lifecycle] shutdown-report reason=test requested=0 effective=0 "
+			"phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0"
+		)
+
+		self.assertEqual((), runner.find_lifecycle_fatal_lines(line, ""))
+
+	def test_lifecycle_shutdown_report_rejects_nonzero_legacy_debt(self) -> None:
+		line = (
+			"[lifecycle] shutdown-report reason=test requested=0 effective=0 "
+			"phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=2"
+		)
+		with mock.patch.object(
+			runner,
+			"run_godot_process",
+			return_value=(0, line + "\n", "", ()),
+		):
+			result = runner.run_one_test(
+				"godot",
+				Path.cwd(),
+				"tests/fake/run_lifecycle_regression.cs",
+				1,
+				1,
+				False,
+				None,
+				0,
+				False,
+				45.0,
+				{},
+				True,
+			)
+
+		self.assertEqual(1, result.returncode)
+		self.assertEqual((f"stdout: {line}",), result.lifecycle_fatal_lines)
+
 	def test_lifecycle_fatal_marker_preserves_nonzero_child_exit(self) -> None:
 		with mock.patch.object(
 			runner,
