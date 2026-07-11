@@ -123,7 +123,11 @@ public class BattleBoardController
     public readonly Dictionary<string, Texture2D> _texture_cache = new();
     public readonly Dictionary<StringName, TileSetCacheEntry> _tileset_cache = new();
     private readonly GodotTransientResourceScope _resource_scope =
-        new("BattleBoardController", quarantineOnDrain: true);
+        new(
+            "BattleBoardController",
+            quarantineOnDrain: true,
+            legacyDebt: GodotLifecycleLegacyDebtManifest.BattleBoardControllerQuarantine
+        );
     public BattleEdgeService _edge_service = new();
     public BattleState _battle_state;
     public Vector2I _selected_coord = new(-1, -1);

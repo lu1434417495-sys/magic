@@ -14,6 +14,20 @@ internal enum GodotWrapperOwnershipKind
     TestQuarantine,
 }
 
+internal static class GodotLifecycleLegacyDebtManifest
+{
+    internal static LifecycleLegacyDebtSnapshot BattleBoardControllerQuarantine { get; } =
+        new(
+            "battle-board-controller-quarantine",
+            "scripts/ui/BattleBoardController.cs",
+            "SceneTree",
+            2
+        );
+
+    internal static bool IsDeclared(LifecycleLegacyDebtSnapshot debt) =>
+        debt == BattleBoardControllerQuarantine;
+}
+
 internal static class GodotWrapperOwnershipRegistry
 {
     private sealed class Entry
@@ -297,6 +311,13 @@ internal static class GodotContentOwnership
     );
     private static readonly HashSet<string> StaticStrongKeys = new(StringComparer.Ordinal);
 
+    static GodotContentOwnership()
+    {
+        LifecycleAuditRegistry.Shared.RegisterLegacyDebt(
+            GodotLifecycleLegacyDebtManifest.BattleBoardControllerQuarantine
+        );
+    }
+
     internal static void RegisterBorrowedContent(Resource root, string reason)
     {
         if (root == null)
@@ -570,8 +591,25 @@ internal sealed class GodotTransientResourceScope : IDisposable
     private readonly HashSet<object> _rootGraphSet = new(GodotWrapperReferenceComparer.Instance);
     private bool _disposed;
 
-    internal GodotTransientResourceScope(string name, bool quarantineOnDrain = false)
+    internal GodotTransientResourceScope(
+        string name,
+        bool quarantineOnDrain = false,
+        LifecycleLegacyDebtSnapshot legacyDebt = null
+    )
     {
+        if (legacyDebt != null && !quarantineOnDrain)
+        {
+            LifecycleViolation.Report(
+                $"Legacy quarantine debt requires quarantineOnDrain. debt_id={legacyDebt.DebtId}"
+            );
+        }
+        else if (legacyDebt != null && !GodotLifecycleLegacyDebtManifest.IsDeclared(legacyDebt))
+        {
+            LifecycleViolation.Report(
+                $"Undeclared lifecycle debt cannot authorize quarantine. debt_id={legacyDebt.DebtId}"
+            );
+        }
+
         Name = string.IsNullOrEmpty(name) ? "unnamed" : name;
         QuarantineOnDrain = quarantineOnDrain;
     }
