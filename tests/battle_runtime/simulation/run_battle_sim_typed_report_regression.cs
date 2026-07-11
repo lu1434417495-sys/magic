@@ -63,27 +63,17 @@ public partial class run_battle_sim_typed_report_regression : LifecycleTestScene
     private void TestTypedMetricsSnapshotFeedsProfileSummary()
     {
         StringName skillId = "typed_fire";
-        BattleSimMetricsSnapshot metrics = BattleSimMetricsSnapshot.FromDictionary(
-            new GDictionary
-            {
-                ["units"] = new GDictionary
-                {
-                    ["caster"] = new GDictionary
-                    {
-                        ["skill_attempt_counts"] = new GDictionary { [skillId] = 3 },
-                        ["skill_success_counts"] = new GDictionary { [skillId] = 2 },
-                    },
-                },
-                ["factions"] = new GDictionary
-                {
-                    ["player"] = new GDictionary
-                    {
-                        ["unit_count"] = 1,
-                        ["successful_skill_count"] = 2,
-                    },
-                },
-            }
-        );
+        var metricsState = new BattleMetricsState();
+        var casterMetrics = new BattleMetricEntry();
+        casterMetrics.SkillAttemptCounts[skillId.ToString()] = 3;
+        casterMetrics.SkillSuccessCounts[skillId.ToString()] = 2;
+        metricsState.Units["caster"] = casterMetrics;
+        metricsState.Factions["player"] = new BattleMetricEntry
+        {
+            UnitCount = 1,
+            SuccessfulSkillCount = 2,
+        };
+        BattleSimMetricsSnapshot metrics = BattleSimMetricsSnapshot.Capture(metricsState);
         var report = new BattleSimRunReport
         {
             WinnerFactionId = "player",

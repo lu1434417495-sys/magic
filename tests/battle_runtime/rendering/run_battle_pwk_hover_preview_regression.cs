@@ -49,7 +49,9 @@ public partial class run_battle_pwk_hover_preview_regression : LifecycleTestScen
 
         using BattleTestFixture fixture = CreateFixture("pwk_low_hp_hover", skill, source, target);
         BattlePreview preview = fixture.Runtime.PreviewCommand(MakeUnitCommand(source, target, skill));
-        GDictionary branchPreview = preview.save_branch_preview;
+        using GodotProjectionLease<GDictionary> branchLease =
+            BattlePreviewProjection.BuildSaveBranchLease(preview.SaveBranchPreviewTyped);
+        GDictionary branchPreview = branchLease.Value;
 
         _test.True(preview.allowed, $"低 HP PWK preview 应允许。 log={string.Join(" | ", preview.log_lines)}");
         _test.Eq(DictStringName(branchPreview, "kind"), new StringName("execute"), "低 HP PWK preview 应输出 execute 分支。");

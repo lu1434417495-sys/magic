@@ -199,8 +199,8 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
             _test.True((preview?.FatePreviewTyped?.CritGateDie ?? 0) > 0, "重击 runtime fate preview 应暴露暴击门。");
             _test.True((preview?.FatePreviewTyped?.FumbleLowEnd ?? 0) > 0, "重击 runtime fate preview 应暴露大失败区间。");
             _test.Eq(trapDamageResolver.ResolveEffectsCalls, 0, "runtime preview 不应通过 BattleDamageResolver.ResolveEffects() 偷取伤害结果。");
-            _test.Eq(preview?.damage_preview?.GetValueOrDefault("min_damage", 0).AsInt32() ?? 0, 2, "runtime preview 应暴露非暴击基础伤害下限。");
-            _test.Eq(preview?.damage_preview?.GetValueOrDefault("max_damage", 0).AsInt32() ?? 0, 10, "runtime preview 应暴露非暴击基础伤害上限。");
+            _test.Eq(preview?.DamagePreviewTyped?.MinDamage ?? 0, 2, "runtime preview 应暴露非暴击基础伤害下限。");
+            _test.Eq(preview?.DamagePreviewTyped?.MaxDamage ?? 0, 10, "runtime preview 应暴露非暴击基础伤害上限。");
 
             adapter = new BattleHudAdapter();
             adapter.SetupRuntimeContext(null, gameSession);

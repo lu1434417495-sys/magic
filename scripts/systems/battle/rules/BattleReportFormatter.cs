@@ -150,6 +150,62 @@ public sealed class BattleReportFormatter
         return entry;
     }
 
+    internal System.Collections.Generic.Dictionary<string, object> BuildSkillEventEntryPlain(
+        BattleUnitState attacker,
+        BattleUnitState defender,
+        StringName skillId,
+        StringName reasonId,
+        System.Collections.Generic.IEnumerable<StringName> eventTags
+    )
+    {
+        StringName normalizedReasonId = ProgressionDataUtils.to_string_name(reasonId);
+        if (normalizedReasonId == "")
+        {
+            return new System.Collections.Generic.Dictionary<string, object>(
+                System.StringComparer.Ordinal
+            );
+        }
+        StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
+        var normalizedTags = new System.Collections.Generic.List<string>();
+        foreach (StringName value in eventTags ?? System.Array.Empty<StringName>())
+        {
+            string normalized = ProgressionDataUtils.to_string_name(value).ToString();
+            if (string.IsNullOrEmpty(normalized) || normalizedTags.Contains(normalized))
+            {
+                continue;
+            }
+            normalizedTags.Add(normalized);
+        }
+        string attackerName = attacker?.display_name?.StripEdges() ?? "";
+        string defenderName = defender?.display_name?.StripEdges() ?? "";
+        string actorLabel = string.IsNullOrEmpty(attackerName) ? "该单位" : attackerName;
+        string targetLabel = string.IsNullOrEmpty(defenderName) ? "目标" : defenderName;
+        string text = normalizedReasonId == REASON_DOOM_SENTENCE_APPLIED
+            ? $"{actorLabel} 对 {targetLabel} 落下厄命宣判。"
+            : "";
+        if (!string.IsNullOrEmpty(text) && normalizedTags.Count > 0)
+        {
+            text = $"{text} 事件标签：{string.Join(", ", normalizedTags)}。";
+        }
+        return new System.Collections.Generic.Dictionary<string, object>(
+            System.StringComparer.Ordinal
+        )
+        {
+            ["entry_type"] = ENTRY_TYPE_SKILL_EVENT.ToString(),
+            ["reason_id"] = normalizedReasonId.ToString(),
+            ["text"] = text,
+            ["event_tags"] = normalizedTags,
+            ["skill_id"] = normalizedSkillId.ToString(),
+            ["attacker_id"] = attacker?.unit_id.ToString() ?? "",
+            ["attacker_member_id"] = attacker?.source_member_id.ToString() ?? "",
+            ["attacker_name"] = attacker?.display_name ?? "",
+            ["defender_id"] = defender?.unit_id.ToString() ?? "",
+            ["defender_member_id"] = defender?.source_member_id.ToString() ?? "",
+            ["defender_name"] = defender?.display_name ?? "",
+            ["defender_is_elite_or_boss"] = _IsEliteOrBoss(defender),
+        };
+    }
+
     internal Godot.Collections.Array<string> FormatMeteorSwarmSummary(Dictionary entry)
     {
         var lines = new Godot.Collections.Array<string>();

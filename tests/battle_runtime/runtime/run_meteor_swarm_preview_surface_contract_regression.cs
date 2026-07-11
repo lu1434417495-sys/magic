@@ -62,9 +62,10 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Life
             }
         };
 
-        MeteorSwarmNumericSummary roundTripped = MeteorSwarmNumericSummary.FromDictionary(
-            MeteorSwarmProjection.Project(summary)
-        );
+        using GodotProjectionLease<GDictionary> summaryLease =
+            MeteorSwarmProjection.BuildLease(summary);
+        MeteorSwarmNumericSummary roundTripped =
+            MeteorSwarmNumericSummary.FromDictionary(summaryLease.Value);
 
         _test.Eq(roundTripped.ComponentBreakdown.Count, 1, "formal meteor summary roundtrip 应保留 component。");
         BattleDamagePreviewSaveEstimate restoredEstimate = roundTripped.ComponentBreakdown[0].SaveEstimate;
@@ -95,9 +96,9 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Life
         );
         if (preview == null || preview.special_profile_preview_facts == null)
             return;
-        GDictionary factsPayload = MeteorSwarmProjection.Project(
-            preview.special_profile_preview_facts
-        );
+        using GodotProjectionLease<GDictionary> factsLease =
+            MeteorSwarmProjection.BuildLease(preview.special_profile_preview_facts);
+        GDictionary factsPayload = factsLease.Value;
         string previewFactId = factsPayload.GetValueOrDefault("preview_fact_id", "").As<string>() ?? "";
         _test.True(!string.IsNullOrEmpty(previewFactId), "preview facts 必须带稳定 preview_fact_id。");
         _test.Eq(preview.hit_preview?.Source ?? "", "special_profile_preview_facts", "preview.hit_preview 应标记 special facts 来源。");
@@ -134,9 +135,7 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Life
             "special_profile_preview_facts",
             "HUD hit payload 应消费 special facts。"
         );
-        GDictionary hudFacts = MeteorSwarmProjection.Project(
-            preview.special_profile_preview_facts
-        );
+        GDictionary hudFacts = factsPayload;
         _test.Eq(
             hudFacts.GetValueOrDefault("preview_fact_id", "").As<string>() ?? "",
             previewFactId,

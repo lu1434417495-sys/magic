@@ -60,7 +60,9 @@ public partial class run_phantasmal_kill_hover_preview_regression : LifecycleTes
         _test.True(preview.target_unit_ids.Contains(immuneEnemy.unit_id), "hover preview should include immune no-op unit.");
         _test.False(preview.target_unit_ids.Contains(outsideEnemy.unit_id), "hover preview should exclude units outside 7x7.");
 
-        GDictionary branchPreview = preview.save_branch_preview;
+        using GodotProjectionLease<GDictionary> branchLease =
+            BattlePreviewProjection.BuildSaveBranchLease(preview.SaveBranchPreviewTyped);
+        GDictionary branchPreview = branchLease.Value;
         _test.Eq(DictStringName(branchPreview, "kind"), new StringName("graded_save_execute"), "preview should expose graded-save branch kind.");
         _test.Eq(DictStringName(branchPreview, "profile_id"), new StringName("phantasmal_kill"), "preview should expose profile id.");
         _test.Eq(DictStringName(branchPreview, "save_tag"), new StringName("illusion"), "preview should expose save tag.");
@@ -76,8 +78,10 @@ public partial class run_phantasmal_kill_hover_preview_regression : LifecycleTes
         _test.True(DictInt(branchPreview, "success_aftershock_expected_basis_points") > 0, "preview should expose success aftershock expected basis points.");
 
         branchPreview["friendly_affected_count"] = 99;
+        using GodotProjectionLease<GDictionary> repeatedBranchLease =
+            BattlePreviewProjection.BuildSaveBranchLease(preview.SaveBranchPreviewTyped);
         _test.Eq(
-            DictInt(preview.save_branch_preview, "friendly_affected_count"),
+            DictInt(repeatedBranchLease.Value, "friendly_affected_count"),
             1,
             "BattlePreview should keep save_branch_preview as copied owner state."
         );

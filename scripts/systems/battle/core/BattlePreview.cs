@@ -1,8 +1,7 @@
 using Godot;
 using System.Collections;
 using System.Collections.Generic;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
+using System.Collections.ObjectModel;
 
 public class BattlePreview
 {
@@ -10,16 +9,16 @@ public class BattlePreview
     private readonly List<StringName> _targetUnitIds = new();
     private readonly List<Vector2I> _targetCoords = new();
     private readonly List<StringName> _randomChainCandidateUnitIds = new();
+    private readonly ReadOnlyCollection<string> _logLinesView;
+    private readonly ReadOnlyCollection<StringName> _targetUnitIdsView;
+    private readonly ReadOnlyCollection<Vector2I> _targetCoordsView;
+    private readonly ReadOnlyCollection<StringName> _randomChainCandidateUnitIdsView;
     private BattleSaveBranchPreviewData _saveBranchPreview;
     private BattleDamagePreviewRangeService.SkillDamagePreview? _damagePreview;
     private BattleFatePreviewData _fatePreview;
 
     public bool allowed { get; set; } = false;
-    public GArray log_lines
-    {
-        get => BuildLogLinesArray();
-        set => SetLogLines(value);
-    }
+    public ReadOnlyCollection<string> log_lines => _logLinesView;
     public StringNameList target_unit_ids
     {
         get => new(_targetUnitIds);
@@ -38,33 +37,26 @@ public class BattlePreview
     public Vector2I resolved_anchor_coord { get; set; } = new Vector2I(-1, -1);
     public int move_cost { get; set; } = 0;
     public AttackPreviewData hit_preview { get; set; }
-    public GDictionary damage_preview
-    {
-        get => BattleDamagePreviewRangeProjection.Project(_damagePreview);
-        set => SetDamagePreview(DecodeDamagePreview(value));
-    }
-    public GDictionary fate_preview
-    {
-        get => (_fatePreview ?? hit_preview?.FatePreview)?.ToDictionary() ?? new GDictionary();
-        set => SetFatePreview(BattleFatePreviewData.FromDictionary(value));
-    }
-    public GDictionary save_branch_preview
-    {
-        get => _saveBranchPreview?.ToDictionary() ?? new GDictionary();
-        set => SetSaveBranchPreview(BattleSaveBranchPreviewData.FromDictionary(value));
-    }
     public BattleSpecialProfileGateResult special_profile_gate_result { get; set; }
     public BattleSpecialProfilePreviewFacts special_profile_preview_facts { get; set; }
 
-    internal IReadOnlyList<StringName> TargetUnitIdsTyped => _targetUnitIds;
-    internal IReadOnlyList<Vector2I> TargetCoordsTyped => _targetCoords;
+    internal IReadOnlyList<StringName> TargetUnitIdsTyped => _targetUnitIdsView;
+    internal IReadOnlyList<Vector2I> TargetCoordsTyped => _targetCoordsView;
     internal IReadOnlyList<StringName> RandomChainCandidateUnitIdsTyped =>
-        _randomChainCandidateUnitIds;
-    internal IReadOnlyList<string> LogLinesTyped => _logLines;
+        _randomChainCandidateUnitIdsView;
+    internal IReadOnlyList<string> LogLinesTyped => _logLinesView;
     internal BattleDamagePreviewRangeService.SkillDamagePreview? DamagePreviewTyped =>
-        _damagePreview;
+        CloneDamagePreview(_damagePreview);
     internal BattleFatePreviewData FatePreviewTyped => _fatePreview ?? hit_preview?.FatePreview;
     internal BattleSaveBranchPreviewData SaveBranchPreviewTyped => _saveBranchPreview;
+
+    public BattlePreview()
+    {
+        _logLinesView = _logLines.AsReadOnly();
+        _targetUnitIdsView = _targetUnitIds.AsReadOnly();
+        _targetCoordsView = _targetCoords.AsReadOnly();
+        _randomChainCandidateUnitIdsView = _randomChainCandidateUnitIds.AsReadOnly();
+    }
 
     internal void SetTargetUnitIds(IEnumerable<StringName> values)
     {
@@ -173,19 +165,9 @@ public class BattlePreview
         _logLines.Insert(index, value ?? "");
     }
 
-    private GArray BuildLogLinesArray()
-    {
-        var result = new GArray();
-        foreach (string value in _logLines)
-        {
-            result.Add(value);
-        }
-        return result;
-    }
-
     internal void SetDamagePreview(BattleDamagePreviewRangeService.SkillDamagePreview? value)
     {
-        _damagePreview = value;
+        _damagePreview = CloneDamagePreview(value);
     }
 
     internal void ClearDamagePreview()
@@ -203,11 +185,6 @@ public class BattlePreview
         _fatePreview = null;
     }
 
-    internal void SetSaveBranchPreview(GDictionary value)
-    {
-        SetSaveBranchPreview(BattleSaveBranchPreviewData.FromDictionary(value));
-    }
-
     internal void SetSaveBranchPreview(BattleSaveBranchPreviewData value)
     {
         _saveBranchPreview = value?.Clone();
@@ -218,34 +195,24 @@ public class BattlePreview
         _saveBranchPreview = null;
     }
 
-    private static BattleDamagePreviewRangeService.SkillDamagePreview? DecodeDamagePreview(
-        GDictionary value
+    private static BattleDamagePreviewRangeService.SkillDamagePreview? CloneDamagePreview(
+        BattleDamagePreviewRangeService.SkillDamagePreview? value
     )
     {
-        if (value == null || value.Count == 0)
+        if (!value.HasValue)
         {
             return null;
         }
-
+        BattleDamagePreviewRangeService.SkillDamagePreview preview = value.Value;
         return new BattleDamagePreviewRangeService.SkillDamagePreview(
-            ReadBool(value, "has_damage"),
-            ReadInt(value, "min_damage"),
-            ReadInt(value, "max_damage"),
-            new List<BattleDamagePreviewRangeService.DamageEffectRange>()
+            preview.HasDamage,
+            preview.MinDamage,
+            preview.MaxDamage,
+            new List<BattleDamagePreviewRangeService.DamageEffectRange>(
+                preview.DamageRanges
+                    ?? System.Array.Empty<BattleDamagePreviewRangeService.DamageEffectRange>()
+            )
         );
     }
 
-    private static bool ReadBool(GDictionary source, string key)
-    {
-        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
-            return false;
-        return source[key].AsBool();
-    }
-
-    private static int ReadInt(GDictionary source, string key)
-    {
-        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
-            return 0;
-        return source[key].AsInt32();
-    }
 }

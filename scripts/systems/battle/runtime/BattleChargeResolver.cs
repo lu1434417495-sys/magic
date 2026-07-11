@@ -2066,7 +2066,7 @@ internal sealed class BattleChargeResolver
         {
             targetBatch.AddLogLine(logLine);
         }
-        foreach (GDictionary reportEntry in sourceBatch.ReportEntriesTyped)
+        foreach (IReadOnlyDictionary<string, object> reportEntry in sourceBatch.ReportEntriesTyped)
         {
             targetBatch.AddReportEntry(reportEntry);
         }

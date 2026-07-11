@@ -115,17 +115,18 @@ public partial class run_meteor_swarm_commit_payload_boundary_regression : Lifec
         );
         _test.Eq(batch.report_entries.Count, 1, "提交应追加 report entry。");
 
-        GDictionary committedEntry = batch.report_entries[0].AsGodotDictionary();
+        IReadOnlyDictionary<string, object> committedEntry = batch.report_entries[0];
         _test.Eq(
-            committedEntry["text"].AsString(),
+            committedEntry["text"]?.ToString(),
             "original summary",
             "report entry text 应在 committer 边界投影复制，不能被 result 后续修改污染。"
         );
-        GDictionary committedComponent = committedEntry["component_breakdown"]
-            .AsGodotArray()[0]
-            .AsGodotDictionary();
+        IReadOnlyList<object> committedComponents =
+            committedEntry["component_breakdown"] as IReadOnlyList<object>;
+        IReadOnlyDictionary<string, object> committedComponent =
+            committedComponents?[0] as IReadOnlyDictionary<string, object>;
         _test.Eq(
-            committedComponent["damage"].AsInt32(),
+            Convert.ToInt32(committedComponent?["damage"] ?? 0),
             12,
             "report entry component breakdown 应在 committer 边界投影复制。"
         );

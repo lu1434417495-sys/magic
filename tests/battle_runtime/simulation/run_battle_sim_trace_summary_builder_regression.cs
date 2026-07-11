@@ -25,7 +25,11 @@ public partial class run_battle_sim_trace_summary_builder_regression : Lifecycle
     {
         var builder = new BattleSimTraceSummaryBuilder();
         BattleSimScenarioReport report = BuildTypedReport();
-        GDictionary summary = builder.Build(report, "res://full_report.json");
+        using GodotProjectionLease<GDictionary> summaryLease = builder.BuildLease(
+            report,
+            "res://full_report.json"
+        );
+        GDictionary summary = summaryLease.Value;
         _test.True(builder.HasTraces(report), "builder 应能识别 typed scenario report 中的 trace。");
         _test.Eq(GetString(summary, "source_report"), "res://full_report.json", "summary 应保留完整报告路径。");
         _test.Eq(GetInt(summary, "profile_count"), 1, "typed summary 应保留 profile 数。");
@@ -84,11 +88,12 @@ public partial class run_battle_sim_trace_summary_builder_regression : Lifecycle
     {
         var builder = new BattleSimTraceSummaryBuilder();
         BattleSimScenarioReport report = BuildTypedReport();
-        GDictionary summary = builder.Build(
+        using GodotProjectionLease<GDictionary> summaryLease = builder.BuildLease(
             report,
             "user://sample_report.json",
             new BattleSimTraceSummaryBuilder.TraceSummaryOptionsData { TopCandidateLimit = 1 }
         );
+        GDictionary summary = summaryLease.Value;
         _test.True(builder.HasTraces(report), "builder 应能识别 profile_entries 中的 trace。");
         _test.Eq(GetInt(summary, "profile_count"), 1, "profile_count 应来自 profile_entries。");
         GDictionary compactRun = GetSelfDict(GetArray(summary, "runs")[0]);
@@ -117,17 +122,24 @@ public partial class run_battle_sim_trace_summary_builder_regression : Lifecycle
     private static BattleSimRunReport BuildTypedRun()
     {
         GDictionary run = BuildRun();
+        var metrics = new BattleMetricsState();
+        metrics.Factions["player"] = new BattleMetricEntry
+        {
+            FactionId = "player",
+            TurnCount = 1,
+        };
+        metrics.Factions["hostile"] = new BattleMetricEntry
+        {
+            FactionId = "hostile",
+            TurnCount = 1,
+        };
         return new BattleSimRunReport
         {
             Seed = GetInt(run, "seed"),
             WinnerFactionId = GetString(run, "winner_faction_id"),
             Iterations = GetInt(run, "iterations"),
             TimelineSteps = GetInt(run, "timeline_steps"),
-            Metrics = new GDictionary
-            {
-                ["factions"] = GetDict(run, "factions"),
-                ["units"] = GetDict(run, "units"),
-            },
+            MetricsSnapshot = BattleSimMetricsSnapshot.Capture(metrics),
             AiTurnTraces = BuildTypedTraces(GetArray(run, "ai_turn_traces")),
         };
     }

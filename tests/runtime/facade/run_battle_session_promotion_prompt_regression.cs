@@ -132,17 +132,11 @@ public partial class run_battle_session_promotion_prompt_regression : LifecycleT
 
             BattleEventBatch batch = new();
             batch.AddProgressionDelta(BuildPromotionDelta());
-            GArray projectedDeltas = batch.progression_deltas;
+            IReadOnlyList<CharacterProgressionDelta> projectedDeltas = batch.progression_deltas;
 
             _test.Eq(projectedDeltas.Count, 1, "Batch should expose one progression delta payload.");
             if (projectedDeltas.Count == 0)
                 return;
-            _test.Eq(
-                projectedDeltas[0].VariantType,
-                Variant.Type.Dictionary,
-                "Batch progression_deltas should project dictionary payloads, not live delta objects."
-            );
-
             facade.CapturePendingPromotionPrompt(projectedDeltas);
             GDictionary prompt = runtime.GetPendingPromotionPrompt();
             GArray choices = DictArray(prompt, "choices");

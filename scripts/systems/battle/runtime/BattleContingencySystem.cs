@@ -810,7 +810,7 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
         triggerType = Normalize(triggerType);
         if (triggerType == "")
             triggerType = instance.Setup?.Trigger?.Type ?? "";
-        GDictionary entry = new()
+        Dictionary<string, object> entry = new(StringComparer.Ordinal)
         {
             ["entry_type"] = entryType ?? "",
             ["decision"] = decision ?? "",

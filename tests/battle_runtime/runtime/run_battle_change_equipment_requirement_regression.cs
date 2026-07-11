@@ -64,7 +64,7 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
 
         string[] backpackBefore = BackpackInstanceIdSignature(state.GetPartyBackpackView());
         BattleEventBatch blockedBatch = runtime.IssueCommand(command);
-        GDictionary blockedReport = FindChangeEquipmentReport(blockedBatch.report_entries);
+        IReadOnlyDictionary<string, object> blockedReport = FindChangeEquipmentReport(blockedBatch.report_entries);
         AssertFormalChangeEquipmentReportShape(blockedReport, "需求失败 report");
         _test.Eq(DictString(blockedReport, "error_code", ""), "item_not_equippable", "需求失败应只暴露泛化错误码。");
         _test.True(!blockedReport.ContainsKey("blockers"), "需求失败 report 不应透出隐藏 blocker 列表。");
@@ -94,7 +94,7 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
             $"成员满足需求后同一 battle-local 装备 preview 应通过。 log={JoinLines(allowedPreview?.log_lines)}"
         );
         BattleEventBatch successBatch = runtime.IssueCommand(command);
-        GDictionary successReport = FindChangeEquipmentReport(successBatch.report_entries);
+        IReadOnlyDictionary<string, object> successReport = FindChangeEquipmentReport(successBatch.report_entries);
         AssertFormalChangeEquipmentReportShape(successReport, "需求满足 report");
         _test.True(DictBool(successReport, "ok", false), $"成员满足需求后换装应成功。 report={successReport}");
         _test.Eq(unit.current_ap, 0, "需求满足后成功换装应扣 2 AP。");
@@ -144,7 +144,7 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
 
         BattleCommand missingInstanceCommand = BuildEquipCommand(unit.unit_id, "head", "", DuplicateHelmId);
         BattleEventBatch missingInstanceBatch = runtime.IssueCommand(missingInstanceCommand);
-        GDictionary missingReport = FindChangeEquipmentReport(missingInstanceBatch.report_entries);
+        IReadOnlyDictionary<string, object> missingReport = FindChangeEquipmentReport(missingInstanceBatch.report_entries);
         AssertFormalChangeEquipmentReportShape(missingReport, "缺少 instance_id report");
         _test.Eq(
             DictString(missingReport, "error_code", ""),
@@ -164,7 +164,7 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
             DuplicateHelmId
         );
         BattleEventBatch equipBatch = runtime.IssueCommand(equipCommand);
-        GDictionary equipReport = FindChangeEquipmentReport(equipBatch.report_entries);
+        IReadOnlyDictionary<string, object> equipReport = FindChangeEquipmentReport(equipBatch.report_entries);
         AssertFormalChangeEquipmentReportShape(equipReport, "指定 instance_id 装备 report");
         _test.True(DictBool(equipReport, "ok", false), $"指定 rare instance_id 的 battle-local 装备应成功。 report={equipReport}");
         _test.Eq(
@@ -196,7 +196,7 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
             DuplicateHelmRareInstanceId
         );
         BattleEventBatch unequipBatch = runtime.IssueCommand(unequipCommand);
-        GDictionary unequipReport = FindChangeEquipmentReport(unequipBatch.report_entries);
+        IReadOnlyDictionary<string, object> unequipReport = FindChangeEquipmentReport(unequipBatch.report_entries);
         AssertFormalChangeEquipmentReportShape(unequipReport, "指定 instance_id 卸装 report");
         _test.True(DictBool(unequipReport, "ok", false), $"指定 rare instance_id 的 battle-local 卸装应成功。 report={unequipReport}");
         _test.Eq(
@@ -250,7 +250,7 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
             DuplicateHelmId
         );
         BattleEventBatch batch = runtime.IssueCommand(command);
-        GDictionary report = FindChangeEquipmentReport(batch.report_entries);
+        IReadOnlyDictionary<string, object> report = FindChangeEquipmentReport(batch.report_entries);
         AssertFormalChangeEquipmentReportShape(report, "非当前行动单位 report");
         _test.True(!DictBool(report, "ok", true), "非当前行动单位发起换装应失败。");
         _test.Eq(DictString(report, "error_code", ""), "target_not_self", "非当前行动单位 report 应保持 target_not_self。");
@@ -466,24 +466,25 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
         };
     }
 
-    private static GDictionary FindChangeEquipmentReport(GArray reportEntries)
+    private static IReadOnlyDictionary<string, object> FindChangeEquipmentReport(
+        IEnumerable<IReadOnlyDictionary<string, object>> reportEntries
+    )
     {
-        foreach (Variant entryValue in reportEntries ?? new GArray())
+        foreach (
+            IReadOnlyDictionary<string, object> entry in
+            reportEntries ?? Array.Empty<IReadOnlyDictionary<string, object>>()
+        )
         {
-            if (entryValue.VariantType != Variant.Type.Dictionary)
-            {
-                continue;
-            }
-            GDictionary entry = entryValue.AsGodotDictionary();
             if (DictString(entry, "type", "") == "change_equipment")
-            {
                 return entry;
-            }
         }
-        return new GDictionary();
+        return new Dictionary<string, object>(StringComparer.Ordinal);
     }
 
-    private void AssertFormalChangeEquipmentReportShape(GDictionary report, string context)
+    private void AssertFormalChangeEquipmentReportShape(
+        IReadOnlyDictionary<string, object> report,
+        string context
+    )
     {
         _test.Eq(DictString(report, "type", ""), "change_equipment", $"{context} 应使用正式 type 字段。");
         _test.True(!report.ContainsKey("entry_type"), $"{context} 不应再输出旧 entry_type 字段。");
@@ -529,34 +530,37 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
         return null;
     }
 
-    private static string JoinLines(GArray lines)
+    private static string JoinLines(IEnumerable<string> lines)
     {
-        var values = new List<string>();
-        foreach (Variant lineValue in lines ?? new GArray())
-        {
-            values.Add(lineValue.ToString());
-        }
-        return string.Join(" | ", values);
+        return string.Join(" | ", lines ?? Array.Empty<string>());
     }
 
-    private static bool DictBool(GDictionary dictionary, string key, bool fallback)
+    private static bool DictBool(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key,
+        bool fallback
+    )
     {
         if (dictionary == null || !dictionary.ContainsKey(key))
         {
             return fallback;
         }
-        Variant value = dictionary[key];
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+        object value = dictionary[key];
+        return value is bool flag ? flag : fallback;
     }
 
-    private static string DictString(GDictionary dictionary, string key, string fallback)
+    private static string DictString(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key,
+        string fallback
+    )
     {
         if (dictionary == null || !dictionary.ContainsKey(key))
         {
             return fallback;
         }
-        Variant value = dictionary[key];
-        return value.VariantType == Variant.Type.Nil ? fallback : value.ToString();
+        object value = dictionary[key];
+        return value?.ToString() ?? fallback;
     }
 
     private void AssertSequenceEq(string[] actual, string[] expected, string message)

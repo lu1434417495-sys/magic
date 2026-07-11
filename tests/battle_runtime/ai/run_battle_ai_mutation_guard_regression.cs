@@ -98,9 +98,11 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             Transition = transition,
         };
 
-        GDictionary turnTrace = TraceDictionaryProjection.ToDictionary(
-            context.BuildTurnTraceTyped(decision).ToTraceDictionary()
-        );
+        using GodotProjectionLease<GDictionary> traceLease =
+            BattleAiTurnTracePayloadProjection.BuildLease(
+                context.BuildTurnTraceTyped(decision)
+            );
+        GDictionary turnTrace = traceLease.Value;
         GDictionary transitionPayload = turnTrace["transition"].AsGodotDictionary();
         _test.Eq(
             ProgressionDataUtils.to_string_name(transitionPayload["previous_state_id"]),

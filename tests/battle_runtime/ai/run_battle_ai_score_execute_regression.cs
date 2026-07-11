@@ -118,10 +118,10 @@ public partial class run_battle_ai_score_execute_regression : LifecycleTestScene
 
         BattlePreview preview = BuildPreview(target);
         preview.AddLogLine("POISON_LOG kill 100%");
-        preview.SetSaveBranchPreview(new GDictionary
+        preview.SetSaveBranchPreview(new BattleSaveBranchPreviewData
         {
-            ["summary_text"] = "POISON_BRANCH 命中率 100%",
-            ["hit_chance_basis_points"] = 10000,
+            SummaryText = "POISON_BRANCH 命中率 100%",
+            HitChanceBasisPoints = 10000,
         });
         preview.SetDamagePreview(
             new BattleDamagePreviewRangeService.SkillDamagePreview(

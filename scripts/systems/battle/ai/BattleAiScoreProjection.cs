@@ -3,100 +3,91 @@ using System.Collections.Generic;
 using Godot;
 using DamageEstimateBreakdown = BattleAiScoreService.DamageEstimateBreakdown;
 using DamageSaveEstimate = BattleAiScoreService.DamageSaveEstimate;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 internal static class BattleAiScoreProjection
 {
-    internal static GDictionary Project(BattleAiScoreInput input)
+    internal static GodotProjectionLease<GDictionary> BuildLease(BattleAiScoreInput input)
+    {
+        return TraceDictionaryProjection.BuildLease(
+            ToPlainDictionary(input),
+            "battle_ai_score",
+            LifetimeDomain.Request,
+            "BattleAiScoreProjection.BuildLease"
+        );
+    }
+
+    internal static GDictionary WriteOwned<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        BattleAiScoreInput input,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        return TraceDictionaryProjection.WriteDictionary(
+            lease,
+            ToPlainDictionary(input),
+            reason
+        );
+    }
+
+    internal static GDictionary WriteProfile<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        BattleAiScoreProfile profile,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        return TraceDictionaryProjection.WriteDictionary(
+            lease,
+            ToPlainDictionary(profile),
+            reason
+        );
+    }
+
+    internal static Dictionary<string, object> BuildPlain(BattleAiScoreInput input) =>
+        ToPlainDictionary(input);
+
+    internal static Dictionary<string, object> BuildProfilePlain(BattleAiScoreProfile profile) =>
+        ToPlainDictionary(profile);
+
+    private static Dictionary<string, object> ToPlainDictionary(BattleAiScoreInput input)
     {
         if (input == null)
-            return new GDictionary();
+            return new Dictionary<string, object>(StringComparer.Ordinal);
 
-        GDictionary result = TraceDictionaryProjection.ToDictionary(input.ToTraceDictionary());
-        result["runtime_action_metadata"] = Project(input.runtime_action_metadata);
-        result["save_estimates_by_target_id"] = ProjectSaveEstimateDictionary(
+        Dictionary<string, object> result = input.ToTraceDictionary();
+        result["runtime_action_metadata"] =
+            input.runtime_action_metadata?.ToTraceDictionary()
+            ?? new Dictionary<string, object>(StringComparer.Ordinal);
+        result["save_estimates_by_target_id"] = BuildSaveEstimateMap(
             input.save_estimates_by_target_id
         );
-        result["damage_estimates_by_target_id"] = ProjectDamageEstimateDictionary(
+        result["damage_estimates_by_target_id"] = BuildDamageEstimateMap(
             input.damage_estimates_by_target_id
         );
-        result["special_profile_preview_facts"] = MeteorSwarmProjection.Project(
+        result["special_profile_preview_facts"] = MeteorSwarmProjection.BuildPlain(
             input.special_profile_preview_facts
         );
-        result["target_numeric_summary"] = ProjectNumericSummaryArray(
+        result["target_numeric_summary"] = MeteorSwarmProjection.BuildNumericSummaryListPlain(
             input.target_numeric_summary
         );
-        result["friendly_fire_numeric_summary"] = ProjectNumericSummaryArray(
-            input.friendly_fire_numeric_summary
-        );
-        result["attack_roll_modifier_breakdown"] =
-            AttackPreviewData.BuildAttackRollModifierBreakdownPayload(
-                input.attack_roll_modifier_breakdown
+        result["friendly_fire_numeric_summary"] =
+            MeteorSwarmProjection.BuildNumericSummaryListPlain(
+                input.friendly_fire_numeric_summary
             );
+        result["attack_roll_modifier_breakdown"] = BuildModifierList(
+            input.attack_roll_modifier_breakdown
+        );
         return result;
     }
 
-    internal static GDictionary Project(BattleAiScoreRuntimeMetadata metadata) =>
-        TraceDictionaryProjection.ToDictionary(
-            metadata?.ToTraceDictionary()
-                ?? new Dictionary<string, object>(StringComparer.Ordinal)
-        );
-
-    internal static GDictionary Project(DamageSaveEstimate estimate)
-    {
-        if (estimate == null)
-            return new GDictionary();
-        return new GDictionary
-        {
-            ["has_save"] = estimate.HasSave,
-            ["damage_before_save"] = estimate.DamageBeforeSave,
-            ["damage_after_save_estimate"] = estimate.DamageAfterSaveEstimate,
-            ["damage_on_save_failure"] = estimate.DamageOnSaveFailure,
-            ["damage_on_save_success"] = estimate.DamageOnSaveSuccess,
-            ["save_partial_on_success"] = estimate.SavePartialOnSuccess,
-            ["save_success_probability_basis_points"] =
-                estimate.SaveSuccessProbabilityBasisPoints,
-            ["save_success_rate_percent"] = estimate.SaveSuccessRatePercent,
-            ["save_failure_probability_basis_points"] =
-                estimate.SaveFailureProbabilityBasisPoints,
-            ["dc"] = estimate.Dc,
-            ["ability"] = estimate.Ability,
-            ["save_tag"] = estimate.SaveTag,
-            ["advantage_state"] = estimate.AdvantageState,
-            ["ability_value"] = estimate.AbilityValue,
-            ["ability_modifier"] = estimate.AbilityModifier,
-            ["bonus"] = estimate.Bonus,
-            ["immune"] = estimate.Immune,
-            ["hit_count"] = Math.Max(estimate.HitCount, 1),
-        };
-    }
-
-    internal static GDictionary Project(DamageEstimateBreakdown estimate)
-    {
-        if (estimate == null)
-            return new GDictionary();
-        return new GDictionary
-        {
-            ["hp_damage"] = estimate.HpDamage,
-            ["damage"] = estimate.Damage,
-            ["post_save_damage"] = estimate.PostSaveDamage,
-            ["incoming_budget_damage"] = estimate.IncomingBudgetDamage,
-            ["shield_absorbed"] = estimate.ShieldAbsorbed,
-            ["shield_broken"] = estimate.ShieldBroken,
-            ["stable_lethal"] = estimate.StableLethal,
-            ["lethal_probability_basis_points"] = estimate.LethalProbabilityBasisPoints,
-            ["save_estimates"] = ProjectSaveEstimateArray(estimate.SaveEstimates),
-            ["damage_events"] = TraceDictionaryProjection.ToArray(estimate.DamageEvents),
-            ["diagnostics"] = TraceDictionaryProjection.ToArray(estimate.Diagnostics),
-        };
-    }
-
-    internal static GDictionary Project(BattleAiScoreProfile profile)
+    private static Dictionary<string, object> ToPlainDictionary(BattleAiScoreProfile profile)
     {
         if (profile == null)
-            return new GDictionary();
-        return new GDictionary
+            return new Dictionary<string, object>(StringComparer.Ordinal);
+
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["damage_weight"] = profile.damage_weight,
             ["heal_weight"] = profile.heal_weight,
@@ -159,10 +150,8 @@ internal static class BattleAiScoreProjection
             ["threat_healer_bias_basis_points"] = profile.threat_healer_bias_basis_points,
             ["threat_control_bias_basis_points"] = profile.threat_control_bias_basis_points,
             ["threat_ranged_bias_basis_points"] = profile.threat_ranged_bias_basis_points,
-            ["threat_range_step_bias_basis_points"] =
-                profile.threat_range_step_bias_basis_points,
-            ["threat_multiplier_cap_basis_points"] =
-                profile.threat_multiplier_cap_basis_points,
+            ["threat_range_step_bias_basis_points"] = profile.threat_range_step_bias_basis_points,
+            ["threat_multiplier_cap_basis_points"] = profile.threat_multiplier_cap_basis_points,
             ["meteor_high_priority_threat_multiplier_bp"] =
                 profile.meteor_high_priority_threat_multiplier_bp,
             ["meteor_high_priority_damage_hp_percent"] =
@@ -170,98 +159,96 @@ internal static class BattleAiScoreProjection
             ["meteor_high_priority_target_priority_score"] =
                 profile.meteor_high_priority_target_priority_score,
             ["meteor_top_threat_rank"] = profile.meteor_top_threat_rank,
-            ["meteor_friendly_fire_profile"] =
-                profile.meteor_friendly_fire_profile.ToString(),
+            ["meteor_friendly_fire_profile"] = profile.meteor_friendly_fire_profile.ToString(),
             ["meteor_friendly_fire_soft_expected_hp_percent"] =
                 profile.meteor_friendly_fire_soft_expected_hp_percent,
             ["meteor_friendly_fire_hard_expected_hp_percent"] =
                 profile.meteor_friendly_fire_hard_expected_hp_percent,
             ["meteor_friendly_fire_hard_worst_case_hp_percent"] =
                 profile.meteor_friendly_fire_hard_worst_case_hp_percent,
-            ["action_base_scores"] = profile.action_base_scores,
+            ["action_base_scores"] = CloneStringNameIntMap(profile.ActionBaseScoresTyped),
             ["default_bucket_priority"] = profile.default_bucket_priority,
-            ["bucket_priorities"] = profile.bucket_priorities,
+            ["bucket_priorities"] = CloneStringNameIntMap(profile.BucketPrioritiesTyped),
         };
     }
 
-    private static GArray ProjectNumericSummaryArray(
-        IEnumerable<MeteorSwarmNumericSummary> summaries
-    )
-    {
-        var result = new GArray();
-        foreach (
-            GDictionary summary in MeteorSwarmProjection.ProjectNumericSummaryArray(
-                summaries ?? Array.Empty<MeteorSwarmNumericSummary>()
-            )
-            )
-        {
-            if (summary != null)
-                result.Add(
-                    RuntimePayloadCopy.Dictionary(
-                        summary,
-                        "BattleAiScoreProjection.ProjectNumericSummaryArray"
-                    )
-                );
-        }
-        return result;
-    }
-
-    private static GDictionary ProjectSaveEstimateDictionary(
+    private static Dictionary<string, object> BuildSaveEstimateMap(
         IEnumerable<KeyValuePair<StringName, List<DamageSaveEstimate>>> values
     )
     {
-        var result = new GDictionary();
+        var result = new Dictionary<string, object>(StringComparer.Ordinal);
         foreach (
             KeyValuePair<StringName, List<DamageSaveEstimate>> entry
             in values ?? Array.Empty<KeyValuePair<StringName, List<DamageSaveEstimate>>>()
         )
         {
-            string normalizedKey = entry.Key.ToString();
-            if (!string.IsNullOrEmpty(normalizedKey))
-                result[normalizedKey] = ProjectSaveEstimateArray(entry.Value);
+            string key = entry.Key.ToString();
+            if (string.IsNullOrEmpty(key))
+                continue;
+            var estimates = new List<object>();
+            foreach (DamageSaveEstimate estimate in entry.Value ?? new List<DamageSaveEstimate>())
+            {
+                if (estimate != null)
+                    estimates.Add(estimate.ToTraceDictionary());
+            }
+            result[key] = estimates;
         }
         return result;
     }
 
-    private static GDictionary ProjectDamageEstimateDictionary(
+    private static Dictionary<string, object> BuildDamageEstimateMap(
         IEnumerable<KeyValuePair<StringName, List<DamageEstimateBreakdown>>> values
     )
     {
-        var result = new GDictionary();
+        var result = new Dictionary<string, object>(StringComparer.Ordinal);
         foreach (
             KeyValuePair<StringName, List<DamageEstimateBreakdown>> entry
             in values ?? Array.Empty<KeyValuePair<StringName, List<DamageEstimateBreakdown>>>()
         )
         {
-            string normalizedKey = entry.Key.ToString();
-            if (!string.IsNullOrEmpty(normalizedKey))
-                result[normalizedKey] = ProjectDamageEstimateArray(entry.Value);
+            string key = entry.Key.ToString();
+            if (string.IsNullOrEmpty(key))
+                continue;
+            var estimates = new List<object>();
+            foreach (
+                DamageEstimateBreakdown estimate
+                in entry.Value ?? new List<DamageEstimateBreakdown>()
+            )
+            {
+                if (estimate != null)
+                    estimates.Add(estimate.ToTraceDictionary());
+            }
+            result[key] = estimates;
         }
         return result;
     }
 
-    private static GArray ProjectSaveEstimateArray(IEnumerable<DamageSaveEstimate> values)
+    private static List<object> BuildModifierList(
+        IEnumerable<BattleAttackRollModifierSpec> values
+    )
     {
-        var result = new GArray();
-        foreach (DamageSaveEstimate value in values ?? Array.Empty<DamageSaveEstimate>())
-        {
-            if (value != null)
-                result.Add(Project(value));
-        }
-        return result;
-    }
-
-    private static GArray ProjectDamageEstimateArray(IEnumerable<DamageEstimateBreakdown> values)
-    {
-        var result = new GArray();
+        var result = new List<object>();
         foreach (
-            DamageEstimateBreakdown value
-            in values ?? Array.Empty<DamageEstimateBreakdown>()
+            BattleAttackRollModifierSpec value
+            in values ?? Array.Empty<BattleAttackRollModifierSpec>()
         )
         {
             if (value != null)
-                result.Add(Project(value));
+                result.Add(value.ToTraceDictionary());
         }
+        return result;
+    }
+
+    private static Dictionary<StringName, int> CloneStringNameIntMap(
+        IReadOnlyDictionary<StringName, int> values
+    )
+    {
+        var result = new Dictionary<StringName, int>();
+        if (values == null)
+            return result;
+        foreach ((StringName key, int value) in values)
+            if (key != "")
+                result[key] = value;
         return result;
     }
 }

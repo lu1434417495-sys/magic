@@ -81,11 +81,6 @@ public sealed class AiCandidateSummary
         return result;
     }
 
-    internal Godot.Collections.Dictionary ToDictionary()
-    {
-        return TraceDictionaryProjection.ToDictionary(ToTraceDictionary());
-    }
-
     private static void CopyDictionary(
         Dictionary<string, object> target,
         IReadOnlyDictionary<string, object> source

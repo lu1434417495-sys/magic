@@ -25,7 +25,9 @@ public partial class run_battle_damage_preview_range_contract_regression : Lifec
                 null,
                 Array.Empty<CombatEffectDefinition>()
             );
-        Godot.Collections.Dictionary payload = BattleDamagePreviewRangeProjection.Project(preview);
+        using GodotProjectionLease<Godot.Collections.Dictionary> lease =
+            BattleDamagePreviewRangeProjection.BuildLease(preview);
+        Godot.Collections.Dictionary payload = lease.Value;
 
         _test.False(preview.HasDamage, "无伤害效果时 HasDamage 应为 false。");
         _test.Eq(preview.MinDamage, 0, "无伤害效果时 MinDamage 应为 0。");

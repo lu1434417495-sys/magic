@@ -44,7 +44,8 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
             diceSides: 6
         );
 
-        GDictionary expectedPreview = BattleDamagePreviewProjection.Project(
+        using GodotProjectionLease<GDictionary> expectedPreviewLease =
+            BattleDamagePreviewProjection.BuildLease(
             resolver.PreviewDamageEffectTyped(
                 source,
                 target,
@@ -54,6 +55,7 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
                 BattleDamagePreviewSaveMode.Expected
             )
         );
+        GDictionary expectedPreview = expectedPreviewLease.Value;
         GDictionary expectedOutcome = DictDictionary(expectedPreview, "damage_outcome");
         _test.Eq(DictInt(expectedOutcome, "rolled_damage", -1), 20, "Average preview should reuse offense-multiplied rolled_damage.");
         _test.Eq(DictStringName(expectedOutcome, "mitigation_tier"), "half", "Average preview should reuse mitigation tier.");
@@ -62,7 +64,8 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
         _test.Eq(DictInt(expectedPreview, "shield_absorbed", -1), 5, "Average preview should use shared shield absorption.");
         _test.Eq(DictInt(expectedPreview, "hp_damage", -1), 3, "Average preview hp_damage should subtract absorbed shield.");
 
-        GDictionary worstPreview = BattleDamagePreviewProjection.Project(
+        using GodotProjectionLease<GDictionary> worstPreviewLease =
+            BattleDamagePreviewProjection.BuildLease(
             resolver.PreviewDamageEffectTyped(
                 source,
                 target,
@@ -72,6 +75,7 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
                 BattleDamagePreviewSaveMode.Worst
             )
         );
+        GDictionary worstPreview = worstPreviewLease.Value;
         _test.Eq(DictInt(worstPreview, "post_save_damage", -1), 11, "Worst preview should use max dice and same mitigation chain.");
         _test.Eq(DictInt(worstPreview, "hp_damage", -1), 6, "Worst preview should resolve hp damage on cloned shield state.");
         _test.Eq(target.current_hp, 30, "Preview should not mutate target HP.");
@@ -94,7 +98,8 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
             savePartialOnSuccess: true
         );
 
-        GDictionary preview = BattleDamagePreviewProjection.Project(
+        using GodotProjectionLease<GDictionary> previewLease =
+            BattleDamagePreviewProjection.BuildLease(
             resolver.PreviewDamageEffectTyped(
                 source,
                 target,
@@ -106,6 +111,7 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
                 BattleDamagePreviewSaveMode.Expected
             )
         );
+        GDictionary preview = previewLease.Value;
         GDictionary saveEstimate = DictDictionary(preview, "save_estimate");
         _test.True(DictBool(saveEstimate, "has_save"), "Save preview should output save_estimate.");
         _test.Eq(

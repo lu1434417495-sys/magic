@@ -175,7 +175,7 @@ public sealed class BattleSimReportBuilder
     {
         if (metrics == null)
             return;
-        foreach (KeyValuePair<string, BattleSimFactionMetricSummary> entry in metrics.Factions)
+        foreach (KeyValuePair<string, BattleSimUnitMetricsSnapshot> entry in metrics.Factions)
         {
             if (!factionMetricTotals.TryGetValue(entry.Key, out BattleSimFactionMetricSummary targetEntry))
             {
@@ -188,7 +188,7 @@ public sealed class BattleSimReportBuilder
 
     private static void AccumulateFactionMetrics(
         BattleSimFactionMetricSummary target,
-        BattleSimFactionMetricSummary source
+        BattleSimUnitMetricsSnapshot source
     )
     {
         if (target == null || source == null)

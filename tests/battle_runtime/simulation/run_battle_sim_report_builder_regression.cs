@@ -1,7 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_battle_sim_report_builder_regression : LifecycleTestSceneTree
 {
@@ -92,26 +90,19 @@ public partial class run_battle_sim_report_builder_regression : LifecycleTestSce
             FinalTu = 10,
             Iterations = 5,
             TimelineSteps = 2,
-            Metrics = new GDictionary
-            {
-                ["units"] = new GDictionary
+            MetricsSnapshot = BuildMetricsSnapshot(
+                "unit_a",
+                new Dictionary<string, int>
                 {
-                    ["unit_a"] = new GDictionary
-                    {
-                        ["skill_attempt_counts"] = new GDictionary
-                        {
-                            ["skill_alpha"] = 3,
-                            ["skill_beta"] = 1,
-                        },
-                        ["skill_success_counts"] = new GDictionary
-                        {
-                            ["skill_alpha"] = 2,
-                            ["skill_beta"] = 1,
-                        },
-                    },
+                    ["skill_alpha"] = 3,
+                    ["skill_beta"] = 1,
                 },
-                ["factions"] = new GDictionary(),
-            },
+                new Dictionary<string, int>
+                {
+                    ["skill_alpha"] = 2,
+                    ["skill_beta"] = 1,
+                }
+            ),
             AiTurnTraces = System.Array.Empty<BattleAiTurnTraceProjection>(),
         };
     }
@@ -124,25 +115,15 @@ public partial class run_battle_sim_report_builder_regression : LifecycleTestSce
             FinalTu = 20,
             Iterations = 8,
             TimelineSteps = 4,
-            Metrics = new GDictionary
-            {
-                ["units"] = new GDictionary
+            MetricsSnapshot = BuildMetricsSnapshot(
+                "unit_b",
+                new Dictionary<string, int>
                 {
-                    ["unit_b"] = new GDictionary
-                    {
-                        ["skill_attempt_counts"] = new GDictionary
-                        {
-                            ["skill_alpha"] = 1,
-                            ["skill_gamma"] = 2,
-                        },
-                        ["skill_success_counts"] = new GDictionary
-                        {
-                            ["skill_alpha"] = 1,
-                        },
-                    },
+                    ["skill_alpha"] = 1,
+                    ["skill_gamma"] = 2,
                 },
-                ["factions"] = new GDictionary(),
-            },
+                new Dictionary<string, int> { ["skill_alpha"] = 1 }
+            ),
             AiTurnTraces = System.Array.Empty<BattleAiTurnTraceProjection>(),
         };
     }
@@ -155,28 +136,37 @@ public partial class run_battle_sim_report_builder_regression : LifecycleTestSce
             FinalTu = 9,
             Iterations = 4,
             TimelineSteps = 2,
-            Metrics = new GDictionary
-            {
-                ["units"] = new GDictionary
+            MetricsSnapshot = BuildMetricsSnapshot(
+                "unit_candidate",
+                new Dictionary<string, int>
                 {
-                    ["unit_candidate"] = new GDictionary
-                    {
-                        ["skill_attempt_counts"] = new GDictionary
-                        {
-                            ["skill_alpha"] = 3,
-                            ["skill_beta"] = 1,
-                        },
-                        ["skill_success_counts"] = new GDictionary
-                        {
-                            ["skill_alpha"] = 3,
-                            ["skill_beta"] = 1,
-                        },
-                    },
+                    ["skill_alpha"] = 3,
+                    ["skill_beta"] = 1,
                 },
-                ["factions"] = new GDictionary(),
-            },
+                new Dictionary<string, int>
+                {
+                    ["skill_alpha"] = 3,
+                    ["skill_beta"] = 1,
+                }
+            ),
             AiTurnTraces = System.Array.Empty<BattleAiTurnTraceProjection>(),
         };
+    }
+
+    private static BattleSimMetricsSnapshot BuildMetricsSnapshot(
+        string unitId,
+        IReadOnlyDictionary<string, int> attempts,
+        IReadOnlyDictionary<string, int> successes
+    )
+    {
+        var state = new BattleMetricsState();
+        var unit = new BattleMetricEntry { UnitId = unitId };
+        foreach (KeyValuePair<string, int> entry in attempts)
+            unit.SkillAttemptCounts[entry.Key] = entry.Value;
+        foreach (KeyValuePair<string, int> entry in successes)
+            unit.SkillSuccessCounts[entry.Key] = entry.Value;
+        state.Units[unitId] = unit;
+        return BattleSimMetricsSnapshot.Capture(state);
     }
 
     private static int GetInt(IReadOnlyDictionary<string, int> source, string key, int fallback = 0)

@@ -13,7 +13,7 @@ public partial class run_battle_ai_trace_summary_regression : LifecycleTestScene
         try
         {
             TestCommandSummaryCopiesBattleCommandAndProjectsToDictionary();
-            TestBattlePreviewDamagePreviewSetterDecodesProjectedPayload();
+            TestBattlePreviewStoresTypedDamagePreview();
             TestActionTraceProjectsStableDictionaryShape();
         }
         catch (Exception exception)
@@ -47,7 +47,13 @@ public partial class run_battle_ai_trace_summary_regression : LifecycleTestScene
         _test.Eq(summary.TargetUnitIds.Count, 2, "TargetUnitIds should be copied into a C# list.");
         _test.Eq(summary.TargetCoords.Count, 2, "TargetCoords should be copied into a C# list.");
 
-        Godot.Collections.Dictionary payload = summary.ToDictionary();
+        using GodotProjectionLease<GDictionary> lease = TraceDictionaryProjection.BuildLease(
+            summary.ToTraceDictionary(),
+            "ai_command_summary_test",
+            LifetimeDomain.Request,
+            "run_battle_ai_trace_summary_regression.command"
+        );
+        GDictionary payload = lease.Value;
         _test.Eq(payload["command_type"].AsString(), "skill", "Projection should include command_type.");
         _test.Eq(
             payload["target_unit_ids"].AsGodotArray().Count,
@@ -61,19 +67,21 @@ public partial class run_battle_ai_trace_summary_regression : LifecycleTestScene
         );
     }
 
-    private void TestBattlePreviewDamagePreviewSetterDecodesProjectedPayload()
+    private void TestBattlePreviewStoresTypedDamagePreview()
     {
         var preview = new BattlePreview();
-        preview.damage_preview = new GDictionary
-        {
-            ["has_damage"] = true,
-            ["min_damage"] = 4,
-            ["max_damage"] = 9,
-        };
+        preview.SetDamagePreview(
+            new BattleDamagePreviewRangeService.SkillDamagePreview(
+                true,
+                4,
+                9,
+                new List<BattleDamagePreviewRangeService.DamageEffectRange>()
+            )
+        );
 
         _test.True(
             preview.DamagePreviewTyped.HasValue,
-            "BattlePreview.damage_preview setter 应继续解码成 internal typed payload。"
+            "BattlePreview 应保存 typed damage preview。"
         );
         if (preview.DamagePreviewTyped.HasValue)
         {
@@ -130,7 +138,13 @@ public partial class run_battle_ai_trace_summary_regression : LifecycleTestScene
         trace.CandidateTraceCounters["evaluated"] = 3;
 
         _test.True(!trace.IsEmpty(), "Trace with trace_id should not be empty.");
-        Godot.Collections.Dictionary payload = trace.ToDictionary();
+        using GodotProjectionLease<GDictionary> lease = TraceDictionaryProjection.BuildLease(
+            trace.ToTraceDictionary(),
+            "ai_action_trace_test",
+            LifetimeDomain.Request,
+            "run_battle_ai_trace_summary_regression.action_trace"
+        );
+        GDictionary payload = lease.Value;
         _test.Eq(payload["trace_id"].AsString(), "trace_1", "Trace projection should include trace_id.");
         _test.Eq(payload["action_id"].AsString(), "cast_bolt", "Trace projection should include action_id.");
         _test.Eq(payload["evaluation_count"].AsInt32(), 3, "Trace projection should include evaluation_count.");

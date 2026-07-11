@@ -843,8 +843,10 @@ internal sealed class BattleMeteorSwarmResolver
                 entry.target_summaries.Add(targetOutcome);
             }
         }
+        using GodotProjectionLease<GDictionary> entryLease =
+            MeteorSwarmProjection.BuildLease(entry);
         GStringArray summaryLines = _reportFormatter.FormatMeteorSwarmSummary(
-            MeteorSwarmProjection.Project(entry)
+            entryLease.Value
         );
         if (summaryLines.Count != 0)
         {
@@ -937,13 +939,6 @@ internal sealed class BattleMeteorSwarmResolver
         };
     }
 
-    internal GDictArray _build_friendly_fire_numeric_summary(MeteorSwarmTargetPlan plan)
-    {
-        return MeteorSwarmProjection.ProjectNumericSummaryArray(
-            BuildFriendlyFireNumericSummariesTyped(plan)
-        );
-    }
-
     private List<MeteorSwarmNumericSummary> BuildFriendlyFireNumericSummariesTyped(
         MeteorSwarmTargetPlan plan
     )
@@ -967,11 +962,6 @@ internal sealed class BattleMeteorSwarmResolver
             summaries.Add(BuildFriendlyFireSummaryForUnitTyped(plan, targetUnit));
         }
         return summaries;
-    }
-
-    internal GDictArray _build_target_numeric_summary(MeteorSwarmTargetPlan plan)
-    {
-        return MeteorSwarmProjection.ProjectNumericSummaryArray(BuildTargetNumericSummariesTyped(plan));
     }
 
     private List<MeteorSwarmNumericSummary> BuildTargetNumericSummariesTyped(
@@ -1153,14 +1143,6 @@ internal sealed class BattleMeteorSwarmResolver
                 !hardReject
                 && expectedHpPercent > plan.profile.friendly_fire_soft_expected_hp_percent,
         };
-    }
-
-    internal GDictionary _build_friendly_fire_summary_for_unit(
-        MeteorSwarmTargetPlan plan,
-        BattleUnitState target_unit
-    )
-    {
-        return MeteorSwarmProjection.Project(BuildFriendlyFireSummaryForUnitTyped(plan, target_unit));
     }
 
     private MeteorSwarmNumericSummary BuildFriendlyFireSummaryForUnitTyped(
@@ -1365,11 +1347,6 @@ internal sealed class BattleMeteorSwarmResolver
             breakdown.Add(spec);
         }
         return breakdown;
-    }
-
-    internal GDictArray _build_component_preview(MeteorSwarmTargetPlan plan)
-    {
-        return MeteorSwarmProjection.ProjectComponentFactArray(BuildComponentPreviewTyped(plan));
     }
 
     private static BattleAttackRollModifierSpec BuildAccuracyModifierSpec(

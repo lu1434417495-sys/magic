@@ -679,7 +679,7 @@ public partial class run_magic_backlash_regression : LifecycleTestSceneTree
         };
     }
 
-    private static bool LogsContain(GStringArray logLines, string needle)
+    private static bool LogsContain(IEnumerable<string> logLines, string needle)
     {
         foreach (string line in logLines)
         {
@@ -691,13 +691,16 @@ public partial class run_magic_backlash_regression : LifecycleTestSceneTree
         return false;
     }
 
-    private static bool ReportContainsRefundPolicy(GArray reportEntries, string refundPolicy)
+    private static bool ReportContainsRefundPolicy(
+        IEnumerable<IReadOnlyDictionary<string, object>> reportEntries,
+        string refundPolicy
+    )
     {
-        foreach (GDictionary reportEntry in reportEntries)
+        foreach (IReadOnlyDictionary<string, object> reportEntry in reportEntries)
         {
             if (
-                reportEntry.ContainsKey("refund_policy")
-                && reportEntry["refund_policy"].AsString() == refundPolicy
+                reportEntry.TryGetValue("refund_policy", out object value)
+                && value?.ToString() == refundPolicy
             )
             {
                 return true;

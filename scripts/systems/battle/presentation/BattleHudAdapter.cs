@@ -1564,7 +1564,9 @@ public sealed class BattleHudAdapter : IDisposable
         {
             BattleSpecialProfilePreviewFacts facts =
                 selectedSkillPreview.special_profile_preview_facts;
-            GDictionary factsPayload = MeteorSwarmProjection.Project(facts);
+            using GodotProjectionLease<GDictionary> factsLease =
+                MeteorSwarmProjection.BuildLease(facts);
+            GDictionary factsPayload = factsLease.Value;
             string summaryText = selectedSkillPreview.hit_preview?.SummaryText;
             if (string.IsNullOrEmpty(summaryText))
             {
@@ -1588,10 +1590,15 @@ public sealed class BattleHudAdapter : IDisposable
 
     private static GDictionary BuildSelectedSkillDamagePreview(BattlePreview selectedSkillPreview)
     {
-        GDictionary runtimeDamagePreview = selectedSkillPreview?.damage_preview;
-        if (runtimeDamagePreview != null && runtimeDamagePreview.Count > 0)
+        if (selectedSkillPreview?.DamagePreviewTyped == null)
+            return new GDictionary();
+        using GodotProjectionLease<GDictionary> lease =
+            BattleDamagePreviewRangeProjection.BuildLease(
+                selectedSkillPreview.DamagePreviewTyped
+            );
+        if (lease.Value.Count > 0)
             return CopyDictionary(
-                runtimeDamagePreview,
+                lease.Value,
                 "BattleHudAdapter.BuildSelectedSkillDamagePreview"
             );
         return new GDictionary();
@@ -1599,11 +1606,15 @@ public sealed class BattleHudAdapter : IDisposable
 
     private static GDictionary BuildSelectedSkillSaveBranchPreview(BattlePreview selectedSkillPreview)
     {
-        GDictionary runtimeSaveBranchPreview =
-            selectedSkillPreview?.SaveBranchPreviewTyped?.ToDictionary();
-        if (runtimeSaveBranchPreview != null && runtimeSaveBranchPreview.Count > 0)
+        if (selectedSkillPreview?.SaveBranchPreviewTyped == null)
+            return new GDictionary();
+        using GodotProjectionLease<GDictionary> lease =
+            BattlePreviewProjection.BuildSaveBranchLease(
+                selectedSkillPreview.SaveBranchPreviewTyped
+            );
+        if (lease.Value.Count > 0)
             return CopyDictionary(
-                runtimeSaveBranchPreview,
+                lease.Value,
                 "BattleHudAdapter.BuildSelectedSkillSaveBranchPreview"
             );
         return new GDictionary();

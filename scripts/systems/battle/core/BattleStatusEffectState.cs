@@ -218,10 +218,7 @@ public class BattleStatusEffectState
 
     internal Dictionary<string, object> GetParamsTyped()
     {
-        return RuntimePlainPayload.NormalizeDictionary(
-            BuildParamsProjection(),
-            "BattleStatusEffectState.GetParamsTyped"
-        );
+        return BuildParamsPlainProjection();
     }
 
     internal static BattleStatusEffectState CreateOrDuplicate(BattleStatusEffectState existingEntry)
@@ -922,6 +919,138 @@ public class BattleStatusEffectState
             projected["save_bonus_by_tag"] = projectedBonusByTag;
         }
         return projected;
+    }
+
+    private Dictionary<string, object> BuildParamsPlainProjection()
+    {
+        Dictionary<string, object> projected = RuntimePlainPayload.CloneDictionary(_params);
+        if (incoming_damage_multiplier.HasValue)
+            projected["incoming_damage_multiplier"] = incoming_damage_multiplier.Value;
+        if (outgoing_damage_multiplier.HasValue)
+            projected["outgoing_damage_multiplier"] = outgoing_damage_multiplier.Value;
+        if (source_profile_id != "")
+            projected["source"] = source_profile_id;
+        if (source_layer_id != "")
+            projected["layer_id"] = source_layer_id;
+        if (source_skill_id != "")
+            projected["source_skill_id"] = source_skill_id;
+        if (stack_behavior != "")
+            projected["stack_behavior"] = stack_behavior;
+        if (stack_limit > 0)
+            projected["stack_limit"] = stack_limit;
+        if (heal_multiplier_percent.HasValue)
+            projected["heal_multiplier_percent"] = heal_multiplier_percent.Value;
+        if (shield_gain_multiplier_percent.HasValue)
+            projected["shield_gain_multiplier_percent"] = shield_gain_multiplier_percent.Value;
+        if (attack_roll_penalty >= 0)
+            projected["attack_roll_penalty"] = attack_roll_penalty;
+        if (source_bound_attack_roll_penalty > 0)
+        {
+            projected["source_bound_attack_roll_penalty"] = source_bound_attack_roll_penalty;
+            projected["source_bound_attack_roll_penalty_min_stacks"] =
+                Mathf.Max(source_bound_attack_roll_penalty_min_stacks, 1);
+        }
+        if (source_bound_incoming_attack_roll_bonus_per_stack > 0)
+        {
+            projected["source_bound_incoming_attack_roll_bonus_per_stack"] =
+                source_bound_incoming_attack_roll_bonus_per_stack;
+            projected["source_bound_incoming_attack_roll_bonus_min_stacks"] =
+                Mathf.Max(source_bound_incoming_attack_roll_bonus_min_stacks, 1);
+        }
+        if (source_bound_weapon_bonus_damage_dice_count > 0)
+        {
+            projected["source_bound_weapon_bonus_damage_dice_count"] =
+                source_bound_weapon_bonus_damage_dice_count;
+            projected["source_bound_weapon_bonus_damage_dice_sides"] =
+                source_bound_weapon_bonus_damage_dice_sides;
+            if (source_bound_weapon_bonus_damage_dice_bonus != 0)
+            {
+                projected["source_bound_weapon_bonus_damage_dice_bonus"] =
+                    source_bound_weapon_bonus_damage_dice_bonus;
+            }
+        }
+        if (attack_roll_bonus != 0)
+            projected["attack_roll_bonus"] = attack_roll_bonus;
+        if (attack_roll_advantage)
+            projected["attack_roll_advantage"] = true;
+        if (consume_on_next_attack_check)
+            projected["consume_on_next_attack_check"] = true;
+        if (consume_on_next_save)
+            projected["consume_on_next_save"] = true;
+        if (move_point_capacity_delta != 0)
+            projected["move_point_capacity_delta"] = move_point_capacity_delta;
+        if (undispellable)
+            projected["undispellable"] = true;
+        if (dispellable_magic)
+            projected["dispellable_magic"] = true;
+        if (dispellable_harmful_magic)
+            projected["dispellable_harmful_magic"] = true;
+        if (dispellable_beneficial_magic)
+            projected["dispellable_beneficial_magic"] = true;
+        if (damage_tag != "")
+            projected["damage_tag"] = damage_tag;
+        if (damage_tags.Count > 0)
+            projected["damage_tags"] = BuildPlainStringList(damage_tags);
+        if (damage_category != "")
+            projected["damage_category"] = damage_category;
+        if (body_size_category_override != "")
+            projected["body_size_category_override"] = body_size_category_override;
+        if (previous_body_size_category != "")
+            projected["previous_body_size_category"] = previous_body_size_category;
+        if (self_save_dc > 0)
+            projected["self_save_dc"] = self_save_dc;
+        if (self_save_ability != "")
+            projected["self_save_ability"] = self_save_ability;
+        if (self_save_tag != "")
+            projected["self_save_tag"] = self_save_tag;
+        if (self_save_roll_override.HasValue)
+            projected["self_save_roll_override"] = self_save_roll_override.Value;
+        if (source_skill_level.HasValue)
+            projected["skill_level"] = source_skill_level.Value;
+        if (death_prevention_priority > 0)
+            projected["death_prevention_priority"] = death_prevention_priority;
+        if (mitigation_tier != "")
+            projected["mitigation_tier"] = mitigation_tier;
+        if (dr_bypass_tag != "")
+            projected["dr_bypass_tag"] = dr_bypass_tag;
+        if (save_bonus != 0)
+            projected["save_bonus"] = save_bonus;
+        if (control_save_bonus != 0)
+            projected["control_save_bonus"] = control_save_bonus;
+        if (passive_reduction != 0)
+            projected["passive_reduction"] = passive_reduction;
+        if (content_dr != 0)
+            projected["content_dr"] = content_dr;
+        if (guard_block != 0)
+            projected["guard_block"] = guard_block;
+        if (range_bonus != 0)
+            projected["range_bonus"] = range_bonus;
+        if (save_advantage_tags.Count > 0)
+            projected["save_advantage_tags"] = BuildPlainStringList(save_advantage_tags);
+        if (save_disadvantage_tags.Count > 0)
+            projected["save_disadvantage_tags"] = BuildPlainStringList(save_disadvantage_tags);
+        if (save_immunity_tags.Count > 0)
+            projected["save_immunity_tags"] = BuildPlainStringList(save_immunity_tags);
+        if (save_tags.Count > 0)
+            projected["save_tags"] = BuildPlainStringList(save_tags);
+        if (status_tags.Count > 0)
+            projected["status_tags"] = BuildPlainStringList(status_tags);
+        if (save_bonus_by_tag.Count > 0)
+        {
+            var projectedBonusByTag = new Dictionary<StringName, int>();
+            foreach ((StringName key, int value) in save_bonus_by_tag)
+                projectedBonusByTag[key] = value;
+            projected["save_bonus_by_tag"] = projectedBonusByTag;
+        }
+        return projected;
+    }
+
+    private static List<object> BuildPlainStringList(IEnumerable<StringName> values)
+    {
+        var result = new List<object>();
+        foreach (StringName value in values ?? System.Array.Empty<StringName>())
+            result.Add(value.ToString());
+        return result;
     }
 
     private void ReplaceParams(GDictionary values)

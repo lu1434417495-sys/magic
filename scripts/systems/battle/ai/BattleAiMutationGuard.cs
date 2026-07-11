@@ -1209,8 +1209,8 @@ internal sealed class BattleAiMutationGuard
             snapshot._activeUnitId = state.active_unit_id;
             snapshot._winnerFactionId = state.winner_faction_id;
             snapshot._logEntries = StringArrayToList(state.log_entries);
-            snapshot._reportEntries = FieldArrayToSnapshots(
-                state.ProjectReportEntries(),
+            snapshot._reportEntries = PlainFieldListToSnapshots(
+                state.ReportEntriesTyped,
                 ReportEntrySnapshotKeys
             );
             snapshot._promotionQueue = FieldArrayToSnapshots(
@@ -1250,7 +1250,7 @@ internal sealed class BattleAiMutationGuard
             state.active_unit_id = _activeUnitId;
             state.winner_faction_id = _winnerFactionId;
             state.log_entries = BuildStringArray(_logEntries);
-            state.SetReportEntries(BuildDictionaryArray(_reportEntries));
+            state.SetReportEntries(BuildPlainDictionaryList(_reportEntries));
             state.SetPromotionQueue(BuildDictionaryArray(_promotionQueue));
             state.modal_state = _modalState;
             state.ReplaceLayeredBarrierFieldsTyped(_layeredBarrierFields.ToBarrierEntries());
@@ -1737,6 +1737,8 @@ internal sealed class BattleAiMutationGuard
     private sealed class KnownFieldSnapshot
     {
         private readonly StableMap _values = new();
+        private readonly Dictionary<string, object> _plainValues =
+            new(StringComparer.Ordinal);
 
         public static KnownFieldSnapshot Empty() => new();
 
@@ -1761,7 +1763,29 @@ internal sealed class BattleAiMutationGuard
             return result;
         }
 
+        public static KnownFieldSnapshot CaptureKnownFields(
+            IReadOnlyDictionary<string, object> source,
+            IReadOnlyCollection<string> allowedKeys
+        )
+        {
+            KnownFieldSnapshot result = new();
+            if (source == null || allowedKeys == null)
+                return result;
+            foreach (string key in allowedKeys)
+            {
+                if (source.TryGetValue(key, out object value))
+                {
+                    result._values.Set(key, ReadStableTypedValue(value));
+                    result._plainValues[key] = RuntimePlainPayload.CloneValue(value);
+                }
+            }
+            return result;
+        }
+
         public StableMap ToStableMap() => _values.Clone();
+
+        public Dictionary<string, object> ToPlainDictionary() =>
+            RuntimePlainPayload.CloneDictionary(_plainValues);
 
         public GDictionary ToGodotDictionary()
         {
@@ -2651,6 +2675,32 @@ internal sealed class BattleAiMutationGuard
             if (TryReadGodotDictionary(rawValue, out GDictionary value))
                 result.Add(KnownFieldSnapshot.CaptureKnownFields(value, allowedKeys));
         }
+        return result;
+    }
+
+    private static List<KnownFieldSnapshot> PlainFieldListToSnapshots(
+        IEnumerable<IReadOnlyDictionary<string, object>> values,
+        IReadOnlyCollection<string> allowedKeys
+    )
+    {
+        List<KnownFieldSnapshot> result = new();
+        foreach (
+            IReadOnlyDictionary<string, object> value in
+            values ?? Array.Empty<IReadOnlyDictionary<string, object>>()
+        )
+        {
+            result.Add(KnownFieldSnapshot.CaptureKnownFields(value, allowedKeys));
+        }
+        return result;
+    }
+
+    private static List<Dictionary<string, object>> BuildPlainDictionaryList(
+        IEnumerable<KnownFieldSnapshot> values
+    )
+    {
+        var result = new List<Dictionary<string, object>>();
+        foreach (KnownFieldSnapshot value in values ?? Array.Empty<KnownFieldSnapshot>())
+            result.Add(value?.ToPlainDictionary() ?? new Dictionary<string, object>());
         return result;
     }
 

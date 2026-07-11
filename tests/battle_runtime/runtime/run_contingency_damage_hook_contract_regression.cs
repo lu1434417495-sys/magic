@@ -601,7 +601,7 @@ public partial class run_contingency_damage_hook_contract_regression : Lifecycle
     }
 
     private void AssertV1ReportEntry(
-        GDictionary entry,
+        IReadOnlyDictionary<string, object> entry,
         string decision,
         string reasonId,
         string setupId,
@@ -630,19 +630,25 @@ public partial class run_contingency_damage_hook_contract_regression : Lifecycle
         _test.Eq(DictString(entry, "target_resolver"), "", $"{message} target resolver should be empty.");
     }
 
-    private static GDictionary FindReportEntry(BattleEventBatch batch, string entryType)
+    private static IReadOnlyDictionary<string, object> FindReportEntry(
+        BattleEventBatch batch,
+        string entryType
+    )
     {
-        foreach (GDictionary entry in batch?.ReportEntriesTyped ?? Array.Empty<GDictionary>())
+        foreach (
+            IReadOnlyDictionary<string, object> entry in
+            batch?.ReportEntriesTyped ?? Array.Empty<IReadOnlyDictionary<string, object>>()
+        )
             if (DictString(entry, "entry_type") == entryType)
                 return entry;
-        return new GDictionary();
+        return new Dictionary<string, object>(StringComparer.Ordinal);
     }
 
     private static bool HasRuntimeReportEntry(BattleState state, string entryType)
     {
         if (state == null)
             return false;
-        foreach (GDictionary entry in state.report_entries)
+        foreach (IReadOnlyDictionary<string, object> entry in state.report_entries)
         {
             if (DictString(entry, "entry_type") == entryType)
                 return true;
@@ -655,6 +661,16 @@ public partial class run_contingency_damage_hook_contract_regression : Lifecycle
         if (source == null || !source.ContainsKey(key))
             return "";
         return source[key].AsString();
+    }
+
+    private static string DictString(
+        IReadOnlyDictionary<string, object> source,
+        string key
+    )
+    {
+        return source != null && source.TryGetValue(key, out object value)
+            ? value?.ToString() ?? ""
+            : "";
     }
 
     private BattleRuntimeModule Track(BattleRuntimeModule runtime)

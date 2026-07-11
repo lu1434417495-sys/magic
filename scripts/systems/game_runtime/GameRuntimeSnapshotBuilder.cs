@@ -890,7 +890,10 @@ public sealed class GameRuntimeSnapshotBuilder
             ["contingency"] = contingencySnapshot,
             ["hud"] = hudSnapshot,
             ["report_entry_count"] = battleState.ReportEntryCount,
-            ["report_entries"] = battleState.ProjectReportEntries(),
+            ["report_entries"] = RuntimePlainPayload.ProjectDictionaryArray(
+                battleState.ReportEntriesTyped,
+                "GameRuntimeSnapshotBuilder.battle.report_entries"
+            ),
             ["units"] = units,
         };
     }

@@ -21,11 +21,6 @@ public sealed partial class BattleRuntimeModule
             _ai_turn_traces.Clear();
     }
 
-    internal Godot.Collections.Array<GDictionary> GetAiTurnTraces()
-    {
-        return BattleAiTurnTracePayloadProjection.ProjectArray(_ai_turn_traces);
-    }
-
     internal IReadOnlyList<BattleAiTurnTraceProjection> GetAiTurnTracesTyped() => _ai_turn_traces;
 
     internal void ClearAiTurnTraces() => _ai_turn_traces.Clear();
@@ -284,13 +279,16 @@ public sealed partial class BattleRuntimeModule
     }
 
     private static List<IReadOnlyDictionary<string, object>> BuildReportEntriesProjection(
-        IEnumerable<GDictionary> reportEntries
+        IEnumerable<IReadOnlyDictionary<string, object>> reportEntries
     )
     {
         var result = new List<IReadOnlyDictionary<string, object>>();
-        foreach (GDictionary reportEntry in reportEntries ?? Array.Empty<GDictionary>())
+        foreach (
+            IReadOnlyDictionary<string, object> reportEntry in
+            reportEntries ?? Array.Empty<IReadOnlyDictionary<string, object>>()
+        )
         {
-            result.Add(TraceDictionaryProjection.FromDictionary(reportEntry));
+            result.Add(RuntimePlainPayload.CloneDictionary(reportEntry));
         }
         return result;
     }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -109,13 +110,9 @@ public partial class BattleState
 
     public StringList log_entries = new();
 
-    private readonly List<Dictionary<string, object>> _reportEntries = new();
-
-    public GArray report_entries
-    {
-        get => ProjectReportEntries();
-        set => SetReportEntries(value);
-    }
+    private readonly List<IReadOnlyDictionary<string, object>> _reportEntries = new();
+    public ReadOnlyCollection<IReadOnlyDictionary<string, object>> report_entries =>
+        BuildReportEntrySnapshots();
 
     public WarehouseState party_backpack_view = new WarehouseState();
 
@@ -154,6 +151,8 @@ public partial class BattleState
     internal int EquipmentTargetMarkCount => _equipmentTargetMarks.Count;
     internal int TemporaryEdgeFeatureCount => _temporaryEdgeFeatures.Count;
     internal int ReportEntryCount => _reportEntries.Count;
+    internal IReadOnlyList<IReadOnlyDictionary<string, object>> ReportEntriesTyped =>
+        BuildReportEntrySnapshots();
     internal BattleBarrierStore LayeredBarrierStore => _layeredBarrierStore;
     internal long MovementGeometryRevision => _movement_geometry_revision;
 
@@ -209,27 +208,40 @@ public partial class BattleState
         _trim_log_entries();
     }
 
-    internal GArray ProjectReportEntries() =>
-        RuntimePlainPayload.ProjectDictionaryArray(
-            _reportEntries,
-            "BattleState.report_entries"
-        );
-
-    internal void SetReportEntries(System.Collections.IEnumerable values)
+    internal void SetReportEntries(
+        IEnumerable<IReadOnlyDictionary<string, object>> values
+    )
     {
-        SetPlainPayloadEntries(_reportEntries, values, "BattleState.report_entries");
+        _reportEntries.Clear();
+        if (values == null)
+            return;
+        foreach (IReadOnlyDictionary<string, object> value in values)
+            AddReportEntry(value);
     }
 
-    internal void AddReportEntry(GDictionary reportEntry)
+    internal void AddReportEntry(IReadOnlyDictionary<string, object> reportEntry)
     {
         if (reportEntry == null || reportEntry.Count == 0)
             return;
         _reportEntries.Add(
-            RuntimePlainPayload.NormalizeDictionary(
-                reportEntry,
-                $"BattleState.report_entries[{_reportEntries.Count}]"
+            new ReadOnlyDictionary<string, object>(
+                RuntimePlainPayload.CloneDictionary(reportEntry)
             )
         );
+    }
+
+    private ReadOnlyCollection<IReadOnlyDictionary<string, object>> BuildReportEntrySnapshots()
+    {
+        var result = new List<IReadOnlyDictionary<string, object>>(_reportEntries.Count);
+        foreach (IReadOnlyDictionary<string, object> entry in _reportEntries)
+        {
+            result.Add(
+                new ReadOnlyDictionary<string, object>(
+                    RuntimePlainPayload.CloneDictionary(entry)
+                )
+            );
+        }
+        return result.AsReadOnly();
     }
 
     internal GArray ProjectPromotionQueue() =>

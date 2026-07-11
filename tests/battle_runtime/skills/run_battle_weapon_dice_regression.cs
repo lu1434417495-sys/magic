@@ -1076,7 +1076,7 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         return dictionary[key].AsString();
     }
 
-    private static string FormatLogs(GStringArray logLines)
+    private static string FormatLogs(IEnumerable<string> logLines)
     {
         if (logLines == null)
         {

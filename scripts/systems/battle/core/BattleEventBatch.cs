@@ -2,51 +2,44 @@ using Godot;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
+using System.Collections.ObjectModel;
 
 public class BattleEventBatch : IDisposable
 {
     private readonly List<StringName> _changedUnitIds = new();
     private readonly List<Vector2I> _changedCoords = new();
     private readonly List<string> _logLines = new();
-    private readonly List<Dictionary<string, object>> _reportEntries = new();
+    private readonly List<IReadOnlyDictionary<string, object>> _reportEntries = new();
     private readonly List<CharacterProgressionDelta> _progressionDeltas = new();
+    private readonly ReadOnlyCollection<StringName> _changedUnitIdsView;
+    private readonly ReadOnlyCollection<Vector2I> _changedCoordsView;
+    private readonly ReadOnlyCollection<string> _logLinesView;
+
+    public BattleEventBatch()
+    {
+        _changedUnitIdsView = _changedUnitIds.AsReadOnly();
+        _changedCoordsView = _changedCoords.AsReadOnly();
+        _logLinesView = _logLines.AsReadOnly();
+    }
 
     public bool phase_changed { get; set; }
     public bool battle_ended { get; set; }
-    public Godot.Collections.Array<StringName> changed_unit_ids
-    {
-        get => BuildChangedUnitIdsArray();
-        set => SetChangedUnitIds(value);
-    }
-    public Godot.Collections.Array<Vector2I> changed_coords
-    {
-        get => BuildChangedCoordsArray();
-        set => SetChangedCoords(value);
-    }
-    public Godot.Collections.Array<string> log_lines
-    {
-        get => BuildLogLinesArray();
-        set => SetLogLines(value);
-    }
-    public GArray report_entries
-    {
-        get => BuildReportEntriesArray();
-        set => SetReportEntries(value);
-    }
-    public GArray progression_deltas
-    {
-        get => BuildProgressionDeltasArray();
-        set => SetProgressionDeltas(value);
-    }
+    public ReadOnlyCollection<StringName> changed_unit_ids => _changedUnitIdsView;
+    public ReadOnlyCollection<Vector2I> changed_coords => _changedCoordsView;
+    public ReadOnlyCollection<string> log_lines => _logLinesView;
+    public ReadOnlyCollection<IReadOnlyDictionary<string, object>> report_entries =>
+        BuildReportEntrySnapshots();
+    public ReadOnlyCollection<CharacterProgressionDelta> progression_deltas =>
+        BuildProgressionDeltaSnapshots();
     public bool modal_requested { get; set; }
 
     internal IReadOnlyList<StringName> ChangedUnitIdsTyped => _changedUnitIds;
     internal IReadOnlyList<Vector2I> ChangedCoordsTyped => _changedCoords;
     internal IReadOnlyList<string> LogLinesTyped => _logLines;
-    internal IReadOnlyList<GDictionary> ReportEntriesTyped => BuildReportEntryList();
-    internal IReadOnlyList<CharacterProgressionDelta> ProgressionDeltasTyped => _progressionDeltas;
+    internal IReadOnlyList<IReadOnlyDictionary<string, object>> ReportEntriesTyped =>
+        BuildReportEntrySnapshots();
+    internal IReadOnlyList<CharacterProgressionDelta> ProgressionDeltasTyped =>
+        BuildProgressionDeltaSnapshots();
 
     public void Dispose() { }
 
@@ -154,27 +147,17 @@ public class BattleEventBatch : IDisposable
         return _logLines.Contains(value ?? "");
     }
 
-    internal void SetReportEntries(IEnumerable values)
+    internal void SetReportEntries(
+        IEnumerable<IReadOnlyDictionary<string, object>> values
+    )
     {
         _reportEntries.Clear();
         if (values == null)
         {
             return;
         }
-        int index = 0;
-        foreach (object value in values)
-        {
-            if (TryAsDictionary(value, out GDictionary reportEntry))
-            {
-                _reportEntries.Add(
-                    RuntimePlainPayload.NormalizeDictionary(
-                        reportEntry,
-                        $"BattleEventBatch.report_entries[{index}]"
-                    )
-                );
-            }
-            index++;
-        }
+        foreach (IReadOnlyDictionary<string, object> value in values)
+            AddReportEntry(value);
     }
 
     internal void ClearReportEntries()
@@ -182,37 +165,28 @@ public class BattleEventBatch : IDisposable
         _reportEntries.Clear();
     }
 
-    internal void AddReportEntry(GDictionary reportEntry)
+    internal void AddReportEntry(IReadOnlyDictionary<string, object> reportEntry)
     {
         if (reportEntry == null || reportEntry.Count == 0)
         {
             return;
         }
         _reportEntries.Add(
-            RuntimePlainPayload.NormalizeDictionary(
-                reportEntry,
-                $"BattleEventBatch.report_entries[{_reportEntries.Count}]"
+            new ReadOnlyDictionary<string, object>(
+                RuntimePlainPayload.CloneDictionary(reportEntry)
             )
         );
     }
 
-    internal void SetProgressionDeltas(IEnumerable values)
+    internal void SetProgressionDeltas(IEnumerable<CharacterProgressionDelta> values)
     {
         _progressionDeltas.Clear();
         if (values == null)
         {
             return;
         }
-        foreach (object value in values)
-        {
-            if (value is CharacterProgressionDelta delta)
-            {
-                AddProgressionDelta(delta);
-                continue;
-            }
-            if (TryParseProgressionDeltaPayload(value, out CharacterProgressionDelta payloadDelta))
-                AddProgressionDelta(payloadDelta);
-        }
+        foreach (CharacterProgressionDelta value in values)
+            AddProgressionDelta(value);
     }
 
     internal void ClearProgressionDeltas()
@@ -226,107 +200,29 @@ public class BattleEventBatch : IDisposable
         {
             return;
         }
-        _progressionDeltas.Add(delta);
+        _progressionDeltas.Add(delta.DuplicateState());
     }
 
-    private Godot.Collections.Array<string> BuildLogLinesArray()
+    private ReadOnlyCollection<CharacterProgressionDelta> BuildProgressionDeltaSnapshots()
     {
-        var result = new Godot.Collections.Array<string>();
-        foreach (string value in _logLines)
-        {
-            result.Add(value);
-        }
-        return result;
-    }
-
-    private Godot.Collections.Array<StringName> BuildChangedUnitIdsArray()
-    {
-        var result = new Godot.Collections.Array<StringName>();
-        foreach (StringName unitId in _changedUnitIds)
-        {
-            result.Add(unitId);
-        }
-        return result;
-    }
-
-    private Godot.Collections.Array<Vector2I> BuildChangedCoordsArray()
-    {
-        var result = new Godot.Collections.Array<Vector2I>();
-        foreach (Vector2I coord in _changedCoords)
-        {
-            result.Add(coord);
-        }
-        return result;
-    }
-
-    internal GArray BuildReportEntriesArray()
-    {
-        return RuntimePlainPayload.ProjectDictionaryArray(
-            _reportEntries,
-            "BattleEventBatch.BuildReportEntriesArray"
-        );
-    }
-
-    internal GArray BuildProgressionDeltasArray()
-    {
-        var result = new GArray();
+        var result = new List<CharacterProgressionDelta>(_progressionDeltas.Count);
         foreach (CharacterProgressionDelta delta in _progressionDeltas)
-        {
-            if (delta != null)
-                result.Add(delta.ToDictionary());
-        }
-        return result;
+            result.Add(delta?.DuplicateState());
+        return result.AsReadOnly();
     }
 
-    private static bool TryParseProgressionDeltaPayload(
-        object value,
-        out CharacterProgressionDelta delta
-    )
+    private ReadOnlyCollection<IReadOnlyDictionary<string, object>> BuildReportEntrySnapshots()
     {
-        delta = null;
-        if (value is GDictionary dictionary)
-        {
-            delta = CharacterProgressionDelta.FromDictionary(dictionary);
-            return delta != null;
-        }
-        if (value is Variant variant && variant.VariantType == Variant.Type.Dictionary)
-        {
-            delta = CharacterProgressionDelta.FromDictionary(variant.AsGodotDictionary());
-            return delta != null;
-        }
-        return false;
-    }
-
-    private List<GDictionary> BuildReportEntryList()
-    {
-        var result = new List<GDictionary>();
-        int index = 0;
-        foreach (Dictionary<string, object> entry in _reportEntries)
+        var result = new List<IReadOnlyDictionary<string, object>>(_reportEntries.Count);
+        foreach (IReadOnlyDictionary<string, object> entry in _reportEntries)
         {
             result.Add(
-                RuntimePlainPayload.ProjectDictionary(
-                    entry,
-                    $"BattleEventBatch.ReportEntriesTyped[{index}]"
+                new ReadOnlyDictionary<string, object>(
+                    RuntimePlainPayload.CloneDictionary(entry)
                 )
             );
-            index++;
         }
-        return result;
+        return result.AsReadOnly();
     }
 
-    private static bool TryAsDictionary(object value, out GDictionary dictionary)
-    {
-        if (value is GDictionary dictionaryValue)
-        {
-            dictionary = dictionaryValue;
-            return true;
-        }
-        if (value is Variant variant && variant.VariantType == Variant.Type.Dictionary)
-        {
-            dictionary = variant.AsGodotDictionary();
-            return true;
-        }
-        dictionary = null;
-        return false;
-    }
 }

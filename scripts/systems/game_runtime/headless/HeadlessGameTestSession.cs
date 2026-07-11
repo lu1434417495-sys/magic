@@ -536,7 +536,9 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
         SettleFrames(1);
 
         ChangeEquipmentReportSummary report = FindLastChangeEquipmentReport(
-            batch != null ? batch.ReportEntriesTyped : Array.Empty<GDictionary>()
+            batch != null
+                ? batch.ReportEntriesTyped
+                : Array.Empty<IReadOnlyDictionary<string, object>>()
         );
         if (report == null)
         {
@@ -1069,7 +1071,7 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
     }
 
     private static ChangeEquipmentReportSummary FindLastChangeEquipmentReport(
-        IReadOnlyList<GDictionary> reportEntries
+        IReadOnlyList<IReadOnlyDictionary<string, object>> reportEntries
     )
     {
         if (reportEntries == null)
@@ -1078,13 +1080,13 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
         }
         for (int index = reportEntries.Count - 1; index >= 0; index--)
         {
-            GDictionary report = reportEntries[index];
+            IReadOnlyDictionary<string, object> report = reportEntries[index];
             if (report == null || report.Count == 0)
             {
                 continue;
             }
 
-            Dictionary<string, object> typedReport = NormalizeDictionary(report);
+            Dictionary<string, object> typedReport = RuntimePlainPayload.CloneDictionary(report);
             string reportType = ReadTypedString(typedReport, "type");
             if (reportType == "change_equipment")
             {

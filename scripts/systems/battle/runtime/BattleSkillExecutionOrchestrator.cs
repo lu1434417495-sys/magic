@@ -3478,13 +3478,13 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             };
             Runtime?._append_report_entry_to_batch(
                 batch,
-                Runtime?._report_formatter.BuildSkillEventEntry(
+                Runtime?._report_formatter.BuildSkillEventEntryPlain(
                     active_unit,
                     target_unit,
                     skillId,
                     BattleReportFormatter.REASON_DOOM_SENTENCE_APPLIED,
                     doomSentenceReportTags
-                ) ?? new GDictionary()
+                ) ?? new Dictionary<string, object>(StringComparer.Ordinal)
             );
         }
         if (healing > 0)

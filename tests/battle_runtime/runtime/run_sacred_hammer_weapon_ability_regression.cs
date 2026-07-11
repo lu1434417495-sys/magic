@@ -610,9 +610,14 @@ public partial class run_sacred_hammer_weapon_ability_regression : LifecycleTest
             $" logs=[{string.Join(" | ", batch.LogLinesTyped ?? Array.Empty<string>())}] reports=[{string.Join(" | ", DescribeReports(batch.ReportEntriesTyped))}]";
     }
 
-    private static IEnumerable<string> DescribeReports(IEnumerable<GDictionary> entries)
+    private static IEnumerable<string> DescribeReports(
+        IEnumerable<IReadOnlyDictionary<string, object>> entries
+    )
     {
-        foreach (GDictionary entry in entries ?? Array.Empty<GDictionary>())
+        foreach (
+            IReadOnlyDictionary<string, object> entry in
+            entries ?? Array.Empty<IReadOnlyDictionary<string, object>>()
+        )
             yield return entry?.ToString() ?? "";
     }
 

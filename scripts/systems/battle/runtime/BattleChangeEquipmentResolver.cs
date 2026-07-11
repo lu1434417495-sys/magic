@@ -883,12 +883,12 @@ internal class BattleChangeEquipmentResolver
             result.HpMaxBefore != 0 || !hasUnit ? result.HpMaxBefore : ComputeUnitHpMax(activeUnit);
         int hpMaxAfter =
             result.HpMaxAfter != 0 || !hasUnit ? result.HpMaxAfter : ComputeUnitHpMax(activeUnit);
-        var reportEntry = new GDictionary
+        var reportEntry = new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["type"] = "change_equipment",
             ["ok"] = success,
             ["error_code"] = success ? "" : (result.ErrorCode ?? "change_equipment_failed"),
-            ["event_tags"] = new GArray { "equipment", "change_equipment" },
+            ["event_tags"] = new List<string> { "equipment", "change_equipment" },
             ["unit_id"] = hasUnit ? activeUnit.unit_id.ToString() : "",
             ["target_unit_id"] = result.TargetUnitId.ToString(),
             ["operation"] = result.Operation.ToString(),

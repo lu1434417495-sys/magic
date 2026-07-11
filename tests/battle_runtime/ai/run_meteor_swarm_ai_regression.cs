@@ -157,7 +157,9 @@ public partial class run_meteor_swarm_ai_regression : LifecycleTestSceneTree
                     reasons.Contains("elite_or_boss"),
                     "high priority trace 应记录 elite/boss reason。"
                 );
-                GDictionary trace = BattleAiScoreProjection.Project(decapScore);
+                using GodotProjectionLease<GDictionary> traceLease =
+                    BattleAiScoreProjection.BuildLease(decapScore);
+                GDictionary trace = traceLease.Value;
                 _test.True(
                     trace.GetValueOrDefault("high_priority_target_ids", new GArray()).AsGodotArray().Contains(eliteCenter.unit_id),
                     "to_dict trace 应序列化 high_priority_target_ids。"

@@ -170,6 +170,11 @@ public sealed class GameRuntimeCommandLogger
         return BuildBattleBatchLogContextInternal(batch);
     }
 
+    internal static Dictionary NormalizeReportEntryForLog(
+        IReadOnlyDictionary<string, object> reportEntry
+    ) =>
+        NormalizeLogValue(reportEntry) as Dictionary ?? new Dictionary();
+
     private void BeginLoggedCommandInternal(string eventId, string domain, Dictionary context)
     {
         var previousScope = _activeCommandLogScope;
@@ -525,7 +530,9 @@ public sealed class GameRuntimeCommandLogger
         return result;
     }
 
-    private Godot.Collections.Array NormalizeLogArray(System.Collections.IEnumerable values)
+    private static Godot.Collections.Array NormalizeLogArray(
+        System.Collections.IEnumerable values
+    )
     {
         var normalizedArray = new Godot.Collections.Array();
         if (values == null)
@@ -535,8 +542,21 @@ public sealed class GameRuntimeCommandLogger
         return normalizedArray;
     }
 
-    private object NormalizeLogValue(object rawValue)
+    private static object NormalizeLogValue(object rawValue)
     {
+        if (rawValue is StringName stringName)
+            return stringName.ToString();
+        if (rawValue is Vector2I plainCoord)
+            return new Dictionary { ["x"] = plainCoord.X, ["y"] = plainCoord.Y };
+        if (rawValue is Vector2 plainFloatCoord)
+            return new Dictionary { ["x"] = plainFloatCoord.X, ["y"] = plainFloatCoord.Y };
+        if (rawValue is IReadOnlyDictionary<string, object> plainDictionary)
+        {
+            var normalizedDictionary = new Dictionary();
+            foreach (KeyValuePair<string, object> entry in plainDictionary)
+                normalizedDictionary[entry.Key] = ToVariant(NormalizeLogValue(entry.Value));
+            return normalizedDictionary;
+        }
         if (rawValue is Dictionary rawDictionary)
         {
             var normalizedDictionary = new Dictionary();
@@ -548,6 +568,13 @@ public sealed class GameRuntimeCommandLogger
         {
             var normalizedArray = new Godot.Collections.Array();
             foreach (var entry in rawArray)
+                normalizedArray.Add(ToVariant(NormalizeLogValue(entry)));
+            return normalizedArray;
+        }
+        if (rawValue is System.Collections.IEnumerable plainValues && rawValue is not string)
+        {
+            var normalizedArray = new Godot.Collections.Array();
+            foreach (object entry in plainValues)
                 normalizedArray.Add(ToVariant(NormalizeLogValue(entry)));
             return normalizedArray;
         }

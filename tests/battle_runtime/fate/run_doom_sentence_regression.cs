@@ -414,19 +414,28 @@ public partial class run_doom_sentence_regression : LifecycleTestSceneTree
         runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
     }
 
-    private static bool HasReportEntryWithTag(GArray entries, StringName reasonId, StringName eventTag)
+    private static bool HasReportEntryWithTag(
+        IEnumerable<IReadOnlyDictionary<string, object>> entries,
+        StringName reasonId,
+        StringName eventTag
+    )
     {
         if (entries == null)
             return false;
-        foreach (Variant entryValue in entries)
+        foreach (IReadOnlyDictionary<string, object> entry in entries)
         {
-            if (entryValue.VariantType != Variant.Type.Dictionary)
+            if (
+                entry == null
+                || !entry.TryGetValue("reason_id", out object reasonValue)
+                || ProgressionDataUtils.to_string_name(reasonValue) != reasonId
+            )
                 continue;
-            GDictionary entry = entryValue.AsGodotDictionary();
-            if (ProgressionDataUtils.to_string_name(entry.GetValueOrDefault("reason_id", "")) != reasonId)
+            if (
+                !entry.TryGetValue("event_tags", out object tagsValue)
+                || tagsValue is not System.Collections.IEnumerable eventTags
+            )
                 continue;
-            GArray eventTags = entry.GetValueOrDefault("event_tags", new GArray()).AsGodotArray();
-            foreach (Variant tagValue in eventTags)
+            foreach (object tagValue in eventTags)
             {
                 if (ProgressionDataUtils.to_string_name(tagValue) == eventTag)
                     return true;

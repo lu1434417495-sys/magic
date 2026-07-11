@@ -121,9 +121,9 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
                 "友军波及时应输出 numeric friendly fire summary。"
             );
 
-            GArray targetSummaries = MeteorSwarmProjection.Project(
-                    previewFacts
-                )
+            using GodotProjectionLease<GDictionary> factsLease =
+                MeteorSwarmProjection.BuildLease(previewFacts);
+            GArray targetSummaries = factsLease.Value
                 .GetValueOrDefault("target_numeric_summary", new GArray())
                 .AsGodotArray();
             GDictionary centerSummary = FindTargetSummary(targetSummaries, enemyCenter.unit_id);
@@ -158,7 +158,7 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
             BattleCellState outerCell = Cell(setup.Runtime.GetState(), new Vector2I(7, 7));
             _test.True(centerCell != null && centerCell.timed_terrain_effects.Count >= 3, "中心格应留下陨坑/碎石/尘土地形效果。");
             _test.True(outerCell != null && outerCell.timed_terrain_effects.Count >= 1, "最外层应留下碎石地形效果。");
-            GDictionary summaryEntry = batch.report_entries[0].AsGodotDictionary();
+            IReadOnlyDictionary<string, object> summaryEntry = batch.report_entries[0];
             _test.Eq(DictString(summaryEntry, "entry_type", ""), "meteor_swarm_impact_summary", "战报应使用 meteor_swarm_impact_summary。");
             _test.Eq(
                 DictString(summaryEntry, "nominal_plan_signature", ""),
@@ -600,9 +600,20 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
             : fallback;
     }
 
-    private static string FormatLogs(GStringArray logLines)
+    private static string FormatLogs(IEnumerable<string> logLines)
     {
         return logLines == null ? "" : string.Join("|", logLines);
+    }
+
+    private static string DictString(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key,
+        string fallback = ""
+    )
+    {
+        return dictionary != null && dictionary.TryGetValue(key, out object value)
+            ? value?.ToString() ?? fallback
+            : fallback;
     }
 
     private sealed class Fixture : IDisposable

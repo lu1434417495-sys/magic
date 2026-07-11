@@ -489,14 +489,20 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
 
     private static bool HasSuppressedOrigin(BattleEventBatch batch)
     {
-        foreach (GDictionary reportEntry in batch?.ReportEntriesTyped ?? Array.Empty<GDictionary>())
+        foreach (
+            IReadOnlyDictionary<string, object> reportEntry in
+            batch?.ReportEntriesTyped ?? Array.Empty<IReadOnlyDictionary<string, object>>()
+        )
         {
-            if (!reportEntry.ContainsKey("effect_origin"))
-                continue;
-            GDictionary origin = reportEntry["effect_origin"].AsGodotDictionary();
             if (
-                origin.ContainsKey("can_trigger_contingencies")
-                && !origin["can_trigger_contingencies"].AsBool()
+                !reportEntry.TryGetValue("effect_origin", out object originValue)
+                || originValue is not IReadOnlyDictionary<string, object> origin
+            )
+                continue;
+            if (
+                origin.TryGetValue("can_trigger_contingencies", out object canTriggerValue)
+                && canTriggerValue is bool canTrigger
+                && !canTrigger
             )
                 return true;
         }
@@ -505,16 +511,19 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
 
     private static bool HasAutoCastOriginSkillEntryId(BattleEventBatch batch, string expectedSkillEntryId)
     {
-        foreach (GDictionary reportEntry in batch?.ReportEntriesTyped ?? Array.Empty<GDictionary>())
+        foreach (
+            IReadOnlyDictionary<string, object> reportEntry in
+            batch?.ReportEntriesTyped ?? Array.Empty<IReadOnlyDictionary<string, object>>()
+        )
         {
-            if (!reportEntry.ContainsKey("effect_origin"))
-                continue;
-            GDictionary origin = reportEntry["effect_origin"].AsGodotDictionary();
             if (
-                origin.ContainsKey("origin_kind")
-                && origin["origin_kind"].AsString() == "contingency_auto_cast"
-                && origin.ContainsKey("skill_entry_id")
-                && origin["skill_entry_id"].AsString() == expectedSkillEntryId
+                !reportEntry.TryGetValue("effect_origin", out object originValue)
+                || originValue is not IReadOnlyDictionary<string, object> origin
+            )
+                continue;
+            if (
+                DictString(origin, "origin_kind", "") == "contingency_auto_cast"
+                && DictString(origin, "skill_entry_id", "") == expectedSkillEntryId
             )
                 return true;
         }
@@ -523,7 +532,10 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
 
     private static bool HasReportEntryKind(BattleEventBatch batch, string entryKind)
     {
-        foreach (GDictionary reportEntry in batch?.ReportEntriesTyped ?? Array.Empty<GDictionary>())
+        foreach (
+            IReadOnlyDictionary<string, object> reportEntry in
+            batch?.ReportEntriesTyped ?? Array.Empty<IReadOnlyDictionary<string, object>>()
+        )
         {
             if (DictString(reportEntry, "entry_type", "") == entryKind)
                 return true;
@@ -532,7 +544,7 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
     }
 
     private void AssertV1ReportEntry(
-        GDictionary entry,
+        IReadOnlyDictionary<string, object> entry,
         string decision,
         string reasonId,
         string setupId,
@@ -558,18 +570,27 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
         _test.Eq(DictString(entry, "target_resolver", ""), targetResolver, $"{message} target resolver mismatch.");
     }
 
-    private static GDictionary FindReportEntry(BattleEventBatch batch, string entryType)
+    private static IReadOnlyDictionary<string, object> FindReportEntry(
+        BattleEventBatch batch,
+        string entryType
+    )
     {
-        foreach (GDictionary entry in batch?.ReportEntriesTyped ?? Array.Empty<GDictionary>())
+        foreach (
+            IReadOnlyDictionary<string, object> entry in
+            batch?.ReportEntriesTyped ?? Array.Empty<IReadOnlyDictionary<string, object>>()
+        )
             if (DictString(entry, "entry_type", "") == entryType)
                 return entry;
-        return new GDictionary();
+        return new Dictionary<string, object>(StringComparer.Ordinal);
     }
 
     private static int CountNonContingencyReports(BattleEventBatch batch)
     {
         int count = 0;
-        foreach (GDictionary reportEntry in batch?.ReportEntriesTyped ?? Array.Empty<GDictionary>())
+        foreach (
+            IReadOnlyDictionary<string, object> reportEntry in
+            batch?.ReportEntriesTyped ?? Array.Empty<IReadOnlyDictionary<string, object>>()
+        )
             if (!DictString(reportEntry, "entry_type", "").StartsWith("contingency_", StringComparison.Ordinal))
                 count += 1;
         return count;
@@ -904,6 +925,17 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
         if (source == null || key == null || !source.ContainsKey(key))
             return fallback;
         return source[key].AsString();
+    }
+
+    private static string DictString(
+        IReadOnlyDictionary<string, object> source,
+        string key,
+        string fallback = ""
+    )
+    {
+        return source != null && source.TryGetValue(key, out object value)
+            ? value?.ToString() ?? fallback
+            : fallback;
     }
 
     private BattleRuntimeModule Track(BattleRuntimeModule runtime)

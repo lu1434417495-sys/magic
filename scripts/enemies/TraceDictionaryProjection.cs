@@ -1,9 +1,12 @@
+using System;
 using System.Collections.Generic;
 using Godot;
+using GArray = Godot.Collections.Array;
+using GDictionary = Godot.Collections.Dictionary;
 
 internal static class TraceDictionaryProjection
 {
-    internal static Dictionary<string, object> FromDictionary(Godot.Collections.Dictionary source)
+    internal static Dictionary<string, object> FromDictionary(GDictionary source)
     {
         var result = new Dictionary<string, object>(System.StringComparer.Ordinal);
         if (source == null)
@@ -22,143 +25,547 @@ internal static class TraceDictionaryProjection
         return result;
     }
 
-    internal static Godot.Collections.Dictionary ToDictionary(IReadOnlyDictionary<string, object> source)
+    internal static GodotProjectionLease<GDictionary> BuildLease(
+        IReadOnlyDictionary<string, object> source,
+        string ownerId,
+        LifetimeDomain domain,
+        string reason
+    )
     {
-        var result = new Godot.Collections.Dictionary();
-        if (source == null)
+        var root = new GDictionary();
+        GodotProjectionLease<GDictionary> lease =
+            GodotProjectionLease<GDictionary>.CreateOwnedRoot(
+                root,
+                ownerId,
+                domain,
+                reason
+            );
+        try
         {
-            return result;
+            WriteInto(lease, root, source, reason);
+            return lease;
         }
+        catch
+        {
+            lease.Dispose();
+            throw;
+        }
+    }
+
+    internal static GodotProjectionLease<GDictionary> BuildJsonSafeLease(
+        IReadOnlyDictionary<string, object> source,
+        string ownerId,
+        LifetimeDomain domain,
+        string reason
+    )
+    {
+        var root = new GDictionary();
+        GodotProjectionLease<GDictionary> lease =
+            GodotProjectionLease<GDictionary>.CreateOwnedRoot(
+                root,
+                ownerId,
+                domain,
+                reason
+            );
+        try
+        {
+            WriteJsonSafeInto(lease, root, source, reason);
+            return lease;
+        }
+        catch
+        {
+            lease.Dispose();
+            throw;
+        }
+    }
+
+    internal static GodotProjectionLease<GArray> BuildArrayLease(
+        IEnumerable<object> source,
+        string ownerId,
+        LifetimeDomain domain,
+        string reason
+    )
+    {
+        var root = new GArray();
+        GodotProjectionLease<GArray> lease = GodotProjectionLease<GArray>.CreateOwnedRoot(
+            root,
+            ownerId,
+            domain,
+            reason
+        );
+        try
+        {
+            WriteArrayInto(lease, root, source, reason);
+            return lease;
+        }
+        catch
+        {
+            lease.Dispose();
+            throw;
+        }
+    }
+
+    internal static void WriteInto<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        GDictionary target,
+        IReadOnlyDictionary<string, object> source,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        ArgumentNullException.ThrowIfNull(lease);
+        ArgumentNullException.ThrowIfNull(target);
+        if (source == null)
+            return;
+
+        foreach (KeyValuePair<string, object> entry in source)
+        {
+            if (!string.IsNullOrEmpty(entry.Key))
+                target[entry.Key] = WriteValue(lease, entry.Value, $"{reason}.{entry.Key}");
+        }
+    }
+
+    private static void WriteJsonSafeInto<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        GDictionary target,
+        IReadOnlyDictionary<string, object> source,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        ArgumentNullException.ThrowIfNull(lease);
+        ArgumentNullException.ThrowIfNull(target);
+        if (source == null)
+            return;
         foreach (KeyValuePair<string, object> entry in source)
         {
             if (!string.IsNullOrEmpty(entry.Key))
             {
-                AddValue(result, entry.Key, entry.Value);
+                target[entry.Key] = WriteJsonSafeValue(
+                    lease,
+                    entry.Value,
+                    $"{reason}.{entry.Key}"
+                );
             }
         }
+    }
+
+    internal static GDictionary WriteDictionary<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IReadOnlyDictionary<string, object> source,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GDictionary result = lease.Own(new GDictionary(), reason);
+        WriteInto(lease, result, source, reason);
         return result;
     }
 
-    internal static Godot.Collections.Dictionary ToDictionary(IReadOnlyDictionary<string, int> source)
+    internal static GDictionary WriteDictionary<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IReadOnlyDictionary<string, int> source,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
     {
-        var result = new Godot.Collections.Dictionary();
+        GDictionary result = lease.Own(new GDictionary(), reason);
         if (source == null)
-        {
             return result;
-        }
         foreach (KeyValuePair<string, int> entry in source)
         {
             if (!string.IsNullOrEmpty(entry.Key))
-            {
                 result[entry.Key] = entry.Value;
-            }
         }
         return result;
     }
 
-    private static void AddValue(Godot.Collections.Dictionary result, string key, object value)
+    internal static GArray WriteArray<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IEnumerable<object> values,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
     {
-        switch (value)
+        GArray result = lease.Own(new GArray(), reason);
+        WriteArrayInto(lease, result, values, reason);
+        return result;
+    }
+
+    internal static void WriteArrayInto<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        GArray target,
+        IEnumerable<object> values,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        ArgumentNullException.ThrowIfNull(lease);
+        ArgumentNullException.ThrowIfNull(target);
+        if (values == null)
+            return;
+        int index = 0;
+        foreach (object value in values)
         {
-            case null:
-                result[key] = "";
-                break;
-            case string text:
-                result[key] = text;
-                break;
-            case StringName name:
-                result[key] = name;
-                break;
-            case bool flag:
-                result[key] = flag;
-                break;
-            case int intValue:
-                result[key] = intValue;
-                break;
-            case long longValue:
-                result[key] = longValue;
-                break;
-            case float floatValue:
-                result[key] = floatValue;
-                break;
-            case double doubleValue:
-                result[key] = doubleValue;
-                break;
-            case Vector2I coord:
-                result[key] = coord;
-                break;
-            case AiCommandSummary command:
-                result[key] = ToDictionary(command.ToTraceDictionary());
-                break;
-            case AiCandidateSummary candidate:
-                result[key] = ToDictionary(candidate.ToTraceDictionary());
-                break;
-            case AiActionTrace actionTrace:
-                result[key] = ToDictionary(actionTrace.ToTraceDictionary());
-                break;
-            case BattleAiTurnTraceProjection turnTrace:
-                result[key] = ToDictionary(turnTrace.ToTraceDictionary());
-                break;
-            case BattleAiTraceTransitionProjection transition:
-                result[key] = ToDictionary(transition.ToTraceDictionary());
-                break;
-            case BattleAiTraceTransitionConditionProjection condition:
-                result[key] = ToDictionary(condition.ToTraceDictionary());
-                break;
-            case BattleAiTraceUnitSnapshotProjection snapshot:
-                result[key] = ToDictionary(snapshot.ToTraceDictionary());
-                break;
-            case BattleAiTraceUnitResultProjection unitResult:
-                result[key] = ToDictionary(unitResult.ToTraceDictionary());
-                break;
-            case BattleAiTraceExecutionResultProjection executionResult:
-                result[key] = ToDictionary(executionResult.ToTraceDictionary());
-                break;
-            case BattleAiScoreInput scoreInput:
-                result[key] = ToDictionary(scoreInput.ToTraceDictionary());
-                break;
-            case IReadOnlyDictionary<string, object> dictionary:
-                result[key] = ToDictionary(dictionary);
-                break;
-            case IReadOnlyDictionary<string, int> intDictionary:
-                result[key] = ToDictionary(intDictionary);
-                break;
-            case IEnumerable<StringName> stringNames:
-                result[key] = ToStringNameArray(stringNames);
-                break;
-            case IEnumerable<Vector2I> coords:
-                result[key] = ToVector2IArray(coords);
-                break;
-            case IEnumerable<string> strings:
-                result[key] = ToStringArray(strings);
-                break;
-            case IEnumerable<object> values:
-                result[key] = ToArray(values);
-                break;
-            default:
-                result[key] = value.ToString();
-                break;
+            target.Add(WriteValue(lease, value, $"{reason}[{index}]"));
+            index++;
         }
+    }
+
+    private static Variant WriteValue<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        object value,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        return value switch
+        {
+            null => Variant.From(""),
+            string text => Variant.From(text),
+            StringName name => Variant.From(name),
+            bool flag => Variant.From(flag),
+            int intValue => Variant.From(intValue),
+            long longValue => Variant.From(longValue),
+            float floatValue => Variant.From(floatValue),
+            double doubleValue => Variant.From(doubleValue),
+            Vector2I coord => Variant.From(coord),
+            AiCommandSummary command => Variant.From(
+                WriteDictionary(lease, command.ToTraceDictionary(), reason)
+            ),
+            AiCandidateSummary candidate => Variant.From(
+                WriteDictionary(lease, candidate.ToTraceDictionary(), reason)
+            ),
+            AiActionTrace actionTrace => Variant.From(
+                WriteDictionary(lease, actionTrace.ToTraceDictionary(), reason)
+            ),
+            BattleAiTurnTraceProjection turnTrace => Variant.From(
+                WriteDictionary(lease, turnTrace.ToTraceDictionary(), reason)
+            ),
+            BattleAiTraceTransitionProjection transition => Variant.From(
+                WriteDictionary(lease, transition.ToTraceDictionary(), reason)
+            ),
+            BattleAiTraceTransitionConditionProjection condition => Variant.From(
+                WriteDictionary(lease, condition.ToTraceDictionary(), reason)
+            ),
+            BattleAiTraceUnitSnapshotProjection snapshot => Variant.From(
+                WriteDictionary(lease, snapshot.ToTraceDictionary(), reason)
+            ),
+            BattleAiTraceUnitResultProjection unitResult => Variant.From(
+                WriteDictionary(lease, unitResult.ToTraceDictionary(), reason)
+            ),
+            BattleAiTraceExecutionResultProjection executionResult => Variant.From(
+                WriteDictionary(lease, executionResult.ToTraceDictionary(), reason)
+            ),
+            BattleAiScoreInput scoreInput => Variant.From(
+                WriteDictionary(lease, scoreInput.ToTraceDictionary(), reason)
+            ),
+            IReadOnlyDictionary<string, object> dictionary => Variant.From(
+                WriteDictionary(lease, dictionary, reason)
+            ),
+            IReadOnlyDictionary<string, int> intDictionary => Variant.From(
+                WriteDictionary(lease, intDictionary, reason)
+            ),
+            IReadOnlyDictionary<StringName, object> stringNameObjectDictionary => Variant.From(
+                WriteStringNameObjectDictionary(
+                    lease,
+                    stringNameObjectDictionary,
+                    reason
+                )
+            ),
+            IReadOnlyDictionary<StringName, int> stringNameIntDictionary => Variant.From(
+                WriteStringNameIntDictionary(lease, stringNameIntDictionary, reason)
+            ),
+            IEnumerable<StringName> stringNames => Variant.From(
+                WriteStringNameArray(lease, stringNames, reason)
+            ),
+            IEnumerable<Vector2I> coords => Variant.From(
+                WriteVector2IArray(lease, coords, reason)
+            ),
+            IEnumerable<string> strings => Variant.From(
+                WriteStringArray(lease, strings, reason)
+            ),
+            IEnumerable<object> values => Variant.From(WriteArray(lease, values, reason)),
+            _ => throw new InvalidOperationException(
+                $"Unsupported trace projection value type: {value.GetType().FullName} ({reason})."
+            ),
+        };
+    }
+
+    private static Variant WriteJsonSafeValue<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        object value,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        return value switch
+        {
+            null => Variant.From(""),
+            string text => Variant.From(text),
+            StringName name => Variant.From(name.ToString()),
+            bool flag => Variant.From(flag),
+            int intValue => Variant.From(intValue),
+            long longValue => Variant.From(longValue),
+            float floatValue => Variant.From(floatValue),
+            double doubleValue => Variant.From(doubleValue),
+            Vector2I coord => Variant.From(WriteJsonSafeCoord(lease, coord, reason)),
+            AiCommandSummary command => Variant.From(
+                WriteJsonSafeDictionary(lease, command.ToTraceDictionary(), reason)
+            ),
+            AiCandidateSummary candidate => Variant.From(
+                WriteJsonSafeDictionary(lease, candidate.ToTraceDictionary(), reason)
+            ),
+            AiActionTrace actionTrace => Variant.From(
+                WriteJsonSafeDictionary(lease, actionTrace.ToTraceDictionary(), reason)
+            ),
+            BattleAiTurnTraceProjection turnTrace => Variant.From(
+                WriteJsonSafeDictionary(lease, turnTrace.ToTraceDictionary(), reason)
+            ),
+            BattleAiTraceTransitionProjection transition => Variant.From(
+                WriteJsonSafeDictionary(lease, transition.ToTraceDictionary(), reason)
+            ),
+            BattleAiTraceTransitionConditionProjection condition => Variant.From(
+                WriteJsonSafeDictionary(lease, condition.ToTraceDictionary(), reason)
+            ),
+            BattleAiTraceUnitSnapshotProjection snapshot => Variant.From(
+                WriteJsonSafeDictionary(lease, snapshot.ToTraceDictionary(), reason)
+            ),
+            BattleAiTraceUnitResultProjection unitResult => Variant.From(
+                WriteJsonSafeDictionary(lease, unitResult.ToTraceDictionary(), reason)
+            ),
+            BattleAiTraceExecutionResultProjection executionResult => Variant.From(
+                WriteJsonSafeDictionary(lease, executionResult.ToTraceDictionary(), reason)
+            ),
+            BattleAiScoreInput scoreInput => Variant.From(
+                WriteJsonSafeDictionary(lease, scoreInput.ToTraceDictionary(), reason)
+            ),
+            IReadOnlyDictionary<string, object> dictionary => Variant.From(
+                WriteJsonSafeDictionary(lease, dictionary, reason)
+            ),
+            IReadOnlyDictionary<string, int> intDictionary => Variant.From(
+                WriteJsonSafeStringIntDictionary(lease, intDictionary, reason)
+            ),
+            IReadOnlyDictionary<string, float> floatDictionary => Variant.From(
+                WriteJsonSafeStringFloatDictionary(lease, floatDictionary, reason)
+            ),
+            IReadOnlyDictionary<StringName, object> stringNameObjectDictionary => Variant.From(
+                WriteJsonSafeStringNameObjectDictionary(
+                    lease,
+                    stringNameObjectDictionary,
+                    reason
+                )
+            ),
+            IReadOnlyDictionary<StringName, int> stringNameIntDictionary => Variant.From(
+                WriteJsonSafeStringNameIntDictionary(
+                    lease,
+                    stringNameIntDictionary,
+                    reason
+                )
+            ),
+            IEnumerable<StringName> stringNames => Variant.From(
+                WriteJsonSafeStringNameArray(lease, stringNames, reason)
+            ),
+            IEnumerable<Vector2I> coords => Variant.From(
+                WriteJsonSafeVectorArray(lease, coords, reason)
+            ),
+            IEnumerable<string> strings => Variant.From(
+                WriteJsonSafeStringArray(lease, strings, reason)
+            ),
+            IEnumerable<object> values => Variant.From(
+                WriteJsonSafeArray(lease, values, reason)
+            ),
+            _ => throw new InvalidOperationException(
+                $"Unsupported JSON-safe projection value type: {value.GetType().FullName} ({reason})."
+            ),
+        };
+    }
+
+    private static GDictionary WriteJsonSafeDictionary<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IReadOnlyDictionary<string, object> source,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GDictionary result = lease.Own(new GDictionary(), reason);
+        WriteJsonSafeInto(lease, result, source, reason);
+        return result;
+    }
+
+    private static GArray WriteJsonSafeArray<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IEnumerable<object> source,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GArray result = lease.Own(new GArray(), reason);
+        if (source == null)
+            return result;
+        int index = 0;
+        foreach (object value in source)
+        {
+            result.Add(WriteJsonSafeValue(lease, value, $"{reason}[{index}]"));
+            index++;
+        }
+        return result;
+    }
+
+    private static GDictionary WriteJsonSafeCoord<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        Vector2I coord,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GDictionary result = lease.Own(new GDictionary(), reason);
+        result["x"] = coord.X;
+        result["y"] = coord.Y;
+        return result;
+    }
+
+    private static GDictionary WriteJsonSafeStringIntDictionary<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IReadOnlyDictionary<string, int> source,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GDictionary result = lease.Own(new GDictionary(), reason);
+        if (source != null)
+            foreach ((string key, int value) in source)
+                if (!string.IsNullOrEmpty(key))
+                    result[key] = value;
+        return result;
+    }
+
+    private static GDictionary WriteJsonSafeStringFloatDictionary<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IReadOnlyDictionary<string, float> source,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GDictionary result = lease.Own(new GDictionary(), reason);
+        if (source != null)
+            foreach ((string key, float value) in source)
+                if (!string.IsNullOrEmpty(key))
+                    result[key] = value;
+        return result;
+    }
+
+    private static GDictionary WriteJsonSafeStringNameObjectDictionary<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IReadOnlyDictionary<StringName, object> source,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GDictionary result = lease.Own(new GDictionary(), reason);
+        if (source == null)
+            return result;
+        foreach ((StringName key, object value) in source)
+        {
+            string textKey = key.ToString();
+            if (!string.IsNullOrEmpty(textKey))
+                result[textKey] = WriteJsonSafeValue(lease, value, $"{reason}.{textKey}");
+        }
+        return result;
+    }
+
+    private static GDictionary WriteJsonSafeStringNameIntDictionary<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IReadOnlyDictionary<StringName, int> source,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GDictionary result = lease.Own(new GDictionary(), reason);
+        if (source != null)
+            foreach ((StringName key, int value) in source)
+                if (key != (StringName)"")
+                    result[key.ToString()] = value;
+        return result;
+    }
+
+    private static GArray WriteJsonSafeStringNameArray<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IEnumerable<StringName> source,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GArray result = lease.Own(new GArray(), reason);
+        if (source != null)
+            foreach (StringName value in source)
+                result.Add(value.ToString());
+        return result;
+    }
+
+    private static GArray WriteJsonSafeVectorArray<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IEnumerable<Vector2I> source,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GArray result = lease.Own(new GArray(), reason);
+        if (source == null)
+            return result;
+        int index = 0;
+        foreach (Vector2I value in source)
+        {
+            result.Add(WriteJsonSafeCoord(lease, value, $"{reason}[{index}]"));
+            index++;
+        }
+        return result;
+    }
+
+    private static GArray WriteJsonSafeStringArray<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IEnumerable<string> source,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GArray result = lease.Own(new GArray(), reason);
+        if (source != null)
+            foreach (string value in source)
+                result.Add(value ?? "");
+        return result;
     }
 
     private static object FromVariant(Variant value)
     {
-        return value.VariantType switch
+        switch (value.VariantType)
         {
-            Variant.Type.Bool => value.AsBool(),
-            Variant.Type.Int => value.AsInt64(),
-            Variant.Type.Float => value.AsDouble(),
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.Vector2I => value.AsVector2I(),
-            Variant.Type.Dictionary => FromDictionary(value.AsGodotDictionary()),
-            Variant.Type.Array => FromArray(value.AsGodotArray()),
-            Variant.Type.Nil => "",
-            _ => value.ToString(),
-        };
+            case Variant.Type.Bool:
+                return value.AsBool();
+            case Variant.Type.Int:
+                return value.AsInt64();
+            case Variant.Type.Float:
+                return value.AsDouble();
+            case Variant.Type.String:
+                return value.AsString();
+            case Variant.Type.StringName:
+                return value.AsStringName();
+            case Variant.Type.Vector2I:
+                return value.AsVector2I();
+            case Variant.Type.Dictionary:
+                using (GDictionary dictionary = value.AsGodotDictionary())
+                    return FromDictionary(dictionary);
+            case Variant.Type.Array:
+                using (GArray array = value.AsGodotArray())
+                    return FromArray(array);
+            case Variant.Type.Nil:
+                return "";
+            default:
+                return value.ToString();
+        }
     }
 
-    internal static List<object> FromArray(Godot.Collections.Array source)
+    internal static List<object> FromArray(GArray source)
     {
         var result = new List<object>();
         if (source == null)
@@ -172,96 +579,6 @@ internal static class TraceDictionaryProjection
         return result;
     }
 
-    internal static Godot.Collections.Array ToArray(IEnumerable<object> values)
-    {
-        var result = new Godot.Collections.Array();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (object value in values)
-        {
-            AddArrayValue(result, value);
-        }
-        return result;
-    }
-
-    private static void AddArrayValue(Godot.Collections.Array result, object value)
-    {
-        switch (value)
-        {
-            case null:
-                result.Add("");
-                break;
-            case string text:
-                result.Add(text);
-                break;
-            case StringName name:
-                result.Add(name);
-                break;
-            case bool flag:
-                result.Add(flag);
-                break;
-            case int intValue:
-                result.Add(intValue);
-                break;
-            case long longValue:
-                result.Add(longValue);
-                break;
-            case float floatValue:
-                result.Add(floatValue);
-                break;
-            case double doubleValue:
-                result.Add(doubleValue);
-                break;
-            case Vector2I coord:
-                result.Add(coord);
-                break;
-            case AiCommandSummary command:
-                result.Add(ToDictionary(command.ToTraceDictionary()));
-                break;
-            case AiCandidateSummary candidate:
-                result.Add(ToDictionary(candidate.ToTraceDictionary()));
-                break;
-            case AiActionTrace actionTrace:
-                result.Add(ToDictionary(actionTrace.ToTraceDictionary()));
-                break;
-            case BattleAiTurnTraceProjection turnTrace:
-                result.Add(ToDictionary(turnTrace.ToTraceDictionary()));
-                break;
-            case BattleAiTraceTransitionProjection transition:
-                result.Add(ToDictionary(transition.ToTraceDictionary()));
-                break;
-            case BattleAiTraceTransitionConditionProjection condition:
-                result.Add(ToDictionary(condition.ToTraceDictionary()));
-                break;
-            case BattleAiTraceUnitSnapshotProjection snapshot:
-                result.Add(ToDictionary(snapshot.ToTraceDictionary()));
-                break;
-            case BattleAiTraceUnitResultProjection unitResult:
-                result.Add(ToDictionary(unitResult.ToTraceDictionary()));
-                break;
-            case BattleAiTraceExecutionResultProjection executionResult:
-                result.Add(ToDictionary(executionResult.ToTraceDictionary()));
-                break;
-            case BattleAiScoreInput scoreInput:
-                result.Add(ToDictionary(scoreInput.ToTraceDictionary()));
-                break;
-            case IReadOnlyDictionary<string, object> dictionary:
-                result.Add(ToDictionary(dictionary));
-                break;
-            case IReadOnlyDictionary<string, int> intDictionary:
-                result.Add(ToDictionary(intDictionary));
-                break;
-            case IEnumerable<object> values:
-                result.Add(ToArray(values));
-                break;
-            default:
-                result.Add(value.ToString());
-                break;
-        }
-    }
-
     private static string ReadKey(Variant key)
     {
         return key.VariantType switch
@@ -273,33 +590,82 @@ internal static class TraceDictionaryProjection
         };
     }
 
-    private static Godot.Collections.Array<StringName> ToStringNameArray(IEnumerable<StringName> values)
+    private static GArray WriteStringNameArray<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IEnumerable<StringName> values,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
     {
-        var result = new Godot.Collections.Array<StringName>();
+        GArray result = lease.Own(new GArray(), reason);
         foreach (StringName value in values)
-        {
             result.Add(ProgressionDataUtils.to_string_name(value));
+        return result;
+    }
+
+    private static GDictionary WriteStringNameIntDictionary<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IReadOnlyDictionary<StringName, int> source,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GDictionary result = lease.Own(new GDictionary(), reason);
+        if (source == null)
+            return result;
+        foreach (KeyValuePair<StringName, int> entry in source)
+        {
+            if (entry.Key != (StringName)"")
+                result[entry.Key] = entry.Value;
         }
         return result;
     }
 
-    private static Godot.Collections.Array<Vector2I> ToVector2IArray(IEnumerable<Vector2I> values)
+    private static GDictionary WriteStringNameObjectDictionary<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IReadOnlyDictionary<StringName, object> source,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
     {
-        var result = new Godot.Collections.Array<Vector2I>();
+        GDictionary result = lease.Own(new GDictionary(), reason);
+        if (source == null)
+            return result;
+        foreach (KeyValuePair<StringName, object> entry in source)
+        {
+            if (entry.Key != (StringName)"")
+                result[entry.Key] = WriteValue(
+                    lease,
+                    entry.Value,
+                    $"{reason}.{entry.Key}"
+                );
+        }
+        return result;
+    }
+
+    private static GArray WriteVector2IArray<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IEnumerable<Vector2I> values,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GArray result = lease.Own(new GArray(), reason);
         foreach (Vector2I value in values)
-        {
             result.Add(value);
-        }
         return result;
     }
 
-    private static Godot.Collections.Array<string> ToStringArray(IEnumerable<string> values)
+    private static GArray WriteStringArray<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IEnumerable<string> values,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
     {
-        var result = new Godot.Collections.Array<string>();
+        GArray result = lease.Own(new GArray(), reason);
         foreach (string value in values)
-        {
             result.Add(value ?? "");
-        }
         return result;
     }
 }

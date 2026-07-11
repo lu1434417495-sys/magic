@@ -155,11 +155,6 @@ public sealed class AiActionTrace
         };
     }
 
-    internal Godot.Collections.Dictionary ToDictionary()
-    {
-        return TraceDictionaryProjection.ToDictionary(ToTraceDictionary());
-    }
-
     private static void CopyObjectDictionary(
         Dictionary<string, object> target,
         IReadOnlyDictionary<string, object> source

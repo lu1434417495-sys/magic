@@ -1,5 +1,6 @@
+using System;
+using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 internal sealed class BattleEffectOrigin
 {
@@ -48,8 +49,8 @@ internal sealed class BattleEffectOrigin
             request?.ReleaseContext?.TriggerType ?? ""
         );
 
-    internal GDictionary ToDictionary() =>
-        new()
+    internal Dictionary<string, object> ToPlainDictionary() =>
+        new(StringComparer.Ordinal)
         {
             ["origin_kind"] = OriginKind.ToString(),
             ["can_trigger_contingencies"] = CanTriggerContingencies,

@@ -82,12 +82,14 @@ public partial class run_battle_ai_vs_ai_simulation_regression : LifecycleTestSc
                         sawHostileAiTrace = true;
                 }
 
-                GArray finalUnits = run?.FinalUnits ?? new GArray();
-                foreach (Variant unitEntryValue in finalUnits)
+                IReadOnlyList<Dictionary<string, object>> finalUnits =
+                    run?.FinalUnits ?? System.Array.Empty<Dictionary<string, object>>();
+                foreach (Dictionary<string, object> unitEntry in finalUnits)
                 {
-                    GDictionary unitEntry = GetSelfDict(unitEntryValue);
                     _test.Eq(
-                        GetString(unitEntry, "control_mode"),
+                        unitEntry.TryGetValue("control_mode", out object controlMode)
+                            ? controlMode as string ?? ""
+                            : "",
                         "ai",
                         "AI vs AI 示例中的最终单位快照不应出现 manual control_mode。"
                     );

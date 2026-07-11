@@ -122,7 +122,7 @@ public partial class run_battle_report_formatter_contract_regression : Lifecycle
         return entry.GetValueOrDefault(key, "").AsString();
     }
 
-    private void AssertAllLinesNonEmpty(Godot.Collections.Array<string> lines, string message)
+    private void AssertAllLinesNonEmpty(IReadOnlyList<string> lines, string message)
     {
         if (lines == null || lines.Count == 0)
         {

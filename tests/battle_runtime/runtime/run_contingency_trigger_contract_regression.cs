@@ -609,7 +609,7 @@ public partial class run_contingency_trigger_contract_regression : LifecycleTest
     }
 
     private void AssertV1ReportEntry(
-        GDictionary entry,
+        IReadOnlyDictionary<string, object> entry,
         string decision,
         string reasonId,
         string setupId,
@@ -633,12 +633,18 @@ public partial class run_contingency_trigger_contract_regression : LifecycleTest
         _test.True(entry.ContainsKey("target_resolver"), $"{message} should expose target_resolver.");
     }
 
-    private static GDictionary FindReportEntry(BattleEventBatch batch, string entryType)
+    private static IReadOnlyDictionary<string, object> FindReportEntry(
+        BattleEventBatch batch,
+        string entryType
+    )
     {
-        foreach (GDictionary entry in batch?.ReportEntriesTyped ?? Array.Empty<GDictionary>())
+        foreach (
+            IReadOnlyDictionary<string, object> entry in
+            batch?.ReportEntriesTyped ?? Array.Empty<IReadOnlyDictionary<string, object>>()
+        )
             if (GetString(entry, "entry_type") == entryType)
                 return entry;
-        return new GDictionary();
+        return new Dictionary<string, object>(StringComparer.Ordinal);
     }
 
     private static GDictionary FindSnapshotInstance(GArray instances, string setupId)
@@ -1002,6 +1008,16 @@ public partial class run_contingency_trigger_contract_regression : LifecycleTest
         if (dict == null || string.IsNullOrEmpty(key) || !dict.ContainsKey(key))
             return "";
         return dict[key].AsString();
+    }
+
+    private static string GetString(
+        IReadOnlyDictionary<string, object> dict,
+        string key
+    )
+    {
+        return dict != null && dict.TryGetValue(key, out object value)
+            ? value?.ToString() ?? ""
+            : "";
     }
 
     private static int GetInt(GDictionary dict, string key, int fallback = 0)

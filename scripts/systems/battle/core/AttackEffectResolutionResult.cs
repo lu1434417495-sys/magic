@@ -1774,6 +1774,45 @@ internal static class AttackEffectResolutionResultReader
 
 internal static class BattleReportEntryPayload
 {
+    internal static Dictionary<string, object> BuildPlainPayload(BattleReportEntry entry)
+    {
+        if (entry.EntryKind == ReportEntryKind.None && string.IsNullOrEmpty(entry.Text))
+            return new Dictionary<string, object>(StringComparer.Ordinal);
+        var eventTags = new List<string>();
+        foreach (StringName tag in entry.EventTags ?? new StringNameList())
+            eventTags.Add(tag.ToString());
+        return new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["entry_type"] = EntryKindToString(entry.EntryKind),
+            ["reason_id"] = (entry.ReasonId ?? new StringName("")).ToString(),
+            ["text"] = entry.Text ?? "",
+            ["event_tags"] = eventTags,
+            ["attacker_id"] = (entry.AttackerId ?? new StringName("")).ToString(),
+            ["attacker_member_id"] = (entry.AttackerMemberId ?? new StringName("")).ToString(),
+            ["attacker_name"] = entry.AttackerName ?? "",
+            ["defender_id"] = (entry.DefenderId ?? new StringName("")).ToString(),
+            ["defender_member_id"] = (entry.DefenderMemberId ?? new StringName("")).ToString(),
+            ["defender_name"] = entry.DefenderName ?? "",
+            ["defender_is_elite_or_boss"] = entry.DefenderIsEliteOrBoss,
+            ["attack_resolution"] = AttackEffectResolutionToString(entry.AttackResolution),
+            ["critical_source"] = CriticalSourceToStringName(entry.CriticalSource).ToString(),
+            ["is_disadvantage"] = entry.IsDisadvantage,
+            ["crit_gate_die"] = entry.CritGateDie,
+            ["crit_gate_roll"] = entry.CritGateRoll,
+            ["hit_roll"] = entry.HitRoll,
+            ["required_roll"] = entry.RequiredRoll,
+            ["display_required_roll"] = entry.DisplayRequiredRoll,
+            ["luck_snapshot"] = new Dictionary<string, object>(StringComparer.Ordinal)
+            {
+                ["hidden_luck_at_birth"] = entry.HiddenLuckAtBirth,
+                ["faith_luck_bonus"] = entry.FaithLuckBonus,
+                ["effective_luck"] = entry.EffectiveLuck,
+                ["fumble_low_end"] = entry.FumbleLowEnd,
+                ["crit_threshold"] = entry.CritThreshold,
+            },
+        };
+    }
+
     internal static BattleReportEntry ReadPayload(GDictionary entry)
     {
         GDictionary luckSnapshot = PayloadReader.ReadDictionary(entry, "luck_snapshot");
@@ -1857,6 +1896,9 @@ internal static class BattleReportEntryPayload
             },
         };
     }
+
+    private static string AttackEffectResolutionToString(AttackResolutionKind value) =>
+        AttackEffectResolutionResultReader.AttackResolutionToStringName(value).ToString();
 
     private static ReportEntryKind ParseReportEntryKind(StringName value)
     {

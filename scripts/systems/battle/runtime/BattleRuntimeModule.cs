@@ -1545,19 +1545,10 @@ public sealed partial class BattleRuntimeModule : IDisposable
         int safeReportStart = Math.Clamp(report_start_index, 0, batch.ReportEntriesTyped.Count);
         for (int i = safeReportStart; i < batch.ReportEntriesTyped.Count; i++)
         {
-            GDictionary reportEntry = batch.ReportEntriesTyped[i];
+            IReadOnlyDictionary<string, object> reportEntry = batch.ReportEntriesTyped[i];
             if (reportEntry.Count > 0)
                 _state.AddReportEntry(reportEntry);
         }
-    }
-
-    internal void _append_result_report_entry(BattleEventBatch batch, GDictionary result)
-    {
-        if (batch == null || result == null || result.Count == 0)
-            return;
-        GDictionary reportEntry = GetDict(result, "report_entry");
-        if (reportEntry.Count > 0)
-            _append_report_entry_to_batch(batch, reportEntry);
     }
 
     internal void AppendResultReportEntry(
@@ -1567,33 +1558,45 @@ public sealed partial class BattleRuntimeModule : IDisposable
     {
         if (batch == null)
             return;
-        GDictionary reportEntry = result.HasReportEntry
-            ? BattleReportEntryPayload.BuildGodotPayload(result.ReportEntry)
+        IReadOnlyDictionary<string, object> reportEntry = result.HasReportEntry
+            ? BattleReportEntryPayload.BuildPlainPayload(result.ReportEntry)
             : BuildAutoCastEffectResultReport(result);
         if (reportEntry.Count > 0)
             _append_report_entry_to_batch(batch, reportEntry);
     }
 
-    private GDictionary BuildAutoCastEffectResultReport(AttackEffectResolutionResult result)
+    private IReadOnlyDictionary<string, object> BuildAutoCastEffectResultReport(
+        AttackEffectResolutionResult result
+    )
     {
         BattleEffectOrigin origin = CurrentEffectOrigin;
         if (
             origin?.OriginKind != new StringName("contingency_auto_cast")
             || !result.Applied
         )
-            return new GDictionary();
-        GDictionary payload = AttackEffectResolutionResultReader.BuildGodotPayload(result);
+            return new Dictionary<string, object>(StringComparer.Ordinal);
+        Dictionary<string, object> payload = AttackEffectResolutionPlainPayload.Build(result);
         payload["entry_kind"] = "effect_result";
         return payload;
     }
 
-    internal void _append_report_entry_to_batch(BattleEventBatch batch, GDictionary report_entry)
+    internal void _append_report_entry_to_batch(
+        BattleEventBatch batch,
+        IReadOnlyDictionary<string, object> report_entry
+    )
     {
         if (batch == null || report_entry == null || report_entry.Count == 0)
             return;
-        AttachCurrentEffectOrigin(report_entry);
-        batch.AddReportEntry(report_entry);
-        string entryText = GetString(report_entry, "text").StripEdges();
+        var detachedReportEntry = new Dictionary<string, object>(
+            report_entry,
+            StringComparer.Ordinal
+        );
+        AttachCurrentEffectOrigin(detachedReportEntry);
+        batch.AddReportEntry(detachedReportEntry);
+        string entryText =
+            detachedReportEntry.TryGetValue("text", out object textValue)
+                ? textValue?.ToString()?.StripEdges() ?? ""
+                : "";
         if (!string.IsNullOrEmpty(entryText))
             batch.AddLogLine(entryText);
     }
@@ -1607,11 +1610,11 @@ public sealed partial class BattleRuntimeModule : IDisposable
     private BattleEffectOrigin CurrentEffectOrigin =>
         _effectOriginStack.Count > 0 ? _effectOriginStack.Peek() : BattleEffectOrigin.PlayerCommand();
 
-    private void AttachCurrentEffectOrigin(GDictionary reportEntry)
+    private void AttachCurrentEffectOrigin(Dictionary<string, object> reportEntry)
     {
         if (reportEntry == null || reportEntry.Count == 0)
             return;
-        reportEntry["effect_origin"] = CurrentEffectOrigin.ToDictionary();
+        reportEntry["effect_origin"] = CurrentEffectOrigin.ToPlainDictionary();
     }
 
     private void PopEffectOrigin()
@@ -2313,10 +2316,10 @@ public sealed partial class BattleRuntimeModule : IDisposable
     internal void AppendBatchLog(BattleEventBatch batch, string message) =>
         _append_batch_log(batch, message);
 
-    internal void AppendResultReportEntry(BattleEventBatch batch, GDictionary result) =>
-        _append_result_report_entry(batch, result);
-
-    internal void AppendReportEntry(BattleEventBatch batch, GDictionary report_entry) =>
+    internal void AppendReportEntry(
+        BattleEventBatch batch,
+        IReadOnlyDictionary<string, object> report_entry
+    ) =>
         _append_report_entry_to_batch(batch, report_entry);
 
     internal void ClearDefeatedUnit(BattleUnitState unit_state, BattleEventBatch batch = null) =>
@@ -3741,7 +3744,10 @@ public sealed partial class BattleRuntimeModule : IDisposable
             _append_changed_unit_id(target_batch, unitId);
         foreach (string logLine in source_batch.LogLinesTyped)
             target_batch.AddLogLine(logLine);
-        foreach (GDictionary reportEntry in source_batch.ReportEntriesTyped)
+        foreach (
+            IReadOnlyDictionary<string, object> reportEntry in
+            source_batch.ReportEntriesTyped
+        )
         {
             target_batch.AddReportEntry(reportEntry);
         }

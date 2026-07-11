@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Godot;
 
 internal readonly record struct BattleCommonSkillTargetResult(
@@ -20,27 +21,10 @@ internal class BattleCommonSkillOutcome
     public StringList log_lines { get; set; } = new();
     public List<BattleCommonSkillTargetResult> target_results { get; } = new();
     public Dictionary<StringName, List<StringName>> status_effect_ids_by_unit_id { get; } = new();
-    private readonly List<Dictionary<string, object>> _reportEntries = new();
+    private readonly List<IReadOnlyDictionary<string, object>> _reportEntries = new();
 
-    internal IReadOnlyList<Godot.Collections.Dictionary> ReportEntriesTyped
-    {
-        get
-        {
-            var result = new List<Godot.Collections.Dictionary>();
-            int index = 0;
-            foreach (Dictionary<string, object> entry in _reportEntries)
-            {
-                result.Add(
-                    RuntimePlainPayload.ProjectDictionary(
-                        entry,
-                        $"BattleCommonSkillOutcome.report_entries[{index}]"
-                    )
-                );
-                index++;
-            }
-            return result;
-        }
-    }
+    internal IReadOnlyList<IReadOnlyDictionary<string, object>> ReportEntriesTyped =>
+        BuildReportEntrySnapshots();
 
     internal void AddChangedUnitId(StringName unit_id)
     {
@@ -102,18 +86,31 @@ internal class BattleCommonSkillOutcome
         }
     }
 
-    internal void AddReportEntry(Godot.Collections.Dictionary reportEntry)
+    internal void AddReportEntry(IReadOnlyDictionary<string, object> reportEntry)
     {
         if (reportEntry == null || reportEntry.Count == 0)
         {
             return;
         }
         _reportEntries.Add(
-            RuntimePlainPayload.NormalizeDictionary(
-                reportEntry,
-                $"BattleCommonSkillOutcome.report_entries[{_reportEntries.Count}]"
+            new ReadOnlyDictionary<string, object>(
+                RuntimePlainPayload.CloneDictionary(reportEntry)
             )
         );
+    }
+
+    private IReadOnlyList<IReadOnlyDictionary<string, object>> BuildReportEntrySnapshots()
+    {
+        var result = new List<IReadOnlyDictionary<string, object>>(_reportEntries.Count);
+        foreach (IReadOnlyDictionary<string, object> entry in _reportEntries)
+        {
+            result.Add(
+                new System.Collections.ObjectModel.ReadOnlyDictionary<string, object>(
+                    RuntimePlainPayload.CloneDictionary(entry)
+                )
+            );
+        }
+        return result;
     }
 
     private static bool IsEmpty(StringName value)

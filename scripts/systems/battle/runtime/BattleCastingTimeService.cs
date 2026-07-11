@@ -208,12 +208,12 @@ internal sealed class BattleCastingTimeService
             batch
         );
         batch?.AddReportEntry(
-            new GDictionary
+            new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["type"] = "pending_cast_cancel",
                 ["entry_type"] = "pending_cast_cancel",
                 ["reason_id"] = "manual_cancel",
-                ["event_tags"] = new Godot.Collections.Array { "pending_cast", "cancel" },
+                ["event_tags"] = new List<object> { "pending_cast", "cancel" },
                 ["unit_id"] = unitState.unit_id.ToString(),
                 ["skill_id"] = (pendingCast?.SkillId ?? new StringName("")).ToString(),
                 ["refund_policy"] = "half_persistent_costs",
