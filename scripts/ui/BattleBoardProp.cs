@@ -16,6 +16,7 @@ public partial class BattleBoardProp : Node2D
     private bool _needsInteractionShape;
     private Area2D _interactionArea;
     private CollisionShape2D _interactionShape;
+    private NativeLeaseScope _interactionShapeLease;
 
     public override void _Ready()
     {
@@ -23,6 +24,23 @@ public partial class BattleBoardProp : Node2D
         _interactionShape = GetNode<CollisionShape2D>("%InteractionShape");
         ApplyInteractionState();
         QueueRedraw();
+    }
+
+    public override void _ExitTree()
+    {
+        if (
+            _interactionShape != null
+            && GodotObject.IsInstanceValid(_interactionShape)
+        )
+        {
+            _interactionShape.Shape = null;
+        }
+
+        NativeLeaseScope interactionShapeLease = _interactionShapeLease;
+        _interactionShapeLease = null;
+        interactionShapeLease?.Dispose();
+        _interactionShape = null;
+        _interactionArea = null;
     }
 
     public void Configure(StringName new_prop_id)
@@ -60,9 +78,25 @@ public partial class BattleBoardProp : Node2D
     {
         if (_interactionArea == null || _interactionShape == null)
             return;
+        EnsureInteractionShape();
         _interactionArea.Monitoring = _needsInteractionShape;
         _interactionArea.Monitorable = _needsInteractionShape;
         _interactionShape.Disabled = !_needsInteractionShape;
+    }
+
+    private void EnsureInteractionShape()
+    {
+        if (!_needsInteractionShape || _interactionShape.Shape != null)
+            return;
+
+        _interactionShapeLease ??= new NativeLeaseScope(
+            $"battle-board-prop:{GetInstanceId()}",
+            LifetimeDomain.Battle
+        );
+        _interactionShape.Shape = _interactionShapeLease.Own(
+            new CircleShape2D { Radius = 16.0f },
+            "interaction-shape"
+        );
     }
 
     private void DrawSpikeBarricade()

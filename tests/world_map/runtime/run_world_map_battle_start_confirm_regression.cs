@@ -139,8 +139,14 @@ public partial class run_world_map_battle_start_confirm_regression : LifecycleTe
 
     private async Task DisposeNode(Node node)
     {
+        if (node == null || !GodotObject.IsInstanceValid(node))
+            return;
         node.QueueFree();
-        await ProcessFrames(1);
+        await ProcessFrames(2);
+        _test.False(
+            GodotObject.IsInstanceValid(node),
+            "world_map scene should finish queued deletion before lifecycle shutdown"
+        );
     }
 
     private async Task ProcessFrames(int count)
