@@ -17,6 +17,7 @@ public partial class run_settlement_service_result_regression : LifecycleTestSce
     {
         TestCanonicalResultDictionaryShape();
         TestTypedResultProjectionIsolation();
+        TestPayloadNormalizationRejectsObjectCarriersAtomically();
 
         return _test.Finish("Settlement service result regression");
     }
@@ -131,11 +132,81 @@ public partial class run_settlement_service_result_regression : LifecycleTestSce
         );
 
         GDictionary projected = SettlementServiceResultProjection.Project(result);
+        DictArray(DictDictionary(projected, "inventory_delta"), "items_removed").Clear();
+        DictArray(DictDictionary(projected, "service_side_effects"), "fog_revealed").Clear();
         DictArray(projected, "pending_character_rewards")[0].AsGodotDictionary()["summary_text"] = "projection mutated";
+        _test.Eq(
+            DictArray(
+                SettlementServiceResultProjection.ProjectInventoryDelta(result),
+                "items_removed"
+            ).Count,
+            1,
+            "inventory_delta projection mutation 不应回写 plain result。"
+        );
+        _test.Eq(
+            DictArray(
+                SettlementServiceResultProjection.ProjectServiceSideEffects(result),
+                "fog_revealed"
+            ).Count,
+            1,
+            "service_side_effects projection mutation 不应回写 plain result。"
+        );
         _test.Eq(
             result.PendingCharacterRewards[0].summary_text,
             "Hero 完成旅店训练。",
             "SettlementServiceResultProjection mutation 不应回写 typed result。"
+        );
+    }
+
+    private void TestPayloadNormalizationRejectsObjectCarriersAtomically()
+    {
+        var result = new SettlementServiceResult();
+        using var stableInventory = new GDictionary { ["stable"] = 7 };
+        using var stableEffects = new GDictionary { ["stable"] = true };
+        result.SetInventoryDelta(stableInventory);
+        result.SetServiceSideEffects(stableEffects);
+
+        using var objectCarrier = new Resource();
+        using var nestedInvalidInventory = new GDictionary { ["object"] = objectCarrier };
+        using var invalidInventory = new GDictionary
+        {
+            ["nested"] = nestedInvalidInventory,
+        };
+        using var invalidEffects = new GDictionary { ["object"] = objectCarrier };
+
+        bool inventoryRejected = false;
+        bool effectsRejected = false;
+        try
+        {
+            result.SetInventoryDelta(invalidInventory);
+        }
+        catch (System.InvalidOperationException)
+        {
+            inventoryRejected = true;
+        }
+        try
+        {
+            result.SetServiceSideEffects(invalidEffects);
+        }
+        catch (System.InvalidOperationException)
+        {
+            effectsRejected = true;
+        }
+
+        _test.True(inventoryRejected, "inventory_delta 应拒绝嵌套 Object carrier。");
+        _test.True(effectsRejected, "service_side_effects 应拒绝 Object carrier。");
+        _test.Eq(
+            DictInt(SettlementServiceResultProjection.ProjectInventoryDelta(result), "stable", 0),
+            7,
+            "被拒绝的 inventory_delta 不应清空既有 plain payload。"
+        );
+        _test.True(
+            DictBool(
+                SettlementServiceResultProjection.ProjectServiceSideEffects(result),
+                "stable",
+                false
+            ),
+            "被拒绝的 service_side_effects 不应清空既有 plain payload。"
         );
     }
 
@@ -200,6 +271,13 @@ public partial class run_settlement_service_result_regression : LifecycleTestSce
     {
         return dictionary != null && dictionary.ContainsKey(key)
             ? dictionary[key].AsInt32()
+            : fallback;
+    }
+
+    private static bool DictBool(GDictionary dictionary, string key, bool fallback)
+    {
+        return dictionary != null && dictionary.ContainsKey(key)
+            ? dictionary[key].AsBool()
             : fallback;
     }
 }

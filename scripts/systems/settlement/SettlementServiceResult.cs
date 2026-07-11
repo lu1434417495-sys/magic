@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
 public sealed class SettlementServiceResult
@@ -26,7 +25,11 @@ public sealed class SettlementServiceResult
 
     public SettlementServiceResult SetInventoryDelta(GDictionary value)
     {
-        ReplacePayloadEntryList(_inventoryDelta, value);
+        ReplacePayloadEntryList(
+            _inventoryDelta,
+            value,
+            "SettlementServiceResult.inventory_delta"
+        );
         return this;
     }
 
@@ -48,7 +51,11 @@ public sealed class SettlementServiceResult
 
     public SettlementServiceResult SetServiceSideEffects(GDictionary effects)
     {
-        ReplacePayloadEntryList(_serviceSideEffects, effects);
+        ReplacePayloadEntryList(
+            _serviceSideEffects,
+            effects,
+            "SettlementServiceResult.service_side_effects"
+        );
         return this;
     }
 
@@ -66,14 +73,17 @@ public sealed class SettlementServiceResult
 
     private static void ReplacePayloadEntryList(
         List<SettlementServiceResultPayloadEntry> target,
-        GDictionary values
+        GDictionary values,
+        string ownerPath
     )
     {
+        Dictionary<string, object> normalized = RuntimePlainPayload.NormalizeDictionaryStrict(
+            values,
+            ownerPath
+        );
         target.Clear();
-        if (values == null)
-            return;
-        foreach (Variant key in values.Keys)
-            target.Add(new SettlementServiceResultPayloadEntry(key, values[key]));
+        foreach (KeyValuePair<string, object> entry in normalized)
+            target.Add(new SettlementServiceResultPayloadEntry(entry.Key, entry.Value));
     }
 
     private static IReadOnlyList<PendingCharacterReward> DuplicatePendingRewardList(
@@ -138,26 +148,22 @@ public sealed class SettlementServiceResult
 
 internal readonly struct SettlementServiceResultPayloadEntry
 {
-    internal readonly Variant Key;
-    private readonly Variant _value;
+    internal readonly string Key;
+    private readonly object _value;
 
-    internal SettlementServiceResultPayloadEntry(Variant key, Variant value)
+    internal SettlementServiceResultPayloadEntry(string key, object value)
     {
+        if (string.IsNullOrEmpty(key))
+        {
+            throw new System.InvalidOperationException(
+                "Settlement service result payload entries require a non-empty string key."
+            );
+        }
         Key = key;
-        _value = DuplicateVariant(value);
+        _value = RuntimePlainPayload.CloneValue(value);
     }
 
-    internal Variant Value => DuplicateVariant(_value);
+    internal object Value => RuntimePlainPayload.CloneValue(_value);
 
     internal SettlementServiceResultPayloadEntry Duplicate() => new(Key, _value);
-
-    private static Variant DuplicateVariant(Variant value)
-    {
-        return value.VariantType switch
-        {
-            Variant.Type.Dictionary => Variant.From(value.AsGodotDictionary().Duplicate(true)),
-            Variant.Type.Array => Variant.From(value.AsGodotArray().Duplicate(true)),
-            _ => value,
-        };
-    }
 }

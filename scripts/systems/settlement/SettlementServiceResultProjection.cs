@@ -69,11 +69,19 @@ internal static class SettlementServiceResultProjection
         IEnumerable<SettlementServiceResultPayloadEntry> entries
     )
     {
-        var result = new GDictionary();
+        var plain = new Dictionary<string, object>(System.StringComparer.Ordinal);
         if (entries == null)
-            return result;
+            return new GDictionary();
         foreach (SettlementServiceResultPayloadEntry entry in entries)
-            result[entry.Key] = entry.Value;
-        return result;
+            plain[entry.Key] = entry.Value;
+
+        using GodotProjectionLease<GDictionary> lease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                plain,
+                "settlement-service-result",
+                LifetimeDomain.Request,
+                "SettlementServiceResultProjection payload"
+            );
+        return lease.Value.Duplicate(true);
     }
 }
