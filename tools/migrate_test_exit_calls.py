@@ -42,6 +42,14 @@ class _Migration:
     migrated: str
 
 
+@dataclass(frozen=True)
+class _BlockMethod:
+    return_type_start: int
+    return_type_end: int
+    open_brace: int
+    close_brace: int
+
+
 _IDENTIFIER_RE = re.compile(r"[A-Za-z_]\w*\Z")
 _DIRECT_SCENE_TREE_RE = re.compile(r"(?P<prefix>:\s*)SceneTree\b")
 _LIFECYCLE_SCENE_TREE_RE = re.compile(r":\s*LifecycleTestSceneTree\b")
@@ -147,6 +155,19 @@ def _matching_paren(code: str, open_paren: int) -> int:
             if depth == 0:
                 return index
     raise MigrationError("unclosed Quit call")
+
+
+def _matching_brace(code: str, open_brace: int) -> int:
+    depth = 0
+    for index in range(open_brace, len(code)):
+        character = code[index]
+        if character == "{":
+            depth += 1
+        elif character == "}":
+            depth -= 1
+            if depth == 0:
+                return index
+    raise MigrationError("unclosed method body")
 
 
 def _quit_calls(source: str, code: str) -> list[_Call]:
@@ -297,6 +318,130 @@ def _stored_finish_edits(
     return edits, replacement_argument
 
 
+def _private_instance_int_block_method(code: str, name: str) -> _BlockMethod | None:
+    pattern = re.compile(
+        rf"\bprivate\s+(?P<return_type>int)\s+{re.escape(name)}\s*\(\s*\)\s*\{{"
+    )
+    matches = list(pattern.finditer(code))
+    if len(matches) != 1:
+        return None
+
+    match = matches[0]
+    open_brace = code.find("{", match.start(), match.end())
+    return _BlockMethod(
+        return_type_start=match.start("return_type"),
+        return_type_end=match.end("return_type"),
+        open_brace=open_brace,
+        close_brace=_matching_brace(code, open_brace),
+    )
+
+
+def _method_return_expressions(
+    source: str,
+    code: str,
+    method: _BlockMethod,
+) -> list[str] | None:
+    expressions: list[str] = []
+    body_start = method.open_brace + 1
+    body_code = code[body_start : method.close_brace]
+    for match in re.finditer(r"\breturn\b", body_code):
+        expression_start = body_start + match.end()
+        semicolon = code.find(";", expression_start, method.close_brace)
+        if semicolon < 0:
+            return None
+        expressions.append(source[expression_start:semicolon].strip())
+    return expressions
+
+
+def _exact_parameterless_call(expression: str, name: str) -> bool:
+    return re.fullmatch(
+        rf"{re.escape(name)}\s*\(\s*\)",
+        expression.strip(),
+    ) is not None
+
+
+def _finish_helper_return_type_edit(
+    source: str,
+    code: str,
+) -> _Edit | None:
+    pattern = re.compile(
+        r"\bprivate\s+(?P<return_type>int)\s+Finish\s*\(\s*\)\s*=>"
+    )
+    matches = list(pattern.finditer(code))
+    if len(matches) != 1:
+        return None
+
+    match = matches[0]
+    semicolon = code.find(";", match.end())
+    if semicolon < 0:
+        return None
+    expression = source[match.end() : semicolon].strip()
+    finish_arguments = _exact_finish_arguments(expression)
+    if finish_arguments is None:
+        return None
+
+    arguments = _split_arguments(finish_arguments)
+    if len(arguments) != 1 or not _is_string_literal(arguments[0]):
+        return None
+    if _finish_labels(source, code) != [arguments[0]]:
+        return None
+
+    return _Edit(
+        match.start("return_type"),
+        match.end("return_type"),
+        "TestResult",
+    )
+
+
+def _run_forwarding_edits(
+    source: str,
+    code: str,
+    call: _Call,
+    identifier: str,
+) -> tuple[list[_Edit], str] | None:
+    if identifier != "exitCode":
+        return None
+
+    declaration_pattern = re.compile(
+        rf"\b(?P<type>int)\s+{re.escape(identifier)}\s*=\s*Run\s*\(\s*\)\s*;"
+    )
+    declarations = list(declaration_pattern.finditer(code[: call.start]))
+    if len(declarations) != 1:
+        return None
+
+    declaration = declarations[0]
+    if code[declaration.end() : call.start].strip():
+        return None
+
+    run_method = _private_instance_int_block_method(code, "Run")
+    if run_method is None:
+        return None
+    return_expressions = _method_return_expressions(source, code, run_method)
+    if not return_expressions:
+        return None
+
+    edits = [
+        _Edit(declaration.start("type"), declaration.end("type"), "TestResult"),
+        _Edit(run_method.return_type_start, run_method.return_type_end, "TestResult"),
+    ]
+    if all(
+        _exact_finish_arguments(expression) is not None
+        for expression in return_expressions
+    ):
+        return edits, identifier
+
+    if all(
+        _exact_parameterless_call(expression, "Finish")
+        for expression in return_expressions
+    ):
+        helper_edit = _finish_helper_return_type_edit(source, code)
+        if helper_edit is not None:
+            edits.append(helper_edit)
+            return edits, identifier
+
+    return None
+
+
 def _apply_edits(source: str, edits: Iterable[_Edit]) -> str:
     ordered = sorted(edits, key=lambda edit: (edit.start, edit.end))
     for previous, current in zip(ordered, ordered[1:]):
@@ -362,6 +507,13 @@ def transform_source(source: str, display_path: str = "<memory>") -> str:
                 call.argument,
                 labels,
             )
+            if stored is None:
+                stored = _run_forwarding_edits(
+                    source,
+                    code,
+                    call,
+                    call.argument,
+                )
             if stored is None:
                 line = source.count("\n", 0, call.start) + 1
                 raise MigrationError(

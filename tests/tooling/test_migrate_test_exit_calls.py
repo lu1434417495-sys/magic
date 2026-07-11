@@ -45,6 +45,16 @@ class MigrateTestExitCallsTests(unittest.TestCase):
             text=True,
         )
 
+    def assert_runner_is_rejected(self, relative_path: str, source: str) -> None:
+        runner = self.write_runner(relative_path, source)
+        before = runner.read_bytes()
+
+        result = self.run_migrator("--check")
+
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(runner.read_bytes(), before)
+        self.assertFalse(self.manifest.exists())
+
     def test_check_reports_direct_finish_without_modifying_source(self) -> None:
         original = """using Godot;
 
@@ -118,6 +128,251 @@ public partial class StoredRunner : SceneTree
         migrated = runner.read_text(encoding="utf-8")
         self.assertIn('TestResult exitCode = _test.Finish("Stored regression");', migrated)
         self.assertIn("RequestTestExit(exitCode);", migrated)
+
+    def test_check_recognizes_run_forwarding_single_finish_without_modifying_source(self) -> None:
+        original = """using Godot;
+public partial class ForwardingRunner : SceneTree
+{
+    private readonly TestHarness _test = new();
+    public override void _Initialize()
+    {
+        int exitCode = Run();
+        Quit(exitCode);
+    }
+
+    private int Run()
+    {
+        return _test.Finish("Forwarding regression");
+    }
+}
+"""
+        runner = self.write_runner("forwarding.cs", original)
+
+        result = self.run_migrator("--check")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(runner.read_text(encoding="utf-8"), original)
+        self.assertEqual(self.manifest.read_text(encoding="utf-8"), "tests/forwarding.cs\n")
+
+    def test_apply_migrates_run_forwarding_multiple_finish_returns(self) -> None:
+        runner = self.write_runner(
+            "multiple_forwarding.cs",
+            """using Godot;
+public partial class MultipleForwardingRunner : SceneTree
+{
+    private readonly TestHarness _test = new();
+    public override void _Initialize()
+    {
+        int exitCode = Run();
+        Quit(exitCode);
+    }
+
+    private int Run()
+    {
+        if (_test == null)
+            return _test.Finish("Multiple forwarding regression");
+        return _test.Finish("Multiple forwarding regression");
+    }
+}
+""",
+        )
+
+        result = self.run_migrator("--apply")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        migrated = runner.read_text(encoding="utf-8")
+        self.assertIn("class MultipleForwardingRunner : LifecycleTestSceneTree", migrated)
+        self.assertIn("TestResult exitCode = Run();", migrated)
+        self.assertIn("private TestResult Run()", migrated)
+        self.assertIn("RequestTestExit(exitCode);", migrated)
+        self.assertEqual(migrated.count('_test.Finish("Multiple forwarding regression")'), 2)
+
+    def test_helper_forwarding_check_apply_and_idempotence(self) -> None:
+        runner = self.write_runner(
+            "helper_forwarding.cs",
+            """using Godot;
+public partial class HelperForwardingRunner : SceneTree
+{
+    private readonly TestHarness _test = new();
+    public override void _Initialize()
+    {
+        int exitCode = Run();
+        Quit(exitCode);
+    }
+
+    private int Run()
+    {
+        if (_test == null)
+            return Finish();
+        return Finish();
+    }
+
+    private int Finish() => _test.Finish("Helper forwarding regression");
+}
+""",
+        )
+        original = runner.read_bytes()
+
+        checked = self.run_migrator("--check")
+        self.assertEqual(checked.returncode, 0, checked.stderr)
+        self.assertEqual(runner.read_bytes(), original)
+        self.assertEqual(self.manifest.read_bytes(), b"tests/helper_forwarding.cs\n")
+
+        applied = self.run_migrator("--apply")
+        self.assertEqual(applied.returncode, 0, applied.stderr)
+        migrated = runner.read_bytes()
+        migrated_text = migrated.decode("utf-8")
+        self.assertIn("TestResult exitCode = Run();", migrated_text)
+        self.assertIn("private TestResult Run()", migrated_text)
+        self.assertIn("private TestResult Finish()", migrated_text)
+        self.assertIn("RequestTestExit(exitCode);", migrated_text)
+
+        repeated = self.run_migrator("--apply")
+        post_check_manifest = self.workspace / "post-check.txt"
+        post_check = self.run_migrator("--check", post_check_manifest)
+        self.assertEqual(repeated.returncode, 0, repeated.stderr)
+        self.assertEqual(post_check.returncode, 0, post_check.stderr)
+        self.assertEqual(runner.read_bytes(), migrated)
+        self.assertEqual(post_check_manifest.read_bytes(), b"")
+
+    def test_run_forwarding_rejects_mixed_finish_and_numeric_returns(self) -> None:
+        self.assert_runner_is_rejected(
+            "mixed_numeric.cs",
+            """using Godot;
+public partial class MixedNumericRunner : SceneTree
+{
+    private readonly TestHarness _test = new();
+    public override void _Initialize()
+    {
+        int exitCode = Run();
+        Quit(exitCode);
+    }
+    private int Run()
+    {
+        if (_test == null)
+            return _test.Finish("Mixed numeric");
+        return 1;
+    }
+}
+""",
+        )
+
+    def test_run_forwarding_rejects_raw_numeric_producer(self) -> None:
+        self.assert_runner_is_rejected(
+            "numeric.cs",
+            """using Godot;
+public partial class NumericRunner : SceneTree
+{
+    public override void _Initialize()
+    {
+        int exitCode = Run();
+        Quit(exitCode);
+    }
+    private int Run() { return 0; }
+}
+""",
+        )
+
+    def test_run_forwarding_rejects_arbitrary_return_expression(self) -> None:
+        self.assert_runner_is_rejected(
+            "arbitrary_return.cs",
+            """using Godot;
+public partial class ArbitraryReturnRunner : SceneTree
+{
+    private readonly TestHarness _test = new();
+    public override void _Initialize()
+    {
+        int exitCode = Run();
+        Quit(exitCode);
+    }
+    private int Run() { return ResolveResult(); }
+    private int ResolveResult() => _test.Finish("Arbitrary return");
+}
+""",
+        )
+
+    def test_run_forwarding_rejects_arbitrary_or_parameterized_helpers(self) -> None:
+        sources = {
+            "arbitrary_helper.cs": """using Godot;
+public partial class ArbitraryHelperRunner : SceneTree
+{
+    private readonly TestHarness _test = new();
+    public override void _Initialize()
+    {
+        int exitCode = Run();
+        Quit(exitCode);
+    }
+    private int Run() { return Complete(); }
+    private int Complete() => _test.Finish("Arbitrary helper");
+}
+""",
+            "arbitrary_finish_body.cs": """using Godot;
+public partial class ArbitraryFinishBodyRunner : SceneTree
+{
+    private readonly TestHarness _test = new();
+    public override void _Initialize()
+    {
+        int exitCode = Run();
+        Quit(exitCode);
+    }
+    private int Run() { return Finish(); }
+    private int Finish() => ResolveResult();
+    private int ResolveResult() => _test.Finish("Arbitrary Finish body");
+}
+""",
+            "parameterized_helper.cs": """using Godot;
+public partial class ParameterizedHelperRunner : SceneTree
+{
+    private readonly TestHarness _test = new();
+    public override void _Initialize()
+    {
+        int exitCode = Run();
+        Quit(exitCode);
+    }
+    private int Run() { return Finish("Parameterized helper"); }
+    private int Finish(string label) => _test.Finish(label);
+}
+""",
+        }
+        for path, source in sources.items():
+            with self.subTest(path=path):
+                self.assert_runner_is_rejected(path, source)
+
+    def test_run_forwarding_rejects_mixed_direct_and_helper_returns(self) -> None:
+        self.assert_runner_is_rejected(
+            "mixed_helper.cs",
+            """using Godot;
+public partial class MixedHelperRunner : SceneTree
+{
+    private readonly TestHarness _test = new();
+    public override void _Initialize()
+    {
+        int exitCode = Run();
+        Quit(exitCode);
+    }
+    private int Run()
+    {
+        if (_test == null)
+            return _test.Finish("Mixed helper");
+        return Finish();
+    }
+    private int Finish() => _test.Finish("Mixed helper");
+}
+""",
+        )
+
+    def test_generic_quit_run_call_remains_rejected(self) -> None:
+        self.assert_runner_is_rejected(
+            "generic_quit_run.cs",
+            """using Godot;
+public partial class GenericQuitRunRunner : SceneTree
+{
+    private readonly TestHarness _test = new();
+    public override void _Initialize() { Quit(Run()); }
+    private int Run() { return _test.Finish("Generic Quit Run"); }
+}
+""",
+        )
 
     def test_apply_preserves_failure_fallback_for_deferred_stored_result(self) -> None:
         runner = self.write_runner(
