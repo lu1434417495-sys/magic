@@ -46,6 +46,9 @@ public partial class ApplicationLifetimeCoordinator : Node, IApplicationShutdown
         EnsureMainThread();
         ArgumentNullException.ThrowIfNull(request);
 
+        TaskCompletionSource<ShutdownReport> completionSourceToStart = null;
+        ShutdownReport reportToRun = null;
+        Task<ShutdownReport> completion;
         lock (_shutdownSync)
         {
             if (_pipeline == null)
@@ -58,15 +61,24 @@ public partial class ApplicationLifetimeCoordinator : Node, IApplicationShutdown
             if (_completion == null)
             {
                 _report = new ShutdownReport(request);
-                _completion = RunShutdownAndQuitAsync(_report);
+                completionSourceToStart = new TaskCompletionSource<ShutdownReport>(
+                    TaskCreationOptions.RunContinuationsAsynchronously
+                );
+                _completion = completionSourceToStart.Task;
+                reportToRun = _report;
             }
             else
             {
                 _report.MergeRequest(request);
             }
 
-            return new ValueTask<ShutdownReport>(_completion);
+            completion = _completion;
         }
+
+        if (completionSourceToStart != null)
+            _ = CompleteShutdownAndQuitAsync(reportToRun, completionSourceToStart);
+
+        return new ValueTask<ShutdownReport>(completion);
     }
 
     internal void RegisterParticipant(IApplicationShutdownParticipant participant)
@@ -272,6 +284,25 @@ public partial class ApplicationLifetimeCoordinator : Node, IApplicationShutdown
         PrintPreQuitReport(completedReport);
         RequestSceneTreeQuit(completedReport);
         return completedReport;
+    }
+
+    private async Task CompleteShutdownAndQuitAsync(
+        ShutdownReport report,
+        TaskCompletionSource<ShutdownReport> completionSource
+    )
+    {
+        ShutdownReport completedReport;
+        try
+        {
+            completedReport = await RunShutdownAndQuitAsync(report);
+        }
+        catch (Exception exception)
+        {
+            completionSource.SetException(exception);
+            return;
+        }
+
+        completionSource.SetResult(completedReport);
     }
 
     private async ValueTask CloseParticipantsAsync(

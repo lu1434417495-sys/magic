@@ -53,6 +53,46 @@ public partial class run_application_lifetime_coordinator_regression : SceneTree
         }
     }
 
+    private sealed class SynchronousReentrantParticipant : IApplicationShutdownParticipant
+    {
+        private readonly ApplicationLifetimeCoordinator _coordinator;
+        private readonly List<string> _calls;
+
+        internal SynchronousReentrantParticipant(
+            ApplicationLifetimeCoordinator coordinator,
+            List<string> calls
+        )
+        {
+            _coordinator = coordinator;
+            _calls = calls;
+        }
+
+        public string ShutdownParticipantId => "synchronous-reentrant-runtime";
+        public ApplicationShutdownParticipantStage ShutdownStage =>
+            ApplicationShutdownParticipantStage.Runtime;
+        public int ShutdownOrder => -2;
+        internal int CloseCount { get; private set; }
+        internal ShutdownReport ObservedReport { get; private set; }
+        internal Task<ShutdownReport> ReentrantCompletion { get; private set; }
+
+        public ValueTask CloseForApplicationShutdownAsync(ShutdownReport report)
+        {
+            CloseCount++;
+            ObservedReport = report;
+            _calls.Add(ShutdownParticipantId);
+            ReentrantCompletion = _coordinator
+                .RequestShutdownAsync(
+                    new ShutdownRequest(
+                        0,
+                        ShutdownReason.RequestedExit,
+                        new ShutdownCallerResult("synchronous-reentrant", true)
+                    )
+                )
+                .AsTask();
+            return ValueTask.CompletedTask;
+        }
+    }
+
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
@@ -551,19 +591,9 @@ public partial class run_application_lifetime_coordinator_regression : SceneTree
                 return ValueTask.CompletedTask;
             }
         );
-        var started = new TaskCompletionSource<bool>(
-            TaskCreationOptions.RunContinuationsAsynchronously
-        );
-        var release = new TaskCompletionSource<bool>(
-            TaskCreationOptions.RunContinuationsAsynchronously
-        );
-        var blocker = new FakeParticipant(
-            "blocking-runtime",
-            ApplicationShutdownParticipantStage.Runtime,
-            0,
-            calls,
-            started: started,
-            release: release
+        var synchronousReentrant = new SynchronousReentrantParticipant(
+            coordinator,
+            calls
         );
         var runtimeAfter = new FakeParticipant(
             "runtime-after-real-owners",
@@ -579,8 +609,8 @@ public partial class run_application_lifetime_coordinator_regression : SceneTree
                 return ValueTask.CompletedTask;
             }
         );
+        coordinator.RegisterParticipant(synchronousReentrant);
         coordinator.RegisterParticipant(runtimeBefore);
-        coordinator.RegisterParticipant(blocker);
         coordinator.RegisterParticipant(runtimeAfter);
         var sessionBefore = new FakeParticipant(
             "session-before-game-session",
@@ -624,7 +654,6 @@ public partial class run_application_lifetime_coordinator_regression : SceneTree
                 )
             )
             .AsTask();
-        await started.Task;
 
         Task<ShutdownReport> laterFailure = coordinator
             .RequestShutdownAsync(
@@ -647,19 +676,29 @@ public partial class run_application_lifetime_coordinator_regression : SceneTree
         coordinator._Notification((int)Node.NotificationWMCloseRequest);
 
         _test.True(
-            ReferenceEquals(first, laterFailure) && ReferenceEquals(first, laterSuccess),
-            "duplicate shutdown requests share one completion task"
+            ReferenceEquals(first, synchronousReentrant.ReentrantCompletion)
+                && ReferenceEquals(first, laterFailure)
+                && ReferenceEquals(first, laterSuccess),
+            "synchronous reentrant and later shutdown requests share one completion task"
         );
 
-        release.TrySetResult(true);
         ShutdownReport report = await first;
 
+        _test.True(
+            ReferenceEquals(report, synchronousReentrant.ObservedReport),
+            "synchronous reentrant shutdown observes the first request report"
+        );
+        _test.Eq(
+            synchronousReentrant.CloseCount,
+            1,
+            "synchronous reentrant participant closes exactly once"
+        );
         _test.Eq(report.FirstRequest.Reason, ShutdownReason.TestComplete, "first reason wins");
         _test.Eq(report.EffectiveExitCode, 7, "later failure raises effective exit code");
         _test.Eq(
             report.DuplicateRequestDiagnostics.Count,
-            3,
-            "later requests and window close share the cached report"
+            4,
+            "synchronous reentry, later requests, and window close share the cached report"
         );
         _test.True(
             report.DuplicateRequestDiagnostics.Any(diagnostic =>
@@ -674,7 +713,7 @@ public partial class run_application_lifetime_coordinator_regression : SceneTree
         );
         _test.Eq(
             string.Join(",", calls),
-            "runtime-before-real-owners,blocking-runtime,runtime-after-real-owners,session-before-game-session,session-after-game-session",
+            "synchronous-reentrant-runtime,runtime-before-real-owners,runtime-after-real-owners,session-before-game-session,session-after-game-session",
             "idempotent requests close each participant once"
         );
         await headlessParticipant.CloseForApplicationShutdownAsync(report);

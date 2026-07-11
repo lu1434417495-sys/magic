@@ -47,6 +47,7 @@ public partial class run_headless_game_test_session_regression : SceneTree
 
     private async void RunAsync()
     {
+        await TestCoordinatorlessHostCreatesNoncanonicalOwnedGameSession();
         await TestDisposeClearsBattleSaveLockOnSharedGameSession();
         await TestOwnedGameSessionDisposeRemovesLogSink();
         await TestBuildSnapshotDoesNotRebuildMissingSaveIndex();
@@ -54,6 +55,80 @@ public partial class run_headless_game_test_session_regression : SceneTree
         await TestFacadeBattleSetupUsesTypedEnemyCatalogs();
 
         Quit(_test.Finish("Headless game test session regression"));
+    }
+
+    private async Task TestCoordinatorlessHostCreatesNoncanonicalOwnedGameSession()
+    {
+        ApplicationLifetimeCoordinator coordinator =
+            Root.GetNodeOrNull<ApplicationLifetimeCoordinator>(
+                "ApplicationLifetimeCoordinator"
+            );
+        GameSession canonicalGameSession = Root.GetNodeOrNull<GameSession>("GameSession");
+        _test.True(
+            coordinator != null && canonicalGameSession != null,
+            "Coordinator-less headless 回归前置：autoload owners 应存在。"
+        );
+        if (coordinator == null || canonicalGameSession == null)
+            return;
+
+        StringName originalCoordinatorName = coordinator.Name;
+        StringName originalGameSessionName = canonicalGameSession.Name;
+        var session = new HeadlessGameTestSession();
+        GameSession ownedGameSession = null;
+        try
+        {
+            coordinator.Name = "ApplicationLifetimeCoordinatorHiddenForHeadlessRegression";
+            canonicalGameSession.Name = "CanonicalGameSessionHiddenForHeadlessRegression";
+
+            bool initialized = true;
+            try
+            {
+                session.initialize();
+            }
+            catch (Exception exception)
+            {
+                initialized = false;
+                _test.Fail(
+                    $"Coordinator-less headless host 应能初始化 owned GameSession。exception={exception}"
+                );
+            }
+
+            ownedGameSession = session.GetGameSessionTyped();
+            _test.True(initialized, "Coordinator-less headless host 初始化不应抛异常。");
+            _test.True(
+                ownedGameSession != null && GodotObject.IsInstanceValid(ownedGameSession),
+                "Coordinator-less headless host 应创建有效的 owned GameSession。"
+            );
+            if (ownedGameSession != null && GodotObject.IsInstanceValid(ownedGameSession))
+            {
+                _test.True(
+                    !ReferenceEquals(ownedGameSession, canonicalGameSession),
+                    "Coordinator-less headless host 不应借用隐藏的 canonical GameSession。"
+                );
+                _test.True(
+                    ownedGameSession.Name != "GameSession",
+                    "Coordinator-less owned GameSession 必须保持 noncanonical identity。"
+                );
+                _test.True(
+                    Root.GetNodeOrNull<GameSession>("GameSession") == null,
+                    "Coordinator-less owned GameSession 不应占用 canonical root path。"
+                );
+            }
+        }
+        finally
+        {
+            session.Dispose(false);
+            if (GodotObject.IsInstanceValid(coordinator))
+                coordinator.Name = originalCoordinatorName;
+            if (GodotObject.IsInstanceValid(canonicalGameSession))
+                canonicalGameSession.Name = originalGameSessionName;
+            await WaitFrame();
+        }
+
+        _test.True(
+            ownedGameSession == null || !GodotObject.IsInstanceValid(ownedGameSession),
+            "Coordinator-less owned GameSession 应由 headless host dispose。"
+        );
     }
 
     private async Task TestDisposeClearsBattleSaveLockOnSharedGameSession()

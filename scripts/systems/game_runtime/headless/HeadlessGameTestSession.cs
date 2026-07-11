@@ -13,6 +13,8 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
     private const ApplicationShutdownParticipantStage ApplicationShutdownStage =
         ApplicationShutdownParticipantStage.Runtime;
     private const int ApplicationShutdownOrder = 0;
+    private const string CoordinatorlessOwnedGameSessionName =
+        "HeadlessGameTestSessionGameSession";
 
     internal readonly struct SessionCommandOutcome
     {
@@ -676,8 +678,16 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
             return;
         }
 
-        _gameSession = new GameSession();
-        _gameSession.Name = "GameSession";
+        bool hasApplicationLifetimeCoordinator =
+            sceneTree.Root.GetNodeOrNull<ApplicationLifetimeCoordinator>(
+                "ApplicationLifetimeCoordinator"
+            ) != null;
+        _gameSession = new GameSession
+        {
+            Name = hasApplicationLifetimeCoordinator
+                ? "GameSession"
+                : CoordinatorlessOwnedGameSessionName,
+        };
         sceneTree.Root.AddChild(_gameSession);
         _ownsGameSession = true;
         SettleFrames(1);
