@@ -242,6 +242,8 @@ load/validate/project 和进程运行期何时必须保持可达，但不声称�
 
 `ProcessContentHost` 的规则：
 
+- authored root 使用 `ResourceLoader.CacheMode.IgnoreDeep` 加载；canonical identity 由 host root map
+  提供，避免全局 deep cache 把嵌套 C# Resource wrapper 持有到 GDMono teardown；
 - 以规范化 `ResourcePath` 为 key，只强持有每个已加载 graph 的根 Resource wrapper；
 - 不递归强持有 subresource、Array、Dictionary 或 getter 临时创建的 wrapper；
 - 同一路径重复请求返回同一个 canonical root；
@@ -471,8 +473,11 @@ content-release gate 时不能清 snapshot/canonical roots，也不能记录 `Co
 6. 断言 non-terminal runtime owner、content borrower、scope、lease、job 为 0；此时只允许
    coordinator terminal Node 与尚未清空的 ProcessContentHost 存活；
 7. 释放 ContentSnapshot borrower，再清 `ProcessContentHost` canonical roots；
-8. barrier gate 通过时，在 coordinator 仍在 SceneTree、Godot native runtime 仍存活时执行一次
-   `GC.Collect → GC.WaitForPendingFinalizers → GC.Collect`；gate 失败则明确跳过并标记失败；
+8. barrier gate 通过时，在 coordinator 仍在 SceneTree、Godot native runtime 仍存活时执行有界的
+   finalizer drain：最多 16 轮 `GC.Collect → GC.WaitForPendingFinalizers`，最后再
+   `GC.Collect`；Godot 4.6 的 RefCounted authored root 在 finalizer 中释放嵌套 C# Resource
+   handle，后者只会在下一轮成为可回收对象，因此单轮 barrier 不足以证明嵌套 graph 已排空；
+   gate 失败则明确跳过并标记失败；
 9. 读取 pre-quit audit，确认 content root map 已清空并完成 `ShutdownReport`；
 10. 调用唯一的 `SceneTree.Quit(effectiveExitCode)`。
 
@@ -571,9 +576,12 @@ domain 的 wrapper/resource-in-use 计数必须精确记录为 baseline，不能
 
 - 把 raw registry load 移到 process host；
 - 禁止修改 loaded `.tres`；
-- 迁 Trait、Profession、Achievement、Quest、Item、Recipe、Race、Subrace、AgeProfile、
-  Bloodline/Stage、Ascension/Stage、StageAdvancementModifier、FaithDeity/FaithRank、BarrierProfile、
-  ContingencySetupTemplate 与 world config；
+- 迁 `SkillDefinition`、`TraitDefinition`、`ProfessionDefinition`、`AchievementDefinition`、
+  `QuestDefinition`、`ItemDefinition`、`RecipeDefinition` 与 equipment ability pack/binding definition；
+- 迁 `RaceDefinition`、`SubraceDefinition`、`AgeProfileDefinition`、`BloodlineDefinition`/
+  `BloodlineStageDefinition`、`AscensionDefinition`/`AscensionStageDefinition`、
+  `StageAdvancementDefinition`、`FaithDeityDefinition`/`FaithRankDefinition`、
+  `BarrierProfileDefinition`、`ContingencySetupTemplateDefinition` 与 world generation/content definition；
 - 迁 derived Resource 和 special-profile Dictionary 为 plain definition；
 - 递归移除 typed definition 内的 `Variant.Type.Object`。
 
@@ -647,8 +655,8 @@ Resource；阶段 5 才执行本 spec 的全部静态、行为和稳定性合同
    type/owner 解释，不能按整行字符串豁免。
 3. lifecycle soak 使用固定 seed 和相同场景运行 110 次单进程
    session → battle → AI → preview → save/load → teardown：前 10 次 warm-up，后 100 次计量。
-   每轮 teardown 后等待 2 个 process frame，执行
-   `GC.Collect → WaitForPendingFinalizers → GC.Collect`，再等待 1 帧并采样
+   每轮 teardown 后等待 2 个 process frame，执行与 production 一致的最多 16 轮
+   `GC.Collect → WaitForPendingFinalizers`，最后 `GC.Collect`，再等待 1 帧并采样
    `GC.GetTotalMemory(false)`、`Process.GetCurrentProcess().PrivateMemorySize64` 和 lifecycle owner
    counters。owner/root/lease 的 warm-up 基线定义为第 10 轮 GC 后的完整 counter vector，后续每轮
    必须与该 vector 精确相等。该 vector 按 Session/Battle/Decision/Request/SceneTree owner、native/

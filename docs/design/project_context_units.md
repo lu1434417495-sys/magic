@@ -113,6 +113,12 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `project.godot`
   - `scripts/systems/lifecycle/*.cs`
   - `scripts/systems/persistence/*.cs`
+  - `scripts/systems/content/ProcessContentHost.cs`
+  - `scripts/systems/content/ContentSnapshot.cs`
+  - `scripts/systems/content/ContentSnapshotBuilder.cs`
+  - `scripts/systems/content/IContentResourceLoader.cs`
+  - `scripts/systems/content/ILegacyEnemyContentCatalog.cs`
+  - `scripts/systems/content/EngineAssetResolver.cs`
   - `scripts/systems/content/GameRoot.cs`
   - `scripts/systems/content/GameContentCatalog.cs`
   - `scripts/systems/content/skills/*.cs`
@@ -131,7 +137,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/utils/GodotTypedResourceGraphWalker.cs`
   - `tests/runtime/lifecycle/*.cs`
 - 负责：application shutdown、active save、slot meta、save payload/index、内容注册表、全局会话边界。
-- 边界：`ApplicationLifetimeCoordinator` 是进程内 shutdown state、owner drain、finalizer barrier 与最终 `SceneTree.Quit` 的唯一 owner，按 Runtime、Session 阶段关闭顶层 participant；退出后的 stderr、进程返回码与 GodotSharp fatal marker 由 CU-19 的外层 runner 判定，不回写进程内 report。`NativeLeaseScope` 显式拥有 runtime 创建的 pathless native wrapper，`GodotProjectionLease` 显式拥有短期 Godot collection 投影并只弱登记 borrowed child；两者都通过 lifecycle audit 记录 owner/domain，不遍历对象图。`WorldMapSystem` / `HeadlessGameTestSession` 关闭各自持有的 runtime graph，`GameSession` 关闭 session graph，子服务由这些顶层 owner 递归释放而不独立注册。`GameSession` 是会话根、持有 `GameRoot`；`GameContentCatalog` 是正式内容类型的组合根读入口，持有 typed 内容快照缓存并带 revision，生命周期绑定 owning `GameRoot`（root dispose 后 catalog 失效）。`SaveRepository` 拥有底层 save 文件 IO，`GameSession` 拥有 active save / schema / meta / index 归并；save/slot-index 的 session cache 与读回结果保持 plain C# graph，写入时才创建 Request-domain `GodotProjectionLease`，每个 nested collection 由同一 lease 显式拥有；`FileAccess` / `DirAccess` 由 Request-domain `NativeLeaseScope` 拥有，并在 Windows rename 前显式关闭文件句柄。`GetVar(false)` 结果必须在 file/Variant 仍存活时立即还原为 plain/typed state，不让 raw Godot payload 逃逸。`world_data` 的 runtime owner 是 `WorldRuntimeData`，只在 save payload 入口/出口投影。子 payload 破坏性 schema 变化时同步升级 owning save version，且只接受当前版本、不做 legacy 兼容迁移。
+- 边界：`ApplicationLifetimeCoordinator` 是进程内 shutdown state、owner drain、finalizer barrier 与最终 `SceneTree.Quit` 的唯一 owner，按 Runtime、Session 阶段关闭顶层 participant；退出后的 stderr、进程返回码与 GodotSharp fatal marker 由 CU-19 的外层 runner 判定，不回写进程内 report。它同时拥有唯一的 `ProcessContentHost`：启动期按 canonical path 加载、校验并投影 authored Resource，成功后 seal 并发布一个跨 session 复用的 immutable `ContentSnapshot`；`EngineAssetResolver` 独立借用 scene/texture/audio 等 engine asset，quiescing 后拒绝新解析。`GameSession` 只登记为 snapshot borrower，关闭时先解绑 `GameRoot` / `GameContentCatalog` 再注销 borrower，不重建任何非 AI registry。Phase 3 唯一允许的 raw content debt 是 `ProcessContentHost.LegacyEnemyContentRegistry`（domain `ProcessContent`，Phase 4 删除），其 interface、raw root 类型与 borrower 文件清单由 lifecycle boundary gate 精确锁定，不能扩散。`NativeLeaseScope` 显式拥有 runtime 创建的 pathless native wrapper，`GodotProjectionLease` 显式拥有短期 Godot collection 投影并只弱登记 borrowed child；两者都通过 lifecycle audit 记录 owner/domain，不遍历对象图。`WorldMapSystem` / `HeadlessGameTestSession` 关闭各自持有的 runtime graph，`GameSession` 关闭 session graph，子服务由这些顶层 owner 递归释放而不独立注册。`GameSession` 是会话根、持有 `GameRoot`；`GameContentCatalog` 是正式内容类型的组合根读入口，借用 process snapshot 并带 revision，生命周期绑定 owning `GameRoot`（root dispose 后 catalog 失效）。`SaveRepository` 拥有底层 save 文件 IO，`GameSession` 拥有 active save / schema / meta / index 归并；save/slot-index 的 session cache 与读回结果保持 plain C# graph，写入时才创建 Request-domain `GodotProjectionLease`，每个 nested collection 由同一 lease 显式拥有；`FileAccess` / `DirAccess` 由 Request-domain `NativeLeaseScope` 拥有，并在 Windows rename 前显式关闭文件句柄。`GetVar(false)` 结果必须在 file/Variant 仍存活时立即还原为 plain/typed state，不让 raw Godot payload 逃逸。`world_data` 的 runtime owner 是 `WorldRuntimeData`，只在 save payload 入口/出口投影。子 payload 破坏性 schema 变化时同步升级 owning save version，且只接受当前版本、不做 legacy 兼容迁移。
 - 物品内容边界：`ItemContentRegistry` / `RecipeContentRegistry` 只在同步加载与校验阶段持有 authored `ItemDef` / `RecipeDef`，随后立即投影为递归只读的 `ItemDefinition` / `RecipeDefinition`。`GameSession`、`GameContentCatalog`、runtime、battle、settlement 与 UI 只借用 definition 索引，不保留 raw registry mirror，也不把 definition 回投为 Godot Dictionary。
 - 适合：save schema、序列化、内容接入、全局注册表问题。
 - 邻接单元：CU-01、CU-03、CU-04、CU-10、CU-11、CU-13、CU-20、CU-21。
@@ -159,9 +165,13 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/utils/Facility*.cs`
   - `scripts/utils/WildSpawnRule.cs`
   - `scripts/utils/WorldMapContentValidator.cs`
+  - `scripts/systems/world/*Definition.cs`
+  - `scripts/systems/content/ContentSnapshot.cs`
+  - `scripts/systems/content/ContentSnapshotBuilder.cs`
   - `data/configs/world_map/*.tres`
   - `data/configs/world_map/shared/*.tres`
 - 负责：world preset、世界生成配置、据点/设施/野外遭遇的静态资源与内容校验。
+- 边界：`WorldMap*Config` / settlement / facility / wild-spawn Resource 只属于 process host 的同步 authoring/load 阶段；`WorldGenerationDefinition.FromResource(...)` 在 seal 前递归 canonical-load mounted submap 与 formal default bundle，检测 canonical path cycle，并生成完整 immutable definition graph。`WorldMapContentValidator` 的正式入口只校验 typed graph；`GameSession` 保存 generation path/id 并借用 snapshot 中的 definition，`WorldMapDataContext`、spawn/runtime/facade/UI 不在运行期加载或保留 raw world Resource。
 - 适合：世界预设、设施分布、遭遇配置、世界内容校验。
 - 邻接单元：CU-01、CU-02、CU-04。
 
@@ -286,6 +296,9 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/player/warehouse/TraitRollGroupEntryDefinition.cs`
   - `scripts/player/warehouse/WeaponProfileDefinition.cs`
   - `scripts/player/warehouse/WeaponDamageDiceDefinition.cs`
+  - `scripts/player/warehouse/ItemContentRegistry.cs`
+  - `scripts/player/warehouse/RecipeContentRegistry.cs`
+  - `scripts/systems/content/ContentSnapshot.cs`
   - `scripts/player/equipment/EquipmentRequirementDefinition.cs`
   - `scripts/player/equipment/EquipmentAttributeRequirementDefinition.cs`
   - `scripts/player/warehouse/ItemTraitContentValidator.cs`
@@ -297,7 +310,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `data/configs/items_templates/*.tres`
   - `data/configs/recipes/*.tres`
 - 负责：共享背包、堆叠/容量、物品与配方定义、装备实例、装备/卸装、物品使用。
-- 边界：`WarehouseState` / `EquipmentState` / `EquipmentInstanceState` 家族是 plain C# runtime/save owner。`ItemDef` / `RecipeDef`、weapon profile/dice、trait-roll group 与 equipment requirement 是 `.tres` authoring schema；运行时统一消费深拷贝、只读的对应 `*Definition`。模板合并、技能书生成、武器属性合并与装备需求检查都是 pure definition 操作，不创建或 `Duplicate()` Resource；无效 nested authoring 节点按索引化内容路径立即失败。物品内容（category / equipment type / 伤害标签 / 固定 trait ids / trait roll groups）跨 trait 规则由 `ItemTraitContentValidator` 校验；装备 trait mint 时机由 `EquipmentRules` / `EquipmentTraitRollService` 拥有——仓库分配稳定装备 instance id 后才生成 `equipment_roll` trait，不在 transient drop 阶段或已入库实例上重 roll。
+- 边界：`WarehouseState` / `EquipmentState` / `EquipmentInstanceState` 家族是 plain C# runtime/save owner。`ItemDef` / `RecipeDef`、weapon profile/dice、trait-roll group 与 equipment requirement 是 `.tres` authoring schema；`ItemContentRegistry` / `RecipeContentRegistry` 仅在 `ContentSnapshotBuilder` 的同步构建作用域内借用 raw Resource，并把模板合并、技能书生成、武器属性与装备需求投影为递归只读 `ItemDefinition` / `RecipeDefinition`。process snapshot seal 后，session、runtime、battle、settlement 与 UI 只借用同一个 definition 索引，不创建 registry mirror、Resource duplicate 或 Godot Dictionary 回投；无效 nested authoring 节点按索引化内容路径立即失败。物品内容（category / equipment type / 伤害标签 / 固定 trait ids / trait roll groups）跨 trait 规则由 `ItemTraitContentValidator` 校验；装备 trait mint 时机由 `EquipmentRules` / `EquipmentTraitRollService` 拥有——仓库分配稳定装备 instance id 后才生成 `equipment_roll` trait，不在 transient drop 阶段或已入库实例上重 roll。
 - 适合：物品内容、装备流转、仓库规则、仓库窗口。
 - 邻接单元：CU-02、CU-06、CU-09、CU-11、CU-12、CU-19、CU-21。
 
@@ -356,6 +369,8 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/player/progression/*content_validator.gd`
   - `scripts/player/progression/QuestContentValidator.cs`
   - `scripts/systems/progression/*ContentValidator.cs`
+  - `scripts/systems/content/ContentSnapshot.cs`
+  - `scripts/systems/content/ContentSnapshotBuilder.cs`
   - `data/configs/skills/*.tres`
   - `data/configs/professions/*.tres`
   - `data/configs/races/*.tres`
@@ -368,7 +383,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `data/configs/faith/*.tres`
   - `data/configs/quests/*.tres`
 - 负责：技能、职业、种族、通用 trait、任务、血脉、升华、信仰等静态内容与内容校验。
-- 边界：`TraitDef` / `TraitContentRegistry` / `data/configs/traits/*.tres` 是通用 trait authoring 边界，source scope、effect/stack/charge/roll schema、typed passive 投影字段（如 save advantage tags、damage resistance entries、`passive_status_effects`）等固定值由 `TraitContentRules` / registry 校验（trait effect 配置须显式 typed 字段）。progression、identity、quest、faith、barrier 与 contingency registry 只在同步加载边界读取 authored Resource，并立即投影为递归只读的 `*Definition`；`ProgressionContentRegistry`、`GameSession`、`GameContentCatalog`、character/runtime/UI 与 battle service 不保存或回投这些 raw Resource。`BattleBarrierService` 通过 catalog 注入 `BarrierProfileDefinition` 索引，`FaithService` 通过构造函数注入 `FaithDeityDefinition` 索引。跨表校验只消费已经投影出的 definition 索引；raw `SkillDef` 和其他 authored Resource 只在资源加载、字段校验、`*Definition.FromResource(...)` 这类明确 Resource-boundary 触达。只供通用运行时内部结算引用、不得进入任何学习路径的技能使用 `learn_source = internal`，不能借用 `innate` 表达隐藏性。
+- 边界：`TraitDef` / `TraitContentRegistry` / `data/configs/traits/*.tres` 是通用 trait authoring 边界，source scope、effect/stack/charge/roll schema、typed passive 投影字段（如 save advantage tags、damage resistance entries、`passive_status_effects`）等固定值由 `TraitContentRules` / registry 校验（trait effect 配置须显式 typed 字段）。progression、identity、quest、faith、barrier 与 contingency registry 只在 `ContentSnapshotBuilder` 的同步加载作用域内读取 authored Resource，并立即投影为递归只读的 `*Definition`；跨表校验完成后 registry 释放 raw 引用，process host seal 一个共享 snapshot。`ProgressionContentRegistry`、`GameSession`、`GameContentCatalog`、character/runtime/UI 与 battle service 不保存、重建或回投这些 raw Resource；session A/B 必须复用同一 epoch 与 definition object graph。`BattleBarrierService` 通过 catalog 注入 `BarrierProfileDefinition` 索引，`FaithService` 通过构造函数注入 `FaithDeityDefinition` 索引。跨表校验只消费已经投影出的 definition 索引；raw `SkillDef` 和其他 authored Resource 只在资源加载、字段校验、`*Definition.FromResource(...)` 这类明确 Resource-boundary 触达。只供通用运行时内部结算引用、不得进入任何学习路径的技能使用 `learn_source = internal`，不能借用 `innate` 表达隐藏性。
 - CombatEffect 内容边界：多伤害段与目标分类倍率必须走 `CombatDamageSegmentDef` / `CombatTargetDamageMultiplierRuleDef` → `CombatEffectDefinition.ExtraDamageSegments` / `TargetDamageMultiplierRules` typed 投影；来源绑定的武器额外骰走 `CombatEffectDef.source_bound_weapon_bonus_damage_dice_*` → `BattleStatusEffectState`，由 `BattleDamageResolver` 按状态 `source_unit_id` 与真实武器伤害结算，不在 `params` 或技能 id 文本里塞 ad-hoc 结构；资源校验由 `SkillContentRegistry` 负责。
 - CombatSkill 边界：`CombatSkillDef.attack_resolution_mode`（authoring）与 `SkillDefinition.AttackResolutionModeKind`（runtime DTO）唯一由 `BattleSkillResolutionRules` 解释为 direct effect / fate attack / force-hit-no-crit。装备必中主动技能应配 `attack_resolution_mode = &"direct_effect"`，再由 combat effect 的 target/status requirement 与 `BattleDamageResolver` 决定是否生效，不在装备能力 service、技能 id、状态 params 里硬编码“必中”。
 - 装备能力内容边界：`EquipmentAbilityContentRegistry` 在加载期把 authored pack/binding/payload Resource 投影为 plain definitions，并以 `ItemDefinition` 索引校验来源物品；battle/runtime 不接受 raw `ItemDef`。召唤、消费召唤物、按召唤物数量/距离产生攻击检定修正必须走 `SummonUnitsActionPayloadDef` / `ConsumeSummonedUnitsActionPayloadDef` / `SummonedUnitAttackRollModifierActionPayloadDef` 与 `summoned_unit_count` fact；附近生物/友军计数走 `nearby_unit_count` / `nearby_ally_count` fact；击杀后的额外武器攻击走 `ImmediateWeaponAttackActionPayloadDef`；命中后升级为暴击走 `CriticalHitOverrideActionPayloadDef`；不进入技能可用性列表的装备内部结算走 `TriggerSkillActionPayloadDef`，仍引用正式 `SkillDef` 并复用技能效果、豁免、范围和死亡规则；AP 变动与下一行动回合 AP 清零走 `ModifyActionPointsActionPayloadDef`；装备期间影响行动/读条进度倍率的被动走 binding 级 `EquipmentTemporalProgressModifierDef`；装备触发的固定伤害减免走 `DamageReductionActionPayloadDef`；按实际伤害等 fact 计算治疗走 `HealFromFactActionPayloadDef`；状态栈消费走 `ConsumeStatusStacksActionPayloadDef`；随机分支走 `EquipmentOutcomeTableDef` / `EquipmentOutcomeEntryDef`，仍由分支内 typed action payload 表达效果；持久成长计数由 `ModifyAbilityStateActionPayloadDef` 写入，计数同步出的保存状态由 `EquipmentAbilityStateSchemaDef` 的同步字段声明；临时战场边特征/裂隙走 `ApplyEdgeFeatureActionPayloadDef` 的 from/to selector、`duration_tu`、edge feature 字段与 `max_active_edges`；武器近/远程分类条件读 `weapon_range_type` fact。资源只声明 binding/state/source/target 关系，不在技能 id 或武器 id 文本中推导召唤物、附近单位、追击目标、时间进度、伤害减免、伤害转治疗、状态栈消费、随机分支、临时边或成长状态键。
