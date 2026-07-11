@@ -153,6 +153,8 @@ public partial class BattleState
     internal int ReportEntryCount => _reportEntries.Count;
     internal IReadOnlyList<IReadOnlyDictionary<string, object>> ReportEntriesTyped =>
         BuildReportEntrySnapshots();
+    internal IReadOnlyList<IReadOnlyDictionary<string, object>> PromotionQueueTyped =>
+        BuildPromotionQueueSnapshots();
     internal BattleBarrierStore LayeredBarrierStore => _layeredBarrierStore;
     internal long MovementGeometryRevision => _movement_geometry_revision;
 
@@ -234,6 +236,20 @@ public partial class BattleState
     {
         var result = new List<IReadOnlyDictionary<string, object>>(_reportEntries.Count);
         foreach (IReadOnlyDictionary<string, object> entry in _reportEntries)
+        {
+            result.Add(
+                new ReadOnlyDictionary<string, object>(
+                    RuntimePlainPayload.CloneDictionary(entry)
+                )
+            );
+        }
+        return result.AsReadOnly();
+    }
+
+    private ReadOnlyCollection<IReadOnlyDictionary<string, object>> BuildPromotionQueueSnapshots()
+    {
+        var result = new List<IReadOnlyDictionary<string, object>>(_promotionQueue.Count);
+        foreach (IReadOnlyDictionary<string, object> entry in _promotionQueue)
         {
             result.Add(
                 new ReadOnlyDictionary<string, object>(

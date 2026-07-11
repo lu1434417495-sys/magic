@@ -488,6 +488,23 @@ public class BattleAiContext : IBattleAiScoreContext
         _skillDefinitionsById.Clear();
     }
 
+    internal bool HasRuntimeBindings =>
+        state != null
+        || unit_state != null
+        || grid_service != null
+        || active_score_profile != null
+        || skill_catalog != null
+        || runtime_action_plan != null
+        || ai_query_service != null
+        || candidate_evaluator != null
+        || move_cost_callback != null
+        || preview_command_callback != null
+        || skill_score_input_callback != null
+        || action_score_input_callback != null
+        || skill_cast_block_reason_callback != null
+        || _skillDefinitionsSource != null
+        || _skillDefinitionsById.Count != 0;
+
     private void ClearDecisionState()
     {
         _action_trace_nonce = 0;
@@ -537,10 +554,8 @@ public class BattleAiContext : IBattleAiScoreContext
 
     internal BattleAiDecision EvaluateCandidateRequest(BattleAiCandidateRequest request)
     {
-        AiTraceRecorder.Enter("candidate:context.evaluate_request");
-        BattleAiDecision result = EvaluateCandidateRequestImpl(request);
-        AiTraceRecorder.Exit("candidate:context.evaluate_request");
-        return result;
+        using BattleAiTraceSpan trace = new("candidate:context.evaluate_request");
+        return EvaluateCandidateRequestImpl(request);
     }
 
     private BattleAiDecision EvaluateCandidateRequestImpl(BattleAiCandidateRequest request)

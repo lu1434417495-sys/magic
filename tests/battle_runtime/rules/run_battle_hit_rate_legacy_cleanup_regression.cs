@@ -150,7 +150,7 @@ public partial class run_battle_hit_rate_legacy_cleanup_regression : LifecycleTe
 
     private void TestAiScoreServiceRequiresSuccessRate()
     {
-        var scoreService = new BattleAiScoreService();
+        using var scoreService = new BattleAiScoreService();
         _test.Eq(
             scoreService.ResolveEstimatedHitRatePercent(
                 BuildPreview(new AttackPreviewData { HitRatePercent = 87 })

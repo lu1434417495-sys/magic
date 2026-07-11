@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using Godot;
 
@@ -11,6 +12,8 @@ public partial class run_battle_ai_runtime_action_plan_regression : LifecycleTes
         try
         {
             TestPlanFingerprintIgnoresResourcesButTracksSkillsAndBrainShape();
+            TestClearReopensNativeGenerationAndDisposeReturnsAuditBaseline();
+            TestAssemblerExceptionDisposesPartialPlanAndBalancesTrace();
             TestServiceRequiresRuntimePlanByDefault();
             TestServiceUsesExplicitTestFallbackOnlyWhenEnabled();
             TestServiceReportsEmptyRuntimeState();
@@ -21,6 +24,76 @@ public partial class run_battle_ai_runtime_action_plan_regression : LifecycleTes
         }
 
         RequestTestExit(_test.Finish("Battle AI runtime action plan regression"));
+    }
+
+    private void TestAssemblerExceptionDisposesPartialPlanAndBalancesTrace()
+    {
+        LifecycleAuditSnapshot baseline = LifecycleAuditRegistry.Shared.CaptureSnapshot();
+        EnemyAiBrainDef brain = BuildBrain();
+        BattleUnitState unit = BuildUnit("throwing_actor", brain.brain_id, "engage");
+        unit.known_active_skill_ids.Add("bolt");
+        var recorder = new AiTraceRecorder();
+        AiTraceRecorder.SetInstance(recorder);
+        BattleAiRuntimeActionPlan unexpectedPlan = null;
+        bool threw = false;
+        try
+        {
+            unexpectedPlan = new BattleAiActionAssembler().BuildUnitActionPlan(
+                unit,
+                brain,
+                new ThrowingSkillDictionary()
+            );
+        }
+        catch (InvalidOperationException exception)
+        {
+            threw = exception.Message.Contains(
+                "action plan classification probe",
+                StringComparison.Ordinal
+            );
+        }
+        finally
+        {
+            AiTraceRecorder.SetInstance(null);
+            unexpectedPlan?.Dispose();
+        }
+
+        _test.True(threw, "assembler should surface the classification failure.");
+        _test.True(recorder.AssertBalanced(), "assembler failure should close its trace span.");
+        LifecycleAuditSnapshot actual = LifecycleAuditRegistry.Shared.CaptureSnapshot();
+        _test.Eq(actual.ActiveOwnerCount, baseline.ActiveOwnerCount, "assembler owner baseline");
+        _test.Eq(actual.ActiveLeaseCount, baseline.ActiveLeaseCount, "assembler lease baseline");
+        _test.Eq(actual.ActiveScopeCount, baseline.ActiveScopeCount, "assembler scope baseline");
+    }
+
+    private void TestClearReopensNativeGenerationAndDisposeReturnsAuditBaseline()
+    {
+        LifecycleAuditSnapshot baseline = LifecycleAuditRegistry.Shared.CaptureSnapshot();
+        var plan = new BattleAiRuntimeActionPlan();
+        WaitAction first = (WaitAction)plan.OwnRuntimeAction(
+            new WaitAction { action_id = "first_generation" },
+            "first_generation"
+        );
+
+        plan.Clear();
+        _test.True(
+            !GodotObject.IsInstanceValid(first),
+            "Clear should dispose the previous runtime-action generation."
+        );
+
+        WaitAction second = (WaitAction)plan.OwnRuntimeAction(
+            new WaitAction { action_id = "second_generation" },
+            "second_generation"
+        );
+        plan.Dispose();
+        _test.True(
+            !GodotObject.IsInstanceValid(second),
+            "Dispose should release the current runtime-action generation."
+        );
+
+        LifecycleAuditSnapshot actual = LifecycleAuditRegistry.Shared.CaptureSnapshot();
+        _test.Eq(actual.ActiveOwnerCount, baseline.ActiveOwnerCount, "action-plan owner baseline");
+        _test.Eq(actual.ActiveLeaseCount, baseline.ActiveLeaseCount, "action-plan lease baseline");
+        _test.Eq(actual.ActiveScopeCount, baseline.ActiveScopeCount, "action-plan scope baseline");
     }
 
     private void TestPlanFingerprintIgnoresResourcesButTracksSkillsAndBrainShape()
@@ -69,8 +142,10 @@ public partial class run_battle_ai_runtime_action_plan_regression : LifecycleTes
 
     private void TestServiceRequiresRuntimePlanByDefault()
     {
-        Fixture fixture = BuildServiceFixture(false, null);
-        BattleAiDecision decision = fixture.Service.ChooseCommand(fixture.Context);
+        using Fixture fixture = BuildServiceFixture(false, null);
+        BattleAiDecision decision = fixture.Service
+            .ChooseCommand(fixture.Context, captureTrace: false)
+            ?.Decision;
         _test.True(decision != null, "Missing runtime plan should still return a wait decision.");
         _test.Eq(
             decision.action_id,
@@ -81,8 +156,10 @@ public partial class run_battle_ai_runtime_action_plan_regression : LifecycleTes
 
     private void TestServiceUsesExplicitTestFallbackOnlyWhenEnabled()
     {
-        Fixture fixture = BuildServiceFixture(true, null);
-        BattleAiDecision decision = fixture.Service.ChooseCommand(fixture.Context);
+        using Fixture fixture = BuildServiceFixture(true, null);
+        BattleAiDecision decision = fixture.Service
+            .ChooseCommand(fixture.Context, captureTrace: false)
+            ?.Decision;
         _test.True(decision != null, "Explicit test fallback should return an authored decision.");
         _test.Eq(
             decision.action_id,
@@ -94,11 +171,13 @@ public partial class run_battle_ai_runtime_action_plan_regression : LifecycleTes
     private void TestServiceReportsEmptyRuntimeState()
     {
         using var plan = new BattleAiRuntimeActionPlan();
-        Fixture fixture = BuildServiceFixture(false, plan);
+        using Fixture fixture = BuildServiceFixture(false, plan);
         plan.SetSource(fixture.Actor, fixture.Brain);
         plan.AddStateActions("engage", Array.Empty<EnemyAiAction>());
 
-        BattleAiDecision decision = fixture.Service.ChooseCommand(fixture.Context);
+        BattleAiDecision decision = fixture.Service
+            .ChooseCommand(fixture.Context, captureTrace: false)
+            ?.Decision;
         _test.True(decision != null, "Empty runtime state should return a wait decision.");
         _test.Eq(
             decision.action_id,
@@ -281,7 +360,7 @@ public partial class run_battle_ai_runtime_action_plan_regression : LifecycleTes
         return false;
     }
 
-    private sealed class Fixture
+    private sealed class Fixture : IDisposable
     {
         public BattleState State;
         public BattleGridService GridService;
@@ -289,5 +368,39 @@ public partial class run_battle_ai_runtime_action_plan_regression : LifecycleTes
         public EnemyAiBrainDef Brain;
         public BattleAiService Service;
         public BattleAiContext Context;
+
+        public void Dispose()
+        {
+            Context?.ClearRuntimeBindings();
+            Service?.Dispose();
+        }
+    }
+
+    private sealed class ThrowingSkillDictionary
+        : IReadOnlyDictionary<StringName, SkillDefinition>
+    {
+        public int Count => throw BuildException();
+
+        public IEnumerable<StringName> Keys => throw BuildException();
+
+        public IEnumerable<SkillDefinition> Values => throw BuildException();
+
+        public SkillDefinition this[StringName key] => throw BuildException();
+
+        public bool ContainsKey(StringName key) => throw BuildException();
+
+        public bool TryGetValue(StringName key, out SkillDefinition value)
+        {
+            value = null;
+            throw BuildException();
+        }
+
+        public IEnumerator<KeyValuePair<StringName, SkillDefinition>> GetEnumerator() =>
+            throw BuildException();
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+        private static InvalidOperationException BuildException() =>
+            new("action plan classification probe");
     }
 }

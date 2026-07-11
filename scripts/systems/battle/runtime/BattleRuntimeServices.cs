@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.ExceptionServices;
 using Godot;
 
 internal readonly struct BattleAiDecisionContextSetup
@@ -201,17 +202,27 @@ internal sealed class BattleRuntimeServices : IDisposable
     internal BattleContingencySystem Contingencies { get; } = new();
 
     private bool _disposed;
+    private bool _runtimeSidecarsBound;
+    private bool _aiHelperBindingsActive;
+
+    internal bool HasAiRuntimeBindings =>
+        _aiHelperBindingsActive || AiDecisionContext.HasRuntimeBindings;
+
+    internal bool HasRuntimeSidecarBindings => _runtimeSidecarsBound;
 
     internal void SetupRuntimeSidecars(BattleRuntimeModule runtime)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         GroundEffects.Setup(runtime);
         SpecialSkills.Setup(runtime);
         Movement.Setup(runtime);
         Contingencies.Setup(runtime);
+        _runtimeSidecarsBound = runtime != null;
     }
 
     internal BattleAiContext PrepareAiContextForDecision(BattleAiDecisionContextSetup context)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         AiDecisionContext.ResetForDecision(
             context.State,
             context.UnitState,
@@ -230,6 +241,7 @@ internal sealed class BattleRuntimeServices : IDisposable
         BattleAiContext aiContext
     )
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (
             context.UnitState == null
             || aiContext == null
@@ -242,44 +254,49 @@ internal sealed class BattleRuntimeServices : IDisposable
 
         BindContextCallbacks(aiContext, context);
 
-        AiTraceRecorder.Enter("bind_ai_helpers:movement_query_setup");
-        AiMovementQuery.Setup(
-            context.State,
-            context.GridService,
-            context.MoveQueryCostCallback
-        );
-        AiTraceRecorder.Exit("bind_ai_helpers:movement_query_setup");
+        using (new BattleAiTraceSpan("bind_ai_helpers:movement_query_setup"))
+        {
+            AiMovementQuery.Setup(
+                context.State,
+                context.GridService,
+                context.MoveQueryCostCallback
+            );
+        }
 
-        AiTraceRecorder.Enter("bind_ai_helpers:score_adapter_setup");
-        AiScoreContextAdapter.Setup(
-            context.ScoreService,
-            context.State,
-            context.UnitState,
-            context.GridService,
-            context.SkillCatalog,
-            context.SkillDefinitions
-        );
-        AiTraceRecorder.Exit("bind_ai_helpers:score_adapter_setup");
+        using (new BattleAiTraceSpan("bind_ai_helpers:score_adapter_setup"))
+        {
+            AiScoreContextAdapter.Setup(
+                context.ScoreService,
+                context.State,
+                context.UnitState,
+                context.GridService,
+                context.SkillCatalog,
+                context.SkillDefinitions
+            );
+        }
 
-        AiTraceRecorder.Enter("bind_ai_helpers:query_setup");
-        AiQuery.Setup(
-            context.State,
-            context.GridService,
-            context.UnitState.unit_id,
-            context.SkillDefinitions,
-            context.QueryActionScoreInputCallback,
-            AiMovementQuery,
-            context.MovementBlockedCallback,
-            context.SkillCatalog
-        );
-        AiTraceRecorder.Exit("bind_ai_helpers:query_setup");
+        using (new BattleAiTraceSpan("bind_ai_helpers:query_setup"))
+        {
+            AiQuery.Setup(
+                context.State,
+                context.GridService,
+                context.UnitState.unit_id,
+                context.SkillDefinitions,
+                context.QueryActionScoreInputCallback,
+                AiMovementQuery,
+                context.MovementBlockedCallback,
+                context.SkillCatalog
+            );
+        }
 
-        AiTraceRecorder.Enter("bind_ai_helpers:candidate_setup");
-        AiCandidateEvaluation.Setup(context.ScoreService);
-        AiTraceRecorder.Exit("bind_ai_helpers:candidate_setup");
+        using (new BattleAiTraceSpan("bind_ai_helpers:candidate_setup"))
+        {
+            AiCandidateEvaluation.Setup(context.ScoreService);
+        }
 
         aiContext.ai_query_service = AiQuery;
         aiContext.candidate_evaluator = AiCandidateEvaluation;
+        _aiHelperBindingsActive = true;
     }
 
     internal BattleAiScoreInput BuildActionScoreInput(
@@ -305,10 +322,15 @@ internal sealed class BattleRuntimeServices : IDisposable
 
     internal void ClearRuntimeBindings()
     {
-        AiMovementQuery.ClearRuntimeBindings();
-        AiScoreContextAdapter.ClearRuntimeBindings();
-        AiQuery.ClearRuntimeBindings();
-        AiDecisionContext.ClearRuntimeBindings();
+        // Clear in reverse borrower order: the decision context borrows query/candidate
+        // services, the query borrows movement, catalog, callbacks, and state.
+        _aiHelperBindingsActive = false;
+        Exception firstFailure = null;
+        RunTeardownStep(ref firstFailure, AiDecisionContext.ClearRuntimeBindings);
+        RunTeardownStep(ref firstFailure, AiQuery.ClearRuntimeBindings);
+        RunTeardownStep(ref firstFailure, AiScoreContextAdapter.ClearRuntimeBindings);
+        RunTeardownStep(ref firstFailure, AiMovementQuery.ClearRuntimeBindings);
+        Rethrow(firstFailure);
     }
 
     public void Dispose()
@@ -318,12 +340,35 @@ internal sealed class BattleRuntimeServices : IDisposable
             return;
         }
         _disposed = true;
-        ClearRuntimeBindings();
-        Contingencies.Dispose();
-        GroundEffects.Dispose();
-        SpecialSkills.Dispose();
-        Movement.Dispose();
-        AiMovementQuery.Dispose();
+        _runtimeSidecarsBound = false;
+        Exception firstFailure = null;
+        RunTeardownStep(ref firstFailure, ClearRuntimeBindings);
+        RunTeardownStep(ref firstFailure, Contingencies.Dispose);
+        RunTeardownStep(ref firstFailure, GroundEffects.Dispose);
+        RunTeardownStep(ref firstFailure, SpecialSkills.Dispose);
+        RunTeardownStep(ref firstFailure, Movement.Dispose);
+        RunTeardownStep(ref firstFailure, AiMovementQuery.Dispose);
+        Rethrow(firstFailure);
+    }
+
+    private static void RunTeardownStep(ref Exception firstFailure, Action action)
+    {
+        try
+        {
+            action?.Invoke();
+        }
+        catch (Exception exception)
+        {
+            firstFailure ??= exception;
+        }
+    }
+
+    private static void Rethrow(Exception failure)
+    {
+        if (failure != null)
+        {
+            ExceptionDispatchInfo.Capture(failure).Throw();
+        }
     }
 
     private static void BindContextCallbacks(

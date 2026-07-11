@@ -203,7 +203,9 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
             BattlePreview preview = null;
             try
             {
-                decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, enemyUnit));
+                decision = runtime._ai_service
+                    .ChooseCommand(BuildAiContext(runtime, enemyUnit), captureTrace: false)
+                    ?.Decision;
                 _test.True(decision != null && decision.command != null, $"{templateId} pressure probe 应产出正式 AI 指令。");
                 if (decision?.command == null)
                 {
@@ -262,7 +264,9 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
             BattleAiDecision moveDecision = null;
             try
             {
-                moveDecision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, enemyUnit));
+                moveDecision = runtime._ai_service
+                    .ChooseCommand(BuildAiContext(runtime, enemyUnit), captureTrace: false)
+                    ?.Decision;
                 _test.True(moveDecision != null && moveDecision.command != null, $"{templateId} 法力耗尽时仍应产出 fallback 指令。");
                 if (moveDecision?.command != null)
                 {
@@ -308,7 +312,9 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
             BattleAiDecision attackDecision = null;
             try
             {
-                attackDecision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, enemyUnit));
+                attackDecision = runtime._ai_service
+                    .ChooseCommand(BuildAiContext(runtime, enemyUnit), captureTrace: false)
+                    ?.Decision;
                 _test.True(attackDecision != null && attackDecision.command != null, $"{templateId} 近身 depleted fallback 应产出基础攻击。");
                 if (attackDecision?.command != null)
                 {

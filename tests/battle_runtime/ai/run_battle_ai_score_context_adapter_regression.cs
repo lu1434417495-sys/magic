@@ -25,14 +25,17 @@ public partial class run_battle_ai_score_context_adapter_regression : LifecycleT
     {
         Fixture fixture = BuildFixture();
         var adapter = new BattleAiScoreContextAdapter();
-        adapter.Setup(
-            new BattleAiScoreService(),
-            fixture.State,
-            fixture.Actor,
-            fixture.GridService,
-            null,
-            fixture.SkillDefinitions
-        );
+        using var scoreService = new BattleAiScoreService();
+        try
+        {
+            adapter.Setup(
+                scoreService,
+                fixture.State,
+                fixture.Actor,
+                fixture.GridService,
+                null,
+                fixture.SkillDefinitions
+            );
 
         IBattleAiScoreContext scoreContext = adapter;
         _test.True(
@@ -91,10 +94,15 @@ public partial class run_battle_ai_score_context_adapter_regression : LifecycleT
             fixture.Skill.SkillId,
             "runtime_action_metadata 应带上 skill_id，替代 live skill_def。"
         );
-        _test.True(
-            BattleAiPayloadGuard.ScoreInputHasNoLiveState(scoreInput),
-            "score input 应满足 AI payload guard 的 no-live-state 合约。"
-        );
+            _test.True(
+                BattleAiPayloadGuard.ScoreInputHasNoLiveState(scoreInput),
+                "score input 应满足 AI payload guard 的 no-live-state 合约。"
+            );
+        }
+        finally
+        {
+            adapter.ClearRuntimeBindings();
+        }
     }
 
     private void TestPayloadGuardRejectsRuntimeLikeCommandAndPreviewPayload()

@@ -15,8 +15,8 @@ public sealed partial class BattleAiScoreService : IDisposable
     private const int MinRangedThreatRange = 3;
     private const int FriendlyLethalMinProbabilityThreshold = 15;
 
-    private readonly GodotTransientResourceScope _transientScope =
-        new("BattleAiScoreService");
+    private readonly NativeLeaseScope _resourceScope =
+        new("BattleAiScoreService", LifetimeDomain.Battle);
     private BattleAiScoreProfile _scoreProfile;
     private BattleAiScoreProfile _defaultProfile;
     private readonly Dictionary<StringName, BattleAiScoreProfile> _factionProfiles = new();
@@ -32,6 +32,7 @@ public sealed partial class BattleAiScoreService : IDisposable
         new();
     private readonly Dictionary<AnchorDistanceCacheKey, int> _anchorDistanceCache = new();
     private bool _decisionScopeActive;
+    private bool _disposed;
 
     internal BattleAiScoreService()
     {
@@ -41,14 +42,19 @@ public sealed partial class BattleAiScoreService : IDisposable
 
     public void Dispose()
     {
-        _transientScope.Dispose();
+        if (_disposed)
+            return;
+        _disposed = true;
+        EndDecisionScope();
         _scoreProfile = null;
         _defaultProfile = null;
         _factionProfiles.Clear();
         _brainProfiles.Clear();
         _damageResolver = null;
-        EndDecisionScope();
+        _resourceScope.Dispose();
     }
+
+    internal bool DecisionScopeActive => _decisionScopeActive;
 
     private readonly record struct ThreatProjectionCacheKey(
         StringName ActorUnitId,
@@ -215,7 +221,7 @@ public sealed partial class BattleAiScoreService : IDisposable
     private BattleAiScoreProfile NewRuntimeScoreProfile(string reason)
     {
         var profile = new BattleAiScoreProfile();
-        return _transientScope.Own(profile, reason);
+        return _resourceScope.Own(profile, reason);
     }
 
     internal void Setup(BattleDamageResolver damageResolver = null)
@@ -344,20 +350,17 @@ public sealed partial class BattleAiScoreService : IDisposable
         IReadOnlyDictionary<string, object> metadata = null
     )
     {
-        AiTraceRecorder.Enter("build_skill_score_input");
-        AiTraceRecorder.Enter("score_input:metadata");
-        ScoreBuildMetadata scoreMetadata = ScoreBuildMetadata.FromMetadata(
-            metadata,
-            "skill",
-            skillDefinition != null ? skillDefinition.DisplayName : "",
-            BattleAiActionIntent.InferForSkill(
-                skillDefinition,
-                effectDefinitions
-            ),
-            "",
-            0
-        );
-        AiTraceRecorder.Exit("score_input:metadata");
+        using BattleAiTraceSpan overallTrace = new("build_skill_score_input");
+        ScoreBuildMetadata scoreMetadata;
+        using (new BattleAiTraceSpan("score_input:metadata"))
+            scoreMetadata = ScoreBuildMetadata.FromMetadata(
+                metadata,
+                "skill",
+                skillDefinition != null ? skillDefinition.DisplayName : "",
+                BattleAiActionIntent.InferForSkill(skillDefinition, effectDefinitions),
+                "",
+                0
+            );
 
         var scoreInput = new BattleAiScoreInput
         {
@@ -378,17 +381,16 @@ public sealed partial class BattleAiScoreService : IDisposable
         scoreInput.target_coords = CopyTargetCoords(preview);
         scoreInput.target_count = scoreInput.target_unit_ids.Count;
 
-        AiTraceRecorder.Enter("score_input:filter_effects");
-        List<CombatEffectDefinition> effectiveEffectDefinitions = FilterEffectDefinitionsForContext(
-            effectDefinitions,
-            context,
-            skillDefinition
-        );
-        AiTraceRecorder.Exit("score_input:filter_effects");
+        List<CombatEffectDefinition> effectiveEffectDefinitions;
+        using (new BattleAiTraceSpan("score_input:filter_effects"))
+            effectiveEffectDefinitions = FilterEffectDefinitionsForContext(
+                effectDefinitions,
+                context,
+                skillDefinition
+            );
         PopulateHitMetrics(scoreInput, context, skillDefinition, effectiveEffectDefinitions);
-        AiTraceRecorder.Enter("score_input:ground_control");
-        PopulateGroundControlMetrics(scoreInput, effectiveEffectDefinitions);
-        AiTraceRecorder.Exit("score_input:ground_control");
+        using (new BattleAiTraceSpan("score_input:ground_control"))
+            PopulateGroundControlMetrics(scoreInput, effectiveEffectDefinitions);
         PopulateRandomChainMetrics(
             scoreInput,
             context,
@@ -404,22 +406,18 @@ public sealed partial class BattleAiScoreService : IDisposable
             effectiveEffectDefinitions,
             scoreMetadata.PathStepAoe
         );
-        AiTraceRecorder.Enter("score_input:resource_cost");
-        PopulateResourceCostMetrics(scoreInput, skillDefinition, context);
-        AiTraceRecorder.Exit("score_input:resource_cost");
-        AiTraceRecorder.Enter("score_input:position");
-        PopulatePositionMetrics(scoreInput, context, scoreMetadata.Position);
-        AiTraceRecorder.Exit("score_input:position");
-        AiTraceRecorder.Enter("score_input:post_threat_projection");
-        PopulatePostActionThreatProjection(scoreInput, context, scoreMetadata.Position);
-        AiTraceRecorder.Exit("score_input:post_threat_projection");
+        using (new BattleAiTraceSpan("score_input:resource_cost"))
+            PopulateResourceCostMetrics(scoreInput, skillDefinition, context);
+        using (new BattleAiTraceSpan("score_input:position"))
+            PopulatePositionMetrics(scoreInput, context, scoreMetadata.Position);
+        using (new BattleAiTraceSpan("score_input:post_threat_projection"))
+            PopulatePostActionThreatProjection(scoreInput, context, scoreMetadata.Position);
         scoreInput.total_score =
             ResolveActionBaseScore(scoreInput.action_kind, scoreMetadata)
             + scoreInput.hit_payoff_score
             + scoreInput.effective_target_count * _scoreProfile.target_count_weight
             - scoreInput.resource_cost_score
             + BuildProfileScoreAdjustment(scoreInput, context, effectiveEffectDefinitions);
-        AiTraceRecorder.Exit("build_skill_score_input");
         return scoreInput;
     }
 
@@ -452,17 +450,17 @@ public sealed partial class BattleAiScoreService : IDisposable
         IReadOnlyDictionary<string, object> metadata = null
     )
     {
-        AiTraceRecorder.Enter("build_action_score_input");
-        AiTraceRecorder.Enter("score_input:metadata");
-        ScoreBuildMetadata scoreMetadata = ScoreBuildMetadata.FromMetadata(
-            metadata,
-            actionKind,
-            actionLabel,
-            BattleAiActionIntent.DefaultForActionKind(actionKind),
-            scoreBucketId,
-            preview != null ? preview.move_cost : 0
-        );
-        AiTraceRecorder.Exit("score_input:metadata");
+        using BattleAiTraceSpan overallTrace = new("build_action_score_input");
+        ScoreBuildMetadata scoreMetadata;
+        using (new BattleAiTraceSpan("score_input:metadata"))
+            scoreMetadata = ScoreBuildMetadata.FromMetadata(
+                metadata,
+                actionKind,
+                actionLabel,
+                BattleAiActionIntent.DefaultForActionKind(actionKind),
+                scoreBucketId,
+                preview != null ? preview.move_cost : 0
+            );
 
         var scoreInput = new BattleAiScoreInput
         {
@@ -482,12 +480,10 @@ public sealed partial class BattleAiScoreService : IDisposable
         scoreInput.target_coords = CopyTargetCoords(preview);
         scoreInput.target_count = ResolveActionTargetCount(scoreInput);
         scoreInput.move_cost = scoreMetadata.MoveCost;
-        AiTraceRecorder.Enter("score_input:position");
-        PopulatePositionMetrics(scoreInput, context, scoreMetadata.Position);
-        AiTraceRecorder.Exit("score_input:position");
-        AiTraceRecorder.Enter("score_input:post_threat_projection");
-        PopulatePostActionThreatProjection(scoreInput, context, scoreMetadata.Position);
-        AiTraceRecorder.Exit("score_input:post_threat_projection");
+        using (new BattleAiTraceSpan("score_input:position"))
+            PopulatePositionMetrics(scoreInput, context, scoreMetadata.Position);
+        using (new BattleAiTraceSpan("score_input:post_threat_projection"))
+            PopulatePostActionThreatProjection(scoreInput, context, scoreMetadata.Position);
         scoreInput.resource_cost_score =
             Math.Max(scoreInput.move_cost, 0) * _scoreProfile.movement_cost_weight;
         scoreInput.total_score =
@@ -499,7 +495,6 @@ public sealed partial class BattleAiScoreService : IDisposable
                 context,
                 (IReadOnlyList<CombatEffectDefinition>)null
             );
-        AiTraceRecorder.Exit("build_action_score_input");
         return scoreInput;
     }
 
@@ -1048,9 +1043,8 @@ public sealed partial class BattleAiScoreService : IDisposable
         IReadOnlyList<CombatEffectDefinition> effectDefinitions
     )
     {
-        AiTraceRecorder.Enter("_populate_hit_metrics");
+        using BattleAiTraceSpan trace = new("_populate_hit_metrics");
         PopulateHitMetricsImpl(scoreInput, context, skillDefinition, effectDefinitions);
-        AiTraceRecorder.Exit("_populate_hit_metrics");
     }
 
     private void PopulateHitMetricsImpl(
@@ -1101,9 +1095,8 @@ public sealed partial class BattleAiScoreService : IDisposable
 
     private void PopulateSpecialProfileMetrics(BattleAiScoreInput scoreInput, IBattleAiScoreContext context)
     {
-        AiTraceRecorder.Enter("_populate_special_profile_metrics");
+        using BattleAiTraceSpan trace = new("_populate_special_profile_metrics");
         PopulateSpecialProfileMetricsImpl(scoreInput, context);
-        AiTraceRecorder.Exit("_populate_special_profile_metrics");
     }
 
     private void PopulateSpecialProfileMetricsImpl(

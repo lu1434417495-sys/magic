@@ -25,7 +25,7 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
 
     private void TestMultiUnitSkillScoresRoleThreatTargetGroups()
     {
-        Fixture fixture = BuildFixture("multi_unit_role_threat_scoring");
+        using Fixture fixture = BuildFixture("multi_unit_role_threat_scoring");
         SkillDefinition attackSkill = BuildSkill(
             "archer_multishot_probe",
             "Multishot Probe",
@@ -90,7 +90,7 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
 
     private void TestGroundSkillScoresRoleThreatAreaTargets()
     {
-        Fixture fixture = BuildFixture("ground_role_threat_scoring");
+        using Fixture fixture = BuildFixture("ground_role_threat_scoring");
         SkillDefinition fireballSkill = BuildSkill(
             "mage_fireball_probe",
             "Fireball Probe",
@@ -155,7 +155,7 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
 
     private void TestSkillScorePrioritizesLethalThreatTargets()
     {
-        Fixture fixture = BuildFixture("lethal_threat_scoring");
+        using Fixture fixture = BuildFixture("lethal_threat_scoring");
         SkillDefinition fireballSkill = BuildSkill(
             "mage_fireball_probe",
             "Fireball Probe",
@@ -220,7 +220,7 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
 
     private void TestLowHpBonusUsesFormalParamOnly()
     {
-        Fixture fixture = BuildFixture("low_hp_bonus_scoring");
+        using Fixture fixture = BuildFixture("low_hp_bonus_scoring");
         BattleUnitState actor = BuildUnit("low_hp_bonus_actor", "hostile", new Vector2I(1, 1));
         BattleUnitState target = BuildUnit("ai_score_low_hp_target", "player", new Vector2I(2, 1), hp: 30);
         target.current_hp = 18;
@@ -436,7 +436,7 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
         return metadata;
     }
 
-    private sealed class Fixture
+    private sealed class Fixture : IDisposable
     {
         public readonly BattleState State;
         public readonly BattleAiScoreService ScoreService = new();
@@ -445,6 +445,11 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
         public Fixture(string battleId)
         {
             State = BuildState(battleId);
+        }
+
+        public void Dispose()
+        {
+            ScoreService.Dispose();
         }
 
         public void AddSkill(SkillDefinition skillDefinition)

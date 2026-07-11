@@ -27,7 +27,7 @@ public partial class run_battle_ai_score_execute_regression : LifecycleTestScene
 
     private void TestInvalidHighHpExecuteProducesNoSaveEstimateOrValue()
     {
-        Fixture fixture = BuildFixture("ai_execute_high_hp");
+        using Fixture fixture = BuildFixture("ai_execute_high_hp");
         SkillDefinition skill = BuildExecuteSkill();
         BattleUnitState source = BuildUnit("execute_source", "hostile", new Vector2I(0, 0), 100, 100);
         BattleUnitState target = BuildUnit("execute_high_hp_target", "player", new Vector2I(1, 0), 100, 21);
@@ -48,7 +48,7 @@ public partial class run_battle_ai_score_execute_regression : LifecycleTestScene
 
     private void TestKillProbabilityUsesSaveFailureProbability()
     {
-        Fixture fixture = BuildFixture("ai_execute_kill_probability");
+        using Fixture fixture = BuildFixture("ai_execute_kill_probability");
         SkillDefinition skill = BuildExecuteSkill();
         BattleUnitState source = BuildUnit("execute_source", "hostile", new Vector2I(0, 0), 100, 100);
         BattleUnitState target = BuildUnit("execute_low_hp_target", "player", new Vector2I(1, 0), 100, 20);
@@ -68,7 +68,7 @@ public partial class run_battle_ai_score_execute_regression : LifecycleTestScene
 
     private void TestExecuteImmunityZeroesKillProbabilityButKeepsSoulFractureValue()
     {
-        Fixture fixture = BuildFixture("ai_execute_immunity");
+        using Fixture fixture = BuildFixture("ai_execute_immunity");
         SkillDefinition skill = BuildExecuteSkill();
         BattleUnitState source = BuildUnit("execute_source", "hostile", new Vector2I(0, 0), 100, 100);
         BattleUnitState target = BuildUnit("execute_immune_target", "player", new Vector2I(1, 0), 100, 20);
@@ -86,7 +86,7 @@ public partial class run_battle_ai_score_execute_regression : LifecycleTestScene
 
     private void TestDeathProtectionReducesKillProbability()
     {
-        Fixture fixture = BuildFixture("ai_execute_death_protection");
+        using Fixture fixture = BuildFixture("ai_execute_death_protection");
         SkillDefinition skill = BuildExecuteSkill();
         BattleUnitState source = BuildUnit("execute_source", "hostile", new Vector2I(0, 0), 100, 100);
         BattleUnitState target = BuildUnit("execute_protected_target", "player", new Vector2I(1, 0), 100, 20);
@@ -109,7 +109,7 @@ public partial class run_battle_ai_score_execute_regression : LifecycleTestScene
 
     private void TestAiIgnoresPreviewPresentationText()
     {
-        Fixture fixture = BuildFixture("ai_execute_ignores_presentation");
+        using Fixture fixture = BuildFixture("ai_execute_ignores_presentation");
         SkillDefinition skill = BuildExecuteSkill();
         BattleUnitState source = BuildUnit("execute_source", "hostile", new Vector2I(0, 0), 100, 100);
         BattleUnitState target = BuildUnit("execute_text_poison_target", "player", new Vector2I(1, 0), 100, 20);
@@ -293,7 +293,7 @@ public partial class run_battle_ai_score_execute_regression : LifecycleTestScene
         return state;
     }
 
-    private sealed class Fixture
+    private sealed class Fixture : IDisposable
     {
         public readonly BattleState State;
         public readonly BattleGridService GridService = new();
@@ -302,6 +302,11 @@ public partial class run_battle_ai_score_execute_regression : LifecycleTestScene
         public Fixture(string battleId, Vector2I mapSize)
         {
             State = BuildFlatState(battleId, mapSize);
+        }
+
+        public void Dispose()
+        {
+            ScoreService.Dispose();
         }
 
         public void AddUnit(BattleUnitState unit)

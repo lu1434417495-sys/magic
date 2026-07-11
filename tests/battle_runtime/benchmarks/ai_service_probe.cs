@@ -1,10 +1,12 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-internal sealed class AiServiceProbe
+internal sealed class AiServiceProbe : IDisposable
 {
     private readonly BattleAiService _service = new();
+    private bool _disposed;
 
     public GDictionary StatsChoose { get; private set; } = AiProbeStats.NewStats();
     public GDictionary StatsSkillInput { get; private set; } = AiProbeStats.NewStats();
@@ -25,11 +27,12 @@ internal sealed class AiServiceProbe
 
     public BattleAiDecision ChooseCommand(BattleAiContext context)
     {
-        AiTraceRecorder.Enter("choose_command");
+        using BattleAiTraceSpan trace = new("choose_command");
         ulong start = Time.GetTicksUsec();
-        BattleAiDecision result = _service.ChooseCommand(context);
+        BattleAiDecision result = _service
+            .ChooseCommand(context, captureTrace: false)
+            ?.Decision;
         AiProbeStats.Record(StatsChoose, (long)(Time.GetTicksUsec() - start));
-        AiTraceRecorder.Exit("choose_command");
         return result;
     }
 
@@ -42,7 +45,7 @@ internal sealed class AiServiceProbe
         IReadOnlyDictionary<string, object> metadata = null
     )
     {
-        AiTraceRecorder.Enter("build_skill_score_input");
+        using BattleAiTraceSpan trace = new("build_skill_score_input");
         ulong start = Time.GetTicksUsec();
         BattleAiScoreInput result = _service
             .GetScoreService()
@@ -55,7 +58,6 @@ internal sealed class AiServiceProbe
                 metadata
             );
         AiProbeStats.Record(StatsSkillInput, (long)(Time.GetTicksUsec() - start));
-        AiTraceRecorder.Exit("build_skill_score_input");
         return result;
     }
 
@@ -69,7 +71,7 @@ internal sealed class AiServiceProbe
         IReadOnlyDictionary<string, object> metadata = null
     )
     {
-        AiTraceRecorder.Enter("build_action_score_input");
+        using BattleAiTraceSpan trace = new("build_action_score_input");
         ulong start = Time.GetTicksUsec();
         BattleAiScoreInput result = _service
             .GetScoreService()
@@ -83,15 +85,35 @@ internal sealed class AiServiceProbe
                 metadata
             );
         AiProbeStats.Record(StatsActionInput, (long)(Time.GetTicksUsec() - start));
-        AiTraceRecorder.Exit("build_action_score_input");
         return result;
     }
 
     public void ResetStats()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        DisposeStats();
         StatsChoose = AiProbeStats.NewStats();
         StatsSkillInput = AiProbeStats.NewStats();
         StatsActionInput = AiProbeStats.NewStats();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        DisposeStats();
+        _service.Dispose();
+    }
+
+    private void DisposeStats()
+    {
+        StatsChoose?.Dispose();
+        StatsSkillInput?.Dispose();
+        StatsActionInput?.Dispose();
+        StatsChoose = null;
+        StatsSkillInput = null;
+        StatsActionInput = null;
     }
 }
 

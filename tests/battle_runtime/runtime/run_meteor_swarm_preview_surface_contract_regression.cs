@@ -79,7 +79,7 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Life
     {
         BattleUnitState enemyCenter = BuildUnit("meteor_surface_enemy_center", "中心敌人", "enemy", new Vector2I(4, 4), 160);
         BattleUnitState allyInner = BuildUnit("meteor_surface_ally_inner", "内圈友军", "player", new Vector2I(5, 4), 160);
-        Fixture setup = BuildRuntimeFixture(new Vector2I(9, 9), new[] { enemyCenter, allyInner });
+        using Fixture setup = BuildRuntimeFixture(new Vector2I(9, 9), new[] { enemyCenter, allyInner });
         SkillDefinition skillDefinition = GetSkillDefinition(
             setup.SkillDefinitionIndex,
             "mage_meteor_swarm"
@@ -149,7 +149,7 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Life
         aiContext.unit_state = setup.Caster;
         aiContext.grid_service = setup.Runtime.GetGridService();
         aiContext.SetSkillDefinitions(setup.SkillDefinitionIndex);
-        var scoreService = new BattleAiScoreService();
+        using var scoreService = new BattleAiScoreService();
         var scoreInput = scoreService.BuildSkillScoreInput(
             aiContext,
             skillDefinition,
@@ -229,7 +229,10 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Life
         return new Fixture
         {
             Runtime = runtime,
+            State = state,
             Caster = caster,
+            ProgressionRegistry = progressionRegistry,
+            SpecialRegistry = specialRegistry,
             SkillDefinitionIndex = typedSkillDefinitions,
         };
     }
@@ -357,10 +360,26 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Life
             + $" target_units=[{string.Join(", ", preview.TargetUnitIdsTyped)}]";
     }
 
-    private sealed class Fixture
+    private sealed class Fixture : IDisposable
     {
         public BattleRuntimeModule Runtime;
+        public BattleState State;
         public BattleUnitState Caster;
+        public ProgressionContentRegistry ProgressionRegistry;
+        public BattleSpecialProfileRegistry SpecialRegistry;
         public IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitionIndex;
+
+        public void Dispose()
+        {
+            BattleTestFixture.DisposeBattleFixture(Runtime, State);
+            SpecialRegistry?.Dispose();
+            ProgressionRegistry?.Dispose();
+            Runtime = null;
+            State = null;
+            Caster = null;
+            ProgressionRegistry = null;
+            SpecialRegistry = null;
+            SkillDefinitionIndex = null;
+        }
     }
 }

@@ -8,6 +8,7 @@ internal sealed class BattleAiService : IDisposable
     private readonly BattleAiScoreService _scoreService = new();
     private readonly BattleAiStateResolver _stateResolver = new();
     private readonly BattleAiDecisionEngine _decisionEngine = new();
+    private bool _disposed;
 
     internal bool EnableMutationGuard { get; set; } = true;
 
@@ -16,6 +17,7 @@ internal sealed class BattleAiService : IDisposable
         BattleDamageResolver damageResolver = null
     )
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         _enemyAiBrains.Clear();
         Dictionary<StringName, BattleAiScoreProfile> brainProfiles = new();
         if (enemyAiBrains != null)
@@ -65,68 +67,74 @@ internal sealed class BattleAiService : IDisposable
 
     public void Dispose()
     {
+        if (_disposed)
+            return;
+        _disposed = true;
         _enemyAiBrains.Clear();
         _scoreService.Dispose();
     }
 
-    internal BattleAiDecision ChooseCommand(BattleAiContext context)
+    internal BattleAiDecisionResult ChooseCommand(BattleAiContext context, bool captureTrace)
     {
-        if (
-            context == null
-            || context.state == null
-            || context.unit_state == null
-            || context.grid_service == null
-        )
-        {
-            return null;
-        }
-
-        _scoreService.BeginDecisionScope(context.state, context.unit_state);
-        context.active_score_profile = _scoreService.GetProfile();
         try
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (
+                context == null
+                || context.state == null
+                || context.unit_state == null
+                || context.grid_service == null
+            )
+            {
+                return null;
+            }
+
+            _scoreService.BeginDecisionScope(context.state, context.unit_state);
+            context.active_score_profile = _scoreService.GetProfile();
             context.ClearMutationGuardViolations();
 
             if (!EnableMutationGuard)
             {
-                AiTraceRecorder.Enter("choose:impl");
-                BattleAiDecision decisionNoGuard = ChooseCommandImpl(context);
-                AiTraceRecorder.Exit("choose:impl");
-                return decisionNoGuard;
+                BattleAiDecision decisionNoGuard;
+                using (new BattleAiTraceSpan("choose:impl"))
+                    decisionNoGuard = ChooseCommandImpl(context);
+                return BattleAiDecisionResult.Capture(context, decisionNoGuard, captureTrace);
             }
 
             BattleAiMutationGuard mutationGuard = new();
-            AiTraceRecorder.Enter("choose:mutation_guard_capture");
-            mutationGuard.Capture(context);
-            AiTraceRecorder.Exit("choose:mutation_guard_capture");
+            using (new BattleAiTraceSpan("choose:mutation_guard_capture"))
+                mutationGuard.Capture(context);
 
-            AiTraceRecorder.Enter("choose:impl");
-            BattleAiDecision decision = ChooseCommandImpl(
-                context,
-                BuildActionMutationCheckpoint()
-            );
-            AiTraceRecorder.Exit("choose:impl");
+            BattleAiDecision decision;
+            using (new BattleAiTraceSpan("choose:impl"))
+                decision = ChooseCommandImpl(context, BuildActionMutationCheckpoint());
 
-            AiTraceRecorder.Enter("choose:mutation_guard_validate");
-            BattleAiMutationViolationReport report =
-                mutationGuard.ValidateAndRestoreReportTyped(
+            BattleAiMutationViolationReport report;
+            using (new BattleAiTraceSpan("choose:mutation_guard_validate"))
+                report = mutationGuard.ValidateAndRestoreReportTyped(
                     context,
                     "decision",
                     callSite: "BattleAiService.ChooseCommandImpl"
                 );
-            AiTraceRecorder.Exit("choose:mutation_guard_validate");
             if (report == null)
             {
-                return decision;
+                return BattleAiDecisionResult.Capture(context, decision, captureTrace);
             }
 
+            decision?.ClearOwnedRuntimeReferences();
             AbortMutationViolation(context, report);
             return null;
         }
         finally
         {
-            context.active_score_profile = null;
-            _scoreService.EndDecisionScope();
+            try
+            {
+                context?.ClearRuntimeBindings();
+            }
+            finally
+            {
+                _scoreService.EndDecisionScope();
+            }
         }
     }
 

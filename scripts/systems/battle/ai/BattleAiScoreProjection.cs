@@ -79,6 +79,9 @@ internal static class BattleAiScoreProjection
         result["attack_roll_modifier_breakdown"] = BuildModifierList(
             input.attack_roll_modifier_breakdown
         );
+        result["path_step_hit_counts_by_unit_id"] = BuildStringNameIntMap(
+            input.path_step_hit_counts_by_unit_id
+        );
         return result;
     }
 
@@ -235,6 +238,23 @@ internal static class BattleAiScoreProjection
         {
             if (value != null)
                 result.Add(value.ToTraceDictionary());
+        }
+        return result;
+    }
+
+    private static Dictionary<string, object> BuildStringNameIntMap(
+        IEnumerable<KeyValuePair<StringName, int>> values
+    )
+    {
+        var result = new Dictionary<string, object>(StringComparer.Ordinal);
+        foreach (
+            KeyValuePair<StringName, int> entry
+            in values ?? Array.Empty<KeyValuePair<StringName, int>>()
+        )
+        {
+            string key = entry.Key.ToString();
+            if (!string.IsNullOrEmpty(key))
+                result[key] = entry.Value;
         }
         return result;
     }

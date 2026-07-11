@@ -59,7 +59,7 @@ public partial class run_battle_ai_score_save_probability_regression : Lifecycle
         };
         preview.AddTargetUnitId(target.unit_id);
 
-        var scoreService = new BattleAiScoreService();
+        using var scoreService = new BattleAiScoreService();
         BattleAiScoreInput scoreInput = scoreService.BuildSkillScoreInput(
             context,
             skill,

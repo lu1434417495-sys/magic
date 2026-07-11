@@ -194,30 +194,36 @@ internal sealed class BattleSpecialProfileGate
                 result.Errors.Add(error);
             }
 
-            Godot.Collections.Dictionary profileIdBySkillId =
+            using Godot.Collections.Dictionary profileIdBySkillId =
                 ReadDictionary(snapshot, "profile_id_by_skill_id");
-            foreach (Variant rawSkillId in profileIdBySkillId.Keys)
+            if (profileIdBySkillId != null)
             {
-                StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
-                StringName profileId = ProgressionDataUtils.to_string_name(
-                    profileIdBySkillId[rawSkillId]
-                );
-                if (skillId != "" && profileId != "")
+                foreach (Variant rawSkillId in profileIdBySkillId.Keys)
                 {
-                    result.ProfileIdBySkillId[skillId] = profileId;
+                    StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
+                    StringName profileId = ProgressionDataUtils.to_string_name(
+                        profileIdBySkillId[rawSkillId]
+                    );
+                    if (skillId != "" && profileId != "")
+                    {
+                        result.ProfileIdBySkillId[skillId] = profileId;
+                    }
                 }
             }
 
-            Godot.Collections.Dictionary profiles = ReadDictionary(snapshot, "profiles");
-            foreach (Variant rawProfileId in profiles.Keys)
+            using Godot.Collections.Dictionary profiles = ReadDictionary(snapshot, "profiles");
+            if (profiles != null)
             {
-                StringName profileId = ProgressionDataUtils.to_string_name(rawProfileId);
-                Godot.Collections.Dictionary profilePayload =
-                    profiles[rawProfileId].AsGodotDictionary();
-                GateProfileSnapshot profile = GateProfileSnapshot.FromDictionary(profilePayload);
-                if (profileId != "" && !profile.IsEmpty)
+                foreach (Variant rawProfileId in profiles.Keys)
                 {
-                    result.Profiles[profileId] = profile;
+                    StringName profileId = ProgressionDataUtils.to_string_name(rawProfileId);
+                    using Godot.Collections.Dictionary profilePayload =
+                        profiles[rawProfileId].AsGodotDictionary();
+                    GateProfileSnapshot profile = GateProfileSnapshot.FromDictionary(profilePayload);
+                    if (profileId != "" && !profile.IsEmpty)
+                    {
+                        result.Profiles[profileId] = profile;
+                    }
                 }
             }
 
@@ -252,7 +258,7 @@ internal sealed class BattleSpecialProfileGate
     {
         if (source == null || !source.ContainsKey(key))
         {
-            return new Godot.Collections.Dictionary();
+            return null;
         }
         return source[key].AsGodotDictionary();
     }
@@ -264,7 +270,8 @@ internal sealed class BattleSpecialProfileGate
         {
             return result;
         }
-        foreach (object value in source[key].AsGodotArray())
+        using Godot.Collections.Array values = source[key].AsGodotArray();
+        foreach (object value in values)
         {
             string text = value?.ToString() ?? "";
             if (!string.IsNullOrEmpty(text))

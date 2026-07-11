@@ -35,8 +35,8 @@ public sealed class AiCandidateSummary
             Label,
             Command?.Clone(),
             TotalScore,
-            ScoreInput,
-            ExtraFields
+            RuntimePlainPayload.CloneDictionary(ScoreInput),
+            RuntimePlainPayload.CloneDictionary(ExtraFields)
         );
     }
 
@@ -52,7 +52,7 @@ public sealed class AiCandidateSummary
             label,
             AiCommandSummary.FromCommand(command),
             totalScore,
-            scoreInput?.ToTraceDictionary(),
+            scoreInput != null ? BattleAiScoreProjection.BuildPlain(scoreInput) : null,
             extra
         );
         summary.ExtraFields.Remove("label");

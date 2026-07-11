@@ -37,6 +37,7 @@ public sealed partial class BattleRuntimeModule
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null
     )
     {
+        BeginContentCatalogRebind();
         IReadOnlyDictionary<StringName, SkillDefinition> catalogSkillDefinitions =
             _skillCatalog?.GetSkillDefinitionsTyped();
         IReadOnlyDictionary<StringName, SkillDefinition> resolvedSkillDefinitions =
@@ -46,6 +47,7 @@ public sealed partial class BattleRuntimeModule
         ApplyItemDefsTyped(itemDefs);
         ApplyTraitDefsTyped(traitDefs);
         ApplyEquipmentAbilityBindingsTyped(equipmentAbilityBindings);
+        CompleteContentCatalogRebind();
     }
 
     internal IReadOnlyDictionary<StringName, EnemyTemplateDef> GetEnemyTemplateIndexTyped() =>
@@ -75,14 +77,15 @@ public sealed partial class BattleRuntimeModule
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates
     )
     {
+        BeginContentCatalogRebind();
         ApplyEnemyTemplatesTyped(enemyTemplates);
+        CompleteContentCatalogRebind();
     }
 
     private void ApplySkillDefinitionsTyped(
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
-        _runtime_services.ClearRuntimeBindings();
         _skillDefinitionIndex.Clear();
         if (skillDefinitions == null || skillDefinitions.Count == 0)
         {
@@ -159,9 +162,76 @@ public sealed partial class BattleRuntimeModule
         IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains
     )
     {
+        BeginContentCatalogRebind();
         ApplyEnemyAiBrainsTyped(enemyAiBrains);
         _ai_service.Setup(_enemyAiBrainIndex, _damage_resolver);
+        CompleteContentCatalogRebind();
     }
+
+    private void BeginContentCatalogRebind()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        Exception firstFailure = null;
+        RunTeardownStep(ref firstFailure, _runtime_services.ClearRuntimeBindings);
+        RunTeardownStep(ref firstFailure, ClearAiActionPlans);
+        if (firstFailure != null)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(firstFailure).Throw();
+        }
+    }
+
+    private void CompleteContentCatalogRebind()
+    {
+        if (_state == null)
+        {
+            return;
+        }
+        try
+        {
+            _build_ai_action_plans();
+        }
+        catch
+        {
+            Exception cleanupFailure = null;
+            RunTeardownStep(ref cleanupFailure, _runtime_services.ClearRuntimeBindings);
+            RunTeardownStep(ref cleanupFailure, ClearAiActionPlans);
+            throw;
+        }
+    }
+
+    private void ClearContentCatalogBorrowers()
+    {
+        _characterGateway = null;
+        _skillCatalog = null;
+        _skillDefinitionIndex.Clear();
+        _traitDefIndex.Clear();
+        _equipmentAbilityBindingIndex.Clear();
+        _itemDefIndex.Clear();
+        _enemyTemplateIndex.Clear();
+        _enemyAiBrainIndex.Clear();
+        _special_profile_registry_snapshot.Clear();
+        _special_profile_view = BattleSpecialProfileRuntimeView.Empty;
+        _special_profile_gate = null;
+        _encounter_builder = null;
+        _equipment_drop_service = null;
+        _equipment_instance_id_allocator = null;
+    }
+
+    internal bool HasContentCatalogBorrowers =>
+        _characterGateway != null
+        || _skillCatalog != null
+        || _skillDefinitionIndex.Count != 0
+        || _traitDefIndex.Count != 0
+        || _equipmentAbilityBindingIndex.Count != 0
+        || _itemDefIndex.Count != 0
+        || _enemyTemplateIndex.Count != 0
+        || _enemyAiBrainIndex.Count != 0
+        || _special_profile_registry_snapshot.Count != 0
+        || !ReferenceEquals(_special_profile_view, BattleSpecialProfileRuntimeView.Empty)
+        || _special_profile_gate != null
+        || _encounter_builder != null
+        || _equipment_drop_service != null
+        || _equipment_instance_id_allocator != null;
 
     private void ApplyItemDefsTyped(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
     {

@@ -70,7 +70,7 @@ public partial class run_meteor_swarm_ai_regression : LifecycleTestSceneTree
                 grid_service = setup.Runtime.GetGridService(),
             };
             aiContext.SetSkillDefinitions(setup.SkillDefinitionIndex);
-            var scoreService = new BattleAiScoreService();
+            using var scoreService = new BattleAiScoreService();
             scoreInput = scoreService.BuildSkillScoreInput(
                 aiContext,
                 skillDefinition,
@@ -332,7 +332,7 @@ public partial class run_meteor_swarm_ai_regression : LifecycleTestSceneTree
             grid_service = setup.Runtime.GetGridService(),
         };
         aiContext.SetSkillDefinitions(setup.SkillDefinitionIndex);
-        var scoreService = new BattleAiScoreService();
+        using var scoreService = new BattleAiScoreService();
         BattleAiScoreInput scoreInput = scoreService.BuildSkillScoreInput(
             aiContext,
             skillDefinition,

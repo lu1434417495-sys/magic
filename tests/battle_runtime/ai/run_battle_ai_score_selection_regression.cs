@@ -39,7 +39,7 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
             },
             "BattleAiScoreSelection.scoreProfileBrain"
         );
-        BattleAiService aiService = new() { EnableMutationGuard = false };
+        using BattleAiService aiService = new() { EnableMutationGuard = false };
         aiService.Setup(BuildBrainMap(brain));
 
         BattleUnitState actor = BuildUnit("score_profile_actor", "hostile", Vector2I.Zero);
@@ -74,7 +74,7 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
 
     private void TestMeleeActionPrefersLaterHigherScoreSkillAction()
     {
-        Fixture fixture = BuildFixture("score_selection_melee_action", new Vector2I(5, 3));
+        using Fixture fixture = BuildFixture("score_selection_melee_action", new Vector2I(5, 3));
         SkillDefinition heavySkill = BuildUnitSkill(
             "warrior_heavy_strike",
             "Heavy Strike",
@@ -128,9 +128,11 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
             "残血目标场景下，warrior_execution_cleave 的评分应高于 warrior_heavy_strike。"
         );
 
-        BattleAiService aiService = new() { EnableMutationGuard = false };
+        using BattleAiService aiService = new() { EnableMutationGuard = false };
         aiService.Setup(BuildBrainMap(BuildTwoUnitSkillActionBrain(wolf.ai_brain_id, heavySkill.SkillId, executeSkill.SkillId)));
-        BattleAiDecision decision = aiService.ChooseCommand(context);
+        BattleAiDecision decision = aiService
+            .ChooseCommand(context, captureTrace: false)
+            ?.Decision;
         _test.True(decision != null && decision.state_id == new StringName("pressure"), "melee 评分选技回归应保持 pressure 状态。");
         _test.Eq(
             decision?.command?.skill_id ?? new StringName(""),
@@ -146,7 +148,7 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
 
     private void TestRangedScorePrefersUnitNukeOverSingleTargetAreaBlast()
     {
-        Fixture fixture = BuildFixture("score_selection_ranged_skill_compare", new Vector2I(7, 5));
+        using Fixture fixture = BuildFixture("score_selection_ranged_skill_compare", new Vector2I(7, 5));
         SkillDefinition fireballSkill = BuildGroundSkill("mage_fireball", "Fireball", 6, range: 4);
         SkillDefinition iceLanceSkill = BuildUnitSkill("mage_ice_lance", "Ice Lance", 16, range: 4);
         fixture.AddSkill(fireballSkill);
@@ -190,7 +192,7 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
 
     private void TestUnitSkillActionSelectsHigherHitPayoffTarget()
     {
-        Fixture fixture = BuildFixture("score_selection_unit_target_payoff", new Vector2I(7, 5));
+        using Fixture fixture = BuildFixture("score_selection_unit_target_payoff", new Vector2I(7, 5));
         SkillDefinition skill = BuildUnitSkill("archer_pinning_shot", "Pinning Shot", 10, range: 6);
         fixture.AddSkill(skill);
 
@@ -273,7 +275,7 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
 
     private void TestMultiUnitPositionActionHonorsLockedMovePoints()
     {
-        Fixture fixture = BuildFixture("multi_unit_position_move_lock", new Vector2I(6, 5));
+        using Fixture fixture = BuildFixture("multi_unit_position_move_lock", new Vector2I(6, 5));
         SkillDefinition multishot = BuildMultiUnitSkill("archer_multishot_lock_probe", "Multishot Lock Probe", range: 4);
         fixture.AddSkill(multishot);
 
@@ -323,7 +325,7 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
 
     private void TestRetreatActionHonorsLockedMovePoints()
     {
-        Fixture fixture = BuildFixture("retreat_move_lock", new Vector2I(5, 5));
+        using Fixture fixture = BuildFixture("retreat_move_lock", new Vector2I(5, 5));
         BattleUnitState archer = BuildUnit("locked_retreat_archer", "hostile", new Vector2I(2, 2));
         archer.current_move_points = 1;
         archer.has_moved_this_turn = true;
@@ -613,7 +615,7 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
         return metadata;
     }
 
-    private sealed class Fixture
+    private sealed class Fixture : IDisposable
     {
         public readonly BattleState State;
         public readonly BattleGridService GridService = new();
@@ -624,6 +626,12 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
         public Fixture(string battleId, Vector2I mapSize)
         {
             State = BuildFlatState(battleId, mapSize);
+        }
+
+        public void Dispose()
+        {
+            _runtime.Dispose();
+            ScoreService.Dispose();
         }
 
         public void AddSkill(SkillDefinition skillDefinition)

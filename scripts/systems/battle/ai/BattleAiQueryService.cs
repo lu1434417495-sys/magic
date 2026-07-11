@@ -68,11 +68,12 @@ internal sealed class BattleAiQueryService
         _movementQueryService = movementQueryService;
         _movementBlockedCallback = movementBlockedCallback;
 
-        AiTraceRecorder.Enter("query_setup:clear_decision_caches");
-        _snapshotCache.Clear();
-        _livingSnapshotCache.Clear();
-        _distanceFromAnchorToTargetCache.Clear();
-        AiTraceRecorder.Exit("query_setup:clear_decision_caches");
+        using (new BattleAiTraceSpan("query_setup:clear_decision_caches"))
+        {
+            _snapshotCache.Clear();
+            _livingSnapshotCache.Clear();
+            _distanceFromAnchorToTargetCache.Clear();
+        }
         if (!ReferenceEquals(_cachedSkillDefinitions, skillDefinitions))
         {
             _cachedSkillDefinitions = skillDefinitions;
@@ -88,9 +89,8 @@ internal sealed class BattleAiQueryService
             _cachedSkillCatalogRevision = skillCatalogRevision;
             _skillRecordCache.Clear();
         }
-        AiTraceRecorder.Enter("query_setup:skill_records");
-        _skillRecords = GetCachedSkillRecords(skillDefinitions);
-        AiTraceRecorder.Exit("query_setup:skill_records");
+        using (new BattleAiTraceSpan("query_setup:skill_records"))
+            _skillRecords = GetCachedSkillRecords(skillDefinitions);
     }
 
     internal void SetupReadOnly(
@@ -371,9 +371,9 @@ internal sealed class BattleAiQueryService
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
-        AiTraceRecorder.Enter("query_setup:skill_record_key");
-        SkillRecordCacheKey cacheKey = BuildSkillRecordCacheKey(skillDefinitions);
-        AiTraceRecorder.Exit("query_setup:skill_record_key");
+        SkillRecordCacheKey cacheKey;
+        using (new BattleAiTraceSpan("query_setup:skill_record_key"))
+            cacheKey = BuildSkillRecordCacheKey(skillDefinitions);
         if (_skillRecordCache.TryGetValue(cacheKey, out Dictionary<StringName, SkillRecord> cached))
         {
             return cached;

@@ -168,7 +168,9 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
         runtime.SetupStateForTests(state);
         runtime._build_ai_action_plans();
 
-        BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, spinner));
+        BattleAiDecision decision = runtime._ai_service
+            .ChooseCommand(BuildAiContext(runtime, spinner), captureTrace: false)
+            ?.Decision;
         _test.True(decision?.command != null, "运行时自动 Action plan 应能产出 AI 指令。");
         _test.Eq(
             decision?.command?.skill_id ?? (StringName)"",

@@ -26,7 +26,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
 
     private void TestGroundSkillEffectiveTargetsExcludeFriendlyFire()
     {
-        Fixture fixture = BuildFixture("score_input_ground_effective_targets", new Vector2I(8, 6));
+        using Fixture fixture = BuildFixture("score_input_ground_effective_targets", new Vector2I(8, 6));
         SkillDefinition skill = BuildSkill(
             "friendly_fire_fireball_probe",
             "Friendly Fire Fireball Probe",
@@ -62,7 +62,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
 
     private void TestEmptyGroundControlCellsStaySeparateFromUnitTargets()
     {
-        Fixture fixture = BuildFixture("score_input_empty_ground_control", new Vector2I(6, 5));
+        using Fixture fixture = BuildFixture("score_input_empty_ground_control", new Vector2I(6, 5));
         SkillDefinition skill = BuildSkill(
             "ai_empty_ground_control_score_probe",
             "Empty Ground Control Probe",
@@ -96,7 +96,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
 
     private void TestGroundSkillScoreInputExposesMetrics()
     {
-        Fixture fixture = BuildFixture("score_input_ground_metrics", new Vector2I(7, 5));
+        using Fixture fixture = BuildFixture("score_input_ground_metrics", new Vector2I(7, 5));
         SkillDefinition skill = BuildSkill(
             "archer_suppressive_fire_probe",
             "Suppressive Fire Probe",
@@ -141,7 +141,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
 
     private void TestRepeatAttackScoreUsesStageSuccessRate()
     {
-        Fixture fixture = BuildFixture("score_input_fate_aware_hit_rate", new Vector2I(5, 3));
+        using Fixture fixture = BuildFixture("score_input_fate_aware_hit_rate", new Vector2I(5, 3));
         SkillDefinition skill = BuildSkill(
             "ai_fate_preview_combo_probe",
             "Fate Preview Combo Probe",
@@ -186,7 +186,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
 
     private void TestChainSkillScoresFriendlyBounceRisk()
     {
-        Fixture fixture = BuildFixture("score_input_chain_friendly_bounce", new Vector2I(8, 6));
+        using Fixture fixture = BuildFixture("score_input_chain_friendly_bounce", new Vector2I(8, 6));
         SkillDefinition skill = BuildSkill(
             "mage_chain_lightning_probe",
             "Chain Lightning Probe",
@@ -411,7 +411,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
         return metadata;
     }
 
-    private sealed class Fixture
+    private sealed class Fixture : IDisposable
     {
         public readonly BattleState State;
         public readonly BattleGridService GridService = new();
@@ -421,6 +421,11 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
         public Fixture(string battleId, Vector2I mapSize)
         {
             State = BuildFlatState(battleId, mapSize);
+        }
+
+        public void Dispose()
+        {
+            ScoreService.Dispose();
         }
 
         public void AddSkill(SkillDefinition skillDefinition)

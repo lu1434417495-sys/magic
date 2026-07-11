@@ -291,10 +291,8 @@ public partial class BattleAiScoreService
 
     private int ResolveMeteorThreatRank(IBattleAiScoreContext context, BattleUnitState targetUnit)
     {
-        AiTraceRecorder.Enter("_resolve_meteor_threat_rank");
-        int result = ResolveMeteorThreatRankImpl(context, targetUnit);
-        AiTraceRecorder.Exit("_resolve_meteor_threat_rank");
-        return result;
+        using BattleAiTraceSpan trace = new("_resolve_meteor_threat_rank");
+        return ResolveMeteorThreatRankImpl(context, targetUnit);
     }
 
     private int ResolveMeteorThreatRankImpl(IBattleAiScoreContext context, BattleUnitState targetUnit)
@@ -601,7 +599,7 @@ public partial class BattleAiScoreService
         SkillDefinition skillDefinition = null
     )
     {
-        AiTraceRecorder.Enter("_populate_target_effect_metrics");
+        using BattleAiTraceSpan trace = new("_populate_target_effect_metrics");
         PopulateTargetEffectMetricsImpl(
             scoreInput,
             context,
@@ -611,7 +609,6 @@ public partial class BattleAiScoreService
             isChainTarget,
             skillDefinition
         );
-        AiTraceRecorder.Exit("_populate_target_effect_metrics");
     }
 
     private void PopulateTargetEffectMetricsImpl(
@@ -781,7 +778,7 @@ public partial class BattleAiScoreService
         int hitCount = 1
     )
     {
-        AiTraceRecorder.Enter("_build_target_effect_metrics");
+        using BattleAiTraceSpan trace = new("_build_target_effect_metrics");
         TargetEffectMetrics result;
         if (_decisionScopeActive)
         {
@@ -794,7 +791,6 @@ public partial class BattleAiScoreService
             );
             if (_targetEffectMetricsCache.TryGetValue(cacheKey, out TargetEffectMetrics cached))
             {
-                AiTraceRecorder.Exit("_build_target_effect_metrics");
                 return cached.Clone();
             }
             result = BuildTargetEffectMetricsImpl(
@@ -818,7 +814,6 @@ public partial class BattleAiScoreService
                 hitCount
             );
         }
-        AiTraceRecorder.Exit("_build_target_effect_metrics");
         return result;
     }
 

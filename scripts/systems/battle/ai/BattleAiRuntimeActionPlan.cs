@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -16,17 +17,20 @@ internal sealed class BattleAiRuntimeActionPlan : System.IDisposable
     private readonly Dictionary<long, RuntimeActionMetadata> _metadataByInstanceId = new();
     private readonly Dictionary<StringName, BattleAiSkillAffordanceRecord> _skillAffordanceRecordsBySkillId =
         new();
-    private readonly GodotTransientResourceScope _transientScope =
-        new("BattleAiRuntimeActionPlan");
-    private readonly RuntimeEnemyAiResourceFactory _enemyAiResourceFactory;
+    private NativeLeaseScope _resourceScope;
+    private RuntimeEnemyAiResourceFactory _enemyAiResourceFactory;
     private bool _disposed;
+
+    internal bool HasRuntimeBorrowers =>
+        _actionsByState.Count != 0
+        || _generatedActionsByState.Count != 0
+        || _entriesByState.Count != 0
+        || _metadataByInstanceId.Count != 0
+        || _skillAffordanceRecordsBySkillId.Count != 0;
 
     internal BattleAiRuntimeActionPlan()
     {
-        _enemyAiResourceFactory = new RuntimeEnemyAiResourceFactory(
-            _transientScope,
-            "BattleAiRuntimeActionPlan"
-        );
+        OpenResourceGeneration();
     }
 
     public void SetSource(BattleUnitState unitState, EnemyAiBrainDef brain)
@@ -440,18 +444,19 @@ internal sealed class BattleAiRuntimeActionPlan : System.IDisposable
 
     internal EnemyAiAction OwnRuntimeAction(EnemyAiAction action, string reason)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         return _enemyAiResourceFactory.OwnAction(action, reason);
     }
 
-    internal Godot.Collections.Array<StringName> NewRuntimeStringNameArray(
-        IEnumerable<StringName> values,
-        string reason
-    )
+    internal void Clear()
     {
-        return _enemyAiResourceFactory.NewStringNameArray(values, reason);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ClearBorrowedState();
+        CloseResourceGeneration();
+        OpenResourceGeneration();
     }
 
-    internal void Clear()
+    private void ClearBorrowedState()
     {
         _actionsByState.Clear();
         _generatedActionsByState.Clear();
@@ -463,7 +468,6 @@ internal sealed class BattleAiRuntimeActionPlan : System.IDisposable
         unit_id = "";
         brain_id = "";
         fingerprint = "";
-        _transientScope.Drain();
     }
 
     public void Dispose()
@@ -471,8 +475,28 @@ internal sealed class BattleAiRuntimeActionPlan : System.IDisposable
         if (_disposed)
             return;
         _disposed = true;
-        Clear();
-        _transientScope.Dispose();
+        ClearBorrowedState();
+        CloseResourceGeneration();
+    }
+
+    private void OpenResourceGeneration()
+    {
+        _resourceScope = new NativeLeaseScope(
+            "BattleAiRuntimeActionPlan",
+            LifetimeDomain.Battle
+        );
+        _enemyAiResourceFactory = new RuntimeEnemyAiResourceFactory(
+            _resourceScope,
+            "BattleAiRuntimeActionPlan"
+        );
+    }
+
+    private void CloseResourceGeneration()
+    {
+        NativeLeaseScope scope = _resourceScope;
+        _enemyAiResourceFactory = null;
+        _resourceScope = null;
+        scope?.Dispose();
     }
 
     internal IReadOnlyList<EnemyAiAction> GetActions(StringName state_id)

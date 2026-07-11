@@ -75,7 +75,9 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
             $"体力充足时，天生武器荒狼的重击应被 runtime 武器门槛阻断。 reason={heavyStrikeBlockReason}"
         );
 
-        BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, wolf));
+        BattleAiDecision decision = runtime._ai_service
+            .ChooseCommand(BuildAiContext(runtime, wolf), captureTrace: false)
+            ?.Decision;
         _test.True(decision?.command != null, "天生武器单位在近身 pressure 状态下应能产出攻击指令。");
         _test.Eq(
             decision?.command?.skill_id ?? (StringName)"",
@@ -198,7 +200,9 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
         AddUnitToState(runtime, state, player, isEnemy: false);
         runtime.SetupStateForTests(state);
 
-        BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, wolf));
+        BattleAiDecision decision = runtime._ai_service
+            .ChooseCommand(BuildAiContext(runtime, wolf), captureTrace: false)
+            ?.Decision;
         _test.True(decision?.command != null, "短距离接敌应产出合法 AI 指令。");
         _test.Eq(
             decision?.action_id ?? (StringName)"",

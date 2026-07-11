@@ -13,12 +13,14 @@ internal sealed class BattleAiActionAssembler
     )
     {
         var plan = new BattleAiRuntimeActionPlan();
-        if (unitState == null || brain == null)
+        try
         {
-            return plan;
-        }
+            if (unitState == null || brain == null)
+            {
+                return plan;
+            }
 
-        AiTraceRecorder.Enter("build_unit_action_plan");
+        using BattleAiTraceSpan trace = new("build_unit_action_plan");
         skillDefinitions ??= new Dictionary<StringName, SkillDefinition>();
         plan.SetSource(unitState, brain);
         List<BattleAiSkillAffordanceRecord> skillRecords = ClassifyKnownActiveSkills(
@@ -487,8 +489,24 @@ internal sealed class BattleAiActionAssembler
             }
         }
 
-        AiTraceRecorder.Exit("build_unit_action_plan");
         return plan;
+        }
+        catch (Exception buildFailure)
+        {
+            try
+            {
+                plan.Dispose();
+            }
+            catch (Exception cleanupFailure)
+            {
+                throw new AggregateException(
+                    "Battle AI action-plan construction and cleanup both failed.",
+                    buildFailure,
+                    cleanupFailure
+                );
+            }
+            throw;
+        }
     }
 
     private static IEnumerable<EnemyAiStateDef> GetBrainStates(EnemyAiBrainDef brain)
@@ -594,21 +612,6 @@ internal sealed class BattleAiActionAssembler
             runtimeActions.Add(action);
         }
         return runtimeActions;
-    }
-
-    private static Godot.Collections.Array<StringName> SingleSkillIdArray(
-        BattleAiRuntimeActionPlan plan,
-        StringName skillId,
-        string reason
-    )
-    {
-        if (plan == null)
-        {
-            throw new InvalidOperationException(
-                $"BattleAiActionAssembler generated action array missing runtime owner. reason={reason}"
-            );
-        }
-        return plan.NewRuntimeStringNameArray(new[] { skillId }, reason);
     }
 
     private static bool SlotMatchesAffordance(

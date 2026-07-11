@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GBattleUnitArray = System.Collections.Generic.List<BattleUnitState>;
@@ -381,6 +382,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipment_ability_bindings = null
     )
     {
+        BeginContentCatalogRebind();
         _characterGateway = character_gateway;
         _skillCatalog = skill_catalog;
         IReadOnlyDictionary<StringName, SkillDefinition> catalogSkillDefinitions =
@@ -462,23 +464,28 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _skill_orchestrator.Setup(this);
         _casting_time_service.Setup(this);
         _setup_special_profile_runtime();
+        CompleteContentCatalogRebind();
     }
 
     internal void _setup_special_profile_runtime()
     {
         _special_profile_gate ??= new BattleSpecialProfileGate();
-        GDictionary specialProfileRegistrySnapshot =
-            RuntimePlainPayload.ProjectDictionary(
+        using GodotProjectionLease<GDictionary> specialProfileRegistryLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
                 _special_profile_registry_snapshot,
+                "battle-runtime-special-profile-setup",
+                LifetimeDomain.Battle,
                 "BattleRuntimeModule.special_profile_registry_snapshot"
             );
+        GDictionary specialProfileRegistrySnapshot = specialProfileRegistryLease.Value;
         _special_profile_gate.Setup(specialProfileRegistrySnapshot);
         _skill_outcome_committer ??= new BattleSkillOutcomeCommitter();
         _skill_outcome_committer.Setup(this);
 
+        _meteor_swarm_resolver?.Dispose();
         _meteor_swarm_resolver = null;
-        GDictionary profiles = GetDict(specialProfileRegistrySnapshot, "profiles");
-        GDictionary meteorProfileSnapshot = GetDict(profiles, "meteor_swarm");
+        using GDictionary profiles = GetDict(specialProfileRegistrySnapshot, "profiles");
+        using GDictionary meteorProfileSnapshot = GetDict(profiles, "meteor_swarm");
         if (GetString(meteorProfileSnapshot, "runtime_resolver_id") != "meteor_swarm")
             return;
         _meteor_swarm_resolver = new BattleMeteorSwarmResolver();
@@ -862,11 +869,17 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     private void ClearAiActionPlans()
     {
-        foreach (BattleAiRuntimeActionPlan plan in _ai_action_plans_by_unit_id.Values)
-        {
-            plan?.Dispose();
-        }
+        List<BattleAiRuntimeActionPlan> plans = new(_ai_action_plans_by_unit_id.Values);
         _ai_action_plans_by_unit_id.Clear();
+        Exception firstFailure = null;
+        foreach (BattleAiRuntimeActionPlan plan in plans)
+        {
+            RunTeardownStep(ref firstFailure, () => plan?.Dispose());
+        }
+        if (firstFailure != null)
+        {
+            ExceptionDispatchInfo.Capture(firstFailure).Throw();
+        }
     }
 
     internal void _ensure_ai_action_plan_for_unit(BattleUnitState unit_state)
@@ -917,7 +930,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         );
     }
 
-    private BattleAiContext _prepare_ai_context_for_decision(BattleUnitState activeUnit)
+    internal BattleAiContext _prepare_ai_context_for_decision(BattleUnitState activeUnit)
     {
         _ai_action_plans_by_unit_id.TryGetValue(
             activeUnit.unit_id,
@@ -1057,73 +1070,88 @@ public sealed partial class BattleRuntimeModule : IDisposable
                     if (madnessCommand != null)
                         return IssueCommand(madnessCommand);
                 }
-                AiTraceRecorder.Enter("advance:ensure_ai_action_plan");
-                _ensure_ai_action_plan_for_unit(activeUnit);
-                AiTraceRecorder.Exit("advance:ensure_ai_action_plan");
-
-                AiTraceRecorder.Enter("advance:create_ai_context");
-                BattleAiContext aiContext = _prepare_ai_context_for_decision(activeUnit);
-                AiTraceRecorder.Exit("advance:create_ai_context");
-                AiTraceRecorder.Enter("advance:bind_ai_helpers");
-                _bind_ai_helper_services_for_decision(activeUnit, aiContext);
-                AiTraceRecorder.Exit("advance:bind_ai_helpers");
-                AiTraceRecorder.Enter("advance:choose_command");
-                BattleAiDecision decision = _ai_service.ChooseCommand(aiContext);
-                AiTraceRecorder.Exit("advance:choose_command");
-                if (decision != null && decision.command != null)
+                using (new BattleAiTraceSpan("advance:ensure_ai_action_plan"))
                 {
-                    AiTraceRecorder.Enter("advance:ai_decision_commit");
-                    string aiLine =
-                        $"AI[{decision.brain_id}/{decision.state_id}/{decision.action_id}] {decision.reason_text}";
-                    AiTraceRecorder.Enter("advance:append_ai_log");
-                    _state.AppendLogEntry(aiLine);
-                    AiTraceRecorder.Exit("advance:append_ai_log");
-                    BattleAiTurnTraceProjection aiTurnTrace = null;
-                    Dictionary<StringName, BattleAiTraceUnitSnapshotProjection> snapshotsBefore =
-                        new();
-                    List<StringName> decisionTargetUnitIds = new();
-                    if (_ai_trace_enabled)
+                    _ensure_ai_action_plan_for_unit(activeUnit);
+                }
+
+                BattleAiContext aiContext = null;
+                BattleAiDecision decision = null;
+                try
+                {
+                    using (new BattleAiTraceSpan("advance:create_ai_context"))
                     {
-                        aiTurnTrace = aiContext.BuildTurnTraceTyped(decision);
-                        decisionTargetUnitIds = CollectAiTraceDecisionTargetUnitIds(
-                            decision,
-                            aiTurnTrace
-                        );
-                        snapshotsBefore = BuildAiTraceUnitSnapshotMapTyped();
-                        aiTurnTrace.DecisionTargetSnapshots = BuildAiTraceSnapshotsForUnitIdsTyped(
-                            decisionTargetUnitIds,
-                            snapshotsBefore
-                        );
+                        aiContext = _prepare_ai_context_for_decision(activeUnit);
                     }
-                    AiTraceRecorder.Exit("advance:ai_decision_commit");
-                    AiTraceRecorder.Enter("advance:issue_ai_command");
-                    BattleEventBatch decisionBatch;
-                    try
+                    using (new BattleAiTraceSpan("advance:bind_ai_helpers"))
                     {
-                        decisionBatch = IssueCommand(decision.command);
+                        _bind_ai_helper_services_for_decision(activeUnit, aiContext);
                     }
-                    finally
+
+                    BattleAiDecisionResult decisionResult;
+                    using (new BattleAiTraceSpan("advance:choose_command"))
                     {
-                        AiTraceRecorder.Exit("advance:issue_ai_command");
+                        decisionResult = _ai_service.ChooseCommand(aiContext, _ai_trace_enabled);
                     }
-                    AiTraceRecorder.Enter("advance:ai_trace_after_command");
-                    if (_ai_trace_enabled)
+                    decision = decisionResult?.Decision;
+                    if (decision != null && decision.command != null)
                     {
-                        aiTurnTrace.ExecutionResult = BuildAiTraceExecutionResultTyped(
-                            decision,
-                            decisionBatch,
-                            snapshotsBefore,
-                            decisionTargetUnitIds
-                        );
-                        _ai_turn_traces.Add(aiTurnTrace);
+                        string aiLine =
+                            $"AI[{decision.brain_id}/{decision.state_id}/{decision.action_id}] {decision.reason_text}";
+                        using (new BattleAiTraceSpan("advance:append_ai_log"))
+                        {
+                            _state.AppendLogEntry(aiLine);
+                        }
+                        BattleAiTurnTraceProjection aiTurnTrace = decisionResult?.TurnTrace;
+                        Dictionary<StringName, BattleAiTraceUnitSnapshotProjection> snapshotsBefore =
+                            new();
+                        List<StringName> decisionTargetUnitIds = new();
+                        using (new BattleAiTraceSpan("advance:ai_decision_commit"))
+                        {
+                            if (_ai_trace_enabled && aiTurnTrace != null)
+                            {
+                                decisionTargetUnitIds = CollectAiTraceDecisionTargetUnitIds(
+                                    decision,
+                                    aiTurnTrace
+                                );
+                                snapshotsBefore = BuildAiTraceUnitSnapshotMapTyped();
+                                aiTurnTrace.DecisionTargetSnapshots =
+                                    BuildAiTraceSnapshotsForUnitIdsTyped(
+                                        decisionTargetUnitIds,
+                                        snapshotsBefore
+                                    );
+                            }
+                        }
+                        BattleEventBatch decisionBatch;
+                        using (new BattleAiTraceSpan("advance:issue_ai_command"))
+                        {
+                            decisionBatch = IssueCommand(decision.command);
+                        }
+                        using (new BattleAiTraceSpan("advance:ai_trace_after_command"))
+                        {
+                            if (_ai_trace_enabled && aiTurnTrace != null)
+                            {
+                                aiTurnTrace.ExecutionResult = BuildAiTraceExecutionResultTyped(
+                                    decision,
+                                    decisionBatch,
+                                    snapshotsBefore,
+                                    decisionTargetUnitIds
+                                );
+                                _ai_turn_traces.Add(aiTurnTrace);
+                            }
+                            using (new BattleAiTraceSpan("advance:prepend_ai_batch_log"))
+                            {
+                                if (decisionBatch != null)
+                                    decisionBatch.InsertLogLine(0, aiLine);
+                            }
+                        }
+                        return decisionBatch;
                     }
-                    AiTraceRecorder.Enter("advance:prepend_ai_batch_log");
-                    if (decisionBatch != null)
-                        decisionBatch.InsertLogLine(0, aiLine);
-                    AiTraceRecorder.Exit("advance:prepend_ai_batch_log");
-                    AiTraceRecorder.Exit("advance:ai_trace_after_command");
-                    decision.ClearOwnedRuntimeReferences();
-                    return decisionBatch;
+                }
+                finally
+                {
+                    decision?.ClearOwnedRuntimeReferences();
+                    _runtime_services.ClearRuntimeBindings();
                 }
             }
             return batch;
@@ -1236,25 +1264,26 @@ public sealed partial class BattleRuntimeModule : IDisposable
         BattlePreview preview
     )
     {
-        AiTraceRecorder.Enter("preview:move");
+        using BattleAiTraceSpan trace = new("preview:move");
         if (_movement_service.IsMovementBlocked(activeUnit))
         {
             preview.AddLogLine($"{activeUnit.DisplayName} 当前被限制移动。");
-            AiTraceRecorder.Exit("preview:move");
             return;
         }
 
-        AiTraceRecorder.Enter("preview:move.resolve_path_result");
-        BattleMovePathResult moveResult = _movement_service.ResolveMovePathResultTyped(
-            activeUnit,
-            command.target_coord
-        );
-        AiTraceRecorder.Exit("preview:move.resolve_path_result");
+        BattleMovePathResult moveResult;
+        using (new BattleAiTraceSpan("preview:move.resolve_path_result"))
+        {
+            moveResult = _movement_service.ResolveMovePathResultTyped(
+                activeUnit,
+                command.target_coord
+            );
+        }
 
-        AiTraceRecorder.Enter("preview:move.build_preview");
-        ApplyMovePreviewResult(activeUnit, command, preview, moveResult);
-        AiTraceRecorder.Exit("preview:move.build_preview");
-        AiTraceRecorder.Exit("preview:move");
+        using (new BattleAiTraceSpan("preview:move.build_preview"))
+        {
+            ApplyMovePreviewResult(activeUnit, command, preview, moveResult);
+        }
     }
 
     private void ApplyMovePreviewResult(
@@ -1297,11 +1326,10 @@ public sealed partial class BattleRuntimeModule : IDisposable
         BattlePreview preview
     )
     {
-        AiTraceRecorder.Enter("preview:skill");
+        using BattleAiTraceSpan trace = new("preview:skill");
         if (activeUnit.TurnCastingExhausted)
         {
             preview.AddLogLine("本次施法准备失败后只能移动、等待或取消读条。");
-            AiTraceRecorder.Exit("preview:skill");
             return;
         }
         BattleSkillAccessResult accessResult = ValidateSkillCommandEntryAccess(
@@ -1311,11 +1339,9 @@ public sealed partial class BattleRuntimeModule : IDisposable
         if (!accessResult.Allowed)
         {
             preview.AddLogLine(accessResult.Message);
-            AiTraceRecorder.Exit("preview:skill");
             return;
         }
         _preview_skill_command(activeUnit, command, preview);
-        AiTraceRecorder.Exit("preview:skill");
     }
 
     private BattleSkillAccessResult ValidateSkillCommandEntryAccess(
@@ -1439,10 +1465,9 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     private static void PreviewWaitCommand(BattleUnitReadView activeUnit, BattlePreview preview)
     {
-        AiTraceRecorder.Enter("preview:wait");
+        using BattleAiTraceSpan trace = new("preview:wait");
         preview.allowed = true;
         preview.AddLogLine($"{activeUnit.DisplayName} 可以结束行动。");
-        AiTraceRecorder.Exit("preview:wait");
     }
 
     private void PreviewChangeEquipmentCommand(
@@ -1451,15 +1476,13 @@ public sealed partial class BattleRuntimeModule : IDisposable
         BattlePreview preview
     )
     {
-        AiTraceRecorder.Enter("preview:change_equipment");
+        using BattleAiTraceSpan trace = new("preview:change_equipment");
         if (activeUnit.TurnCastingExhausted)
         {
             preview.AddLogLine("本次施法准备失败后只能移动、等待或取消读条。");
-            AiTraceRecorder.Exit("preview:change_equipment");
             return;
         }
         _preview_change_equipment_command(activeUnit, command, preview);
-        AiTraceRecorder.Exit("preview:change_equipment");
     }
 
     private static void PreviewUnknownCommand(BattlePreview preview)
@@ -1800,11 +1823,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     internal void SetupStateForTests(BattleState state)
     {
-        if (!ReferenceEquals(_state, state))
-            RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-                _state,
-                "BattleRuntimeModule.SetupStateForTests.replace"
-            );
         if (state == null)
             _contingency_system.ClearBattleState();
         if (!ReferenceEquals(_state, state))
@@ -2334,6 +2352,19 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     internal BattleTerrainGenerator GetTerrainGenerator() => EnsureTerrainGenerator();
 
+    internal void ConfigureOwnedTerrainGeneratorForTests(BattleTerrainGenerator terrainGenerator)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        SetTerrainGenerator(terrainGenerator, true);
+    }
+
+    internal bool HasAiRuntimeBorrowers =>
+        _ai_action_plans_by_unit_id.Count != 0 || _runtime_services.HasAiRuntimeBindings;
+
+    internal bool HasRuntimeSidecarBindings => _runtime_services.HasRuntimeSidecarBindings;
+
+    internal bool IsDisposed => _disposed;
+
     private BattleTerrainGenerator EnsureTerrainGenerator()
     {
         if (_disposed)
@@ -2661,7 +2692,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
         {
             return;
         }
-        GC.SuppressFinalize(this);
         DisposeManagedRuntime();
     }
 
@@ -2677,91 +2707,107 @@ public sealed partial class BattleRuntimeModule : IDisposable
             return;
         }
         _disposed = true;
-        _terrain_effect_system?.Dispose();
-        _delayed_area_effect_system?.Dispose();
-        _battle_rating_system?.DisposeRuntime();
-        _unit_factory?.DisposeRuntime();
-        _charge_resolver?.DisposeRuntime();
-        _repeat_attack_resolver?.DisposeRuntime();
-        _skill_resolution_rules?.Dispose();
-        _ai_service?.Dispose();
-        _runtime_services.Dispose();
-        _change_equipment_resolver?.Dispose();
-        _loot_resolver?.Dispose();
-        _skill_turn_resolver?.DisposeRuntime();
-        _metrics_collector?.Dispose();
-        _shield_service?.DisposeRuntime();
-        DisposeOwnedTerrainGenerator();
-        _layered_barrier_service?.Dispose();
-        _timeline_driver?.Dispose();
-        _skill_orchestrator?.DisposeRuntime();
-        _casting_time_service?.Dispose();
-        _meteor_swarm_resolver?.Dispose();
-        _attack_check_policy_service?.Dispose();
-        _equipment_ability_runtime_service?.Dispose();
-        _skill_outcome_committer?.Dispose();
+        Exception firstFailure = null;
+
+        // Phase 1: release the most-derived decision borrowers before any service,
+        // content catalog, state graph, or owned native resource can disappear.
+        RunTeardownStep(ref firstFailure, _runtime_services.ClearRuntimeBindings);
+        RunTeardownStep(ref firstFailure, ClearAiActionPlans);
+        RunTeardownStep(ref firstFailure, _ai_turn_traces.Clear);
+        RunTeardownStep(ref firstFailure, _contingency_system.ClearBattleState);
+
+        // Phase 2: dispose AI and runtime sidecars while their borrowed inputs still exist.
+        RunTeardownStep(ref firstFailure, () => _ai_service?.Dispose());
+        RunTeardownStep(ref firstFailure, _runtime_services.Dispose);
+        RunTeardownStep(ref firstFailure, () => _terrain_effect_system?.Dispose());
+        RunTeardownStep(ref firstFailure, () => _delayed_area_effect_system?.Dispose());
+        RunTeardownStep(ref firstFailure, () => _battle_rating_system?.DisposeRuntime());
+        RunTeardownStep(ref firstFailure, () => _unit_factory?.DisposeRuntime());
+        RunTeardownStep(ref firstFailure, () => _charge_resolver?.DisposeRuntime());
+        RunTeardownStep(ref firstFailure, () => _repeat_attack_resolver?.DisposeRuntime());
+        RunTeardownStep(ref firstFailure, () => _skill_resolution_rules?.Dispose());
+        RunTeardownStep(ref firstFailure, () => _change_equipment_resolver?.Dispose());
+        RunTeardownStep(ref firstFailure, () => _loot_resolver?.Dispose());
+        RunTeardownStep(ref firstFailure, () => _skill_turn_resolver?.DisposeRuntime());
+        RunTeardownStep(ref firstFailure, () => _metrics_collector?.Dispose());
+        RunTeardownStep(ref firstFailure, () => _shield_service?.DisposeRuntime());
+        RunTeardownStep(ref firstFailure, () => _layered_barrier_service?.Dispose());
+        RunTeardownStep(ref firstFailure, () => _timeline_driver?.Dispose());
+        RunTeardownStep(ref firstFailure, () => _skill_orchestrator?.DisposeRuntime());
+        RunTeardownStep(ref firstFailure, () => _casting_time_service?.Dispose());
+        RunTeardownStep(ref firstFailure, () => _meteor_swarm_resolver?.Dispose());
+        RunTeardownStep(ref firstFailure, () => _attack_check_policy_service?.Dispose());
+        RunTeardownStep(ref firstFailure, () => _equipment_ability_runtime_service?.Dispose());
+        RunTeardownStep(ref firstFailure, () => _skill_outcome_committer?.Dispose());
+        RunTeardownStep(ref firstFailure, () => _skill_mastery_service?.Dispose());
+        RunTeardownStep(ref firstFailure, () => _fate_runtime?.DisposeRuntime());
+        RunTeardownStep(ref firstFailure, () => _damage_resolver?.Dispose());
+        RunTeardownStep(ref firstFailure, () => _hit_resolver?.Dispose());
+
         _meteor_swarm_resolver = null;
-        _special_profile_gate = null;
         _attack_check_policy_service = null;
         _equipment_ability_runtime_service = null;
         _skill_outcome_committer = null;
-        _skill_mastery_service?.Dispose();
-        _fate_runtime?.DisposeRuntime();
-        _damage_resolver?.Dispose();
-        _hit_resolver?.Dispose();
         _damage_resolver = null;
         _hit_resolver = null;
+
+        // Phase 3: clear plain runtime results and every process-content borrower/index.
         _battleRatingStatsByMemberId.Clear();
         _pendingPostBattleCharacterRewards.Clear();
         _active_loot_entries.Clear();
         _looted_defeated_unit_ids.Clear();
-        _ai_turn_traces.Clear();
-        ClearAiActionPlans();
-        _contingency_system.ClearBattleState();
+        _effectOriginStack.Clear();
         _battle_metrics.Clear();
         calamity_by_member_id.Clear();
         _battle_resolution_result = null;
         _battle_resolution_result_consumed = false;
         _terrain_effect_nonce = 0;
         _ai_trace_enabled = false;
-        _characterGateway = null;
-        _skillDefinitionIndex.Clear();
-        _itemDefIndex.Clear();
-        _enemyTemplateIndex.Clear();
-        _enemyAiBrainIndex.Clear();
-        _special_profile_registry_snapshot.Clear();
-        _special_profile_view = BattleSpecialProfileRuntimeView.Empty;
-        _encounter_builder = null;
-        _equipment_drop_service = null;
-        _equipment_instance_id_allocator = null;
-        if (_state != null)
+        _last_start_failure = new BattleStartFailureSnapshot();
+        RunTeardownStep(ref firstFailure, ClearContentCatalogBorrowers);
+
+        // Phase 4: release state/topology after all of its borrowers are gone.
+        RunTeardownStep(ref firstFailure, ClearRuntimeBattleStateReference);
+
+        // Phase 5: owned battle-native resources close last. DisposeOwnedTerrainGenerator
+        // drops the field before invoking user-overridable Dispose, so an exception cannot
+        // resurrect or retain the closed owner on a second Dispose call.
+        RunTeardownStep(ref firstFailure, DisposeOwnedTerrainGenerator);
+
+        if (firstFailure != null)
         {
-            RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-                _state,
-                "BattleRuntimeModule.DisposeManagedRuntime"
-            );
-            _state.ClearBattleTopology();
-            _state.ally_unit_ids.Clear();
-            _state.enemy_unit_ids.Clear();
-            _state.timeline?.ready_unit_ids.Clear();
+            ExceptionDispatchInfo.Capture(firstFailure).Throw();
         }
-        _state = null;
+    }
+
+    private static void RunTeardownStep(ref Exception firstFailure, Action action)
+    {
+        try
+        {
+            action?.Invoke();
+        }
+        catch (Exception exception)
+        {
+            firstFailure ??= exception;
+        }
     }
 
     private void ClearRuntimeBattleStateReference()
     {
-        if (_state != null)
-        {
-            RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-                _state,
-                "BattleRuntimeModule.ClearRuntimeBattleStateReference"
-            );
-            _state.ClearBattleTopology();
-            _state.ally_unit_ids.Clear();
-            _state.enemy_unit_ids.Clear();
-            _state.timeline?.ready_unit_ids.Clear();
-        }
+        BattleState state = _state;
         _state = null;
+        if (state != null)
+        {
+            Exception firstFailure = null;
+            RunTeardownStep(ref firstFailure, state.ClearBattleTopology);
+            RunTeardownStep(ref firstFailure, state.ally_unit_ids.Clear);
+            RunTeardownStep(ref firstFailure, state.enemy_unit_ids.Clear);
+            RunTeardownStep(ref firstFailure, () => state.timeline?.ready_unit_ids.Clear());
+            if (firstFailure != null)
+            {
+                ExceptionDispatchInfo.Capture(firstFailure).Throw();
+            }
+        }
     }
 
     private static void DisposeBattlePreview(BattlePreview preview)

@@ -126,7 +126,9 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
             AddUnitToState(runtime, state, player, isEnemy: false);
             runtime.SetupStateForTests(state);
 
-            decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, mover));
+            decision = runtime._ai_service
+                .ChooseCommand(BuildAiContext(runtime, mover), captureTrace: false)
+                ?.Decision;
             _test.True(decision?.command != null, "far move_to_range should produce a legal command.");
             _test.Eq(
                 decision?.command?.command_type ?? new StringName(""),
@@ -201,7 +203,9 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
             AddUnitToState(runtime, state, player, isEnemy: false);
             runtime.SetupStateForTests(state);
 
-            decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, mover));
+            decision = runtime._ai_service
+                .ChooseCommand(BuildAiContext(runtime, mover), captureTrace: false)
+                ?.Decision;
             _test.True(decision?.command != null, "detour move_to_range should produce a legal command.");
             _test.Eq(
                 decision?.command?.command_type ?? new StringName(""),

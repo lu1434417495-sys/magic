@@ -55,7 +55,9 @@ public partial class run_battle_ai_wait_behavior_regression : LifecycleTestScene
         AddUnitToState(runtime, state, player, isEnemy: false);
         runtime.SetupStateForTests(state);
 
-        BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, wolf));
+        BattleAiDecision decision = runtime._ai_service
+            .ChooseCommand(BuildAiContext(runtime, wolf), captureTrace: false)
+            ?.Decision;
         _test.Eq(
             decision?.action_id ?? (StringName)"",
             (StringName)"active_rest_wait",
@@ -103,7 +105,9 @@ public partial class run_battle_ai_wait_behavior_regression : LifecycleTestScene
         AddUnitToState(runtime, state, player, isEnemy: false);
         runtime.SetupStateForTests(state);
 
-        BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, wolf));
+        BattleAiDecision decision = runtime._ai_service
+            .ChooseCommand(BuildAiContext(runtime, wolf), captureTrace: false)
+            ?.Decision;
         _test.Eq(
             decision?.action_id ?? (StringName)"",
             (StringName)"fallback_rest_wait",
@@ -161,7 +165,9 @@ public partial class run_battle_ai_wait_behavior_regression : LifecycleTestScene
         AddUnitToState(runtime, state, player, isEnemy: false);
         runtime.SetupStateForTests(state);
 
-        BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, wolf));
+        BattleAiDecision decision = runtime._ai_service
+            .ChooseCommand(BuildAiContext(runtime, wolf), captureTrace: false)
+            ?.Decision;
         _test.Eq(
             decision?.action_id ?? (StringName)"",
             (StringName)"wolf_close_in",

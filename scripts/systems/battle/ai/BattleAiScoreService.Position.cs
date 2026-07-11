@@ -49,7 +49,9 @@ public partial class BattleAiScoreService
         BattleUnitState targetUnit
     )
     {
-        AiTraceRecorder.Enter("_resolve_target_role_threat_multiplier_basis_points");
+        using BattleAiTraceSpan trace = new(
+            "_resolve_target_role_threat_multiplier_basis_points"
+        );
         StringName targetUnitId = ProgressionDataUtils.to_string_name(targetUnit?.unit_id ?? "");
         if (
             _decisionScopeActive
@@ -57,7 +59,6 @@ public partial class BattleAiScoreService
             && _targetRoleThreatMultiplierCache.TryGetValue(targetUnitId, out int cachedResult)
         )
         {
-            AiTraceRecorder.Exit("_resolve_target_role_threat_multiplier_basis_points");
             return cachedResult;
         }
         int result = ResolveTargetRoleThreatMultiplierBasisPointsImpl(context, targetUnit);
@@ -65,7 +66,6 @@ public partial class BattleAiScoreService
         {
             _targetRoleThreatMultiplierCache[targetUnitId] = result;
         }
-        AiTraceRecorder.Exit("_resolve_target_role_threat_multiplier_basis_points");
         return result;
     }
 

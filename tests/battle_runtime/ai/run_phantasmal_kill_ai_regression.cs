@@ -27,7 +27,7 @@ public partial class run_phantasmal_kill_ai_regression : LifecycleTestSceneTree
 
     private void TestLowHpEnemyExecuteScoresAboveHighHpEnemy()
     {
-        Fixture fixture = BuildFixture("pk_ai_execute_value");
+        using Fixture fixture = BuildFixture("pk_ai_execute_value");
         SkillDefinition skill = BuildPhantasmalKillSkill(targetMode: "unit");
         BattleUnitState source = BuildUnit("pk_source", "hostile", new Vector2I(0, 0), 200, 200);
         BattleUnitState highHpEnemy = BuildUnit(
@@ -64,7 +64,7 @@ public partial class run_phantasmal_kill_ai_regression : LifecycleTestSceneTree
 
     private void TestIllusionImmuneTargetContributesNoValue()
     {
-        Fixture fixture = BuildFixture("pk_ai_immune_noop");
+        using Fixture fixture = BuildFixture("pk_ai_immune_noop");
         SkillDefinition skill = BuildPhantasmalKillSkill(targetMode: "unit");
         BattleUnitState source = BuildUnit("pk_source", "hostile", new Vector2I(0, 0), 200, 200);
         BattleUnitState immuneTarget = BuildUnit(
@@ -96,7 +96,7 @@ public partial class run_phantasmal_kill_ai_regression : LifecycleTestSceneTree
 
     private void TestSaveAdvantageAndDisadvantageChangeExpectedValue()
     {
-        Fixture fixture = BuildFixture("pk_ai_save_advantage");
+        using Fixture fixture = BuildFixture("pk_ai_save_advantage");
         SkillDefinition skill = BuildPhantasmalKillSkill(targetMode: "unit");
         BattleUnitState source = BuildUnit("pk_source", "hostile", new Vector2I(0, 0), 200, 200);
         BattleUnitState normalTarget = BuildUnit("normal_enemy", "player", new Vector2I(1, 0), 200, 120);
@@ -142,7 +142,7 @@ public partial class run_phantasmal_kill_ai_regression : LifecycleTestSceneTree
 
     private void TestAffectedAllyUpdatesFriendlyFireAndLethalRiskCounts()
     {
-        Fixture fixture = BuildFixture("pk_ai_friendly_counts");
+        using Fixture fixture = BuildFixture("pk_ai_friendly_counts");
         SkillDefinition skill = BuildPhantasmalKillSkill(targetMode: "ground");
         BattleUnitState source = BuildUnit("pk_source", "hostile", new Vector2I(0, 0), 200, 200);
         BattleUnitState exposedAlly = BuildUnit("exposed_ally", "hostile", new Vector2I(1, 0), 200, 120);
@@ -495,7 +495,7 @@ public partial class run_phantasmal_kill_ai_regression : LifecycleTestSceneTree
         _test.Fail(message);
     }
 
-    private sealed class Fixture
+    private sealed class Fixture : IDisposable
     {
         public readonly BattleState State;
         public readonly BattleGridService GridService = new();
@@ -504,6 +504,11 @@ public partial class run_phantasmal_kill_ai_regression : LifecycleTestSceneTree
         public Fixture(string battleId, Vector2I mapSize)
         {
             State = BuildFlatState(battleId, mapSize);
+        }
+
+        public void Dispose()
+        {
+            ScoreService.Dispose();
         }
 
         public void AddUnit(BattleUnitState unit)

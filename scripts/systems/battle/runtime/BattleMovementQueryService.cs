@@ -219,9 +219,10 @@ internal sealed class BattleMovementQueryService : IDisposable
         {
             _snapshotRevision = long.MinValue;
         }
-        AiTraceRecorder.Enter("movement_query_setup:ensure_snapshot");
-        EnsureSnapshotFresh();
-        AiTraceRecorder.Exit("movement_query_setup:ensure_snapshot");
+        using (new BattleAiTraceSpan("movement_query_setup:ensure_snapshot"))
+        {
+            EnsureSnapshotFresh();
+        }
     }
 
     internal void ClearRuntimeBindings()
@@ -938,7 +939,7 @@ internal sealed class BattleMovementQueryService : IDisposable
 
     private void RebuildSnapshot()
     {
-        AiTraceRecorder.Enter("movement_query_setup:rebuild_snapshot");
+        using BattleAiTraceSpan trace = new("movement_query_setup:rebuild_snapshot");
         _mapSize = _state != null ? _state.map_size : Vector2I.Zero;
         _cells =
             _mapSize.X > 0 && _mapSize.Y > 0
@@ -954,7 +955,6 @@ internal sealed class BattleMovementQueryService : IDisposable
         if (_state == null)
         {
             _snapshotRevision = 0;
-            AiTraceRecorder.Exit("movement_query_setup:rebuild_snapshot");
             return;
         }
         if (_state != null)
@@ -1008,7 +1008,6 @@ internal sealed class BattleMovementQueryService : IDisposable
             }
         }
         _snapshotRevision = GetCurrentSnapshotRevision();
-        AiTraceRecorder.Exit("movement_query_setup:rebuild_snapshot");
     }
 
     private void EnsureSnapshotFresh()
