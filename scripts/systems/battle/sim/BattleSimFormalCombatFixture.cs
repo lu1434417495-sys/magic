@@ -164,51 +164,104 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         _setup_character_management();
     }
 
-    internal Godot.Collections.Dictionary BuildRuntimeContext(
+    internal GodotProjectionLease<Godot.Collections.Dictionary> BuildRuntimeContextLease(
         BattleRuntimeModule runtime,
         Godot.Collections.Dictionary base_context
     )
     {
         _restore_all_members_to_full_hp();
-        var context = RuntimePayloadCopy.Dictionary(
-            base_context,
-            "BattleSimFormalCombatFixture.BuildRuntimeContext.context"
+        GodotProjectionLease<Godot.Collections.Dictionary> contextLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                RuntimePlainPayload.NormalizeDictionary(
+                    base_context,
+                    "BattleSimFormalCombatFixture.BuildRuntimeContextLease.base"
+                ),
+                "battle-sim-formal-context",
+                LifetimeDomain.Request,
+                "BattleSimFormalCombatFixture.BuildRuntimeContextLease.context"
+            );
+        Godot.Collections.Dictionary context = contextLease.Value;
+        context["battle_party"] = contextLease.Own(
+            new Godot.Collections.Array(),
+            "BattleSimFormalCombatFixture.BuildRuntimeContextLease.battle_party"
         );
-        context["battle_party"] = new Godot.Collections.Array();
-        context["ally_member_ids"] = new Godot.Collections.Array<StringName>(ally_member_ids);
+        context["ally_member_ids"] = ProjectStringNames(
+            contextLease,
+            ally_member_ids,
+            "BattleSimFormalCombatFixture.BuildRuntimeContextLease.ally_member_ids"
+        );
         context["validate_spawn_reachability"] = true;
         context["validate_bidirectional_spawn_reachability"] = true;
         context["enforce_opposing_spawn_sides"] = true;
-        var saved_active_ids = new Godot.Collections.Array<StringName>(
-            party_state.active_member_ids
-        );
-        party_state.active_member_ids = new Godot.Collections.Array<StringName>(hostile_member_ids);
-        var hostile_context = RuntimePayloadCopy.Dictionary(
-            context,
-            "BattleSimFormalCombatFixture.BuildRuntimeContext.hostile_context"
-        );
-        hostile_context["battle_party"] = new Godot.Collections.Array();
-        hostile_context["ally_member_ids"] = new Godot.Collections.Array<StringName>(
-            hostile_member_ids
-        );
-        var hostile_units =
-            runtime?._unit_factory?.BuildAllyUnits(party_state, hostile_context)
-            ?? System.Array.Empty<BattleUnitState>();
-        var hostile_unit_payloads = new Godot.Collections.Array();
-        foreach (BattleUnitState unit in hostile_units)
+        StringNameList savedActiveIds = party_state.active_member_ids?.Duplicate() ?? new();
+        bool completed = false;
+        try
         {
-            _apply_unit_runtime_metadata(unit, "hostile");
-            hostile_unit_payloads.Add(unit.ToDictionary());
+            party_state.active_member_ids = new StringNameList(hostile_member_ids);
+            Godot.Collections.Dictionary hostileContext = RuntimePayloadCopy.DictionaryInto(
+                contextLease,
+                context,
+                "BattleSimFormalCombatFixture.BuildRuntimeContextLease.hostile_context"
+            );
+            hostileContext["battle_party"] = contextLease.Own(
+                new Godot.Collections.Array(),
+                "BattleSimFormalCombatFixture.BuildRuntimeContextLease.hostile_battle_party"
+            );
+            hostileContext["ally_member_ids"] = ProjectStringNames(
+                contextLease,
+                hostile_member_ids,
+                "BattleSimFormalCombatFixture.BuildRuntimeContextLease.hostile_member_ids"
+            );
+            var hostileUnits =
+                runtime?._unit_factory?.BuildAllyUnits(party_state, hostileContext)
+                ?? System.Array.Empty<BattleUnitState>();
+            Godot.Collections.Array hostileUnitPayloads = contextLease.Own(
+                new Godot.Collections.Array(),
+                "BattleSimFormalCombatFixture.BuildRuntimeContextLease.hostile_units"
+            );
+            foreach (BattleUnitState unit in hostileUnits)
+            {
+                _apply_unit_runtime_metadata(unit, "hostile");
+                hostileUnitPayloads.Add(
+                    RuntimePlainPayload.ProjectDictionaryInto(
+                        contextLease,
+                        unit.BuildSnapshotPlain(),
+                        $"BattleSimFormalCombatFixture.BuildRuntimeContextLease.hostile_unit.{unit.unit_id}"
+                    )
+                );
+            }
+            context["enemy_units"] = hostileUnitPayloads;
+            party_state.active_member_ids = new StringNameList(ally_member_ids);
+            if (party_state.active_member_ids.Count == 0)
+                party_state.active_member_ids = savedActiveIds.Duplicate();
+            completed = true;
+            return contextLease;
         }
-        context["enemy_units"] = hostile_unit_payloads;
-        party_state.active_member_ids = new Godot.Collections.Array<StringName>(ally_member_ids);
-        if (party_state.active_member_ids.Count == 0)
-            party_state.active_member_ids = saved_active_ids;
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-            context,
-            "BattleSimFormalCombatFixture.BuildRuntimeContext.return"
+        catch
+        {
+            contextLease.Dispose();
+            throw;
+        }
+        finally
+        {
+            if (!completed && party_state != null)
+                party_state.active_member_ids = savedActiveIds;
+        }
+    }
+
+    private static Godot.Collections.Array ProjectStringNames(
+        GodotProjectionLease<Godot.Collections.Dictionary> lease,
+        IEnumerable<StringName> values,
+        string reason
+    )
+    {
+        Godot.Collections.Array result = lease.Own(
+            new Godot.Collections.Array(),
+            reason
         );
-        return context;
+        foreach (StringName value in values ?? System.Array.Empty<StringName>())
+            result.Add(value);
+        return result;
     }
 
     public void ApplyStartedBattleMetadata(BattleState state)
@@ -454,10 +507,6 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         state.active_quests.Clear();
         state.claimable_quests.Clear();
         state.completed_quest_ids.Clear();
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-            state,
-            "BattleSimFormalCombatFixture.DisposePartyState"
-        );
     }
 
     private static void DisposePartyMemberState(PartyMemberState memberState)
@@ -467,10 +516,6 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         DisposeUnitProgress(memberState.progression);
         DisposeEquipmentState(memberState.equipment_state);
         memberState.active_stage_advancement_modifier_ids.Clear();
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-            memberState,
-            "BattleSimFormalCombatFixture.DisposePartyMemberState"
-        );
     }
 
     private static void DisposeUnitProgress(UnitProgress progress)

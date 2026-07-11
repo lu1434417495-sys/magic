@@ -215,7 +215,9 @@ public sealed class BattleSimExecutionLoop
 
     private static void PrintTraceStats(AiTraceRecorder recorder, int iteration)
     {
-        var stats = recorder?.GetFuncStats();
+        using GodotProjectionLease<Godot.Collections.Dictionary> statsLease =
+            recorder?.GetFuncStatsLease();
+        Godot.Collections.Dictionary stats = statsLease?.Value;
         if (stats == null || stats.Count == 0)
         {
             return;

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -192,6 +193,19 @@ public class BattleEdgeFeatureState
             ["state_tag"] = state_tag.ToString(),
         };
     }
+
+    internal IReadOnlyDictionary<string, object> BuildSnapshotPlain() =>
+        new Dictionary<string, object>(System.StringComparer.Ordinal)
+        {
+            ["feature_kind"] = feature_kind.ToString(),
+            ["render_kind"] = render_kind.ToString(),
+            ["render_layers"] = render_layers,
+            ["blocks_move"] = blocks_move,
+            ["blocks_occupancy"] = blocks_occupancy,
+            ["blocks_los"] = blocks_los,
+            ["interaction_kind"] = interaction_kind.ToString(),
+            ["state_tag"] = state_tag.ToString(),
+        };
 
     internal static BattleEdgeFeatureState FromDictionary(GDictionary featureDict)
     {

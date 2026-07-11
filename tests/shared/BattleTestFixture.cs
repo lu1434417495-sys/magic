@@ -61,7 +61,7 @@ internal sealed class BattleTestFixture : IDisposable
             map_size = mapSize,
             timeline = new BattleTimelineState(),
         };
-        state.SetCellsFromDictionary(BuildFlatCells(mapSize), duplicateCells: false);
+        state.SetCells(BuildFlatCells(mapSize));
         return state;
     }
 
@@ -186,8 +186,6 @@ internal sealed class BattleTestFixture : IDisposable
     {
         if (state == null)
             return;
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(state, "BattleTestFixture.DisposeBattleState");
-
         var units = new List<BattleUnitState>();
         var cells = new List<BattleCellState>();
         foreach (BattleUnitState unit in state.Units())
@@ -247,7 +245,6 @@ internal sealed class BattleTestFixture : IDisposable
     {
         if (unit == null)
             return;
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(unit, "BattleTestFixture.DisposeBattleUnit");
         DisposeEquipmentState(unit.equipment_view);
         unit.ClearStatusEffects();
     }
@@ -292,9 +289,9 @@ internal sealed class BattleTestFixture : IDisposable
         resolver?.Dispose();
     }
 
-    private static GDictionary BuildFlatCells(Vector2I mapSize)
+    private static Dictionary<Vector2I, BattleCellState> BuildFlatCells(Vector2I mapSize)
     {
-        var cells = new GDictionary();
+        var cells = new Dictionary<Vector2I, BattleCellState>();
         for (int y = 0; y < Mathf.Max(mapSize.Y, 0); y++)
         {
             for (int x = 0; x < Mathf.Max(mapSize.X, 0); x++)
@@ -308,7 +305,7 @@ internal sealed class BattleTestFixture : IDisposable
                     height_offset = 0,
                 };
                 cell.RecalculateRuntimeValues();
-                cells[coord] = cell.ToDictionary();
+                cells[coord] = cell;
             }
         }
         return cells;

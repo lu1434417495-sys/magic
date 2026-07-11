@@ -65,13 +65,14 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
             "进入灰烬地图",
             ""
         );
-        runtime.SetPendingBattleStartPrompt(new GDictionary
+        using GDictionary pendingBattlePrompt = new()
         {
             ["title"] = "开始战斗",
             ["confirm_text"] = "开始战斗",
-        });
-        runtime.SetBattleSelectionTargetUnitIdsState(
-            new GStringNameArray { "enemy_alpha", "enemy_beta" }
+        };
+        runtime.SetPendingBattleStartPrompt(pendingBattlePrompt);
+        runtime.SetBattleSelectionTargetUnitIdsStateTyped(
+            new[] { new StringName("enemy_alpha"), new StringName("enemy_beta") }
         );
 
         WorldMapRuntimeProxy proxy = new();
@@ -91,7 +92,9 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
             _test.Eq(viewModel.PlayerCoord, runtime.GetPlayerCoord(), "World view model 应读取 player coord。");
             _test.Eq(viewModel.SelectedCoord, runtime.GetSelectedCoord(), "World view model 应读取 selected coord。");
             _test.False(viewModel.PlayerVisible, "World view model 应读取 player visibility。");
-            _test.Eq(proxy.GetPendingBattleStartPrompt()["confirm_text"].AsString(), "开始战斗", "GetPendingBattleStartPrompt() 应直接读取 runtime。");
+            using GodotProjectionLease<GDictionary> battlePromptLease =
+                proxy.GetPendingBattleStartPromptLease();
+            _test.Eq(battlePromptLease.Value["confirm_text"].AsString(), "开始战斗", "GetPendingBattleStartPrompt() 应直接读取 runtime。");
             _test.Eq(proxy.GetPendingSubmapPrompt()["target_display_name"].AsString(), "灰烬地图", "GetPendingSubmapPrompt() 应直接读取 runtime。");
             _test.False(proxy.IsPlayerVisibleOnWorldMap(), "IsPlayerVisibleOnWorldMap() 应直接读取 runtime。");
             _test.True(proxy.IsSubmapActive(), "IsSubmapActive() 应直接读取 runtime。");
@@ -348,12 +351,12 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
             _generation_definition = generationDefinition,
         };
         runtime._world_map_data_context.active_generation_definition = generationDefinition;
-        runtime._world_map_data_context.active_world_data = new GDictionary
+        runtime._world_map_data_context.SetActiveWorldData(new GDictionary
         {
             ["world_step"] = 0,
             ["world_events"] = new Godot.Collections.Array(),
             ["encounter_anchors"] = new Godot.Collections.Array(),
-        };
+        });
         runtime._character_management.setup(
             partyState,
             skillDefinitions,
@@ -511,7 +514,11 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
             : fallback;
     }
 
-    private void AssertSequence(GStringNameArray actual, string[] expected, string message)
+    private void AssertSequence(
+        IReadOnlyList<StringName> actual,
+        string[] expected,
+        string message
+    )
     {
         List<string> values = new();
         if (actual != null)

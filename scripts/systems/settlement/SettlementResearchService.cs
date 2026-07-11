@@ -397,9 +397,9 @@ public class SettlementResearchService
         return null;
     }
 
-    private static Godot.Collections.Array<StringName> _collect_rostered_member_ids(PartyState partyState)
+    private static List<StringName> _collect_rostered_member_ids(PartyState partyState)
     {
-        var memberIds = new Godot.Collections.Array<StringName>();
+        var memberIds = new List<StringName>();
         if (partyState == null)
         {
             return memberIds;
@@ -409,9 +409,12 @@ public class SettlementResearchService
         return memberIds;
     }
 
-    private static void AppendRosterMemberIds(Godot.Collections.Array<StringName> memberIds, Godot.Collections.Array<StringName> rawIds)
+    private static void AppendRosterMemberIds(
+        List<StringName> memberIds,
+        IEnumerable<StringName> rawIds
+    )
     {
-        foreach (var memberId in rawIds)
+        foreach (StringName memberId in rawIds ?? System.Array.Empty<StringName>())
         {
             if (memberId != "" && !memberIds.Contains(memberId))
             {

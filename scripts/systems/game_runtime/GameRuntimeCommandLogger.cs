@@ -68,28 +68,33 @@ public sealed class GameRuntimeCommandLogger
             new(
                 EventId,
                 Domain,
-                RuntimePlainPayload.ProjectDictionary(
-                    _commandArgs,
-                    "GameRuntimeCommandLogger.Clone.command_args"
-                ),
-                RuntimePlainPayload.ProjectDictionary(
-                    _beforeState,
-                    "GameRuntimeCommandLogger.Clone.before"
-                ),
+                RuntimePlainPayload.CloneDictionary(_commandArgs),
+                RuntimePlainPayload.CloneDictionary(_beforeState),
                 Logged
             );
 
-        internal Dictionary BuildContext() =>
-            new()
+        private CommandLogScope(
+            string eventId,
+            string domain,
+            IReadOnlyDictionary<string, object> commandArgs,
+            IReadOnlyDictionary<string, object> beforeState,
+            bool logged
+        )
+        {
+            EventId = eventId ?? "";
+            Domain = domain ?? "";
+            foreach (KeyValuePair<string, object> entry in RuntimePlainPayload.CloneDictionary(commandArgs))
+                _commandArgs[entry.Key] = entry.Value;
+            foreach (KeyValuePair<string, object> entry in RuntimePlainPayload.CloneDictionary(beforeState))
+                _beforeState[entry.Key] = entry.Value;
+            Logged = logged;
+        }
+
+        internal System.Collections.Generic.Dictionary<string, object> BuildContextPlain() =>
+            new(StringComparer.Ordinal)
             {
-                ["command_args"] = RuntimePlainPayload.ProjectDictionary(
-                    _commandArgs,
-                    "GameRuntimeCommandLogger.BuildContext.command_args"
-                ),
-                ["before"] = RuntimePlainPayload.ProjectDictionary(
-                    _beforeState,
-                    "GameRuntimeCommandLogger.BuildContext.before"
-                ),
+                ["command_args"] = RuntimePlainPayload.CloneDictionary(_commandArgs),
+                ["before"] = RuntimePlainPayload.CloneDictionary(_beforeState),
             };
 
         public void MarkLogged()
@@ -230,9 +235,12 @@ public sealed class GameRuntimeCommandLogger
             "message",
             _runtime._current_status_message
         );
-        var logContext = scope.BuildContext();
-        var afterState = BuildRuntimeLogStateInternal();
-        logContext["runtime"] = afterState;
+        var logContext = scope.BuildContextPlain();
+        using Dictionary afterState = BuildRuntimeLogStateInternal();
+        logContext["runtime"] = RuntimePlainPayload.NormalizeDictionary(
+            afterState,
+            "GameRuntimeCommandLogger.LogCommandResult.runtime"
+        );
         logContext["ok"] = ok;
         if (!string.IsNullOrEmpty(message))
             logContext["result_message"] = message;
@@ -245,15 +253,13 @@ public sealed class GameRuntimeCommandLogger
         var pendingBatches = _runtime._pending_command_battle_batches;
         if (scopeDomain == "battle" && pendingBatches.Count > 0)
         {
-            logContext["battle_batches"] = RuntimePlainPayload.ProjectDictionaryArray(
-                pendingBatches,
-                "GameRuntimeCommandLogger.LogCommandResult.battle_batches"
+            var batchSnapshots = new System.Collections.Generic.List<object>();
+            foreach (IReadOnlyDictionary<string, object> batch in pendingBatches)
+                batchSnapshots.Add(RuntimePlainPayload.CloneDictionary(batch));
+            logContext["battle_batches"] = batchSnapshots;
+            logContext["battle_batch"] = RuntimePlainPayload.CloneDictionary(
+                pendingBatches[pendingBatches.Count - 1]
             );
-            var lastBatch = RuntimePlainPayload.ProjectDictionary(
-                pendingBatches[pendingBatches.Count - 1],
-                "GameRuntimeCommandLogger.LogCommandResult.last_batch"
-            );
-            logContext["battle_batch"] = lastBatch;
             logContext["battle_changed_units"] = CollectCommandBattleChangedUnits(pendingBatches);
         }
 
@@ -264,7 +270,20 @@ public sealed class GameRuntimeCommandLogger
             ? message
             : (ok ? "命令成功。" : "命令失败。");
 
-        LogRuntimeEventInternal(eventLevel, eventDomain, eventId, eventMessage, Json.Stringify(logContext));
+        using GodotProjectionLease<Dictionary> logContextLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                logContext,
+                "GameRuntimeCommandLogger.LogCommandResult",
+                LifetimeDomain.Request,
+                "GameRuntimeCommandLogger.LogCommandResult"
+            );
+        LogRuntimeEventInternal(
+            eventLevel,
+            eventDomain,
+            eventId,
+            eventMessage,
+            Json.Stringify(logContextLease.Value)
+        );
         scope.MarkLogged();
     }
 
@@ -312,9 +331,25 @@ public sealed class GameRuntimeCommandLogger
         if (batch.LogLinesTyped.Count == 0)
             return;
 
-        var baseContext = BuildBattleBatchLogContextInternal(batch);
-        baseContext["runtime"] = BuildRuntimeLogStateInternal();
-        string contextStr = Json.Stringify(baseContext);
+        using Dictionary baseContext = BuildBattleBatchLogContextInternal(batch);
+        using Dictionary runtimeContext = BuildRuntimeLogStateInternal();
+        System.Collections.Generic.Dictionary<string, object> baseContextPlain =
+            RuntimePlainPayload.NormalizeDictionary(
+            baseContext,
+            "GameRuntimeCommandLogger.LogBattleBatch.base"
+        );
+        baseContextPlain["runtime"] = RuntimePlainPayload.NormalizeDictionary(
+            runtimeContext,
+            "GameRuntimeCommandLogger.LogBattleBatch.runtime"
+        );
+        using GodotProjectionLease<Dictionary> contextLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                baseContextPlain,
+                "GameRuntimeCommandLogger.LogBattleBatch",
+                LifetimeDomain.Request,
+                "GameRuntimeCommandLogger.LogBattleBatch"
+            );
+        string contextStr = Json.Stringify(contextLease.Value);
         foreach (string logLine in batch.LogLinesTyped)
         {
             LogRuntimeEventInternal(
@@ -365,8 +400,10 @@ public sealed class GameRuntimeCommandLogger
             ["selected_skill_entry_id"] = _runtime._selected_battle_skill_entry_id.ToString(),
             ["selected_skill_id"] = _runtime._selected_battle_skill_id.ToString(),
             ["selected_skill_variant_id"] = _runtime._selected_battle_skill_variant_id.ToString(),
-            ["selected_target_coord_count"] = _runtime._queued_battle_skill_target_coords.Count,
-            ["selected_target_unit_count"] = _runtime._queued_battle_skill_target_unit_ids.Count,
+            ["selected_target_coord_count"] =
+                _runtime.GetBattleSelectionTargetCoordsStateTyped().Count,
+            ["selected_target_unit_count"] =
+                _runtime.GetBattleSelectionTargetUnitIdsStateTyped().Count,
             ["terrain_counts"] = _runtime._count_battle_terrain_types(),
             ["ally_alive_count"] = allyAliveCount,
             ["hostile_alive_count"] = hostileAliveCount,
@@ -393,12 +430,16 @@ public sealed class GameRuntimeCommandLogger
         };
     }
 
-    private Godot.Collections.Array<Dictionary> CollectCommandBattleChangedUnits(
+    private System.Collections.Generic.List<object> CollectCommandBattleChangedUnits(
         IEnumerable<IReadOnlyDictionary<string, object>> batchContexts
     )
     {
-        var mergedByUnitId = new Dictionary();
-        var orderedUnitIds = new Array<string>();
+        var mergedByUnitId =
+            new System.Collections.Generic.Dictionary<
+                string,
+                System.Collections.Generic.Dictionary<string, object>
+            >(StringComparer.Ordinal);
+        var orderedUnitIds = new System.Collections.Generic.List<string>();
         foreach (
             IReadOnlyDictionary<string, object> batchContext in
             batchContexts ?? System.Array.Empty<IReadOnlyDictionary<string, object>>()
@@ -406,40 +447,41 @@ public sealed class GameRuntimeCommandLogger
         {
             if (batchContext == null)
                 continue;
-            var batchPayload = RuntimePlainPayload.ProjectDictionary(
-                batchContext,
-                "GameRuntimeCommandLogger.CollectChangedUnits.batch"
+            using GodotProjectionLease<Dictionary> batchLease =
+                RuntimePlainPayload.ProjectDictionaryLease(
+                    batchContext,
+                    "GameRuntimeCommandLogger.CollectChangedUnits.batch",
+                    LifetimeDomain.Request,
+                    "GameRuntimeCommandLogger.CollectChangedUnits.batch"
+                );
+            using Godot.Collections.Array changedUnits = DictionaryArray(
+                batchLease.Value,
+                "changed_units"
             );
-            var changedUnits = DictionaryArray(batchPayload, "changed_units");
             if (changedUnits.Count == 0)
                 continue;
             foreach (var changedUnitValue in changedUnits)
             {
                 if (changedUnitValue.VariantType != Variant.Type.Dictionary)
                     continue;
-                var changedUnit = changedUnitValue.AsGodotDictionary();
+                using var changedUnit = changedUnitValue.AsGodotDictionary();
                 var unitId = DictionaryString(changedUnit, "unit_id").StripEdges();
                 if (string.IsNullOrEmpty(unitId))
                     continue;
                 if (!mergedByUnitId.ContainsKey(unitId))
                     orderedUnitIds.Add(unitId);
-                mergedByUnitId[unitId] = RuntimePayloadCopy.Dictionary(
+                mergedByUnitId[unitId] = RuntimePlainPayload.NormalizeDictionary(
                     changedUnit,
                     "GameRuntimeCommandLogger.CollectChangedUnits.merge"
                 );
             }
         }
 
-        var result = new Array<Dictionary>();
+        var result = new System.Collections.Generic.List<object>();
         foreach (var unitId in orderedUnitIds)
         {
-            if (mergedByUnitId.ContainsKey(unitId))
-                result.Add(
-                    RuntimePayloadCopy.Dictionary(
-                        mergedByUnitId[unitId].AsGodotDictionary(),
-                        "GameRuntimeCommandLogger.CollectChangedUnits.result"
-                    )
-                );
+            if (mergedByUnitId.TryGetValue(unitId, out var changedUnit))
+                result.Add(RuntimePlainPayload.CloneDictionary(changedUnit));
         }
         return result;
     }

@@ -26,17 +26,20 @@ public sealed class GameRuntimeRewardFlowHandler
         _runtime = null;
     }
 
-    internal Dictionary GetCurrentPromotionPrompt()
+    internal GodotProjectionLease<Dictionary> GetCurrentPromotionPromptLease()
     {
         if (!HasRuntime())
-            return new Dictionary();
-        var pending = GetPendingPromotionPrompt();
-        if (pending.Count > 0)
+            return EmptyPromotionPromptLease();
+        GodotProjectionLease<Dictionary> pending = GetPendingPromotionPromptLease();
+        if (pending.Value.Count > 0)
             return pending;
-        var worldPending = GetPendingWorldPromotionPrompt();
-        if (worldPending.Count > 0)
+        pending.Dispose();
+        GodotProjectionLease<Dictionary> worldPending =
+            GetPendingWorldPromotionPromptLease();
+        if (worldPending.Value.Count > 0)
             return worldPending;
-        return new Dictionary();
+        worldPending.Dispose();
+        return EmptyPromotionPromptLease();
     }
 
     internal GameRuntimeFacade.RuntimeCommandResult CommandConfirmPendingRewardTyped()
@@ -57,7 +60,9 @@ public sealed class GameRuntimeRewardFlowHandler
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
-        var prompt = GetCurrentPromotionPrompt();
+        using GodotProjectionLease<Dictionary> promptLease =
+            GetCurrentPromotionPromptLease();
+        Dictionary prompt = promptLease.Value;
         if (prompt.Count == 0)
             return CommandErrorTyped("当前没有待确认的职业晋升选择。");
         var memberId = DictionaryStringName(prompt, "member_id");
@@ -176,9 +181,11 @@ public sealed class GameRuntimeRewardFlowHandler
             return false;
         if (IsBattleActive())
         {
+            using GodotProjectionLease<Dictionary> pendingPromptLease =
+                GetPendingPromotionPromptLease();
             if (
                 !PromotionPromptContainsChoice(
-                    GetPendingPromotionPrompt(),
+                    pendingPromptLease.Value,
                     memberId,
                     professionId,
                     selection
@@ -203,7 +210,9 @@ public sealed class GameRuntimeRewardFlowHandler
             return true;
         }
 
-        var prompt = GetPendingWorldPromotionPrompt();
+        using GodotProjectionLease<Dictionary> promptLease =
+            GetPendingWorldPromotionPromptLease();
+        Dictionary prompt = promptLease.Value;
         if (prompt.Count == 0)
         {
             RejectInvalidPromotionChoice();
@@ -266,7 +275,7 @@ public sealed class GameRuntimeRewardFlowHandler
             return;
         if (IsBattleActive())
         {
-            if (GetPendingPromotionPrompt().Count == 0)
+            if (!_runtime.HasPendingPromotionPrompt())
             {
                 UpdateStatus("当前晋升选择无法取消。");
                 return;
@@ -276,7 +285,7 @@ public sealed class GameRuntimeRewardFlowHandler
             return;
         }
 
-        if (GetPendingWorldPromotionPrompt().Count == 0)
+        if (!_runtime.HasPendingWorldPromotionPrompt())
         {
             UpdateStatus("当前晋升选择无法取消。");
             return;
@@ -363,7 +372,7 @@ public sealed class GameRuntimeRewardFlowHandler
         var activeModalKind = GetActiveModalKind();
         if (!HasRuntime() || IsBattleActive())
             return false;
-        if (GetPendingWorldPromotionPrompt().Count > 0)
+        if (_runtime.HasPendingWorldPromotionPrompt())
         {
             if (activeModalKind != RuntimeModalKind.Promotion)
             {
@@ -532,19 +541,29 @@ public sealed class GameRuntimeRewardFlowHandler
         return delta.HasChangedProfessionId(professionId);
     }
 
-    private Dictionary GetPendingPromotionPrompt()
+    private GodotProjectionLease<Dictionary> GetPendingPromotionPromptLease()
     {
         if (!HasRuntime())
-            return new Dictionary();
-        return _runtime.GetPendingPromotionPrompt();
+            return EmptyPromotionPromptLease();
+        return _runtime.GetPendingPromotionPromptLease();
     }
 
-    private Dictionary GetPendingWorldPromotionPrompt()
+    private GodotProjectionLease<Dictionary> GetPendingWorldPromotionPromptLease()
     {
         if (!HasRuntime())
-            return new Dictionary();
-        return _runtime.GetPendingWorldPromotionPromptState();
+            return EmptyPromotionPromptLease();
+        return _runtime.GetPendingWorldPromotionPromptStateLease();
     }
+
+    private static GodotProjectionLease<Dictionary> EmptyPromotionPromptLease() =>
+        RuntimePlainPayload.ProjectDictionaryLease(
+            new System.Collections.Generic.Dictionary<string, object>(
+                System.StringComparer.Ordinal
+            ),
+            "GameRuntimeRewardFlowHandler.empty_promotion_prompt",
+            LifetimeDomain.Request,
+            "GameRuntimeRewardFlowHandler.empty_promotion_prompt"
+        );
 
     private PendingCharacterReward GetActiveReward()
     {

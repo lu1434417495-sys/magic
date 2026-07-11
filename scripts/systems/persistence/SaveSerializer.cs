@@ -751,7 +751,9 @@ public sealed class SaveSerializer
         if (partyState == null)
             return new PartyState();
 
-        GDictionary payload = partyState.ToDictionary();
+        using GodotProjectionLease<GDictionary> payloadLease =
+            partyState.ToDictionaryLease("SaveSerializer.NormalizePartyState");
+        GDictionary payload = payloadLease.Value;
         PartyState normalized =
             payload.Count > 0
                 ? PartyState.FromDictionary(payload)

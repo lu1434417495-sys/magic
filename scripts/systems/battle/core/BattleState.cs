@@ -118,11 +118,8 @@ public partial class BattleState
 
     private readonly List<Dictionary<string, object>> _promotionQueue = new();
 
-    public GArray promotion_queue
-    {
-        get => ProjectPromotionQueue();
-        set => SetPromotionQueue(value);
-    }
+    internal IReadOnlyList<IReadOnlyDictionary<string, object>> PromotionQueueSnapshots =>
+        BuildPromotionQueueSnapshots();
 
     public StringName modal_state = "";
 
@@ -259,12 +256,6 @@ public partial class BattleState
         }
         return result.AsReadOnly();
     }
-
-    internal GArray ProjectPromotionQueue() =>
-        RuntimePlainPayload.ProjectDictionaryArray(
-            _promotionQueue,
-            "BattleState.promotion_queue"
-        );
 
     internal void SetPromotionQueue(System.Collections.IEnumerable values)
     {
@@ -426,22 +417,6 @@ public partial class BattleState
         new(_normalize_string_name_array(enemy_unit_ids));
 
     internal BattleStateReadView AsReadView() => new(this);
-
-    internal Godot.Collections.Dictionary ProjectCells()
-    {
-        return BattleCellState.ProjectCellsToPayload(_cellsByCoord);
-    }
-
-    internal Godot.Collections.Dictionary ProjectUnits()
-    {
-        var result = new Godot.Collections.Dictionary();
-        foreach ((StringName unitId, BattleUnitState unit) in _unitsById)
-        {
-            if (unitId != "" && unit != null)
-                result[unitId] = unit.ToDictionary();
-        }
-        return result;
-    }
 
     internal bool ContainsCell(Vector2I coord) => _cellsByCoord.ContainsKey(coord);
 
@@ -711,16 +686,13 @@ public partial class BattleState
 
     internal void RebuildCellColumns()
     {
-        ReplaceCellColumnsPayload(BattleCellState.BuildColumnsFromSurfaceCells(_cellsByCoord));
+        ReplaceCellColumns(BattleCellState.BuildColumnsFromSurfaceCells(_cellsByCoord));
     }
 
     internal IReadOnlyDictionary<Vector2I, List<BattleCellState>> ProjectCellColumnsTyped() =>
         _cellColumns;
 
-    internal Godot.Collections.Dictionary ProjectCellColumns() =>
-        BattleCellState.ProjectColumnsToPayload(_cellColumns);
-
-    internal void ReplaceCellColumnsPayload(
+    internal void ReplaceCellColumns(
         IReadOnlyDictionary<Vector2I, List<BattleCellState>> columns
     )
     {
@@ -731,7 +703,7 @@ public partial class BattleState
             _cellColumns[coord] = DuplicateCellColumn(column);
     }
 
-    internal void ReplaceCellColumnsPayload(Godot.Collections.Dictionary payload)
+    internal void ReplaceCellColumnsFromPayload(Godot.Collections.Dictionary payload)
     {
         DisposeStoredCellColumns();
         if (payload == null)
@@ -744,21 +716,13 @@ public partial class BattleState
             if (column != null)
                 _cellColumns[key.AsVector2I()] = column;
         }
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(payload, "BattleState.ReplaceCellColumnsPayload");
     }
 
-    internal void PutCellColumnPayload(Vector2I coord, object columnPayload)
+    internal void PutCellColumn(Vector2I coord, List<BattleCellState> column)
     {
         DisposeStoredCellColumn(coord);
-        if (columnPayload is List<BattleCellState> typedColumn)
-        {
-            _cellColumns[coord] = DuplicateCellColumn(typedColumn);
-            return;
-        }
-        List<BattleCellState> parsedColumn = BattleCellState.ParseColumnPayload(columnPayload);
-        if (parsedColumn != null)
-            _cellColumns[coord] = parsedColumn;
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(columnPayload, "BattleState.PutCellColumnPayload");
+        if (column != null)
+            _cellColumns[coord] = DuplicateCellColumn(column);
     }
 
     internal void RemoveCellColumnPayload(Vector2I coord)
@@ -1093,28 +1057,6 @@ public partial class BattleState
     {
         unitState = GetUnit(unitId);
         return unitState != null;
-    }
-
-    internal static void DisposeCellDictionaryPayload(Godot.Collections.Dictionary cells)
-    {
-        if (cells == null)
-            return;
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-            cells,
-            "BattleState.SetCellsFromDictionary"
-        );
-        cells.Clear();
-    }
-
-    internal static void DisposeCellColumnsPayload(Godot.Collections.Dictionary columns)
-    {
-        if (columns == null)
-            return;
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-            columns,
-            "BattleState.SetCellsFromDictionary.columns"
-        );
-        columns.Clear();
     }
 
     private void DisposeStoredCellColumns()

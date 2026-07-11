@@ -269,55 +269,40 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
             templateId,
             "幻象免疫敌人"
         );
-        GArray enemyUnits = null;
-        try
+        using GodotProjectionLease<GArray> enemyUnitsLease = builder.BuildEnemyUnitsLease(
+            anchor,
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
+            enemyTemplates,
+            gameSession.GetEnemyAiBrainDefinitions(),
+            itemDefs
+        );
+        GArray enemyUnits = enemyUnitsLease.Value;
+        _test.Eq(enemyUnits.Count, 1, "自定义敌方模板应生成一个敌方单位。");
+        BattleUnitState enemyUnit = enemyUnits.Count > 0
+            && BattleUnitState.TryReadUnitPayload(enemyUnits[0], out BattleUnitState parsedEnemyUnit)
+                ? parsedEnemyUnit
+                : null;
+        _test.True(enemyUnit != null, "自定义敌方模板生成的单位应可读取。");
+        if (enemyUnit == null)
         {
-            enemyUnits = builder.BuildEnemyUnitsTyped(
-                anchor,
-                gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
-                enemyTemplates,
-                gameSession.GetEnemyAiBrainDefinitions(),
-                itemDefs
-            );
-            _test.Eq(enemyUnits.Count, 1, "自定义敌方模板应生成一个敌方单位。");
-            BattleUnitState enemyUnit = enemyUnits.Count > 0
-                && BattleUnitState.TryReadUnitPayload(enemyUnits[0], out BattleUnitState parsedEnemyUnit)
-                    ? parsedEnemyUnit
-                    : null;
-            _test.True(enemyUnit != null, "自定义敌方模板生成的单位应可读取。");
-            if (enemyUnit == null)
-            {
-                return;
-            }
-
-            _test.True(
-                enemyUnit.save_advantage_tags.Contains(new StringName("illusion_immunity")),
-                "EnemyTemplateDef.save_advantage_tags 应投影到 BattleUnitState.save_advantage_tags。"
-            );
-
-            BattleSaveResult saveResult = BattleSaveResolver.ResolveSaveResult(
-                null,
-                enemyUnit,
-                MakeIllusionSaveEffect(),
-                BattleSaveContext.WithSaveRollOverride(1)
-            );
-            _test.True(
-                saveResult.Immune,
-                "投影出的 illusion_immunity 应让 illusion 豁免在掷骰前免疫。"
-            );
+            return;
         }
-        finally
-        {
-            if (enemyUnits != null)
-            {
-                foreach (Variant enemyUnitValue in enemyUnits)
-                {
-                    if (BattleUnitState.TryReadUnitPayload(enemyUnitValue, out BattleUnitState unit))
-                        BattleTestFixture.DisposeBattleUnit(unit);
-                }
-                enemyUnits.Clear();
-            }
-        }
+
+        _test.True(
+            enemyUnit.save_advantage_tags.Contains(new StringName("illusion_immunity")),
+            "EnemyTemplateDef.save_advantage_tags 应投影到 BattleUnitState.save_advantage_tags。"
+        );
+
+        BattleSaveResult saveResult = BattleSaveResolver.ResolveSaveResult(
+            null,
+            enemyUnit,
+            MakeIllusionSaveEffect(),
+            BattleSaveContext.WithSaveRollOverride(1)
+        );
+        _test.True(
+            saveResult.Immune,
+            "投影出的 illusion_immunity 应让 illusion 豁免在掷骰前免疫。"
+        );
     }
 
     private void TestEnemyTemplateDerivesHpAndAttackFromFormulaWhenNotOverridden()
@@ -366,59 +351,44 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
             templateId,
             "公式幼龙"
         );
-        GArray enemyUnits = null;
-        try
+        using GodotProjectionLease<GArray> enemyUnitsLease = builder.BuildEnemyUnitsLease(
+            anchor,
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
+            enemyTemplates,
+            gameSession.GetEnemyAiBrainDefinitions(),
+            itemDefs
+        );
+        GArray enemyUnits = enemyUnitsLease.Value;
+        _test.Eq(enemyUnits.Count, 1, "公式幼龙模板应生成一个敌方单位。");
+        BattleUnitState enemyUnit = enemyUnits.Count > 0
+            && BattleUnitState.TryReadUnitPayload(enemyUnits[0], out BattleUnitState parsedEnemyUnit)
+                ? parsedEnemyUnit
+                : null;
+        _test.True(enemyUnit != null, "公式幼龙生成的单位应可读取。");
+        if (enemyUnit == null)
         {
-            enemyUnits = builder.BuildEnemyUnitsTyped(
-                anchor,
-                gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
-                enemyTemplates,
-                gameSession.GetEnemyAiBrainDefinitions(),
-                itemDefs
-            );
-            _test.Eq(enemyUnits.Count, 1, "公式幼龙模板应生成一个敌方单位。");
-            BattleUnitState enemyUnit = enemyUnits.Count > 0
-                && BattleUnitState.TryReadUnitPayload(enemyUnits[0], out BattleUnitState parsedEnemyUnit)
-                    ? parsedEnemyUnit
-                    : null;
-            _test.True(enemyUnit != null, "公式幼龙生成的单位应可读取。");
-            if (enemyUnit == null)
-            {
-                return;
-            }
-
-            _test.Eq(
-                enemyUnit.current_hp,
-                520,
-                "无 hp_max override 时应按 首级满骰 + 后续均值 的公式派生出 520 HP(×4格)。"
-            );
-            var snapshot = enemyUnit.attribute_snapshot as AttributeSnapshot;
-            _test.True(snapshot != null, "公式幼龙单位应携带 attribute snapshot。");
-            if (snapshot != null)
-            {
-                _test.Eq(
-                    snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)),
-                    520,
-                    "快照 hp_max 应等于公式派生值 520。"
-                );
-                _test.Eq(
-                    snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus)),
-                    4,
-                    "无 attack_bonus override 时近战应派生力量修正 +4。"
-                );
-            }
+            return;
         }
-        finally
+
+        _test.Eq(
+            enemyUnit.current_hp,
+            520,
+            "无 hp_max override 时应按 首级满骰 + 后续均值 的公式派生出 520 HP(×4格)。"
+        );
+        var snapshot = enemyUnit.attribute_snapshot as AttributeSnapshot;
+        _test.True(snapshot != null, "公式幼龙单位应携带 attribute snapshot。");
+        if (snapshot != null)
         {
-            if (enemyUnits != null)
-            {
-                foreach (Variant enemyUnitValue in enemyUnits)
-                {
-                    if (BattleUnitState.TryReadUnitPayload(enemyUnitValue, out BattleUnitState unit))
-                        BattleTestFixture.DisposeBattleUnit(unit);
-                }
-                enemyUnits.Clear();
-            }
+            _test.Eq(
+                snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)),
+                520,
+                "快照 hp_max 应等于公式派生值 520。"
+            );
+            _test.Eq(
+                snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus)),
+                4,
+                "无 attack_bonus override 时近战应派生力量修正 +4。"
+            );
         }
     }
 
@@ -457,50 +427,35 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
             templateId,
             "抗性敌人"
         );
-        GArray enemyUnits = null;
-        try
+        using GodotProjectionLease<GArray> enemyUnitsLease = builder.BuildEnemyUnitsLease(
+            anchor,
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
+            enemyTemplates,
+            gameSession.GetEnemyAiBrainDefinitions(),
+            itemDefs
+        );
+        GArray enemyUnits = enemyUnitsLease.Value;
+        _test.Eq(enemyUnits.Count, 1, "自定义抗性敌方模板应生成一个敌方单位。");
+        BattleUnitState enemyUnit = enemyUnits.Count > 0
+            && BattleUnitState.TryReadUnitPayload(enemyUnits[0], out BattleUnitState parsedEnemyUnit)
+                ? parsedEnemyUnit
+                : null;
+        _test.True(enemyUnit != null, "自定义抗性敌方模板生成的单位应可读取。");
+        if (enemyUnit == null)
         {
-            enemyUnits = builder.BuildEnemyUnitsTyped(
-                anchor,
-                gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
-                enemyTemplates,
-                gameSession.GetEnemyAiBrainDefinitions(),
-                itemDefs
-            );
-            _test.Eq(enemyUnits.Count, 1, "自定义抗性敌方模板应生成一个敌方单位。");
-            BattleUnitState enemyUnit = enemyUnits.Count > 0
-                && BattleUnitState.TryReadUnitPayload(enemyUnits[0], out BattleUnitState parsedEnemyUnit)
-                    ? parsedEnemyUnit
-                    : null;
-            _test.True(enemyUnit != null, "自定义抗性敌方模板生成的单位应可读取。");
-            if (enemyUnit == null)
-            {
-                return;
-            }
+            return;
+        }
 
-            _test.Eq(
-                enemyUnit.damage_resistances.Get(new StringName("physical_pierce")),
-                new StringName("half"),
-                "EnemyTemplateDef.damage_resistances 应投影到 BattleUnitState.damage_resistances。"
-            );
-            _test.Eq(
-                enemyUnit.damage_resistances.Get(new StringName("fire")),
-                new StringName("double"),
-                "EnemyTemplateDef.damage_resistances 易伤条目应投影到 BattleUnitState.damage_resistances。"
-            );
-        }
-        finally
-        {
-            if (enemyUnits != null)
-            {
-                foreach (Variant enemyUnitValue in enemyUnits)
-                {
-                    if (BattleUnitState.TryReadUnitPayload(enemyUnitValue, out BattleUnitState unit))
-                        BattleTestFixture.DisposeBattleUnit(unit);
-                }
-                enemyUnits.Clear();
-            }
-        }
+        _test.Eq(
+            enemyUnit.damage_resistances.Get(new StringName("physical_pierce")),
+            new StringName("half"),
+            "EnemyTemplateDef.damage_resistances 应投影到 BattleUnitState.damage_resistances。"
+        );
+        _test.Eq(
+            enemyUnit.damage_resistances.Get(new StringName("fire")),
+            new StringName("double"),
+            "EnemyTemplateDef.damage_resistances 易伤条目应投影到 BattleUnitState.damage_resistances。"
+        );
     }
 
     private void AssertTemplateStart(

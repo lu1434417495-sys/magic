@@ -39,7 +39,8 @@ public partial class run_spell_disjunction_equipment_durability_regression : Lif
             )
         );
 
-        GDictionary firstResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> firstResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             caster,
             target,
             new[] { FixedDamageEffect(1), DisjunctionEffect(28) },
@@ -47,6 +48,7 @@ public partial class run_spell_disjunction_equipment_durability_regression : Lif
                 new GDictionary { ["save_roll_override"] = 1, ["equipment_slot_override"] = "main_hand" }
             )
         ));
+        GDictionary firstResult = firstResultLease.Value;
         EquipmentInstanceState firstInstance = target
             .GetEquipmentView()
             .GetEquippedInstance("main_hand");
@@ -55,7 +57,8 @@ public partial class run_spell_disjunction_equipment_durability_regression : Lif
         if (firstInstance != null)
             _test.Eq(firstInstance.current_durability, 28, "第一次失败应扣除 28 点耐久。");
 
-        GDictionary secondResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> secondResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             caster,
             target,
             new[] { FixedDamageEffect(1), DisjunctionEffect(28) },
@@ -63,6 +66,7 @@ public partial class run_spell_disjunction_equipment_durability_regression : Lif
                 new GDictionary { ["save_roll_override"] = 1, ["equipment_slot_override"] = "main_hand" }
             )
         ));
+        GDictionary secondResult = secondResultLease.Value;
         GArray events = DictArray(secondResult, "equipment_durability_events");
         _test.Eq(
             target.GetEquipmentView().GetEquippedItemId("main_hand"),
@@ -93,7 +97,8 @@ public partial class run_spell_disjunction_equipment_durability_regression : Lif
             )
         );
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             caster,
             target,
             new[] { DisjunctionEffect(28), FixedDamageEffect(1) },
@@ -106,6 +111,7 @@ public partial class run_spell_disjunction_equipment_durability_regression : Lif
                 }
             )
         ));
+        GDictionary result = resultLease.Value;
         EquipmentInstanceState equippedInstance = target
             .GetEquipmentView()
             .GetEquippedInstance("main_hand");
@@ -134,7 +140,8 @@ public partial class run_spell_disjunction_equipment_durability_regression : Lif
             56
         );
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             caster,
             target,
             new[] { FixedDamageEffect(1), DisjunctionEffect(28) },
@@ -142,6 +149,7 @@ public partial class run_spell_disjunction_equipment_durability_regression : Lif
                 new GDictionary { ["save_roll_override"] = 20, ["equipment_slot_override"] = "main_hand" }
             )
         ));
+        GDictionary result = resultLease.Value;
         EquipmentInstanceState equippedInstance = target
             .GetEquipmentView()
             .GetEquippedInstance("main_hand");
@@ -173,7 +181,8 @@ public partial class run_spell_disjunction_equipment_durability_regression : Lif
             )
         );
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             caster,
             target,
             new[] { FixedDamageEffect(1), DisjunctionEffect(28) },
@@ -181,6 +190,7 @@ public partial class run_spell_disjunction_equipment_durability_regression : Lif
                 new GDictionary { ["save_roll_override"] = 11, ["equipment_slot_override"] = "main_hand" }
             )
         ));
+        GDictionary result = resultLease.Value;
         GArray events = DictArray(result, "equipment_durability_events");
         _test.True(events.Count > 0, "稀有度加值豁免应记录裂解事件。");
         if (events.Count == 0)

@@ -216,13 +216,15 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             power: 99,
             damageTag: "physical_slash"
         );
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(
-            resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(
                 source,
                 target,
                 EffectArray(damageEffect)
             )
         );
+        GDictionary result = resultLease.Value;
         _test.Eq(
             result != null && result.ContainsKey("damage") ? result["damage"].AsInt32() : -1,
             8,
@@ -383,9 +385,11 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
 
         SetStatus(ally, "blind");
         SetStatus(ally, "petrified");
-        GDictionary allyResult = AttackEffectResolutionResultReader.BuildGodotPayload(
-            resolver.ResolveEffects(source, ally, EffectArray(dispel))
-        );
+        using GodotProjectionLease<GDictionary> allyResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(source, ally, EffectArray(dispel))
+            );
+        GDictionary allyResult = allyResultLease.Value;
         _test.True(DictBool(allyResult, "applied"), "解除魔法命中友方时应能移除可驱散减益。");
         _test.False(ally.HasStatusEffect("blind"), "解除魔法应移除友方 blind。");
         _test.True(ally.HasStatusEffect("petrified"), "解除魔法不应移除 petrified。");
@@ -397,9 +401,11 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         SetStatus(enemy, "magic_shield");
         SetStatus(enemy, "attack_up");
         SetStatus(enemy, "marked");
-        GDictionary enemyResult = AttackEffectResolutionResultReader.BuildGodotPayload(
-            resolver.ResolveEffects(source, enemy, EffectArray(dispel))
-        );
+        using GodotProjectionLease<GDictionary> enemyResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(source, enemy, EffectArray(dispel))
+            );
+        GDictionary enemyResult = enemyResultLease.Value;
         _test.True(DictBool(enemyResult, "applied"), "解除魔法命中敌方时应能移除可驱散增益。");
         _test.False(enemy.HasStatusEffect("magic_shield"), "解除魔法应优先移除敌方高优先级魔法增益。");
         _test.True(enemy.HasStatusEffect("attack_up"), "单次解除魔法只应移除配置数量内的敌方增益。");

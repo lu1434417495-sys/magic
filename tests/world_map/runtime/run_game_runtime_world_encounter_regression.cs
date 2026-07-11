@@ -96,14 +96,17 @@ public partial class run_game_runtime_world_encounter_regression : LifecycleTest
 
             runtime.AdvanceWorldTimeBySteps(1);
 
+            using GodotProjectionLease<GDictionary> activeWorldDataLease =
+                runtime._world_map_data_context.GetActiveWorldDataLease();
+            GDictionary activeWorldData = activeWorldDataLease.Value;
             _test.Eq(runtime.GetWorldStep(), 1, "Encounter growth sync should keep advanced world_step.");
             _test.Eq(
-                DictInt(runtime._world_map_data_context.active_world_data, "world_step", -1),
+                DictInt(activeWorldData, "world_step", -1),
                 1,
                 "Encounter growth sync should keep public world_data world_step."
             );
             GDictionary projectedAnchor = FindEncounterAnchorPayload(
-                runtime._world_map_data_context.active_world_data["encounter_anchors"].AsGodotArray(),
+                activeWorldData["encounter_anchors"].AsGodotArray(),
                 "settlement_anchor"
             );
             _test.Eq(

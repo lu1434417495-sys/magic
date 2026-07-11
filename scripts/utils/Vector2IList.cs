@@ -31,13 +31,22 @@ public sealed class Vector2IList : List<Vector2I>
 
     public Vector2IList Duplicate() => new(this);
 
-    public Godot.Collections.Array<Vector2I> ToGodotArray()
+    internal GodotProjectionLease<Godot.Collections.Array> ToGodotArrayLease(
+        LifetimeDomain domain,
+        string reason
+    )
     {
-        Godot.Collections.Array<Vector2I> result = new();
+        Godot.Collections.Array result = new();
+        GodotProjectionLease<Godot.Collections.Array> lease =
+            GodotProjectionLease<Godot.Collections.Array>.CreateOwnedRoot(
+                result,
+                "vector2i-list",
+                domain,
+                reason
+            );
         foreach (Vector2I value in this)
             result.Add(value);
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, "Vector2IList.ToGodotArray");
-        return result;
+        return lease;
     }
 
     private void AddValues(IEnumerable<Vector2I> values)
@@ -51,13 +60,4 @@ public sealed class Vector2IList : List<Vector2I>
     public static implicit operator Vector2IList(Godot.Collections.Array<Vector2I> values) =>
         new(values);
 
-    public static implicit operator Godot.Collections.Array<Vector2I>(Vector2IList values) =>
-        values?.ToGodotArray() ?? EmptyGodotArray("Vector2IList.implicit");
-
-    private static Godot.Collections.Array<Vector2I> EmptyGodotArray(string reason)
-    {
-        Godot.Collections.Array<Vector2I> result = new();
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, reason);
-        return result;
-    }
 }

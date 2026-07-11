@@ -116,11 +116,13 @@ public partial class run_battle_status_modifier_rules_regression : LifecycleTest
             "heal",
             power: 10
         );
-        GDictionary healResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> healResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             healTarget,
             new[] { healEffect }
         ));
+        GDictionary healResult = healResultLease.Value;
 
         _test.Eq(
             ReadInt(healResult, "healing"),

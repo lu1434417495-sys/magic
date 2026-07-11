@@ -24,12 +24,14 @@ public partial class run_battle_execute_effect_regression : LifecycleTestSceneTr
         target.current_hp = 1;
         CombatEffectDefinition effect = MakeExecuteEffect();
         var resolver = new BattleDamageResolver();
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
             new[] { effect },
             DamageResolutionContext.FromDictionary(new GDictionary { ["save_roll_override"] = 1 })
         ));
+        GDictionary result = resultLease.Value;
 
         _test.False(target.is_alive, "execute on HP=1 target with failed save should kill.");
         _test.True(DictInt(result, "damage") > 0, "execute should register damage.");
@@ -53,7 +55,11 @@ public partial class run_battle_execute_effect_regression : LifecycleTestSceneTr
         target.current_hp = 30;
         CombatEffectDefinition effect = MakeExecuteEffect();
         var resolver = new BattleDamageResolver();
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { effect }));
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(source, target, new[] { effect })
+            );
+        GDictionary result = resultLease.Value;
 
         _test.True(target.is_alive, "execute on high-HP target should leave target alive.");
         _test.Eq(target.current_hp, 30, "high-HP execute should not deal non-lethal damage.");
@@ -89,12 +95,14 @@ public partial class run_battle_execute_effect_regression : LifecycleTestSceneTr
         target.shield_duration = 10;
         CombatEffectDefinition effect = MakeExecuteEffect();
         var resolver = new BattleDamageResolver();
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
             new[] { effect },
             DamageResolutionContext.FromDictionary(new GDictionary { ["save_roll_override"] = 1 })
         ));
+        GDictionary result = resultLease.Value;
         GDictionary firstEvent = FirstDamageEvent(result);
 
         _test.Eq(DictInt(firstEvent, "shield_absorbed"), 0, "PWK should bypass shield absorption.");

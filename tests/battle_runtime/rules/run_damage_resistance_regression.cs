@@ -22,7 +22,11 @@ public partial class run_damage_resistance_regression : LifecycleTestSceneTree
         BattleUnitState source = MakeUnit("resistance_source", "enemy");
         BattleUnitState target = MakeUnit("fire_resistant_target", "player");
         target.damage_resistances["fire"] = new StringName("half");
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { MakeDamageEffect("fire", 10) }));
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(source, target, new[] { MakeDamageEffect("fire", 10) })
+            );
+        GDictionary result = resultLease.Value;
 
         _test.Eq(ReadInt(result, "damage", -1), 5, "damage_resistances fire=half should halve fire damage.");
         GDictionary @event = FirstDamageEvent(result);
@@ -41,7 +45,11 @@ public partial class run_damage_resistance_regression : LifecycleTestSceneTree
         target.damage_resistances["fire"] = new StringName("half");
         SetStatus(target, "fire_vulnerability", new GDictionary { ["damage_tag"] = new StringName("fire") }, "double");
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { MakeDamageEffect("fire", 10) }));
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(source, target, new[] { MakeDamageEffect("fire", 10) })
+            );
+        GDictionary result = resultLease.Value;
         _test.Eq(ReadInt(result, "damage", -1), 10, "damage_resistance half should cancel matching double status.");
         GDictionary @event = FirstDamageEvent(result);
         _test.Eq(ReadString(@event, "mitigation_tier"), "normal", "canceled half/double should record normal tier.");
@@ -58,7 +66,15 @@ public partial class run_damage_resistance_regression : LifecycleTestSceneTree
         target.damage_resistances["negative_energy"] = new StringName("immune");
         SetStatus(target, "negative_vulnerability", new GDictionary { ["damage_tag"] = new StringName("negative_energy") }, "double");
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { MakeDamageEffect("negative_energy", 10) }));
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(
+                    source,
+                    target,
+                    new[] { MakeDamageEffect("negative_energy", 10) }
+                )
+            );
+        GDictionary result = resultLease.Value;
         _test.Eq(ReadInt(result, "damage", -1), 0, "immune damage_resistance should override matching double status.");
         GDictionary @event = FirstDamageEvent(result);
         _test.Eq(ReadString(@event, "mitigation_tier"), "immune", "immune resistance should record immune tier.");
@@ -77,7 +93,11 @@ public partial class run_damage_resistance_regression : LifecycleTestSceneTree
         );
 
         int hpBefore = target.current_hp;
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { effect }));
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(source, target, new[] { effect })
+            );
+        GDictionary result = resultLease.Value;
         _test.False(ReadBool(result, "applied", true), "缺少 damage_tag 的伤害效果不应被当作已应用。");
         _test.Eq(ReadInt(result, "damage", -1), 0, "缺少 damage_tag 的伤害效果不应通过 hidden physical_slash fallback 造成伤害。");
         _test.Eq(target.current_hp, hpBefore, "缺少 damage_tag 时目标 HP 不应变化。");
@@ -98,7 +118,11 @@ public partial class run_damage_resistance_regression : LifecycleTestSceneTree
         );
 
         int hpBefore = target.current_hp;
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { effect }));
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(source, target, new[] { effect })
+            );
+        GDictionary result = resultLease.Value;
         _test.False(ReadBool(result, "applied", true), "武器伤害类型投影缺失时不应被当作已应用。");
         _test.Eq(ReadInt(result, "damage", -1), 0, "武器伤害类型投影缺失时不应 fallback 到 physical_slash。");
         _test.Eq(target.current_hp, hpBefore, "武器伤害类型投影缺失时目标 HP 不应变化。");

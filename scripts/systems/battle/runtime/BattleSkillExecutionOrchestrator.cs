@@ -364,14 +364,14 @@ internal sealed partial class BattleSkillExecutionOrchestrator
     internal GVector2IArray _sort_coords(GArray target_coords)
     {
         if (Runtime == null)
-            return new Vector2IList().ToGodotArray();
+            return new GVector2IArray();
         return Runtime._sort_coords(target_coords);
     }
 
     internal GVector2IArray _sort_coords(GVector2IArray target_coords)
     {
         if (Runtime == null)
-            return new Vector2IList().ToGodotArray();
+            return new GVector2IArray();
         return Runtime._sort_coords(target_coords);
     }
 
@@ -3528,7 +3528,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 batch?.AddLogLine(specialLine);
             }
         }
-        GStringNameArray terrainEffectIds = damageResult.TerrainEffectIds;
+        IReadOnlyList<StringName> terrainEffectIds = damageResult.TerrainEffectIds;
         if (terrainEffectIds.Count != 0)
         {
             BattleGridService gridService = Runtime?.GetGridService();
@@ -3674,7 +3674,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         }
         foreach (DispelEventResult dispelEvent in result.DispelEvents ?? Array.Empty<DispelEventResult>())
         {
-            GStringNameArray removedIds = dispelEvent.RemovedStatusIds;
+            IReadOnlyList<StringName> removedIds = dispelEvent.RemovedStatusIds;
             if (removedIds == null || removedIds.Count == 0)
             {
                 continue;

@@ -48,7 +48,16 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         BattleUnitState target = BuildUnit("weapon_formula_target");
         CombatEffectDefinition effect = BuildDamageEffect(5, true, 2, 4, 3);
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { effect }, DamageResolutionContext.Empty()));
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(
+                    source,
+                    target,
+                    new[] { effect },
+                    DamageResolutionContext.Empty()
+                )
+            );
+        GDictionary result = resultLease.Value;
         GDictionary damageEvent = FirstDamageEvent(result);
         _test.Eq(
             DictInt(damageEvent, "base_damage", 0),
@@ -98,7 +107,16 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
             }
         );
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { effect }, DamageResolutionContext.Empty()));
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(
+                    source,
+                    target,
+                    new[] { effect },
+                    DamageResolutionContext.Empty()
+                )
+            );
+        GDictionary result = resultLease.Value;
         GDictionary damageEvent = FirstDamageEvent(result);
         _test.Eq(
             DictInt(damageEvent, "base_damage", 0),
@@ -130,7 +148,16 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         BattleUnitState target = BuildUnit("physical_default_target");
         CombatEffectDefinition effect = BuildDamageEffect(5, false, 1, 4, 1, "physical_slash");
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { effect }, DamageResolutionContext.Empty()));
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(
+                    source,
+                    target,
+                    new[] { effect },
+                    DamageResolutionContext.Empty()
+                )
+            );
+        GDictionary result = resultLease.Value;
         GDictionary damageEvent = FirstDamageEvent(result);
         _test.Eq(
             DictInt(damageEvent, "base_damage", 0),
@@ -156,12 +183,14 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         BattleUnitState target = BuildUnit("critical_weapon_target");
         CombatEffectDefinition effect = BuildDamageEffect(7, true, 1, 4, 3);
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
             new[] { effect },
             DamageResolutionContext.FromDictionary(new GDictionary { ["critical_hit"] = true })
         ));
+        GDictionary result = resultLease.Value;
         GDictionary damageEvent = FirstDamageEvent(result);
         _test.True(
             DictBool(damageEvent, "critical_hit", false),
@@ -242,12 +271,14 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         CombatEffectDefinition firstEffect = BuildDamageEffect(0, true);
         CombatEffectDefinition secondEffect = BuildDamageEffect(0, true);
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
             new[] { firstEffect, secondEffect },
             DamageResolutionContext.Empty()
         ));
+        GDictionary result = resultLease.Value;
         GArray events = GetArray(result, "damage_events");
         _test.Eq(events.Count, 2, "多段 damage effect 应各自产生 damage event。");
         if (events.Count >= 2)
@@ -313,7 +344,16 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         BattleUnitState target = BuildUnit("two_handed_target");
         CombatEffectDefinition effect = BuildDamageEffect(0, true);
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { effect }, DamageResolutionContext.Empty()));
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(
+                    source,
+                    target,
+                    new[] { effect },
+                    DamageResolutionContext.Empty()
+                )
+            );
+        GDictionary result = resultLease.Value;
         GDictionary damageEvent = FirstDamageEvent(result);
         _test.Eq(
             DictInt(damageEvent, "weapon_damage_dice_count", 0),
@@ -340,12 +380,14 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         CombatEffectDefinition effect = BuildDamageEffect(0, true);
 
         ApplyVersatileWeapon(source, false);
-        GDictionary oneHandedResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> oneHandedResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
             new[] { effect },
             DamageResolutionContext.Empty()
         ));
+        GDictionary oneHandedResult = oneHandedResultLease.Value;
         GDictionary oneHandedEvent = FirstDamageEvent(oneHandedResult);
         _test.Eq(
             source.weapon_current_grip.ToString(),
@@ -366,12 +408,14 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         _test.Eq(DictInt(oneHandedEvent, "base_damage", 0), 5, "versatile 单手应只掷 1D8。");
 
         ApplyVersatileWeapon(source, true);
-        GDictionary twoHandedResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> twoHandedResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
             new[] { effect },
             DamageResolutionContext.Empty()
         ));
+        GDictionary twoHandedResult = twoHandedResultLease.Value;
         GDictionary twoHandedEvent = FirstDamageEvent(twoHandedResult);
         _test.Eq(
             source.weapon_current_grip.ToString(),
@@ -409,12 +453,14 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
             },
             1
         );
-        GDictionary unarmedResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> unarmedResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
             new[] { effect },
             DamageResolutionContext.Empty()
         ));
+        GDictionary unarmedResult = unarmedResultLease.Value;
         GDictionary unarmedEvent = FirstDamageEvent(unarmedResult);
         _test.Eq(
             source.weapon_profile_kind.ToString(),
@@ -445,12 +491,14 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
             },
             ""
         );
-        GDictionary naturalResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> naturalResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
             new[] { effect },
             DamageResolutionContext.Empty()
         ));
+        GDictionary naturalResult = naturalResultLease.Value;
         GDictionary naturalEvent = FirstDamageEvent(naturalResult);
         _test.Eq(
             source.weapon_profile_kind.ToString(),
@@ -590,12 +638,14 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         CombatEffectDefinition weaponOnlyEffect = BuildDamageEffect(0, true);
         CombatEffectDefinition skillOnlyEffect = BuildDamageEffect(0, false, 1, 4);
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
             new[] { weaponOnlyEffect, skillOnlyEffect },
             DamageResolutionContext.Empty()
         ));
+        GDictionary result = resultLease.Value;
         GArray events = GetArray(result, "damage_events");
         _test.Eq(events.Count, 2, "拆分骰子事件回归应产生两段 damage event。");
         _test.True(
@@ -682,7 +732,16 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         BattleUnitState target = BuildUnit("no_dice_event_target");
         CombatEffectDefinition effect = BuildDamageEffect(5, false);
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { effect }, DamageResolutionContext.Empty()));
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(
+                    source,
+                    target,
+                    new[] { effect },
+                    DamageResolutionContext.Empty()
+                )
+            );
+        GDictionary result = resultLease.Value;
         GDictionary damageEvent = FirstDamageEvent(result);
         _test.True(
             !DictBool(damageEvent, "damage_dice_high_total_roll", true),

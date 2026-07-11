@@ -22,7 +22,16 @@ public sealed class BattleEffectiveTraitProjection
     public static BattleEffectiveTraitProjection Empty => new();
 
     public IReadOnlyList<BattleEffectiveTraitInstanceState> EffectiveTraitInstances { get; }
-    public GStringNameArray EffectiveTraitIds => _effectiveTraitIds.ToGodotArray();
+    public GStringNameArray EffectiveTraitIds
+    {
+        get
+        {
+            var result = new GStringNameArray();
+            foreach (StringName traitId in _effectiveTraitIds)
+                result.Add(traitId);
+            return result;
+        }
+    }
 }
 
 public sealed class BattleResourceCommitResult

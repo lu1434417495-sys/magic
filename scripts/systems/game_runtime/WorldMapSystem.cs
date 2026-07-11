@@ -4,6 +4,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 [GlobalClass]
@@ -148,7 +149,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         world_map_view.Configure(
             _runtime_proxy.GetGridSystem(),
             _runtime_proxy.GetFogSystem(),
-            _runtime_proxy.GetWorldData(),
+            _runtime_proxy.GetWorldRuntimeData(),
             _runtime_proxy.GetPlayerCoord(),
             _runtime_proxy.GetSelectedCoord(),
             _runtime_proxy.IsPlayerVisibleOnWorldMap(),
@@ -312,11 +313,12 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             string selectedSkillName = _runtime_proxy.GetSelectedBattleSkillName();
             string selectedSkillVariantName = _runtime_proxy.GetSelectedBattleSkillVariantName();
             StringName selectedSkillVariantId = _runtime_proxy.GetSelectedBattleSkillVariantId();
-            GVector2IArray selectedTargetCoords =
+            IReadOnlyList<Vector2I> selectedTargetCoords =
                 _runtime_proxy.GetSelectedBattleSkillTargetCoords();
-            GStringNameArray selectedTargetUnitIds =
+            IReadOnlyList<StringName> selectedTargetUnitIds =
                 _runtime_proxy.GetSelectedBattleSkillTargetUnitIds();
-            GVector2IArray validTargetCoords = _runtime_proxy.GetBattleOverlayTargetCoords();
+            IReadOnlyList<Vector2I> validTargetCoords =
+                _runtime_proxy.GetBattleOverlayTargetCoords();
             int requiredCoordCount = _runtime_proxy.GetSelectedBattleSkillRequiredCoordCount();
 
             if (battle_map_panel.Visible && refreshMode == "overlay")
@@ -701,7 +703,8 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         if (battle_map_panel.IsLoadingBattle())
             return;
         StringName selectedSkillId = _runtime_proxy.GetSelectedBattleSkillId();
-        GVector2IArray validTargetCoords = _runtime_proxy.GetBattleOverlayTargetCoords();
+        IReadOnlyList<Vector2I> validTargetCoords =
+            _runtime_proxy.GetBattleOverlayTargetCoords();
         StringName selectedSkillVariantId = _runtime_proxy.GetSelectedBattleSkillVariantId();
         BattleState battleState = _runtime_proxy.GetBattleState();
         battle_map_panel.UpdateHoverPreview(
@@ -1100,17 +1103,38 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         _runtime_proxy.CommandCancelSubmapEntry();
     }
 
-    private GDictionary _build_confirmation_prompt(string modal_id)
+    private GodotProjectionLease<GDictionary> _build_confirmation_prompt(string modal_id)
     {
         if (modal_id == "submap_confirm")
-            return _runtime_proxy.GetPendingSubmapPrompt();
+        {
+            using GDictionary raw = _runtime_proxy.GetPendingSubmapPrompt();
+            return RuntimePlainPayload.ProjectDictionaryLease(
+                RuntimePlainPayload.NormalizeDictionary(raw, "WorldMapSystem.submap_prompt"),
+                "WorldMapSystem.submap_prompt",
+                LifetimeDomain.Request,
+                "WorldMapSystem.submap_prompt"
+            );
+        }
         if (modal_id == "resource_harvest_confirm")
-            return _runtime_proxy.GetPendingResourceHarvestPrompt();
+        {
+            using GDictionary raw = _runtime_proxy.GetPendingResourceHarvestPrompt();
+            return RuntimePlainPayload.ProjectDictionaryLease(
+                RuntimePlainPayload.NormalizeDictionary(
+                    raw,
+                    "WorldMapSystem.resource_harvest_prompt"
+                ),
+                "WorldMapSystem.resource_harvest_prompt",
+                LifetimeDomain.Request,
+                "WorldMapSystem.resource_harvest_prompt"
+            );
+        }
         if (modal_id == "battle_start_confirm")
-            return _runtime_proxy.GetPendingBattleStartPrompt();
+            return _runtime_proxy.GetPendingBattleStartPromptLease();
         if (modal_id == "game_over")
         {
-            GDictionary prompt = _runtime_proxy.GetGameOverContext();
+            GodotProjectionLease<GDictionary> lease =
+                _runtime_proxy.GetGameOverContextLease();
+            GDictionary prompt = lease.Value;
             prompt["cancel_visible"] = false;
             prompt["dismiss_on_shade"] = false;
             prompt["accept_input_enabled"] = true;
@@ -1124,9 +1148,16 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             prompt["margin_right"] = 40;
             prompt["margin_bottom"] = 34;
             prompt["layout_separation"] = 26;
-            return prompt;
+            return lease;
         }
-        return new GDictionary();
+        return RuntimePlainPayload.ProjectDictionaryLease(
+            new System.Collections.Generic.Dictionary<string, object>(
+                System.StringComparer.Ordinal
+            ),
+            "WorldMapSystem.empty_prompt",
+            LifetimeDomain.Request,
+            "WorldMapSystem.empty_prompt"
+        );
     }
 
     public void _return_to_startup_scene()
@@ -1382,19 +1413,35 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         else
             settlement_window.HideWindow();
         if (modalId == "shop")
-            shop_service_modal.ShowShop(_runtime_proxy.GetShopWindowData());
+        {
+            using GodotProjectionLease<GDictionary> windowLease =
+                _runtime_proxy.GetShopWindowDataLease();
+            shop_service_modal.ShowShop(windowLease.Value);
+        }
         else
             shop_service_modal.HideWindow();
         if (modalId == "contract_board")
-            contract_board_service_modal.ShowShop(_runtime_proxy.GetContractBoardWindowData());
+        {
+            using GodotProjectionLease<GDictionary> windowLease =
+                _runtime_proxy.GetContractBoardWindowDataLease();
+            contract_board_service_modal.ShowShop(windowLease.Value);
+        }
         else
             contract_board_service_modal.HideWindow();
         if (modalId == "forge")
-            forge_service_modal.ShowShop(_runtime_proxy.GetForgeWindowData());
+        {
+            using GodotProjectionLease<GDictionary> windowLease =
+                _runtime_proxy.GetForgeWindowDataLease();
+            forge_service_modal.ShowShop(windowLease.Value);
+        }
         else
             forge_service_modal.HideWindow();
         if (modalId == "stagecoach")
-            stagecoach_service_modal.ShowStagecoach(_runtime_proxy.GetStagecoachWindowData());
+        {
+            using GodotProjectionLease<GDictionary> windowLease =
+                _runtime_proxy.GetStagecoachWindowDataLease();
+            stagecoach_service_modal.ShowStagecoach(windowLease.Value);
+        }
         else
             stagecoach_service_modal.HideWindow();
         // NPC quest offer modal lifecycle is tied to RuntimeModalKind.NpcQuestOffer.
@@ -1403,7 +1450,11 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         else
             npc_quest_offer_dialog.HideDialog();
         if (modalId == "character_info")
-            character_info_window.ShowCharacter(_runtime_proxy.GetCharacterInfoContext());
+        {
+            using GodotProjectionLease<GDictionary> contextLease =
+                _runtime_proxy.GetCharacterInfoContextLease();
+            character_info_window.ShowCharacter(contextLease.Value);
+        }
         else
             character_info_window.HideWindow();
         if (modalId == "party")
@@ -1420,7 +1471,11 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         else
             party_warehouse_window.HideWindow();
         if (modalId == "promotion")
-            promotion_choice_window.ShowPromotion(_runtime_proxy.GetCurrentPromotionPrompt());
+        {
+            using GodotProjectionLease<GDictionary> promptLease =
+                _runtime_proxy.GetCurrentPromotionPromptLease();
+            promotion_choice_window.ShowPromotion(promptLease.Value);
+        }
         else
             promotion_choice_window.HideWindow();
         if (modalId == "reward")
@@ -1436,7 +1491,11 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             || modalId == "battle_start_confirm"
             || modalId == "game_over"
         )
-            submap_entry_window.ShowPrompt(_build_confirmation_prompt(modalId));
+        {
+            using GodotProjectionLease<GDictionary> promptLease =
+                _build_confirmation_prompt(modalId);
+            submap_entry_window.ShowPrompt(promptLease.Value);
+        }
         else
             submap_entry_window.HideWindow();
     }

@@ -341,8 +341,7 @@ public static class SkillPassiveResolver
             source_skill_id = sourceSkillId,
             source_skill_level = sourceSkillLevel,
         };
-        using GDictionary residualSavePayload = typedStatusParams.ResidualSavePayload;
-        statusEntry.@params = residualSavePayload;
+        statusEntry.SetParamsTyped(typedStatusParams.ResidualSavePayload);
         typedStatusParams.ApplyTo(statusEntry);
         return statusEntry;
     }

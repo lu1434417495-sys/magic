@@ -319,7 +319,7 @@ public partial class run_battle_spawn_reachability_regression : LifecycleTestSce
             return;
         cell.base_terrain = terrain;
         cell.RecalculateRuntimeValues();
-        state.PutCellColumnPayload(coord, BattleCellState.BuildStackedCellsFromSurfaceCell(cell));
+        state.PutCellColumn(coord, BattleCellState.BuildStackedCellsFromSurfaceCell(cell));
     }
 
     private BattleUnitState BuildUnit(

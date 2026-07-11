@@ -194,13 +194,17 @@ public partial class run_black_star_brand_regression : LifecycleTestSceneTree
         runtime.IssueCommand(guardCommand);
         _test.True(elite.HasStatusEffect(STATUS_GUARDING), "elite 黑星烙印不应阻止目标进入 guarding。");
 
-        GDictionary firstHitResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime
+        using GodotProjectionLease<GDictionary> firstHitResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(runtime
             .GetDamageResolver()
             .ResolveEffects(caster, elite, new[] { BuildDamageEffect() }));
+        GDictionary firstHitResult = firstHitResultLease.Value;
         GDictionary firstEvent = ExtractFirstDamageEvent(firstHitResult);
-        GDictionary secondHitResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime
+        using GodotProjectionLease<GDictionary> secondHitResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(runtime
             .GetDamageResolver()
             .ResolveEffects(caster, elite, new[] { BuildDamageEffect() }));
+        GDictionary secondHitResult = secondHitResultLease.Value;
         _test.True(
             ReadInt(firstHitResult, "damage") > ReadInt(secondHitResult, "damage"),
             $"elite 黑星烙印的第一次受击应比后续同条件受击承受更高伤害。 first={firstHitResult} second={secondHitResult}"

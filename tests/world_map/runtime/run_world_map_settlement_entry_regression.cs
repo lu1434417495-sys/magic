@@ -95,7 +95,8 @@ public partial class run_world_map_settlement_entry_regression : LifecycleTestSc
 
     private static SettlementEntryProbe FindAdjacentSettlementProbe(GameRuntimeFacade facade)
     {
-        GArray settlements = ArrayValue(facade.GetWorldData(), "settlements");
+        using GodotProjectionLease<GDictionary> worldDataLease = facade.GetWorldDataLease();
+        GArray settlements = ArrayValue(worldDataLease.Value, "settlements");
         WorldMapGridSystem gridSystem = facade.GetGridSystem();
         foreach (Variant settlementValue in settlements)
         {

@@ -25,14 +25,19 @@ public partial class run_battle_terrain_effect_state_schema_regression : Lifecyc
         RequestTestExit(_test.Finish("Battle terrain effect state schema regression"));
     }
 
+    private static BattleTerrainEffectState RoundTrip(BattleTerrainEffectState effect)
+    {
+        using GodotProjectionLease<GDictionary> payloadLease = effect.ToDictionaryLease();
+        return BattleTerrainEffectState.FromDictionary(payloadLease.Value);
+    }
+
     private void TestParamsLifetimePolicyRoundtrip()
     {
         BattleTerrainEffectState effect = BuildEffect();
-        BattleTerrainEffectState restored = BattleTerrainEffectState.FromDictionary(effect.ToDictionary());
+        BattleTerrainEffectState restored = RoundTrip(effect);
         _test.True(restored != null, "terrain effect state roundtrip 应恢复对象。");
-        _test.Eq(
-            restored != null ? DictString(restored.@params, "lifetime_policy", "") : "",
-            "",
+        _test.False(
+            restored?.ParamsSnapshotPlain.ContainsKey("lifetime_policy") ?? false,
             "terrain owner 内部 @params 不应保留 formal lifetime_policy。"
         );
         _test.Eq(
@@ -49,7 +54,8 @@ public partial class run_battle_terrain_effect_state_schema_regression : Lifecyc
 
     private void TestTopLevelLifetimePolicyIsRejected()
     {
-        GDictionary payload = BuildEffect().ToDictionary();
+        using GodotProjectionLease<GDictionary> payloadLease = BuildEffect().ToDictionaryLease();
+        GDictionary payload = payloadLease.Value;
         payload["lifetime_policy"] = "battle";
         _test.True(
             BattleTerrainEffectState.FromDictionary(payload) == null,
@@ -64,7 +70,7 @@ public partial class run_battle_terrain_effect_state_schema_regression : Lifecyc
         effect.applied_status_id = "burning";
         effect.applied_status_duration_tu = 40;
 
-        BattleTerrainEffectState restored = BattleTerrainEffectState.FromDictionary(effect.ToDictionary());
+        BattleTerrainEffectState restored = RoundTrip(effect);
         _test.True(restored != null, "terrain applied status metadata roundtrip 应恢复对象。");
         _test.Eq(
             restored != null ? restored.applied_status_id : new StringName(""),
@@ -81,7 +87,7 @@ public partial class run_battle_terrain_effect_state_schema_regression : Lifecyc
     private void TestMoveCostDeltaAndLifetimePolicyTypedFieldsRoundtrip()
     {
         BattleTerrainEffectState effect = BuildEffect();
-        BattleTerrainEffectState restored = BattleTerrainEffectState.FromDictionary(effect.ToDictionary());
+        BattleTerrainEffectState restored = RoundTrip(effect);
         _test.True(restored != null, "terrain move-cost metadata roundtrip 应恢复对象。");
         _test.Eq(
             restored != null ? restored.lifetime_policy : new StringName(""),
@@ -94,7 +100,7 @@ public partial class run_battle_terrain_effect_state_schema_regression : Lifecyc
             "terrain effect move_cost_delta 应通过正式字段 roundtrip。"
         );
         _test.Eq(
-            restored != null ? restored.@params.Count : -1,
+            restored != null ? restored.ParamsSnapshotPlain.Count : -1,
             0,
             "terrain owner 内部 @params roundtrip 后只应保留 residual params。"
         );
@@ -103,7 +109,7 @@ public partial class run_battle_terrain_effect_state_schema_regression : Lifecyc
     private void TestOverlayAndDisplayMetadataRoundtrip()
     {
         BattleTerrainEffectState effect = BuildEffect();
-        BattleTerrainEffectState restored = BattleTerrainEffectState.FromDictionary(effect.ToDictionary());
+        BattleTerrainEffectState restored = RoundTrip(effect);
         _test.True(restored != null, "terrain overlay/display metadata roundtrip 应恢复对象。");
         _test.Eq(
             restored != null ? restored.render_overlay_id : new StringName(""),
@@ -125,7 +131,7 @@ public partial class run_battle_terrain_effect_state_schema_regression : Lifecyc
     private void TestAccuracyModifierSpecRoundtrip()
     {
         BattleTerrainEffectState effect = BuildEffect();
-        BattleTerrainEffectState restored = BattleTerrainEffectState.FromDictionary(effect.ToDictionary());
+        BattleTerrainEffectState restored = RoundTrip(effect);
         _test.True(restored != null, "terrain accuracy modifier spec roundtrip 应恢复对象。");
         _test.True(
             restored?.accuracy_modifier_spec != null,
@@ -146,7 +152,7 @@ public partial class run_battle_terrain_effect_state_schema_regression : Lifecyc
     private void TestNonstackingStatusMetadataRoundtrip()
     {
         BattleTerrainEffectState effect = BuildEffect();
-        BattleTerrainEffectState restored = BattleTerrainEffectState.FromDictionary(effect.ToDictionary());
+        BattleTerrainEffectState restored = RoundTrip(effect);
         _test.True(restored != null, "terrain nonstacking-status metadata roundtrip 应恢复对象。");
         _test.Eq(
             restored != null ? restored.does_not_stack_with_status_id : new StringName(""),
@@ -172,7 +178,8 @@ public partial class run_battle_terrain_effect_state_schema_regression : Lifecyc
 
     private void TestInvalidTargetTeamFilterIsRejected()
     {
-        GDictionary payload = BuildEffect().ToDictionary();
+        using GodotProjectionLease<GDictionary> payloadLease = BuildEffect().ToDictionaryLease();
+        GDictionary payload = payloadLease.Value;
         payload["target_team_filter"] = "hostile";
         _test.True(
             BattleTerrainEffectState.FromDictionary(payload) == null,
@@ -182,7 +189,7 @@ public partial class run_battle_terrain_effect_state_schema_regression : Lifecyc
 
     private static BattleTerrainEffectState BuildEffect()
     {
-        return new BattleTerrainEffectState
+        var effect = new BattleTerrainEffectState
         {
             field_instance_id = "meteor_crater_core_1",
             effect_id = "meteor_swarm_crater_core",
@@ -218,23 +225,14 @@ public partial class run_battle_terrain_effect_state_schema_regression : Lifecyc
             tick_interval_tu = 0,
             next_tick_at_tu = 0,
             stack_behavior = "refresh",
-            @params = new GDictionary
+        };
+        effect.SetParamsTyped(
+            new Dictionary<string, object>(System.StringComparer.Ordinal)
             {
                 ["lifetime_policy"] = "battle",
                 ["move_cost_delta"] = 3,
-            },
-        };
-    }
-
-    private static string DictString(GDictionary dictionary, string key, string defaultValue)
-    {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-        {
-            return defaultValue;
-        }
-        Variant value = dictionary[key];
-        return value.VariantType is Variant.Type.String or Variant.Type.StringName
-            ? value.AsString()
-            : defaultValue;
+            }
+        );
+        return effect;
     }
 }

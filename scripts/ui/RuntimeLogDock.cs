@@ -273,7 +273,7 @@ public partial class RuntimeLogDock : PanelContainer
     }
 
     private static List<DisplayLogEntry> _build_battle_log_entries(
-        Godot.Collections.Array<string> logEntries
+        IReadOnlyList<string> logEntries
     )
     {
         var displayEntries = new List<DisplayLogEntry>();

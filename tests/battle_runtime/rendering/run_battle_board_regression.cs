@@ -32,8 +32,16 @@ public partial class run_battle_board_regression : LifecycleTestSceneTree
 
     private void TestCanyonGenerationUsesTypedColumnsAndSupportedProps()
     {
-        GDictionary first = BuildLayout("canyon", TestSeed);
-        GDictionary second = BuildLayout("canyon", TestSeed);
+        using GodotProjectionLease<GDictionary> firstLease = BuildLayout(
+            "canyon",
+            TestSeed
+        );
+        using GodotProjectionLease<GDictionary> secondLease = BuildLayout(
+            "canyon",
+            TestSeed
+        );
+        GDictionary first = firstLease.Value;
+        GDictionary second = secondLease.Value;
         _test.Eq(
             string.Join("\n", CaptureLayoutSignature(first)),
             string.Join("\n", CaptureLayoutSignature(second)),
@@ -92,7 +100,11 @@ public partial class run_battle_board_regression : LifecycleTestSceneTree
 
     private async Task TestBoardSceneRendersGeneratedCanyon()
     {
-        GDictionary layout = BuildLayout("canyon", TestSeed);
+        using GodotProjectionLease<GDictionary> layoutLease = BuildLayout(
+            "canyon",
+            TestSeed
+        );
+        GDictionary layout = layoutLease.Value;
         BattleState state = BuildState(layout);
         BattleBoard2D board = BattleBoardScene.Instantiate<BattleBoard2D>();
         Root.AddChild(board);
@@ -122,19 +134,21 @@ public partial class run_battle_board_regression : LifecycleTestSceneTree
         await ProcessFrames(1);
     }
 
-    private GDictionary BuildLayout(string profileId, int seed)
+    private GodotProjectionLease<GDictionary> BuildLayout(string profileId, int seed)
     {
-        var generator = new BattleTerrainGenerator();
-        return generator.GenerateTyped(
+        using var generator = new BattleTerrainGenerator();
+        using GDictionary context = new()
+        {
+            ["world_coord"] = TestWorldCoord,
+            ["world_seed"] = seed,
+            ["battle_terrain_profile"] = profileId,
+            ["battle_map_size"] = TestMapSize,
+        };
+        return generator.GenerateLease(
             BuildEncounterAnchor("battle_board_regression", "battle board regression", profileId),
             seed,
-            new GDictionary
-            {
-                ["world_coord"] = TestWorldCoord,
-                ["world_seed"] = seed,
-                ["battle_terrain_profile"] = profileId,
-                ["battle_map_size"] = TestMapSize,
-            }
+            context,
+            LifetimeDomain.Request
         );
     }
 
@@ -165,7 +179,8 @@ public partial class run_battle_board_regression : LifecycleTestSceneTree
             ally_unit_ids = new GStringNameArray(),
             enemy_unit_ids = new GStringNameArray(),
         };
-        state.SetCellsFromDictionary(CloneCells(DictDict(layout, "cells")));
+        using (GDictionary cells = DictDict(layout, "cells"))
+            state.SetCellsFromDictionary(cells, duplicateCells: true);
         BattleUnitState ally = BuildUnit("ally_board", "队员", "player", 160);
         BattleUnitState enemy = BuildUnit("enemy_board", "敌人", "hostile", 120);
         RegisterAndPlace(state, ally, DictVector2I(layout, "player_coord"), false);
@@ -218,19 +233,6 @@ public partial class run_battle_board_regression : LifecycleTestSceneTree
         else
             state.ally_unit_ids.Add(unit.unit_id);
         _test.True(_gridService.PlaceUnit(state, unit, coord, true), $"测试单位应可放置到 {coord}：{unit.unit_id}");
-    }
-
-    private static GDictionary CloneCells(GDictionary cells)
-    {
-        var cloned = new GDictionary();
-        foreach (Variant coordValue in cells.Keys)
-        {
-            if (coordValue.VariantType != Variant.Type.Vector2I)
-                continue;
-            if (BattleCellState.TryReadCellPayload(cells[coordValue], out BattleCellState cell) && cell != null)
-                cloned[coordValue.AsVector2I()] = cell.DuplicateCell().ToDictionary();
-        }
-        return cloned;
     }
 
     private static GVector2IArray CollectAllCoords(BattleState state)

@@ -30,13 +30,25 @@ public partial class run_game_runtime_pending_battle_request_regression : Lifecy
                 display_name = "Pending Anchor",
                 world_coord = new Vector2I(2, 3),
             };
-            GDictionary context = new()
+            BattleUnitState ally = BuildUnit("pending_ally", "player", new Vector2I(0, 0));
+            BattleUnitState enemy = BuildUnit("pending_enemy", "hostile", new Vector2I(1, 0));
+            using GodotProjectionLease<GDictionary> allyLease = ally.ToDictionaryLease(
+                LifetimeDomain.Request,
+                "pending-battle-request-ally"
+            );
+            using GodotProjectionLease<GDictionary> enemyLease = enemy.ToDictionaryLease(
+                LifetimeDomain.Request,
+                "pending-battle-request-enemy"
+            );
+            using GArray battleParty = new() { allyLease.Value };
+            using GArray enemyUnits = new() { enemyLease.Value };
+            using GDictionary context = new()
             {
                 ["world_coord"] = anchor.world_coord,
                 ["custom_flag"] = "original",
                 ["battle_terrain_profile"] = "missing_profile",
-                ["battle_party"] = new GArray { BuildUnit("pending_ally", "player", new Vector2I(0, 0)).ToDictionary() },
-                ["enemy_units"] = new GArray { BuildUnit("pending_enemy", "hostile", new Vector2I(1, 0)).ToDictionary() },
+                ["battle_party"] = battleParty,
+                ["enemy_units"] = enemyUnits,
             };
 
             StringName startResult = runtime.BeginBattleStart(anchor, 777, context);

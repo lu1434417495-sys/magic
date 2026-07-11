@@ -358,11 +358,13 @@ public sealed partial class CharacterManagementModule
                     : new List<StringName>();
         }
 
-        internal GArray CloneItemRewards() =>
-            RuntimePlainPayload.ProjectDictionaryArray(
-                _itemRewards,
-                "CharacterManagementModule.QuestRewardPreviewData.CloneItemRewards"
-            );
+        internal List<Dictionary<string, object>> CloneItemRewardsPlain()
+        {
+            var result = new List<Dictionary<string, object>>(_itemRewards.Count);
+            foreach (IReadOnlyDictionary<string, object> reward in _itemRewards)
+                result.Add(RuntimePlainPayload.CloneDictionary(reward));
+            return result;
+        }
 
         public List<StringName> CloneWarehouseDepositItemIds() =>
             CloneStringNameList(_warehouseDepositItemIds);

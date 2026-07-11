@@ -53,26 +53,14 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         return castVariant?.DisplayName ?? "";
     }
 
-    internal GVector2IArray GetSelectedBattleSkillTargetCoords()
-    {
-        return DuplicateVector2IArray(CollectSelectedBattleSkillTargetCoordsTyped());
-    }
-
-    internal GStringNameArray GetSelectedBattleSkillTargetUnitIds()
-    {
-        return DuplicateStringNameArray(GetTargetUnitIdsStateTyped());
-    }
-
     internal IReadOnlyList<Vector2I> GetSelectedBattleSkillTargetCoordsSnapshotPlain() =>
         CollectSelectedBattleSkillTargetCoordsTyped();
 
     internal IReadOnlyList<StringName> GetSelectedBattleSkillTargetUnitIdsSnapshotPlain() =>
         GetTargetUnitIdsStateTyped();
 
-    internal GVector2IArray GetSelectedBattleSkillValidTargetCoords()
-    {
-        return DuplicateVector2IArray(CollectSelectedBattleSkillValidTargetCoordsTyped());
-    }
+    internal IReadOnlyList<Vector2I> GetSelectedBattleSkillValidTargetCoordsSnapshotPlain() =>
+        CollectSelectedBattleSkillValidTargetCoordsTyped();
 
     internal int GetSelectedBattleSkillRequiredCoordCount()
     {
@@ -2379,11 +2367,11 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         return coords;
     }
 
-    private static GVector2IArray DuplicateVector2IArray(IEnumerable<Vector2I> values)
-        => new Vector2IList(values).ToGodotArray();
+    private static Vector2IList DuplicateVector2IArray(IEnumerable<Vector2I> values) =>
+        new(values);
 
-    private static GStringNameArray DuplicateStringNameArray(IEnumerable<StringName> values)
-        => new StringNameList(values).ToGodotArray();
+    private static StringNameList DuplicateStringNameArray(IEnumerable<StringName> values) =>
+        new(values);
 
     private static GameRuntimeFacade ResolveWeakRef(WeakReference<GameRuntimeFacade> weakRef)
     {

@@ -474,6 +474,20 @@ internal sealed class MisfortuneService : IDisposable
         return HandleTrigger(MisfortuneTriggerRequest.StrongDebuff(targetUnit, typedStatusIds));
     }
 
+    internal GDictionary HandleAppliedStatuses(
+        BattleUnitState targetUnit,
+        IReadOnlyList<StringName> statusEffectIds
+    )
+    {
+        var typedStatusIds = new List<StringName>();
+        foreach (StringName statusId in statusEffectIds ?? Array.Empty<StringName>())
+        {
+            if (statusId != "")
+                typedStatusIds.Add(statusId);
+        }
+        return HandleTrigger(MisfortuneTriggerRequest.StrongDebuff(targetUnit, typedStatusIds));
+    }
+
     private GDictionary _HandleStrongDebuffTrigger(MisfortuneTriggerRequest request)
     {
         var targetUnit = request.TargetUnit;
@@ -617,13 +631,7 @@ internal sealed class MisfortuneService : IDisposable
             ["bonus_calamity"] = bonusCalamity,
             ["cap"] = calamityCap,
             ["reverse_fortune_granted"] = reverseFortuneGranted,
-            ["metadata"] =
-                metadata != null
-                    ? RuntimePayloadCopy.Dictionary(
-                        metadata,
-                        "MisfortuneService.TriggerCalamity.metadata"
-                    )
-                    : new GDictionary(),
+            ["metadata"] = metadata ?? new GDictionary(),
         };
     }
 

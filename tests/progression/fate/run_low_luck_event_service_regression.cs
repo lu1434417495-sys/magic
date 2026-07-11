@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Godot;
+using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_low_luck_event_service_regression : LifecycleTestSceneTree
 {
@@ -255,7 +256,9 @@ public partial class run_low_luck_event_service_regression : LifecycleTestSceneT
 
     private PartyState RoundTripPartyState(PartyState partyState)
     {
-        PartyState restored = PartyState.FromDictionary(partyState.ToDictionary());
+        using GodotProjectionLease<GDictionary> partyPayloadLease =
+            partyState.ToDictionaryLease("LowLuckEventService.RoundTripPartyState");
+        PartyState restored = PartyState.FromDictionary(partyPayloadLease.Value);
         _test.True(restored != null, "PartyState 带 meta_flags 时应能完成 round-trip。");
         return restored;
     }

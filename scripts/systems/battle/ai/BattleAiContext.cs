@@ -723,37 +723,6 @@ public class BattleAiContext : IBattleAiScoreContext
         return result;
     }
 
-    private static GDictionary ToStringNameIntDictionary(
-        IReadOnlyDictionary<StringName, int> source
-    )
-    {
-        var result = new GDictionary();
-        if (source == null)
-            return result;
-
-        foreach (KeyValuePair<StringName, int> entry in source)
-        {
-            if (entry.Key != "")
-                result[entry.Key] = entry.Value;
-        }
-        return result;
-    }
-
-    private static Godot.Collections.Array<StringName> ToStringNameArray(
-        IEnumerable<StringName> values
-    )
-    {
-        var normalizedValues = new List<StringName>();
-        foreach (StringName value in values ?? Array.Empty<StringName>())
-        {
-            normalizedValues.Add(ProgressionDataUtils.to_string_name(value));
-        }
-        return new StringNameList(normalizedValues).ToGodotArray();
-    }
-
-    private static Godot.Collections.Array<Vector2I> ToVector2IArray(
-        IEnumerable<Vector2I> values
-    ) => new Vector2IList(values).ToGodotArray();
     internal BattleAiSkillAffordanceRecord GetSkillAffordanceRecordTyped(StringName skill_id)
     {
         StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skill_id);

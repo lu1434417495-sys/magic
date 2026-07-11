@@ -145,58 +145,37 @@ public class BattleTerrainEffectState
     private readonly Dictionary<string, object> _params = new(System.StringComparer.Ordinal);
     public GDictionary @params
     {
-        get => RuntimePlainPayload.ProjectDictionary(
-            _params,
-            "BattleTerrainEffectState.@params"
-        );
         set => ReplaceParams(value);
     }
 
+    internal IReadOnlyDictionary<string, object> ParamsSnapshotPlain =>
+        RuntimePlainPayload.CloneDictionary(_params);
+
     internal Dictionary<string, object> GetParamsTyped()
     {
-        return RuntimePlainPayload.NormalizeDictionary(
-            BuildParamsProjection(),
-            "BattleTerrainEffectState.GetParamsTyped"
-        );
+        return BuildParamsSnapshotPlain();
     }
 
-    internal static GDictionary CopyResidualParams(GDictionary parameters)
+    internal static Dictionary<string, object> CopyResidualParamsPlain(
+        IReadOnlyDictionary<string, object> parameters
+    )
     {
-        GDictionary residual = RuntimePayloadCopy.Dictionary(
-            parameters,
+        Dictionary<string, object> residual = RuntimePlainPayload.CloneDictionary(parameters);
+        RemoveFormalParamKeys(residual);
+        return residual;
+    }
+
+    internal static Dictionary<string, object> CopyResidualParamsPlain(GDictionary parameters)
+    {
+        Dictionary<string, object> residual = RuntimePlainPayload.NormalizeDictionary(
+            parameters ?? new GDictionary(),
             "BattleTerrainEffectState.CopyResidualParams"
         );
         RemoveFormalParamKeys(residual);
         return residual;
     }
 
-    internal static GDictionary CopyResidualParams(
-        IReadOnlyDictionary<string, Variant> parameters
-    )
-    {
-        var residual = new GDictionary();
-        if (parameters != null)
-        {
-            foreach (KeyValuePair<string, Variant> entry in parameters)
-            {
-                if (!string.IsNullOrEmpty(entry.Key))
-                {
-                    residual[entry.Key] = entry.Value;
-                }
-            }
-        }
-        RemoveFormalParamKeys(residual);
-        return residual;
-    }
-
-    internal static GDictionary CopyResidualParamsForOwnedTransient(GDictionary parameters)
-    {
-        GDictionary residual = parameters != null ? (GDictionary)parameters.Duplicate(true) : new GDictionary();
-        RemoveFormalParamKeys(residual);
-        return residual;
-    }
-
-    private static void RemoveFormalParamKeys(GDictionary residual)
+    private static void RemoveFormalParamKeys(Dictionary<string, object> residual)
     {
         if (residual == null)
             return;
@@ -207,9 +186,9 @@ public class BattleTerrainEffectState
         }
     }
 
-    internal GDictionary ToDictionary()
+    internal Dictionary<string, object> BuildSnapshotPlain()
     {
-        return new GDictionary
+        return new Dictionary<string, object>(System.StringComparer.Ordinal)
         {
             ["field_instance_id"] = field_instance_id.ToString(),
             ["effect_id"] = effect_id.ToString(),
@@ -227,9 +206,17 @@ public class BattleTerrainEffectState
             ["tick_interval_tu"] = tick_interval_tu,
             ["next_tick_at_tu"] = next_tick_at_tu,
             ["stack_behavior"] = stack_behavior.ToString(),
-            ["params"] = BuildParamsProjection(),
+            ["params"] = BuildParamsSnapshotPlain(),
         };
     }
+
+    internal GodotProjectionLease<GDictionary> ToDictionaryLease() =>
+        RuntimePlainPayload.ProjectDictionaryLease(
+            BuildSnapshotPlain(),
+            "BattleTerrainEffectState.ToDictionary",
+            LifetimeDomain.Request,
+            "BattleTerrainEffectState.ToDictionary"
+        );
 
     internal static BattleTerrainEffectState FromDictionary(GDictionary typedData)
     {
@@ -281,7 +268,7 @@ public class BattleTerrainEffectState
             return null;
         }
 
-        return new BattleTerrainEffectState
+        var state = new BattleTerrainEffectState
         {
             field_instance_id = GetStringName(typedData, "field_instance_id"),
             effect_id = GetStringName(typedData, "effect_id"),
@@ -328,23 +315,9 @@ public class BattleTerrainEffectState
             stack_behavior = GetStringName(typedData, "stack_behavior"),
             lifetime_policy = ReadLifetimePolicy(parameters),
             move_cost_delta = GetInt(parameters, "move_cost_delta"),
-            @params = CopyResidualParams(parameters),
         };
-    }
-
-    internal static Godot.Collections.Array<GDictionary> ToDictionaryArray(
-        IEnumerable<BattleTerrainEffectState> effect_states
-    )
-    {
-        var payloads = new Godot.Collections.Array<GDictionary>();
-        foreach (BattleTerrainEffectState effectState in effect_states ?? new List<BattleTerrainEffectState>())
-        {
-            if (effectState != null)
-            {
-                payloads.Add(effectState.ToDictionary());
-            }
-        }
-        return payloads;
+        state.SetParamsTyped(CopyResidualParamsPlain(parameters));
+        return state;
     }
 
     internal static List<BattleTerrainEffectState> FromDictionaryArray(
@@ -372,10 +345,20 @@ public class BattleTerrainEffectState
         IEnumerable<BattleTerrainEffectState> effect_states
     )
     {
-        List<BattleTerrainEffectState> duplicated = FromDictionaryArray(
-            ToDictionaryArray(effect_states)
-        );
-        return duplicated ?? new List<BattleTerrainEffectState>();
+        var duplicated = new List<BattleTerrainEffectState>();
+        foreach (
+            BattleTerrainEffectState effectState in
+            effect_states ?? System.Array.Empty<BattleTerrainEffectState>()
+        )
+        {
+            if (effectState == null)
+                continue;
+            using GodotProjectionLease<GDictionary> lease = effectState.ToDictionaryLease();
+            BattleTerrainEffectState copy = FromDictionary(lease.Value);
+            if (copy != null)
+                duplicated.Add(copy);
+        }
+        return duplicated;
     }
 
     private static bool HasExactSerializedFields(GDictionary data)
@@ -394,12 +377,9 @@ public class BattleTerrainEffectState
         return true;
     }
 
-    private GDictionary BuildParamsProjection()
+    private Dictionary<string, object> BuildParamsSnapshotPlain()
     {
-        GDictionary projected = RuntimePlainPayload.ProjectDictionary(
-            _params,
-            "BattleTerrainEffectState.BuildParamsProjection"
-        );
+        Dictionary<string, object> projected = RuntimePlainPayload.CloneDictionary(_params);
         projected["lifetime_policy"] = lifetime_policy.ToString();
         projected["move_cost_delta"] = move_cost_delta;
         if (render_overlay_id != "")
@@ -416,8 +396,25 @@ public class BattleTerrainEffectState
         }
         if (accuracy_modifier_spec != null)
         {
-            projected["accuracy_modifier_spec"] =
-                BattleAttackRollModifierProjection.ProjectPartialSpec(accuracy_modifier_spec);
+            projected["accuracy_modifier_spec"] = new Dictionary<string, object>(
+                System.StringComparer.Ordinal
+            )
+            {
+                ["source_domain"] = accuracy_modifier_spec.source_domain.ToString(),
+                ["source_id"] = accuracy_modifier_spec.source_id.ToString(),
+                ["source_instance_id"] = accuracy_modifier_spec.source_instance_id,
+                ["label"] = accuracy_modifier_spec.label,
+                ["modifier_delta"] = accuracy_modifier_spec.modifier_delta,
+                ["stack_key"] = accuracy_modifier_spec.stack_key.ToString(),
+                ["stack_mode"] = accuracy_modifier_spec.stack_mode.ToString(),
+                ["roll_kind_filter"] = accuracy_modifier_spec.roll_kind_filter.ToString(),
+                ["endpoint_mode"] = accuracy_modifier_spec.endpoint_mode.ToString(),
+                ["distance_min_exclusive"] = accuracy_modifier_spec.distance_min_exclusive,
+                ["distance_max_inclusive"] = accuracy_modifier_spec.distance_max_inclusive,
+                ["target_team_filter"] = accuracy_modifier_spec.target_team_filter.ToString(),
+                ["footprint_mode"] = accuracy_modifier_spec.footprint_mode.ToString(),
+                ["applies_to"] = accuracy_modifier_spec.applies_to.ToString(),
+            };
         }
         if (does_not_stack_with_status_id != "")
         {
@@ -425,10 +422,10 @@ public class BattleTerrainEffectState
         }
         if (does_not_stack_with_status_ids.Count > 0)
         {
-            projected["does_not_stack_with_status_ids"] =
-                ProgressionDataUtils.string_name_array_to_string_array(
-                    does_not_stack_with_status_ids
-                );
+            var statusIds = new List<object>();
+            foreach (StringName statusId in does_not_stack_with_status_ids)
+                statusIds.Add(statusId.ToString());
+            projected["does_not_stack_with_status_ids"] = statusIds;
         }
         if (contact_status_id != "")
         {
@@ -525,6 +522,17 @@ public class BattleTerrainEffectState
         {
             if (!string.IsNullOrEmpty(entry.Key))
                 _params[entry.Key] = entry.Value;
+        }
+    }
+
+    internal void SetParamsTyped(IReadOnlyDictionary<string, object> values)
+    {
+        _params.Clear();
+        foreach (
+            KeyValuePair<string, object> entry in RuntimePlainPayload.CloneDictionary(values)
+        )
+        {
+            _params[entry.Key] = entry.Value;
         }
     }
 

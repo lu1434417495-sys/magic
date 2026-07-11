@@ -244,8 +244,10 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
         WorldBattleFixture fixture = BuildWorldBattleFixture();
         try
         {
+            using GodotProjectionLease<GDictionary> worldDataLease =
+                fixture.GameSession.GetWorldDataLease();
             EncounterAnchorData encounterAnchor = FindEncounterAnchorByKind(
-                fixture.GameSession.GetWorldData(),
+                worldDataLease.Value,
                 EncounterAnchorData.ToStringName(EncounterAnchorKind.Single)
             );
             _test.True(encounterAnchor != null, "确认开战回归需要至少一个单体野怪遭遇。");
@@ -332,8 +334,10 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
             );
             warehouseService.AddItemTyped("healing_herb", 1);
 
+            using GodotProjectionLease<GDictionary> worldDataLease =
+                fixture.GameSession.GetWorldDataLease();
             EncounterAnchorData encounterAnchor = FindEncounterAnchorByKind(
-                fixture.GameSession.GetWorldData(),
+                worldDataLease.Value,
                 EncounterAnchorData.ToStringName(EncounterAnchorKind.Settlement)
             );
             _test.True(encounterAnchor != null, "battle overflow 反馈回归需要一个聚落类野怪遭遇。");

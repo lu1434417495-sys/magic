@@ -227,7 +227,10 @@ internal static class AttackEffectResolutionPlainPayload
     {
         payload[$"{prefix}_count"] = value.Count;
         payload[$"{prefix}_sides"] = value.Sides;
-        payload[$"{prefix}_rolls"] = new List<int>(value.Rolls ?? Array.Empty<int>());
+        var rolls = new List<object>();
+        foreach (int roll in value.Rolls ?? Array.Empty<int>())
+            rolls.Add(roll);
+        payload[$"{prefix}_rolls"] = rolls;
         payload[$"{prefix}_total"] = value.Total;
         if (includeBonus)
         {

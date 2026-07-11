@@ -517,7 +517,8 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
         BattleUnitState source = MakeUnit("breath_source", "enemy");
         BattleUnitState target = MakeUnit("breath_target", "player");
         CombatEffectDefinition effect = MakeSaveDamageEffect("dragon_breath", "constitution", 12, true);
-        Godot.Collections.Dictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<Godot.Collections.Dictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
             new[] { effect },
@@ -525,6 +526,7 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
                 new Godot.Collections.Dictionary { ["save_roll_override"] = 20 }
             )
         ));
+        Godot.Collections.Dictionary result = resultLease.Value;
 
         _test.Eq(DictInt(result, "damage", -1), 5, "Successful partial damage save should halve damage.");
         Godot.Collections.Dictionary @event = FirstDamageEvent(result);
@@ -540,7 +542,8 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
         BattleUnitState source = MakeUnit("status_source", "enemy");
         BattleUnitState successTarget = MakeUnit("status_success_target", "player");
         CombatEffectDefinition effect = MakeSaveStatusEffect("sleep", "asleep", "deep_sleep");
-        Godot.Collections.Dictionary successResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<Godot.Collections.Dictionary> successResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             successTarget,
             new[] { effect },
@@ -548,12 +551,14 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
                 new Godot.Collections.Dictionary { ["save_roll_override"] = 20 }
             )
         ));
+        Godot.Collections.Dictionary successResult = successResultLease.Value;
         _test.False(successTarget.HasStatusEffect("asleep"), "Successful save should block default status.");
         _test.False(successTarget.HasStatusEffect("deep_sleep"), "Successful save should block failure status.");
         _test.False(DictBool(successResult, "applied", true), "Blocked status save should not mark effect applied.");
 
         BattleUnitState failureTarget = MakeUnit("status_failure_target", "player");
-        Godot.Collections.Dictionary failureResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<Godot.Collections.Dictionary> failureResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             failureTarget,
             new[] { effect },
@@ -561,6 +566,7 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
                 new Godot.Collections.Dictionary { ["save_roll_override"] = 1 }
             )
         ));
+        Godot.Collections.Dictionary failureResult = failureResultLease.Value;
         _test.True(failureTarget.HasStatusEffect("deep_sleep"), "Failed save should apply save_failure_status_id.");
         _test.False(failureTarget.HasStatusEffect("asleep"), "save_failure_status_id should replace default status on failure.");
         _test.True(DictBool(failureResult, "applied"), "Failed status save should mark effect applied.");

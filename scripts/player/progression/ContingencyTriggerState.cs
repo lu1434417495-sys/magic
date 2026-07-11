@@ -45,11 +45,8 @@ public partial class ContingencyTriggerState
     public int Radius { get; private set; }
     public IReadOnlyList<StringName> StatusTags => _statusTags;
 
-    public GDictionary Payload =>
-        RuntimePlainPayload.ProjectDictionary(
-            _payload,
-            "ContingencyTriggerState.Payload"
-        );
+    public IReadOnlyDictionary<string, object> Payload =>
+        RuntimePlainPayload.CloneDictionary(_payload);
 
     public ContingencyTriggerState DuplicateState()
     {
@@ -72,7 +69,16 @@ public partial class ContingencyTriggerState
         return state;
     }
 
-    public GDictionary ToDictionary() => Payload;
+    internal Dictionary<string, object> BuildSnapshotPlain() =>
+        RuntimePlainPayload.CloneDictionary(_payload);
+
+    internal GodotProjectionLease<GDictionary> ToDictionaryLease() =>
+        RuntimePlainPayload.ProjectDictionaryLease(
+            BuildSnapshotPlain(),
+            "ContingencyTriggerState.ToDictionary",
+            LifetimeDomain.Request,
+            "ContingencyTriggerState.ToDictionary"
+        );
 
     public static ContingencyTriggerState FromDictionary(GDictionary payload)
     {

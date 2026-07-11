@@ -40,7 +40,6 @@ public partial class GameSession
         state.active_quests.Clear();
         state.claimable_quests.Clear();
         state.completed_quest_ids.Clear();
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(state, "GameSession.DisposePartyStateGraph");
     }
 
     private static void DisposePartyMemberStateGraph(
@@ -60,10 +59,6 @@ public partial class GameSession
         }
         memberState.trait_instances.Clear();
         memberState.active_stage_advancement_modifier_ids.Clear();
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-            memberState,
-            "GameSession.DisposePartyMemberStateGraph"
-        );
     }
 
     private static void DisposeContingencySetupGraph(

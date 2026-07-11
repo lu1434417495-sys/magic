@@ -8,11 +8,8 @@ internal sealed class BattleStatusEffectParams
     private readonly Dictionary<string, object> _residualSavePayload =
         new(System.StringComparer.Ordinal);
 
-    public GDictionary ResidualSavePayload =>
-        RuntimePlainPayload.ProjectDictionary(
-            _residualSavePayload,
-            "BattleStatusEffectParams.ResidualSavePayload"
-        );
+    public IReadOnlyDictionary<string, object> ResidualSavePayload =>
+        RuntimePlainPayload.CloneDictionary(_residualSavePayload);
     public double? IncomingDamageMultiplier { get; private init; }
     public double? OutgoingDamageMultiplier { get; private init; }
     public StringName SourceProfileId { get; private init; } = "";
@@ -120,10 +117,8 @@ internal sealed class BattleStatusEffectParams
             SaveBonusByTag = ReadStringNameIntMapParam(parameters, "save_bonus_by_tag"),
         };
         foreach (
-            KeyValuePair<string, object> entry in RuntimePlainPayload.NormalizeDictionary(
-                BattleStatusEffectState.CopyResidualParams(parameters),
-                "BattleStatusEffectParams.ResidualSavePayload"
-            )
+            KeyValuePair<string, object> entry in
+            BattleStatusEffectState.CopyResidualParamsPlain(parameters)
         )
         {
             if (!string.IsNullOrEmpty(entry.Key))

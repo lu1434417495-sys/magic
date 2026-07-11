@@ -5,12 +5,12 @@ using GDictionary = Godot.Collections.Dictionary;
 internal sealed class RuntimeStateSource
 {
     private readonly Func<PartyState> _partyStateProvider;
-    private readonly Func<GDictionary> _worldDataProvider;
+    private readonly Func<WorldRuntimeData> _worldDataProvider;
     private readonly Func<Vector2I> _playerCoordProvider;
 
     internal RuntimeStateSource(
         Func<PartyState> partyStateProvider,
-        Func<GDictionary> worldDataProvider,
+        Func<WorldRuntimeData> worldDataProvider,
         Func<Vector2I> playerCoordProvider
     )
     {
@@ -21,8 +21,8 @@ internal sealed class RuntimeStateSource
 
     internal PartyState GetPartyStateForCommit() => _partyStateProvider?.Invoke();
 
-    internal GDictionary GetWorldDataForCommit() =>
-        _worldDataProvider?.Invoke() ?? new GDictionary();
+    internal WorldRuntimeData GetWorldDataForCommit() =>
+        _worldDataProvider?.Invoke() ?? WorldRuntimeData.Empty();
 
     internal Vector2I GetPlayerCoordForCommit() =>
         _playerCoordProvider?.Invoke() ?? Vector2I.Zero;
@@ -183,9 +183,11 @@ internal sealed class RuntimeTransactionRollbackState
             if (restoreParty)
                 session._party_state = _partyState?.DuplicateState() ?? new PartyState();
             if (restoreWorld)
-                session.ReplaceWorldDataPayloadForRuntimeRestore(
-                    WorldMapDataProjection.Project(_worldData)
-                );
+            {
+                using GodotProjectionLease<GDictionary> worldDataLease =
+                    WorldMapDataProjection.ProjectLease(_worldData);
+                session.ReplaceWorldDataPayloadForRuntimeRestore(worldDataLease.Value);
+            }
             if (transaction.PersistPlayerCoord)
                 session._player_coord = _playerCoord;
             _sessionSnapshot?.Restore(session);
@@ -202,11 +204,13 @@ internal sealed class RuntimeTransactionRollbackState
         bool worldOrCoordRestored = false;
         if (restoreWorld)
         {
-            GDictionary restoredWorldData = session != null
-                ? session.GetWorldData()
-                : WorldMapDataProjection.Project(_worldData);
+            using GodotProjectionLease<GDictionary> restoredWorldDataLease =
+                session != null
+                    ? session.GetWorldDataLease()
+                    : WorldMapDataProjection.ProjectLease(_worldData);
+            GDictionary restoredWorldData = restoredWorldDataLease.Value;
             runtime._world_map_data_context.BindRootWorldData(restoredWorldData);
-            runtime._world_map_data_context.active_world_data = restoredWorldData;
+            runtime._world_map_data_context.SetActiveWorldData(restoredWorldData);
             worldOrCoordRestored = true;
         }
 
@@ -285,7 +289,11 @@ internal sealed class RuntimeTransaction
         if (PersistPartyState)
             partyError = session.SetPartyState(source.GetPartyStateForCommit());
         if (PersistWorldData)
-            worldError = session.SetWorldData(source.GetWorldDataForCommit());
+        {
+            using GodotProjectionLease<GDictionary> worldDataLease =
+                WorldMapDataProjection.ProjectLease(source.GetWorldDataForCommit());
+            worldError = session.SetWorldData(worldDataLease.Value);
+        }
         if (PersistPlayerCoord)
             playerError = session.SetPlayerCoord(source.GetPlayerCoordForCommit());
 

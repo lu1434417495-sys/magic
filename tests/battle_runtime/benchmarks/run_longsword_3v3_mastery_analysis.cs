@@ -199,7 +199,9 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
                 region_tag = "simulation",
             };
 
-            state = runtime.StartBattle(encounterAnchor, seed, scenarioDef.BuildStartContext());
+            using GodotProjectionLease<Godot.Collections.Dictionary> startContextLease =
+                scenarioDef.BuildStartContextLease();
+            state = runtime.StartBattle(encounterAnchor, seed, startContextLease.Value);
 
             BattleSimExecutionLoopResult loopResult = new BattleSimExecutionLoop().Run(
                 runtime,

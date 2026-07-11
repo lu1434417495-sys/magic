@@ -51,11 +51,13 @@ public partial class run_doom_sentence_regression : LifecycleTestSceneTree
         BeginRuntimeBattle(runtime);
         runtime.calamity_by_member_id["hero"] = 5;
 
-        GDictionary baselineDamageResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime.GetDamageResolver().ResolveEffects(
+        using GodotProjectionLease<GDictionary> baselineDamageResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(runtime.GetDamageResolver().ResolveEffects(
             allyAttacker,
             boss.clone(),
             new[] { BuildDamageEffect() }
         ));
+        GDictionary baselineDamageResult = baselineDamageResultLease.Value;
         BattleCommand command = BuildUnitSkillCommand(caster.unit_id, DOOM_SENTENCE_SKILL_ID, boss);
         BattlePreview preview = runtime.PreviewCommand(command);
         _test.True(
@@ -71,11 +73,13 @@ public partial class run_doom_sentence_regression : LifecycleTestSceneTree
             $"厄命宣判成功后应补出带 doom_sentence 标签的结构化战报条目。 reports={batch?.report_entries}"
         );
 
-        GDictionary amplifiedDamageResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime.GetDamageResolver().ResolveEffects(
+        using GodotProjectionLease<GDictionary> amplifiedDamageResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(runtime.GetDamageResolver().ResolveEffects(
             allyAttacker,
             boss.clone(),
             new[] { BuildDamageEffect() }
         ));
+        GDictionary amplifiedDamageResult = amplifiedDamageResultLease.Value;
         _test.True(
             ReadInt(amplifiedDamageResult, "damage") > ReadInt(baselineDamageResult, "damage"),
             $"厄命宣判应令全队对目标造成更高伤害。 baseline={baselineDamageResult} amplified={amplifiedDamageResult}"

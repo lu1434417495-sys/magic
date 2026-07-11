@@ -62,13 +62,14 @@ public partial class run_enemy_template_attribute_projection_regression : Lifecy
             "typed skill level 读取应支持正式 StringName key basic_attack。"
         );
 
-        GArray enemyUnits = builder.BuildEnemyUnitsTyped(
+        using GodotProjectionLease<GArray> enemyUnitsLease = builder.BuildEnemyUnitsLease(
             BuildEncounterAnchor(template.template_id),
             gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             enemyTemplates,
             gameSession.GetEnemyAiBrainDefinitions(),
             gameSession.GetItemDefsTyped()
         );
+        GArray enemyUnits = enemyUnitsLease.Value;
 
         _test.Eq(enemyUnits.Count, 1, "自定义敌方模板应只构建一个敌方单位。");
         if (enemyUnits.Count == 0)

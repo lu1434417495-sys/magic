@@ -1,40 +1,41 @@
+using System.Collections.Generic;
 using Godot.Collections;
+using GDictionary = Godot.Collections.Dictionary;
 
 internal static class GameRuntimeBattleWritebackProjection
 {
-    internal static Dictionary Project(
+    internal static GodotProjectionLease<GDictionary> ProjectLease(
         GameRuntimeBattleWritebackService.BattleLocalWritebackResult result
     )
     {
-        if (result == null)
-        {
-            return ProjectFailure("battle_local_writeback_missing_result", null);
-        }
-        return result.Ok
-            ? new Dictionary
-            {
-                ["ok"] = true,
-                ["error_code"] = "",
-                ["committed_member_count"] = result.CommittedMemberCount,
-                ["used_slots"] = result.UsedSlots,
-                ["capacity"] = result.Capacity,
-            }
-            : ProjectFailure(result.ErrorCode, result.Details);
+        IReadOnlyDictionary<string, object> snapshot = result == null
+            ? BuildFailureSnapshot("battle_local_writeback_missing_result", null)
+            : result.Ok
+                ? new System.Collections.Generic.Dictionary<string, object>
+                {
+                    ["ok"] = true,
+                    ["error_code"] = "",
+                    ["committed_member_count"] = result.CommittedMemberCount,
+                    ["used_slots"] = result.UsedSlots,
+                    ["capacity"] = result.Capacity,
+                }
+                : BuildFailureSnapshot(result.ErrorCode, result.Details);
+        return RuntimePlainPayload.ProjectDictionaryLease(
+            snapshot,
+            "battle-local-writeback-result",
+            LifetimeDomain.Request,
+            "GameRuntimeBattleWritebackProjection.ProjectLease"
+        );
     }
 
-    private static Dictionary ProjectFailure(string errorCode, Dictionary details)
-    {
-        return new Dictionary
-        {
+    private static IReadOnlyDictionary<string, object> BuildFailureSnapshot(
+        string errorCode,
+        IReadOnlyDictionary<string, object> details
+    ) =>
+        new System.Collections.Generic.Dictionary<string, object>
+            {
             ["ok"] = false,
             ["error_code"] = errorCode ?? "",
-            ["details"] =
-                details != null
-                    ? RuntimePayloadCopy.Dictionary(
-                        details,
-                        "GameRuntimeBattleWritebackProjection.ProjectFailure.details"
-                    )
-                    : new Dictionary(),
+            ["details"] = details ?? new System.Collections.Generic.Dictionary<string, object>(),
         };
-    }
 }

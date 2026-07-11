@@ -312,9 +312,10 @@ public partial class run_character_management_quest_materializer_regression : Li
         warehouse.Setup(party, BuildItemDefIndex(itemDefs));
         party.SetClaimableQuestState(BuildClaimableQuest("contract_supply_receipt", 4, 6));
 
-        GDictionary claimResult = QuestCommandResultProjection.Project(
+        using GodotProjectionLease<GDictionary> claimResultLease = QuestCommandResultProjection.ProjectLease(
             manager.ClaimQuestRewardTyped("contract_supply_receipt", 8)
         );
+        GDictionary claimResult = claimResultLease.Value;
         _test.True(ReadBool(claimResult, "ok"), "quest reward should claim successfully.");
         _test.Eq(ReadInt(claimResult, "gold_delta"), 12, "quest reward should expose gold delta.");
         _test.Eq(
@@ -338,9 +339,10 @@ public partial class run_character_management_quest_materializer_regression : Li
         );
         overflowParty.SetClaimableQuestState(BuildClaimableQuest("contract_reward_overflow", 5, 7));
 
-        GDictionary overflowResult = QuestCommandResultProjection.Project(
+        using GodotProjectionLease<GDictionary> overflowResultLease = QuestCommandResultProjection.ProjectLease(
             overflowManager.ClaimQuestRewardTyped("contract_reward_overflow", 9)
         );
+        GDictionary overflowResult = overflowResultLease.Value;
         _test.True(!ReadBool(overflowResult, "ok"), "quest reward should fail when warehouse is full.");
         _test.Eq(
             ReadString(overflowResult, "error_code"),
@@ -399,9 +401,10 @@ public partial class run_character_management_quest_materializer_regression : Li
         );
         party.SetClaimableQuestState(BuildClaimableQuest("contract_growth_drill", 6, 9));
 
-        GDictionary claimResult = QuestCommandResultProjection.Project(
+        using GodotProjectionLease<GDictionary> claimResultLease = QuestCommandResultProjection.ProjectLease(
             manager.ClaimQuestRewardTyped("contract_growth_drill", 12)
         );
+        GDictionary claimResult = claimResultLease.Value;
         _test.True(ReadBool(claimResult, "ok"), "pending character quest reward should claim.");
         _test.Eq(
             ReadArray(claimResult, "pending_character_rewards").Count,
@@ -439,9 +442,10 @@ public partial class run_character_management_quest_materializer_regression : Li
         );
         party.SetClaimableQuestState(BuildClaimableQuest("contract_string_key_reward", 1, 2));
 
-        GDictionary claimResult = QuestCommandResultProjection.Project(
+        using GodotProjectionLease<GDictionary> claimResultLease = QuestCommandResultProjection.ProjectLease(
             manager.ClaimQuestRewardTyped("contract_string_key_reward", 3)
         );
+        GDictionary claimResult = claimResultLease.Value;
         _test.True(!ReadBool(claimResult, "ok"), "String-key-only quest def should be rejected.");
         _test.Eq(
             ReadString(claimResult, "error_code"),

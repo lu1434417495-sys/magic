@@ -343,7 +343,7 @@ public partial class BattleDamageResolver
         int durationTu = Math.Max(soulFractureParams.DurationTu, 0);
         statusEntry.status_id = statusId;
         statusEntry.source_unit_id = sourceUnit != null ? sourceUnit.unit_id : new StringName("");
-        statusEntry.@params = new GDictionary();
+        statusEntry.SetParamsTyped(new Dictionary<string, object>());
         statusEntry.stack_behavior = "refresh";
         statusEntry.stack_limit = 1;
         statusEntry.power = Math.Max(previousPower, 1);
@@ -417,7 +417,7 @@ public partial class BattleDamageResolver
         int previousPower = Math.Max(statusEntry.power, 0);
         statusEntry.status_id = statusId;
         statusEntry.source_unit_id = sourceUnit != null ? sourceUnit.unit_id : new StringName("");
-        statusEntry.@params = new GDictionary();
+        statusEntry.SetParamsTyped(new Dictionary<string, object>());
         statusEntry.stack_behavior = "refresh";
         statusEntry.stack_limit = 1;
         statusEntry.power = Math.Max(previousPower, 1);
@@ -457,12 +457,11 @@ public partial class BattleDamageResolver
         int baseDamage = damageRoll.TotalWithBonus;
         double offenseMultiplier = BuildOffenseMultiplier(sourceUnit, targetUnit, (CombatEffectDefinition)null);
         int rolledDamage = Math.Max(RoundToInt(baseDamage * offenseMultiplier), 0);
-        GDictionary mitigationTierResult = ResolveMitigationTierResult(targetUnit, resolvedDamageTag);
-        StringName mitigationTier = DictStringName(
-            mitigationTierResult,
-            "tier",
-            MitigationTierNormal
+        MitigationTierResolution mitigationTierResult = ResolveMitigationTierResult(
+            targetUnit,
+            resolvedDamageTag
         );
+        StringName mitigationTier = mitigationTierResult.Tier;
         int tierAdjustedDamage = rolledDamage;
         if (mitigationTier == MitigationTierImmune)
         {
@@ -504,10 +503,7 @@ public partial class BattleDamageResolver
             MitigationTier = AttackEffectResolutionResultReader.ParseMitigationTier(
                 mitigationTier
             ),
-            MitigationSources =
-                AttackEffectResolutionResultReader.ReadMitigationSourcesFromArray(
-                    GetArray(mitigationTierResult, "sources")
-                ),
+            MitigationSources = mitigationTierResult.Sources,
             BaseDamage = baseDamage,
             CriticalHit = false,
             AddWeaponDice = false,
@@ -867,19 +863,20 @@ public partial class BattleDamageResolver
         double? outgoingDamageMultiplier = null
     )
     {
-        return new BattleStatusEffectState
+        var state = new BattleStatusEffectState
         {
             status_id = statusId,
             source_unit_id = IsEmpty(sourceUnitId) ? new StringName("") : sourceUnitId,
             power = 1,
             stacks = 1,
             duration = Math.Max(durationTu, -1),
-            @params = BattleStatusEffectState.CopyResidualParams(@params),
             counts_as_debuff_override = countsAsDebuffOverride,
             counts_as_debuff = countsAsDebuff,
             incoming_damage_multiplier = incomingDamageMultiplier,
             outgoing_damage_multiplier = outgoingDamageMultiplier,
         };
+        state.SetParamsTyped(BattleStatusEffectState.CopyResidualParamsPlain(@params));
+        return state;
     }
 
     private static BattleStatusEffectState BuildStackingSourceStatusEffect(

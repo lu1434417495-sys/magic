@@ -78,11 +78,16 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         }
     }
 
-    private static GDictionary ProjectPlainPayload(
+    private static GodotProjectionLease<GDictionary> ProjectPlainPayloadLease(
         IReadOnlyDictionary<string, object> source,
         string ownerPath
     ) =>
-        RuntimePlainPayload.ProjectDictionary(source, ownerPath);
+        RuntimePlainPayload.ProjectDictionaryLease(
+            source,
+            ownerPath,
+            LifetimeDomain.Request,
+            ownerPath
+        );
 
     private static void PutPlainPayloadValue(
         Dictionary<string, object> target,
@@ -96,6 +101,22 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             return;
         }
         target[key] = RuntimePlainPayload.NormalizeVariant(value, $"{ownerPath}.{key}");
+    }
+
+    private static string PlainPayloadString(
+        IReadOnlyDictionary<string, object> payload,
+        string key,
+        string fallback = ""
+    )
+    {
+        if (payload == null || !payload.TryGetValue(key, out object value))
+            return fallback ?? "";
+        return value switch
+        {
+            string text => text,
+            StringName name => name.ToString(),
+            _ => fallback ?? "",
+        };
     }
 
     private sealed class BattleFinalizationRollbackState
@@ -235,22 +256,6 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         set => _battle_selection_state.selected_skill_variant_id = value;
     }
 
-    internal GVector2IArray _queued_battle_skill_target_coords
-    {
-        get => ToVector2IArray(_battle_selection_state.queued_target_coords);
-        set => _battle_selection_state.SetTargetCoords(
-            value != null ? value : Array.Empty<Vector2I>()
-        );
-    }
-
-    internal GStringNameArray _queued_battle_skill_target_unit_ids
-    {
-        get => ToStringNameArray(_battle_selection_state.queued_target_unit_ids);
-        set => _battle_selection_state.SetTargetUnitIds(
-            value != null ? value : Array.Empty<StringName>()
-        );
-    }
-
     public StringName _last_manual_battle_unit_id
     {
         get => _battle_selection_state.last_manual_unit_id;
@@ -279,9 +284,9 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         if (_generation_definition == null)
             return;
 
-        _world_map_data_context.BindRootWorldData(
-            _game_session.GetWorldData()
-        );
+        using GodotProjectionLease<GDictionary> worldDataLease =
+            _game_session.GetWorldDataLease();
+        _world_map_data_context.BindRootWorldData(worldDataLease.Value);
         RebuildWildEncounterRosterDefinitionIndex(
             _content_catalog.GetEncounterRosterDefinitions()
         );
@@ -378,8 +383,8 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         {
             ActivateGameOver(BuildMainCharacterGameOverContext());
             UpdateStatusInternal(
-                DictString(
-                    GetGameOverContext(),
+                PlainPayloadString(
+                    GetGameOverContextSnapshotPlain(),
                     "description",
                     "主角已阵亡，本次旅程结束。"
                 )
@@ -502,8 +507,11 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
 
     public RuntimeModalKind GetActiveModalKind() => _active_modal_kind;
 
-    public GDictionary GetGameOverContext() =>
-        ProjectPlainPayload(_active_game_over_context, "GameRuntimeFacade.game_over_context");
+    internal GodotProjectionLease<GDictionary> GetGameOverContextLease() =>
+        ProjectPlainPayloadLease(
+            _active_game_over_context,
+            "GameRuntimeFacade.game_over_context"
+        );
 
     public IReadOnlyDictionary<string, object> GetGameOverContextSnapshotPlain() =>
         RuntimePlainPayload.CloneDictionary(_active_game_over_context);
@@ -537,8 +545,8 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         };
     }
 
-    public GDictionary GetPendingBattleStartPrompt() =>
-        ProjectPlainPayload(
+    internal GodotProjectionLease<GDictionary> GetPendingBattleStartPromptLease() =>
+        ProjectPlainPayloadLease(
             _pending_battle_start_prompt,
             "GameRuntimeFacade.pending_battle_start_prompt"
         );
@@ -550,38 +558,14 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
 
     public int GetWorldStep() => _world_map_data_context.GetWorldStep();
 
-    public GDictionary GetSelectedSettlement()
-    {
-        var settlement = _get_settlement_at(_selected_coord);
-        return settlement.Count > 0
-            ? RuntimePayloadCopy.Dictionary(settlement, "GameRuntimeFacade.GetSelectedSettlement")
-            : new GDictionary();
-    }
-
     public WorldMapSettlementData GetSelectedSettlementData() =>
         _world_map_data_context.GetSettlementAt(_selected_coord);
-
-    public GDictionary GetSelectedWorldNpc()
-    {
-        var npc = _get_world_npc_at(_selected_coord);
-        return npc.Count > 0
-            ? RuntimePayloadCopy.Dictionary(npc, "GameRuntimeFacade.GetSelectedWorldNpc")
-            : new GDictionary();
-    }
 
     public WorldMapNpcData GetSelectedWorldNpcData() =>
         _world_map_data_context.GetWorldNpcAt(_selected_coord);
 
     public EncounterAnchorData GetSelectedEncounterAnchor() =>
         _get_encounter_anchor_at(_selected_coord);
-
-    public GDictionary GetSelectedWorldEvent()
-    {
-        var worldEvent = _get_world_event_at(_selected_coord);
-        return worldEvent.Count > 0
-            ? RuntimePayloadCopy.Dictionary(worldEvent, "GameRuntimeFacade.GetSelectedWorldEvent")
-            : new GDictionary();
-    }
 
     public WorldMapEventData GetSelectedWorldEventData() =>
         _world_map_data_context.GetWorldEventAt(_selected_coord);
@@ -770,7 +754,11 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         return _fog_system.IsVisible(coord, factionId);
     }
 
-    public GDictionary GetWorldData() => _world_map_data_context.GetActiveWorldData();
+    internal GodotProjectionLease<GDictionary> GetWorldDataLease() =>
+        _world_map_data_context.GetActiveWorldDataLease();
+
+    public IReadOnlyDictionary<string, object> GetWorldDataSnapshotPlain() =>
+        _world_map_data_context.GetActiveWorldDataSnapshotPlain();
 
     // Typed handle to the already-parsed active world data, so the world-map view
     // can render without round-tripping through ToDictionary/FromDictionary.
@@ -827,10 +815,17 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             ? _character_management.GetCompletedQuestIds()
             : new GStringNameArray();
 
-    public GDictionary GetMemberAchievementSummary(StringName member_id) =>
+    internal GodotProjectionLease<GDictionary> GetMemberAchievementSummaryLease(
+        StringName member_id
+    ) =>
         _character_management != null
-            ? _character_management.GetMemberAchievementSummary(member_id)
-            : new GDictionary();
+            ? _character_management.GetMemberAchievementSummaryLease(member_id)
+            : RuntimePlainPayload.ProjectDictionaryLease(
+                new Dictionary<string, object>(StringComparer.Ordinal),
+                "GameRuntimeFacade.GetMemberAchievementSummary",
+                LifetimeDomain.Request,
+                "GameRuntimeFacade.GetMemberAchievementSummary"
+            );
 
     public IReadOnlyDictionary<string, object> GetMemberAchievementSummarySnapshotPlain(
         StringName member_id
@@ -905,14 +900,14 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     internal void SetSettlementFeedbackText(string feedback_text) =>
         _active_settlement_feedback_text = feedback_text;
 
-    internal GDictionary GetSettlementRecord(string settlement_id) =>
-        _world_map_data_context.GetSettlementRecord(settlement_id);
+    internal GodotProjectionLease<GDictionary> GetSettlementRecordLease(string settlement_id) =>
+        _world_map_data_context.GetSettlementRecordLease(settlement_id);
 
-    internal GArray GetAllSettlementRecords() =>
-        UntypedDictionaryArray(_world_map_data_context.GetAllSettlementRecords());
+    internal GodotProjectionLease<GArray> GetAllSettlementRecordsLease() =>
+        _world_map_data_context.GetAllSettlementRecordsLease();
 
-    public GDictionary GetCharacterInfoContext() =>
-        ProjectPlainPayload(
+    internal GodotProjectionLease<GDictionary> GetCharacterInfoContextLease() =>
+        ProjectPlainPayloadLease(
             _active_character_info_context,
             "GameRuntimeFacade.active_character_info_context"
         );
@@ -925,25 +920,23 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     internal void SetActiveWarehouseEntryLabel(string entry_label) =>
         _active_warehouse_entry_label = entry_label;
 
-    public GDictionary GetShopWindowData() => _settlement_command_handler.GetShopWindowData();
+    internal GodotProjectionLease<GDictionary> GetShopWindowDataLease() =>
+        _settlement_command_handler.GetShopWindowDataLease();
 
     public IReadOnlyDictionary<string, object> GetShopWindowDataSnapshotPlain() =>
         _settlement_command_handler.GetShopWindowDataSnapshotPlain();
 
-    public GDictionary GetContractBoardWindowData() =>
-        _settlement_command_handler.GetContractBoardWindowData();
+    internal GodotProjectionLease<GDictionary> GetContractBoardWindowDataLease() =>
+        _settlement_command_handler.GetContractBoardWindowDataLease();
 
     public IReadOnlyDictionary<string, object> GetContractBoardWindowDataSnapshotPlain() =>
         _settlement_command_handler.GetContractBoardWindowDataSnapshotPlain();
 
-    public GDictionary GetNpcQuestOfferWindowData() =>
-        _settlement_command_handler.GetNpcQuestOfferWindowData();
-
     public IReadOnlyDictionary<string, object> GetNpcQuestOfferWindowDataSnapshotPlain() =>
         _settlement_command_handler.GetNpcQuestOfferWindowDataSnapshotPlain();
 
-    public GDictionary GetForgeWindowData() =>
-        _settlement_command_handler.GetForgeWindowData();
+    internal GodotProjectionLease<GDictionary> GetForgeWindowDataLease() =>
+        _settlement_command_handler.GetForgeWindowDataLease();
 
     public IReadOnlyDictionary<string, object> GetForgeWindowDataSnapshotPlain() =>
         _settlement_command_handler.GetForgeWindowDataSnapshotPlain();
@@ -979,8 +972,8 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
 
     internal void ClearActiveForgeContext() => _active_forge_context.Clear();
 
-    public GDictionary GetActiveContractBoardContext() =>
-        ProjectPlainPayload(
+    internal GodotProjectionLease<GDictionary> GetActiveContractBoardContextLease() =>
+        ProjectPlainPayloadLease(
             _active_contract_board_context,
             "GameRuntimeFacade.active_contract_board_context"
         );
@@ -988,23 +981,26 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     internal IReadOnlyDictionary<string, object> GetActiveContractBoardContextPlain() =>
         RuntimePlainPayload.CloneDictionary(_active_contract_board_context);
 
-    public GDictionary GetActiveNpcQuestOfferContext() =>
-        _active_npc_quest_offer_data?.ToDictionary() ?? new GDictionary();
-
-    public GDictionary GetActiveShopContext() =>
-        ProjectPlainPayload(_active_shop_context, "GameRuntimeFacade.active_shop_context");
+    internal GodotProjectionLease<GDictionary> GetActiveShopContextLease() =>
+        ProjectPlainPayloadLease(
+            _active_shop_context,
+            "GameRuntimeFacade.active_shop_context"
+        );
 
     internal IReadOnlyDictionary<string, object> GetActiveShopContextPlain() =>
         RuntimePlainPayload.CloneDictionary(_active_shop_context);
 
-    public GDictionary GetActiveForgeContext() =>
-        ProjectPlainPayload(_active_forge_context, "GameRuntimeFacade.active_forge_context");
+    internal GodotProjectionLease<GDictionary> GetActiveForgeContextLease() =>
+        ProjectPlainPayloadLease(
+            _active_forge_context,
+            "GameRuntimeFacade.active_forge_context"
+        );
 
     internal IReadOnlyDictionary<string, object> GetActiveForgeContextPlain() =>
         RuntimePlainPayload.CloneDictionary(_active_forge_context);
 
-    public GDictionary GetStagecoachWindowData() =>
-        _settlement_command_handler.GetStagecoachWindowData();
+    internal GodotProjectionLease<GDictionary> GetStagecoachWindowDataLease() =>
+        _settlement_command_handler.GetStagecoachWindowDataLease();
 
     public IReadOnlyDictionary<string, object> GetStagecoachWindowDataSnapshotPlain() =>
         _settlement_command_handler.GetStagecoachWindowDataSnapshotPlain();
@@ -1018,8 +1014,8 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
 
     internal void ClearActiveStagecoachContext() => _active_stagecoach_context.Clear();
 
-    public GDictionary GetActiveStagecoachContext() =>
-        ProjectPlainPayload(
+    internal GodotProjectionLease<GDictionary> GetActiveStagecoachContextLease() =>
+        ProjectPlainPayloadLease(
             _active_stagecoach_context,
             "GameRuntimeFacade.active_stagecoach_context"
         );
@@ -1113,23 +1109,11 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     internal void SetBattleSelectionLastManualUnitId(StringName unit_id) =>
         _last_manual_battle_unit_id = unit_id;
 
-    internal GVector2IArray GetBattleSelectionTargetCoordsState() =>
-        _queued_battle_skill_target_coords;
-
-    internal void SetBattleSelectionTargetCoordsState(GVector2IArray target_coords) =>
-        _queued_battle_skill_target_coords = target_coords;
-
     internal IReadOnlyList<Vector2I> GetBattleSelectionTargetCoordsStateTyped() =>
         _battle_selection_state.queued_target_coords;
 
     internal void SetBattleSelectionTargetCoordsStateTyped(IEnumerable<Vector2I> targetCoords) =>
         _battle_selection_state.SetTargetCoords(targetCoords ?? Array.Empty<Vector2I>());
-
-    internal GStringNameArray GetBattleSelectionTargetUnitIdsState() =>
-        _queued_battle_skill_target_unit_ids;
-
-    internal void SetBattleSelectionTargetUnitIdsState(GStringNameArray target_unit_ids) =>
-        _queued_battle_skill_target_unit_ids = target_unit_ids;
 
     internal IReadOnlyList<StringName> GetBattleSelectionTargetUnitIdsStateTyped() =>
         _battle_selection_state.queued_target_unit_ids;
@@ -1218,10 +1202,10 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     public string GetSelectedBattleSkillVariantName() =>
         _battle_session_facade.GetSelectedBattleSkillVariantName();
 
-    public GVector2IArray GetSelectedBattleSkillTargetCoords() =>
+    public IReadOnlyList<Vector2I> GetSelectedBattleSkillTargetCoords() =>
         _battle_session_facade.GetSelectedBattleSkillTargetCoords();
 
-    public GStringNameArray GetSelectedBattleSkillTargetUnitIds() =>
+    public IReadOnlyList<StringName> GetSelectedBattleSkillTargetUnitIds() =>
         _battle_session_facade.GetSelectedBattleSkillTargetUnitIds();
 
     public IReadOnlyList<Vector2I> GetSelectedBattleSkillTargetCoordsSnapshotPlain() =>
@@ -1230,13 +1214,13 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     public IReadOnlyList<StringName> GetSelectedBattleSkillTargetUnitIdsSnapshotPlain() =>
         _battle_session_facade.GetSelectedBattleSkillTargetUnitIdsSnapshotPlain();
 
-    public GVector2IArray GetSelectedBattleSkillValidTargetCoords() =>
+    public IReadOnlyList<Vector2I> GetSelectedBattleSkillValidTargetCoords() =>
         _battle_session_facade.GetSelectedBattleSkillValidTargetCoords();
 
-    public GVector2IArray GetBattleMovementReachableCoords() =>
+    public IReadOnlyList<Vector2I> GetBattleMovementReachableCoords() =>
         _battle_session_facade.GetBattleMovementReachableCoords();
 
-    public GVector2IArray GetBattleOverlayTargetCoords() =>
+    public IReadOnlyList<Vector2I> GetBattleOverlayTargetCoords() =>
         _battle_session_facade.GetBattleOverlayTargetCoords();
 
     public int GetSelectedBattleSkillRequiredCoordCount() =>
@@ -1257,8 +1241,8 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     public IReadOnlyDictionary<string, int> GetBattleTerrainCountsSnapshotTyped() =>
         _battle_session_facade.GetBattleTerrainCountsSnapshotTyped();
 
-    public GDictionary GetLastBattleLootSnapshot() =>
-        ProjectPlainPayload(
+    internal GodotProjectionLease<GDictionary> GetLastBattleLootSnapshotLease() =>
+        ProjectPlainPayloadLease(
             _last_battle_loot_snapshot,
             "GameRuntimeFacade.last_battle_loot_snapshot"
         );
@@ -1274,10 +1258,15 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     public int GetPendingRewardCount() =>
         _party_state != null ? _party_state.pending_character_rewards.Count : 0;
 
-    public GDictionary GetCurrentPromotionPrompt() =>
+    internal GodotProjectionLease<GDictionary> GetCurrentPromotionPromptLease() =>
         _reward_flow_handler != null
-            ? _reward_flow_handler.GetCurrentPromotionPrompt()
-            : new GDictionary();
+            ? _reward_flow_handler.GetCurrentPromotionPromptLease()
+            : RuntimePlainPayload.ProjectDictionaryLease(
+                new Dictionary<string, object>(StringComparer.Ordinal),
+                "GameRuntimeFacade.current_promotion_prompt",
+                LifetimeDomain.Request,
+                "GameRuntimeFacade.current_promotion_prompt"
+            );
 
     public IReadOnlyDictionary<string, object> GetCurrentPromotionPromptSnapshotPlain()
     {
@@ -1286,38 +1275,34 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         return RuntimePlainPayload.CloneDictionary(_pending_world_promotion_prompt);
     }
 
-    internal GDictionary GetPendingPromotionPrompt() =>
-        ProjectPlainPayload(
+    internal GodotProjectionLease<GDictionary> GetPendingPromotionPromptLease() =>
+        ProjectPlainPayloadLease(
             _pending_promotion_prompt,
             "GameRuntimeFacade.pending_promotion_prompt"
         );
 
-    internal GDictionary GetPendingWorldPromotionPromptState() =>
-        ProjectPlainPayload(
+    internal bool HasPendingPromotionPrompt() => _pending_promotion_prompt.Count > 0;
+
+    internal GodotProjectionLease<GDictionary> GetPendingWorldPromotionPromptStateLease() =>
+        ProjectPlainPayloadLease(
             _pending_world_promotion_prompt,
             "GameRuntimeFacade.pending_world_promotion_prompt"
         );
+
+    internal bool HasPendingWorldPromotionPrompt() =>
+        _pending_world_promotion_prompt.Count > 0;
 
 
     public bool IsModalWindowOpen() => IsModalWindowOpenInternal();
 
     internal void SetRuntimeBattleState(BattleState state)
     {
-        if (!ReferenceEquals(_battle_state, state))
-            RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-                _battle_state,
-                "GameRuntimeFacade.SetRuntimeBattleState.replace"
-            );
         _battle_state = state;
         _battle_auto_tick_remainder_msec = 0;
     }
 
     private void ClearRuntimeBattleStateReference()
     {
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-            _battle_state,
-            "GameRuntimeFacade.ClearRuntimeBattleStateReference"
-        );
         _battle_state = null;
     }
 
@@ -1571,8 +1556,8 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     internal bool SetActiveSettlementState(string settlement_id, GDictionary settlement_state) =>
         _world_map_data_context.SetActiveSettlementState(settlement_id, settlement_state);
 
-    internal GDictionary GetSettlementState(string settlement_id) =>
-        _world_map_data_context.GetSettlementState(settlement_id);
+    internal GodotProjectionLease<GDictionary> GetSettlementStateLease(string settlement_id) =>
+        _world_map_data_context.GetSettlementStateLease(settlement_id);
 
     internal WorldMapSettlementStateData GetSettlementStateData(string settlement_id) =>
         _world_map_data_context.GetSettlementStateData(settlement_id);
@@ -1677,7 +1662,9 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     // deferring the per-move SetWorldData never persists stale world state.
     private int _flush_game_state_with_world_sync()
     {
-        _game_session.SetWorldData(_world_map_data_context.root_world_data);
+        using GodotProjectionLease<GDictionary> rootWorldDataLease =
+            _world_map_data_context.GetRootWorldDataLease();
+        _game_session.SetWorldData(rootWorldDataLease.Value);
         return _game_session.FlushGameState();
     }
 
@@ -1922,10 +1909,13 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             return BuildCommandErrorResult("采集失败：无法更新采集点状态。");
         }
 
-        int worldPersistError =
-            _game_session != null
-                ? _game_session.SetWorldData(_world_map_data_context.root_world_data)
-                : (int)Error.Unavailable;
+        int worldPersistError = (int)Error.Unavailable;
+        if (_game_session != null)
+        {
+            using GodotProjectionLease<GDictionary> rootWorldDataLease =
+                _world_map_data_context.GetRootWorldDataLease();
+            worldPersistError = _game_session.SetWorldData(rootWorldDataLease.Value);
+        }
         int partyPersistError = PersistPartyStateInternal();
         int commitError = (int)Error.Ok;
         if (worldPersistError == (int)Error.Ok && partyPersistError == (int)Error.Ok)
@@ -1971,6 +1961,8 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             return false;
         string displayName = npc.DisplayName;
         string factionLabel = FormatFactionLabel(npc.FactionId);
+        using GodotProjectionLease<GDictionary> npcLease =
+            WorldMapDataProjection.ProjectLease(npc);
         ReplacePlainPayload(
             _active_character_info_context,
             new GDictionary
@@ -1978,7 +1970,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
                 ["display_name"] = displayName,
                 ["meta_label"] = _build_character_info_meta_label("世界 NPC", factionLabel, coord),
                 ["sections"] = _build_world_character_info_sections(
-                    WorldMapDataProjection.Project(npc),
+                    npcLease.Value,
                     coord,
                     factionLabel
                 ),
@@ -2084,20 +2076,6 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
 
     private int _get_battle_unit_attribute_value(BattleUnitState unit, StringName attribute_id) =>
         _character_info_builder.GetBattleUnitAttributeValue(unit, attribute_id);
-
-    private GDictionary _get_settlement_at(Vector2I coord)
-    {
-        WorldMapSettlementData settlement = _world_map_data_context.GetSettlementAt(coord);
-        return settlement != null && !settlement.IsEmpty
-            ? _world_map_data_context.GetSettlementRecord(settlement.SettlementId)
-            : new GDictionary();
-    }
-
-    private GDictionary _get_world_npc_at(Vector2I coord)
-    {
-        WorldMapNpcData npc = _world_map_data_context.GetWorldNpcAt(coord);
-        return WorldMapDataProjection.Project(npc);
-    }
 
     private EncounterAnchorData _get_encounter_anchor_at(Vector2I coord) =>
         _world_map_data_context.GetEncounterAnchorAt(coord);
@@ -2401,7 +2379,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             () =>
             {
                 _save_active_fog_state_to_world_data();
-                return _world_map_data_context.root_world_data;
+                return _world_map_data_context.RootRuntimeData;
             },
             () => _player_coord
         );

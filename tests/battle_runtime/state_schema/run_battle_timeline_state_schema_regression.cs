@@ -132,7 +132,11 @@ public partial class run_battle_timeline_state_schema_regression : LifecycleTest
         return payload;
     }
 
-    private void AssertStringNameArrayEq(GStringNameArray actual, IReadOnlyList<string> expected, string message)
+    private void AssertStringNameArrayEq(
+        IReadOnlyList<StringName> actual,
+        IReadOnlyList<string> expected,
+        string message
+    )
     {
         if (actual == null || actual.Count != expected.Count)
         {
@@ -149,7 +153,7 @@ public partial class run_battle_timeline_state_schema_regression : LifecycleTest
         }
     }
 
-    private static string FormatStringNameArray(GStringNameArray values)
+    private static string FormatStringNameArray(IReadOnlyList<StringName> values)
     {
         if (values == null)
         {

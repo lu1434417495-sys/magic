@@ -4,31 +4,47 @@ using GDictionary = Godot.Collections.Dictionary;
 
 internal static class RuntimePayloadCopy
 {
-    internal static GDictionary Dictionary(GDictionary source, string reason)
-    {
-        GDictionary result = source != null ? (GDictionary)source.Duplicate(true) : new GDictionary();
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, reason);
-        return result;
-    }
+    internal static GDictionary DictionaryInto<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        GDictionary source,
+        string reason
+    )
+        where TLeaseRoot : class, System.IDisposable =>
+        RuntimePlainPayload.ProjectDictionaryInto(
+            lease,
+            RuntimePlainPayload.NormalizeDictionary(source, reason),
+            reason
+        );
 
-    internal static GArray Array(GArray source, string reason)
-    {
-        GArray result = source != null ? source.Duplicate(true) : new GArray();
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, reason);
-        return result;
-    }
+    internal static GArray ArrayInto<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        GArray source,
+        string reason
+    )
+        where TLeaseRoot : class, System.IDisposable =>
+        RuntimePlainPayload.ProjectArrayInto(
+            lease,
+            RuntimePlainPayload.NormalizeArray(source, reason),
+            reason
+        );
 
-    internal static Variant CopyVariant(Variant value, string reason)
+    internal static Variant CopyVariantInto<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        Variant value,
+        string reason
+    )
+        where TLeaseRoot : class, System.IDisposable
     {
-        Variant result = value.VariantType switch
+        if (value.VariantType == Godot.Variant.Type.Dictionary)
         {
-            Godot.Variant.Type.Dictionary => Godot.Variant.From(
-                Dictionary(value.AsGodotDictionary(), reason)
-            ),
-            Godot.Variant.Type.Array => Godot.Variant.From(Array(value.AsGodotArray(), reason)),
-            _ => value,
-        };
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, reason);
-        return result;
+            using GDictionary source = value.AsGodotDictionary();
+            return Godot.Variant.From(DictionaryInto(lease, source, reason));
+        }
+        if (value.VariantType == Godot.Variant.Type.Array)
+        {
+            using GArray source = value.AsGodotArray();
+            return Godot.Variant.From(ArrayInto(lease, source, reason));
+        }
+        return value;
     }
 }

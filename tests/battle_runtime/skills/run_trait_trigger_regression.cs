@@ -44,13 +44,15 @@ public partial class run_trait_trigger_regression : LifecycleTestSceneTree
         CombatEffectDefinition effect = MakeDamageEffect(5, false);
         var attackContext = new AttackContext(new[] { 1, 20 });
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveAttackEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveAttackEffects(
             source,
             target,
             new[] { effect },
             new AttackCheckInput(requiredRoll: 99, displayRequiredRoll: 20, hitRatePercent: 5),
             attackContext
         ));
+        GDictionary result = resultLease.Value;
 
         _test.True(
             DictBool(result, "attack_success", false),
@@ -94,12 +96,14 @@ public partial class run_trait_trigger_regression : LifecycleTestSceneTree
         BattleUnitState target = BuildUnit("savage_target", "enemy", 100);
         CombatEffectDefinition effect = MakeDamageEffect(0, true);
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
             new[] { effect },
             DamageResolutionContext.FromDictionary(new GDictionary { ["critical_hit"] = true })
         ));
+        GDictionary result = resultLease.Value;
         GDictionary damageEvent = FirstDamageEvent(result);
 
         _test.Eq(
@@ -137,7 +141,11 @@ public partial class run_trait_trigger_regression : LifecycleTestSceneTree
         SetStatus(target, "death_ward");
         CombatEffectDefinition effect = MakeDamageEffect(99, false);
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { effect }));
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(source, target, new[] { effect })
+            );
+        GDictionary result = resultLease.Value;
         _test.Eq(target.current_hp, 1, "relentless_endurance should clamp fatal damage to 1 HP.");
         _test.True(target.is_alive, "relentless_endurance should keep the target alive.");
         _test.True(
@@ -150,7 +158,11 @@ public partial class run_trait_trigger_regression : LifecycleTestSceneTree
             "fatal damage event should record relentless_endurance."
         );
 
-        GDictionary secondResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { effect }));
+        using GodotProjectionLease<GDictionary> secondResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(source, target, new[] { effect })
+            );
+        GDictionary secondResult = secondResultLease.Value;
         _test.Eq(
             target.current_hp,
             0,

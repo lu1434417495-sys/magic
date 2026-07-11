@@ -366,39 +366,6 @@ public partial class SettlementWindow : Control
         );
     }
 
-    private GDictionary _build_service_payload(ResolvedService service)
-    {
-        GDictionary payload = RuntimePlainPayload.ProjectDictionary(
-            service.Payload,
-            "SettlementWindow.ResolvedService.Payload"
-        );
-        payload["settlement_id"] = _settlementId;
-        payload["member_id"] = _selectedMemberId.ToString();
-        payload["default_member_id"] = _selectedMemberId.ToString();
-        payload["state_summary_text"] = _windowData.StateSummaryText;
-        payload["summary_text"] = service.SummaryText;
-        payload["details_text"] = _build_service_detail_text(service);
-        payload["submission_source"] = SettlementSubmissionSources.ToPayloadValue(
-            SettlementSubmissionSource.Settlement
-        );
-        string panelKindText = SettlementPanelKinds.ToPayloadValue(service.PanelKind);
-        if (!string.IsNullOrEmpty(panelKindText))
-            payload["panel_kind"] = panelKindText;
-        return payload;
-    }
-
-    public GDictionary _resolve_service_for_selected_member(GDictionary service)
-    {
-        ServiceEntry entry = ServiceEntry.From(service);
-        if (entry == null)
-            return new GDictionary();
-        ResolvedService resolved = ResolveServiceForSelectedMember(entry);
-        return RuntimePlainPayload.ProjectDictionary(
-            resolved.Payload,
-            "SettlementWindow.ResolveServiceForSelectedMember.Payload"
-        );
-    }
-
     private ResolvedService ResolveServiceForSelectedMember(ServiceEntry service)
     {
         ResolvedService resolved = service.ToResolved();

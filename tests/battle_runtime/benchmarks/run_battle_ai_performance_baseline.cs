@@ -433,7 +433,8 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
             }
 
             AiTraceRecorder.SetInstance(null);
-            GDictionary stats = recorder?.GetFuncStats() ?? new GDictionary();
+            using GodotProjectionLease<GDictionary> statsLease = recorder?.GetFuncStatsLease();
+            GDictionary stats = statsLease?.Value;
             return new RunResult
             {
                 ChooseStats = ExtractStats(stats, "advance:choose_command"),

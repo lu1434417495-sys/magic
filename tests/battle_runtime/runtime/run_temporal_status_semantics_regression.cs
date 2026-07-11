@@ -268,7 +268,7 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
             "params.save_bonus_by_tag 应在状态构造边界投成 typed save_bonus_by_tag。"
         );
         _test.False(
-            statusEntry.@params.ContainsKey("save_bonus_by_tag"),
+            statusEntry.ParamsSnapshotPlain.ContainsKey("save_bonus_by_tag"),
             "save_bonus_by_tag formal key 不应滞留在 owner 内部 @params。"
         );
 

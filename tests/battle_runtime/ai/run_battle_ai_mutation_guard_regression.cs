@@ -7,7 +7,6 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 public partial class run_battle_ai_mutation_guard_regression : LifecycleTestSceneTree
 {
@@ -182,7 +181,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("other_coord"));
         Vector2I beforeCoord = fixture.Hero.coord;
-        GVector2IArray beforeOccupied = DuplicateVector2IArray(fixture.Hero.occupied_coords);
+        List<Vector2I> beforeOccupied = DuplicateVector2IArray(fixture.Hero.occupied_coords);
 
         BattleAiMutationViolationException exception = CaptureMutationViolation(
             () => Choose(fixture),
@@ -823,10 +822,10 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         return result;
     }
 
-    private static GVector2IArray DuplicateVector2IArray(GVector2IArray source)
+    private static List<Vector2I> DuplicateVector2IArray(IEnumerable<Vector2I> source)
     {
-        var result = new GVector2IArray();
-        foreach (Vector2I value in source ?? new GVector2IArray())
+        var result = new List<Vector2I>();
+        foreach (Vector2I value in source ?? Array.Empty<Vector2I>())
         {
             result.Add(value);
         }
@@ -840,8 +839,8 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         || type.FullName == "Godot.Collections.Array";
 
     private void AssertVector2IArrayEq(
-        GVector2IArray actual,
-        GVector2IArray expected,
+        IReadOnlyList<Vector2I> actual,
+        IReadOnlyList<Vector2I> expected,
         string message
     )
     {
@@ -867,8 +866,8 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
     private static string FormatStringArray(GStringArray values) =>
         "[" + string.Join(", ", values ?? new GStringArray()) + "]";
 
-    private static string FormatVector2IArray(GVector2IArray values) =>
-        "[" + string.Join(", ", values ?? new GVector2IArray()) + "]";
+    private static string FormatVector2IArray(IEnumerable<Vector2I> values) =>
+        "[" + string.Join(", ", values ?? Array.Empty<Vector2I>()) + "]";
 
     private sealed class Fixture : IDisposable
     {

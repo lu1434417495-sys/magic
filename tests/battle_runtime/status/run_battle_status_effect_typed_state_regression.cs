@@ -22,15 +22,16 @@ public partial class run_battle_status_effect_typed_state_regression : Lifecycle
 
     private void TestCollectionRejectsMalformedPayloads()
     {
+        using GDictionary malformed = new() { ["burning"] = "bad" };
         ExpectArgumentException(
-            () => BattleStatusEffectCollection.FromDictionary(new GDictionary { ["burning"] = "bad" }),
+            () => BattleStatusEffectCollection.FromDictionary(malformed),
             "status_effects value that is not a dictionary must be rejected at the collection boundary."
         );
 
+        using GDictionary mismatchedStatus = ValidStatusPayload("slow");
+        using GDictionary mismatched = new() { ["burning"] = mismatchedStatus };
         ExpectArgumentException(
-            () => BattleStatusEffectCollection.FromDictionary(
-                new GDictionary { ["burning"] = ValidStatusPayload("slow") }
-            ),
+            () => BattleStatusEffectCollection.FromDictionary(mismatched),
             "status_effects key/payload status_id mismatch must be rejected at the collection boundary."
         );
     }
@@ -47,8 +48,13 @@ public partial class run_battle_status_effect_typed_state_regression : Lifecycle
             duration = 10,
         });
 
-        BattleStatusEffectCollection restored =
-            BattleStatusEffectCollection.FromDictionary(collection.ToDictionary());
+        using GodotProjectionLease<GDictionary> collectionLease = collection.ToDictionaryLease(
+            LifetimeDomain.Request,
+            "battle-status-effect-typed-state-roundtrip"
+        );
+        BattleStatusEffectCollection restored = BattleStatusEffectCollection.FromDictionary(
+            collectionLease.Value
+        );
         BattleStatusEffectState status = restored.Get("burning");
 
         _test.True(status != null, "valid status should roundtrip through typed collection.");
@@ -62,15 +68,27 @@ public partial class run_battle_status_effect_typed_state_regression : Lifecycle
     {
         var unit = new BattleUnitState { unit_id = "projection_unit" };
 
-        GDictionary projectedStatusEffects = StatusProjection(unit);
-        projectedStatusEffects["burning"] = ValidStatusPayload("burning");
+        using GodotProjectionLease<GDictionary> firstLease = unit.ToDictionaryLease(
+            LifetimeDomain.Request,
+            "battle-status-effect-projection-first"
+        );
+        using GDictionary projectedStatusEffects = firstLease.Value["status_effects"]
+            .AsGodotDictionary();
+        using GDictionary injectedStatus = ValidStatusPayload("burning");
+        projectedStatusEffects["burning"] = injectedStatus;
 
         _test.True(
             unit.GetStatusEffect("burning") == null,
             "mutating the status_effects projection must not add live runtime status state."
         );
+        using GodotProjectionLease<GDictionary> secondLease = unit.ToDictionaryLease(
+            LifetimeDomain.Request,
+            "battle-status-effect-projection-second"
+        );
+        using GDictionary secondProjection = secondLease.Value["status_effects"]
+            .AsGodotDictionary();
         _test.False(
-            StatusProjection(unit).ContainsKey("burning"),
+            secondProjection.ContainsKey("burning"),
             "status_effects projection should not retain external projection mutations."
         );
 
@@ -81,14 +99,17 @@ public partial class run_battle_status_effect_typed_state_regression : Lifecycle
             power = 1,
             stacks = 1,
         });
+        using GodotProjectionLease<GDictionary> thirdLease = unit.ToDictionaryLease(
+            LifetimeDomain.Request,
+            "battle-status-effect-projection-third"
+        );
+        using GDictionary thirdProjection = thirdLease.Value["status_effects"]
+            .AsGodotDictionary();
         _test.True(
-            StatusProjection(unit).ContainsKey("burning"),
+            thirdProjection.ContainsKey("burning"),
             "typed SetStatusEffect should still be visible through the save/projection dictionary."
         );
     }
-
-    private GDictionary StatusProjection(BattleUnitState unit) =>
-        unit.ToDictionary()["status_effects"].AsGodotDictionary();
 
     private GDictionary ValidStatusPayload(string statusId) =>
         new()

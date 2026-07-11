@@ -132,7 +132,8 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
                 );
             _test.True(openResult.Ok, "pending save 回滚测试前置：应能打开驿站路线。");
 
-            int dirtyWorldError = fixture.GameSession.SetWorldData(runtime.GetWorldData());
+            using GodotProjectionLease<GDictionary> worldDataLease = runtime.GetWorldDataLease();
+            int dirtyWorldError = fixture.GameSession.SetWorldData(worldDataLease.Value);
             _test.Eq(
                 dirtyWorldError,
                 (int)Error.Ok,
@@ -148,7 +149,9 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
                 "pending save 回滚测试前置：battle save lock 应留下既有保存错误元数据。"
             );
             fixture.GameSession.SetBattleSaveLock(false);
-            GDictionary runtimeStateBefore = fixture.GameSession.CaptureRuntimeState();
+            using GodotProjectionLease<GDictionary> runtimeStateBeforeLease =
+                fixture.GameSession.CaptureRuntimeStateLease();
+            GDictionary runtimeStateBefore = runtimeStateBeforeLease.Value;
             _test.True(
                 fixture.GameSession.HasPendingSave(),
                 "pending save 回滚测试前置：命令开始前应存在既有 dirty session 状态。"
@@ -160,8 +163,10 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
                 handler.CommandStagecoachTravelTyped("graystone_town_01");
 
             _test.False(result.Ok, "已有 pending save 时驿站持久化失败也应返回失败。");
+            using GodotProjectionLease<GDictionary> runtimeStateAfterLease =
+                fixture.GameSession.CaptureRuntimeStateLease();
             AssertRuntimeSaveMetadataEqual(
-                fixture.GameSession.CaptureRuntimeState(),
+                runtimeStateAfterLease.Value,
                 runtimeStateBefore,
                 "已有 pending save 的驿站回滚后，session save metadata 应恢复到命令前状态。"
             );
@@ -366,7 +371,9 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
             runtime._party_state.SetActiveQuestState(warehouseQuest);
             runtime._character_management.SetPartyState(runtime._party_state);
 
-            GDictionary runtimeStateBefore = fixture.GameSession.CaptureRuntimeState();
+            using GodotProjectionLease<GDictionary> runtimeStateBeforeLease =
+                fixture.GameSession.CaptureRuntimeStateLease();
+            GDictionary runtimeStateBefore = runtimeStateBeforeLease.Value;
             fixture.GameSession.fail_payload_write = true;
 
             GameRuntimeFacade.RuntimeCommandResult result =
@@ -390,8 +397,10 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
                 "",
                 "仓储动作持久化失败后不应记录仓库入口标签。"
             );
+            using GodotProjectionLease<GDictionary> runtimeStateAfterLease =
+                fixture.GameSession.CaptureRuntimeStateLease();
             AssertRuntimeSaveMetadataEqual(
-                fixture.GameSession.CaptureRuntimeState(),
+                runtimeStateAfterLease.Value,
                 runtimeStateBefore,
                 "仓储动作持久化失败后，session save metadata 应恢复到命令前状态。"
             );

@@ -52,7 +52,9 @@ public partial class run_character_management_achievement_summary_regression : L
             zeroProgress
         );
 
-        GDictionary summary = manager.GetMemberAchievementSummary("hero");
+        using GodotProjectionLease<GDictionary> summaryLease =
+            manager.GetMemberAchievementSummaryLease("hero");
+        GDictionary summary = summaryLease.Value;
         _test.Eq(ReadInt(summary, "unlocked_count"), 2, "summary should count unlocked achievements.");
         _test.Eq(ReadInt(summary, "in_progress_count"), 4, "summary should count active progress only.");
         _test.Eq(

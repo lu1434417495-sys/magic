@@ -949,8 +949,11 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
             EnqueuePendingCharacterRewardsTyped(pending_character_rewards);
         return QuestClaimResultData.Success(
             gold_delta,
-            reward_preview.CloneItemRewards(),
-            _pending_character_rewards_to_dicts(pending_character_rewards)
+            reward_preview.CloneItemRewardsPlain(),
+            RuntimePlainPayload.NormalizeDictionaryArray(
+                _pending_character_rewards_to_dicts(pending_character_rewards),
+                "CharacterManagementModule.pending_character_rewards"
+            )
         );
     }
 
@@ -1820,9 +1823,13 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         return delta;
     }
 
-    public GDictionary GetMemberAchievementSummary(StringName member_id) =>
-        RuntimePlainPayload.ProjectDictionary(
+    internal GodotProjectionLease<GDictionary> GetMemberAchievementSummaryLease(
+        StringName member_id
+    ) =>
+        RuntimePlainPayload.ProjectDictionaryLease(
             GetMemberAchievementSummarySnapshotPlain(member_id),
+            "CharacterManagementModule.GetMemberAchievementSummary",
+            LifetimeDomain.Request,
             "CharacterManagementModule.GetMemberAchievementSummary"
         );
 

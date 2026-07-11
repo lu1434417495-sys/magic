@@ -52,9 +52,9 @@ public partial class BattleSimScenarioDef : Resource
     [Export]
     public int[] seeds { get; set; } = { 101 };
 
-    public Godot.Collections.Array<int> ResolveSeeds()
+    public IReadOnlyList<int> ResolveSeeds()
     {
-        var r = new Godot.Collections.Array<int>();
+        var r = new List<int>();
         foreach (int s in seeds)
             r.Add(s);
         if (r.Count == 0)
@@ -62,7 +62,7 @@ public partial class BattleSimScenarioDef : Resource
         return r;
     }
 
-    internal Godot.Collections.Dictionary BuildStartContext()
+    internal GodotProjectionLease<Godot.Collections.Dictionary> BuildStartContextLease()
     {
         List<BattleSimScenarioUnitEntry> allyEntries = BuildUnitEntries(
             ally_units,
@@ -76,27 +76,62 @@ public partial class BattleSimScenarioDef : Resource
             "hostile",
             "ai"
         );
-        var ctx = new Godot.Collections.Dictionary
+        var contextPlain = new Dictionary<string, object>(System.StringComparer.Ordinal)
         {
-            { "battle_party", ProjectUnitPayloads(allyEntries) },
-            { "enemy_units", ProjectUnitPayloads(enemyEntries) },
-            { "tu_per_tick", tu_per_tick },
-            { "battle_terrain_profile", terrain_profile_id },
-            { "world_coord", world_coord },
+            ["battle_party"] = BuildUnitPayloadsPlain(allyEntries),
+            ["enemy_units"] = BuildUnitPayloadsPlain(enemyEntries),
+            ["tu_per_tick"] = tu_per_tick,
+            ["battle_terrain_profile"] = terrain_profile_id,
+            ["world_coord"] = world_coord,
         };
 
         if (use_formal_terrain_generation)
         {
             if (map_size != Vector2I.Zero)
-                ctx["battle_map_size"] = map_size;
-            return ctx;
+                contextPlain["battle_map_size"] = map_size;
+            return RuntimePlainPayload.ProjectDictionaryLease(
+                contextPlain,
+                "battle-sim-scenario",
+                LifetimeDomain.Request,
+                "BattleSimScenarioDef.BuildStartContextLease"
+            );
         }
 
-        ctx["ally_spawns"] = ProjectSpawnCoords(allyEntries);
-        ctx["enemy_spawns"] = ProjectSpawnCoords(enemyEntries);
-        ctx["map_size"] = map_size;
-        ctx["cells"] = _build_cells();
-        return ctx;
+        contextPlain["ally_spawns"] = BuildSpawnCoordsPlain(allyEntries);
+        contextPlain["enemy_spawns"] = BuildSpawnCoordsPlain(enemyEntries);
+        contextPlain["map_size"] = map_size;
+        Dictionary<Vector2I, IReadOnlyDictionary<string, object>> cells = BuildCellsPlain();
+        GodotProjectionLease<Godot.Collections.Dictionary> lease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                contextPlain,
+                "battle-sim-scenario",
+                LifetimeDomain.Request,
+                "BattleSimScenarioDef.BuildStartContextLease"
+            );
+        try
+        {
+            var projectedCells = lease.Own(
+                new Godot.Collections.Dictionary(),
+                "BattleSimScenarioDef.BuildStartContextLease.cells"
+            );
+            foreach (
+                KeyValuePair<Vector2I, IReadOnlyDictionary<string, object>> entry in cells
+            )
+            {
+                projectedCells[entry.Key] = RuntimePlainPayload.ProjectDictionaryInto(
+                    lease,
+                    entry.Value,
+                    $"BattleSimScenarioDef.BuildStartContextLease.cells[{entry.Key}]"
+                );
+            }
+            lease.Value["cells"] = projectedCells;
+            return lease;
+        }
+        catch
+        {
+            lease.Dispose();
+            throw;
+        }
     }
 
     private static List<BattleSimScenarioUnitEntry> BuildUnitEntries(
@@ -126,27 +161,27 @@ public partial class BattleSimScenarioDef : Resource
         return entries;
     }
 
-    private static Godot.Collections.Array ProjectUnitPayloads(
+    private static List<object> BuildUnitPayloadsPlain(
         IReadOnlyList<BattleSimScenarioUnitEntry> unitEntries
     )
     {
-        var payloads = new Godot.Collections.Array();
+        var payloads = new List<object>();
         if (unitEntries == null)
             return payloads;
         foreach (BattleSimScenarioUnitEntry entry in unitEntries)
         {
             if (entry?.UnitState == null)
                 continue;
-            payloads.Add(entry.UnitState.ToDictionary());
+            payloads.Add(entry.UnitState.BuildSnapshotPlain());
         }
         return payloads;
     }
 
-    private static Godot.Collections.Array<Vector2I> ProjectSpawnCoords(
+    private static List<object> BuildSpawnCoordsPlain(
         IReadOnlyList<BattleSimScenarioUnitEntry> unitEntries
     )
     {
-        var coords = new Godot.Collections.Array<Vector2I>();
+        var coords = new List<object>();
         if (unitEntries == null)
             return coords;
         foreach (BattleSimScenarioUnitEntry entry in unitEntries)
@@ -158,9 +193,9 @@ public partial class BattleSimScenarioDef : Resource
         return coords;
     }
 
-    private Godot.Collections.Dictionary _build_cells()
+    private Dictionary<Vector2I, IReadOnlyDictionary<string, object>> BuildCellsPlain()
     {
-        var cells = new Godot.Collections.Dictionary();
+        var cells = new Dictionary<Vector2I, BattleCellState>();
 
         for (int y = 0; y < map_size.Y; y++)
         for (int x = 0; x < map_size.X; x++)
@@ -170,7 +205,7 @@ public partial class BattleSimScenarioDef : Resource
             cs.SetTerrain("land");
             cs.SetBaseHeight(4);
             cs.SetHeightOffset(0);
-            cells[cs.coord] = cs.ToDictionary();
+            cells[cs.coord] = cs;
         }
 
         foreach (var oe in cell_overrides)
@@ -179,16 +214,19 @@ public partial class BattleSimScenarioDef : Resource
             if (coord == new Vector2I(-1, -1))
                 continue;
             BattleCellState cs = null;
-            if (cells.ContainsKey(coord))
-                BattleCellState.TryReadCellPayload(cells[coord], out cs);
+            cells.TryGetValue(coord, out cs);
             cs ??= new BattleCellState();
             cs.SetCoord(coord);
             _apply_cell_override(cs, oe);
             cs.RecalculateRuntimeValues();
-            cells[coord] = cs.ToDictionary();
+            cells[coord] = cs;
         }
 
-        return cells;
+        var snapshots =
+            new Dictionary<Vector2I, IReadOnlyDictionary<string, object>>();
+        foreach (KeyValuePair<Vector2I, BattleCellState> entry in cells)
+            snapshots[entry.Key] = entry.Value.BuildSnapshotPlain();
+        return snapshots;
     }
 
     private static Vector2I _resolve_override_coord(Godot.Collections.Dictionary oe)

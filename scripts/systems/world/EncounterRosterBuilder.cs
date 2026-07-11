@@ -143,7 +143,7 @@ public sealed class EncounterRosterBuilder : IDisposable
         );
     }
 
-    internal GArray BuildEnemyUnitsTyped(
+    internal GodotProjectionLease<GArray> BuildEnemyUnitsLease(
         EncounterAnchorData encounterAnchor,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates,
@@ -155,7 +155,7 @@ public sealed class EncounterRosterBuilder : IDisposable
         int? enemyUnitCountOverride = null
     )
     {
-        return BuildEnemyUnitsFromDefinitionsTyped(
+        return BuildEnemyUnitsFromDefinitionsLease(
             encounterAnchor,
             skillDefinitions,
             enemyTemplates,
@@ -168,7 +168,7 @@ public sealed class EncounterRosterBuilder : IDisposable
         );
     }
 
-    internal GArray BuildEnemyUnitsFromDefinitionsTyped(
+    internal GodotProjectionLease<GArray> BuildEnemyUnitsFromDefinitionsLease(
         EncounterAnchorData encounterAnchor,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates,
@@ -192,7 +192,35 @@ public sealed class EncounterRosterBuilder : IDisposable
             enemyUnitCountOverride,
             allowSetupEnemyTemplateFallback: false
         );
-        return BuildEnemyUnitsWithContext(encounterAnchor, buildContext);
+        List<BattleUnitState> units = BuildEnemyUnitsWithContext(encounterAnchor, buildContext);
+        var root = new GArray();
+        GodotProjectionLease<GArray> lease = GodotProjectionLease<GArray>.CreateOwnedRoot(
+            root,
+            "EncounterRosterBuilder.enemy_units",
+            LifetimeDomain.Request,
+            "EncounterRosterBuilder.enemy_units"
+        );
+        try
+        {
+            foreach (BattleUnitState unit in units)
+            {
+                if (unit == null)
+                    continue;
+                root.Add(
+                    RuntimePlainPayload.ProjectDictionaryInto(
+                        lease,
+                        unit.BuildSnapshotPlain(),
+                        "EncounterRosterBuilder.enemy_unit"
+                    )
+                );
+            }
+            return lease;
+        }
+        catch
+        {
+            lease.Dispose();
+            throw;
+        }
     }
 
     internal IReadOnlyList<IReadOnlyDictionary<string, object>> BuildLootEntriesPlain(
@@ -509,14 +537,14 @@ public sealed class EncounterRosterBuilder : IDisposable
         );
     }
 
-    private GArray BuildProfileEnemyUnits(
+    private List<BattleUnitState> BuildProfileEnemyUnits(
         EncounterAnchorData encounterAnchor,
         WildEncounterRosterDefinition encounterRoster,
         EncounterBuildContextData buildContext,
         int nextUnitIndex
     )
     {
-        var enemyUnits = new GArray();
+        var enemyUnits = new List<BattleUnitState>();
         foreach (
             WildEncounterRosterUnitEntryDefinition unitEntry in encounterRoster.GetStageUnitEntries(
                 buildContext.GrowthStage
@@ -538,7 +566,7 @@ public sealed class EncounterRosterBuilder : IDisposable
                 continue;
             }
             int unitCount = Mathf.Max(unitEntry.Count, 1);
-            GArray builtUnits = BuildUnitsFromTemplate(
+            List<BattleUnitState> builtUnits = BuildUnitsFromTemplate(
                 encounterAnchor,
                 template,
                 buildContext,
@@ -548,10 +576,7 @@ public sealed class EncounterRosterBuilder : IDisposable
                 true
             );
             nextUnitIndex += builtUnits.Count;
-            foreach (BattleUnitState unit in BattleUnits(builtUnits))
-            {
-                enemyUnits.Add(unit.ToDictionary());
-            }
+            enemyUnits.AddRange(builtUnits);
         }
         if (enemyUnits.Count != 0)
         {
@@ -567,10 +592,10 @@ public sealed class EncounterRosterBuilder : IDisposable
             );
         }
         ReportMissingEnemyTemplate(encounterAnchor);
-        return new GArray();
+        return new List<BattleUnitState>();
     }
 
-    private GArray BuildTemplateEnemyUnits(
+    private List<BattleUnitState> BuildTemplateEnemyUnits(
         EncounterAnchorData encounterAnchor,
         EnemyTemplateDefinition template,
         EncounterBuildContextData buildContext
@@ -600,7 +625,7 @@ public sealed class EncounterRosterBuilder : IDisposable
         );
     }
 
-    private GArray BuildUnitsFromTemplate(
+    private List<BattleUnitState> BuildUnitsFromTemplate(
         EncounterAnchorData encounterAnchor,
         EnemyTemplateDefinition template,
         EncounterBuildContextData buildContext,
@@ -610,7 +635,7 @@ public sealed class EncounterRosterBuilder : IDisposable
         bool useNumericSuffix
     )
     {
-        var enemyUnits = new GArray();
+        var enemyUnits = new List<BattleUnitState>();
         int resolvedUnitCount = Mathf.Max(unitCount, 1);
         string baseDisplayName = displayNameOverride ?? "";
         if (string.IsNullOrEmpty(baseDisplayName))
@@ -712,24 +737,9 @@ public sealed class EncounterRosterBuilder : IDisposable
                 unitState.SetKnownSkillLevelTyped(normalizedSkillId, Mathf.Max(configuredLevel, 1));
             }
             SyncEnemyUnlockedResources(unitState, buildContext.SkillDefinitions);
-            enemyUnits.Add(unitState.ToDictionary());
+            enemyUnits.Add(unitState);
         }
         return enemyUnits;
-    }
-
-    private static IEnumerable<BattleUnitState> BattleUnits(GArray values)
-    {
-        if (values == null)
-        {
-            yield break;
-        }
-        foreach (object rawValue in values)
-        {
-            if (BattleUnitState.TryReadUnitPayload(rawValue, out BattleUnitState value))
-            {
-                yield return value;
-            }
-        }
     }
 
     private static GStringNameArray CopyTemplateSaveAdvantageTags(
@@ -1061,7 +1071,7 @@ public sealed class EncounterRosterBuilder : IDisposable
             : null;
     }
 
-    private GArray BuildEnemyUnitsWithContext(
+    private List<BattleUnitState> BuildEnemyUnitsWithContext(
         EncounterAnchorData encounterAnchor,
         EncounterBuildContextData buildContext
     )
@@ -1087,7 +1097,7 @@ public sealed class EncounterRosterBuilder : IDisposable
             );
         }
         ReportMissingEnemyTemplate(encounterAnchor);
-        return new GArray();
+        return new List<BattleUnitState>();
     }
 
     private IReadOnlyList<IReadOnlyDictionary<string, object>> BuildLootEntriesWithContextPlain(

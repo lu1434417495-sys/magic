@@ -105,17 +105,32 @@ public class ContingencyMatrixSetupState
         return state;
     }
 
-    public GDictionary ToDictionary()
+    internal Dictionary<string, object> BuildSnapshotPlain()
     {
-        GArray costs = new();
+        var costs = new List<object>();
         foreach (ContingencyMaterialCostState cost in _materialCosts)
-            costs.Add(cost?.ToDictionary() ?? new GDictionary());
+        {
+            costs.Add(
+                cost != null
+                    ? new Dictionary<string, object>(System.StringComparer.Ordinal)
+                    {
+                        ["item_id"] = cost.ItemId.ToString(),
+                        ["quantity"] = cost.Quantity,
+                    }
+                    : new Dictionary<string, object>(System.StringComparer.Ordinal)
+            );
+        }
 
-        GArray spells = new();
+        var spells = new List<object>();
         foreach (ContingencyStoredSpellEntryState spell in _storedSpells)
-            spells.Add(spell?.ToDictionary() ?? new GDictionary());
+        {
+            spells.Add(
+                spell?.BuildSnapshotPlain()
+                    ?? new Dictionary<string, object>(System.StringComparer.Ordinal)
+            );
+        }
 
-        return new GDictionary
+        return new Dictionary<string, object>(System.StringComparer.Ordinal)
         {
             ["setup_id"] = SetupId.ToString(),
             ["display_name"] = DisplayName,
@@ -126,11 +141,21 @@ public class ContingencyMatrixSetupState
             ["matrix_load"] = MatrixLoad,
             ["reserved_mp_max"] = ReservedMpMax,
             ["material_costs"] = costs,
-            ["trigger"] = Trigger?.ToDictionary() ?? new GDictionary(),
+            ["trigger"] =
+                Trigger?.BuildSnapshotPlain()
+                ?? new Dictionary<string, object>(System.StringComparer.Ordinal),
             ["release_mode"] = ReleaseMode.ToString(),
             ["stored_spells"] = spells,
         };
     }
+
+    internal GodotProjectionLease<GDictionary> ToDictionaryLease() =>
+        RuntimePlainPayload.ProjectDictionaryLease(
+            BuildSnapshotPlain(),
+            "ContingencyMatrixSetupState.ToDictionary",
+            LifetimeDomain.Request,
+            "ContingencyMatrixSetupState.ToDictionary"
+        );
 
     public static ContingencyMatrixSetupState FromDictionary(GDictionary payload)
     {

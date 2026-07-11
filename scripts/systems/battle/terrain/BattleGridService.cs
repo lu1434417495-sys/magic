@@ -1725,7 +1725,7 @@ public sealed class BattleGridService : IDisposable
         }
         else
         {
-            state.PutCellColumnPayload(
+            state.PutCellColumn(
                 coord,
                 BattleCellState.BuildStackedCellsFromSurfaceCell(surfaceCell)
             );

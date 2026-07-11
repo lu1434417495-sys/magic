@@ -1558,45 +1558,20 @@ public class BattleHitResolver : IDisposable
         double? outgoingDamageMultiplier = null
     )
     {
-        return new BattleStatusEffectState
+        var state = new BattleStatusEffectState
         {
             status_id = statusId,
             source_unit_id = sourceUnitId,
             power = 1,
             stacks = 1,
             duration = Math.Max(durationTu, -1),
-            @params = BattleStatusEffectState.CopyResidualParams(statusParams),
             counts_as_debuff_override = true,
             counts_as_debuff = true,
             incoming_damage_multiplier = incomingDamageMultiplier,
             outgoing_damage_multiplier = outgoingDamageMultiplier,
         };
-    }
-
-    private void _append_trait_trigger_result(GDictionary target, AttackTraitTriggerResult trigger_result)
-    {
-        if (target == null || !trigger_result.Triggered)
-        {
-            return;
-        }
-        GArray results = RuntimePayloadCopy.Array(
-            GetArray(target, "trait_trigger_results"),
-            "BattleHitResolver.AppendTraitTriggerResult"
-        );
-        results.Add(new GDictionary
-        {
-            ["triggered"] = trigger_result.Triggered,
-            ["event"] = trigger_result.Event,
-            ["trait_id"] = trigger_result.TraitId,
-            ["effect_type"] = trigger_result.EffectType,
-            ["original_roll"] = trigger_result.OriginalRoll,
-            ["reroll_die"] = trigger_result.RerollDie,
-            ["rerolled_roll"] = trigger_result.RerolledRoll,
-            ["die_size"] = trigger_result.DieSize,
-            ["charge_key"] = trigger_result.ChargeKey,
-            ["charges_remaining"] = trigger_result.ChargesRemaining,
-        });
-        target["trait_trigger_results"] = results;
+        state.SetParamsTyped(BattleStatusEffectState.CopyResidualParamsPlain(statusParams));
+        return state;
     }
 
     private int _resolve_repeat_attack_preview_stage_count(

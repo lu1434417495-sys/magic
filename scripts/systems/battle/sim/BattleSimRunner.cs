@@ -246,7 +246,9 @@ public sealed class BattleSimRunner
         runtime.SetFactionAiScoreProfiles(overrides.FactionAiScoreProfiles);
 
         EncounterAnchorData encounterAnchor = _BuildEncounterAnchor(scenarioDef);
-        BattleState state = runtime.StartBattle(encounterAnchor, seed, scenarioDef.BuildStartContext());
+        using GodotProjectionLease<Godot.Collections.Dictionary> startContextLease =
+            scenarioDef.BuildStartContextLease();
+        BattleState state = runtime.StartBattle(encounterAnchor, seed, startContextLease.Value);
         BattleSimExecutionLoopResult loopResult = _executionLoop.Run(
             runtime,
             state,

@@ -8,6 +8,7 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
     private const string AshenWorldConfig = "res://data/configs/world_map/ashen_intersection_world_map_config.tres";
 
     private readonly TestHarness _test = new();
+    private readonly List<GodotProjectionLease<GDictionary>> _worldDataLeases = new();
 
     public override void _Initialize()
     {
@@ -21,7 +22,29 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
         TestSubmapReturnBlocksWhileModalOpen();
         TestSubmapEntryReturnAndReload();
 
+        DisposeWorldDataLeases();
         RequestTestExit(_test.Finish("World submap regression"));
+    }
+
+    private GDictionary ProjectWorldData(GameSession session)
+    {
+        GodotProjectionLease<GDictionary> lease = session.GetWorldDataLease();
+        _worldDataLeases.Add(lease);
+        return lease.Value;
+    }
+
+    private GDictionary ProjectWorldData(GameRuntimeFacade facade)
+    {
+        GodotProjectionLease<GDictionary> lease = facade.GetWorldDataLease();
+        _worldDataLeases.Add(lease);
+        return lease.Value;
+    }
+
+    private void DisposeWorldDataLeases()
+    {
+        for (int index = _worldDataLeases.Count - 1; index >= 0; index--)
+            _worldDataLeases[index].Dispose();
+        _worldDataLeases.Clear();
     }
 
     private void TestSubmapReturnBlocksWhileBattleActive()
@@ -42,7 +65,7 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
             Vector2I expectedCoord = context.Facade.GetPlayerCoord();
             string expectedMapId = context.Facade.GetActiveMapId();
             string expectedActiveSubmapId = DictString(
-                context.GameSession.GetWorldData(),
+                ProjectWorldData(context.GameSession),
                 "active_submap_id"
             );
             BattleState battleState = new() { battle_id = "submap_guard_battle" };
@@ -60,7 +83,7 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
                 "battle active 阻断后 active_map_id 应保持不变。"
             );
             _test.Eq(
-                DictString(context.GameSession.GetWorldData(), "active_submap_id"),
+                DictString(ProjectWorldData(context.GameSession), "active_submap_id"),
                 expectedActiveSubmapId,
                 "battle active 阻断后 active_submap_id 应保持不变。"
             );
@@ -99,7 +122,7 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
             Vector2I expectedCoord = context.Facade.GetPlayerCoord();
             string expectedMapId = context.Facade.GetActiveMapId();
             string expectedActiveSubmapId = DictString(
-                context.GameSession.GetWorldData(),
+                ProjectWorldData(context.GameSession),
                 "active_submap_id"
             );
             context.Facade.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
@@ -115,7 +138,7 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
                 "modal-open 阻断后 active_map_id 应保持不变。"
             );
             _test.Eq(
-                DictString(context.GameSession.GetWorldData(), "active_submap_id"),
+                DictString(ProjectWorldData(context.GameSession), "active_submap_id"),
                 expectedActiveSubmapId,
                 "modal-open 阻断后 active_submap_id 应保持不变。"
             );
@@ -169,7 +192,7 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
                 "子地图内移动后 active fog 应立即刷新到玩家当前位置。"
             );
             _test.True(
-                IsFormalFogState(context.Facade.GetWorldData()["fog_states"]),
+                IsFormalFogState(ProjectWorldData(context.Facade)["fog_states"]),
                 "子地图 active world_data 应保存正式 fog_states。"
             );
 
@@ -211,7 +234,7 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
                     "返回后应恢复到进入前的原坐标。"
                 );
                 _test.Eq(
-                    DictString(context.GameSession.GetWorldData(), "active_submap_id"),
+                    DictString(ProjectWorldData(context.GameSession), "active_submap_id"),
                     "",
                     "成功返回后应清空 active_submap_id。"
                 );
@@ -228,7 +251,7 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
                     "返回主世界后 active fog 应立即刷新到返回坐标。"
                 );
                 _test.True(
-                    IsFormalFogState(context.GameSession.GetWorldData()["fog_states"]),
+                    IsFormalFogState(ProjectWorldData(context.GameSession)["fog_states"]),
                     "返回主世界后 root world_data 应保存正式 fog_states。"
                 );
             }

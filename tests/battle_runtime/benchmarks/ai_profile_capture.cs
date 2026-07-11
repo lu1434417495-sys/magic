@@ -1,8 +1,10 @@
+using System;
+using System.Collections.Generic;
 using Godot;
+using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GDictionaryArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
 
-internal sealed class AiProfileCapture
+internal sealed class AiProfileCapture : IDisposable
 {
     public string ScenarioId { get; private set; } = "";
     public string OutputDir { get; private set; } = "res://tests/battle_runtime/benchmarks/profiles/";
@@ -13,14 +15,28 @@ internal sealed class AiProfileCapture
     public string GitCommit { get; private set; } = "unknown";
     public string FilePrefix { get; private set; } = "ai_profile";
 
-    public readonly GDictionary AggregateStats = new();
+    public GDictionary AggregateStats { get; }
     public int MeasuredRuns { get; private set; }
     public int MeasuredAiTurns { get; private set; }
     public bool Balanced { get; private set; } = true;
     public bool Truncated { get; private set; }
-    public GDictionary LastReport { get; private set; } = new();
+    public Dictionary<string, object> LastReport { get; private set; } = new(
+        StringComparer.Ordinal
+    );
 
-    private readonly GDictionaryArray _traceEventsSample = new();
+    private readonly NativeLeaseScope _lifetimeScope = new(
+        "ai-profile-capture",
+        LifetimeDomain.Request
+    );
+    private GodotProjectionLease<GArray> _traceEventsLease;
+
+    internal AiProfileCapture()
+    {
+        AggregateStats = _lifetimeScope.Own(
+            new GDictionary(),
+            "AiProfileCapture.AggregateStats"
+        );
+    }
 
     public void Setup(
         string scenarioId,
@@ -50,8 +66,9 @@ internal sealed class AiProfileCapture
         MeasuredAiTurns = 0;
         Balanced = true;
         Truncated = false;
-        _traceEventsSample.Clear();
-        LastReport = new GDictionary();
+        _traceEventsLease?.Dispose();
+        _traceEventsLease = null;
+        LastReport = new Dictionary<string, object>(StringComparer.Ordinal);
         AiTraceRecorder.SetInstance(null);
     }
 
@@ -66,27 +83,31 @@ internal sealed class AiProfileCapture
         return recorder;
     }
 
-    public GDictionary EndRun(AiTraceRecorder recorder, int aiTurns = 0)
+    public Dictionary<string, object> EndRun(AiTraceRecorder recorder, int aiTurns = 0)
     {
         AiTraceRecorder.SetInstance(null);
         if (recorder == null)
-            return new GDictionary();
-        MergeStats(AggregateStats, recorder.GetFuncStats());
+            return new Dictionary<string, object>(StringComparer.Ordinal);
+        using (GodotProjectionLease<GDictionary> statsLease = recorder.GetFuncStatsLease())
+            MergeStats(AggregateStats, statsLease.Value);
         MeasuredRuns++;
         MeasuredAiTurns += Mathf.Max(aiTurns, 0);
         if (!recorder.AssertBalanced())
             Balanced = false;
         if (recorder.IsTruncated())
             Truncated = true;
-        if (_traceEventsSample.Count == 0 && DumpTraceJson)
+        if (_traceEventsLease == null && DumpTraceJson)
         {
-            foreach (GDictionary entry in recorder.GetEvents())
-                _traceEventsSample.Add(entry);
+            GodotProjectionLease<GArray> eventsLease = recorder.GetEventsLease();
+            if (eventsLease.Value.Count > 0)
+                _traceEventsLease = eventsLease;
+            else
+                eventsLease.Dispose();
         }
         return BuildSummary();
     }
 
-    public GDictionary WriteReports()
+    public Dictionary<string, object> WriteReports()
     {
         string timestamp = FormatTimestamp();
         string basename = $"{FilePrefix}_{ScenarioId}_{timestamp}";
@@ -98,27 +119,21 @@ internal sealed class AiProfileCapture
         bool okCsv = AiHotspotsFormatter.WriteCsv(csvPath, AggregateStats);
         string tracePath = "";
         bool okTrace = false;
-        if (DumpTraceJson && _traceEventsSample.Count > 0)
+        if (DumpTraceJson && _traceEventsLease?.Value.Count > 0)
         {
             tracePath = $"{OutputDir}{basename}.trace.json";
             okTrace = WriteTraceJson(tracePath);
         }
 
         LastReport = BuildSummary();
-        LastReport.Merge(
-            new GDictionary
-            {
-                ["header"] = header,
-                ["body"] = body,
-                ["hotspots_path"] = hotspotsPath,
-                ["functions_csv_path"] = csvPath,
-                ["trace_path"] = tracePath,
-                ["wrote_hotspots"] = okText,
-                ["wrote_functions_csv"] = okCsv,
-                ["wrote_trace"] = okTrace,
-            },
-            true
-        );
+        LastReport["header"] = header;
+        LastReport["body"] = body;
+        LastReport["hotspots_path"] = hotspotsPath;
+        LastReport["functions_csv_path"] = csvPath;
+        LastReport["trace_path"] = tracePath;
+        LastReport["wrote_hotspots"] = okText;
+        LastReport["wrote_functions_csv"] = okCsv;
+        LastReport["wrote_trace"] = okTrace;
         return LastReport;
     }
 
@@ -137,8 +152,8 @@ internal sealed class AiProfileCapture
 
     public long TotalSelfUsec() => AiHotspotsFormatter.TotalSelfUsec(AggregateStats);
 
-    public GDictionary BuildSummary() =>
-        new()
+    public Dictionary<string, object> BuildSummary() =>
+        new(StringComparer.Ordinal)
         {
             ["enabled"] = true,
             ["scenario"] = ScenarioId,
@@ -172,7 +187,7 @@ internal sealed class AiProfileCapture
         return line.Length >= 7 ? line[..7] : "unknown";
     }
 
-    private static void MergeStats(GDictionary target, GDictionary source)
+    private void MergeStats(GDictionary target, GDictionary source)
     {
         foreach (Variant nameValue in source?.Keys ?? new Godot.Collections.Array())
         {
@@ -180,13 +195,16 @@ internal sealed class AiProfileCapture
             GDictionary dst =
                 target.ContainsKey(nameValue) && target[nameValue].VariantType == Variant.Type.Dictionary
                     ? target[nameValue].AsGodotDictionary()
-                    : new GDictionary
-                    {
-                        ["ncalls"] = 0,
-                        ["self_usec"] = 0L,
-                        ["total_usec"] = 0L,
-                        ["max_usec"] = 0L,
-                    };
+                    : _lifetimeScope.Own(
+                        new GDictionary
+                        {
+                            ["ncalls"] = 0,
+                            ["self_usec"] = 0L,
+                            ["total_usec"] = 0L,
+                            ["max_usec"] = 0L,
+                        },
+                        $"AiProfileCapture.AggregateStats.{nameValue}"
+                    );
             dst["ncalls"] = DictInt(dst, "ncalls") + DictInt(src, "ncalls");
             dst["self_usec"] = DictLong(dst, "self_usec") + DictLong(src, "self_usec");
             dst["total_usec"] = DictLong(dst, "total_usec") + DictLong(src, "total_usec");
@@ -197,17 +215,30 @@ internal sealed class AiProfileCapture
 
     private bool WriteTraceJson(string path)
     {
-        var traceDoc = new GDictionary
-        {
-            ["traceEvents"] = _traceEventsSample,
-            ["displayTimeUnit"] = "us",
-            ["metadata"] = new GDictionary
+        if (_traceEventsLease == null)
+            return false;
+        using NativeLeaseScope requestScope = new(
+            "ai-profile-trace-json",
+            LifetimeDomain.Request
+        );
+        GDictionary metadata = requestScope.Own(
+            new GDictionary
             {
                 ["scenario"] = ScenarioId,
                 ["godot_version"] = Engine.GetVersionInfo().GetValueOrDefault("string", "").AsString(),
                 ["git_commit"] = GitCommit,
             },
-        };
+            "AiProfileCapture.WriteTraceJson.metadata"
+        );
+        GDictionary traceDoc = requestScope.Own(
+            new GDictionary
+            {
+                ["traceEvents"] = _traceEventsLease.Value,
+                ["displayTimeUnit"] = "us",
+                ["metadata"] = metadata,
+            },
+            "AiProfileCapture.WriteTraceJson.document"
+        );
         string dirPart = path.GetBaseDir();
         if (!DirAccess.DirExistsAbsolute(dirPart))
             DirAccess.MakeDirRecursiveAbsolute(dirPart);
@@ -216,6 +247,14 @@ internal sealed class AiProfileCapture
             return false;
         file.StoreString(Json.Stringify(traceDoc));
         return true;
+    }
+
+    public void Dispose()
+    {
+        AiTraceRecorder.SetInstance(null);
+        _traceEventsLease?.Dispose();
+        _traceEventsLease = null;
+        _lifetimeScope.Dispose();
     }
 
     private static string FormatTimestamp()

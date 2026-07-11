@@ -231,7 +231,7 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
         {
             [darkWeapon.item_id.ToString()] = darkWeapon,
         };
-        GStringNameArray unlocks = battleRuntime
+        List<StringName> unlocks = battleRuntime
             .GetFateRuntime()
             .HandleMisfortuneForgeResult(
                 HeroId,

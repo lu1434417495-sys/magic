@@ -8,7 +8,6 @@ internal sealed class DamageResolutionContext
 {
     private static readonly StringName DefaultDamageRollMode = "random";
 
-    public GDictionary RawContext => BuildRawContext();
     public StringName DamageRollMode { get; }
     public bool CriticalHit { get; }
     public bool AttackSuccess { get; }
@@ -152,6 +151,27 @@ internal sealed class DamageResolutionContext
         );
     }
 
+    public DamageResolutionContext WithSaveRollOverrides(IReadOnlyList<int> saveRollOverrides)
+    {
+        int count = saveRollOverrides?.Count ?? 0;
+        int[] normalizedRolls = new int[count];
+        for (int index = 0; index < count; index++)
+            normalizedRolls[index] = Math.Clamp(saveRollOverrides[index], 1, 20);
+        return new DamageResolutionContext(
+            DamageRollMode,
+            CriticalHit,
+            AttackSuccess,
+            SecondaryHitSuccess,
+            SkillId,
+            SourceSkillLevel,
+            normalizedRolls,
+            DispatchEvents,
+            EquipmentSlotOverride,
+            DamageApplicationHookBatch,
+            DamageApplicationHookOrigin
+        );
+    }
+
     internal DamageResolutionContext WithDamageApplicationHookContext(
         BattleEventBatch batch,
         BattleEffectOrigin origin
@@ -174,37 +194,6 @@ internal sealed class DamageResolutionContext
 
     public BattleSaveContext ToBattleSaveContext() =>
         new(SkillId, SaveRollOverrides ?? Array.Empty<int>());
-
-    private GDictionary BuildRawContext()
-    {
-        GDictionary rawContext = new()
-        {
-            ["critical_hit"] = CriticalHit,
-            ["attack_success"] = AttackSuccess,
-            ["secondary_hit_success"] = SecondaryHitSuccess,
-            ["dispatch_events"] = DispatchEvents,
-        };
-        if (SkillId != "")
-            rawContext["skill_id"] = SkillId;
-        if (SourceSkillLevel > 0)
-            rawContext["source_skill_level"] = SourceSkillLevel;
-        if (DamageRollMode != "" && DamageRollMode != DefaultDamageRollMode)
-            rawContext["damage_roll_mode"] = DamageRollMode;
-        if (EquipmentSlotOverride != "")
-            rawContext["equipment_slot_override"] = EquipmentSlotOverride;
-        if (SaveRollOverrides != null && SaveRollOverrides.Count > 0)
-        {
-            var rolls = new GArray();
-            foreach (int roll in SaveRollOverrides)
-                rolls.Add(Math.Clamp(roll, 1, 20));
-            rawContext["save_roll_overrides"] = rolls;
-        }
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-            rawContext,
-            "DamageResolutionContext.RawContext"
-        );
-        return rawContext;
-    }
 
     private static void RequireBool(GDictionary payload, string key)
     {

@@ -361,7 +361,9 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         _test.Eq(afterSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)) - beforeSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)), 0, "leather_jerkin should not add HP.");
         _test.Eq(afterSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.DodgeBonus)) - beforeSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.DodgeBonus)), 1, "leather_cap should add dodge.");
 
-        PartyState restoredPartyState = PartyState.FromDictionary(partyState.ToDictionary());
+        using GodotProjectionLease<GDictionary> partyPayloadLease =
+            partyState.ToDictionaryLease("PartyEquipment.RoundTripEquippedItems");
+        PartyState restoredPartyState = PartyState.FromDictionary(partyPayloadLease.Value);
         EquipmentState restoredEquipmentState = restoredPartyState.GetMemberState("hero").equipment_state;
         AssertStringNameEq(restoredEquipmentState.GetEquippedItemId("main_hand"), "bronze_sword", "Round-trip should preserve main hand.");
         AssertStringNameEq(restoredEquipmentState.GetEquippedItemId("head"), "leather_cap", "Round-trip should preserve head.");
@@ -464,7 +466,9 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         _test.Eq(equipmentState.GetEquippedCount(), 1, "Two-handed weapon should count as one equipment entry.");
         _test.Eq(equipmentState.GetFilledSlotIdsTyped().Count, 2, "Two-handed weapon should fill two slots.");
 
-        PartyState restored = PartyState.FromDictionary(partyState.ToDictionary());
+        using GodotProjectionLease<GDictionary> partyPayloadLease =
+            partyState.ToDictionaryLease("PartyEquipment.RoundTripTwoHandedWeapon");
+        PartyState restored = PartyState.FromDictionary(partyPayloadLease.Value);
         EquipmentState restoredEquipment = restored.GetMemberState("hero").equipment_state;
         AssertStringNameEq(restoredEquipment.GetEquippedItemId("main_hand"), "iron_greatsword", "Round-trip should preserve main hand greatsword.");
         AssertStringNameEq(restoredEquipment.GetEquippedItemId("off_hand"), "iron_greatsword", "Round-trip should preserve off hand occupancy.");
@@ -684,7 +688,9 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         _test.True(instanceId.ToString().StartsWith("eq_"), "Instance id should start with eq_.");
         _test.Eq(warehouseService.CountItem("bronze_sword"), 0, "Warehouse should no longer contain equipped sword.");
 
-        PartyState restored = PartyState.FromDictionary(partyState.ToDictionary());
+        using GodotProjectionLease<GDictionary> partyPayloadLease =
+            partyState.ToDictionaryLease("PartyEquipment.RoundTripEquipmentInstanceId");
+        PartyState restored = PartyState.FromDictionary(partyPayloadLease.Value);
         AssertStringNameEq(restored.GetMemberState("hero").equipment_state.GetEquippedInstanceId("main_hand"), instanceId.ToString(), "Round-trip should preserve instance id.");
     }
 
@@ -758,7 +764,9 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         _test.False(slotPayload.ContainsKey("weapon_attack_range"), "Entry payload should not serialize legacy weapon_attack_range.");
         _test.False(slotPayload.ContainsKey("weapon_physical_damage_tag"), "Entry payload should not serialize legacy damage tag.");
 
-        PartyState restoredPartyState = PartyState.FromDictionary(partyState.ToDictionary());
+        using GodotProjectionLease<GDictionary> partyPayloadLease =
+            partyState.ToDictionaryLease("PartyEquipment.RoundTripWeaponProfile");
+        PartyState restoredPartyState = PartyState.FromDictionary(partyPayloadLease.Value);
         _test.True(restoredPartyState != null, "weapon_profile weapon PartyState round-trip should parse.");
         if (restoredPartyState == null)
             return;
@@ -809,7 +817,9 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         EquipmentState equipmentState = partyState.GetMemberState("hero").equipment_state;
         AssertEquipmentInstanceFields(equipmentState.GetEquippedInstance("main_hand"), "eq_epic_equipped_bronze_sword", (int)EquipmentInstanceState.RarityTier.EPIC, 17, "Equipped slot");
 
-        PartyState restoredPartyState = PartyState.FromDictionary(partyState.ToDictionary());
+        using GodotProjectionLease<GDictionary> partyPayloadLease =
+            partyState.ToDictionaryLease("PartyEquipment.RoundTripFullInstanceFields");
+        PartyState restoredPartyState = PartyState.FromDictionary(partyPayloadLease.Value);
         _test.True(restoredPartyState != null, "Full equipment instance fields should round-trip.");
         if (restoredPartyState == null)
             return;
@@ -847,7 +857,9 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         epicInstance.current_durability = DefaultCurrentDurabilityForRarity(epicInstance.rarity);
         partyState.warehouse_state.equipment_instances = new List<EquipmentInstanceState> { epicInstance };
 
-        PartyState restoredPartyState = PartyState.FromDictionary(partyState.ToDictionary());
+        using GodotProjectionLease<GDictionary> partyPayloadLease =
+            partyState.ToDictionaryLease("PartyEquipment.RoundTripRarity");
+        PartyState restoredPartyState = PartyState.FromDictionary(partyPayloadLease.Value);
         _test.True(restoredPartyState != null, "Rarity PartyState round-trip should parse.");
         if (restoredPartyState == null)
             return;
@@ -939,7 +951,9 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         );
         partyState.warehouse_state.equipment_instances = new List<EquipmentInstanceState> { instance };
 
-        PartyState restoredPartyState = PartyState.FromDictionary(partyState.ToDictionary());
+        using GodotProjectionLease<GDictionary> partyPayloadLease =
+            partyState.ToDictionaryLease("PartyEquipment.RoundTripAbilityState");
+        PartyState restoredPartyState = PartyState.FromDictionary(partyPayloadLease.Value);
         _test.True(restoredPartyState != null, "Equipment ability state should round-trip through PartyState.");
         if (restoredPartyState == null)
             return;
@@ -1063,7 +1077,9 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         _test.True(warehouseService.HasEquipmentInstance("eq_duplicate_common_sword", "bronze_sword"), "Unselected common instance should remain in warehouse.");
         _test.False(warehouseService.HasEquipmentInstance("eq_duplicate_rare_sword", "bronze_sword"), "Equipped rare instance should leave warehouse.");
 
-        PartyState restoredPartyState = PartyState.FromDictionary(partyState.ToDictionary());
+        using GodotProjectionLease<GDictionary> partyPayloadLease =
+            partyState.ToDictionaryLease("PartyEquipment.RoundTripExplicitDuplicateInstance");
+        PartyState restoredPartyState = PartyState.FromDictionary(partyPayloadLease.Value);
         _test.True(restoredPartyState != null, "Explicit duplicate instance equip should round-trip.");
         if (restoredPartyState == null)
             return;
@@ -1085,7 +1101,9 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
             EquipmentInstanceState.CreateInstance("bronze_sword", "eq_party_duplicate"),
             EquipmentInstanceState.CreateInstance("scout_charm", "eq_party_duplicate"),
         };
-        _test.True(PartyState.FromDictionary(warehouseDuplicateParty.ToDictionary()) == null, "Duplicate warehouse instance ids should reject PartyState payload.");
+        using GodotProjectionLease<GDictionary> warehouseDuplicateLease =
+            warehouseDuplicateParty.ToDictionaryLease("PartyEquipment.RejectWarehouseDuplicate");
+        _test.True(PartyState.FromDictionary(warehouseDuplicateLease.Value) == null, "Duplicate warehouse instance ids should reject PartyState payload.");
 
         PartyState warehouseAndEquippedParty = BuildPartyWithMember("hero", "Hero", 8);
         warehouseAndEquippedParty.warehouse_state.equipment_instances = new List<EquipmentInstanceState>
@@ -1098,13 +1116,17 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
             Names("main_hand"),
             EquipmentInstanceState.CreateInstance("bronze_sword", "eq_party_shared")
         );
-        _test.True(PartyState.FromDictionary(warehouseAndEquippedParty.ToDictionary()) == null, "Instance id shared by warehouse and equipment should reject PartyState payload.");
+        using GodotProjectionLease<GDictionary> warehouseAndEquippedLease =
+            warehouseAndEquippedParty.ToDictionaryLease("PartyEquipment.RejectWarehouseAndEquippedDuplicate");
+        _test.True(PartyState.FromDictionary(warehouseAndEquippedLease.Value) == null, "Instance id shared by warehouse and equipment should reject PartyState payload.");
 
         PartyState sameMemberDuplicateParty = BuildPartyWithMember("hero", "Hero", 8);
         EquipmentState sameMemberEquipment = sameMemberDuplicateParty.GetMemberState("hero").equipment_state;
         sameMemberEquipment.SetEquippedEntry("main_hand", "bronze_sword", Names("main_hand"), EquipmentInstanceState.CreateInstance("bronze_sword", "eq_party_same_member"));
         sameMemberEquipment.SetEquippedEntry("necklace", "scout_charm", Names("necklace"), EquipmentInstanceState.CreateInstance("scout_charm", "eq_party_same_member"));
-        _test.True(PartyState.FromDictionary(sameMemberDuplicateParty.ToDictionary()) == null, "Same member duplicate equipped instance id should reject PartyState payload.");
+        using GodotProjectionLease<GDictionary> sameMemberDuplicateLease =
+            sameMemberDuplicateParty.ToDictionaryLease("PartyEquipment.RejectSameMemberDuplicate");
+        _test.True(PartyState.FromDictionary(sameMemberDuplicateLease.Value) == null, "Same member duplicate equipped instance id should reject PartyState payload.");
 
         PartyState crossMemberDuplicateParty = BuildPartyWithMember("hero", "Hero", 8);
         PartyMemberState ally = new()
@@ -1119,7 +1141,9 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         crossMemberDuplicateParty.reserve_member_ids = Names("ally");
         crossMemberDuplicateParty.GetMemberState("hero").equipment_state.SetEquippedEntry("main_hand", "bronze_sword", Names("main_hand"), EquipmentInstanceState.CreateInstance("bronze_sword", "eq_party_cross_member"));
         crossMemberDuplicateParty.GetMemberState("ally").equipment_state.SetEquippedEntry("necklace", "scout_charm", Names("necklace"), EquipmentInstanceState.CreateInstance("scout_charm", "eq_party_cross_member"));
-        _test.True(PartyState.FromDictionary(crossMemberDuplicateParty.ToDictionary()) == null, "Cross-member duplicate equipped instance id should reject PartyState payload.");
+        using GodotProjectionLease<GDictionary> crossMemberDuplicateLease =
+            crossMemberDuplicateParty.ToDictionaryLease("PartyEquipment.RejectCrossMemberDuplicate");
+        _test.True(PartyState.FromDictionary(crossMemberDuplicateLease.Value) == null, "Cross-member duplicate equipped instance id should reject PartyState payload.");
     }
 
     private static PartyState BuildPartyWithMember(StringName memberId, string displayName, int storageSpace)

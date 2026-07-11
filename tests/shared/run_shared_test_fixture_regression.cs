@@ -72,9 +72,16 @@ public partial class run_shared_test_fixture_regression : LifecycleTestSceneTree
             diceSides: 6
         );
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(
-            resolver.ResolveEffects(source, target, new[] { effect }, DamageResolutionContext.Empty())
-        );
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(
+                    source,
+                    target,
+                    new[] { effect },
+                    DamageResolutionContext.Empty()
+                )
+            );
+        GDictionary result = resultLease.Value;
         _test.Eq(DictInt(result, "damage"), 3, "FixedRollDamageResolver 应使用注入 damage roll。");
 
         var hitResolver = new FixedHitResolver(17);

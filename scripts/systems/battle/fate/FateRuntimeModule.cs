@@ -162,6 +162,16 @@ internal sealed class FateRuntimeModule
         return _misfortuneService.HandleAppliedStatuses(target_unit, status_effect_ids);
     }
 
+    internal GDictionary HandleAppliedStatuses(
+        BattleUnitState target_unit,
+        IReadOnlyList<StringName> status_effect_ids
+    )
+    {
+        if (_misfortuneService == null)
+            return new GDictionary();
+        return _misfortuneService.HandleAppliedStatuses(target_unit, status_effect_ids);
+    }
+
     internal GDictionary HandleBattleResolution(
         BattleState battle_state,
         BattleResolutionResult battle_resolution_result,
@@ -181,18 +191,18 @@ internal sealed class FateRuntimeModule
             );
         }
 
-        Godot.Collections.Array<StringName> fortunaGuidanceUnlocks = new();
+        IReadOnlyList<StringName> fortunaGuidanceUnlocks = Array.Empty<StringName>();
         if (_fortunaGuidanceService != null)
-            fortunaGuidanceUnlocks = ToStringNameArray(
+            fortunaGuidanceUnlocks = ToStringNameList(
                 _fortunaGuidanceService.HandleBattleResolution(
                     battle_state,
                     battle_resolution_result
                 )
             );
 
-        Godot.Collections.Array<StringName> misfortuneGuidanceUnlocks = new();
+        IReadOnlyList<StringName> misfortuneGuidanceUnlocks = Array.Empty<StringName>();
         if (_misfortuneGuidanceService != null)
-            misfortuneGuidanceUnlocks = ToStringNameArray(
+            misfortuneGuidanceUnlocks = ToStringNameList(
                 _misfortuneGuidanceService.HandleBattleResolution(
                     battle_state,
                     battle_resolution_result
@@ -201,32 +211,34 @@ internal sealed class FateRuntimeModule
 
         return new GDictionary
         {
-            ["fortuna_guidance_unlocks"] = fortunaGuidanceUnlocks,
-            ["misfortune_guidance_unlocks"] = misfortuneGuidanceUnlocks,
+            ["fortuna_guidance_unlocks"] = ProgressionDataUtils
+                .string_name_array_to_string_array(fortunaGuidanceUnlocks),
+            ["misfortune_guidance_unlocks"] = ProgressionDataUtils
+                .string_name_array_to_string_array(misfortuneGuidanceUnlocks),
             ["low_luck_event_result"] = LowLuckEventResultToDictionary(lowLuckEventResult),
         };
     }
 
-    internal Godot.Collections.Array<StringName> HandleFortunaChapterCompleted(GDictionary payload)
+    internal List<StringName> HandleFortunaChapterCompleted(GDictionary payload)
     {
         if (_fortunaGuidanceService == null)
-            return new StringNameList().ToGodotArray();
-        return ToStringNameArray(
+            return new List<StringName>();
+        return ToStringNameList(
             _fortunaGuidanceService.HandleChapterCompleted(
                 BuildFortunaChapterCompletionInput(payload)
             )
         );
     }
 
-    internal Godot.Collections.Array<StringName> HandleMisfortuneForgeResult(
+    internal List<StringName> HandleMisfortuneForgeResult(
         StringName member_id,
         SettlementServiceResult result,
         IReadOnlyDictionary<StringName, ItemDefinition> item_defs = null
     )
     {
         if (_misfortuneGuidanceService == null)
-            return new StringNameList().ToGodotArray();
-        return ToStringNameArray(
+            return new List<StringName>();
+        return ToStringNameList(
             _misfortuneGuidanceService.HandleForgeResult(
                 member_id,
                 BuildMisfortuneForgeGuidanceInput(result),
@@ -595,20 +607,20 @@ internal sealed class FateRuntimeModule
         return result;
     }
 
-    private static Godot.Collections.Array<StringName> ToStringNameArray(
+    private static List<StringName> ToStringNameList(
         IEnumerable<StringName> values
     )
     {
-        var result = new StringNameList();
+        var result = new List<StringName>();
         if (values == null)
-            return result.ToGodotArray();
+            return result;
         foreach (var value in values)
         {
             var stringName = ProgressionDataUtils.to_string_name(value);
             if (stringName != "" && !result.Contains(stringName))
                 result.Add(stringName);
         }
-        return result.ToGodotArray();
+        return result;
     }
 
     private static GDictionary ReadDictionary(GDictionary data, string key)

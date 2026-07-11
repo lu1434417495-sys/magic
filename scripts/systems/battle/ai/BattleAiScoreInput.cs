@@ -1137,20 +1137,4 @@ public sealed class BattleAiScoreInput
         return result;
     }
 
-    private static GArray ToStringArray(IEnumerable<string> values)
-    {
-        var result = new GArray();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (string value in values)
-        {
-            if (!string.IsNullOrEmpty(value))
-            {
-                result.Add(value);
-            }
-        }
-        return result;
-    }
 }

@@ -277,7 +277,7 @@ internal sealed class BattleAiStateResolver
             return false;
         }
 
-        Godot.Collections.Array<StringName> candidateIds =
+        IEnumerable<StringName> candidateIds =
             unitState.faction_id == (StringName)"player"
                 ? state.enemy_unit_ids
                 : state.ally_unit_ids;

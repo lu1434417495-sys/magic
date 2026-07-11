@@ -49,9 +49,9 @@ public sealed class BattleAiUnitBlackboardSnapshot
         };
     }
 
-    internal Godot.Collections.Dictionary ToPayload()
+    internal IReadOnlyDictionary<string, object> BuildPayloadPlain()
     {
-        var result = new Godot.Collections.Dictionary();
+        var result = new Dictionary<string, object>(StringComparer.Ordinal);
         AddBool(result, "madness_ai_control", madness_ai_control);
         AddBool(result, "madness_target_any_team", madness_target_any_team);
         AddBool(result, "low_luck_reverse_fate_used", low_luck_reverse_fate_used);
@@ -73,7 +73,7 @@ public sealed class BattleAiUnitBlackboardSnapshot
         return result;
     }
 
-    private static void AddBool(Godot.Collections.Dictionary result, string key, bool value)
+    private static void AddBool(IDictionary<string, object> result, string key, bool value)
     {
         if (value)
             result[key] = true;
@@ -187,31 +187,32 @@ public sealed class BattleAiUnitSnapshot
         return snapshot;
     }
 
-    internal Godot.Collections.Dictionary ToPayload()
+    internal IReadOnlyDictionary<string, object> BuildPayloadPlain()
     {
-        return new Godot.Collections.Dictionary
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
-            { "unit_id", unit_id },
-            { "display_name", display_name },
-            { "faction_id", faction_id },
-            { "coord", coord },
-            { "footprint_size", footprint_size },
-            { "occupied_coords", ToVector2IArray(occupied_coords) },
-            { "is_alive", is_alive },
-            { "current_hp", current_hp },
-            { "current_ap", current_ap },
-            { "current_mp", current_mp },
-            { "current_stamina", current_stamina },
-            { "current_aura", current_aura },
-            { "current_move_points", current_move_points },
-            { "has_taken_action_this_turn", has_taken_action_this_turn },
-            { "has_moved_this_turn", has_moved_this_turn },
-            { "can_use_locked_move_points_this_turn", can_use_locked_move_points_this_turn },
-            { "known_active_skill_ids", ToStringNameArray(known_active_skill_ids) },
-            { "known_skill_level_map", ToIntDictionary(known_skill_level_map) },
-            { "cooldowns", ToIntDictionary(cooldowns) },
-            { "ai_blackboard", ai_blackboard?.ToPayload() ?? new Godot.Collections.Dictionary() },
-            { "status_ids", ToStringNameArray(status_ids) },
+            ["unit_id"] = unit_id,
+            ["display_name"] = display_name,
+            ["faction_id"] = faction_id,
+            ["coord"] = coord,
+            ["footprint_size"] = footprint_size,
+            ["occupied_coords"] = new List<Vector2I>(occupied_coords),
+            ["is_alive"] = is_alive,
+            ["current_hp"] = current_hp,
+            ["current_ap"] = current_ap,
+            ["current_mp"] = current_mp,
+            ["current_stamina"] = current_stamina,
+            ["current_aura"] = current_aura,
+            ["current_move_points"] = current_move_points,
+            ["has_taken_action_this_turn"] = has_taken_action_this_turn,
+            ["has_moved_this_turn"] = has_moved_this_turn,
+            ["can_use_locked_move_points_this_turn"] = can_use_locked_move_points_this_turn,
+            ["known_active_skill_ids"] = new List<StringName>(known_active_skill_ids),
+            ["known_skill_level_map"] = new Dictionary<StringName, int>(known_skill_level_map),
+            ["cooldowns"] = new Dictionary<StringName, int>(cooldowns),
+            ["ai_blackboard"] = ai_blackboard?.BuildPayloadPlain()
+                ?? new Dictionary<string, object>(StringComparer.Ordinal),
+            ["status_ids"] = new List<StringName>(status_ids),
         };
     }
 
@@ -225,9 +226,7 @@ public sealed class BattleAiUnitSnapshot
         return result;
     }
 
-    private static List<StringName> CopyStringNameArray(
-        Godot.Collections.Array<StringName> source
-    )
+    private static List<StringName> CopyStringNameArray(IEnumerable<StringName> source)
     {
         var result = new List<StringName>();
         if (source == null)
@@ -256,25 +255,4 @@ public sealed class BattleAiUnitSnapshot
         return result;
     }
 
-    private static Godot.Collections.Array<Vector2I> ToVector2IArray(IEnumerable<Vector2I> values)
-        => new Vector2IList(values).ToGodotArray();
-
-    private static Godot.Collections.Array<StringName> ToStringNameArray(IEnumerable<StringName> values)
-        => new StringNameList(CopyStringNameList(values)).ToGodotArray();
-
-    private static Godot.Collections.Dictionary ToIntDictionary(
-        IReadOnlyDictionary<StringName, int> values
-    )
-    {
-        var result = new Godot.Collections.Dictionary();
-        if (values == null)
-            return result;
-
-        foreach (KeyValuePair<StringName, int> entry in values)
-        {
-            if (entry.Key != "")
-                result[entry.Key] = entry.Value;
-        }
-        return result;
-    }
 }

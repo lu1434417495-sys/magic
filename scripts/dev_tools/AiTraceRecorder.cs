@@ -271,28 +271,65 @@ public class AiTraceRecorder
         }
     }
 
-    public Godot.Collections.Dictionary GetFuncStats()
+    internal GodotProjectionLease<Godot.Collections.Dictionary> GetFuncStatsLease()
     {
-        var projected = new Godot.Collections.Dictionary();
-        foreach (KeyValuePair<StringName, FuncStatsData> entry in _funcStats)
+        var root = new Godot.Collections.Dictionary();
+        GodotProjectionLease<Godot.Collections.Dictionary> lease =
+            GodotProjectionLease<Godot.Collections.Dictionary>.CreateOwnedRoot(
+                root,
+                "ai-trace-func-stats",
+                LifetimeDomain.Request,
+                "AiTraceRecorder.GetFuncStatsLease"
+            );
+        try
         {
-            _funcSamples.TryGetValue(entry.Key, out List<long> samples);
-            projected[entry.Key] = entry.Value.ToDictionary(_collectSamples ? samples : null);
+            foreach (KeyValuePair<StringName, FuncStatsData> entry in _funcStats)
+            {
+                _funcSamples.TryGetValue(entry.Key, out List<long> samples);
+                root[entry.Key] = lease.Own(
+                    entry.Value.ToDictionary(_collectSamples ? samples : null),
+                    $"AiTraceRecorder.GetFuncStatsLease.{entry.Key}"
+                );
+            }
+            return lease;
         }
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-            projected,
-            "AiTraceRecorder.GetFuncStats"
-        );
-        return projected;
+        catch
+        {
+            lease.Dispose();
+            throw;
+        }
     }
 
-    public Godot.Collections.Array<Godot.Collections.Dictionary> GetEvents()
+    internal GodotProjectionLease<Godot.Collections.Array> GetEventsLease()
     {
-        var projected = new Godot.Collections.Array<Godot.Collections.Dictionary>();
-        foreach (TraceEventData entry in _events)
-            projected.Add(entry.ToDictionary());
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(projected, "AiTraceRecorder.GetEvents");
-        return projected;
+        var root = new Godot.Collections.Array();
+        GodotProjectionLease<Godot.Collections.Array> lease =
+            GodotProjectionLease<Godot.Collections.Array>.CreateOwnedRoot(
+                root,
+                "ai-trace-events",
+                LifetimeDomain.Request,
+                "AiTraceRecorder.GetEventsLease"
+            );
+        try
+        {
+            int index = 0;
+            foreach (TraceEventData entry in _events)
+            {
+                root.Add(
+                    lease.Own(
+                        entry.ToDictionary(),
+                        $"AiTraceRecorder.GetEventsLease[{index}]"
+                    )
+                );
+                index++;
+            }
+            return lease;
+        }
+        catch
+        {
+            lease.Dispose();
+            throw;
+        }
     }
 
     public bool IsTruncated()
@@ -302,12 +339,27 @@ public class AiTraceRecorder
 
     public bool DumpTraceJson(string path, Godot.Collections.Dictionary metadata = null)
     {
-        var doc = new Godot.Collections.Dictionary
-        {
-            { "traceEvents", GetEvents() },
-            { "displayTimeUnit", "us" },
-            { "metadata", metadata ?? new Godot.Collections.Dictionary() },
-        };
+        using GodotProjectionLease<Godot.Collections.Array> eventsLease = GetEventsLease();
+        using NativeLeaseScope requestScope = new(
+            "ai-trace-json",
+            LifetimeDomain.Request
+        );
+        Godot.Collections.Dictionary doc = requestScope.Own(
+            new Godot.Collections.Dictionary
+            {
+                { "traceEvents", eventsLease.Value },
+                { "displayTimeUnit", "us" },
+                {
+                    "metadata",
+                    metadata
+                        ?? requestScope.Own(
+                            new Godot.Collections.Dictionary(),
+                            "AiTraceRecorder.DumpTraceJson.metadata"
+                        )
+                },
+            },
+            "AiTraceRecorder.DumpTraceJson.document"
+        );
 
         var dirPath = path.GetBaseDir();
 

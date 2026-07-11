@@ -558,13 +558,6 @@ public class UnitProgress
         return copy;
     }
 
-    private static Godot.Collections.Dictionary DuplicateDictionary(
-        Godot.Collections.Dictionary values
-    )
-    {
-        return RuntimePayloadCopy.Dictionary(values, "UnitProgress.DuplicateDictionary");
-    }
-
     public Godot.Collections.Dictionary ToDictionary()
     {
         SyncActiveCoreSkillIds();

@@ -94,8 +94,9 @@ public partial class run_battle_validation_result_projection_regression : Lifecy
                 "ok"
             );
 
-            Godot.Collections.Dictionary payload =
-                BattleValidationResultProjection.ProjectUnitSkill(result);
+            using GodotProjectionLease<Godot.Collections.Dictionary> payloadLease =
+                BattleValidationResultProjection.ProjectUnitSkillLease(result);
+            Godot.Collections.Dictionary payload = payloadLease.Value;
 
             _test.True(payload["allowed"].AsBool(), "单位技能 validation 应投影 allowed。");
             _test.Eq(payload["message"].AsString(), "ok", "单位技能 validation 应投影 message。");
@@ -151,8 +152,9 @@ public partial class run_battle_validation_result_projection_regression : Lifecy
         BattleGroundSkillValidationResult result = BattleGroundSkillValidationResult.FromDictionary(
             source
         );
-        Godot.Collections.Dictionary payload =
-            BattleValidationResultProjection.ProjectGroundSkill(result);
+        using GodotProjectionLease<Godot.Collections.Dictionary> payloadLease =
+            BattleValidationResultProjection.ProjectGroundSkillLease(result);
+        Godot.Collections.Dictionary payload = payloadLease.Value;
 
         _test.True(result.Allowed, "地面技能 validation 应从 string-key payload 解析 allowed。");
         _test.Eq(result.Message, "cast", "地面技能 validation 应解析 message。");
@@ -183,9 +185,9 @@ public partial class run_battle_validation_result_projection_regression : Lifecy
             payload,
             new AttackCheckInput(skillId: "black_contract_push")
         );
-        Godot.Collections.Dictionary projected = AttackEffectResolutionResultReader.BuildGodotPayload(
-            result
-        );
+        using GodotProjectionLease<Godot.Collections.Dictionary> projectedLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(result);
+        Godot.Collections.Dictionary projected = projectedLease.Value;
 
         _test.False(
             result.AttackCheck.CritLocked,
@@ -200,8 +202,9 @@ public partial class run_battle_validation_result_projection_regression : Lifecy
             payload,
             new AttackCheckInput(skillId: "black_contract_push", critLocked: true)
         );
-        Godot.Collections.Dictionary typedProjected =
-            AttackEffectResolutionResultReader.BuildGodotPayload(typedResult);
+        using GodotProjectionLease<Godot.Collections.Dictionary> typedProjectedLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(typedResult);
+        Godot.Collections.Dictionary typedProjected = typedProjectedLease.Value;
         _test.True(
             typedResult.AttackCheck.CritLocked,
             "AttackEffectResolutionResultReader 应保留正式 typed AttackCheckInput 的 crit_locked=true。"
@@ -218,8 +221,9 @@ public partial class run_battle_validation_result_projection_regression : Lifecy
             new[] { new Vector2I(3, 2), new Vector2I(1, 1), new Vector2I(2, 1) }
         );
 
-        Godot.Collections.Dictionary payload =
-            BattleValidationResultProjection.ProjectTargetCollection(result);
+        using GodotProjectionLease<Godot.Collections.Dictionary> payloadLease =
+            BattleValidationResultProjection.ProjectTargetCollectionLease(result);
+        Godot.Collections.Dictionary payload = payloadLease.Value;
 
         _test.True(result.Handled, "目标收集结果应保留 handled。");
         _test.Eq(result.TargetCoords[0], new Vector2I(1, 1), "目标收集结果应按 y/x 排序。");
@@ -256,7 +260,6 @@ public partial class run_battle_validation_result_projection_regression : Lifecy
         SkillDefinition skillDefinition = null;
         CombatCastVariantDefinition castVariant = null;
         List<CombatEffectDefinition> effects = null;
-        Godot.Collections.Dictionary projected = null;
         try
         {
             state = new BattleState { map_size = new Vector2I(4, 3) };
@@ -309,12 +312,15 @@ public partial class run_battle_validation_result_projection_regression : Lifecy
                     skillDefinition,
                     effects
                 );
-            projected = AttackEffectResolutionResultReader.BuildGodotPayload(
-                typed.Result
-            );
+            using GodotProjectionLease<Godot.Collections.Dictionary> projectedLease =
+                AttackEffectResolutionResultReader.BuildGodotPayloadLease(typed.Result);
+            Godot.Collections.Dictionary projected = projectedLease.Value;
             if (typed.CustomLogLines.Count != 0)
             {
-                var customLines = new Godot.Collections.Array();
+                Godot.Collections.Array customLines = projectedLease.Own(
+                    new Godot.Collections.Array(),
+                    "battle validation projected custom log lines"
+                );
                 foreach (string line in typed.CustomLogLines)
                 {
                     customLines.Add(line);
@@ -339,7 +345,6 @@ public partial class run_battle_validation_result_projection_regression : Lifecy
         }
         finally
         {
-            projected = null;
             effects = null;
             castVariant = null;
             skillDefinition = null;

@@ -38,9 +38,15 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetActiveModalId() ?? "";
     }
 
-    public Dictionary GetGameOverContext()
+    internal GodotProjectionLease<Dictionary> GetGameOverContextLease()
     {
-        return _runtime?.GetGameOverContext() ?? new Dictionary();
+        return _runtime?.GetGameOverContextLease()
+            ?? RuntimePlainPayload.ProjectDictionaryLease(
+                new System.Collections.Generic.Dictionary<string, object>(System.StringComparer.Ordinal),
+                "WorldMapRuntimeProxy.game_over_context",
+                LifetimeDomain.Request,
+                "WorldMapRuntimeProxy.game_over_context"
+            );
     }
 
     public string GetActiveSettlementId()
@@ -68,9 +74,15 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetPendingSubmapPrompt() ?? new Dictionary();
     }
 
-    public Dictionary GetPendingBattleStartPrompt()
+    internal GodotProjectionLease<Dictionary> GetPendingBattleStartPromptLease()
     {
-        return _runtime?.GetPendingBattleStartPrompt() ?? new Dictionary();
+        return _runtime?.GetPendingBattleStartPromptLease()
+            ?? RuntimePlainPayload.ProjectDictionaryLease(
+                new System.Collections.Generic.Dictionary<string, object>(System.StringComparer.Ordinal),
+                "WorldMapRuntimeProxy.pending_battle_start_prompt",
+                LifetimeDomain.Request,
+                "WorldMapRuntimeProxy.pending_battle_start_prompt"
+            );
     }
 
     public Dictionary GetPendingResourceHarvestPrompt()
@@ -133,11 +145,6 @@ internal sealed class WorldMapRuntimeProxy
     public bool IsWorldCoordVisible(Vector2I coord, string factionId = "")
     {
         return _runtime?.IsWorldCoordVisible(coord, factionId) ?? false;
-    }
-
-    public Dictionary GetWorldData()
-    {
-        return _runtime?.GetWorldData() ?? new Dictionary();
     }
 
     internal WorldRuntimeData GetWorldRuntimeData() =>
@@ -203,19 +210,19 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetSelectedBattleSkillVariantId() ?? new StringName("");
     }
 
-    public Array<Vector2I> GetSelectedBattleSkillTargetCoords()
+    public System.Collections.Generic.IReadOnlyList<Vector2I> GetSelectedBattleSkillTargetCoords()
     {
-        return _runtime?.GetSelectedBattleSkillTargetCoords() ?? new Array<Vector2I>();
+        return _runtime?.GetSelectedBattleSkillTargetCoords() ?? System.Array.Empty<Vector2I>();
     }
 
-    public Array<StringName> GetSelectedBattleSkillTargetUnitIds()
+    public System.Collections.Generic.IReadOnlyList<StringName> GetSelectedBattleSkillTargetUnitIds()
     {
-        return _runtime?.GetSelectedBattleSkillTargetUnitIds() ?? new Array<StringName>();
+        return _runtime?.GetSelectedBattleSkillTargetUnitIds() ?? System.Array.Empty<StringName>();
     }
 
-    public Array<Vector2I> GetBattleOverlayTargetCoords()
+    public System.Collections.Generic.IReadOnlyList<Vector2I> GetBattleOverlayTargetCoords()
     {
-        return _runtime?.GetBattleOverlayTargetCoords() ?? new Array<Vector2I>();
+        return _runtime?.GetBattleOverlayTargetCoords() ?? System.Array.Empty<Vector2I>();
     }
 
     public int GetSelectedBattleSkillRequiredCoordCount()
@@ -248,39 +255,44 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetSettlementFeedbackText() ?? "";
     }
 
-    public Dictionary GetShopWindowData()
-    {
-        return _runtime?.GetShopWindowData() ?? new Dictionary();
-    }
+    internal GodotProjectionLease<Dictionary> GetShopWindowDataLease() =>
+        _runtime?.GetShopWindowDataLease()
+        ?? EmptyWindowDataLease("shop");
 
-    public Dictionary GetContractBoardWindowData()
-    {
-        return _runtime?.GetContractBoardWindowData() ?? new Dictionary();
-    }
-
-    public Dictionary GetNpcQuestOfferWindowData()
-    {
-        return _runtime?.GetNpcQuestOfferWindowData() ?? new Dictionary();
-    }
+    internal GodotProjectionLease<Dictionary> GetContractBoardWindowDataLease() =>
+        _runtime?.GetContractBoardWindowDataLease()
+        ?? EmptyWindowDataLease("contract-board");
 
     internal NpcQuestOfferWindowData GetNpcQuestOfferWindowDataTyped()
     {
         return _runtime?.GetActiveNpcQuestOfferData();
     }
 
-    public Dictionary GetForgeWindowData()
-    {
-        return _runtime?.GetForgeWindowData() ?? new Dictionary();
-    }
+    internal GodotProjectionLease<Dictionary> GetForgeWindowDataLease() =>
+        _runtime?.GetForgeWindowDataLease()
+        ?? EmptyWindowDataLease("forge");
 
-    public Dictionary GetStagecoachWindowData()
-    {
-        return _runtime?.GetStagecoachWindowData() ?? new Dictionary();
-    }
+    internal GodotProjectionLease<Dictionary> GetStagecoachWindowDataLease() =>
+        _runtime?.GetStagecoachWindowDataLease()
+        ?? EmptyWindowDataLease("stagecoach");
 
-    public Dictionary GetCharacterInfoContext()
+    private static GodotProjectionLease<Dictionary> EmptyWindowDataLease(string windowId) =>
+        RuntimePlainPayload.ProjectDictionaryLease(
+            new System.Collections.Generic.Dictionary<string, object>(System.StringComparer.Ordinal),
+            $"world-map-proxy-{windowId}",
+            LifetimeDomain.Request,
+            $"WorldMapRuntimeProxy.{windowId}"
+        );
+
+    internal GodotProjectionLease<Dictionary> GetCharacterInfoContextLease()
     {
-        return _runtime?.GetCharacterInfoContext() ?? new Dictionary();
+        return _runtime?.GetCharacterInfoContextLease()
+            ?? RuntimePlainPayload.ProjectDictionaryLease(
+                new System.Collections.Generic.Dictionary<string, object>(System.StringComparer.Ordinal),
+                "WorldMapRuntimeProxy.character_info_context",
+                LifetimeDomain.Request,
+                "WorldMapRuntimeProxy.character_info_context"
+            );
     }
 
     public PartyState GetPartyState()
@@ -303,9 +315,15 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetWarehouseWindowData() ?? new Dictionary();
     }
 
-    public Dictionary GetCurrentPromotionPrompt()
+    internal GodotProjectionLease<Dictionary> GetCurrentPromotionPromptLease()
     {
-        return _runtime?.GetCurrentPromotionPrompt() ?? new Dictionary();
+        return _runtime?.GetCurrentPromotionPromptLease()
+            ?? RuntimePlainPayload.ProjectDictionaryLease(
+                new System.Collections.Generic.Dictionary<string, object>(System.StringComparer.Ordinal),
+                "WorldMapRuntimeProxy.current_promotion_prompt",
+                LifetimeDomain.Request,
+                "WorldMapRuntimeProxy.current_promotion_prompt"
+            );
     }
 
     public PendingCharacterReward GetActiveReward()

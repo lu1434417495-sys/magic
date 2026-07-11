@@ -10,13 +10,6 @@ using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 // Pure physical split: same class, no behavior change. See GameRuntimeFacade.cs.
 public sealed partial class GameRuntimeFacade
 {
-
-    private static GVector2IArray ToVector2IArray(IEnumerable<Vector2I> values)
-        => new Vector2IList(values).ToGodotArray();
-
-    private static GStringNameArray ToStringNameArray(IEnumerable<StringName> values)
-        => new StringNameList(values).ToGodotArray();
-
     private void _sync_active_world_context()
     {
         _save_active_fog_state_to_world_data();
@@ -30,9 +23,11 @@ public sealed partial class GameRuntimeFacade
         _selected_coord = syncResult.SelectedCoord;
         if (_world_map_data_context.active_generation_definition != null)
         {
+            using GodotProjectionLease<GDictionary> fogStateLease =
+                _world_map_data_context.GetActiveWorldFogStateLease();
             _fog_system.Setup(
                 _world_map_data_context.active_generation_definition.GetWorldSizeCells(),
-                _get_active_world_fog_state()
+                fogStateLease.Value
             );
             _world_map_data_context.ValidateWorldSystemSizeConsistency(
                 _grid_system,
@@ -41,18 +36,9 @@ public sealed partial class GameRuntimeFacade
         }
     }
 
-    private GDictionary _get_active_world_fog_state() =>
-        _world_map_data_context.GetActiveWorldFogState();
-
     private void _save_active_fog_state_to_world_data()
     {
         _world_map_data_context.SaveActiveWorldFogState(_fog_system);
-    }
-
-    private GDictionary _get_world_event_at(Vector2I coord)
-    {
-        WorldMapEventData worldEvent = _world_map_data_context.GetWorldEventAt(coord);
-        return WorldMapDataProjection.Project(worldEvent);
     }
 
     private WorldMapEventData GetTriggerableWorldEventAt(Vector2I coord)
@@ -68,7 +54,9 @@ public sealed partial class GameRuntimeFacade
             return;
         }
         string targetSubmapId = worldEvent.TargetSubmapId.ToString();
-        var submapEntry = _get_mounted_submap_entry(targetSubmapId);
+        using GodotProjectionLease<GDictionary> submapEntryLease =
+            _world_map_data_context.GetMountedSubmapEntryLease(targetSubmapId);
+        GDictionary submapEntry = submapEntryLease.Value;
         if (submapEntry.Count == 0)
         {
             UpdateStatusInternal($"未找到目标子地图 {targetSubmapId}。");
@@ -168,9 +156,9 @@ public sealed partial class GameRuntimeFacade
         _sync_active_world_context();
         _RefreshFog();
         int playerPersistError = _game_session.SetPlayerCoord(_player_coord);
-        int worldPersistError = _game_session.SetWorldData(
-            _world_map_data_context.root_world_data
-        );
+        using GodotProjectionLease<GDictionary> rootWorldDataLease =
+            _world_map_data_context.GetRootWorldDataLease();
+        int worldPersistError = _game_session.SetWorldData(rootWorldDataLease.Value);
         int commitError = (int)Error.Ok;
         if (playerPersistError == (int)Error.Ok && worldPersistError == (int)Error.Ok)
             commitError = CommitRuntimeStateInternal("submap_entry");
@@ -209,13 +197,13 @@ public sealed partial class GameRuntimeFacade
         _active_settlement_feedback_text = "";
         _active_character_info_context.Clear();
         _pending_submap_prompt.Clear();
-            _active_modal_kind = RuntimeModalKind.None;
+        _active_modal_kind = RuntimeModalKind.None;
         _sync_active_world_context();
         _RefreshFog();
         int playerPersistError = _game_session.SetPlayerCoord(_player_coord);
-        int worldPersistError = _game_session.SetWorldData(
-            _world_map_data_context.root_world_data
-        );
+        using GodotProjectionLease<GDictionary> rootWorldDataLease =
+            _world_map_data_context.GetRootWorldDataLease();
+        int worldPersistError = _game_session.SetWorldData(rootWorldDataLease.Value);
         int commitError = (int)Error.Ok;
         if (playerPersistError == (int)Error.Ok && worldPersistError == (int)Error.Ok)
             commitError = CommitRuntimeStateInternal("submap_return");
@@ -238,9 +226,4 @@ public sealed partial class GameRuntimeFacade
     private WorldGenerationDefinition _get_submap_generation_definition(string submap_id) =>
         _world_map_data_context.GetSubmapGenerationDefinition(submap_id);
 
-    private GDictionary _get_mounted_submap_entry(string submap_id) =>
-        _world_map_data_context.GetMountedSubmapEntry(submap_id);
-
-    private void _set_mounted_submap_entry(string submap_id, GDictionary submap_entry) =>
-        _world_map_data_context.SetMountedSubmapEntry(submap_id, submap_entry);
 }

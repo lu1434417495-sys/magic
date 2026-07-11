@@ -138,7 +138,9 @@ public partial class run_battle_session_promotion_prompt_regression : LifecycleT
             if (projectedDeltas.Count == 0)
                 return;
             facade.CapturePendingPromotionPrompt(projectedDeltas);
-            GDictionary prompt = runtime.GetPendingPromotionPrompt();
+            using GodotProjectionLease<GDictionary> promptLease =
+                runtime.GetPendingPromotionPromptLease();
+            GDictionary prompt = promptLease.Value;
             GArray choices = DictArray(prompt, "choices");
             _test.Eq(
                 choices.Count,

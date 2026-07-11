@@ -315,7 +315,11 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
                 region_tag = "simulation",
             };
 
-            GDictionary context = fixture.BuildRuntimeContext(runtime, scenarioDef.BuildStartContext());
+            using GodotProjectionLease<GDictionary> baseContextLease =
+                scenarioDef.BuildStartContextLease();
+            using GodotProjectionLease<GDictionary> contextLease =
+                fixture.BuildRuntimeContextLease(runtime, baseContextLease.Value);
+            GDictionary context = contextLease.Value;
             state = runtime.StartBattle(encounterAnchor, seed, context);
             fixture.ApplyStartedBattleMetadata(state);
 

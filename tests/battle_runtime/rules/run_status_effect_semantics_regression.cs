@@ -617,11 +617,13 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
             contentDr: 4,
             damageTag: "fire"
         );
-        GDictionary formalTagResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> formalTagResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(runtime._damage_resolver.ResolveEffects(
             source,
             formalTagTarget,
             new[] { physicalEffect }
         ));
+        GDictionary formalTagResult = formalTagResultLease.Value;
         _test.Eq(DictInt(formalTagResult, "damage", -1), 10, "正式 damage_tag 不匹配时不应套用 mitigation_tier。");
 
         BattleUnitState legacyFormalTagTarget = BuildUnit("legacy_formal_tag_target", Vector2I.Zero, 2);
@@ -635,11 +637,13 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
                 @params = new GDictionary { ["damage_tag"] = "fire" },
             }
         );
-        GDictionary legacyFormalTagResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> legacyFormalTagResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(runtime._damage_resolver.ResolveEffects(
             source,
             legacyFormalTagTarget,
             new[] { physicalEffect }
         ));
+        GDictionary legacyFormalTagResult = legacyFormalTagResultLease.Value;
         _test.Eq(
             DictInt(legacyFormalTagResult, "damage", -1),
             6,
@@ -653,11 +657,13 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
             new GDictionary { ["tag"] = "fire" }
         );
         legacyTagTarget.GetStatusEffect("legacy_fire_barrier").content_dr = 4;
-        GDictionary legacyTagResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> legacyTagResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(runtime._damage_resolver.ResolveEffects(
             source,
             legacyTagTarget,
             new[] { physicalEffect }
         ));
+        GDictionary legacyTagResult = legacyTagResultLease.Value;
         _test.Eq(DictInt(legacyTagResult, "damage", -1), 6, "旧 params.tag 不应再被当作 damage_tag 过滤。");
 
         CombatEffectDefinition formalBypassEffect = BuildDamageEffect(
@@ -672,11 +678,13 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
             contentDr: 4,
             drBypassTag: "armor_pierce"
         );
-        GDictionary formalBypassResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> formalBypassResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(runtime._damage_resolver.ResolveEffects(
             source,
             formalBypassTarget,
             new[] { formalBypassEffect }
         ));
+        GDictionary formalBypassResult = formalBypassResultLease.Value;
         _test.Eq(DictInt(formalBypassResult, "damage", -1), 10, "正式 dr_bypass_tag 匹配时应绕过 content_dr。");
 
         CombatEffectDefinition legacyEffectBypass = BuildDamageEffect(
@@ -690,11 +698,13 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
             "formal_content_dr",
             new GDictionary { ["content_dr"] = 4, ["dr_bypass_tag"] = "armor_pierce" }
         );
-        GDictionary legacyEffectBypassResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> legacyEffectBypassResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(runtime._damage_resolver.ResolveEffects(
             source,
             legacyEffectBypassTarget,
             new[] { legacyEffectBypass }
         ));
+        GDictionary legacyEffectBypassResult = legacyEffectBypassResultLease.Value;
         _test.Eq(DictInt(legacyEffectBypassResult, "damage", -1), 10, "旧 status params.content_dr 不应继续驱动正式固定减伤。");
 
         BattleUnitState legacyStatusBypassTarget = BuildUnit("legacy_status_bypass_target", Vector2I.Zero, 2);
@@ -703,29 +713,35 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
             "legacy_content_dr",
             new GDictionary { ["content_dr"] = 4, ["bypass_tag"] = "armor_pierce" }
         );
-        GDictionary legacyStatusBypassResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> legacyStatusBypassResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(runtime._damage_resolver.ResolveEffects(
             source,
             legacyStatusBypassTarget,
             new[] { formalBypassEffect }
         ));
+        GDictionary legacyStatusBypassResult = legacyStatusBypassResultLease.Value;
         _test.Eq(DictInt(legacyStatusBypassResult, "damage", -1), 10, "旧 status params.content_dr/bypass_tag 不应再被当作正式减伤契约。");
 
         BattleUnitState formalPassiveTarget = BuildUnit("formal_passive_target", Vector2I.Zero, 2);
         SetTypedStatusFields(formalPassiveTarget, "formal_vajra", passiveReduction: 3);
-        GDictionary formalPassiveResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> formalPassiveResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(runtime._damage_resolver.ResolveEffects(
             source,
             formalPassiveTarget,
             new[] { physicalEffect }
         ));
+        GDictionary formalPassiveResult = formalPassiveResultLease.Value;
         _test.Eq(DictInt(formalPassiveResult, "damage", -1), 7, "正式 passive_reduction 字段应减少固定伤害。");
 
         BattleUnitState legacyPassiveTarget = BuildUnit("legacy_passive_target", Vector2I.Zero, 2);
         SetStatusParams(legacyPassiveTarget, "legacy_vajra", new GDictionary { ["passive_reduction"] = 3 });
-        GDictionary legacyPassiveResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> legacyPassiveResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(runtime._damage_resolver.ResolveEffects(
             source,
             legacyPassiveTarget,
             new[] { physicalEffect }
         ));
+        GDictionary legacyPassiveResult = legacyPassiveResultLease.Value;
         _test.Eq(DictInt(legacyPassiveResult, "damage", -1), 10, "旧 status params.passive_reduction 不应继续驱动正式减伤。");
 
         CombatEffectDefinition formalLowHpEffect = BuildDamageEffect(
@@ -738,20 +754,24 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
         );
         BattleUnitState formalLowHpTarget = BuildUnit("formal_low_hp_target", Vector2I.Zero, 2);
         formalLowHpTarget.current_hp = 18;
-        GDictionary formalLowHpResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> formalLowHpResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(runtime._damage_resolver.ResolveEffects(
             source,
             formalLowHpTarget,
             new[] { formalLowHpEffect }
         ));
+        GDictionary formalLowHpResult = formalLowHpResultLease.Value;
         _test.Eq(DictInt(formalLowHpResult, "damage", -1), 14, "正式 hp_ratio_threshold_percent 应控制低血追加伤害骰阈值。");
         BattleUnitState formalLowHpCritTarget = BuildUnit("formal_low_hp_crit_target", Vector2I.Zero, 2);
         formalLowHpCritTarget.current_hp = 18;
-        GDictionary formalLowHpCritResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> formalLowHpCritResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(runtime._damage_resolver.ResolveEffects(
             source,
             formalLowHpCritTarget,
             new[] { formalLowHpEffect },
             DamageResolutionContext.FromDictionary(new GDictionary { ["critical_hit"] = true })
         ));
+        GDictionary formalLowHpCritResult = formalLowHpCritResultLease.Value;
         _test.Eq(DictInt(formalLowHpCritResult, "damage", -1), 18, "低血暴击应额外掷一组处决追加骰。");
 
         CombatEffectDefinition legacyLowHpEffect = BuildDamageEffect(
@@ -767,11 +787,13 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
         );
         BattleUnitState legacyLowHpTarget = BuildUnit("legacy_low_hp_target", Vector2I.Zero, 2);
         legacyLowHpTarget.current_hp = 18;
-        GDictionary legacyLowHpResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> legacyLowHpResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(runtime._damage_resolver.ResolveEffects(
             source,
             legacyLowHpTarget,
             new[] { legacyLowHpEffect }
         ));
+        GDictionary legacyLowHpResult = legacyLowHpResultLease.Value;
         _test.Eq(DictInt(legacyLowHpResult, "damage", -1), 10, "旧 params.low_hp_ratio 不应再覆盖默认低血阈值或触发追加骰。");
     }
 
@@ -894,7 +916,11 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
     private void TestLegacyStatusEffectMapKeysAreNotStatusIdFallbacks()
     {
         BattleUnitState unit = BuildUnit("legacy_status_map_unit", new Vector2I(1, 1), 2);
-        GDictionary payload = unit.ToDictionary();
+        using GodotProjectionLease<GDictionary> payloadLease = unit.ToDictionaryLease(
+            LifetimeDomain.Request,
+            "status-effect-semantics-legacy-map"
+        );
+        GDictionary payload = payloadLease.Value;
         payload["status_effects"] = new GDictionary
         {
             ["burning"] = new GDictionary
@@ -914,7 +940,11 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
     private void TestNonDictionaryStatusEffectEntriesAreRejected()
     {
         BattleUnitState unit = BuildUnit("non_dict_status_entry_unit", new Vector2I(1, 1), 2);
-        GDictionary payload = unit.ToDictionary();
+        using GodotProjectionLease<GDictionary> payloadLease = unit.ToDictionaryLease(
+            LifetimeDomain.Request,
+            "status-effect-semantics-non-dictionary-entry"
+        );
+        GDictionary payload = payloadLease.Value;
         payload["status_effects"] = new GDictionary { ["burning"] = "legacy_entry" };
 
         _test.True(
@@ -938,7 +968,10 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
             skip_next_turn_end_decay = true,
         };
 
-        BattleStatusEffectState restoredEffect = BattleStatusEffectState.FromDictionary(effect.ToDictionary());
+        using GodotProjectionLease<GDictionary> effectLease = effect.ToDictionaryLease();
+        BattleStatusEffectState restoredEffect = BattleStatusEffectState.FromDictionary(
+            effectLease.Value
+        );
         _test.True(restoredEffect != null, "正式状态 effect to_dict/from_dict 应继续恢复对象。");
         _test.Eq(restoredEffect != null ? restoredEffect.status_id : "", new StringName("burning"), "正式状态 effect round trip 应保留 status_id。");
         _test.Eq(restoredEffect != null ? restoredEffect.source_unit_id : "", new StringName("round_trip_source"), "正式状态 effect round trip 应保留来源单位。");
@@ -951,7 +984,11 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
 
         BattleUnitState unit = BuildUnit("status_round_trip_unit", new Vector2I(1, 1), 2);
         unit.SetStatusEffect(effect);
-        BattleUnitState restoredUnit = BattleUnitState.FromDictionary(unit.ToDictionary());
+        using GodotProjectionLease<GDictionary> unitLease = unit.ToDictionaryLease(
+            LifetimeDomain.Request,
+            "status-effect-semantics-unit-roundtrip"
+        );
+        BattleUnitState restoredUnit = BattleUnitState.FromDictionary(unitLease.Value);
         BattleStatusEffectState unitEffect = restoredUnit?.GetStatusEffect("burning");
         _test.True(unitEffect != null, "正式 BattleUnitState 状态字典 round trip 应继续恢复状态。");
         _test.Eq(unitEffect != null ? unitEffect.status_id : "", new StringName("burning"), "正式 BattleUnitState 状态 round trip 应保留 status_id。");
@@ -985,11 +1022,13 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
             durationTu: Math.Max(durationTu, 0),
             tickIntervalTu: Math.Max(tickIntervalTu, 0)
         );
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(runtime._damage_resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(runtime._damage_resolver.ResolveEffects(
             sourceUnit,
             targetUnit,
             new[] { effectDef }
         ));
+        GDictionary result = resultLease.Value;
         runtime.MarkAppliedStatusesForTurnTiming(
             targetUnit,
             DictStringNameArray(result, "status_effect_ids")

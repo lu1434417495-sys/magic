@@ -820,10 +820,7 @@ internal sealed class BattleChargeResolver
         clonedState.active_unit_id = state.active_unit_id;
         clonedState.winner_faction_id = state.winner_faction_id;
         clonedState.log_entries = new Godot.Collections.Array<string>(state.log_entries);
-        clonedState.promotion_queue = RuntimePayloadCopy.Array(
-            state.promotion_queue,
-            "BattleChargeResolver.CloneStateForPreview.promotion_queue"
-        );
+        clonedState.SetPromotionQueue(state.PromotionQueueSnapshots);
         clonedState.modal_state = state.modal_state;
         clonedState.ReplaceTemporaryEdgeFeaturesTyped(state.GetTemporaryEdgeFeaturesTyped());
         clonedState.ClearRuntimeEdgeFaces();
@@ -2006,7 +2003,7 @@ internal sealed class BattleChargeResolver
 
     private void MarkAppliedStatusesForTurnTiming(
         BattleUnitState targetUnit,
-        Godot.Collections.Array<StringName> statusEffectIds
+        IReadOnlyList<StringName> statusEffectIds
     )
     {
         Runtime?.MarkAppliedStatusesForTurnTiming(

@@ -191,7 +191,7 @@ public partial class run_fortuna_guidance_regression : LifecycleTestSceneTree
         fateRuntime.Setup(context.Manager, bus);
 
         bus.Dispatch(BuildExaltedPayload("adapter_blocked"));
-        GStringNameArray blockedUnlocks = fateRuntime.HandleFortunaChapterCompleted(
+        List<StringName> blockedUnlocks = fateRuntime.HandleFortunaChapterCompleted(
             new GDictionary
             {
                 ["chapter_id"] = "chapter_blocked",
@@ -206,7 +206,7 @@ public partial class run_fortuna_guidance_regression : LifecycleTestSceneTree
         );
 
         bus.Dispatch(BuildExaltedPayload("adapter_allowed"));
-        GStringNameArray allowedUnlocks = fateRuntime.HandleFortunaChapterCompleted(
+        List<StringName> allowedUnlocks = fateRuntime.HandleFortunaChapterCompleted(
             new GDictionary
             {
                 ["chapter_id"] = "chapter_allowed",

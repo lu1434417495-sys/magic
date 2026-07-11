@@ -170,7 +170,9 @@ public partial class run_save_payload_string_minimization_regression : Lifecycle
                 "解码后 save meta display_name 应恢复为运行时 String。"
             );
 
-            using GDictionary runtimeWorldData = gameSession.GetWorldData();
+            using GodotProjectionLease<GDictionary> runtimeWorldDataLease =
+                gameSession.GetWorldDataLease();
+            GDictionary runtimeWorldData = runtimeWorldDataLease.Value;
             runtimeWorldData["active_submap_id"] = new StringName("");
             _test.True(
                 serializer.NormalizeWorldData(runtimeWorldData).Count == 0,

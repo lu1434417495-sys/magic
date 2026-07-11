@@ -56,20 +56,23 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
             suppressed_until_step = 0,
         };
 
-        GArray typedUnits = builder.BuildEnemyUnitsFromDefinitionsTyped(
+        using GodotProjectionLease<GArray> typedUnitsLease =
+            builder.BuildEnemyUnitsFromDefinitionsLease(
             encounterAnchor,
             runtime.GetSkillDefinitionIndexTyped(),
             runtime.GetEnemyTemplateIndexTyped(),
             runtime.GetEnemyAiBrainIndexTyped(),
             runtime.BuildItemDefIndexSnapshotTyped()
         );
-        GArray sessionUnits = builder.BuildEnemyUnitsTyped(
+        using GodotProjectionLease<GArray> sessionUnitsLease = builder.BuildEnemyUnitsLease(
             encounterAnchor,
             gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             gameSession.GetEnemyTemplateDefinitions(),
             gameSession.GetEnemyAiBrainDefinitions(),
             gameSession.GetItemDefsTyped()
         );
+        GArray typedUnits = typedUnitsLease.Value;
+        GArray sessionUnits = sessionUnitsLease.Value;
 
         _test.Eq(typedUnits.Count, sessionUnits.Count, "不同 typed 输入源构建的 enemy unit 数量应一致。");
         _test.Eq(
@@ -173,7 +176,8 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
             [template.template_id] = template.ToDefinition(itemDefinitions),
         };
 
-        GArray enemyUnits = builder.BuildEnemyUnitsFromDefinitionsTyped(
+        using GodotProjectionLease<GArray> enemyUnitsLease =
+            builder.BuildEnemyUnitsFromDefinitionsLease(
             BuildEncounterAnchor("flame_enemy_encounter", template.template_id),
             new Dictionary<StringName, SkillDefinition>(),
             enemyTemplates,
@@ -182,6 +186,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
             traitDefs: traitDefs,
             equipmentAbilityBindings: bindings
         );
+        GArray enemyUnits = enemyUnitsLease.Value;
 
         _test.Eq(enemyUnits.Count, 1, "enemy template fixture 应生成一个敌方单位。");
         BattleUnitState unit = enemyUnits.Count > 0
@@ -444,13 +449,14 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
             suppressed_until_step = 0,
         };
 
-        GArray enemyUnits = builder.BuildEnemyUnitsTyped(
+        using GodotProjectionLease<GArray> enemyUnitsLease = builder.BuildEnemyUnitsLease(
             encounterAnchor,
             gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             gameSession.GetEnemyTemplateDefinitions(),
             gameSession.GetEnemyAiBrainDefinitions(),
             gameSession.GetItemDefsTyped()
         );
+        GArray enemyUnits = enemyUnitsLease.Value;
         return enemyUnits.Count > 0
             && BattleUnitState.TryReadUnitPayload(enemyUnits[0], out BattleUnitState unit)
                 ? unit

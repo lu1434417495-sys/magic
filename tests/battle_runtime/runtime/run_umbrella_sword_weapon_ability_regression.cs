@@ -287,14 +287,16 @@ public partial class run_umbrella_sword_weapon_ability_regression : LifecycleTes
             environmentTags
         );
         fixture.Runtime.SetupStateForTests(state);
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(
-            fixture.Runtime.GetDamageResolver().ResolveEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                fixture.Runtime.GetDamageResolver().ResolveEffects(
                 source,
                 target,
                 new[] { MakeDamageEffect(damageTag, 10) },
                 DamageResolutionContext.Empty()
             )
         );
+        GDictionary result = resultLease.Value;
         firstDamageEvent = FirstDamageEvent(result);
         return DictInt(result, "damage", -1);
     }

@@ -279,7 +279,9 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
                 );
             _test.Eq(eliteSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.CharacterHpMaxPercentBonus)), 20, "精英剑士有效生命上限应包含强健的 20% 人物生命加成。");
             eliteSword.current_hp = 1;
-            fixture.BuildRuntimeContext(null, new GDictionary());
+            using GDictionary baseContext = new();
+            using GodotProjectionLease<GDictionary> contextLease =
+                fixture.BuildRuntimeContextLease(null, baseContext);
             _test.Eq(eliteSword.current_hp, Mathf.Max(eliteSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)), 1), "build_runtime_context 开战前应重新把模拟单位补到有效生命上限。");
         }
     }
@@ -315,7 +317,10 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
     private void TestFormalFixtureRequestsBidirectionalSpawnReachability()
     {
         BattleSimFormalCombatFixture fixture = BuildFixture(BattleSimFormalCombatFixture.ROSTER_MIXED_6V12);
-        GDictionary context = fixture.BuildRuntimeContext(null, new GDictionary());
+        using GDictionary baseContext = new();
+        using GodotProjectionLease<GDictionary> contextLease =
+            fixture.BuildRuntimeContextLease(null, baseContext);
+        GDictionary context = contextLease.Value;
         _test.True(ReadBool(context, "validate_spawn_reachability"), "formal combat fixture 模拟应开启出生可达性验证。");
         _test.True(ReadBool(context, "validate_bidirectional_spawn_reachability"), "formal combat fixture 模拟应开启玩家/敌方双向可攻击验证。");
         _test.True(ReadBool(context, "enforce_opposing_spawn_sides"), "formal combat fixture 模拟应开启玩家/敌方对侧出生约束。");

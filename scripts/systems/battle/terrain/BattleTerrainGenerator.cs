@@ -131,18 +131,44 @@ public class BattleTerrainGenerator : IDisposable
         return BattleTerrainProfileKind.Unknown;
     }
 
-    public virtual GDictionary GenerateTyped(
+    internal virtual GodotProjectionLease<GDictionary> GenerateLease(
         EncounterAnchorData encounterAnchor,
+        long seed,
+        GDictionary context,
+        LifetimeDomain domain = LifetimeDomain.Battle
+    )
+    {
+        GDictionary root = new();
+        GodotProjectionLease<GDictionary> lease =
+            GodotProjectionLease<GDictionary>.CreateOwnedRoot(
+                root,
+                "battle-terrain-generator",
+                domain,
+                "BattleTerrainGenerator.GenerateLease"
+            );
+        try
+        {
+            GDictionary generated = Generate(lease, encounterAnchor, seed, context);
+            if (generated != null && !ReferenceEquals(generated, root))
+                root.Merge(generated, true);
+            return lease;
+        }
+        catch
+        {
+            lease.Dispose();
+            throw;
+        }
+    }
+
+    private GDictionary Generate(
+        GodotProjectionLease<GDictionary> lease,
+        object encounterAnchorOrContext,
         long seed,
         GDictionary context
     )
     {
-        return Generate(encounterAnchor, seed, context ?? new GDictionary());
-    }
-
-    private GDictionary Generate(object encounterAnchorOrContext, long seed, GDictionary context)
-    {
         GDictionary encounterContext = BuildEncounterContext(
+            lease,
             encounterAnchorOrContext,
             seed,
             context
@@ -153,7 +179,10 @@ public class BattleTerrainGenerator : IDisposable
         );
         if (terrainProfileId == "")
         {
-            return new GDictionary();
+            return lease.Own(
+                new GDictionary(),
+                "BattleTerrainGenerator.Generate.empty"
+            );
         }
 
         long battleSeed = BuildBattleSeed(encounterContext);
@@ -162,17 +191,17 @@ public class BattleTerrainGenerator : IDisposable
         BattleTerrainProfileKind terrainProfileKind = ToProfileKind(terrainProfileId);
         if (terrainProfileKind == BattleTerrainProfileKind.Canyon)
         {
-            return GenerateCanyon(encounterContext, terrainProfileId);
+            return GenerateCanyon(lease, encounterContext, terrainProfileId);
         }
         if (terrainProfileKind == BattleTerrainProfileKind.NarrowAssault)
         {
-            return GenerateNarrowAssault(encounterContext, terrainProfileId);
+            return GenerateNarrowAssault(lease, encounterContext, terrainProfileId);
         }
         if (terrainProfileKind == BattleTerrainProfileKind.HoldoutPush)
         {
-            return GenerateHoldoutPush(encounterContext, terrainProfileId);
+            return GenerateHoldoutPush(lease, encounterContext, terrainProfileId);
         }
-        return GenerateDefault(encounterContext, terrainProfileId);
+        return GenerateDefault(lease, encounterContext, terrainProfileId);
     }
 
     private StringName ResolveTerrainProfileId(
@@ -180,10 +209,9 @@ public class BattleTerrainGenerator : IDisposable
         GDictionary context
     )
     {
-        context ??= new GDictionary();
         string rawProfileId = "";
         bool hasExplicitProfile = false;
-        if (context.ContainsKey("battle_terrain_profile"))
+        if (context != null && context.ContainsKey("battle_terrain_profile"))
         {
             rawProfileId = context["battle_terrain_profile"].AsString();
             hasExplicitProfile = !string.IsNullOrWhiteSpace(rawProfileId);
@@ -197,7 +225,7 @@ public class BattleTerrainGenerator : IDisposable
             }
             else
             {
-                GDictionary monster = GetDictionary(encounterContext, "monster");
+                using GDictionary monster = GetDictionary(encounterContext, "monster");
                 rawProfileId = ReadString(monster, "region_tag", "");
             }
         }
@@ -275,7 +303,11 @@ public class BattleTerrainGenerator : IDisposable
         }
     }
 
-    private GDictionary GenerateDefault(GDictionary encounterContext, StringName terrainProfileId)
+    private GDictionary GenerateDefault(
+        GodotProjectionLease<GDictionary> lease,
+        GDictionary encounterContext,
+        StringName terrainProfileId
+    )
     {
         Vector2I mapSize = ResolveMapSize(
             encounterContext,
@@ -310,7 +342,7 @@ public class BattleTerrainGenerator : IDisposable
                     5
                 );
                 RelaxOrdinarySlopeDeltas(cells, mapSize);
-                cellPayload = ToCellDictionary(cells);
+                cellPayload = ToCellDictionary(lease, cells);
                 edgeFaces = BuildEdgeFaces(cellPayload, mapSize);
                 Vector2I playerCoord = FirstDryCoord(
                     cellPayload,
@@ -333,6 +365,7 @@ public class BattleTerrainGenerator : IDisposable
                     DisposeGeneratedLayout(bestLayout);
                     bestScore = quality.Score;
                     bestLayout = BuildLayout(
+                        lease,
                         mapSize,
                         cellPayload,
                         playerCoord,
@@ -347,6 +380,7 @@ public class BattleTerrainGenerator : IDisposable
                     {
                         DisposeGeneratedLayout(bestLayout);
                         bestLayout = BuildLayout(
+                            lease,
                             mapSize,
                             cellPayload,
                             playerCoord,
@@ -366,10 +400,18 @@ public class BattleTerrainGenerator : IDisposable
                     DisposeGeneratedCandidate(cells, cellPayload);
             }
         }
-        return bestLayout ?? new GDictionary();
+        return bestLayout
+            ?? lease.Own(
+                new GDictionary(),
+                "BattleTerrainGenerator.GenerateDefault.empty"
+            );
     }
 
-    private GDictionary GenerateCanyon(GDictionary encounterContext, StringName terrainProfileId)
+    private GDictionary GenerateCanyon(
+        GodotProjectionLease<GDictionary> lease,
+        GDictionary encounterContext,
+        StringName terrainProfileId
+    )
     {
         Vector2I mapSize = ResolveCanyonMapSize(encounterContext);
         long battleSeed = BuildBattleSeed(encounterContext);
@@ -411,7 +453,7 @@ public class BattleTerrainGenerator : IDisposable
                 }
                 RelaxOrdinarySlopeDeltas(cells, mapSize);
 
-                cellPayload = ToCellDictionary(cells);
+                cellPayload = ToCellDictionary(lease, cells);
                 edgeFaces = BuildEdgeFaces(cellPayload, mapSize);
                 if (
                     !TryFindSpawnPair(
@@ -425,7 +467,15 @@ public class BattleTerrainGenerator : IDisposable
                 {
                     continue;
                 }
-                AddStandardProps(cellPayload, mapSize, playerCoord, enemyCoord, mapSize.X / 2, true);
+                AddStandardProps(
+                    lease,
+                    cellPayload,
+                    mapSize,
+                    playerCoord,
+                    enemyCoord,
+                    mapSize.X / 2,
+                    true
+                );
                 TerrainQualityResult quality = ScoreCandidate(
                     cells,
                     cellPayload,
@@ -439,6 +489,7 @@ public class BattleTerrainGenerator : IDisposable
                     DisposeGeneratedLayout(bestLayout);
                     bestScore = quality.Score;
                     bestLayout = BuildLayout(
+                        lease,
                         mapSize,
                         cellPayload,
                         playerCoord,
@@ -453,6 +504,7 @@ public class BattleTerrainGenerator : IDisposable
                     {
                         DisposeGeneratedLayout(bestLayout);
                         bestLayout = BuildLayout(
+                            lease,
                             mapSize,
                             cellPayload,
                             playerCoord,
@@ -472,7 +524,11 @@ public class BattleTerrainGenerator : IDisposable
                     DisposeGeneratedCandidate(cells, cellPayload);
             }
         }
-        return bestLayout ?? new GDictionary();
+        return bestLayout
+            ?? lease.Own(
+                new GDictionary(),
+                "BattleTerrainGenerator.GenerateCanyon.empty"
+            );
     }
 
     private static void DisposeGeneratedCandidate(
@@ -490,10 +546,6 @@ public class BattleTerrainGenerator : IDisposable
             }
             cells.Clear();
         }
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-            cellPayload,
-            "BattleTerrainGenerator.BuildCellPayload"
-        );
         cellPayload?.Clear();
     }
 
@@ -501,30 +553,11 @@ public class BattleTerrainGenerator : IDisposable
     {
         if (layout == null || layout.Count == 0)
             return;
-        if (TryGetDictionary(layout, "cell_columns", out GDictionary cellColumns))
-            BattleState.DisposeCellColumnsPayload(cellColumns);
-        if (TryGetDictionary(layout, "cells", out GDictionary cells))
-            BattleState.DisposeCellDictionaryPayload(cells);
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-            layout,
-            "BattleTerrainGenerator.GenerateTyped"
-        );
         layout.Clear();
     }
 
-    private static bool TryGetDictionary(GDictionary source, string key, out GDictionary value)
-    {
-        value = null;
-        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
-            return false;
-        Variant rawValue = source[key];
-        if (rawValue.VariantType != Variant.Type.Dictionary)
-            return false;
-        value = rawValue.AsGodotDictionary();
-        return value != null;
-    }
-
     private GDictionary GenerateNarrowAssault(
+        GodotProjectionLease<GDictionary> lease,
         GDictionary encounterContext,
         StringName terrainProfileId
     )
@@ -554,8 +587,9 @@ public class BattleTerrainGenerator : IDisposable
             }
         );
         RelaxOrdinarySlopeDeltas(cells, mapSize);
-        GDictionary cellPayload = ToCellDictionary(cells);
+        GDictionary cellPayload = ToCellDictionary(lease, cells);
         AuthorSeamWall(
+            lease,
             cellPayload,
             mapSize,
             gateX,
@@ -563,11 +597,27 @@ public class BattleTerrainGenerator : IDisposable
         );
         Vector2I playerCoord = FirstDryCoord(cellPayload, new Vector2I(1, laneY));
         Vector2I enemyCoord = FirstDryCoord(cellPayload, new Vector2I(mapSize.X - 2, laneY));
-        AddStandardProps(cellPayload, mapSize, playerCoord, enemyCoord, gateX, true);
-        return BuildLayout(mapSize, cellPayload, playerCoord, enemyCoord, terrainProfileId);
+        AddStandardProps(
+            lease,
+            cellPayload,
+            mapSize,
+            playerCoord,
+            enemyCoord,
+            gateX,
+            true
+        );
+        return BuildLayout(
+            lease,
+            mapSize,
+            cellPayload,
+            playerCoord,
+            enemyCoord,
+            terrainProfileId
+        );
     }
 
     private GDictionary GenerateHoldoutPush(
+        GodotProjectionLease<GDictionary> lease,
         GDictionary encounterContext,
         StringName terrainProfileId
     )
@@ -613,15 +663,37 @@ public class BattleTerrainGenerator : IDisposable
             }
         );
         RelaxOrdinarySlopeDeltas(cells, mapSize);
-        GDictionary cellPayload = ToCellDictionary(cells);
-        AuthorSeamWall(cellPayload, mapSize, holdLineX, new HashSet<int> { openingY });
+        GDictionary cellPayload = ToCellDictionary(lease, cells);
+        AuthorSeamWall(
+            lease,
+            cellPayload,
+            mapSize,
+            holdLineX,
+            new HashSet<int> { openingY }
+        );
         Vector2I playerCoord = FirstDryCoord(cellPayload, new Vector2I(1, openingY));
         Vector2I enemyCoord = FirstDryCoord(cellPayload, new Vector2I(mapSize.X - 2, openingY));
-        AddStandardProps(cellPayload, mapSize, playerCoord, enemyCoord, holdLineX, false);
-        return BuildLayout(mapSize, cellPayload, playerCoord, enemyCoord, terrainProfileId);
+        AddStandardProps(
+            lease,
+            cellPayload,
+            mapSize,
+            playerCoord,
+            enemyCoord,
+            holdLineX,
+            false
+        );
+        return BuildLayout(
+            lease,
+            mapSize,
+            cellPayload,
+            playerCoord,
+            enemyCoord,
+            terrainProfileId
+        );
     }
 
     private GDictionary BuildLayout(
+        GodotProjectionLease<GDictionary> lease,
         Vector2I mapSize,
         GDictionary cells,
         Vector2I playerCoord,
@@ -637,40 +709,34 @@ public class BattleTerrainGenerator : IDisposable
             mapSize,
             cellColumns
         );
-        return new GDictionary
+        GArray allySpawns = lease.Own(
+            new GArray(),
+            "BattleTerrainGenerator.BuildLayout.ally_spawns"
+        );
+        foreach (Vector2I coord in CollectSpawnRing(cells, mapSize, playerCoord, edgeFaces))
+            allySpawns.Add(coord);
+        GArray enemySpawns = lease.Own(
+            new GArray(),
+            "BattleTerrainGenerator.BuildLayout.enemy_spawns"
+        );
+        foreach (Vector2I coord in CollectSpawnRing(cells, mapSize, enemyCoord, edgeFaces))
+            enemySpawns.Add(coord);
+
+        return lease.Own(
+            new GDictionary
         {
             ["map_size"] = mapSize,
-            ["cells"] = BattleCellState.ProjectCellsToPayload(typedCells),
-            ["cell_columns"] = BattleCellState.ProjectColumnsToPayload(cellColumns),
-            ["terrain_counts"] = CountTerrainCells(typedCells),
-            ["ally_spawns"] = new Vector2IList(
-                CollectSpawnRing(cells, mapSize, playerCoord, edgeFaces)
-            ).ToGodotArray(),
-            ["enemy_spawns"] = new Vector2IList(
-                CollectSpawnRing(cells, mapSize, enemyCoord, edgeFaces)
-            ).ToGodotArray(),
+            ["cells"] = BattleCellState.ProjectCellsToPayload(lease, typedCells),
+            ["cell_columns"] = BattleCellState.ProjectColumnsToPayload(lease, cellColumns),
+            ["terrain_counts"] = CountTerrainCells(lease, typedCells),
+            ["ally_spawns"] = allySpawns,
+            ["enemy_spawns"] = enemySpawns,
             ["player_coord"] = playerCoord,
             ["enemy_coord"] = enemyCoord,
             ["terrain_profile_id"] = terrainProfileId,
-        };
-    }
-
-    private GDictionary BuildCells(
-        Vector2I mapSize,
-        Func<Vector2I, (int Height, StringName Terrain)> resolver
-    )
-    {
-        var cells = new GDictionary();
-        for (int y = 0; y < mapSize.Y; y++)
-        {
-            for (int x = 0; x < mapSize.X; x++)
-            {
-                Vector2I coord = new(x, y);
-                (int height, StringName terrain) = resolver(coord);
-                cells[coord] = CreateCell(coord, height, terrain).ToDictionary();
-            }
-        }
-        return cells;
+        },
+            "BattleTerrainGenerator.BuildLayout"
+        );
     }
 
     private Dictionary<Vector2I, BattleCellState> BuildCellsTyped(
@@ -715,13 +781,27 @@ public class BattleTerrainGenerator : IDisposable
     }
 
     private static GDictionary ToCellDictionary(
+        GodotProjectionLease<GDictionary> lease,
         IReadOnlyDictionary<Vector2I, BattleCellState> cells
     )
     {
-        var payload = new GDictionary();
+        GDictionary payload = lease.Own(
+            new GDictionary(),
+            "BattleTerrainGenerator.ToCellDictionary"
+        );
         foreach (KeyValuePair<Vector2I, BattleCellState> entry in cells)
         {
-            payload[entry.Key] = entry.Value?.ToDictionary() ?? new GDictionary();
+            payload[entry.Key] =
+                entry.Value != null
+                    ? RuntimePlainPayload.ProjectDictionaryInto(
+                        lease,
+                        entry.Value.BuildSnapshotPlain(),
+                        $"BattleTerrainGenerator.ToCellDictionary[{entry.Key}]"
+                    )
+                    : lease.Own(
+                        new GDictionary(),
+                        $"BattleTerrainGenerator.ToCellDictionary[{entry.Key}].empty"
+                    );
         }
         return payload;
     }
@@ -757,11 +837,19 @@ public class BattleTerrainGenerator : IDisposable
             && cell != null;
     }
 
-    private static void StoreCell(GDictionary cells, BattleCellState cell)
+    private static void StoreCell(
+        GodotProjectionLease<GDictionary> lease,
+        GDictionary cells,
+        BattleCellState cell
+    )
     {
         if (cells == null || cell == null)
             return;
-        cells[cell.coord] = cell.ToDictionary();
+        cells[cell.coord] = RuntimePlainPayload.ProjectDictionaryInto(
+            lease,
+            cell.BuildSnapshotPlain(),
+            $"BattleTerrainGenerator.StoreCell[{cell.coord}]"
+        );
     }
 
     private static double ResolveDefaultMacroHeight(Vector2I coord, Vector2I mapSize)
@@ -1094,6 +1182,7 @@ public class BattleTerrainGenerator : IDisposable
     }
 
     private static void SetTerrain(
+        GodotProjectionLease<GDictionary> lease,
         GDictionary cells,
         Vector2I coord,
         StringName terrain,
@@ -1107,7 +1196,7 @@ public class BattleTerrainGenerator : IDisposable
         cell.base_terrain = terrain;
         cell.base_height = height;
         cell.RecalculateRuntimeValues();
-        StoreCell(cells, cell);
+        StoreCell(lease, cells, cell);
     }
 
     private static void SetTerrain(
@@ -1127,6 +1216,7 @@ public class BattleTerrainGenerator : IDisposable
     }
 
     private static void AddConnectedWater(
+        GodotProjectionLease<GDictionary> lease,
         GDictionary cells,
         Vector2I mapSize,
         Vector2I start,
@@ -1144,7 +1234,7 @@ public class BattleTerrainGenerator : IDisposable
                 continue;
             }
             visited.Add(current);
-            SetTerrain(cells, current, TerrainShallowWater, DefaultMinHeight);
+            SetTerrain(lease, cells, current, TerrainShallowWater, DefaultMinHeight);
             foreach (Vector2I offset in FourWayOffsets())
             {
                 frontier.Enqueue(current + offset);
@@ -1179,6 +1269,7 @@ public class BattleTerrainGenerator : IDisposable
     }
 
     private static void AuthorSeamWall(
+        GodotProjectionLease<GDictionary> lease,
         GDictionary cells,
         Vector2I mapSize,
         int seamX,
@@ -1196,12 +1287,13 @@ public class BattleTerrainGenerator : IDisposable
             {
                 BattleEdgeFeatureState wall = BattleEdgeFeatureState.MakeWall();
                 cell.SetEdgeFeature(Vector2I.Right, wall);
-                StoreCell(cells, cell);
+                StoreCell(lease, cells, cell);
             }
         }
     }
 
     private static void AddStandardProps(
+        GodotProjectionLease<GDictionary> lease,
         GDictionary cells,
         Vector2I mapSize,
         Vector2I playerCoord,
@@ -1227,25 +1319,35 @@ public class BattleTerrainGenerator : IDisposable
 
         var occupied = new HashSet<Vector2I> { playerCoord, enemyCoord };
         AddProp(
+            lease,
             cells,
             FindFreePropCoord(cells, mapSize, objective, occupied),
             PropObjectiveMarker,
             occupied
         );
         AddProp(
+            lease,
             cells,
             FindFreePropCoord(cells, mapSize, playerTent, occupied),
             PropTent,
             occupied
         );
-        AddProp(cells, FindFreePropCoord(cells, mapSize, enemyTent, occupied), PropTent, occupied);
         AddProp(
+            lease,
+            cells,
+            FindFreePropCoord(cells, mapSize, enemyTent, occupied),
+            PropTent,
+            occupied
+        );
+        AddProp(
+            lease,
             cells,
             FindFreePropCoord(cells, mapSize, leftTorch, occupied),
             PropTorch,
             occupied
         );
         AddProp(
+            lease,
             cells,
             FindFreePropCoord(cells, mapSize, rightTorch, occupied),
             PropTorch,
@@ -1286,6 +1388,7 @@ public class BattleTerrainGenerator : IDisposable
     }
 
     private static void AddProp(
+        GodotProjectionLease<GDictionary> lease,
         GDictionary cells,
         Vector2I coord,
         StringName propId,
@@ -1300,7 +1403,7 @@ public class BattleTerrainGenerator : IDisposable
         {
             cell.prop_ids.Add(propId);
         }
-        StoreCell(cells, cell);
+        StoreCell(lease, cells, cell);
         occupied.Add(coord);
     }
 
@@ -1549,25 +1652,24 @@ public class BattleTerrainGenerator : IDisposable
         return preferred;
     }
 
-    private static GDictionary CountTerrainCells(GDictionary cells)
-    {
-        return CountTerrainCells(ParseCellDictionary(cells));
-    }
-
     private static GDictionary CountTerrainCells(
+        GodotProjectionLease<GDictionary> lease,
         IReadOnlyDictionary<Vector2I, BattleCellState> cells
     )
     {
-        var counts = new GDictionary
-        {
-            [TerrainLand] = 0,
-            [TerrainForest] = 0,
-            [TerrainShallowWater] = 0,
-            [TerrainFlowingWater] = 0,
-            [TerrainDeepWater] = 0,
-            [TerrainMud] = 0,
-            [TerrainSpike] = 0,
-        };
+        GDictionary counts = lease.Own(
+            new GDictionary
+            {
+                [TerrainLand] = 0,
+                [TerrainForest] = 0,
+                [TerrainShallowWater] = 0,
+                [TerrainFlowingWater] = 0,
+                [TerrainDeepWater] = 0,
+                [TerrainMud] = 0,
+                [TerrainSpike] = 0,
+            },
+            "BattleTerrainGenerator.CountTerrainCells"
+        );
         foreach (BattleCellState cell in cells.Values)
         {
             if (cell == null)
@@ -1581,6 +1683,7 @@ public class BattleTerrainGenerator : IDisposable
     }
 
     private static GDictionary BuildEncounterContext(
+        GodotProjectionLease<GDictionary> lease,
         object encounterAnchorOrContext,
         long seed,
         GDictionary context
@@ -1593,14 +1696,18 @@ public class BattleTerrainGenerator : IDisposable
             && (context == null || context.Count == 0)
         )
         {
-            return RuntimePayloadCopy.Dictionary(
-                rawEncounterContext,
+            return RuntimePlainPayload.ProjectDictionaryInto(
+                lease,
+                RuntimePlainPayload.NormalizeDictionary(
+                    rawEncounterContext,
+                    "BattleTerrainGenerator.BuildEncounterContext.raw"
+                ),
                 "BattleTerrainGenerator.BuildEncounterContext.raw"
             );
         }
 
         EncounterAnchorData encounterAnchor = ContextObject(encounterAnchorOrContext);
-        var monster = new GDictionary
+        var monster = new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["entity_id"] =
                 encounterAnchor != null
@@ -1619,31 +1726,45 @@ public class BattleTerrainGenerator : IDisposable
                     ? encounterAnchor.region_tag.ToString()
                     : "",
         };
-        return new GDictionary
+        var snapshot = new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["monster"] = monster,
             ["world_coord"] =
-                context != null && context.ContainsKey("world_coord") ? context["world_coord"]
+                context != null
+                    && context.ContainsKey("world_coord")
+                    && context["world_coord"].VariantType == Variant.Type.Vector2I
+                    ? context["world_coord"].AsVector2I()
                 : encounterAnchor != null ? encounterAnchor.world_coord
                 : Vector2I.Zero,
             ["world_seed"] = seed,
             ["action_points"] =
-                context != null && context.ContainsKey("action_points")
-                    ? context["action_points"]
+                context != null
+                    && context.ContainsKey("action_points")
+                    && context["action_points"].VariantType == Variant.Type.Int
+                    ? context["action_points"].AsInt32()
                     : 6,
             ["battle_terrain_profile"] =
                 context != null && context.ContainsKey("battle_terrain_profile")
-                    ? context["battle_terrain_profile"]
+                    ? context["battle_terrain_profile"].ToString()
                     : "",
             ["battle_map_size"] =
-                context != null && context.ContainsKey("battle_map_size")
-                    ? context["battle_map_size"]
-                    : default(Variant),
+                context != null
+                    && context.ContainsKey("battle_map_size")
+                    && context["battle_map_size"].VariantType == Variant.Type.Vector2I
+                    ? context["battle_map_size"].AsVector2I()
+                    : Vector2I.Zero,
             ["battle_test_vertical_slice"] =
-                context != null && context.ContainsKey("battle_test_vertical_slice")
-                    ? context["battle_test_vertical_slice"]
+                context != null
+                    && context.ContainsKey("battle_test_vertical_slice")
+                    && context["battle_test_vertical_slice"].VariantType == Variant.Type.Bool
+                    ? context["battle_test_vertical_slice"].AsBool()
                     : false,
         };
+        return RuntimePlainPayload.ProjectDictionaryInto(
+            lease,
+            snapshot,
+            "BattleTerrainGenerator.BuildEncounterContext"
+        );
     }
 
     private static Vector2I ResolveMapSize(
@@ -1686,7 +1807,7 @@ public class BattleTerrainGenerator : IDisposable
 
     private static long BuildBattleSeed(GDictionary encounterContext)
     {
-        GDictionary monster = GetDictionary(encounterContext, "monster");
+        using GDictionary monster = GetDictionary(encounterContext, "monster");
         Vector2I worldCoord = ReadVector2I(encounterContext, "world_coord", Vector2I.Zero);
         long worldSeed = ReadLong(encounterContext, "world_seed", 0);
         string entityId = ReadString(monster, "entity_id", "wild");
@@ -1713,8 +1834,8 @@ public class BattleTerrainGenerator : IDisposable
     {
         if (ContextDictionary(encounterAnchorOrContext) is GDictionary encounterContext)
         {
-            GDictionary monster = GetDictionary(encounterContext, "monster");
-            return monster.Count > 0
+            using GDictionary monster = GetDictionary(encounterContext, "monster");
+            return monster != null && monster.Count > 0
                 ? ReadString(monster, "region_tag", "")
                 : ReadString(encounterContext, "region_tag", "");
         }
@@ -1742,30 +1863,30 @@ public class BattleTerrainGenerator : IDisposable
     {
         if (source == null || key == null)
         {
-            return new GDictionary();
+            return null;
         }
         Variant value;
         if (key is Variant variantKey)
         {
             if (!source.ContainsKey(variantKey))
-                return new GDictionary();
+                return null;
             value = source[variantKey];
         }
         else if (key is StringName stringNameKey)
         {
             if (!source.ContainsKey(stringNameKey))
-                return new GDictionary();
+                return null;
             value = source[stringNameKey];
         }
         else
         {
             string stringKey = key.ToString();
             if (!TryGetDictionaryValue(source, stringKey, out value))
-                return new GDictionary();
+                return null;
         }
         if (value.VariantType != Variant.Type.Dictionary)
         {
-            return new GDictionary();
+            return null;
         }
         return value.AsGodotDictionary();
     }

@@ -158,8 +158,10 @@ public partial class run_battle_permadeath_regression : LifecycleTestSceneTree
             );
             _test.Eq(partyState.active_member_ids.Count, 0, "主角死亡后，active roster 应为空。");
             _test.Eq(facade.GetActiveModalId(), "game_over", "主角死亡后运行时应直接切到 GameOver modal。");
+            using GodotProjectionLease<GDictionary> gameOverContextLease =
+                facade.GetGameOverContextLease();
             _test.True(
-                DictBool(facade.GetGameOverContext(), "main_character_dead", false),
+                DictBool(gameOverContextLease.Value, "main_character_dead", false),
                 "GameOver 上下文应标记主角死亡。"
             );
             _test.False(string.IsNullOrEmpty(facade.GetStatusText()), "GameOver 后应写入稳定状态文本。");

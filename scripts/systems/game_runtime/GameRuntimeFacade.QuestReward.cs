@@ -180,15 +180,10 @@ public sealed partial class GameRuntimeFacade
         string winnerFactionId
     )
     {
-        var context = new GDictionary
+        using GDictionary emptyBattle = battleSummary == null ? new GDictionary() : null;
+        using var context = new GDictionary
         {
-            ["battle"] =
-                battleSummary != null
-                    ? RuntimePayloadCopy.Dictionary(
-                        battleSummary,
-                        "GameRuntimeFacade.BuildInvalidBattleRewardLogContext.battle"
-                    )
-                    : new GDictionary(),
+            ["battle"] = battleSummary ?? emptyBattle,
             ["winner_faction_id"] = winnerFactionId ?? "",
             ["error_code"] = errorCode ?? "",
             ["reward_id"] = reward?.reward_id.ToString() ?? "",

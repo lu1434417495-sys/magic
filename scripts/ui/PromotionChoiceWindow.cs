@@ -228,12 +228,20 @@ public partial class PromotionChoiceWindow : Control
         PromotionChoiceEntry choiceData = _choices[_selectedIndex];
         StringName memberId = _memberId;
         StringName professionId = choiceData.ProfessionId;
-        GDictionary selection = RuntimePlainPayload.ProjectDictionary(
+        using GodotProjectionLease<GDictionary> selectionLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
             choiceData.Selection,
+            "PromotionChoiceWindow.choice.selection",
+            LifetimeDomain.Request,
             "PromotionChoiceWindow.choice.selection"
         );
         HideWindow();
-        EmitSignal(SignalName.choice_submitted, memberId, professionId, selection);
+        EmitSignal(
+            SignalName.choice_submitted,
+            memberId,
+            professionId,
+            selectionLease.Value
+        );
     }
 
     private void _on_cancel_button_pressed()

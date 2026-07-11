@@ -29,11 +29,8 @@ public partial class ContingencyStoredSpellEntryState
     public int CastLevel { get; private set; }
     public int Order { get; private set; }
     public ContingencyTargetResolverState TargetResolver { get; private set; }
-    public GDictionary ParameterBindings =>
-        RuntimePlainPayload.ProjectDictionary(
-            _parameterBindings,
-            "ContingencyStoredSpellEntryState.ParameterBindings"
-        );
+    public IReadOnlyDictionary<string, object> ParameterBindings =>
+        RuntimePlainPayload.CloneDictionary(_parameterBindings);
     public ContingencyFallbackPolicyKind FallbackPolicyKind { get; private set; } =
         ContingencyFallbackPolicyKind.Unknown;
     public StringName FallbackPolicy { get; private set; } = "";
@@ -60,18 +57,39 @@ public partial class ContingencyStoredSpellEntryState
         return state;
     }
 
-    public GDictionary ToDictionary()
+    internal Dictionary<string, object> BuildSnapshotPlain()
     {
-        return new GDictionary
+        var targetResolver = new Dictionary<string, object>(System.StringComparer.Ordinal);
+        if (TargetResolver != null)
+        {
+            targetResolver["type"] = TargetResolver.Type.ToString();
+            if (
+                TargetResolver.ResolverKind
+                == ContingencyTargetResolverKind.EmptyCellNearOwner
+            )
+            {
+                targetResolver["preference"] = TargetResolver.Preference.ToString();
+                targetResolver["max_distance"] = TargetResolver.MaxDistance;
+            }
+        }
+        return new Dictionary<string, object>(System.StringComparer.Ordinal)
         {
             ["stored_skill_id"] = StoredSkillId.ToString(),
             ["cast_level"] = CastLevel,
             ["order"] = Order,
-            ["target_resolver"] = TargetResolver?.ToDictionary() ?? new GDictionary(),
-            ["parameter_bindings"] = DuplicateParameterBindings(ParameterBindings),
+            ["target_resolver"] = targetResolver,
+            ["parameter_bindings"] = RuntimePlainPayload.CloneDictionary(_parameterBindings),
             ["fallback_policy"] = FallbackPolicy.ToString(),
         };
     }
+
+    internal GodotProjectionLease<GDictionary> ToDictionaryLease() =>
+        RuntimePlainPayload.ProjectDictionaryLease(
+            BuildSnapshotPlain(),
+            "ContingencyStoredSpellEntryState.ToDictionary",
+            LifetimeDomain.Request,
+            "ContingencyStoredSpellEntryState.ToDictionary"
+        );
 
     public static ContingencyStoredSpellEntryState FromDictionary(GDictionary payload)
     {
@@ -210,12 +228,4 @@ public partial class ContingencyStoredSpellEntryState
         }
     }
 
-    private static GDictionary DuplicateParameterBindings(GDictionary payload)
-    {
-        Dictionary<string, object> parsed = ParseParameterBindings(payload ?? new GDictionary());
-        return RuntimePlainPayload.ProjectDictionary(
-            parsed,
-            "ContingencyStoredSpellEntryState.DuplicateParameterBindings"
-        );
-    }
 }

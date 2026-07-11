@@ -31,7 +31,6 @@ internal static class GodotObjectLifecycle
 
     internal static void PrepareForFinalizerDrain()
     {
-        RuntimeStateLifecycle.SuppressRuntimeStateGraphsForFinalizerDrain();
         GodotContentOwnership.RetainStaticContentForFinalizerDrain();
     }
 

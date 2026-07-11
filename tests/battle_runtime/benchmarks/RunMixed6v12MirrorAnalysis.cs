@@ -45,7 +45,7 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
         bool validateSpawnReachability = ReadBoolEnvironment("VALIDATE_SPAWN_REACHABILITY", true);
         bool validateBidirectionalSpawnReachability = ReadBoolEnvironment("VALIDATE_BIDIRECTIONAL_SPAWN_REACHABILITY", true);
         bool aiProfileEnabled = ReadBoolEnvironment("AI_PROFILE", false);
-        var aiProfiler = aiProfileEnabled ? new AiProfileCapture() : null;
+        using AiProfileCapture aiProfiler = aiProfileEnabled ? new AiProfileCapture() : null;
         if (aiProfiler != null)
         {
             aiProfiler.Setup(
@@ -228,9 +228,7 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
             report["trace_summary_file"] = ResolveTraceSummaryPath(outputPath);
         if (aiProfiler != null)
         {
-            GDictionary profileReport = aiProfiler.WriteReports();
-            Dictionary<string, object> plainProfileReport =
-                TraceDictionaryProjection.FromDictionary(profileReport);
+            Dictionary<string, object> plainProfileReport = aiProfiler.WriteReports();
             report["ai_profile"] = plainProfileReport;
             PrintProgress(
                 $"[Progress] wrote AI profile {GetPlainString(plainProfileReport, "hotspots_path")}"
@@ -382,7 +380,11 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
                 region_tag = "simulation",
             };
 
-            GDictionary context = fixture.BuildRuntimeContext(runtime, scenario.BuildStartContext());
+            using GodotProjectionLease<GDictionary> baseContextLease =
+                scenario.BuildStartContextLease();
+            using GodotProjectionLease<GDictionary> contextLease =
+                fixture.BuildRuntimeContextLease(runtime, baseContextLease.Value);
+            GDictionary context = contextLease.Value;
             context["validate_spawn_reachability"] = validateSpawnReachability;
             context["validate_bidirectional_spawn_reachability"] = validateBidirectionalSpawnReachability;
             PrintProgress($"[Progress] run seed={seed} start_battle start");
@@ -402,11 +404,10 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
             var profileSummary = new Dictionary<string, object>(StringComparer.Ordinal);
             if (aiProfileRecorder != null && aiProfiler != null)
             {
-                GDictionary rawProfileSummary = aiProfiler.EndRun(
+                profileSummary = aiProfiler.EndRun(
                     aiProfileRecorder,
                     CountAiTurns(metricsSnapshot)
                 );
-                profileSummary = TraceDictionaryProjection.FromDictionary(rawProfileSummary);
                 aiProfileRecorderEnded = true;
             }
             var result = new MixedSimulationRunResult

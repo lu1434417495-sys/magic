@@ -28,13 +28,22 @@ public sealed class StringList : List<string>
 
     public StringList Duplicate() => new(this);
 
-    public Godot.Collections.Array<string> ToGodotArray()
+    internal GodotProjectionLease<Godot.Collections.Array> ToGodotArrayLease(
+        LifetimeDomain domain,
+        string reason
+    )
     {
-        Godot.Collections.Array<string> result = new();
+        Godot.Collections.Array result = new();
+        GodotProjectionLease<Godot.Collections.Array> lease =
+            GodotProjectionLease<Godot.Collections.Array>.CreateOwnedRoot(
+                result,
+                "string-list",
+                domain,
+                reason
+            );
         foreach (string value in this)
             result.Add(value ?? "");
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, "StringList.ToGodotArray");
-        return result;
+        return lease;
     }
 
     private void AddValues(IEnumerable<string> values)
@@ -48,13 +57,4 @@ public sealed class StringList : List<string>
     public static implicit operator StringList(Godot.Collections.Array<string> values) =>
         new(values);
 
-    public static implicit operator Godot.Collections.Array<string>(StringList values) =>
-        values?.ToGodotArray() ?? EmptyGodotArray("StringList.implicit");
-
-    private static Godot.Collections.Array<string> EmptyGodotArray(string reason)
-    {
-        Godot.Collections.Array<string> result = new();
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, reason);
-        return result;
-    }
 }

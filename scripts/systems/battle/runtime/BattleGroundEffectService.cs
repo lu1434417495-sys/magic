@@ -67,6 +67,14 @@ internal class BattleGroundEffectService
         Runtime?.MarkAppliedStatusesForTurnTiming(target_unit, status_effect_ids);
     }
 
+    internal void MarkAppliedStatusesForTurnTiming(
+        BattleUnitState target_unit,
+        IReadOnlyList<StringName> status_effect_ids
+    )
+    {
+        Runtime?.MarkAppliedStatusesForTurnTiming(target_unit, status_effect_ids);
+    }
+
     internal void append_result_source_status_effects(
         BattleEventBatch batch,
         BattleUnitState source_unit,
@@ -2872,7 +2880,12 @@ internal class BattleGroundEffectService
     }
 
     internal Godot.Collections.Array<Vector2I> _normalize_target_coords(BattleCommand command)
-        => new Vector2IList(NormalizeTargetCoordsTyped(command)).ToGodotArray();
+    {
+        var result = new Godot.Collections.Array<Vector2I>();
+        foreach (Vector2I coord in NormalizeTargetCoordsTyped(command))
+            result.Add(coord);
+        return result;
+    }
 
     internal List<Vector2I> NormalizeTargetCoordsTyped(BattleCommand command)
     {
@@ -3013,20 +3026,6 @@ internal class BattleGroundEffectService
         return value.AsGodotArray();
     }
 
-    private static GArray MarkRuntimeArray(GArray array, string reason)
-    {
-        GArray result = array ?? new GArray();
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, reason);
-        return result;
-    }
-
-    private static GDictionary MarkRuntimeDictionary(GDictionary dictionary, string reason)
-    {
-        GDictionary result = dictionary ?? new GDictionary();
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, reason);
-        return result;
-    }
-
     private static GArray ToUntypedStringNameArray(Godot.Collections.Array<StringName> values)
     {
         var result = new GArray();
@@ -3045,23 +3044,6 @@ internal class BattleGroundEffectService
     {
         var result = new List<Vector2I>(values ?? System.Array.Empty<Vector2I>());
         result.Sort((a, b) => a.Y != b.Y ? a.Y.CompareTo(b.Y) : a.X.CompareTo(b.X));
-        return result;
-    }
-
-    private static GArray ToUntypedBattleUnitArray(IEnumerable<BattleUnitState> values)
-    {
-        var result = new GArray();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (BattleUnitState unitState in values)
-        {
-            if (unitState != null)
-            {
-                result.Add(unitState.ToDictionary());
-            }
-        }
         return result;
     }
 

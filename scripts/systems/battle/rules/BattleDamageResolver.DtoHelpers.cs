@@ -475,7 +475,7 @@ public partial class BattleDamageResolver
     {
         if (targetUnit == null || effectDefinition == null)
         {
-            return new DispelEventResult { RemovedStatusIds = new GStringNameArray() };
+            return new DispelEventResult { RemovedStatusIds = new StringNameList() };
         }
         DamageEffectRuntimeParameters parameters = DamageEffectRuntimeParameters.FromEffect(
             effectDefinition
@@ -526,7 +526,7 @@ public partial class BattleDamageResolver
                     : left.ToString().CompareTo(right.ToString());
             }
         );
-        var removedStatusIds = new GStringNameArray();
+        var removedStatusIds = new StringNameList();
         foreach (StringName statusId in candidates)
         {
             if (removedStatusIds.Count >= maxRemoved)
@@ -544,7 +544,7 @@ public partial class BattleDamageResolver
         }
         if (removedStatusIds.Count == 0)
         {
-            return new DispelEventResult { RemovedStatusIds = new GStringNameArray() };
+            return new DispelEventResult { RemovedStatusIds = new StringNameList() };
         }
         return new DispelEventResult
         {

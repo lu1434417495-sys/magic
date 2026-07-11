@@ -39,7 +39,7 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
             reservedMpMax: 0,
             materialCosts: new GArray()
         );
-        PartyState partyState = PartyState.FromDictionary(BuildPartyPayload(setupPayload));
+        PartyState partyState = BuildPartyStateFromPayload(setupPayload);
 
         _test.True(partyState != null, "Current party payload should accept one uncharged setup.");
         PartyMemberState memberState = partyState?.GetMemberState("hero_001");
@@ -67,7 +67,7 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
             reservedMpMax: 12,
             materialCosts: new GArray { BuildMaterialCostPayload() }
         );
-        PartyState partyState = PartyState.FromDictionary(BuildPartyPayload(setupPayload));
+        PartyState partyState = BuildPartyStateFromPayload(setupPayload);
         PartyMemberState memberState = partyState?.GetMemberState("hero_001");
 
         _test.True(partyState != null, "Current party payload should accept one charged setup.");
@@ -82,9 +82,11 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
             "Charged setup should contribute reserved_mp_max."
         );
 
-        GDictionary roundTrip = memberState
-            ?.GetContingencySetupsTyped()[0]
-            ?.ToDictionary();
+        ContingencyMatrixSetupState roundTripSetup = memberState
+            ?.GetContingencySetupsTyped()[0];
+        using GodotProjectionLease<GDictionary> roundTripLease =
+            roundTripSetup?.ToDictionaryLease();
+        GDictionary roundTrip = roundTripLease?.Value;
         _test.True(
             roundTrip != null && HasExactKeys(roundTrip, SetupKeys()),
             "Setup ToDictionary should preserve the exact boundary keys."
@@ -94,27 +96,23 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
     private void TestUnchargedSetupRejectsReservedMpAndMaterialCosts()
     {
         _test.True(
-            PartyState.FromDictionary(
-                BuildPartyPayload(
-                    BuildSetupPayload(
-                        "setup_bad_reserved",
-                        charged: false,
-                        reservedMpMax: 1,
-                        materialCosts: new GArray()
-                    )
+            BuildPartyStateFromPayload(
+                BuildSetupPayload(
+                    "setup_bad_reserved",
+                    charged: false,
+                    reservedMpMax: 1,
+                    materialCosts: new GArray()
                 )
             ) == null,
             "charged=false with reserved_mp_max > 0 should fail."
         );
         _test.True(
-            PartyState.FromDictionary(
-                BuildPartyPayload(
-                    BuildSetupPayload(
-                        "setup_bad_materials",
-                        charged: false,
-                        reservedMpMax: 0,
-                        materialCosts: new GArray { BuildMaterialCostPayload() }
-                    )
+            BuildPartyStateFromPayload(
+                BuildSetupPayload(
+                    "setup_bad_materials",
+                    charged: false,
+                    reservedMpMax: 0,
+                    materialCosts: new GArray { BuildMaterialCostPayload() }
                 )
             ) == null,
             "charged=false with non-empty material_costs should fail."
@@ -132,7 +130,7 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
         setupPayload["enabled"] = false;
 
         _test.True(
-            PartyState.FromDictionary(BuildPartyPayload(setupPayload)) == null,
+            BuildPartyStateFromPayload(setupPayload) == null,
             "enabled=false with charged=true should fail current setup schema."
         );
     }
@@ -152,14 +150,14 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
             materialCosts: new GArray { BuildMaterialCostPayload() }
         );
         _test.True(
-            PartyState.FromDictionary(BuildPartyPayload(first, second)) == null,
+            BuildPartyStateFromPayload(first, second) == null,
             "Two charged setups on one member should fail V1 strict self-use state."
         );
     }
 
     private void TestCurrentPartyPayloadRequiresContingencySetups()
     {
-        GDictionary partyPayload = BuildPartyPayload(
+        using GodotProjectionLease<GDictionary> partyPayloadLease = BuildPartyPayloadLease(
             BuildSetupPayload(
                 "setup_present",
                 charged: false,
@@ -167,6 +165,7 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
                 materialCosts: new GArray()
             )
         );
+        GDictionary partyPayload = partyPayloadLease.Value;
         GDictionary memberPayload = partyPayload["member_states"]
             .AsGodotDictionary()["hero_001"]
             .AsGodotDictionary();
@@ -259,7 +258,7 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
 
     private void TestOldRootAndPartyVersionsReject()
     {
-        GDictionary partyPayload = BuildPartyPayload(
+        using GodotProjectionLease<GDictionary> partyPayloadLease = BuildPartyPayloadLease(
             BuildSetupPayload(
                 "setup_version_gate",
                 charged: false,
@@ -267,6 +266,7 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
                 materialCosts: new GArray()
             )
         );
+        GDictionary partyPayload = partyPayloadLease.Value;
         GDictionary oldPartyPayload = (GDictionary)partyPayload.Duplicate(true);
         oldPartyPayload["version"] = 6;
         _test.True(
@@ -364,7 +364,8 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
 
         ContingencyStoredSpellEntryState restored =
             ContingencyStoredSpellEntryState.FromDictionary(spell);
-        GDictionary roundTrip = restored?.ToDictionary();
+        using GodotProjectionLease<GDictionary> roundTripLease = restored?.ToDictionaryLease();
+        GDictionary roundTrip = roundTripLease?.Value;
         GArray tags = roundTrip?["parameter_bindings"].AsGodotDictionary()["damage_tags"].AsGodotArray();
 
         _test.True(restored != null, "parameter binding Array[StringName] should parse.");
@@ -394,7 +395,7 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
         );
         mutate(setup);
         _test.True(
-            PartyState.FromDictionary(BuildPartyPayload(setup)) == null,
+            BuildPartyStateFromPayload(setup) == null,
             $"{label} field should reject setup payload."
         );
     }
@@ -402,14 +403,28 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
     private static GDictionary FirstStoredSpell(GDictionary setup) =>
         setup["stored_spells"].AsGodotArray()[0].AsGodotDictionary();
 
-    private static GDictionary BuildPartyPayload(params GDictionary[] setupPayloads)
+    private static PartyState BuildPartyStateFromPayload(params GDictionary[] setupPayloads)
+    {
+        using GodotProjectionLease<GDictionary> payloadLease =
+            BuildPartyPayloadLease(setupPayloads);
+        return PartyState.FromDictionary(payloadLease.Value);
+    }
+
+    private static GodotProjectionLease<GDictionary> BuildPartyPayloadLease(
+        params GDictionary[] setupPayloads
+    )
     {
         PartyMemberState memberState = BuildMemberState();
-        GDictionary memberPayload = memberState.ToDictionary();
-        GArray setupArray = new();
-        foreach (GDictionary setupPayload in setupPayloads)
-            setupArray.Add(setupPayload);
-        memberPayload["contingency_matrix_setups"] = setupArray;
+        var setupList = new List<object>();
+        for (int index = 0; index < setupPayloads.Length; index++)
+        {
+            setupList.Add(
+                RuntimePlainPayload.RestoreSaveDictionary(
+                    setupPayloads[index],
+                    $"ContingencySetupSchema.setupPayloads[{index}]"
+                )
+            );
+        }
 
         PartyState partyState = new()
         {
@@ -420,10 +435,16 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
         };
         partyState.SetMemberState(memberState);
         partyState.active_member_ids.Add("hero_001");
-        GDictionary partyPayload = partyState.ToDictionary();
-        partyPayload["version"] = 7;
-        partyPayload["member_states"] = new GDictionary { ["hero_001"] = memberPayload };
-        return partyPayload;
+        Dictionary<string, object> partyPayload = partyState.BuildSaveSnapshotPlain();
+        var memberStates = (Dictionary<string, object>)partyPayload["member_states"];
+        var memberPayload = (Dictionary<string, object>)memberStates["hero_001"];
+        memberPayload["contingency_matrix_setups"] = setupList;
+        return RuntimePlainPayload.ProjectDictionaryLease(
+            partyPayload,
+            "ContingencySetupSchema.BuildPartyPayload",
+            LifetimeDomain.Request,
+            "ContingencySetupSchema.BuildPartyPayload"
+        );
     }
 
     private static PartyMemberState BuildMemberState()

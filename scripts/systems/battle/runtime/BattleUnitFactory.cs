@@ -515,97 +515,126 @@ internal sealed class BattleUnitFactory
         return r;
     }
 
-    internal Godot.Collections.Dictionary BuildTerrainData(
+    internal GodotProjectionLease<Godot.Collections.Dictionary> BuildTerrainDataLease(
         EncounterAnchorData enc,
         long seed,
-        Godot.Collections.Dictionary ctx,
-        GodotTransientResourceScope owner
+        Godot.Collections.Dictionary ctx
     )
     {
-        if (owner == null)
-            throw new ArgumentNullException(nameof(owner));
-        var tc = owner.NewDictionary("terrain-context");
-        CopyTerrainContext(ctx, tc);
+        using NativeLeaseScope contextOwner = new(
+            "battle-terrain-context",
+            LifetimeDomain.Battle
+        );
+        Godot.Collections.Dictionary tc = contextOwner.Own(
+            new Godot.Collections.Dictionary(),
+            "BattleUnitFactory.BuildTerrainDataLease.context"
+        );
+        CopyTerrainContext(ctx, tc, contextOwner);
         tc.Remove("map_size");
         BattleTerrainGenerator terrainGenerator = GetTerrainGenerator();
         if (terrainGenerator != null)
         {
-            Godot.Collections.Dictionary generatedTerrain = terrainGenerator.GenerateTyped(enc, seed, tc);
-            Godot.Collections.Dictionary ownedTerrain = owner.OwnWrapper(
-                generatedTerrain,
-                "terrain-generator-output"
-            );
-            Godot.Collections.Dictionary result = _atgo(ownedTerrain, tc, owner);
-            return result;
+            GodotProjectionLease<Godot.Collections.Dictionary> terrainLease =
+                terrainGenerator.GenerateLease(enc, seed, tc, LifetimeDomain.Battle);
+            try
+            {
+                ApplyTerrainContextOverrides(terrainLease, tc);
+                return terrainLease;
+            }
+            catch
+            {
+                terrainLease.Dispose();
+                throw;
+            }
         }
-        return _atgo(owner.NewDictionary("empty-terrain-generator-output"), tc, owner);
+        return GodotProjectionLease<Godot.Collections.Dictionary>.CreateOwnedRoot(
+            new Godot.Collections.Dictionary(),
+            "battle-terrain-empty",
+            LifetimeDomain.Battle,
+            "BattleUnitFactory.BuildTerrainDataLease.empty"
+        );
     }
 
-    private static Godot.Collections.Dictionary _atgo(
-        Godot.Collections.Dictionary td,
-        Godot.Collections.Dictionary ctx,
-        GodotTransientResourceScope owner
+    private static void ApplyTerrainContextOverrides(
+        GodotProjectionLease<Godot.Collections.Dictionary> terrainLease,
+        Godot.Collections.Dictionary context
     )
     {
-        if (td == null || td.Count == 0)
-            return owner.NewDictionary("terrain-output-empty");
-        var tr = RuntimePayloadCopy.Dictionary(td, "BattleUnitFactory._atgo.terrain");
-        using Godot.Collections.Array allySpawns = ReadArray(ctx, "ally_spawns");
+        ArgumentNullException.ThrowIfNull(terrainLease);
+        Godot.Collections.Dictionary terrainData = terrainLease.Value;
+        if (terrainData.Count == 0)
+            return;
+        using Godot.Collections.Array allySpawns = ReadArray(context, "ally_spawns");
         if (allySpawns.Count > 0)
-            tr["ally_spawns"] = RuntimePayloadCopy.Array(
+            terrainData["ally_spawns"] = CopyArrayIntoLease(
+                terrainLease,
                 allySpawns,
-                "BattleUnitFactory._atgo.ally_spawns"
+                "BattleUnitFactory.ApplyTerrainContextOverrides.ally_spawns"
             );
-        using Godot.Collections.Array enemySpawns = ReadArray(ctx, "enemy_spawns");
+        using Godot.Collections.Array enemySpawns = ReadArray(context, "enemy_spawns");
         if (enemySpawns.Count > 0)
-            tr["enemy_spawns"] = RuntimePayloadCopy.Array(
+            terrainData["enemy_spawns"] = CopyArrayIntoLease(
+                terrainLease,
                 enemySpawns,
-                "BattleUnitFactory._atgo.enemy_spawns"
+                "BattleUnitFactory.ApplyTerrainContextOverrides.enemy_spawns"
             );
-        return owner.OwnWrapper(tr, "terrain-output");
     }
 
     private static void CopyTerrainContext(
         Godot.Collections.Dictionary source,
-        Godot.Collections.Dictionary target
+        Godot.Collections.Dictionary target,
+        NativeLeaseScope owner
     )
     {
         if (source == null || target == null)
             return;
-        CopyTerrainContextValue(source, target, "world_coord");
-        CopyTerrainContextValue(source, target, "action_points");
-        CopyTerrainContextValue(source, target, "battle_terrain_profile");
-        CopyTerrainContextValue(source, target, "battle_map_size");
-        CopyTerrainContextValue(source, target, "battle_test_vertical_slice");
-        CopyTerrainContextValue(source, target, "ally_spawns");
-        CopyTerrainContextValue(source, target, "enemy_spawns");
+        CopyTerrainContextValue(source, target, owner, "world_coord");
+        CopyTerrainContextValue(source, target, owner, "action_points");
+        CopyTerrainContextValue(source, target, owner, "battle_terrain_profile");
+        CopyTerrainContextValue(source, target, owner, "battle_map_size");
+        CopyTerrainContextValue(source, target, owner, "battle_test_vertical_slice");
+        CopyTerrainContextValue(source, target, owner, "ally_spawns");
+        CopyTerrainContextValue(source, target, owner, "enemy_spawns");
     }
 
     private static void CopyTerrainContextValue(
         Godot.Collections.Dictionary source,
         Godot.Collections.Dictionary target,
+        NativeLeaseScope owner,
         string key
     )
     {
         if (!source.ContainsKey(key))
             return;
-        target[key] = DuplicateTerrainContextVariant(source[key]);
+        Variant value = source[key];
+        if (value.VariantType != Variant.Type.Array)
+        {
+            target[key] = value;
+            return;
+        }
+        using Godot.Collections.Array borrowed = value.AsGodotArray();
+        Godot.Collections.Array copy = owner.Own(
+            new Godot.Collections.Array(),
+            $"BattleUnitFactory.CopyTerrainContextValue.{key}"
+        );
+        foreach (Variant item in borrowed)
+            copy.Add(item);
+        target[key] = copy;
     }
 
-    private static Variant DuplicateTerrainContextVariant(Variant value)
+    private static Godot.Collections.Array CopyArrayIntoLease(
+        GodotProjectionLease<Godot.Collections.Dictionary> lease,
+        Godot.Collections.Array source,
+        string reason
+    )
     {
-        return value.VariantType switch
-        {
-            Variant.Type.Dictionary => RuntimePayloadCopy.CopyVariant(
-                value,
-                "BattleUnitFactory.CopyTerrainContextValue.dictionary"
-            ),
-            Variant.Type.Array => RuntimePayloadCopy.CopyVariant(
-                value,
-                "BattleUnitFactory.CopyTerrainContextValue.array"
-            ),
-            _ => value,
-        };
+        Godot.Collections.Array copy = lease.Own(
+            new Godot.Collections.Array(),
+            reason
+        );
+        foreach (Variant value in source)
+            copy.Add(value);
+        return copy;
     }
 
     private BattleUnitState _build_runtime_ally_unit(

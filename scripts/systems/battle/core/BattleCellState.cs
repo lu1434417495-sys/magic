@@ -168,9 +168,27 @@ public partial class BattleCellState
         };
     }
 
-    internal GDictionary ToDictionary()
+    internal IReadOnlyDictionary<string, object> BuildSnapshotPlain()
     {
-        return new GDictionary
+        var propIds = new List<string>();
+        foreach (StringName propId in prop_ids ?? new List<StringName>())
+            propIds.Add(propId.ToString());
+
+        var terrainEffectIds = new List<string>();
+        foreach (StringName effectId in terrain_effect_ids ?? new List<StringName>())
+            terrainEffectIds.Add(effectId.ToString());
+
+        var timedTerrainEffects = new List<object>();
+        foreach (
+            BattleTerrainEffectState effectState in timed_terrain_effects
+                ?? new List<BattleTerrainEffectState>()
+        )
+        {
+            if (effectState != null)
+                timedTerrainEffects.Add(effectState.BuildSnapshotPlain());
+        }
+
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["coord"] = coord,
             ["stack_layer"] = stack_layer,
@@ -181,16 +199,25 @@ public partial class BattleCellState
             ["passable"] = passable,
             ["move_cost"] = move_cost,
             ["occupant_unit_id"] = occupant_unit_id.ToString(),
-            ["prop_ids"] = StringNameListToStrings(prop_ids),
-            ["terrain_effect_ids"] = StringNameListToStrings(terrain_effect_ids),
-            ["timed_terrain_effects"] = BattleTerrainEffectState.ToDictionaryArray(
-                timed_terrain_effects
-            ),
+            ["prop_ids"] = propIds,
+            ["terrain_effect_ids"] = terrainEffectIds,
+            ["timed_terrain_effects"] = timedTerrainEffects,
             ["flow_direction"] = flow_direction,
-            ["edge_feature_east"] = EdgeFeatureToDict(edge_feature_east),
-            ["edge_feature_south"] = EdgeFeatureToDict(edge_feature_south),
+            ["edge_feature_east"] = BuildEdgeFeatureSnapshotPlain(edge_feature_east),
+            ["edge_feature_south"] = BuildEdgeFeatureSnapshotPlain(edge_feature_south),
         };
     }
+
+    internal GodotProjectionLease<GDictionary> ToDictionaryLease(
+        LifetimeDomain domain,
+        string reason
+    ) =>
+        RuntimePlainPayload.ProjectDictionaryLease(
+            BuildSnapshotPlain(),
+            "battle-cell-state",
+            domain,
+            reason
+        );
 
     internal static BattleCellState FromDictionary(GDictionary payload)
     {
@@ -424,11 +451,17 @@ public partial class BattleCellState
         return column;
     }
 
-    internal static GDictionary ProjectCellsToPayload(
+    internal static GDictionary ProjectCellsToPayload<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
         IReadOnlyDictionary<Vector2I, BattleCellState> cells
     )
+        where TLeaseRoot : class, IDisposable
     {
-        GDictionary payload = new();
+        ArgumentNullException.ThrowIfNull(lease);
+        GDictionary payload = lease.Own(
+            new GDictionary(),
+            "BattleCellState.ProjectCellsToPayload"
+        );
         if (cells == null)
         {
             return payload;
@@ -437,35 +470,58 @@ public partial class BattleCellState
         {
             if (cell != null)
             {
-                payload[coord] = cell.ToDictionary();
+                payload[coord] = RuntimePlainPayload.ProjectDictionaryInto(
+                    lease,
+                    cell.BuildSnapshotPlain(),
+                    $"BattleCellState.ProjectCellsToPayload[{coord}]"
+                );
             }
         }
         return payload;
     }
 
-    internal static GDictionary ProjectColumnsToPayload(
+    internal static GDictionary ProjectColumnsToPayload<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
         IReadOnlyDictionary<Vector2I, List<BattleCellState>> columns
     )
+        where TLeaseRoot : class, IDisposable
     {
-        GDictionary payload = new();
+        ArgumentNullException.ThrowIfNull(lease);
+        GDictionary payload = lease.Own(
+            new GDictionary(),
+            "BattleCellState.ProjectColumnsToPayload"
+        );
         if (columns == null)
         {
             return payload;
         }
         foreach ((Vector2I coord, List<BattleCellState> column) in columns)
         {
-            GArray columnPayload = new();
+            GArray columnPayload = lease.Own(
+                new GArray(),
+                $"BattleCellState.ProjectColumnsToPayload[{coord}]"
+            );
             foreach (BattleCellState cell in column ?? new List<BattleCellState>())
             {
                 if (cell != null)
                 {
-                    columnPayload.Add(cell.ToDictionary());
+                    columnPayload.Add(
+                        RuntimePlainPayload.ProjectDictionaryInto(
+                            lease,
+                            cell.BuildSnapshotPlain(),
+                            $"BattleCellState.ProjectColumnsToPayload[{coord}][{columnPayload.Count}]"
+                        )
+                    );
                 }
             }
             payload[coord] = columnPayload;
         }
         return payload;
     }
+
+    private static IReadOnlyDictionary<string, object> BuildEdgeFeatureSnapshotPlain(
+        BattleEdgeFeatureState featureState
+    ) => (featureState ?? BattleEdgeFeatureState.MakeNone()).BuildSnapshotPlain();
 
     internal static List<BattleCellState> ParseColumnPayload(object rawColumn)
     {
@@ -487,18 +543,6 @@ public partial class BattleCellState
 
     internal static bool TryReadCellPayload(object rawValue, out BattleCellState value) =>
         TryAsCellState(rawValue, out value);
-
-    private static Godot.Collections.Array<string> StringNameListToStrings(
-        IEnumerable<StringName> values
-    )
-    {
-        var results = new Godot.Collections.Array<string>();
-        foreach (StringName value in values ?? Array.Empty<StringName>())
-        {
-            results.Add(value.ToString());
-        }
-        return results;
-    }
 
     private static List<StringName> StringsToStringNameList(object values)
     {
@@ -553,11 +597,6 @@ public partial class BattleCellState
             }
         }
         return effectStates;
-    }
-
-    private static GDictionary EdgeFeatureToDict(BattleEdgeFeatureState featureState)
-    {
-        return featureState != null ? featureState.ToDictionary() : NoneEdgeFeatureToDict();
     }
 
     private static bool HasExactRequiredKeys(GDictionary data)
@@ -739,27 +778,6 @@ public partial class BattleCellState
     )
     {
         slot = replacement;
-    }
-
-    private static GDictionary NoneEdgeFeatureToDict()
-    {
-        return new GDictionary
-        {
-            ["feature_kind"] = BattleEdgeFeatureState
-                .ToStringName(BattleEdgeFeatureKind.None)
-                .ToString(),
-            ["render_kind"] = BattleEdgeFeatureState
-                .ToStringName(BattleEdgeRenderKind.None)
-                .ToString(),
-            ["render_layers"] = 0,
-            ["blocks_move"] = false,
-            ["blocks_occupancy"] = false,
-            ["blocks_los"] = false,
-            ["interaction_kind"] = BattleEdgeFeatureState
-                .ToStringName(BattleEdgeInteractionKind.None)
-                .ToString(),
-            ["state_tag"] = "",
-        };
     }
 
     internal static void DisposeRuntimeGraph(BattleCellState cell)

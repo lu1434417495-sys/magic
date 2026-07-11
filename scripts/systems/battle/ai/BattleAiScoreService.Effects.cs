@@ -910,7 +910,7 @@ public partial class BattleAiScoreService
         }
     }
 
-    private static int BuildStringNameArraySignature(GStringNameArray values)
+    private static int BuildStringNameArraySignature(IEnumerable<StringName> values)
     {
         unchecked
         {

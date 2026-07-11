@@ -71,7 +71,9 @@ public partial class run_game_session_transaction_regression : LifecycleTestScen
             Vector2I originalCoord = PayloadPlayerCoord(originalPayload);
             int originalWorldStep = PayloadWorldStep(originalPayload);
             Vector2I stagedCoord = originalCoord + Vector2I.Right;
-            GDictionary stagedWorldData = (GDictionary)gameSession.GetWorldData().Duplicate(true);
+            using GodotProjectionLease<GDictionary> stagedWorldDataLease =
+                gameSession.GetWorldDataLease();
+            GDictionary stagedWorldData = stagedWorldDataLease.Value;
             stagedWorldData["world_step"] = originalWorldStep + 7;
 
             _test.Eq((Error)gameSession.SetPlayerCoord(stagedCoord), Error.Ok, "事务 commit 回归前置：坐标 staging 应成功。");
@@ -113,7 +115,9 @@ public partial class run_game_session_transaction_regression : LifecycleTestScen
             _test.Eq(commitError, Error.CantCreate, "payload 写入失败时 commit_runtime_state 应返回底层错误。");
             _test.True(gameSession.HasPendingSave(), "commit 失败后 pending save 不能被清空。");
 
-            GDictionary status = gameSession.GetSaveStatus();
+            using GodotProjectionLease<GDictionary> statusLease =
+                gameSession.GetSaveStatusLease();
+            GDictionary status = statusLease.Value;
             _test.Eq(DictError(status, "last_error", Error.Ok), Error.CantCreate, "commit 失败后 save_status 应记录最近错误。");
             _test.True(
                 ArrayHasStringName(status.ContainsKey("dirty_scopes") ? status["dirty_scopes"] : Variant.From(new GArray()), new StringName("player_coord")),

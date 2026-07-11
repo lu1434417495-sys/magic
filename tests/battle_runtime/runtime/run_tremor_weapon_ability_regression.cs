@@ -579,14 +579,13 @@ public partial class run_tremor_weapon_ability_regression : LifecycleTestSceneTr
             DamageResolutionContext damage_context
         )
         {
-            GDictionary fixedContext =
-                damage_context?.RawContext?.Duplicate(true) ?? new GDictionary();
-            fixedContext["save_roll_override"] = _saveRollOverride;
             return base.ResolveEffects(
                 source_unit,
                 target_unit,
                 effect_definitions,
-                DamageResolutionContext.FromDictionary(fixedContext)
+                (damage_context ?? DamageResolutionContext.Empty()).WithSaveRollOverrides(
+                    new[] { _saveRollOverride }
+                )
             );
         }
     }

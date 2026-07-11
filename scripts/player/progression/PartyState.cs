@@ -400,13 +400,15 @@ public partial class PartyState
         return true;
     }
 
-    public Godot.Collections.Dictionary ToDictionary()
-    {
-        return RuntimePlainPayload.ProjectDictionary(
+    internal GodotProjectionLease<Godot.Collections.Dictionary> ToDictionaryLease(
+        string ownerId = "PartyState.ToDictionary"
+    ) =>
+        RuntimePlainPayload.ProjectDictionaryLease(
             BuildSaveSnapshotPlain(),
+            ownerId,
+            LifetimeDomain.Request,
             "PartyState.ToDictionary"
         );
-    }
 
     internal static bool TryReadPartyPayload(object rawValue, out PartyState value)
     {

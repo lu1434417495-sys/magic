@@ -19,26 +19,13 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         return result;
     }
 
-    private static GArray ToUntypedArray(IReadOnlyList<BattleUnitState> src)
+    private static GStringNameArray ToStringNameArray(IEnumerable<StringName> src)
     {
-        var result = new GArray();
-        if (src == null)
-        {
-            return result;
-        }
-        foreach (BattleUnitState unit in src)
-        {
-            if (unit != null)
-            {
-                result.Add(unit.ToDictionary());
-            }
-        }
+        var result = new GStringNameArray();
+        foreach (StringName value in src ?? Array.Empty<StringName>())
+            result.Add(value);
         return result;
     }
-
-
-    private static GStringNameArray ToStringNameArray(IEnumerable<StringName> src)
-        => new StringNameList(src).ToGodotArray();
 
     private static List<StringName> ToStringNameList(GStringNameArray src)
     {

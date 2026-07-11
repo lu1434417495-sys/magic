@@ -137,11 +137,13 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
         BattleUnitState target = MakeUnit("release_target", "player");
         ApplyTimeStasis(target, 60);
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
             new[] { MakeTemporalReleaseRuntimeEffect() }
         ));
+        GDictionary result = resultLease.Value;
 
         _test.False(
             target.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_STASIS),
@@ -154,11 +156,13 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
         _test.True(DictBool(result, "applied"), "temporal release 应记为 applied。");
 
         BattleUnitState cleanTarget = MakeUnit("clean_target", "player");
-        GDictionary noopResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> noopResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             cleanTarget,
             new[] { MakeTemporalReleaseRuntimeEffect() }
         ));
+        GDictionary noopResult = noopResultLease.Value;
         _test.False(
             DictBool(noopResult, "applied", true),
             "无 temporal 状态时 temporal release 不应记为 applied。"

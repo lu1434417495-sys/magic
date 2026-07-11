@@ -174,7 +174,9 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
         );
         try
         {
-            GDictionary sessionBefore = fixture.GameSession.CaptureRuntimeState();
+            using GodotProjectionLease<GDictionary> sessionBeforeLease =
+                fixture.GameSession.CaptureRuntimeStateLease();
+            GDictionary sessionBefore = sessionBeforeLease.Value;
             int mpBefore = fixture.Runtime.GetPartyState().GetMemberState("hero").current_mp;
 
             bool finalized = fixture.Runtime.FinalizeBattleResolution(fixture.ResolutionResult);
@@ -190,8 +192,10 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
                 mpBefore,
                 "Consumed writeback failure should restore runtime party vitals."
             );
+            using GodotProjectionLease<GDictionary> sessionAfterLease =
+                fixture.GameSession.CaptureRuntimeStateLease();
             AssertRuntimeSaveMetadataEqual(
-                fixture.GameSession.CaptureRuntimeState(),
+                sessionAfterLease.Value,
                 sessionBefore,
                 "Consumed writeback failure should restore session memory snapshot."
             );
@@ -212,7 +216,9 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
         );
         try
         {
-            GDictionary sessionBefore = fixture.GameSession.CaptureRuntimeState();
+            using GodotProjectionLease<GDictionary> sessionBeforeLease =
+                fixture.GameSession.CaptureRuntimeStateLease();
+            GDictionary sessionBefore = sessionBeforeLease.Value;
             fixture.GameSession.fail_payload_write = true;
 
             bool finalized = fixture.Runtime.FinalizeBattleResolution(fixture.ResolutionResult);
@@ -223,8 +229,10 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
                 "flush_restore",
                 "Flush failure should restore runtime party setup state."
             );
+            using GodotProjectionLease<GDictionary> sessionAfterLease =
+                fixture.GameSession.CaptureRuntimeStateLease();
             AssertRuntimeSaveMetadataEqual(
-                fixture.GameSession.CaptureRuntimeState(),
+                sessionAfterLease.Value,
                 sessionBefore,
                 "Flush failure should restore session memory snapshot."
             );
@@ -329,7 +337,9 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
             fixture.Runtime._battle_runtime.setup(character_gateway: gateway);
             fixture.Runtime._battle_runtime.SetupStateForTests(fixture.Runtime.GetBattleState());
             DispatchHardshipLowLuckEvent(fixture.Runtime, fixture.ResolutionResult.battle_id);
-            GDictionary sessionBefore = fixture.GameSession.CaptureRuntimeState();
+            using GodotProjectionLease<GDictionary> sessionBeforeLease =
+                fixture.GameSession.CaptureRuntimeStateLease();
+            GDictionary sessionBefore = sessionBeforeLease.Value;
             int lootEntryCountBefore = fixture.ResolutionResult.loot_entries.Count;
 
             bool finalized = fixture.Runtime.FinalizeBattleResolution(fixture.ResolutionResult);
@@ -345,8 +355,10 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
                 "resource_failure_charge",
                 "Resource commit failure should restore runtime party setup state."
             );
+            using GodotProjectionLease<GDictionary> sessionAfterLease =
+                fixture.GameSession.CaptureRuntimeStateLease();
             AssertRuntimeSaveMetadataEqual(
-                fixture.GameSession.CaptureRuntimeState(),
+                sessionAfterLease.Value,
                 sessionBefore,
                 "Resource commit failure should restore session memory snapshot."
             );

@@ -1,9 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 // BattleDamageResolver 的 partial：减免/抗性/护盾格挡/DR 与命中加成条件。按伤害管线阶段拆出，不改逻辑。
 public partial class BattleDamageResolver
@@ -13,7 +10,12 @@ public partial class BattleDamageResolver
         IReadOnlyList<MitigationSourceResult> Sources
     );
 
-    private GDictionary ResolveMitigationTierResult(
+    private readonly record struct MitigationTierResolution(
+        StringName Tier,
+        MitigationSourceResult[] Sources
+    );
+
+    private MitigationTierResolution ResolveMitigationTierResult(
         BattleUnitState targetUnit,
         StringName damageTag,
         IReadOnlyList<StringName> mitigationBypassDamageTags = null,
@@ -21,19 +23,14 @@ public partial class BattleDamageResolver
     )
     {
         if (targetUnit == null)
-        {
-            return MitigationPayload(
-                new GDictionary
-                {
-                    ["tier"] = MitigationTierNormal,
-                    ["sources"] = MitigationArray("mitigation.null_target.sources"),
-                },
-                "mitigation.null_target"
+            return new MitigationTierResolution(
+                MitigationTierNormal,
+                Array.Empty<MitigationSourceResult>()
             );
-        }
-        var halfSources = MitigationArray("mitigation.half_sources");
-        var doubleSources = MitigationArray("mitigation.double_sources");
-        var immuneSources = MitigationArray("mitigation.immune_sources");
+
+        var halfSources = new List<MitigationSourceResult>();
+        var doubleSources = new List<MitigationSourceResult>();
+        var immuneSources = new List<MitigationSourceResult>();
         foreach (StringName statusId in targetUnit.GetSortedStatusEffectIdsTyped())
         {
             BattleStatusEffectState statusEntry = targetUnit.GetStatusEffect(statusId);
@@ -86,59 +83,32 @@ public partial class BattleDamageResolver
             mitigationBypassTiers
         );
         if (immuneSources.Count > 0)
-            return MitigationPayload(
-                new GDictionary { ["tier"] = MitigationTierImmune, ["sources"] = immuneSources },
-                "mitigation.immune"
-            );
+            return new MitigationTierResolution(MitigationTierImmune, immuneSources.ToArray());
         if (halfSources.Count > 0 && doubleSources.Count > 0)
         {
-            var cancelled = MitigationArray("mitigation.cancelled_sources");
+            var cancelled = new List<MitigationSourceResult>(
+                halfSources.Count + doubleSources.Count
+            );
             cancelled.AddRange(halfSources);
             cancelled.AddRange(doubleSources);
-            return MitigationPayload(
-                new GDictionary { ["tier"] = MitigationTierNormal, ["sources"] = cancelled },
-                "mitigation.cancelled"
-            );
+            return new MitigationTierResolution(MitigationTierNormal, cancelled.ToArray());
         }
         if (halfSources.Count > 0)
-            return MitigationPayload(
-                new GDictionary { ["tier"] = MitigationTierHalf, ["sources"] = halfSources },
-                "mitigation.half"
-            );
+            return new MitigationTierResolution(MitigationTierHalf, halfSources.ToArray());
         if (doubleSources.Count > 0)
-            return MitigationPayload(
-                new GDictionary { ["tier"] = MitigationTierDouble, ["sources"] = doubleSources },
-                "mitigation.double"
-            );
-        return MitigationPayload(
-            new GDictionary
-            {
-                ["tier"] = MitigationTierNormal,
-                ["sources"] = MitigationArray("mitigation.normal.sources"),
-            },
-            "mitigation.normal"
+            return new MitigationTierResolution(MitigationTierDouble, doubleSources.ToArray());
+        return new MitigationTierResolution(
+            MitigationTierNormal,
+            Array.Empty<MitigationSourceResult>()
         );
-    }
-
-    private static GArray MitigationArray(string reason)
-    {
-        var result = new GArray();
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, reason);
-        return result;
-    }
-
-    private static GDictionary MitigationPayload(GDictionary payload, string reason)
-    {
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(payload, reason);
-        return payload;
     }
 
     private static void AppendDamageResistanceSources(
         BattleUnitState targetUnit,
         StringName damageTag,
-        GArray halfSources,
-        GArray doubleSources,
-        GArray immuneSources,
+        List<MitigationSourceResult> halfSources,
+        List<MitigationSourceResult> doubleSources,
+        List<MitigationSourceResult> immuneSources,
         IReadOnlyList<StringName> mitigationBypassDamageTags = null,
         IReadOnlyList<StringName> mitigationBypassTiers = null
     )
@@ -388,23 +358,22 @@ public partial class BattleDamageResolver
         };
     }
 
-    private static GDictionary BuildMitigationSource(
+    private static MitigationSourceResult BuildMitigationSource(
         StringName statusId,
         string sourceType,
         int value = 0,
         StringName tier = default
     )
     {
-        return MitigationPayload(
-            new GDictionary
-            {
-                ["status_id"] = statusId.ToString(),
-                ["type"] = sourceType,
-                ["value"] = value,
-                ["tier"] = (tier == default ? new StringName("") : tier).ToString(),
-            },
-            "mitigation.source"
-        );
+        return new MitigationSourceResult
+        {
+            StatusId = statusId.ToString(),
+            Type = sourceType,
+            Value = value,
+            Tier = AttackEffectResolutionResultReader.ParseMitigationTier(
+                tier == default ? new StringName("") : tier
+            ),
+        };
     }
 
     private void ApplyBlackStarBrandGuardIgnore(

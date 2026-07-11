@@ -6,6 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_battle_status_effect_state_schema_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
+    private readonly List<GodotProjectionLease<GDictionary>> _payloadLeases = new();
 
     public override void _Initialize()
     {
@@ -40,7 +41,35 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
         TestStatusRangeBonusRoundTripThroughParamsBoundary();
         TestTemporalTagFieldsRoundTripThroughParamsBoundary();
 
+        DisposePayloadLeases();
         RequestTestExit(_test.Finish("Battle status effect state schema regression"));
+    }
+
+    private GDictionary Project(BattleStatusEffectState effect)
+    {
+        GodotProjectionLease<GDictionary> lease = effect.ToDictionaryLease();
+        _payloadLeases.Add(lease);
+        return lease.Value;
+    }
+
+    private GDictionary ProjectParams(BattleStatusEffectState effect)
+    {
+        GodotProjectionLease<GDictionary> lease = RuntimePlainPayload.ProjectDictionaryLease(
+            effect?.ParamsSnapshotPlain
+                ?? new Dictionary<string, object>(System.StringComparer.Ordinal),
+            "battle-status-effect-state-schema.params",
+            LifetimeDomain.Request,
+            "battle-status-effect-state-schema.params"
+        );
+        _payloadLeases.Add(lease);
+        return lease.Value;
+    }
+
+    private void DisposePayloadLeases()
+    {
+        for (int index = _payloadLeases.Count - 1; index >= 0; index--)
+            _payloadLeases[index].Dispose();
+        _payloadLeases.Clear();
     }
 
     private void TestValidRoundtripWithoutDuration()
@@ -54,7 +83,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
             stacks = 0,
         };
 
-        GDictionary payload = effect.ToDictionary();
+        GDictionary payload = Project(effect);
         _test.False(payload.ContainsKey("duration"), "无 duration 状态的 to_dict 不应写 duration。");
         BattleStatusEffectState restored = BattleStatusEffectState.FromDictionary(payload);
         _test.True(restored != null, "无 duration 的当前 to_dict 形状应能恢复。");
@@ -67,7 +96,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
         _test.Eq(restored.source_unit_id, new StringName(""), "roundtrip 应允许空 source_unit_id。");
         _test.Eq(restored.power, 2, "roundtrip 应保留 power。");
         AssertDictionaryEq(
-            restored.@params,
+            ProjectParams(restored),
             new GDictionary(),
             "roundtrip 后 owner 内部 @params 只应保留 residual params。"
         );
@@ -99,7 +128,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
             lock_crit = true,
         };
 
-        BattleStatusEffectState restored = BattleStatusEffectState.FromDictionary(effect.ToDictionary());
+        BattleStatusEffectState restored = BattleStatusEffectState.FromDictionary(Project(effect));
         _test.True(restored != null, "带 duration/tick/skip 的当前 to_dict 形状应能恢复。");
         if (restored == null)
         {
@@ -110,7 +139,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
         _test.Eq(restored.source_unit_id, new StringName("caster"), "roundtrip 应保留 source_unit_id。");
         _test.Eq(restored.power, 3, "roundtrip 应保留 power。");
         AssertDictionaryEq(
-            restored.@params,
+            ProjectParams(restored),
             new GDictionary
             {
                 ["nested"] = new GDictionary { ["value"] = 1 },
@@ -274,7 +303,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
         _test.Eq(duplicate.source_unit_id, new StringName("caster"), "duplicate_state 应保留 source_unit_id。");
         _test.Eq(duplicate.power, 1, "duplicate_state 应保留 power。");
         AssertDictionaryEq(
-            duplicate.@params,
+            ProjectParams(duplicate),
             new GDictionary { ["move_cost_delta"] = 1 },
             "duplicate_state 应保留 params。"
         );
@@ -297,7 +326,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
             stacks = 1,
         };
 
-        GDictionary payload = effect.ToDictionary();
+        GDictionary payload = Project(effect);
         GDictionary projectedParams = payload["params"].AsGodotDictionary();
         _test.Eq(
             projectedParams["incoming_damage_multiplier"].AsDouble(),
@@ -328,7 +357,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
             "roundtrip 应保留 outgoing_damage_multiplier typed 字段。"
         );
         AssertDictionaryEq(
-            restored.@params,
+            ProjectParams(restored),
             new GDictionary(),
             "runtime damage multiplier formal keys 不应继续滞留在 owner 内部 @params。"
         );
@@ -352,7 +381,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
             stacks = 1,
         };
 
-        GDictionary payload = effect.ToDictionary();
+        GDictionary payload = Project(effect);
         GDictionary projectedParams = payload["params"].AsGodotDictionary();
         _test.Eq(
             projectedParams["heal_multiplier_percent"].AsInt32(),
@@ -430,7 +459,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
             stacks = 1,
         };
 
-        BattleStatusEffectState restored = BattleStatusEffectState.FromDictionary(effect.ToDictionary());
+        BattleStatusEffectState restored = BattleStatusEffectState.FromDictionary(Project(effect));
         _test.True(restored != null, "mitigation_tier 应通过 params 边界 roundtrip。");
         if (restored == null)
         {
@@ -444,7 +473,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
         _test.Eq(restored.damage_tags[1], new StringName("freeze"), "roundtrip 应保留 damage_tags[1]。");
         _test.Eq(restored.damage_category, new StringName("magic"), "roundtrip 应保留 damage_category typed 字段。");
         AssertDictionaryEq(
-            restored.@params,
+            ProjectParams(restored),
             new GDictionary(),
             "damage filter / mitigation formal keys 不应继续滞留在 owner 内部 @params。"
         );
@@ -462,7 +491,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
             stacks = 1,
         };
 
-        BattleStatusEffectState restored = BattleStatusEffectState.FromDictionary(effect.ToDictionary());
+        BattleStatusEffectState restored = BattleStatusEffectState.FromDictionary(Project(effect));
         _test.True(restored != null, "save_bonus/control_save_bonus 应通过 params 边界 roundtrip。");
         if (restored == null)
         {
@@ -472,7 +501,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
         _test.Eq(restored.save_bonus, 1, "roundtrip 应保留 save_bonus typed 字段。");
         _test.Eq(restored.control_save_bonus, 2, "roundtrip 应保留 control_save_bonus typed 字段。");
         AssertDictionaryEq(
-            restored.@params,
+            ProjectParams(restored),
             new GDictionary(),
             "save bonus formal keys 不应继续滞留在 owner 内部 @params。"
         );
@@ -492,7 +521,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
             save_tags = new List<StringName> { "charm" },
         };
 
-        GDictionary payload = effect.ToDictionary();
+        GDictionary payload = Project(effect);
         GDictionary projectedParams = payload["params"].AsGodotDictionary();
         _test.True(projectedParams.ContainsKey("save_advantage_tags"), "save_advantage_tags 应投影到 params 边界。");
         _test.True(
@@ -534,7 +563,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
             guard_block = 5,
         };
 
-        BattleStatusEffectState restored = BattleStatusEffectState.FromDictionary(effect.ToDictionary());
+        BattleStatusEffectState restored = BattleStatusEffectState.FromDictionary(Project(effect));
         _test.True(restored != null, "fixed mitigation typed 字段 roundtrip 后不应丢失。");
         if (restored == null)
         {
@@ -546,7 +575,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
         _test.Eq(restored.guard_block, 5, "roundtrip 应保留 guard_block typed 字段。");
         _test.Eq(restored.dr_bypass_tag, new StringName("armor_pierce"), "roundtrip 应保留 dr_bypass_tag typed 字段。");
         AssertDictionaryEq(
-            restored.@params,
+            ProjectParams(restored),
             new GDictionary(),
             "fixed mitigation formal keys 不应继续滞留在 owner 内部 @params。"
         );
@@ -564,7 +593,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
             lock_dodge_bonus = true,
         };
 
-        GDictionary payload = effect.ToDictionary();
+        GDictionary payload = Project(effect);
         _test.True(
             payload.ContainsKey("lock_dodge_bonus"),
             "typed lock_dodge_bonus 应通过正式状态字段序列化。"
@@ -598,7 +627,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
             duration = 80,
         };
 
-        GDictionary payload = effect.ToDictionary();
+        GDictionary payload = Project(effect);
         GDictionary projectedParams = payload["params"].AsGodotDictionary();
         _test.Eq(
             projectedParams["body_size_category_override"].AsStringName(),
@@ -629,7 +658,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
             "roundtrip 应保留 previous_body_size_category typed 字段。"
         );
         AssertDictionaryEq(
-            restored.@params,
+            ProjectParams(restored),
             new GDictionary
             {
                 ["display_name"] = "巨神化",
@@ -654,7 +683,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
             duration = -1,
         };
 
-        GDictionary payload = effect.ToDictionary();
+        GDictionary payload = Project(effect);
         GDictionary projectedParams = payload["params"].AsGodotDictionary();
         _test.Eq(
             projectedParams["self_save_dc"].AsInt32(),
@@ -701,7 +730,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
             "roundtrip 应保留 self_save_roll_override typed 字段。"
         );
         AssertDictionaryEq(
-            restored.@params,
+            ProjectParams(restored),
             new GDictionary
             {
                 ["display_name"] = "石化",
@@ -725,7 +754,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
             counts_as_debuff = true,
         };
 
-        GDictionary payload = effect.ToDictionary();
+        GDictionary payload = Project(effect);
         GDictionary projectedParams = payload["params"].AsGodotDictionary();
         _test.Eq(
             projectedParams["source"].AsStringName(),
@@ -770,7 +799,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
             "roundtrip 应保留 typed counts_as_debuff override。"
         );
         AssertDictionaryEq(
-            restored.@params,
+            ProjectParams(restored),
             new GDictionary
             {
                 ["display_name"] = "屏障灼烧",
@@ -792,7 +821,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
             stacks = 1,
         };
 
-        GDictionary payload = effect.ToDictionary();
+        GDictionary payload = Project(effect);
         GDictionary projectedParams = payload["params"].AsGodotDictionary();
         _test.Eq(
             projectedParams["source_skill_id"].AsStringName(),
@@ -823,7 +852,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
             "roundtrip 应保留 source_skill_level typed 字段。"
         );
         AssertDictionaryEq(
-            restored.@params,
+            ProjectParams(restored),
             new GDictionary
             {
                 ["display_name"] = "不屈护命",
@@ -845,7 +874,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
             stacks = 2,
         };
 
-        GDictionary payload = effect.ToDictionary();
+        GDictionary payload = Project(effect);
         GDictionary projectedParams = payload["params"].AsGodotDictionary();
         BattleStatusEffectState restored = BattleStatusEffectState.FromDictionary(payload);
 
@@ -858,7 +887,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
         _test.Eq(restored.stack_behavior, new StringName("add"), "roundtrip 应保留 stack_behavior typed 字段。");
         _test.Eq(restored.stack_limit, 20, "roundtrip 应保留 stack_limit typed 字段。");
         AssertDictionaryEq(
-            restored.@params,
+            ProjectParams(restored),
             new GDictionary { ["residual"] = "kept" },
             "status stack formal keys 不应继续滞留在 owner 内部 @params。"
         );
@@ -882,7 +911,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
             stacks = 1,
         };
 
-        GDictionary payload = effect.ToDictionary();
+        GDictionary payload = Project(effect);
         GDictionary projectedParams = payload["params"].AsGodotDictionary();
         _test.Eq(
             projectedParams["range_bonus"].AsInt32(),
@@ -899,7 +928,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
 
         _test.Eq(restored.range_bonus, 1, "roundtrip 应保留 range_bonus typed 字段。");
         AssertDictionaryEq(
-            restored.@params,
+            ProjectParams(restored),
             new GDictionary
             {
                 ["display_name"] = "射击专精",
@@ -923,12 +952,19 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
             save_bonus_by_tag = new Dictionary<StringName, int> { [temporalTag] = 5 },
         };
 
-        GDictionary payload = effect.ToDictionary();
+        GDictionary payload = Project(effect);
         GDictionary projectedParams = payload["params"].AsGodotDictionary();
         _test.True(projectedParams.ContainsKey("status_tags"), "status_tags 应投影到 params 边界。");
         _test.True(
             projectedParams.ContainsKey("save_bonus_by_tag"),
             "save_bonus_by_tag 应投影到 params 边界。"
+        );
+        GDictionary projectedBonusByTag =
+            projectedParams["save_bonus_by_tag"].AsGodotDictionary();
+        _test.True(
+            projectedBonusByTag.ContainsKey(temporalTag)
+            && projectedBonusByTag[temporalTag].AsInt32() == 5,
+            "save_bonus_by_tag 应保留 StringName key 与 int value 的正式 payload 语义。"
         );
 
         BattleStatusEffectState restored = BattleStatusEffectState.FromDictionary(payload);
@@ -947,7 +983,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
             "roundtrip 应保留 save_bonus_by_tag 内容。"
         );
         AssertDictionaryEq(
-            restored.@params,
+            ProjectParams(restored),
             new GDictionary
             {
                 ["display_name"] = "时之余波",

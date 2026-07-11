@@ -99,7 +99,12 @@ public partial class run_world_map_battle_loading_overlay_regression : Lifecycle
             return;
         }
 
-        EncounterAnchorData encounterAnchor = FindEncounterAnchorByKind(_gameSession.GetWorldData(), "single");
+        using GodotProjectionLease<GDictionary> worldDataLease =
+            _gameSession.GetWorldDataLease();
+        EncounterAnchorData encounterAnchor = FindEncounterAnchorByKind(
+            worldDataLease.Value,
+            "single"
+        );
         _test.True(encounterAnchor != null, "pending terrain loading 回归需要至少一个单体野怪遭遇。");
         if (encounterAnchor == null)
         {

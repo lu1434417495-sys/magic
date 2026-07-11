@@ -110,10 +110,10 @@ public partial class WorldMapView : Control
     private bool _playerVisibleOnMap = true;
     private string _playerFactionId = "player";
 
-    public void Configure(
+    internal void Configure(
         WorldMapGridSystem grid_system,
         WorldMapFogSystem fog_system,
-        GDictionary world_data,
+        WorldRuntimeData world_data,
         Vector2I player_coord,
         Vector2I selected_coord,
         bool player_visible_on_map,
@@ -122,7 +122,7 @@ public partial class WorldMapView : Control
     {
         _gridSystem = grid_system;
         _fogSystem = fog_system;
-        _set_world_data(WorldRuntimeData.FromDictionary(world_data));
+        _set_world_data(world_data);
         _playerCoord = player_coord;
         _selectedCoord = selected_coord;
         _playerVisibleOnMap = player_visible_on_map;

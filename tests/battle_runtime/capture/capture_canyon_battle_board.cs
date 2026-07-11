@@ -32,7 +32,8 @@ public partial class capture_canyon_battle_board : LifecycleTestSceneTree
 
     private async Task<int> Run()
     {
-        GDictionary layout = BuildCanyonLayout();
+        using GodotProjectionLease<GDictionary> layoutLease = BuildCanyonLayout();
+        GDictionary layout = layoutLease.Value;
         BattleState state = BuildState(layout);
         Root.Size = ViewportSize;
 
@@ -95,19 +96,21 @@ public partial class capture_canyon_battle_board : LifecycleTestSceneTree
         return 0;
     }
 
-    private GDictionary BuildCanyonLayout()
+    private GodotProjectionLease<GDictionary> BuildCanyonLayout()
     {
-        var generator = new BattleTerrainGenerator();
-        return generator.GenerateTyped(
+        using var generator = new BattleTerrainGenerator();
+        using GDictionary context = new()
+        {
+            ["world_coord"] = TestWorldCoord,
+            ["world_seed"] = TestSeed,
+            ["battle_terrain_profile"] = "canyon",
+            ["battle_map_size"] = TestMapSize,
+        };
+        return generator.GenerateLease(
             BuildEncounterAnchor(),
             TestSeed,
-            new GDictionary
-            {
-                ["world_coord"] = TestWorldCoord,
-                ["world_seed"] = TestSeed,
-                ["battle_terrain_profile"] = "canyon",
-                ["battle_map_size"] = TestMapSize,
-            }
+            context,
+            LifetimeDomain.Request
         );
     }
 
@@ -134,7 +137,8 @@ public partial class capture_canyon_battle_board : LifecycleTestSceneTree
             ally_unit_ids = new GStringNameArray(),
             enemy_unit_ids = new GStringNameArray(),
         };
-        state.SetCellsFromDictionary(CloneCells(DictDict(layout, "cells")));
+        using (GDictionary cells = DictDict(layout, "cells"))
+            state.SetCellsFromDictionary(cells, duplicateCells: true);
         BattleUnitState ally = BuildUnit("ally_capture", "队员", "player");
         BattleUnitState enemy = BuildUnit("enemy_capture", "敌人", "hostile");
         RegisterAndPlace(state, ally, DictVector2I(layout, "player_coord"), false);
@@ -172,19 +176,6 @@ public partial class capture_canyon_battle_board : LifecycleTestSceneTree
         else
             state.ally_unit_ids.Add(unit.unit_id);
         _gridService.PlaceUnit(state, unit, coord, true);
-    }
-
-    private static GDictionary CloneCells(GDictionary cells)
-    {
-        var cloned = new GDictionary();
-        foreach (Variant coordValue in cells.Keys)
-        {
-            if (coordValue.VariantType != Variant.Type.Vector2I)
-                continue;
-            if (BattleCellState.TryReadCellPayload(cells[coordValue], out BattleCellState cell) && cell != null)
-                cloned[coordValue.AsVector2I()] = cell.DuplicateCell().ToDictionary();
-        }
-        return cloned;
     }
 
     private async Task<bool> WaitForBoardRenderReady(BattleBoard2D board)

@@ -74,6 +74,88 @@ internal static class RuntimePlainPayload
         }
     }
 
+    internal static GodotProjectionLease<GArray> ProjectDictionaryArrayLease(
+        IEnumerable<IReadOnlyDictionary<string, object>> source,
+        string ownerId,
+        LifetimeDomain domain,
+        string reason,
+        bool minimizeStrings = false
+    )
+    {
+        GArray root = new();
+        GodotProjectionLease<GArray> lease =
+            GodotProjectionLease<GArray>.CreateOwnedRoot(root, ownerId, domain, reason);
+        try
+        {
+            if (source != null)
+            {
+                int index = 0;
+                foreach (IReadOnlyDictionary<string, object> entry in source)
+                {
+                    GDictionary dictionary = lease.Own(
+                        new GDictionary(),
+                        $"{reason}[{index}]"
+                    );
+                    PopulateOwnedDictionary(
+                        lease,
+                        dictionary,
+                        entry,
+                        $"{reason}[{index}]",
+                        minimizeStrings
+                    );
+                    root.Add(dictionary);
+                    index++;
+                }
+            }
+            return lease;
+        }
+        catch
+        {
+            lease.Dispose();
+            throw;
+        }
+    }
+
+    internal static GDictionary ProjectDictionaryInto<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IReadOnlyDictionary<string, object> source,
+        string reason,
+        bool minimizeStrings = false
+    )
+        where TLeaseRoot : class, System.IDisposable
+    {
+        System.ArgumentNullException.ThrowIfNull(lease);
+        GDictionary dictionary = lease.Own(new GDictionary(), reason);
+        PopulateOwnedDictionary(lease, dictionary, source, reason, minimizeStrings);
+        return dictionary;
+    }
+
+    internal static GArray ProjectArrayInto<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IReadOnlyList<object> source,
+        string reason,
+        bool minimizeStrings = false
+    )
+        where TLeaseRoot : class, System.IDisposable
+    {
+        System.ArgumentNullException.ThrowIfNull(lease);
+        GArray array = lease.Own(new GArray(), reason);
+        if (source == null)
+            return array;
+        for (int index = 0; index < source.Count; index++)
+        {
+            array.Add(
+                ProjectOwnedValue(
+                    lease,
+                    source[index],
+                    $"{reason}[{index}]",
+                    minimizeStrings
+                )
+            );
+        }
+        return array;
+    }
+
     internal static Dictionary<string, object> RestoreSaveDictionary(
         GDictionary source,
         string ownerPath
@@ -269,24 +351,6 @@ internal static class RuntimePlainPayload
             $"Plain runtime payload clone does not support value type {value?.GetType().FullName ?? "<null>"}."
         );
 
-    internal static GDictionary ProjectDictionary(
-        IReadOnlyDictionary<string, object> source,
-        string reason
-    )
-    {
-        var result = new GDictionary();
-        if (source == null)
-            return result;
-
-        foreach (KeyValuePair<string, object> entry in source)
-        {
-            if (!string.IsNullOrEmpty(entry.Key))
-                result[entry.Key] = ProjectValue(entry.Value, $"{reason}.{entry.Key}");
-        }
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, reason);
-        return result;
-    }
-
     internal static List<Dictionary<string, object>> NormalizeDictionaryArray(
         GArray source,
         string ownerPath
@@ -305,25 +369,6 @@ internal static class RuntimePlainPayload
             }
             index++;
         }
-        return result;
-    }
-
-    internal static GArray ProjectDictionaryArray(
-        IEnumerable<IReadOnlyDictionary<string, object>> source,
-        string reason
-    )
-    {
-        var result = new GArray();
-        if (source != null)
-        {
-            int index = 0;
-            foreach (IReadOnlyDictionary<string, object> entry in source)
-            {
-                result.Add(ProjectDictionary(entry, $"{reason}[{index}]"));
-                index++;
-            }
-        }
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, reason);
         return result;
     }
 
@@ -556,54 +601,6 @@ internal static class RuntimePlainPayload
         };
     }
 
-    internal static GArray ProjectArray(IReadOnlyList<object> source, string reason)
-    {
-        var result = new GArray();
-        if (source == null)
-            return result;
-
-        for (int index = 0; index < source.Count; index++)
-            result.Add(ProjectValue(source[index], $"{reason}[{index}]"));
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, reason);
-        return result;
-    }
-
-    internal static Variant ProjectValue(object value, string reason)
-    {
-        return value switch
-        {
-            null => default,
-            Variant variant => variant,
-            bool boolValue => boolValue,
-            int intValue => intValue,
-            long longValue => longValue,
-            float floatValue => floatValue,
-            double doubleValue => doubleValue,
-            string stringValue => stringValue,
-            StringName stringNameValue => stringNameValue,
-            Vector2I vector2IValue => vector2IValue,
-            Vector2 vector2Value => vector2Value,
-            Rect2 rect2Value => rect2Value,
-            Rect2I rect2IValue => rect2IValue,
-            Vector3I vector3IValue => vector3IValue,
-            Vector3 vector3Value => vector3Value,
-            Transform2D transform2DValue => transform2DValue,
-            Vector4 vector4Value => vector4Value,
-            Vector4I vector4IValue => vector4IValue,
-            Plane planeValue => planeValue,
-            Quaternion quaternionValue => quaternionValue,
-            Aabb aabbValue => aabbValue,
-            Basis basisValue => basisValue,
-            Transform3D transform3DValue => transform3DValue,
-            Projection projectionValue => projectionValue,
-            Color colorValue => colorValue,
-            IReadOnlyDictionary<string, object> dictionaryValue =>
-                ProjectDictionary(dictionaryValue, reason),
-            IReadOnlyList<object> listValue => ProjectArray(listValue, reason),
-            _ => value.ToString() ?? "",
-        };
-    }
-
     private static void PopulateOwnedDictionary<TLeaseRoot>(
         GodotProjectionLease<TLeaseRoot> lease,
         GDictionary target,
@@ -704,6 +701,41 @@ internal static class RuntimePlainPayload
                 return projectionValue;
             case Color colorValue:
                 return colorValue;
+            case IReadOnlyDictionary<StringName, int> stringNameIntMap:
+            {
+                GDictionary dictionary = lease.Own(new GDictionary(), reason);
+                foreach (KeyValuePair<StringName, int> entry in stringNameIntMap)
+                {
+                    if (entry.Key == "")
+                    {
+                        throw new System.InvalidOperationException(
+                            $"Plain projection does not accept an empty StringName dictionary key at {reason}."
+                        );
+                    }
+                    dictionary[entry.Key] = entry.Value;
+                }
+                return Variant.From(dictionary);
+            }
+            case IReadOnlyDictionary<StringName, object> stringNameObjectMap:
+            {
+                GDictionary dictionary = lease.Own(new GDictionary(), reason);
+                foreach (KeyValuePair<StringName, object> entry in stringNameObjectMap)
+                {
+                    if (entry.Key == "")
+                    {
+                        throw new System.InvalidOperationException(
+                            $"Plain projection does not accept an empty StringName dictionary key at {reason}."
+                        );
+                    }
+                    dictionary[entry.Key] = ProjectOwnedValue(
+                        lease,
+                        entry.Value,
+                        $"{reason}.{entry.Key}",
+                        minimizeStrings
+                    );
+                }
+                return Variant.From(dictionary);
+            }
             case IReadOnlyDictionary<string, object> dictionaryValue:
             {
                 GDictionary dictionary = lease.Own(new GDictionary(), reason);

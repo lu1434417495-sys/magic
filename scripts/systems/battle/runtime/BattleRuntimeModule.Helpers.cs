@@ -82,7 +82,12 @@ public sealed partial class BattleRuntimeModule
     }
 
     private static GVector2IArray ToVector2IArray(IEnumerable<Vector2I> values)
-        => new Vector2IList(values).ToGodotArray();
+    {
+        var result = new GVector2IArray();
+        foreach (Vector2I value in values ?? Array.Empty<Vector2I>())
+            result.Add(value);
+        return result;
+    }
 
     private static GBattleUnitArray ToBattleUnitArray(GArray values)
     {
@@ -113,7 +118,13 @@ public sealed partial class BattleRuntimeModule
 
     private static GStringNameArray ToStringNameArray(
         IEnumerable<StringName> values
-    ) => new StringNameList(values).ToGodotArray();
+    )
+    {
+        var result = new GStringNameArray();
+        foreach (StringName value in values ?? Array.Empty<StringName>())
+            result.Add(value);
+        return result;
+    }
 
     private static List<Vector2I> ToVector2IList(GArray values)
     {
@@ -145,13 +156,4 @@ public sealed partial class BattleRuntimeModule
         return result;
     }
 
-    private static GArray ToUntypedArray(GBattleUnitArray values)
-    {
-        var result = new GArray();
-        if (values == null)
-            return result;
-        foreach (BattleUnitState value in values)
-            result.Add(value?.ToDictionary() ?? new GDictionary());
-        return result;
-    }
 }

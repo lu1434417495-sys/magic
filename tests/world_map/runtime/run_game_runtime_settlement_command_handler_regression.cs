@@ -210,23 +210,26 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                     "service:contract_board",
                     new GDictionary()
                 );
-            GDictionary contractBoardWindowData = handler.GetContractBoardWindowData();
-            List<string> contractBoardEntryIds = ExtractContractBoardEntryIds(DictArray(contractBoardWindowData, "entries"));
-            _test.True(contractBoardResult.Ok, "任务板服务应能切换到 contract_board modal。");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.ContractBoard, "任务板服务后应切换到 contract_board modal。");
-            _test.Eq(DictString(contractBoardWindowData, "action_id", ""), "service:contract_board", "任务板 modal 应保留原始 action_id。");
-            _test.Eq(DictString(contractBoardWindowData, "provider_interaction_id", ""), "service_contract_board", "任务板 modal 应记录当前 provider_interaction_id。");
-            AssertSequence(contractBoardEntryIds, new[] { "contract_first_hunt", "contract_manual_drill", "contract_repeatable_patrol", "contract_supply_drop" }, "任务板 modal 只应按 provider_interaction_id 暴露当前服务的契约条目。");
-            _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_missing_display_name").Count == 0, "缺少 display_name 的契约不应回退成 quest_id 出现在任务板。");
-            _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_missing_description").Count == 0, "缺少 description 的契约不应回退成暂无说明出现在任务板。");
-            _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_missing_objectives").Count == 0, "缺少 objective_defs 的契约不应回退成暂无目标说明出现在任务板。");
-            _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_missing_objective_target").Count == 0, "缺少 target_id 的据点事务目标不应回退成未命名出现在任务板。");
-            _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_unknown_objective_type").Count == 0, "未知 objective_type 不应回退成 objective_id 出现在任务板。");
-            _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_missing_rewards").Count == 0, "缺少 reward_entries 的契约不应回退成奖励待定出现在任务板。");
-            _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_invalid_reward_amount").Count == 0, "非法 reward amount 的契约不应回退成奖励待定。");
-            _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_typed_missing_objective_target").Count == 0, "QuestDefinition 中缺少 target_id 的据点事务目标不应出现在任务板。");
-            _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_typed_invalid_reward_amount").Count == 0, "QuestDefinition 中非法 reward amount 的契约不应出现在任务板。");
-            _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_string_key_only").Count == 0, "String key-only 契约不应被任务板恢复。");
+            using (GodotProjectionLease<GDictionary> contractBoardWindowLease = handler.GetContractBoardWindowDataLease())
+            {
+                GDictionary contractBoardWindowData = contractBoardWindowLease.Value;
+                List<string> contractBoardEntryIds = ExtractContractBoardEntryIds(DictArray(contractBoardWindowData, "entries"));
+                _test.True(contractBoardResult.Ok, "任务板服务应能切换到 contract_board modal。");
+                _test.Eq(runtime._active_modal_kind, RuntimeModalKind.ContractBoard, "任务板服务后应切换到 contract_board modal。");
+                _test.Eq(DictString(contractBoardWindowData, "action_id", ""), "service:contract_board", "任务板 modal 应保留原始 action_id。");
+                _test.Eq(DictString(contractBoardWindowData, "provider_interaction_id", ""), "service_contract_board", "任务板 modal 应记录当前 provider_interaction_id。");
+                AssertSequence(contractBoardEntryIds, new[] { "contract_first_hunt", "contract_manual_drill", "contract_repeatable_patrol", "contract_supply_drop" }, "任务板 modal 只应按 provider_interaction_id 暴露当前服务的契约条目。");
+                _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_missing_display_name").Count == 0, "缺少 display_name 的契约不应回退成 quest_id 出现在任务板。");
+                _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_missing_description").Count == 0, "缺少 description 的契约不应回退成暂无说明出现在任务板。");
+                _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_missing_objectives").Count == 0, "缺少 objective_defs 的契约不应回退成暂无目标说明出现在任务板。");
+                _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_missing_objective_target").Count == 0, "缺少 target_id 的据点事务目标不应回退成未命名出现在任务板。");
+                _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_unknown_objective_type").Count == 0, "未知 objective_type 不应回退成 objective_id 出现在任务板。");
+                _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_missing_rewards").Count == 0, "缺少 reward_entries 的契约不应回退成奖励待定出现在任务板。");
+                _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_invalid_reward_amount").Count == 0, "非法 reward amount 的契约不应回退成奖励待定。");
+                _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_typed_missing_objective_target").Count == 0, "QuestDefinition 中缺少 target_id 的据点事务目标不应出现在任务板。");
+                _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_typed_invalid_reward_amount").Count == 0, "QuestDefinition 中非法 reward amount 的契约不应出现在任务板。");
+                _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_string_key_only").Count == 0, "String key-only 契约不应被任务板恢复。");
+            }
 
             _test.False(
                 handler.CommandExecuteSettlementActionRuntimeTyped(
@@ -336,16 +339,20 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                         ["provider_interaction_id"] = "service_contract_board",
                     }
                 );
-            GDictionary acceptedContractEntry = FindContractBoardEntry(DictArray(handler.GetContractBoardWindowData(), "entries"), "contract_manual_drill");
-            _test.True(
-                acceptContractResult.Ok,
-                $"任务板提交应保持据点动作链路可执行。message={acceptContractResult.Message}"
-            );
-            _test.True(runtime._party_state.HasActiveQuest("contract_manual_drill"), "任务板接取后应把任务写入 PartyState.active_quests。");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.ContractBoard, "接取契约后应继续停留在 contract_board modal。");
-            _test.Eq(runtime._current_status_message, "已接取任务《训练记录》。", "任务板接取后应更新成功反馈。");
-            _test.Eq(DictString(acceptedContractEntry, "state_id", ""), "active", "接取后的契约条目应刷新为 active。");
-            _test.Eq(DictString(handler.GetContractBoardWindowData(), "summary_text", ""), "已接取任务《训练记录》。", "任务板 summary_text 应刷新为最新反馈。");
+            using (GodotProjectionLease<GDictionary> acceptedContractLease = handler.GetContractBoardWindowDataLease())
+            {
+                GDictionary acceptedContractData = acceptedContractLease.Value;
+                GDictionary acceptedContractEntry = FindContractBoardEntry(DictArray(acceptedContractData, "entries"), "contract_manual_drill");
+                _test.True(
+                    acceptContractResult.Ok,
+                    $"任务板提交应保持据点动作链路可执行。message={acceptContractResult.Message}"
+                );
+                _test.True(runtime._party_state.HasActiveQuest("contract_manual_drill"), "任务板接取后应把任务写入 PartyState.active_quests。");
+                _test.Eq(runtime._active_modal_kind, RuntimeModalKind.ContractBoard, "接取契约后应继续停留在 contract_board modal。");
+                _test.Eq(runtime._current_status_message, "已接取任务《训练记录》。", "任务板接取后应更新成功反馈。");
+                _test.Eq(DictString(acceptedContractEntry, "state_id", ""), "active", "接取后的契约条目应刷新为 active。");
+                _test.Eq(DictString(acceptedContractData, "summary_text", ""), "已接取任务《训练记录》。", "任务板 summary_text 应刷新为最新反馈。");
+            }
 
             handler.CommandExecuteSettlementActionRuntimeTyped(
                 "service:contract_board",
@@ -370,13 +377,16 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                     ["provider_interaction_id"] = "service_contract_board",
                 }
             );
-            GDictionary claimedContractEntry = FindContractBoardEntry(DictArray(handler.GetContractBoardWindowData(), "entries"), "contract_manual_drill");
-            _test.Eq(runtime._current_status_message, "已领取任务《训练记录》奖励，获得 30 金。", "claimable 契约提交时应返回领奖反馈。");
-            _test.Eq(runtime._party_state.GetGold(), manualClaimGoldBefore + 30, "claimable 契约提交后应把金币奖励写入 PartyState。");
-            _test.False(runtime._party_state.HasActiveQuest("contract_manual_drill"), "已完成非 repeatable 契约不应重新回到 active_quests。");
-            _test.False(runtime._party_state.HasClaimableQuest("contract_manual_drill"), "领奖后的非 repeatable 契约不应继续停留在 claimable_quests。");
-            _test.True(runtime._party_state.HasCompletedQuest("contract_manual_drill"), "领奖后的非 repeatable 契约应进入 completed_quest_ids。");
-            _test.Eq(DictString(claimedContractEntry, "state_id", ""), "completed", "领奖后的普通契约条目应刷新为 completed。");
+            using (GodotProjectionLease<GDictionary> claimedContractLease = handler.GetContractBoardWindowDataLease())
+            {
+                GDictionary claimedContractEntry = FindContractBoardEntry(DictArray(claimedContractLease.Value, "entries"), "contract_manual_drill");
+                _test.Eq(runtime._current_status_message, "已领取任务《训练记录》奖励，获得 30 金。", "claimable 契约提交时应返回领奖反馈。");
+                _test.Eq(runtime._party_state.GetGold(), manualClaimGoldBefore + 30, "claimable 契约提交后应把金币奖励写入 PartyState。");
+                _test.False(runtime._party_state.HasActiveQuest("contract_manual_drill"), "已完成非 repeatable 契约不应重新回到 active_quests。");
+                _test.False(runtime._party_state.HasClaimableQuest("contract_manual_drill"), "领奖后的非 repeatable 契约不应继续停留在 claimable_quests。");
+                _test.True(runtime._party_state.HasCompletedQuest("contract_manual_drill"), "领奖后的非 repeatable 契约应进入 completed_quest_ids。");
+                _test.Eq(DictString(claimedContractEntry, "state_id", ""), "completed", "领奖后的普通契约条目应刷新为 completed。");
+            }
 
             var repeatableQuest = new QuestState { quest_id = "contract_repeatable_patrol" };
             repeatableQuest.MarkAccepted(runtime.GetWorldStep());
@@ -393,11 +403,14 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                     ["provider_interaction_id"] = "service_contract_board",
                 }
             );
-            GDictionary repeatableEntry = FindContractBoardEntry(DictArray(handler.GetContractBoardWindowData(), "entries"), "contract_repeatable_patrol");
-            _test.Eq(runtime._current_status_message, "已领取任务《巡路值守》奖励，获得 15 金。", "repeatable 契约领奖时应返回明确反馈。");
-            _test.Eq(runtime._party_state.GetGold(), repeatableClaimGoldBefore + 15, "repeatable 契约领奖后应增加金币。");
-            _test.True(runtime._party_state.HasCompletedQuest("contract_repeatable_patrol"), "repeatable 契约领奖后应进入 completed_quest_ids。");
-            _test.Eq(DictString(repeatableEntry, "state_id", ""), "repeatable", "repeatable 契约领奖后条目应刷新为 repeatable。");
+            using (GodotProjectionLease<GDictionary> repeatableContractLease = handler.GetContractBoardWindowDataLease())
+            {
+                GDictionary repeatableEntry = FindContractBoardEntry(DictArray(repeatableContractLease.Value, "entries"), "contract_repeatable_patrol");
+                _test.Eq(runtime._current_status_message, "已领取任务《巡路值守》奖励，获得 15 金。", "repeatable 契约领奖时应返回明确反馈。");
+                _test.Eq(runtime._party_state.GetGold(), repeatableClaimGoldBefore + 15, "repeatable 契约领奖后应增加金币。");
+                _test.True(runtime._party_state.HasCompletedQuest("contract_repeatable_patrol"), "repeatable 契约领奖后应进入 completed_quest_ids。");
+                _test.Eq(DictString(repeatableEntry, "state_id", ""), "repeatable", "repeatable 契约领奖后条目应刷新为 repeatable。");
+            }
 
             fixture.WarehouseService.AddItemTyped("iron_ore", 2);
             var submitItemQuest = new QuestState { quest_id = "contract_supply_drop" };
@@ -413,11 +426,14 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                     ["provider_interaction_id"] = "service_contract_board",
                 }
             );
-            GDictionary submitItemEntry = FindContractBoardEntry(DictArray(handler.GetContractBoardWindowData(), "entries"), "contract_supply_drop");
-            _test.Eq(runtime._current_status_message, "已为任务《物资缴纳》提交 铁矿石 x2，奖励待领取。", "submit_item 提交后应刷新正式反馈。");
-            _test.False(runtime._party_state.HasActiveQuest("contract_supply_drop"), "submit_item 提交完成后任务应离开 active_quests。");
-            _test.True(runtime._party_state.HasClaimableQuest("contract_supply_drop"), "submit_item 提交完成后任务应进入 claimable_quests。");
-            _test.Eq(DictString(submitItemEntry, "state_id", ""), "claimable", "submit_item 提交后条目应刷新为 claimable。");
+            using (GodotProjectionLease<GDictionary> submitItemLease = handler.GetContractBoardWindowDataLease())
+            {
+                GDictionary submitItemEntry = FindContractBoardEntry(DictArray(submitItemLease.Value, "entries"), "contract_supply_drop");
+                _test.Eq(runtime._current_status_message, "已为任务《物资缴纳》提交 铁矿石 x2，奖励待领取。", "submit_item 提交后应刷新正式反馈。");
+                _test.False(runtime._party_state.HasActiveQuest("contract_supply_drop"), "submit_item 提交完成后任务应离开 active_quests。");
+                _test.True(runtime._party_state.HasClaimableQuest("contract_supply_drop"), "submit_item 提交完成后任务应进入 claimable_quests。");
+                _test.Eq(DictString(submitItemEntry, "state_id", ""), "claimable", "submit_item 提交后条目应刷新为 claimable。");
+            }
 
             handler.OnContractBoardWindowClosed();
             _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Settlement, "关闭任务板后应返回 settlement modal。");
@@ -428,19 +444,25 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                     "service:bounty_registry",
                     new GDictionary()
                 );
-            GDictionary bountyBoardWindowData = handler.GetContractBoardWindowData();
-            _test.True(bountyBoardResult.Ok, "悬赏署服务应复用 contract_board modal。");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.ContractBoard, "悬赏署服务后仍应落到 contract_board modal。");
-            _test.Eq(DictString(bountyBoardWindowData, "action_id", ""), "service:bounty_registry", "悬赏署 modal 应保留原始 action_id。");
-            _test.Eq(DictString(bountyBoardWindowData, "provider_interaction_id", ""), "service_bounty_registry", "悬赏署 modal 应记录自己的 provider_interaction_id。");
-            AssertSequence(ExtractContractBoardEntryIds(DictArray(bountyBoardWindowData, "entries")), new[] { "contract_regional_bounty" }, "悬赏署 modal 只应暴露自己的 bounty quest。");
+            using (GodotProjectionLease<GDictionary> bountyBoardWindowLease = handler.GetContractBoardWindowDataLease())
+            {
+                GDictionary bountyBoardWindowData = bountyBoardWindowLease.Value;
+                _test.True(bountyBoardResult.Ok, "悬赏署服务应复用 contract_board modal。");
+                _test.Eq(runtime._active_modal_kind, RuntimeModalKind.ContractBoard, "悬赏署服务后仍应落到 contract_board modal。");
+                _test.Eq(DictString(bountyBoardWindowData, "action_id", ""), "service:bounty_registry", "悬赏署 modal 应保留原始 action_id。");
+                _test.Eq(DictString(bountyBoardWindowData, "provider_interaction_id", ""), "service_bounty_registry", "悬赏署 modal 应记录自己的 provider_interaction_id。");
+                AssertSequence(ExtractContractBoardEntryIds(DictArray(bountyBoardWindowData, "entries")), new[] { "contract_regional_bounty" }, "悬赏署 modal 只应暴露自己的 bounty quest。");
+            }
 
             handler.OnContractBoardWindowClosed();
             handler.CommandExecuteSettlementActionRuntimeTyped(
                 "service:contract_board",
                 new GDictionary()
             );
-            AssertSequence(ExtractContractBoardEntryIds(DictArray(handler.GetContractBoardWindowData(), "entries")), new[] { "contract_first_hunt", "contract_manual_drill", "contract_repeatable_patrol", "contract_supply_drop" }, "悬赏署 provider 不应污染正式 contract board 列表。");
+            using (GodotProjectionLease<GDictionary> restoredContractBoardLease = handler.GetContractBoardWindowDataLease())
+            {
+                AssertSequence(ExtractContractBoardEntryIds(DictArray(restoredContractBoardLease.Value, "entries")), new[] { "contract_first_hunt", "contract_manual_drill", "contract_repeatable_patrol", "contract_supply_drop" }, "悬赏署 provider 不应污染正式 contract board 列表。");
+            }
             handler.OnContractBoardWindowClosed();
 
             GameRuntimeFacade.RuntimeCommandResult trainingResult =
@@ -635,21 +657,23 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                     new GDictionary()
                 );
             _test.True(openResult.Ok, "测试前置：任务板应能打开。");
-            GDictionary windowData = handler.GetContractBoardWindowData();
+            using (GodotProjectionLease<GDictionary> initialContractBoardLease = handler.GetContractBoardWindowDataLease())
+            {
+                GDictionary windowData = initialContractBoardLease.Value;
+                GDictionary lockedEntry = FindContractBoardEntry(DictArray(windowData, "entries"), "contract_locked_hunt");
+                _test.False(DictBool(lockedEntry, "is_enabled", true), "未满足前置任务时，契约条目应被禁用。");
+                _test.Eq(DictString(lockedEntry, "lock_reason_id", ""), "quest_not_completed", "禁用条目的 lock_reason_id 应来自 evaluator。");
+                _test.True(!string.IsNullOrEmpty(DictString(lockedEntry, "disabled_reason", "")), "禁用条目应包含 disabled_reason。");
 
-            GDictionary lockedEntry = FindContractBoardEntry(DictArray(windowData, "entries"), "contract_locked_hunt");
-            _test.False(DictBool(lockedEntry, "is_enabled", true), "未满足前置任务时，契约条目应被禁用。");
-            _test.Eq(DictString(lockedEntry, "lock_reason_id", ""), "quest_not_completed", "禁用条目的 lock_reason_id 应来自 evaluator。");
-            _test.True(!string.IsNullOrEmpty(DictString(lockedEntry, "disabled_reason", "")), "禁用条目应包含 disabled_reason。");
+                GDictionary dialogueEntry = FindContractBoardEntry(DictArray(windowData, "entries"), "contract_dialogue_quest");
+                string detailsText = DictString(dialogueEntry, "details_text", "");
+                _test.True(detailsText.Contains("这是接取对话文案。"), "details_text 应展示 accept_dialogue_text。");
+                _test.Eq(DictString(dialogueEntry, "accept_dialogue_text", ""), "这是接取对话文案。", "accept_dialogue_text 字段应原样暴露。");
 
-            GDictionary dialogueEntry = FindContractBoardEntry(DictArray(windowData, "entries"), "contract_dialogue_quest");
-            string detailsText = DictString(dialogueEntry, "details_text", "");
-            _test.True(detailsText.Contains("这是接取对话文案。"), "details_text 应展示 accept_dialogue_text。");
-            _test.Eq(DictString(dialogueEntry, "accept_dialogue_text", ""), "这是接取对话文案。", "accept_dialogue_text 字段应原样暴露。");
-
-            GDictionary confirmationEntry = FindContractBoardEntry(DictArray(windowData, "entries"), "contract_confirmation_quest");
-            _test.Eq(DictString(confirmationEntry, "accept_feedback_success", ""), "已确认接取确认契约。", "accept_feedback_success 字段应原样暴露。");
-            _test.Eq(DictString(confirmationEntry, "accept_confirmation_text", ""), "确认要接取这个契约吗？", "accept_confirmation_text 字段应原样暴露。");
+                GDictionary confirmationEntry = FindContractBoardEntry(DictArray(windowData, "entries"), "contract_confirmation_quest");
+                _test.Eq(DictString(confirmationEntry, "accept_feedback_success", ""), "已确认接取确认契约。", "accept_feedback_success 字段应原样暴露。");
+                _test.Eq(DictString(confirmationEntry, "accept_confirmation_text", ""), "确认要接取这个契约吗？", "accept_confirmation_text 字段应原样暴露。");
+            }
 
             GameRuntimeFacade.RuntimeCommandResult confirmationBypassResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
@@ -684,9 +708,12 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             _test.False(lockedSubmitResult.Ok, "未满足前置任务时提交接取应失败。");
             _test.Eq(runtime._active_settlement_feedback_text, "当前无法接取该前置契约。", "提交失败时应使用 accept_feedback_failure 更新据点反馈。");
 
-            GDictionary refreshedData = handler.GetContractBoardWindowData();
-            _test.Eq(DictString(refreshedData, "state_summary_text", ""), "当前无法接取该前置契约。", "feedback_text 应保留在 state_summary_text 中。");
-            _test.Eq(DictString(refreshedData, "summary_text", ""), "当前无法接取该前置契约。", "feedback_text 应保留在 summary_text 中。");
+            using (GodotProjectionLease<GDictionary> refreshedContractBoardLease = handler.GetContractBoardWindowDataLease())
+            {
+                GDictionary refreshedData = refreshedContractBoardLease.Value;
+                _test.Eq(DictString(refreshedData, "state_summary_text", ""), "当前无法接取该前置契约。", "feedback_text 应保留在 state_summary_text 中。");
+                _test.Eq(DictString(refreshedData, "summary_text", ""), "当前无法接取该前置契约。", "feedback_text 应保留在 summary_text 中。");
+            }
 
             GameRuntimeFacade.RuntimeCommandResult confirmationResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
@@ -700,10 +727,13 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                 );
             _test.True(confirmationResult.Ok, "首次提交带确认文案的契约应返回确认状态而不是错误。");
             _test.False(runtime._party_state.HasActiveQuest("contract_confirmation_quest"), "确认弹窗期间不应接取任务。");
-            GDictionary confirmationContext = handler.GetContractBoardWindowData();
-            _test.Eq(DictString(confirmationContext, "pending_confirmation_quest_id", ""), "contract_confirmation_quest", "应写入 pending_confirmation_quest_id。");
-            _test.Eq(DictString(confirmationContext, "pending_confirmation_text", ""), "确认要接取这个契约吗？", "应写入 pending_confirmation_text。");
-            _test.Eq(DictString(confirmationContext, "pending_confirmation_source", ""), "contract_board", "应写入 pending_confirmation_source。");
+            using (GodotProjectionLease<GDictionary> confirmationContextLease = handler.GetContractBoardWindowDataLease())
+            {
+                GDictionary confirmationContext = confirmationContextLease.Value;
+                _test.Eq(DictString(confirmationContext, "pending_confirmation_quest_id", ""), "contract_confirmation_quest", "应写入 pending_confirmation_quest_id。");
+                _test.Eq(DictString(confirmationContext, "pending_confirmation_text", ""), "确认要接取这个契约吗？", "应写入 pending_confirmation_text。");
+                _test.Eq(DictString(confirmationContext, "pending_confirmation_source", ""), "contract_board", "应写入 pending_confirmation_source。");
+            }
 
             GameRuntimeFacade.RuntimeCommandResult confirmedAcceptResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
@@ -719,9 +749,13 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             _test.True(confirmedAcceptResult.Ok, "带 confirm_accept=true 的提交应成功接取。");
             _test.True(runtime._party_state.HasActiveQuest("contract_confirmation_quest"), "确认后应把任务写入 active_quests。");
             _test.Eq(runtime._active_settlement_feedback_text, "已确认接取确认契约。", "确认接取后应使用 accept_feedback_success 更新据点反馈。");
-            _test.Eq(DictString(handler.GetContractBoardWindowData(), "summary_text", ""), "已确认接取确认契约。", "确认接取后 summary_text 应使用 accept_feedback_success。");
-            _test.Eq(DictString(handler.GetContractBoardWindowData(), "state_summary_text", ""), "已确认接取确认契约。", "确认接取后 state_summary_text 应使用 accept_feedback_success。");
-            _test.Eq(DictString(handler.GetContractBoardWindowData(), "pending_confirmation_quest_id", ""), "", "确认后应清空 pending_confirmation_quest_id。");
+            using (GodotProjectionLease<GDictionary> confirmedContractBoardLease = handler.GetContractBoardWindowDataLease())
+            {
+                GDictionary confirmedContractBoardData = confirmedContractBoardLease.Value;
+                _test.Eq(DictString(confirmedContractBoardData, "summary_text", ""), "已确认接取确认契约。", "确认接取后 summary_text 应使用 accept_feedback_success。");
+                _test.Eq(DictString(confirmedContractBoardData, "state_summary_text", ""), "已确认接取确认契约。", "确认接取后 state_summary_text 应使用 accept_feedback_success。");
+                _test.Eq(DictString(confirmedContractBoardData, "pending_confirmation_quest_id", ""), "", "确认后应清空 pending_confirmation_quest_id。");
+            }
 
             runtime._party_state.AddCompletedQuestId("contract_prerequisite_hunt");
             runtime._character_management.SetPartyState(runtime._party_state);
@@ -732,10 +766,13 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                     new GDictionary()
                 );
             _test.True(reopenResult.Ok, $"前置任务完成后重新打开任务板应成功。message={reopenResult.Message}");
-            GDictionary unlockedEntry = FindContractBoardEntry(DictArray(handler.GetContractBoardWindowData(), "entries"), "contract_locked_hunt");
-            _test.True(DictBool(unlockedEntry, "is_enabled", false), "前置任务完成后，被锁定的契约应变为可用。");
-            _test.Eq(DictString(unlockedEntry, "lock_reason_id", ""), "", "可用条目的 lock_reason_id 应为空。");
-            _test.Eq(DictString(unlockedEntry, "disabled_reason", ""), "", "可用条目的 disabled_reason 应为空。");
+            using (GodotProjectionLease<GDictionary> unlockedContractBoardLease = handler.GetContractBoardWindowDataLease())
+            {
+                GDictionary unlockedEntry = FindContractBoardEntry(DictArray(unlockedContractBoardLease.Value, "entries"), "contract_locked_hunt");
+                _test.True(DictBool(unlockedEntry, "is_enabled", false), "前置任务完成后，被锁定的契约应变为可用。");
+                _test.Eq(DictString(unlockedEntry, "lock_reason_id", ""), "", "可用条目的 lock_reason_id 应为空。");
+                _test.Eq(DictString(unlockedEntry, "disabled_reason", ""), "", "可用条目的 disabled_reason 应为空。");
+            }
 
             GameRuntimeFacade.RuntimeCommandResult unlockedAcceptResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
@@ -1032,10 +1069,13 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                 ["npc_name"] = "伪造导师",
                 ["service_type"] = "研究",
             });
-            GDictionary signalShopWindowData = handler.GetShopWindowData();
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Shop, "UI 信号入口收到伪造 interaction_script_id 时仍应按真实商店入口打开 shop modal。");
-            _test.Eq(DictString(signalShopWindowData, "interaction_script_id", ""), "service_basic_supply", "UI 信号入口应使用真实服务 interaction_script_id。");
-            _test.Eq(runtime._current_status_message, "已打开 补给铺 的商店。", "UI 信号入口应使用真实服务 facility_name。");
+            using (GodotProjectionLease<GDictionary> signalShopWindowLease = handler.GetShopWindowDataLease())
+            {
+                GDictionary signalShopWindowData = signalShopWindowLease.Value;
+                _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Shop, "UI 信号入口收到伪造 interaction_script_id 时仍应按真实商店入口打开 shop modal。");
+                _test.Eq(DictString(signalShopWindowData, "interaction_script_id", ""), "service_basic_supply", "UI 信号入口应使用真实服务 interaction_script_id。");
+                _test.Eq(runtime._current_status_message, "已打开 补给铺 的商店。", "UI 信号入口应使用真实服务 facility_name。");
+            }
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
 
             GameRuntimeFacade.RuntimeCommandResult spoofedShopResult =
@@ -1051,7 +1091,10 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                 );
             _test.True(spoofedShopResult.Ok, "合法 action_id 仍应按真实服务入口执行。");
             _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Shop, "伪造 interaction_script_id 时仍应按真实商店入口打开 shop modal。");
-            _test.True(handler.GetShopWindowData().Count > 0, "按真实商店入口执行后应能读取 shop window data。");
+            using (GodotProjectionLease<GDictionary> spoofedShopWindowLease = handler.GetShopWindowDataLease())
+            {
+                _test.True(spoofedShopWindowLease.Value.Count > 0, "按真实商店入口执行后应能读取 shop window data。");
+            }
         }
         finally
         {
@@ -1070,7 +1113,9 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             {
                 GDictionary foundResearchService = new();
                 bool foundLegacyUnlockArchive = false;
-                foreach (GDictionary settlement in Dictionaries(DictArray(gameSession.GetWorldData(), "settlements")))
+                using GodotProjectionLease<GDictionary> worldDataLease =
+                    gameSession.GetWorldDataLease();
+                foreach (GDictionary settlement in Dictionaries(DictArray(worldDataLease.Value, "settlements")))
                 {
                     foreach (GDictionary serviceData in Dictionaries(DictArray(settlement, "available_services")))
                     {

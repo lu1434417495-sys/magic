@@ -148,36 +148,23 @@ internal sealed class QuestClaimResultData
         bool ok,
         string errorCode,
         int goldDelta,
-        GArray itemRewards,
-        GArray pendingCharacterRewards,
+        IEnumerable<IReadOnlyDictionary<string, object>> itemRewards,
+        IEnumerable<IReadOnlyDictionary<string, object>> pendingCharacterRewards,
         IEnumerable<StringName> unsupportedRewardTypes
     )
     {
         Ok = ok;
         ErrorCode = errorCode ?? "";
         GoldDelta = Mathf.Max(goldDelta, 0);
-        _itemRewards = RuntimePlainPayload.NormalizeDictionaryArray(
-            itemRewards,
-            "QuestClaimResultData.item_rewards"
-        );
-        _pendingCharacterRewards = RuntimePlainPayload.NormalizeDictionaryArray(
-            pendingCharacterRewards,
-            "QuestClaimResultData.pending_character_rewards"
-        );
+        _itemRewards = CloneDictionaryList(itemRewards);
+        _pendingCharacterRewards = CloneDictionaryList(pendingCharacterRewards);
         _unsupportedRewardTypes = CloneStringNameList(unsupportedRewardTypes);
     }
 
-    internal GArray CloneItemRewards() =>
-        RuntimePlainPayload.ProjectDictionaryArray(
-            _itemRewards,
-            "QuestClaimResultData.CloneItemRewards"
-        );
+    internal List<object> CloneItemRewardsPlain() => CloneDictionaryObjectList(_itemRewards);
 
-    internal GArray ClonePendingCharacterRewards() =>
-        RuntimePlainPayload.ProjectDictionaryArray(
-            _pendingCharacterRewards,
-            "QuestClaimResultData.ClonePendingCharacterRewards"
-        );
+    internal List<object> ClonePendingCharacterRewardsPlain() =>
+        CloneDictionaryObjectList(_pendingCharacterRewards);
 
     public GStringNameArray CloneUnsupportedRewardTypes() =>
         CloneStringNameArray(_unsupportedRewardTypes);
@@ -205,8 +192,8 @@ internal sealed class QuestClaimResultData
 
     public static QuestClaimResultData Success(
         int goldDelta,
-        GArray itemRewards,
-        GArray pendingCharacterRewards
+        IEnumerable<IReadOnlyDictionary<string, object>> itemRewards,
+        IEnumerable<IReadOnlyDictionary<string, object>> pendingCharacterRewards
     ) =>
         new(
             true,
@@ -225,10 +212,34 @@ internal sealed class QuestClaimResultData
             false,
             errorCode,
             0,
-            new GArray(),
-            new GArray(),
+            System.Array.Empty<IReadOnlyDictionary<string, object>>(),
+            System.Array.Empty<IReadOnlyDictionary<string, object>>(),
             unsupportedRewardTypes
         );
+
+    private static List<Dictionary<string, object>> CloneDictionaryList(
+        IEnumerable<IReadOnlyDictionary<string, object>> values
+    )
+    {
+        var result = new List<Dictionary<string, object>>();
+        if (values == null)
+            return result;
+        foreach (IReadOnlyDictionary<string, object> value in values)
+            result.Add(RuntimePlainPayload.CloneDictionary(value));
+        return result;
+    }
+
+    private static List<object> CloneDictionaryObjectList(
+        IEnumerable<IReadOnlyDictionary<string, object>> values
+    )
+    {
+        var result = new List<object>();
+        if (values == null)
+            return result;
+        foreach (IReadOnlyDictionary<string, object> value in values)
+            result.Add(RuntimePlainPayload.CloneDictionary(value));
+        return result;
+    }
 
     private static List<StringName> CloneStringNameList(IEnumerable<StringName> values)
     {

@@ -35,19 +35,23 @@ public partial class run_ai_trace_recorder_regression : LifecycleTestSceneTree
         AiTraceRecorder.Exit("outer");
 
         _test.True(recorder.AssertBalanced(), "nested trace spans should be balanced.");
-        _test.Eq(recorder.GetEvents().Count, 4, "nested trace spans should emit begin/end events.");
+        using GodotProjectionLease<Godot.Collections.Array> eventsLease =
+            recorder.GetEventsLease();
+        Godot.Collections.Array events = eventsLease.Value;
+        _test.Eq(events.Count, 4, "nested trace spans should emit begin/end events.");
         _test.Eq(
-            recorder.GetEvents()[0]["ph"].AsString(),
+            events[0].AsGodotDictionary()["ph"].AsString(),
             "B",
             "first trace event should be a begin event."
         );
         _test.Eq(
-            recorder.GetEvents()[3]["ph"].AsString(),
+            events[3].AsGodotDictionary()["ph"].AsString(),
             "E",
             "last trace event should be an end event."
         );
 
-        GDictionary stats = recorder.GetFuncStats();
+        using GodotProjectionLease<GDictionary> statsLease = recorder.GetFuncStatsLease();
+        GDictionary stats = statsLease.Value;
         _test.True(stats.ContainsKey(new StringName("outer")), "stats should include outer span.");
         _test.True(stats.ContainsKey(new StringName("inner")), "stats should include inner span.");
 
@@ -68,10 +72,20 @@ public partial class run_ai_trace_recorder_regression : LifecycleTestSceneTree
 
         AiTraceRecorder.Enter("captured");
         AiTraceRecorder.Exit("captured");
-        _test.True(recorder.GetEvents().Count > 0, "enabled event capture should record events.");
+        using (GodotProjectionLease<Godot.Collections.Array> eventsLease =
+            recorder.GetEventsLease())
+        {
+            _test.True(eventsLease.Value.Count > 0, "enabled event capture should record events.");
+        }
 
         recorder.SetEventCaptureEnabled(false);
-        _test.Eq(recorder.GetEvents().Count, 0, "disabling event capture should clear events.");
+        using GodotProjectionLease<Godot.Collections.Array> disabledEventsLease =
+            recorder.GetEventsLease();
+        _test.Eq(
+            disabledEventsLease.Value.Count,
+            0,
+            "disabling event capture should clear events."
+        );
         _test.True(!recorder.IsTruncated(), "disabling event capture should reset truncation flag.");
     }
 }

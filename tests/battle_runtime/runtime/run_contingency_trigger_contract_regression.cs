@@ -100,7 +100,11 @@ public partial class run_contingency_trigger_contract_regression : LifecycleTest
             "Release overlay refresh should restore owner effective MP max for the current battle."
         );
 
-        GDictionary unitPayload = heroUnit.ToDictionary();
+        using GodotProjectionLease<GDictionary> unitPayloadLease = heroUnit.ToDictionaryLease(
+            LifetimeDomain.Request,
+            "contingency-trigger-contract-unit-payload"
+        );
+        GDictionary unitPayload = unitPayloadLease.Value;
         _test.False(
             unitPayload.ContainsKey("contingency_instances"),
             "Battle-local contingency instances must not enter BattleUnitState.ToDictionary()."

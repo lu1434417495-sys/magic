@@ -32,22 +32,40 @@ public sealed class StringNameList : List<StringName>
 
     public StringNameList Duplicate() => new(this);
 
-    public Godot.Collections.Array<StringName> ToGodotArray()
+    internal GodotProjectionLease<Godot.Collections.Array> ToGodotArrayLease(
+        LifetimeDomain domain,
+        string reason
+    )
     {
-        Godot.Collections.Array<StringName> result = new();
+        Godot.Collections.Array result = new();
+        GodotProjectionLease<Godot.Collections.Array> lease =
+            GodotProjectionLease<Godot.Collections.Array>.CreateOwnedRoot(
+                result,
+                "string-name-list",
+                domain,
+                reason
+            );
         foreach (StringName value in this)
             result.Add(value);
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, "StringNameList.ToGodotArray");
-        return result;
+        return lease;
     }
 
-    public Godot.Collections.Array<string> ToStringArray()
+    internal GodotProjectionLease<Godot.Collections.Array> ToStringArrayLease(
+        LifetimeDomain domain,
+        string reason
+    )
     {
-        Godot.Collections.Array<string> result = new();
+        Godot.Collections.Array result = new();
+        GodotProjectionLease<Godot.Collections.Array> lease =
+            GodotProjectionLease<Godot.Collections.Array>.CreateOwnedRoot(
+                result,
+                "string-name-list-text",
+                domain,
+                reason
+            );
         foreach (StringName value in this)
             result.Add(value.ToString());
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, "StringNameList.ToStringArray");
-        return result;
+        return lease;
     }
 
     private void AddValues(IEnumerable<StringName> values)
@@ -61,13 +79,4 @@ public sealed class StringNameList : List<StringName>
     public static implicit operator StringNameList(Godot.Collections.Array<StringName> values) =>
         new(values);
 
-    public static implicit operator Godot.Collections.Array<StringName>(StringNameList values) =>
-        values?.ToGodotArray() ?? EmptyGodotArray("StringNameList.implicit");
-
-    private static Godot.Collections.Array<StringName> EmptyGodotArray(string reason)
-    {
-        Godot.Collections.Array<StringName> result = new();
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, reason);
-        return result;
-    }
 }

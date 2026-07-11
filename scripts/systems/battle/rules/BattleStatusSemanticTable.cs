@@ -719,17 +719,9 @@ public static class BattleStatusSemanticTable
     {
         if (statusEntry == null)
             return;
-        using GodotProjectionLease<GDictionary> projection =
-            RuntimePlainPayload.ProjectDictionaryLease(
-                parameters,
-                "battle-status-semantic-parameters",
-                LifetimeDomain.Battle,
-                "BattleStatusSemanticTable.effect_parameters"
-            );
-        using GDictionary residual = BattleStatusEffectState.CopyResidualParams(
-            projection.Value
+        statusEntry.SetParamsTyped(
+            BattleStatusEffectState.CopyResidualParamsPlain(parameters)
         );
-        statusEntry.@params = residual;
     }
 
     private static int NormalizePositiveTu(int value, string fieldLabel)

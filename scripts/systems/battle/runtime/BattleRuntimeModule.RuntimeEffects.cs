@@ -570,6 +570,17 @@ public sealed partial class BattleRuntimeModule
         }
     }
 
+    internal void _append_changed_coords(
+        BattleEventBatch batch,
+        IReadOnlyList<Vector2I> coords
+    )
+    {
+        if (coords == null)
+            return;
+        foreach (Vector2I coord in coords)
+            _append_changed_coord(batch, coord);
+    }
+
     internal void _append_changed_coords_typed(
         BattleEventBatch batch,
         IEnumerable<Vector2I> coords

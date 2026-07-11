@@ -103,12 +103,11 @@ public class BattleStatusEffectState
     private readonly Dictionary<string, object> _params = new(System.StringComparer.Ordinal);
     internal GDictionary @params
     {
-        get => RuntimePlainPayload.ProjectDictionary(
-            _params,
-            "BattleStatusEffectState.@params"
-        );
         set => ReplaceParams(value);
     }
+
+    internal IReadOnlyDictionary<string, object> ParamsSnapshotPlain =>
+        RuntimePlainPayload.CloneDictionary(_params);
     public double? incoming_damage_multiplier { get; set; }
     public double? outgoing_damage_multiplier { get; set; }
     public int? heal_multiplier_percent { get; set; }
@@ -228,7 +227,7 @@ public class BattleStatusEffectState
 
     public BattleStatusEffectState DuplicateState()
     {
-        return new BattleStatusEffectState
+        var duplicate = new BattleStatusEffectState
         {
             status_id = status_id,
             source_unit_id = source_unit_id,
@@ -238,7 +237,6 @@ public class BattleStatusEffectState
             stack_behavior = stack_behavior,
             stack_limit = stack_limit,
             power = power,
-            @params = CopyResidualParams(@params),
             incoming_damage_multiplier = incoming_damage_multiplier,
             outgoing_damage_multiplier = outgoing_damage_multiplier,
             heal_multiplier_percent = heal_multiplier_percent,
@@ -309,17 +307,18 @@ public class BattleStatusEffectState
             status_tags = BuildStringNameList(status_tags),
             save_bonus_by_tag = BuildStringNameIntMap(save_bonus_by_tag),
         };
+        duplicate.SetParamsTyped(_params);
+        return duplicate;
     }
 
-    internal GDictionary ToDictionary()
+    internal Dictionary<string, object> BuildSnapshotPlain()
     {
-        GDictionary projectedParams = BuildParamsProjection();
-        GDictionary payload = new()
+        Dictionary<string, object> payload = new(System.StringComparer.Ordinal)
         {
             ["status_id"] = status_id.ToString(),
             ["source_unit_id"] = source_unit_id.ToString(),
             ["power"] = power,
-            ["params"] = projectedParams,
+            ["params"] = BuildParamsPlainProjection(),
             ["stacks"] = stacks,
         };
         if (HasDuration())
@@ -378,6 +377,14 @@ public class BattleStatusEffectState
         }
         return payload;
     }
+
+    internal GodotProjectionLease<GDictionary> ToDictionaryLease() =>
+        RuntimePlainPayload.ProjectDictionaryLease(
+            BuildSnapshotPlain(),
+            "BattleStatusEffectState.ToDictionary",
+            LifetimeDomain.Request,
+            "BattleStatusEffectState.ToDictionary"
+        );
 
     internal static BattleStatusEffectState FromDictionary(GDictionary effectDict)
     {
@@ -604,12 +611,11 @@ public class BattleStatusEffectState
             }
         }
 
-        return new BattleStatusEffectState
+        var state = new BattleStatusEffectState
         {
             status_id = new StringName(statusId),
             source_unit_id = new StringName(sourceUnitId),
             power = power,
-            @params = CopyResidualParams(parameters),
             incoming_damage_multiplier = ReadOptionalDoubleParam(parameters, "incoming_damage_multiplier"),
             outgoing_damage_multiplier = ReadOptionalDoubleParam(parameters, "outgoing_damage_multiplier"),
             source_profile_id = ReadOptionalStringNameParam(parameters, "source"),
@@ -698,14 +704,13 @@ public class BattleStatusEffectState
             lock_crit = lockCritValue,
             main_skill_lock_other_debuff_count = mainSkillLockOtherDebuffCountValue,
         };
+        state.SetParamsTyped(CopyResidualParamsPlain(parameters));
+        return state;
     }
 
-    private GDictionary BuildParamsProjection()
+    private Dictionary<string, object> BuildParamsProjection()
     {
-        GDictionary projected = RuntimePlainPayload.ProjectDictionary(
-            _params,
-            "BattleStatusEffectState.BuildParamsProjection"
-        );
+        Dictionary<string, object> projected = RuntimePlainPayload.CloneDictionary(_params);
         if (incoming_damage_multiplier.HasValue)
         {
             projected["incoming_damage_multiplier"] = incoming_damage_multiplier.Value;
@@ -1068,31 +1073,39 @@ public class BattleStatusEffectState
         }
     }
 
-    internal static GDictionary CopyResidualParams(GDictionary parameters)
+    internal void SetParamsTyped(IReadOnlyDictionary<string, object> values)
     {
-        if (parameters == null || parameters.Count == 0)
+        _params.Clear();
+        foreach (
+            KeyValuePair<string, object> entry in RuntimePlainPayload.CloneDictionary(values)
+        )
         {
-            return new GDictionary();
+            _params[entry.Key] = entry.Value;
         }
+    }
 
-        GDictionary residual = RuntimePayloadCopy.Dictionary(
-            parameters,
+    internal static Dictionary<string, object> CopyResidualParamsPlain(GDictionary parameters)
+    {
+        Dictionary<string, object> residual = RuntimePlainPayload.NormalizeDictionary(
+            parameters ?? new GDictionary(),
             "BattleStatusEffectState.CopyResidualParams"
         );
-        var keysToRemove = new List<Variant>();
-        foreach (Variant key in parameters.Keys)
-        {
-            if (HasString(FormalParamKeys, key.ToString()))
-            {
-                keysToRemove.Add(key);
-            }
-        }
-
-        foreach (Variant key in keysToRemove)
+        foreach (string key in FormalParamKeys)
         {
             residual.Remove(key);
         }
+        return residual;
+    }
 
+    internal static Dictionary<string, object> CopyResidualParamsPlain(
+        IReadOnlyDictionary<string, object> parameters
+    )
+    {
+        Dictionary<string, object> residual = RuntimePlainPayload.CloneDictionary(parameters);
+        foreach (string key in FormalParamKeys)
+        {
+            residual.Remove(key);
+        }
         return residual;
     }
 

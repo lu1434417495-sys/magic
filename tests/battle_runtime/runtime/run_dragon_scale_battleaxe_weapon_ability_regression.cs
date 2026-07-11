@@ -336,8 +336,9 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
         );
         fixture.Runtime.SetupStateForTests(state);
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(
-            fixture.Runtime.GetDamageResolver().ResolveEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                fixture.Runtime.GetDamageResolver().ResolveEffects(
                 holder,
                 target,
                 new[] { TestSkillDefinitionProjection.BuildEffect("damage", damageTag: "fire", power: 10) },
@@ -349,6 +350,7 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
                 )
             )
         );
+        GDictionary result = resultLease.Value;
         _test.Eq(DictInt(result, "damage", -1), 10, "非武器攻击伤害不应吃到龙牙锋刃等装备追加骰。");
     }
 
@@ -453,14 +455,16 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
             target
         );
         fixture.Runtime.SetupStateForTests(state);
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(
-            fixture.Runtime.GetDamageResolver().ResolveEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                fixture.Runtime.GetDamageResolver().ResolveEffects(
                 source,
                 target,
                 new[] { TestSkillDefinitionProjection.BuildEffect("damage", damageTag: damageTag, power: 10) },
                 DamageResolutionContext.Empty()
             )
         );
+        GDictionary result = resultLease.Value;
         firstDamageEvent = FirstDamageEvent(result);
         return DictInt(result, "damage", -1);
     }

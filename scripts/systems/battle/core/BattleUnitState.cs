@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 internal enum BattleWeaponProfileKind
@@ -1366,16 +1365,14 @@ public partial class BattleUnitState
         return GetFootprintForBodySize(Math.Max(size_value, BodySizeSmall));
     }
 
-    public GDictionary ToDictionary()
+    internal IReadOnlyDictionary<string, object> BuildSnapshotPlain()
     {
         NormalizeBodySizeProjection();
         NormalizeShieldState();
         NormalizeWeaponProjection();
         SyncDefaultCombatResourceUnlocks();
 
-        GDictionary statusPayloads = _statusEffects.ToDictionary();
-
-        return new GDictionary
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["unit_id"] = unit_id.ToString(),
             ["source_member_id"] = source_member_id.ToString(),
@@ -1391,10 +1388,10 @@ public partial class BattleUnitState
             ["body_size"] = body_size,
             ["body_size_category"] = body_size_category.ToString(),
             ["footprint_size"] = footprint_size,
-            ["occupied_coords"] = ProjectVector2IArray(occupied_coords),
+            ["occupied_coords"] = ProjectVector2IListPlain(occupied_coords),
             ["is_alive"] = is_alive,
-            ["attribute_snapshot"] = AttributeSnapshotToDict(attribute_snapshot),
-            ["equipment_view"] = EquipmentViewToDict(GetEquipmentView()),
+            ["attribute_snapshot"] = AttributeSnapshotToPlain(attribute_snapshot),
+            ["equipment_view"] = EquipmentViewToPlain(GetEquipmentView()),
             ["current_hp"] = current_hp,
             ["current_mp"] = current_mp,
             ["current_stamina"] = current_stamina,
@@ -1402,7 +1399,7 @@ public partial class BattleUnitState
             ["aura_max"] = GetAuraMax(),
             ["current_ap"] = current_ap,
             ["current_move_points"] = current_move_points,
-            ["unlocked_combat_resource_ids"] = StringNameArrayToStrings(
+            ["unlocked_combat_resource_ids"] = StringNameListToPlain(
                 unlocked_combat_resource_ids
             ),
             ["stamina_recovery_progress"] = stamina_recovery_progress,
@@ -1417,29 +1414,29 @@ public partial class BattleUnitState
             ["shield_source_skill_id"] = shield_source_skill_id.ToString(),
             ["action_progress"] = action_progress,
             ["action_threshold"] = action_threshold,
-            ["known_active_skill_ids"] = StringNameArrayToStrings(known_active_skill_ids),
+            ["known_active_skill_ids"] = StringNameListToPlain(known_active_skill_ids),
             ["known_skill_level_map"] =
-                known_skill_level_map?.ProjectStringKeyPayload() ?? new GDictionary(),
+                StringNameIntMapToPlain(known_skill_level_map),
             ["known_skill_lock_hit_bonus_map"] =
-                known_skill_lock_hit_bonus_map?.ProjectStringKeyPayload() ?? new GDictionary(),
-            ["movement_tags"] = StringNameArrayToStrings(movement_tags),
-            ["vision_tags"] = StringNameArrayToStrings(vision_tags),
-            ["proficiency_tags"] = StringNameArrayToStrings(proficiency_tags),
-            ["save_advantage_tags"] = StringNameArrayToStrings(save_advantage_tags),
+                StringNameIntMapToPlain(known_skill_lock_hit_bonus_map),
+            ["movement_tags"] = StringNameListToPlain(movement_tags),
+            ["vision_tags"] = StringNameListToPlain(vision_tags),
+            ["proficiency_tags"] = StringNameListToPlain(proficiency_tags),
+            ["save_advantage_tags"] = StringNameListToPlain(save_advantage_tags),
             ["damage_resistances"] =
-                damage_resistances?.ProjectStringKeyPayload() ?? new GDictionary(),
+                StringNameMapToPlain(damage_resistances),
             ["save_bonus_by_ability"] =
-                save_bonus_by_ability?.ProjectStringKeyPayload() ?? new GDictionary(),
-            ["effective_trait_instances"] = EffectiveTraitInstancesToPayloadArray(
+                StringNameIntMapToPlain(save_bonus_by_ability),
+            ["effective_trait_instances"] = EffectiveTraitInstancesToPlain(
                 effective_trait_instances
             ),
-            ["effective_trait_ids"] = StringNameArrayToStrings(
+            ["effective_trait_ids"] = StringNameListToPlain(
                 DeriveEffectiveTraitIdsFromInstances(effective_trait_instances)
             ),
-            ["equipment_ability_sources"] = EquipmentAbilitySourcesToPayloadArray(
+            ["equipment_ability_sources"] = EquipmentAbilitySourcesToPlain(
                 equipment_ability_sources
             ),
-            ["creature_type_tags"] = StringNameArrayToStrings(creature_type_tags),
+            ["creature_type_tags"] = StringNameListToPlain(creature_type_tags),
             ["versatility_pick"] = versatility_pick.ToString(),
             ["weapon_profile_kind"] = weapon_profile_kind.ToString(),
             ["weapon_item_id"] = weapon_item_id.ToString(),
@@ -1448,16 +1445,27 @@ public partial class BattleUnitState
             ["weapon_family"] = weapon_family.ToString(),
             ["weapon_current_grip"] = weapon_current_grip.ToString(),
             ["weapon_attack_range"] = weapon_attack_range,
-            ["weapon_one_handed_dice"] = WeaponDiceToDictionary(weapon_one_handed_dice),
-            ["weapon_two_handed_dice"] = WeaponDiceToDictionary(weapon_two_handed_dice),
+            ["weapon_one_handed_dice"] = WeaponDiceToPlain(weapon_one_handed_dice),
+            ["weapon_two_handed_dice"] = WeaponDiceToPlain(weapon_two_handed_dice),
             ["weapon_is_versatile"] = weapon_is_versatile,
             ["weapon_uses_two_hands"] = weapon_uses_two_hands,
             ["weapon_physical_damage_tag"] = weapon_physical_damage_tag.ToString(),
-            ["cooldowns"] = cooldowns?.ProjectPayload() ?? new GDictionary(),
+            ["cooldowns"] = StringNameIntMapToStringNameKeyPlain(cooldowns),
             ["last_turn_tu"] = last_turn_tu,
-            ["status_effects"] = statusPayloads,
+            ["status_effects"] = _statusEffects.BuildSnapshotPlain(),
         };
     }
+
+    internal GodotProjectionLease<GDictionary> ToDictionaryLease(
+        LifetimeDomain domain,
+        string reason
+    ) =>
+        RuntimePlainPayload.ProjectDictionaryLease(
+            BuildSnapshotPlain(),
+            "battle-unit-state",
+            domain,
+            reason
+        );
 
     internal static bool TryReadUnitPayload(object rawValue, out BattleUnitState value)
     {
@@ -2110,15 +2118,15 @@ public partial class BattleUnitState
         return result;
     }
 
-    internal static GArray EffectiveTraitInstancesToPayloadArray(
+    private static List<object> EffectiveTraitInstancesToPlain(
         IEnumerable<BattleEffectiveTraitInstanceState> source)
     {
-        GArray result = new();
+        List<object> result = new();
         if (source == null)
             return result;
         foreach (BattleEffectiveTraitInstanceState entry in source)
             if (entry != null)
-                result.Add(entry.ToDictionary());
+                result.Add(EffectiveTraitInstanceToPlain(entry));
         return result;
     }
 
@@ -2174,16 +2182,16 @@ public partial class BattleUnitState
         return result;
     }
 
-    internal static GArray EquipmentAbilitySourcesToPayloadArray(
+    private static List<object> EquipmentAbilitySourcesToPlain(
         IEnumerable<BattleEquipmentAbilitySourceState> source
     )
     {
-        GArray result = new();
+        List<object> result = new();
         if (source == null)
             return result;
         foreach (BattleEquipmentAbilitySourceState entry in source)
             if (entry != null)
-                result.Add(entry.ToDictionary());
+                result.Add(EquipmentAbilitySourceToPlain(entry));
         return result;
     }
 
@@ -2380,9 +2388,9 @@ public partial class BattleUnitState
         return WeaponGripNone;
     }
 
-    private static GStringArray StringNameArrayToStrings(IEnumerable<StringName> values)
+    private static List<object> StringNameListToPlain(IEnumerable<StringName> values)
     {
-        GStringArray results = new();
+        List<object> results = new();
         if (values == null)
         {
             return results;
@@ -2577,8 +2585,18 @@ public partial class BattleUnitState
 
     private static bool HasWeaponDice(WeaponDice dice) => dice != null && !dice.IsEmpty();
 
-    private static GDictionary WeaponDiceToDictionary(WeaponDice dice) =>
-        WeaponDiceProjection.Project(dice);
+    private static IReadOnlyDictionary<string, object> WeaponDiceToPlain(WeaponDice dice)
+    {
+        dice ??= new WeaponDice();
+        if (dice.IsEmpty())
+            return new Dictionary<string, object>(StringComparer.Ordinal);
+        return new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["dice_count"] = dice.dice_count,
+            ["dice_sides"] = dice.dice_sides,
+            ["flat_bonus"] = dice.flat_bonus,
+        };
+    }
 
     private static bool TryReadVariantInt(Variant value, out int parsedValue)
     {
@@ -2605,9 +2623,13 @@ public partial class BattleUnitState
         return result;
     }
 
-    private static Godot.Collections.Array<Vector2I> ProjectVector2IArray(
-        IEnumerable<Vector2I> source
-    ) => new Vector2IList(source ?? System.Array.Empty<Vector2I>()).ToGodotArray();
+    private static List<object> ProjectVector2IListPlain(IEnumerable<Vector2I> source)
+    {
+        List<object> result = new();
+        foreach (Vector2I value in source ?? System.Array.Empty<Vector2I>())
+            result.Add(value);
+        return result;
+    }
 
     private static AttributeSnapshot DuplicateAttributeSnapshot(AttributeSnapshot source)
     {
@@ -2637,14 +2659,214 @@ public partial class BattleUnitState
         return result;
     }
 
-    private static GDictionary AttributeSnapshotToDict(AttributeSnapshot snapshot)
+    private static IReadOnlyDictionary<string, object> AttributeSnapshotToPlain(
+        AttributeSnapshot snapshot
+    )
     {
-        return snapshot?.ToDictionary() ?? new GDictionary();
+        Dictionary<string, object> result = new(StringComparer.Ordinal);
+        if (snapshot == null)
+            return result;
+        foreach ((StringName key, int value) in snapshot.GetAllValuesTyped())
+            result[key.ToString()] = value;
+        return result;
     }
 
-    private static GDictionary EquipmentViewToDict(EquipmentState view)
+    private static IReadOnlyDictionary<string, object> EquipmentViewToPlain(EquipmentState view)
     {
-        return view?.ToDictionary() ?? new GDictionary();
+        Dictionary<string, object> equippedSlots = new(StringComparer.Ordinal);
+        if (view != null)
+        {
+            foreach (StringName entrySlotId in view.GetEntrySlotIdsTyped())
+            {
+                EquipmentEntryState entry = view.GetEntry(entrySlotId);
+                if (entry != null)
+                    equippedSlots[entrySlotId.ToString()] = EquipmentEntryToPlain(entry);
+            }
+        }
+        return new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["equipped_slots"] = equippedSlots,
+        };
+    }
+
+    private static IReadOnlyDictionary<string, object> EquipmentEntryToPlain(
+        EquipmentEntryState entry
+    ) =>
+        new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["occupied_slot_ids"] = StringNameListToPlain(entry?.occupied_slot_ids),
+            ["equipment_instance"] = EquipmentInstanceToPlain(entry?.equipment_instance),
+        };
+
+    private static IReadOnlyDictionary<string, object> EquipmentInstanceToPlain(
+        EquipmentInstanceState instance
+    )
+    {
+        if (instance == null)
+            return new Dictionary<string, object>(StringComparer.Ordinal);
+        return new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["instance_id"] = instance.instance_id.ToString(),
+            ["item_id"] = instance.item_id.ToString(),
+            ["rarity"] = instance.rarity,
+            ["current_durability"] = instance.current_durability,
+            ["trait_instances"] = TraitInstancesToPlain(instance.trait_instances),
+            ["ability_usage_periods"] = AbilityUsagePeriodsToPlain(
+                instance.ability_usage_periods
+            ),
+            ["ability_persistent_counters"] = AbilityPersistentCountersToPlain(
+                instance.ability_persistent_counters
+            ),
+        };
+    }
+
+    private static List<object> TraitInstancesToPlain(IEnumerable<TraitInstanceState> source)
+    {
+        List<object> result = new();
+        if (source == null)
+            return result;
+        foreach (TraitInstanceState instance in source)
+        {
+            if (instance == null)
+                continue;
+            result.Add(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["trait_instance_id"] = instance.trait_instance_id.ToString(),
+                    ["trait_id"] = instance.trait_id.ToString(),
+                    ["source_type"] = instance.source_type.ToString(),
+                    ["source_id"] = instance.source_id.ToString(),
+                    ["rank"] = instance.rank,
+                    ["stacks"] = instance.stacks,
+                    ["roll_values"] = TraitRollValuesToPlain(instance.roll_values),
+                }
+            );
+        }
+        return result;
+    }
+
+    private static IReadOnlyDictionary<StringName, object> TraitRollValuesToPlain(
+        IEnumerable<TraitRollValueState> source
+    )
+    {
+        Dictionary<StringName, object> result = new();
+        foreach (TraitRollValueState entry in TraitInstanceState.NormalizeRollValues(source))
+        {
+            result[entry.key] = entry.ValueTypeKind switch
+            {
+                TraitRollValueType.Int => entry.int_value,
+                TraitRollValueType.StringName => entry.string_name_value,
+                TraitRollValueType.Bool => entry.bool_value,
+                _ => null,
+            };
+        }
+        return result;
+    }
+
+    private static List<object> AbilityUsagePeriodsToPlain(
+        IEnumerable<EquipmentAbilityUsagePeriodState> source
+    )
+    {
+        List<object> result = new();
+        if (source == null)
+            return result;
+        foreach (EquipmentAbilityUsagePeriodState usage in source)
+        {
+            if (usage == null)
+                continue;
+            result.Add(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["ability_id"] = usage.AbilityId ?? "",
+                    ["period_kind"] = usage.PeriodKind ?? "",
+                    ["period_index"] = usage.PeriodIndex,
+                    ["used_count"] = usage.UsedCount,
+                }
+            );
+        }
+        return result;
+    }
+
+    private static List<object> AbilityPersistentCountersToPlain(
+        IEnumerable<EquipmentAbilityPersistentCounterState> source
+    )
+    {
+        List<object> result = new();
+        if (source == null)
+            return result;
+        foreach (EquipmentAbilityPersistentCounterState counter in source)
+        {
+            if (counter == null)
+                continue;
+            result.Add(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["counter_id"] = counter.CounterId ?? "",
+                    ["value"] = counter.Value,
+                }
+            );
+        }
+        return result;
+    }
+
+    private static IReadOnlyDictionary<string, object> EffectiveTraitInstanceToPlain(
+        BattleEffectiveTraitInstanceState entry
+    ) =>
+        new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["trait_id"] = entry.trait_id.ToString(),
+            ["effective_instance_key"] = entry.effective_instance_key.ToString(),
+            ["source_type"] = entry.source_type.ToString(),
+            ["source_id"] = entry.source_id.ToString(),
+            ["effect_type"] = entry.effect_type.ToString(),
+            ["trigger_type"] = entry.trigger_type.ToString(),
+            ["charge_scope"] = entry.charge_scope.ToString(),
+            ["charge_reset_timing"] = entry.charge_reset_timing.ToString(),
+            ["rank"] = Math.Max(entry.rank, 1),
+            ["stacks"] = Math.Max(entry.stacks, 1),
+            ["roll_values"] = TraitRollValuesToPlain(entry.roll_values),
+        };
+
+    private static IReadOnlyDictionary<string, object> EquipmentAbilitySourceToPlain(
+        BattleEquipmentAbilitySourceState entry
+    ) =>
+        new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["effective_instance_key"] = entry.EffectiveInstanceKey.ToString(),
+            ["equipment_def_id"] = entry.EquipmentDefId.ToString(),
+            ["source_equipment_instance_id"] = entry.SourceEquipmentInstanceId.ToString(),
+            ["source_kind"] = BattleEquipmentAbilitySourceState
+                .ToStringName(entry.SourceKind)
+                .ToString(),
+            ["ability_ids"] = StringNameListToPlain(entry.AbilityIds),
+        };
+
+    private static IReadOnlyDictionary<string, object> StringNameIntMapToPlain(
+        BattleStringNameIntMap source
+    )
+    {
+        Dictionary<string, object> result = new(StringComparer.Ordinal);
+        if (source == null)
+            return result;
+        foreach (KeyValuePair<StringName, int> entry in source)
+            result[entry.Key.ToString()] = entry.Value;
+        return result;
+    }
+
+    private static IReadOnlyDictionary<StringName, int> StringNameIntMapToStringNameKeyPlain(
+        BattleStringNameIntMap source
+    ) => source?.ToTypedDictionary() ?? new Dictionary<StringName, int>();
+
+    private static IReadOnlyDictionary<string, object> StringNameMapToPlain(
+        BattleStringNameMap source
+    )
+    {
+        Dictionary<string, object> result = new(StringComparer.Ordinal);
+        if (source == null)
+            return result;
+        foreach (KeyValuePair<StringName, StringName> entry in source)
+            result[entry.Key.ToString()] = entry.Value.ToString();
+        return result;
     }
 
     private static EquipmentState EquipmentFromDict(GDictionary payload)

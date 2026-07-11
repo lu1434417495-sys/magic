@@ -137,7 +137,11 @@ public partial class run_typed_party_quest_state_regression : LifecycleTestScene
     {
         PartyState state = new();
         _test.Eq(state.version, 7, "PartyState save schema 应升级到 7。");
-        _test.Eq(state.ToDictionary()["version"].AsInt32(), 7, "PartyState.ToDictionary 应输出 schema 7。");
+        _test.Eq(
+            Convert.ToInt32(state.BuildSaveSnapshotPlain()["version"]),
+            7,
+            "PartyState save snapshot 应输出 schema 7。"
+        );
     }
 
     private void ExpectArgumentException(Action action, string message)

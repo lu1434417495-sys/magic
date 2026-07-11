@@ -249,15 +249,17 @@ public partial class run_status_effect_typed_fields_regression : LifecycleTestSc
             "BattleStatusEffectState.lock_guard should be settable as a typed field."
         );
 
-        GDictionary payload = effect.ToDictionary();
+        using GodotProjectionLease<GDictionary> payloadLease = effect.ToDictionaryLease();
+        GDictionary payload = payloadLease.Value;
         _test.True(
             payload.ContainsKey("lock_guard"),
             "BattleStatusEffectState.ToDictionary() should project lock_guard as a top-level field."
         );
+        using GDictionary paramsPayload = payload["params"].AsGodotDictionary();
         _test.True(
             payload.ContainsKey("params")
             && payload["params"].VariantType == Variant.Type.Dictionary
-            && !payload["params"].AsGodotDictionary().ContainsKey("lock_guard"),
+            && !paramsPayload.ContainsKey("lock_guard"),
             "BattleStatusEffectState.ToDictionary() should not project lock_guard through params."
         );
 

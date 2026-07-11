@@ -24,6 +24,7 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
         "res://data/configs/world_map/shared/main_world_metropolis_name_pool.tres";
 
     private readonly TestHarness _test = new();
+    private readonly List<GodotProjectionLease<GDictionary>> _worldDataLeases = new();
 
     public override void _Initialize()
     {
@@ -48,7 +49,22 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
         TestProceduralWildSpawnRegionTagsIgnoreRuleOrder();
         TestSmallWorldGenerationAssignsUniqueDisplayNames();
 
+        DisposeWorldDataLeases();
         RequestTestExit(_test.Finish("World map shared content injection regression"));
+    }
+
+    private GDictionary ProjectWorldData(GameSession session)
+    {
+        GodotProjectionLease<GDictionary> lease = session.GetWorldDataLease();
+        _worldDataLeases.Add(lease);
+        return lease.Value;
+    }
+
+    private void DisposeWorldDataLeases()
+    {
+        for (int index = _worldDataLeases.Count - 1; index >= 0; index--)
+            _worldDataLeases[index].Dispose();
+        _worldDataLeases.Clear();
     }
 
     private void TestGenericMainWorldPresetsKeepTemplateShape()
@@ -108,7 +124,7 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
 
         try
         {
-            GDictionary worldData = gameSession.GetWorldData();
+            GDictionary worldData = ProjectWorldData(gameSession);
             bool foundWorldStronghold = false;
             bool foundMasterReforgeService = false;
             foreach (Variant settlementValue in ArrayValue(worldData, "settlements"))
@@ -193,7 +209,7 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
 
         try
         {
-            long mapSeed = DictInt64(gameSession.GetWorldData(), "map_seed", 0L);
+            long mapSeed = DictInt64(ProjectWorldData(gameSession), "map_seed", 0L);
             _test.True(mapSeed > 0, "新世界 world_data 应记录由真随机接口分配的 map_seed。");
             _test.True(mapSeed != definition.Seed, "运行时 map_seed 不应直接沿用 world config 的固定 seed。");
         }
@@ -271,7 +287,7 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
         try
         {
             bool foundWorldStronghold = false;
-            foreach (Variant settlementValue in ArrayValue(gameSession.GetWorldData(), "settlements"))
+            foreach (Variant settlementValue in ArrayValue(ProjectWorldData(gameSession), "settlements"))
             {
                 if (!TryAsDictionary(settlementValue, out GDictionary settlement))
                 {
@@ -316,7 +332,7 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
         try
         {
             bool foundMetropolisInstance = false;
-            foreach (Variant settlementValue in ArrayValue(gameSession.GetWorldData(), "settlements"))
+            foreach (Variant settlementValue in ArrayValue(ProjectWorldData(gameSession), "settlements"))
             {
                 if (!TryAsDictionary(settlementValue, out GDictionary settlement))
                 {
@@ -485,7 +501,7 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
             bool foundCityInstance = false;
             bool foundCapitalInstance = false;
             bool foundMetropolisInstance = false;
-            foreach (Variant settlementValue in ArrayValue(gameSession.GetWorldData(), "settlements"))
+            foreach (Variant settlementValue in ArrayValue(ProjectWorldData(gameSession), "settlements"))
             {
                 if (!TryAsDictionary(settlementValue, out GDictionary settlement))
                 {

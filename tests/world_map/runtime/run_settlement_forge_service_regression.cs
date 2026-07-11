@@ -11,6 +11,7 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
     private const string AshenIntersectionConfigPath = "res://data/configs/world_map/ashen_intersection_world_map_config.tres";
 
     private readonly TestHarness _test = new();
+    private readonly List<GodotProjectionLease<GDictionary>> _worldDataLeases = new();
 
     public override void _Initialize()
     {
@@ -26,7 +27,22 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
         await TestNewWorldGenerationExposesMasterReforgeService();
         await TestAshenIntersectionGenerationExposesGenericForgeService();
 
+        DisposeWorldDataLeases();
         RequestTestExit(_test.Finish("Settlement forge service regression"));
+    }
+
+    private GDictionary ProjectWorldData(GameSession session)
+    {
+        GodotProjectionLease<GDictionary> lease = session.GetWorldDataLease();
+        _worldDataLeases.Add(lease);
+        return lease.Value;
+    }
+
+    private void DisposeWorldDataLeases()
+    {
+        for (int index = _worldDataLeases.Count - 1; index >= 0; index--)
+            _worldDataLeases[index].Dispose();
+        _worldDataLeases.Clear();
     }
 
     private void TestMasterReforgeServiceSuccess()
@@ -141,8 +157,12 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
                 );
             _test.True(openResult.Ok, "service:master_reforge 首次触发应成功打开 forge modal。");
             _test.Eq(fixture.Runtime._active_modal_kind, RuntimeModalKind.Forge, "首次点击大师重铸服务后应切换到 forge modal。");
-            _test.True(fixture.Handler.GetForgeWindowData().Count > 0, "打开 forge modal 后应能读取 forge window data。");
-            _test.True(DictArray(fixture.Handler.GetForgeWindowData(), "entries").Count > 0, "forge window data 应暴露可选配方。");
+            using (GodotProjectionLease<GDictionary> forgeWindowLease = fixture.Handler.GetForgeWindowDataLease())
+            {
+                GDictionary forgeWindowData = forgeWindowLease.Value;
+                _test.True(forgeWindowData.Count > 0, "打开 forge modal 后应能读取 forge window data。");
+                _test.True(DictArray(forgeWindowData, "entries").Count > 0, "forge window data 应暴露可选配方。");
+            }
             _test.Eq(fixture.WarehouseService.CountItem("iron_greatsword"), 0, "仅打开 forge modal 时不应提前产出铁制大剑。");
 
             GameRuntimeFacade.RuntimeCommandResult commandResult =
@@ -202,17 +222,22 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
                 $"service:repair_gear 首次触发应成功打开 forge modal。message={openResult.Message}"
             );
             _test.Eq(fixture.Runtime._active_modal_kind, RuntimeModalKind.Forge, "首次点击通用 forge 服务后应切换到 forge modal。");
-            GDictionary forgeWindowData = fixture.Handler.GetForgeWindowData();
-            _test.Eq(DictString(forgeWindowData, "action_id", ""), "service:repair_gear", "通用 forge modal 应保留原始 action_id。");
-            _test.Eq(DictString(forgeWindowData, "default_member_id", ""), "mage", "通用 forge modal 应保留据点窗口选择的默认成员。");
-            _test.Eq(DictString(forgeWindowData, "selected_member_id", ""), "mage", "通用 forge modal 应保留据点窗口选择的当前成员。");
-            _test.True(!string.IsNullOrEmpty(DictString(forgeWindowData, "title", "")), "通用 forge modal 应提供标题。");
-            GArray forgeEntries = DictArray(forgeWindowData, "entries");
-            _test.True(forgeEntries.Count > 0, "通用 forge window data 应暴露可选配方。");
-            HashSet<string> recipeIds = CollectRecipeIds(forgeEntries);
-            _test.True(recipeIds.Contains("forge_smith_iron_greatsword"), "通用 forge modal 应继续暴露铁制大剑配方。");
-            _test.True(recipeIds.Contains("forge_militia_axe"), "通用 forge modal 应暴露民兵手斧配方。");
-            _test.True(recipeIds.Contains("forge_watchman_mace"), "通用 forge modal 应暴露卫兵钉锤配方。");
+            string selectedMemberId;
+            using (GodotProjectionLease<GDictionary> forgeWindowLease = fixture.Handler.GetForgeWindowDataLease())
+            {
+                GDictionary forgeWindowData = forgeWindowLease.Value;
+                _test.Eq(DictString(forgeWindowData, "action_id", ""), "service:repair_gear", "通用 forge modal 应保留原始 action_id。");
+                _test.Eq(DictString(forgeWindowData, "default_member_id", ""), "mage", "通用 forge modal 应保留据点窗口选择的默认成员。");
+                selectedMemberId = DictString(forgeWindowData, "selected_member_id", "");
+                _test.Eq(selectedMemberId, "mage", "通用 forge modal 应保留据点窗口选择的当前成员。");
+                _test.True(!string.IsNullOrEmpty(DictString(forgeWindowData, "title", "")), "通用 forge modal 应提供标题。");
+                GArray forgeEntries = DictArray(forgeWindowData, "entries");
+                _test.True(forgeEntries.Count > 0, "通用 forge window data 应暴露可选配方。");
+                HashSet<string> recipeIds = CollectRecipeIds(forgeEntries);
+                _test.True(recipeIds.Contains("forge_smith_iron_greatsword"), "通用 forge modal 应继续暴露铁制大剑配方。");
+                _test.True(recipeIds.Contains("forge_militia_axe"), "通用 forge modal 应暴露民兵手斧配方。");
+                _test.True(recipeIds.Contains("forge_watchman_mace"), "通用 forge modal 应暴露卫兵钉锤配方。");
+            }
 
             GameRuntimeFacade.RuntimeCommandResult commandResult =
                 fixture.Handler.CommandExecuteSettlementActionRuntimeTyped(
@@ -220,7 +245,7 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
                     new GDictionary
                     {
                         ["submission_source"] = "forge",
-                        ["member_id"] = DictString(forgeWindowData, "selected_member_id", ""),
+                        ["member_id"] = selectedMemberId,
                         ["recipe_id"] = "forge_militia_axe",
                     }
                 );
@@ -257,7 +282,7 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
             if (createError == (int)Error.Ok)
             {
                 bool foundReforgeService = false;
-                foreach (GDictionary settlement in Dictionaries(DictArray(gameSession.GetWorldData(), "settlements")))
+                foreach (GDictionary settlement in Dictionaries(DictArray(ProjectWorldData(gameSession), "settlements")))
                 {
                     foreach (GDictionary service in Dictionaries(DictArray(settlement, "available_services")))
                     {
@@ -290,7 +315,7 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
             _test.Eq(createError, (int)Error.Ok, "创建灰烬交界世界应成功。");
             if (createError == (int)Error.Ok)
             {
-                GDictionary worldData = gameSession.GetWorldData();
+                GDictionary worldData = ProjectWorldData(gameSession);
                 Vector2I playerStartCoord = DictVector2I(worldData, "player_start_coord", Vector2I.Zero);
                 GDictionary startSettlement = FindSettlementCoveringCoord(DictArray(worldData, "settlements"), playerStartCoord);
                 GDictionary genericEntry = FindServiceEntry(DictArray(startSettlement, "available_services"), "service_repair_gear");

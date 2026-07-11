@@ -390,7 +390,8 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
                 Error.InvalidData,
                 "LoadSave should fail when a persisted setup references invalid stored skill content."
             );
-            GDictionary status = session.GetSaveStatus();
+            using GodotProjectionLease<GDictionary> statusLease = session.GetSaveStatusLease();
+            GDictionary status = statusLease.Value;
             _test.Eq(
                 DictString(status, "last_error_reason"),
                 "contingency_content_validation",
@@ -559,8 +560,6 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
     )
     {
         PartyMemberState memberState = BuildMemberState(learnedSkills);
-        GDictionary memberPayload = memberState.ToDictionary();
-        memberPayload["contingency_matrix_setups"] = new GArray { setupPayload };
 
         PartyState partyState = new()
         {
@@ -571,10 +570,24 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
         };
         partyState.SetMemberState(memberState);
         partyState.active_member_ids.Add("hero_001");
-        GDictionary partyPayload = partyState.ToDictionary();
-        partyPayload["version"] = 7;
-        partyPayload["member_states"] = new GDictionary { ["hero_001"] = memberPayload };
-        return PartyState.FromDictionary(partyPayload);
+        Dictionary<string, object> partyPayload = partyState.BuildSaveSnapshotPlain();
+        var memberStates = (Dictionary<string, object>)partyPayload["member_states"];
+        var memberPayload = (Dictionary<string, object>)memberStates["hero_001"];
+        memberPayload["contingency_matrix_setups"] = new List<object>
+        {
+            RuntimePlainPayload.RestoreSaveDictionary(
+                setupPayload,
+                "ContingencyContentValidator.setupPayload"
+            ),
+        };
+        using GodotProjectionLease<GDictionary> payloadLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                partyPayload,
+                "ContingencyContentValidator.BuildPartyStateWithSetup",
+                LifetimeDomain.Request,
+                "ContingencyContentValidator.BuildPartyStateWithSetup"
+            );
+        return PartyState.FromDictionary(payloadLease.Value);
     }
 
     private static PartyMemberState BuildMemberState(params UnitSkillProgress[] learnedSkills)

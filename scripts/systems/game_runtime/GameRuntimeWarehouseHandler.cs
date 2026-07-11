@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using Godot.Collections;
 using PlainDictionary = System.Collections.Generic.Dictionary<string, object>;
@@ -14,32 +15,26 @@ public sealed class GameRuntimeWarehouseHandler
             new(System.StringComparer.Ordinal);
         private readonly System.Collections.Generic.Dictionary<string, object> _worldData =
             new(System.StringComparer.Ordinal);
-        internal Dictionary RuntimeState
-        {
-            get => RuntimePlainPayload.ProjectDictionary(
-                _runtimeState,
-                "GameRuntimeWarehouseHandler.RuntimeState"
-            );
-            set => ReplacePlainPayload(
-                _runtimeState,
-                value,
-                "GameRuntimeWarehouseHandler.RuntimeState"
-            );
-        }
+        internal IReadOnlyDictionary<string, object> RuntimeStatePlain =>
+            RuntimePlainPayload.CloneDictionary(_runtimeState);
         public PartyState PartyState { get; set; }
-        internal Dictionary WorldData
-        {
-            get => RuntimePlainPayload.ProjectDictionary(
-                _worldData,
-                "GameRuntimeWarehouseHandler.WorldData"
-            );
-            set => ReplacePlainPayload(
-                _worldData,
-                value,
-                "GameRuntimeWarehouseHandler.WorldData"
-            );
-        }
+        internal IReadOnlyDictionary<string, object> WorldDataPlain =>
+            RuntimePlainPayload.CloneDictionary(_worldData);
         public StringName SelectedMemberId { get; set; } = "";
+
+        internal void SetRuntimeState(Dictionary payload) =>
+            ReplacePlainPayload(
+                _runtimeState,
+                payload,
+                "GameRuntimeWarehouseHandler.RuntimeState"
+            );
+
+        internal void SetWorldData(Dictionary payload) =>
+            ReplacePlainPayload(
+                _worldData,
+                payload,
+                "GameRuntimeWarehouseHandler.WorldData"
+            );
 
         private static void ReplacePlainPayload(
             System.Collections.Generic.Dictionary<string, object> target,
@@ -897,12 +892,9 @@ public sealed class GameRuntimeWarehouseHandler
         var gameSession = GetGameSession();
         if (gameSession != null)
         {
-            var runtimeState = gameSession.CaptureRuntimeState();
-            if (runtimeState != null)
-                snapshot.RuntimeState = RuntimePayloadCopy.Dictionary(
-                    runtimeState,
-                    "GameRuntimeWarehouseHandler.CaptureRuntimeState"
-                );
+            using GodotProjectionLease<Dictionary> runtimeStateLease =
+                gameSession.CaptureRuntimeStateLease();
+            snapshot.SetRuntimeState(runtimeStateLease.Value);
         }
 
         var partyState = GetPartyState();
@@ -911,12 +903,9 @@ public sealed class GameRuntimeWarehouseHandler
 
         if (gameSession != null)
         {
-            var worldData = gameSession.GetWorldData();
-            if (worldData != null)
-                snapshot.WorldData = RuntimePayloadCopy.Dictionary(
-                    worldData,
-                    "GameRuntimeWarehouseHandler.CaptureWorldData"
-                );
+            using GodotProjectionLease<Dictionary> worldDataLease =
+                gameSession.GetWorldDataLease();
+            snapshot.SetWorldData(worldDataLease.Value);
         }
 
         return snapshot;
@@ -931,28 +920,37 @@ public sealed class GameRuntimeWarehouseHandler
         if (restoredPartyState == null)
             return false;
 
-        Dictionary snapshotWorldData = snapshot.WorldData;
-        var restoredWorldData =
-            snapshotWorldData.Count > 0
-                ? RuntimePayloadCopy.Dictionary(
-                    snapshotWorldData,
-                    "GameRuntimeWarehouseHandler.RestoreWorldData"
-                )
-                : new Dictionary();
+        System.Collections.Generic.Dictionary<string, object> restoredWorldDataPlain =
+            RuntimePlainPayload.CloneDictionary(snapshot.WorldDataPlain);
+        using GodotProjectionLease<Dictionary> worldDataLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                restoredWorldDataPlain,
+                "GameRuntimeWarehouseHandler.RestoreWorldData",
+                LifetimeDomain.Request,
+                "GameRuntimeWarehouseHandler.RestoreWorldData"
+            );
+        Dictionary restoredWorldData = worldDataLease.Value;
         var gameSession = GetGameSession();
 
-        Dictionary snapshotRuntimeState = snapshot.RuntimeState;
-        if (gameSession != null && snapshotRuntimeState.Count > 0)
+        System.Collections.Generic.Dictionary<string, object> restoredRuntimeStatePlain =
+            RuntimePlainPayload.CloneDictionary(snapshot.RuntimeStatePlain);
+        if (gameSession != null && restoredRuntimeStatePlain.Count > 0)
         {
-            var restoredRuntimeState = RuntimePayloadCopy.Dictionary(
-                snapshotRuntimeState,
-                "GameRuntimeWarehouseHandler.RestoreRuntimeState"
-            );
-            restoredRuntimeState["party_state"] =
-                restoredPartyState?.ToDictionary() ?? new Dictionary();
-            if (restoredWorldData.Count > 0)
-                restoredRuntimeState["world_data"] = restoredWorldData;
-            gameSession.RestoreRuntimeState(restoredRuntimeState);
+            restoredRuntimeStatePlain["party_state"] =
+                restoredPartyState?.BuildSaveSnapshotPlain()
+                ?? new System.Collections.Generic.Dictionary<string, object>(
+                    System.StringComparer.Ordinal
+                );
+            if (restoredWorldDataPlain.Count > 0)
+                restoredRuntimeStatePlain["world_data"] = restoredWorldDataPlain;
+            using GodotProjectionLease<Dictionary> runtimeStateLease =
+                RuntimePlainPayload.ProjectDictionaryLease(
+                    restoredRuntimeStatePlain,
+                    "GameRuntimeWarehouseHandler.RestoreRuntimeState",
+                    LifetimeDomain.Request,
+                    "GameRuntimeWarehouseHandler.RestoreRuntimeState"
+                );
+            gameSession.RestoreRuntimeState(runtimeStateLease.Value);
         }
         else if (gameSession != null)
         {

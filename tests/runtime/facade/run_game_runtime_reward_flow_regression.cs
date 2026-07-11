@@ -120,7 +120,9 @@ public partial class run_game_runtime_reward_flow_regression : LifecycleTestScen
             GameRuntimeFacade.RuntimeCommandResult closeResult =
                 handler.CommandCloseActiveModalTyped();
             _test.True(closeResult.Ok, "关闭人物信息窗应成功。");
-            _test.Eq(runtime.GetCharacterInfoContext().Count, 0, "关闭人物信息窗后上下文应清空。");
+            using GodotProjectionLease<GDictionary> characterInfoLease =
+                runtime.GetCharacterInfoContextLease();
+            _test.Eq(characterInfoLease.Value.Count, 0, "关闭人物信息窗后上下文应清空。");
             _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Reward, "关闭人物信息窗后应继续展示待领奖励。");
 
             GameRuntimeFacade.RuntimeCommandResult blockedResult =

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using Godot.Collections;
 
@@ -275,8 +276,8 @@ public sealed class GameRuntimePartyCommandHandler
     }
 
     public void OnPartyRosterChangeRequested(
-        Array<StringName> activeMemberIds,
-        Array<StringName> reserveMemberIds
+        IEnumerable<StringName> activeMemberIds,
+        IEnumerable<StringName> reserveMemberIds
     )
     {
         var partyState = GetPartyState();
@@ -361,8 +362,8 @@ public sealed class GameRuntimePartyCommandHandler
     }
 
     private string ValidateMainCharacterRoster(
-        Array<StringName> activeMemberIds,
-        Array<StringName> reserveMemberIds,
+        IEnumerable<StringName> activeMemberIds,
+        IEnumerable<StringName> reserveMemberIds,
         PartyState partyState
     )
     {
@@ -374,7 +375,7 @@ public sealed class GameRuntimePartyCommandHandler
         return "";
     }
 
-    private static bool HasMemberId(Array<StringName> memberIds, StringName memberId)
+    private static bool HasMemberId(IEnumerable<StringName> memberIds, StringName memberId)
     {
         var normalizedMemberId = ProgressionDataUtils.to_string_name(memberId);
         if (memberIds == null || normalizedMemberId == "")
@@ -390,9 +391,9 @@ public sealed class GameRuntimePartyCommandHandler
         return false;
     }
 
-    private static Array<StringName> NormalizeMemberIds(Array<StringName> memberIds)
+    private static StringNameList NormalizeMemberIds(IEnumerable<StringName> memberIds)
     {
-        var result = new Array<StringName>();
+        var result = new StringNameList();
         if (memberIds == null)
             return result;
         foreach (var rawMemberId in memberIds)
@@ -404,12 +405,12 @@ public sealed class GameRuntimePartyCommandHandler
         return result;
     }
 
-    private static Array<StringName> WithoutMemberId(
-        Array<StringName> memberIds,
+    private static StringNameList WithoutMemberId(
+        IEnumerable<StringName> memberIds,
         StringName memberId
     )
     {
-        var result = new Array<StringName>();
+        var result = new StringNameList();
         var normalizedMemberId = ProgressionDataUtils.to_string_name(memberId);
         if (memberIds == null)
             return result;

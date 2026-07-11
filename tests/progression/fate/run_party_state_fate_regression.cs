@@ -39,7 +39,9 @@ public partial class run_party_state_fate_regression : LifecycleTestSceneTree
                 "写接口应保留 false 的命运周目标记。"
             );
 
-            GDictionary payload = partyState.ToDictionary();
+            using GodotProjectionLease<GDictionary> payloadLease =
+                partyState.ToDictionaryLease("PartyStateFate.RoundTrip");
+            GDictionary payload = payloadLease.Value;
             _test.True(
                 !payload.ContainsKey("party_drop_luck_source_member_id"),
                 "掉落承担者字段已废弃，不应继续写入 PartyState 存档。"
@@ -88,21 +90,27 @@ public partial class run_party_state_fate_regression : LifecycleTestSceneTree
 
     private void TestPartyStateFromDictMissingFateFieldsIsRejected()
     {
-        GDictionary missingFatePayload = BuildPartyPayload();
+        using GodotProjectionLease<GDictionary> missingFatePayloadLease =
+            BuildPartyPayloadLease("PartyStateFate.MissingFate");
+        GDictionary missingFatePayload = missingFatePayloadLease.Value;
         missingFatePayload.Remove("fate_run_flags");
         _test.True(
             PartyState.FromDictionary(missingFatePayload) == null,
             "缺少 fate_run_flags 的 PartyState shape 应直接拒绝。"
         );
 
-        GDictionary missingMetaPayload = BuildPartyPayload();
+        using GodotProjectionLease<GDictionary> missingMetaPayloadLease =
+            BuildPartyPayloadLease("PartyStateFate.MissingMeta");
+        GDictionary missingMetaPayload = missingMetaPayloadLease.Value;
         missingMetaPayload.Remove("meta_flags");
         _test.True(
             PartyState.FromDictionary(missingMetaPayload) == null,
             "缺少 meta_flags 的 PartyState shape 应直接拒绝。"
         );
 
-        GDictionary invalidFatePayload = BuildPartyPayload();
+        using GodotProjectionLease<GDictionary> invalidFatePayloadLease =
+            BuildPartyPayloadLease("PartyStateFate.InvalidFate");
+        GDictionary invalidFatePayload = invalidFatePayloadLease.Value;
         invalidFatePayload["fate_run_flags"] = Variant.From(new GArray());
         _test.True(
             PartyState.FromDictionary(invalidFatePayload) == null,
@@ -123,7 +131,9 @@ public partial class run_party_state_fate_regression : LifecycleTestSceneTree
                 }
             )
             {
-                GDictionary payload = BuildPartyPayload();
+                using GodotProjectionLease<GDictionary> payloadLease =
+                    BuildPartyPayloadLease($"PartyStateFate.InvalidFlag.{fieldName}");
+                GDictionary payload = payloadLease.Value;
                 payload[fieldName] = Variant.From(invalidFlags);
                 _test.True(
                     PartyState.FromDictionary(payload) == null,
@@ -155,12 +165,12 @@ public partial class run_party_state_fate_regression : LifecycleTestSceneTree
         return flags;
     }
 
-    private static GDictionary BuildPartyPayload()
+    private static GodotProjectionLease<GDictionary> BuildPartyPayloadLease(string ownerId)
     {
         PartyState partyState = BuildPartyState();
         try
         {
-            return partyState.ToDictionary();
+            return partyState.ToDictionaryLease(ownerId);
         }
         finally
         {
@@ -199,10 +209,6 @@ public partial class run_party_state_fate_regression : LifecycleTestSceneTree
             return;
         }
 
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-            partyState,
-            "run_party_state_fate_regression.DisposePartyState"
-        );
     }
 
 }

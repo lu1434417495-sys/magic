@@ -123,23 +123,27 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
         FixedHitMaxDamageResolver resolver = new();
         BattleUnitState baselineSource = BuildBattleUnit("基准楔钉者", "player");
         BattleUnitState baselineTarget = BuildGuardedTarget("守住的敌人");
-        GDictionary baselineDamageResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> baselineDamageResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             baselineSource,
             baselineTarget,
             new[] { BuildDamageEffect(18) },
             DamageResolutionContext.Empty()
         ));
+        GDictionary baselineDamageResult = baselineDamageResultLease.Value;
         int baselineDamage = DictInt(baselineDamageResult, "damage");
 
         BattleUnitState wedgeSource = BuildBattleUnit("楔钉者", "player");
         wedgeSource.attribute_snapshot.SetValue(LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.BlackStarWedge), 1);
         BattleUnitState wedgeTarget = BuildGuardedTarget("守住的敌人");
-        GDictionary wedgeResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> wedgeResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             wedgeSource,
             wedgeTarget,
             new[] { BuildDamageEffect(18) },
             DamageResolutionContext.Empty()
         ));
+        GDictionary wedgeResult = wedgeResultLease.Value;
         GDictionary wedgeEvent = ExtractFirstDamageEvent(wedgeResult);
 
         _test.True(
@@ -158,24 +162,26 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
         BattleUnitState enemyAttacker = BuildBattleUnit("报复者", "enemy");
         BattleUnitState normalTarget = BuildBattleUnit("普通持有者", "player");
         BattleUnitState exposedTarget = wedgeSource;
-        int normalIncoming = DictInt(AttackEffectResolutionResultReader.BuildGodotPayload(
+        using GodotProjectionLease<GDictionary> normalIncomingLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
             resolver.ResolveEffects(
                 enemyAttacker,
                 normalTarget,
                 new[] { BuildDamageEffect(16) },
                 DamageResolutionContext.Empty()
-            )),
-            "damage"
+            )
         );
-        int exposedIncoming = DictInt(AttackEffectResolutionResultReader.BuildGodotPayload(
+        int normalIncoming = DictInt(normalIncomingLease.Value, "damage");
+        using GodotProjectionLease<GDictionary> exposedIncomingLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
             resolver.ResolveEffects(
                 enemyAttacker,
                 exposedTarget,
                 new[] { BuildDamageEffect(16) },
                 DamageResolutionContext.Empty()
-            )),
-            "damage"
+            )
         );
+        int exposedIncoming = DictInt(exposedIncomingLease.Value, "damage");
         _test.True(
             exposedIncoming > normalIncoming,
             $"黑星楔钉代价应让佩戴者承受更高的后续伤害。 normal={normalIncoming} exposed={exposedIncoming}"
@@ -189,24 +195,26 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
         BattleUnitState baselineTarget = BuildBattleUnit("普通目标", "player", hpMax: 100, currentHp: 35);
         BattleUnitState shawlTarget = BuildBattleUnit("披肩目标", "player", hpMax: 100, currentHp: 35);
         shawlTarget.attribute_snapshot.SetValue(LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.BloodDebtShawl), 1);
-        int normalDamage = DictInt(AttackEffectResolutionResultReader.BuildGodotPayload(
+        using GodotProjectionLease<GDictionary> normalDamageLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
             resolver.ResolveEffects(
                 enemyAttacker,
                 baselineTarget,
                 new[] { BuildDamageEffect(20) },
                 DamageResolutionContext.Empty()
-            )),
-            "damage"
+            )
         );
-        int reducedDamage = DictInt(AttackEffectResolutionResultReader.BuildGodotPayload(
+        int normalDamage = DictInt(normalDamageLease.Value, "damage");
+        using GodotProjectionLease<GDictionary> reducedDamageLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
             resolver.ResolveEffects(
                 enemyAttacker,
                 shawlTarget,
                 new[] { BuildDamageEffect(20) },
                 DamageResolutionContext.Empty()
-            )),
-            "damage"
+            )
         );
+        int reducedDamage = DictInt(reducedDamageLease.Value, "damage");
         _test.True(
             reducedDamage < normalDamage,
             $"血债披肩在低血时应降低承伤。 normal={normalDamage} reduced={reducedDamage}"
@@ -678,10 +686,6 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
         {
             Service?.Dispose();
             Manager?.Dispose();
-            RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-                PartyState,
-                "run_low_luck_relic_regression.LowLuckContext"
-            );
         }
     }
 }

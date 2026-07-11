@@ -7,6 +7,7 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
     private readonly TestHarness _test = new();
+    private readonly List<GodotProjectionLease<GDictionary>> _payloadLeases = new();
 
     public override void _Initialize()
     {
@@ -27,7 +28,33 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
         TestWorldEventTypedQueries();
         TestStaleSubmapIdFallsBackToRootWorld();
 
+        DisposePayloadLeases();
         RequestTestExit(_test.Finish("World map data context regression"));
+    }
+
+    private GDictionary ProjectRootWorldData(WorldMapDataContext context) =>
+        Retain(context.GetRootWorldDataLease());
+
+    private GDictionary ProjectActiveWorldData(WorldMapDataContext context) =>
+        Retain(context.GetActiveWorldDataLease());
+
+    private GDictionary ProjectActiveFogState(WorldMapDataContext context) =>
+        Retain(context.GetActiveWorldFogStateLease());
+
+    private GDictionary ProjectNpc(WorldMapNpcData npc) =>
+        Retain(WorldMapDataProjection.ProjectLease(npc));
+
+    private GDictionary Retain(GodotProjectionLease<GDictionary> lease)
+    {
+        _payloadLeases.Add(lease);
+        return lease.Value;
+    }
+
+    private void DisposePayloadLeases()
+    {
+        for (int index = _payloadLeases.Count - 1; index >= 0; index--)
+            _payloadLeases[index].Dispose();
+        _payloadLeases.Clear();
     }
 
     private void TestWorldEventTypedQueries()
@@ -150,8 +177,10 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
             EncounterAnchorData far = context.GetEncounterAnchorById("far_anchor");
             far.growth_stage = 4;
             context.SyncActiveWorldPayloadFromTypedState();
+            using GodotProjectionLease<GDictionary> activeWorldDataLease =
+                context.GetActiveWorldDataLease();
             GDictionary projectedFar = FindEncounterAnchorPayload(
-                context.active_world_data["encounter_anchors"].AsGodotArray(),
+                activeWorldDataLease.Value["encounter_anchors"].AsGodotArray(),
                 "far_anchor"
             );
             _test.Eq(
@@ -244,7 +273,7 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
                 "typed settlement state query 应反映公开 world_data 写回后的 visited。"
             );
 
-            GDictionary projectedRootWorldData = context.root_world_data;
+            GDictionary projectedRootWorldData = ProjectRootWorldData(context);
             GDictionary settlementRecord =
                 projectedRootWorldData["settlements"].AsGodotArray()[0].AsGodotDictionary();
             GDictionary settlementState = settlementRecord["settlement_state"].AsGodotDictionary();
@@ -309,7 +338,7 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
                 "Typed world NPC query should validate character info fields."
             );
             _test.Eq(
-                WorldMapDataProjection.Project(validNpc)["display_name"].AsString(),
+                ProjectNpc(validNpc)["display_name"].AsString(),
                 " Gate Watcher ",
                 "Typed world NPC query should preserve source data for section builders."
             );
@@ -347,7 +376,7 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
             fogSystem.RevealDiamond(new Vector2I(1, 1), 1, "player");
 
             _test.True(context.SaveActiveWorldFogState(fogSystem), "Context should save active fog state into active world data.");
-            GDictionary savedFogState = context.GetActiveWorldFogState();
+            GDictionary savedFogState = ProjectActiveFogState(context);
             _test.Eq(
                 savedFogState["version"].AsInt32(),
                 WorldMapFogSystem.PersistentStateVersion,
@@ -416,7 +445,7 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
             _test.True(enterResult.Ok, "Entering a generated submap should succeed.");
             _test.Eq(enterResult.PlayerCoord, new Vector2I(3, 3), "Submap entry should use saved submap player_coord.");
             _test.Eq(enterResult.TargetDisplayName, "Ash Map", "Submap entry should expose display_name.");
-            GDictionary enteredRootWorldData = context.root_world_data;
+            GDictionary enteredRootWorldData = ProjectRootWorldData(context);
             _test.Eq(enteredRootWorldData["active_submap_id"].AsString(), "ash_submap", "Submap entry should set active_submap_id.");
             GArray returnStack = enteredRootWorldData["submap_return_stack"].AsGodotArray();
             _test.Eq(returnStack.Count, 1, "Submap entry should push one return stack record.");
@@ -432,14 +461,14 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
             );
             fogSystem.Setup(new Vector2I(4, 4));
             context.SaveActiveWorldFogState(fogSystem);
-            GDictionary savedRootWorldData = context.root_world_data;
+            GDictionary savedRootWorldData = ProjectRootWorldData(context);
             _test.Eq(
                 serializer.GetWorldDataNestedSchemaValidationError(savedRootWorldData),
                 "",
                 "子地图进入并写回后 mounted_submap entry 应继续满足正式 save schema。"
             );
             WorldMapSubmapReturnResult returnResult = context.ReturnFromActiveSubmap(new Vector2I(4, 4));
-            GDictionary returnedRootWorldData = context.root_world_data;
+            GDictionary returnedRootWorldData = ProjectRootWorldData(context);
 
             _test.True(returnResult.Ok, "Returning from an active submap should succeed.");
             _test.Eq(returnResult.TargetMapId, "", "Submap return should restore the source map id.");
@@ -491,7 +520,7 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
                 "ensure_submap_generated 应成功构建 typed 子地图 world_data。"
             );
 
-            GDictionary projectedRootWorldData = context.root_world_data;
+            GDictionary projectedRootWorldData = ProjectRootWorldData(context);
             GDictionary generatedEntry = projectedRootWorldData["mounted_submaps"]
                 .AsGodotDictionary()["generated_submap"]
                 .AsGodotDictionary();
@@ -533,7 +562,7 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
             _test.Eq(result.PlayerCoord, new Vector2I(3, 3), "Typed sync should keep an in-bounds player coord.");
             _test.Eq(result.SelectedCoord, new Vector2I(3, 3), "Typed sync should clamp an out-of-bounds selected coord to the player coord.");
             _test.Eq(grid.GetWorldSizeCells(), new Vector2I(4, 4), "Sync should configure the grid from the active generation config.");
-            _test.Eq(context.GetActiveWorldData().Count, context.root_world_data.Count, "Root world data should remain active when no submap is active.");
+            _test.Eq(ProjectActiveWorldData(context).Count, ProjectRootWorldData(context).Count, "Root world data should remain active when no submap is active.");
         }
         finally
         {
@@ -560,7 +589,7 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
             );
 
             _test.Eq(context.GetActiveMapId(), "", "Sync should clear a stale active submap id.");
-            _test.Eq(context.root_world_data["active_submap_id"].AsString(), "", "Sync should write the cleared active submap id back to root world data.");
+            _test.Eq(ProjectRootWorldData(context)["active_submap_id"].AsString(), "", "Sync should write the cleared active submap id back to root world data.");
             _test.Eq(result.SelectedCoord, new Vector2I(1, 2), "Sync should keep an in-bounds selected coord after falling back to root world.");
         }
         finally

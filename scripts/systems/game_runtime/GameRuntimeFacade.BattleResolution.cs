@@ -198,9 +198,9 @@ public sealed partial class GameRuntimeFacade
         );
         if (!writebackResult.Ok)
         {
-            GDictionary writebackPayload = GameRuntimeBattleWritebackProjection.Project(
-                writebackResult
-            );
+            using GodotProjectionLease<GDictionary> writebackLease =
+                GameRuntimeBattleWritebackProjection.ProjectLease(writebackResult);
+            GDictionary writebackPayload = writebackLease.Value;
             _report_battle_local_writeback_inoption_failure(
                 writebackPayload,
                 battleSummary,
@@ -351,9 +351,9 @@ public sealed partial class GameRuntimeFacade
                 return false;
             }
             _resolve_world_encounter_after_battle(winnerFactionId);
-            worldPersistError = _game_session.SetWorldData(
-                _world_map_data_context.root_world_data
-            );
+            using GodotProjectionLease<GDictionary> rootWorldDataLease =
+                _world_map_data_context.GetRootWorldDataLease();
+            worldPersistError = _game_session.SetWorldData(rootWorldDataLease.Value);
             if (worldPersistError != (int)Error.Ok)
             {
                 UpdateStatusInternal(
@@ -445,8 +445,8 @@ public sealed partial class GameRuntimeFacade
         if (mainCharacterDead)
         {
             UpdateStatusInternal(
-                DictString(
-                    GetGameOverContext(),
+                PlainPayloadString(
+                    GetGameOverContextSnapshotPlain(),
                     "description",
                     "主角已阵亡，本次旅程结束。"
                 )
@@ -529,11 +529,11 @@ public sealed partial class GameRuntimeFacade
         SyncPartyStateServices();
     }
 
-    internal GStringNameArray HandleFortunaChapterCompleted(GDictionary payload)
+    internal IReadOnlyList<StringName> HandleFortunaChapterCompleted(GDictionary payload)
     {
         var fateRuntime = _battle_runtime?.GetFateRuntime();
         if (fateRuntime == null)
-            return new StringNameList().ToGodotArray();
+            return Array.Empty<StringName>();
         var unlockedIds = fateRuntime.HandleFortunaChapterCompleted(payload);
         if (_character_management != null)
             _party_state = _character_management.GetPartyState();
@@ -551,7 +551,7 @@ public sealed partial class GameRuntimeFacade
         return unlockedIds;
     }
 
-    internal GStringNameArray HandleMisfortuneForgeResult(
+    internal IReadOnlyList<StringName> HandleMisfortuneForgeResult(
         StringName member_id,
         SettlementServiceResult result)
     {
@@ -561,7 +561,7 @@ public sealed partial class GameRuntimeFacade
             || member_id == ""
             || result == null
         )
-            return new StringNameList().ToGodotArray();
+            return Array.Empty<StringName>();
         var itemDefs =
             GetContentCatalogTyped() != null
                 ? GetContentCatalogTyped().GetItemDefsTyped()

@@ -120,7 +120,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
             "黑契推进·血契 preview 应按必定命中暴露给指令与 AI 评分。"
         );
         AssertForcedHitNoCrit(
-            (GDictionary)bloodCase.GetValueOrDefault("simulated_result", new GDictionary()),
+            GetCaseValue<ForcedHitProjection>(bloodCase, "simulated_result"),
             "黑契推进·血契应改为必定命中且不会暴击。"
         );
         _test.True(
@@ -140,7 +140,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
             "黑契推进·护契 preview 应按必定命中暴露给指令与 AI 评分。"
         );
         AssertForcedHitNoCrit(
-            (GDictionary)guardCase.GetValueOrDefault("simulated_result", new GDictionary()),
+            GetCaseValue<ForcedHitProjection>(guardCase, "simulated_result"),
             "黑契推进·护契应改为必定命中且不会暴击。"
         );
         _test.True(
@@ -161,7 +161,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
         BattleRuntimeModule actionRuntime = (BattleRuntimeModule)actionCase["runtime"];
         BattleUnitState actionCaster = (BattleUnitState)actionCase["caster"];
         AssertForcedHitNoCrit(
-            (GDictionary)actionCase.GetValueOrDefault("simulated_result", new GDictionary()),
+            GetCaseValue<ForcedHitProjection>(actionCase, "simulated_result"),
             "黑契推进·行契应改为必定命中且不会暴击。"
         );
         _test.True(
@@ -320,24 +320,16 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
                 caster
             )
         );
-        var simulatedResult = AttackEffectResolutionResultReader.BuildGodotPayload(
-            simulatedTypedResult.Result
+        using GodotProjectionLease<GDictionary> simulatedResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                simulatedTypedResult.Result
+            );
+        GDictionary simulatedResult = simulatedResultLease.Value;
+        var simulatedProjection = new ForcedHitProjection(
+            simulatedResult.GetValueOrDefault("attack_success", false).AsBool(),
+            simulatedResult.GetValueOrDefault("crit_locked", false).AsBool(),
+            simulatedResult.GetValueOrDefault("critical_hit", false).AsBool()
         );
-        if (simulatedTypedResult.CustomLogLines.Count != 0)
-        {
-            var customLogLines = new GArray();
-            foreach (string line in simulatedTypedResult.CustomLogLines)
-            {
-                if (!string.IsNullOrEmpty(line))
-                {
-                    customLogLines.Add(line);
-                }
-            }
-            if (customLogLines.Count != 0)
-            {
-                simulatedResult["custom_log_lines"] = customLogLines;
-            }
-        }
         BattleCommand issueCommand = BuildUnitSkillCommand(caster.unit_id, BLACK_CONTRACT_PUSH_SKILL_ID, enemy, variantId);
         BattleEventBatch batch = runtime.IssueCommand(issueCommand);
         return new Dictionary<string, object>
@@ -350,7 +342,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
             ["preview"] = preview,
             ["preview_command"] = previewCommand,
             ["issue_command"] = issueCommand,
-            ["simulated_result"] = simulatedResult,
+            ["simulated_result"] = simulatedProjection,
         };
     }
 
@@ -384,12 +376,10 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
         };
     }
 
-    private void AssertForcedHitNoCrit(GDictionary result, string message)
+    private void AssertForcedHitNoCrit(ForcedHitProjection result, string message)
     {
         _test.True(
-            result.GetValueOrDefault("attack_success", false).AsBool()
-                && result.GetValueOrDefault("crit_locked", false).AsBool()
-                && !result.GetValueOrDefault("critical_hit", false).AsBool(),
+            result != null && result.AttackSuccess && result.CritLocked && !result.CriticalHit,
             $"{message} result={result}"
         );
     }
@@ -762,6 +752,12 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
         public BattleUnitState AllyTarget;
     }
 
+    private sealed record ForcedHitProjection(
+        bool AttackSuccess,
+        bool CritLocked,
+        bool CriticalHit
+    );
+
     private sealed class LowLuckContext
     {
         public PartyState PartyState;
@@ -772,10 +768,6 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
         {
             Service?.Dispose();
             Manager?.Dispose();
-            RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-                PartyState,
-                "run_fate_low_luck_tactical_skills_regression.LowLuckContext"
-            );
             Service = null;
             Manager = null;
             PartyState = null;

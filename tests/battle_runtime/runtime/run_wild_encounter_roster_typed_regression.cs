@@ -116,13 +116,14 @@ public partial class run_wild_encounter_roster_typed_regression : LifecycleTestS
             encounter_profile_id = "mist_hollow",
             growth_stage = 2,
         };
-        GArray enemyUnits = builder.BuildEnemyUnitsTyped(
+        using GodotProjectionLease<GArray> enemyUnitsLease = builder.BuildEnemyUnitsLease(
             encounterAnchor,
             gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             gameSession.GetEnemyTemplateDefinitions(),
             gameSession.GetEnemyAiBrainDefinitions(),
             gameSession.GetItemDefsTyped()
         );
+        GArray enemyUnits = enemyUnitsLease.Value;
 
         _test.Eq(enemyUnits.Count, 5, "mist_hollow 第 2 阶段应构建 5 个敌方单位。");
         _test.Eq(

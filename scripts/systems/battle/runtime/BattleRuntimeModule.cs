@@ -599,8 +599,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
         }
         else if (_encounter_builder != null)
         {
-            enemyUnits = ToBattleUnitArray(
-                _encounter_builder.BuildEnemyUnitsFromDefinitionsTyped(
+            using GodotProjectionLease<Godot.Collections.Array> enemyUnitsLease =
+                _encounter_builder.BuildEnemyUnitsFromDefinitionsLease(
                     encounter_anchor,
                     GetSkillDefinitionIndexTyped(),
                     GetEnemyTemplateIndexTyped(),
@@ -608,7 +608,9 @@ public sealed partial class BattleRuntimeModule : IDisposable
                     GetItemDefIndexTyped(),
                     GetTraitDefIndexTyped(),
                     GetEquipmentAbilityBindingIndexTyped()
-                )
+                );
+            enemyUnits = ToBattleUnitArray(
+                enemyUnitsLease.Value
             );
         }
 
@@ -635,12 +637,9 @@ public sealed partial class BattleRuntimeModule : IDisposable
         )
         {
             long terrainSeed = seed + placementAttempt * BATTLE_START_TERRAIN_RETRY_SEED_STEP;
-            GDictionary terrainData = _unit_factory.BuildTerrainData(
-                encounter_anchor,
-                terrainSeed,
-                context,
-                contextScope
-            );
+            using GodotProjectionLease<GDictionary> terrainLease =
+                _unit_factory.BuildTerrainDataLease(encounter_anchor, terrainSeed, context);
+            GDictionary terrainData = terrainLease.Value;
             if (terrainData.Count == 0)
             {
                 continue;
@@ -689,7 +688,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
             if (terrainData.ContainsKey("cell_columns"))
             {
                 using GDictionary cellColumns = GetDict(terrainData, "cell_columns");
-                _state.ReplaceCellColumnsPayload(cellColumns);
+                _state.ReplaceCellColumnsFromPayload(cellColumns);
             }
             _state.SetPartyBackpackView(_get_party_backpack_state(partyState) as WarehouseState);
             _state.timeline.tu_per_tick = _resolve_timeline_tu_per_tick(context);
@@ -2459,6 +2458,15 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _fate_runtime?.HandleAppliedStatuses(target_unit, normalizedStatusIds);
     }
 
+    internal void MarkAppliedStatusesForTurnTiming(
+        BattleUnitState target_unit,
+        IReadOnlyList<StringName> status_effect_ids
+    )
+    {
+        _initialize_applied_status_timeline_ticks(target_unit, status_effect_ids);
+        _fate_runtime?.HandleAppliedStatuses(target_unit, status_effect_ids);
+    }
+
     internal void _initialize_applied_status_timeline_ticks(
         BattleUnitState target_unit,
         GArray status_effect_ids
@@ -2483,6 +2491,31 @@ public sealed partial class BattleRuntimeModule : IDisposable
         int currentTu = _state?.timeline != null ? _state.timeline.current_tu : 0;
         foreach (StringName statusId in normalizedStatusIds)
         {
+            BattleStatusEffectState statusEntry = target_unit.GetStatusEffect(statusId);
+            if (statusEntry == null || statusEntry.tick_interval_tu <= 0)
+                continue;
+            if (statusEntry.next_tick_at_tu <= currentTu)
+            {
+                statusEntry.next_tick_at_tu = currentTu + statusEntry.tick_interval_tu;
+                target_unit.SetStatusEffect(statusEntry);
+            }
+        }
+    }
+
+    internal void _initialize_applied_status_timeline_ticks(
+        BattleUnitState target_unit,
+        IReadOnlyList<StringName> status_effect_ids
+    )
+    {
+        if (target_unit == null || status_effect_ids == null || status_effect_ids.Count == 0)
+            return;
+        int currentTu = _state?.timeline != null ? _state.timeline.current_tu : 0;
+        var seenStatusIds = new HashSet<StringName>();
+        foreach (StringName rawStatusId in status_effect_ids)
+        {
+            StringName statusId = ProgressionDataUtils.to_string_name(rawStatusId);
+            if (statusId == "" || !seenStatusIds.Add(statusId))
+                continue;
             BattleStatusEffectState statusEntry = target_unit.GetStatusEffect(statusId);
             if (statusEntry == null || statusEntry.tick_interval_tu <= 0)
                 continue;
@@ -2598,8 +2631,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
     {
         if (source_unit == null)
             return;
-        GStringNameArray sourceStatusIds = NormalizeStatusIdArray(result.SourceStatusEffectIds);
-        if (sourceStatusIds.Count == 0)
+        IReadOnlyList<StringName> sourceStatusIds = result.SourceStatusEffectIds;
+        if (sourceStatusIds == null || sourceStatusIds.Count == 0)
             return;
         MarkAppliedStatusesForTurnTiming(source_unit, sourceStatusIds);
         _append_changed_unit_id(batch, source_unit.unit_id);
@@ -3882,7 +3915,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
     {
         var coords = ToVector2IList(target_coords);
         coords.Sort((a, b) => a.Y != b.Y ? a.Y.CompareTo(b.Y) : a.X.CompareTo(b.X));
-        return new Vector2IList(coords).ToGodotArray();
+        return ToVector2IArray(coords);
     }
 
     internal GVector2IArray _sort_coords(GVector2IArray target_coords)
@@ -3893,7 +3926,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
                 : Array.Empty<Vector2I>()
         );
         coords.Sort((a, b) => a.Y != b.Y ? a.Y.CompareTo(b.Y) : a.X.CompareTo(b.X));
-        return new Vector2IList(coords).ToGodotArray();
+        return ToVector2IArray(coords);
     }
 
     internal int _normalize_unit_action_threshold(int action_threshold)
@@ -3932,13 +3965,13 @@ public sealed partial class BattleRuntimeModule : IDisposable
         var coords = new List<Vector2I>();
         if (values == null)
         {
-            return new Vector2IList(coords).ToGodotArray();
+            return ToVector2IArray(coords);
         }
         foreach (Variant rawCoord in values.Keys)
         {
             coords.Add(rawCoord.AsVector2I());
         }
-        return new Vector2IList(coords).ToGodotArray();
+        return ToVector2IArray(coords);
     }
 
     internal int _get_unit_skill_level(BattleUnitState unit_state, StringName skill_id)

@@ -666,8 +666,14 @@ public partial class PartyMemberState
     {
         var result = new Godot.Collections.Array<Godot.Collections.Dictionary>();
         foreach (ContingencyMatrixSetupState setup in _contingencyMatrixSetups)
+        {
             if (setup != null)
-                result.Add(setup.ToDictionary());
+            {
+                using GodotProjectionLease<Godot.Collections.Dictionary> lease =
+                    setup.ToDictionaryLease();
+                result.Add(lease.Value);
+            }
+        }
         return result;
     }
 

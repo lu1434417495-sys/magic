@@ -10,7 +10,7 @@ public partial class run_battle_ai_unit_snapshot_regression : LifecycleTestScene
     {
         TestPayloadGuardIsPlainStaticBoundaryHelper();
         TestSnapshotCopiesUnitStateIntoTypedCollections();
-        TestSnapshotPayloadProjectionIsBoundaryOnly();
+        TestSnapshotPlainPayloadIsBoundaryOnly();
         RequestTestExit(_test.Finish("Battle AI unit snapshot regression"));
     }
 
@@ -55,35 +55,36 @@ public partial class run_battle_ai_unit_snapshot_regression : LifecycleTestScene
         _test.True(snapshot.ai_blackboard.protected_ally, "snapshot blackboard 不应引用原 unit blackboard。");
     }
 
-    private void TestSnapshotPayloadProjectionIsBoundaryOnly()
+    private void TestSnapshotPlainPayloadIsBoundaryOnly()
     {
         BattleAiUnitSnapshot snapshot = BattleAiUnitSnapshot.FromUnit(BuildUnit());
-        Godot.Collections.Dictionary payload = snapshot?.ToPayload();
+        IReadOnlyDictionary<string, object> payload = snapshot?.BuildPayloadPlain();
 
-        _test.True(payload != null, "ToPayload 应投影 Godot Dictionary。");
+        _test.True(payload != null, "BuildPayloadPlain 应生成纯 CLR payload。");
         if (payload == null)
             return;
 
-        _test.Eq(payload["unit_id"].AsStringName(), new StringName("snapshot_actor"), "payload unit_id 应保留。");
-        _test.Eq(payload["occupied_coords"].AsGodotArray().Count, 2, "payload occupied_coords 应投影数组。");
+        _test.Eq((StringName)payload["unit_id"], new StringName("snapshot_actor"), "payload unit_id 应保留。");
+        _test.Eq(((IReadOnlyList<Vector2I>)payload["occupied_coords"]).Count, 2, "payload occupied_coords 应保留 typed list。");
         _test.Eq(
-            DictInt(payload["known_skill_level_map"].AsGodotDictionary(), "fireball"),
+            ((IReadOnlyDictionary<StringName, int>)payload["known_skill_level_map"])["fireball"],
             4,
-            "payload skill level map 应投影。"
+            "payload skill level map 应保留 typed map。"
         );
         _test.Eq(
-            DictInt(payload["cooldowns"].AsGodotDictionary(), "fireball"),
+            ((IReadOnlyDictionary<StringName, int>)payload["cooldowns"])["fireball"],
             2,
-            "payload cooldown map 应投影。"
+            "payload cooldown map 应保留 typed map。"
         );
 
-        Godot.Collections.Dictionary blackboard = payload["ai_blackboard"].AsGodotDictionary();
-        _test.True(DictBool(blackboard, "madness_target_any_team"), "payload blackboard 应投影 madness flag。");
-        _test.True(DictBool(blackboard, "protected_ally"), "payload blackboard 应投影 protected flag。");
+        IReadOnlyDictionary<string, object> blackboard =
+            (IReadOnlyDictionary<string, object>)payload["ai_blackboard"];
+        _test.True((bool)blackboard["madness_target_any_team"], "payload blackboard 应保留 madness flag。");
+        _test.True((bool)blackboard["protected_ally"], "payload blackboard 应保留 protected flag。");
         _test.Eq(
-            DictStringName(blackboard, "summon_source_unit_id"),
+            (StringName)blackboard["summon_source_unit_id"],
             new StringName("summoner"),
-            "payload blackboard 应投影 summon source。"
+            "payload blackboard 应保留 summon source。"
         );
     }
 
@@ -122,32 +123,6 @@ public partial class run_battle_ai_unit_snapshot_regression : LifecycleTestScene
             }
         );
         return unit;
-    }
-
-    private static bool IsGodotPayloadType(Type type)
-    {
-        if (type == typeof(Variant) || type == typeof(Godot.Collections.Dictionary))
-            return true;
-        if (type == typeof(Godot.Collections.Array))
-            return true;
-        return type.IsGenericType
-            && type.GetGenericTypeDefinition() == typeof(Godot.Collections.Array<>);
-    }
-
-    private static int DictInt(Godot.Collections.Dictionary dictionary, string key)
-    {
-        StringName exactKey = new(key);
-        return dictionary.ContainsKey(exactKey) ? dictionary[exactKey].AsInt32() : 0;
-    }
-
-    private static bool DictBool(Godot.Collections.Dictionary dictionary, string key)
-    {
-        return dictionary.ContainsKey(key) && dictionary[key].AsBool();
-    }
-
-    private static StringName DictStringName(Godot.Collections.Dictionary dictionary, string key)
-    {
-        return dictionary.ContainsKey(key) ? dictionary[key].AsStringName() : new StringName("");
     }
 
 }

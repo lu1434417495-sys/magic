@@ -32,7 +32,9 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
                 ["choices"] = new GArray(),
             };
             runtime.SetPendingWorldPromotionPromptState(prompt);
-            _test.Eq(DictString(runtime.GetCurrentPromotionPrompt(), "member_id", ""), "hero", "GetCurrentPromotionPrompt() 应走正式 reward handler。");
+            using GodotProjectionLease<GDictionary> promotionPromptLease =
+                runtime.GetCurrentPromotionPromptLease();
+            _test.Eq(DictString(promotionPromptLease.Value, "member_id", ""), "hero", "GetCurrentPromotionPrompt() 应走正式 reward handler。");
             _test.True(runtime.PresentPendingRewardIfReady(), "PresentPendingRewardIfReady() 应通过 reward handler 打开 promotion modal。");
             _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Promotion, "存在 world promotion prompt 时应切换到 promotion modal。");
 
@@ -61,7 +63,9 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
             GameRuntimeFacade.RuntimeCommandResult closeResult =
                 runtime.CommandCloseActiveModalTyped();
             _test.True(closeResult.Ok, "command_close_active_modal() 应委托给 reward handler。");
-            _test.Eq(runtime.GetCharacterInfoContext().Count, 0, "character_info 关闭应清空人物信息上下文。");
+            using GodotProjectionLease<GDictionary> characterInfoLease =
+                runtime.GetCharacterInfoContextLease();
+            _test.Eq(characterInfoLease.Value.Count, 0, "character_info 关闭应清空人物信息上下文。");
             _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.None, "character_info 关闭后应清空 modal。");
             _test.Eq(runtime.GetStatusText(), "已关闭人物信息窗。", "character_info 关闭应刷新状态文案。");
         }

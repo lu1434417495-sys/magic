@@ -142,12 +142,14 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
             diceSidesPerConstitutionMod: 1,
             diceSidesPerWillpowerMod: 1
         );
-        GDictionary healResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> healResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             healTarget,
             new[] { healEffect },
             DamageResolutionContext.Empty()
         ));
+        GDictionary healResult = healResultLease.Value;
         int healing = DictInt(healResult, "healing");
         _test.True(healing >= 2 && healing <= 14, "Healing should use typed 2D(4+CON+WILL) dice sides.");
         _test.Eq(healTarget.current_hp, 10 + healing, "Typed healing dice should write back HP.");
@@ -204,12 +206,14 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
             conModPer2Levels: 1
         );
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
             new[] { healFatalEffect },
             DamageResolutionContext.Empty().WithSourceSkillLevel(3)
         ));
+        GDictionary result = resultLease.Value;
         _test.Eq(DictInt(result, "healing"), 22, "heal_fatal 应按 typed 参数公式结算治疗量。");
         _test.Eq(target.current_hp, 27, "heal_fatal 应按 typed 参数公式回写目标 HP。");
     }
@@ -227,12 +231,14 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
             maxStatusRemoved: 1
         );
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
             new[] { dispelEffect },
             DamageResolutionContext.Empty()
         ));
+        GDictionary result = resultLease.Value;
         GArray dispelEvents = result.ContainsKey("dispel_events")
             ? result["dispel_events"].AsGodotArray()
             : new GArray();

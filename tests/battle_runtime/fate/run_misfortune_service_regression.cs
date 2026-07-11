@@ -181,13 +181,25 @@ public partial class run_misfortune_service_regression : LifecycleTestSceneTree
             encounter_profile_id = "",
             growth_stage = 0,
         };
+        using GodotProjectionLease<GDictionary> heroLease = hero.ToDictionaryLease(
+            LifetimeDomain.Request,
+            "misfortune-service-hero"
+        );
+        using GodotProjectionLease<GDictionary> buddyLease = buddy.ToDictionaryLease(
+            LifetimeDomain.Request,
+            "misfortune-service-buddy"
+        );
+        using GodotProjectionLease<GDictionary> bossLease = boss.ToDictionaryLease(
+            LifetimeDomain.Request,
+            "misfortune-service-boss"
+        );
         var context = new GDictionary
         {
             ["battle_map_size"] = new Vector2I(6, 6),
             ["ally_spawns"] = new GArray { new Vector2I(1, 1), new Vector2I(2, 1) },
             ["enemy_spawns"] = new GArray { new Vector2I(4, 4) },
-            ["battle_party"] = new GArray { hero.ToDictionary(), buddy.ToDictionary() },
-            ["enemy_units"] = new GArray { boss.ToDictionary() },
+            ["battle_party"] = new GArray { heroLease.Value, buddyLease.Value },
+            ["enemy_units"] = new GArray { bossLease.Value },
         };
         BattleState state = runtime.StartBattle(encounterAnchor, 101, context);
         BattleUnitState runtimeHero = GetRuntimeUnit(state, "hero");

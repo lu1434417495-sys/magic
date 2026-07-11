@@ -8,6 +8,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 public partial class run_battle_unit_state_schema_contract_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
+    private readonly List<GodotProjectionLease<GDictionary>> _payloadLeases = new();
 
     public override void _Initialize()
     {
@@ -32,6 +33,7 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
         TestRejectsBadWeaponDicePayloads();
         TestBodySizeRulesWrapperIsRemoved();
 
+        DisposePayloadLeases();
         RequestTestExit(_test.Finish("Battle unit state schema regression"));
     }
 
@@ -39,7 +41,7 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
     {
         BattleUnitState unit = BuildUnit();
         _test.True(unit != null, "BuildUnit 应返回单位。");
-        GDictionary payload = unit.ToDictionary();
+        GDictionary payload = Project(unit);
         BattleUnitState restored = BattleUnitState.FromDictionary(payload);
         _test.True(restored != null, "当前 to_dict payload 应可由 from_dict 恢复。");
         _test.Eq(restored?.current_move_points ?? -1, 5, "current_move_points 应保留大于默认值的 int。");
@@ -58,8 +60,13 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
             "half",
             "damage_resistances 应 round-trip。"
         );
+        using GDictionary cooldownPayload = payload["cooldowns"].AsGodotDictionary();
+        _test.True(
+            HasKeyWithType(cooldownPayload, "slash", Variant.Type.StringName),
+            "cooldowns projection 应保持正式 StringName key shape。"
+        );
         AssertVariantEq(
-            restored?.ToDictionary(),
+            Project(restored),
             payload,
             "BattleUnitState 应保持 to_dict/from_dict round-trip。"
         );
@@ -78,7 +85,7 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
         if (cloned == null)
             return;
 
-        AssertVariantEq(cloned.ToDictionary(), unit.ToDictionary(), "clone 应保留序列化字段。");
+        AssertVariantEq(Project(cloned), Project(unit), "clone 应保留序列化字段。");
         _test.Eq(cloned.per_battle_charges.Get("dragon_breath", -1), 1, "clone 应深拷贝 per_battle_charges。");
         _test.Eq(cloned.per_turn_charges.Get("nimble_escape", -1), 1, "clone 应深拷贝 per_turn_charges。");
         _test.Eq(cloned.per_turn_charge_limits.Get("nimble_escape", -1), 1, "clone 应深拷贝 per_turn_charge_limits。");
@@ -119,7 +126,15 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
         );
         unit.effective_trait_ids = new GStringNameArray { "halfling_luck", "savage_attacks" };
 
-        GDictionary payload = unit.ToDictionary();
+        GDictionary payload = Project(unit);
+        using GArray traitPayloads = payload["effective_trait_instances"].AsGodotArray();
+        using GDictionary savageAttacksPayload = traitPayloads[1].AsGodotDictionary();
+        using GDictionary rollValuesPayload = savageAttacksPayload["roll_values"]
+            .AsGodotDictionary();
+        _test.True(
+            HasKeyWithType(rollValuesPayload, "amount", Variant.Type.StringName),
+            "effective trait roll_values projection 应保持正式 StringName key shape。"
+        );
         BattleUnitState restored = BattleUnitState.FromDictionary(payload);
         _test.True(restored != null, "effective trait payload 应可 round-trip。");
         _test.Eq(restored?.effective_trait_instances.Count ?? -1, 2, "effective trait payload 数量应保留。");
@@ -151,7 +166,7 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
             },
         };
 
-        GDictionary payload = unit.ToDictionary();
+        GDictionary payload = Project(unit);
         BattleUnitState restored = BattleUnitState.FromDictionary(payload);
         _test.True(restored != null, "equipment ability source payload 应可 round-trip。");
         _test.Eq(
@@ -238,7 +253,7 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
         unit.SetPendingCast(pendingCast);
         unit.turn_casting_exhausted = true;
 
-        GDictionary payload = unit.ToDictionary();
+        GDictionary payload = Project(unit);
         _test.True(!payload.ContainsKey("pending_cast"), "pending_cast 是 runtime-only 字段，不应进入 unit payload。");
         _test.True(!payload.ContainsKey("turn_casting_exhausted"), "turn_casting_exhausted 是 runtime-only 字段，不应进入 unit payload。");
         _test.True(
@@ -284,7 +299,7 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
         BattleUnitState tiny = BuildMinimalUnit();
         _test.True(tiny != null, "body size fixture 应可构建。");
         _test.True(tiny.SetBodySizeCategory("tiny"), "tiny category 应可设置。");
-        GDictionary tinyPayload = tiny.ToDictionary();
+        GDictionary tinyPayload = Project(tiny);
         _test.Eq(DictString(tinyPayload, "body_size_category"), "tiny", "to_dict 应保留 tiny category。");
         _test.Eq(DictInt(tinyPayload, "body_size"), BodySizeContentRules.ToBodySize(BodySizeCategoryKind.Tiny), "tiny 应映射到 typed body-size int。");
         _test.Eq(DictVector2I(tinyPayload, "footprint_size"), Vector2I.One, "tiny footprint 应为 1x1。");
@@ -295,7 +310,7 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
             gargantuan.SetBodySizeCategory(BodySizeContentRules.ToStringName(BodySizeCategoryKind.Gargantuan)),
             "gargantuan category 应可设置。"
         );
-        GDictionary gargantuanPayload = gargantuan.ToDictionary();
+        GDictionary gargantuanPayload = Project(gargantuan);
         _test.Eq(
             DictInt(gargantuanPayload, "body_size"),
             BodySizeContentRules.ToBodySize(BodySizeCategoryKind.Gargantuan),
@@ -315,7 +330,7 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
 
         BattleUnitState boss = BuildMinimalUnit();
         _test.True(boss.SetBodySizeCategory(BodySizeContentRules.ToStringName(BodySizeCategoryKind.Boss)), "boss category 应可设置。");
-        GDictionary bossPayload = boss.ToDictionary();
+        GDictionary bossPayload = Project(boss);
         _test.Eq(DictInt(bossPayload, "body_size"), BodySizeContentRules.ToBodySize(BodySizeCategoryKind.Boss), "boss 应映射到 typed body-size int。");
         _test.Eq(DictVector2I(bossPayload, "footprint_size"), new Vector2I(5, 5), "boss footprint 应为 5x5。");
         _test.True(BattleUnitState.FromDictionary(bossPayload) != null, "boss payload 应可 round-trip。");
@@ -601,15 +616,17 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
     private void TestOwnerInternalStatusMapIgnoresMalformedRawKeys()
     {
         BattleUnitState unit = BuildMinimalUnit();
-        GDictionary projectedStatusEffects =
-            unit.ToDictionary()["status_effects"].AsGodotDictionary();
-        projectedStatusEffects[3] = new BattleStatusEffectState
-        {
-            status_id = "burning",
-            source_unit_id = "malformed",
-            power = 1,
-            stacks = 1,
-        }.ToDictionary();
+        using GDictionary projectedStatusEffects =
+            Project(unit)["status_effects"].AsGodotDictionary();
+        projectedStatusEffects[3] = Project(
+            new BattleStatusEffectState
+            {
+                status_id = "burning",
+                source_unit_id = "malformed",
+                power = 1,
+                stacks = 1,
+            }
+        );
 
         _test.True(
             unit.GetStatusEffect("burning") == null,
@@ -744,7 +761,33 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
         return unit;
     }
 
-    private static GDictionary Payload() => BuildUnit().ToDictionary();
+    private GDictionary Payload() => Project(BuildUnit());
+
+    private GDictionary Project(BattleUnitState unit)
+    {
+        if (unit == null)
+            return null;
+        GodotProjectionLease<GDictionary> lease = unit.ToDictionaryLease(
+            LifetimeDomain.Request,
+            "battle-unit-state-schema-regression"
+        );
+        _payloadLeases.Add(lease);
+        return lease.Value;
+    }
+
+    private GDictionary Project(BattleStatusEffectState effect)
+    {
+        GodotProjectionLease<GDictionary> lease = effect.ToDictionaryLease();
+        _payloadLeases.Add(lease);
+        return lease.Value;
+    }
+
+    private void DisposePayloadLeases()
+    {
+        for (int index = _payloadLeases.Count - 1; index >= 0; index--)
+            _payloadLeases[index].Dispose();
+        _payloadLeases.Clear();
+    }
 
     private static GDictionary EffectiveTraitPayload(
         StringName traitId,
@@ -805,6 +848,22 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
     private static GDictionary DictDictionary(GDictionary data, string key)
     {
         return data[key].AsGodotDictionary();
+    }
+
+    private static bool HasKeyWithType(
+        GDictionary dictionary,
+        string expectedText,
+        Variant.Type expectedType
+    )
+    {
+        if (dictionary == null)
+            return false;
+        foreach (Variant key in dictionary.Keys)
+        {
+            if (key.VariantType == expectedType && key.AsString() == expectedText)
+                return true;
+        }
+        return false;
     }
 
     private static GArray DictArray(GDictionary data, string key)

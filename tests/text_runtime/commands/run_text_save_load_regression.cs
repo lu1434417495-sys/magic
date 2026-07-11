@@ -194,7 +194,8 @@ public partial class run_text_save_load_regression : LifecycleTestSceneTree
         _test.True(gameSession != null, $"{message} | GameSession 应可访问。");
         if (gameSession == null)
             return;
-        GDictionary worldData = gameSession.GetWorldData();
+        using GodotProjectionLease<GDictionary> worldDataLease = gameSession.GetWorldDataLease();
+        GDictionary worldData = worldDataLease.Value;
         _test.True(worldData.ContainsKey("mounted_submaps"), $"{message} | mounted_submaps 应为 Dictionary。");
         GDictionary submaps = Dict(worldData, "mounted_submaps");
         GDictionary submap = Dict(submaps, submapId);

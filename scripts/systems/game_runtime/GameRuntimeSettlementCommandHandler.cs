@@ -69,11 +69,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         private readonly Dictionary<string, object> _serviceEntry = new(StringComparer.Ordinal);
         public bool Ok { get; }
         public string Message { get; }
-        internal GDictionary ServiceEntry =>
-            RuntimePlainPayload.ProjectDictionary(
-                _serviceEntry,
-                "GameRuntimeSettlementCommandHandler.SettlementActionValidationResult.serviceEntry"
-            );
+        internal IReadOnlyDictionary<string, object> ServiceEntryPlain =>
+            RuntimePlainPayload.CloneDictionary(_serviceEntry);
 
         private SettlementActionValidationResult(
             bool ok,
@@ -140,11 +137,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     private sealed class SettlementServiceEntryResolution
     {
         private readonly Dictionary<string, object> _serviceEntry = new(StringComparer.Ordinal);
-        internal GDictionary ServiceEntry =>
-            RuntimePlainPayload.ProjectDictionary(
-                _serviceEntry,
-                "GameRuntimeSettlementCommandHandler.SettlementServiceEntryResolution.serviceEntry"
-            );
+        internal IReadOnlyDictionary<string, object> ServiceEntryPlain =>
+            RuntimePlainPayload.CloneDictionary(_serviceEntry);
         public bool IsEnabled { get; }
         public string DisabledReason { get; }
         public bool Found => _serviceEntry.Count != 0;
@@ -250,26 +244,14 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         public bool SettlementEntryActive { get; }
         public Vector2I SettlementEntrySourceCoord { get; }
         public Vector2I SettlementEntryTargetCoord { get; }
-        internal GDictionary ActiveShopContext =>
-            RuntimePlainPayload.ProjectDictionary(
-                _activeShopContext,
-                "GameRuntimeSettlementCommandHandler.RollbackSnapshot.activeShopContext"
-            );
-        internal GDictionary ActiveContractBoardContext =>
-            RuntimePlainPayload.ProjectDictionary(
-                _activeContractBoardContext,
-                "GameRuntimeSettlementCommandHandler.RollbackSnapshot.activeContractBoardContext"
-            );
-        internal GDictionary ActiveForgeContext =>
-            RuntimePlainPayload.ProjectDictionary(
-                _activeForgeContext,
-                "GameRuntimeSettlementCommandHandler.RollbackSnapshot.activeForgeContext"
-            );
-        internal GDictionary ActiveStagecoachContext =>
-            RuntimePlainPayload.ProjectDictionary(
-                _activeStagecoachContext,
-                "GameRuntimeSettlementCommandHandler.RollbackSnapshot.activeStagecoachContext"
-            );
+        internal IReadOnlyDictionary<string, object> ActiveShopContextPlain =>
+            RuntimePlainPayload.CloneDictionary(_activeShopContext);
+        internal IReadOnlyDictionary<string, object> ActiveContractBoardContextPlain =>
+            RuntimePlainPayload.CloneDictionary(_activeContractBoardContext);
+        internal IReadOnlyDictionary<string, object> ActiveForgeContextPlain =>
+            RuntimePlainPayload.CloneDictionary(_activeForgeContext);
+        internal IReadOnlyDictionary<string, object> ActiveStagecoachContextPlain =>
+            RuntimePlainPayload.CloneDictionary(_activeStagecoachContext);
         internal NpcQuestOfferWindowData ActiveNpcQuestOfferContext => _activeNpcQuestOfferContext;
 
         internal SettlementCommandRollbackSnapshot(
@@ -281,10 +263,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             bool settlementEntryActive,
             Vector2I settlementEntrySourceCoord,
             Vector2I settlementEntryTargetCoord,
-            GDictionary activeShopContext,
-            GDictionary activeContractBoardContext,
-            GDictionary activeForgeContext,
-            GDictionary activeStagecoachContext,
+            IReadOnlyDictionary<string, object> activeShopContext,
+            IReadOnlyDictionary<string, object> activeContractBoardContext,
+            IReadOnlyDictionary<string, object> activeForgeContext,
+            IReadOnlyDictionary<string, object> activeStagecoachContext,
             NpcQuestOfferWindowData activeNpcQuestOfferContext
         )
         {
@@ -298,23 +280,19 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             SettlementEntryTargetCoord = settlementEntryTargetCoord;
             ReplacePlainPayload(
                 _activeShopContext,
-                activeShopContext,
-                "GameRuntimeSettlementCommandHandler.RollbackSnapshot.activeShopContext"
+                activeShopContext
             );
             ReplacePlainPayload(
                 _activeContractBoardContext,
-                activeContractBoardContext,
-                "GameRuntimeSettlementCommandHandler.RollbackSnapshot.activeContractBoardContext"
+                activeContractBoardContext
             );
             ReplacePlainPayload(
                 _activeForgeContext,
-                activeForgeContext,
-                "GameRuntimeSettlementCommandHandler.RollbackSnapshot.activeForgeContext"
+                activeForgeContext
             );
             ReplacePlainPayload(
                 _activeStagecoachContext,
-                activeStagecoachContext,
-                "GameRuntimeSettlementCommandHandler.RollbackSnapshot.activeStagecoachContext"
+                activeStagecoachContext
             );
             _activeNpcQuestOfferContext = activeNpcQuestOfferContext;
         }
@@ -333,6 +311,16 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             target[entry.Key] = entry.Value;
         }
+    }
+
+    private static void ReplacePlainPayload(
+        Dictionary<string, object> target,
+        IReadOnlyDictionary<string, object> payload
+    )
+    {
+        target.Clear();
+        foreach (KeyValuePair<string, object> entry in RuntimePlainPayload.CloneDictionary(payload))
+            target[entry.Key] = entry.Value;
     }
 
     internal void SetupRuntime(GameRuntimeFacade runtime)
@@ -372,7 +360,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         string settlementId = GetActiveSettlementId();
         if (settlementId == "")
             return 0;
-        GDictionary settlement = GetSettlementRecord(settlementId);
+        using GodotProjectionLease<GDictionary> settlementLease =
+            GetSettlementRecordLease(settlementId);
+        GDictionary settlement = settlementLease.Value;
         if (settlement == null)
             return 0;
         return ReadInt(settlement, "tier", 0);
@@ -387,12 +377,16 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         string targetId = !string.IsNullOrEmpty(settlement_id)
             ? settlement_id
             : ResolveCommandSettlementId();
-        GDictionary settlement = GetSettlementRecord(targetId);
+        using GodotProjectionLease<GDictionary> settlementLease =
+            GetSettlementRecordLease(targetId);
+        GDictionary settlement = settlementLease.Value;
         if (settlement.Count == 0)
         {
             return new GDictionary();
         }
-        GDictionary settlementState = _get_or_create_settlement_state(targetId);
+        using GodotProjectionLease<GDictionary> settlementStateLease =
+            _get_or_create_settlement_state(targetId);
+        GDictionary settlementState = settlementStateLease.Value;
         return new GDictionary
         {
             ["settlement_id"] = ReadString(settlement, "settlement_id"),
@@ -436,49 +430,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         };
     }
 
-    internal GDictionary GetShopWindowData()
-    {
-        GDictionary context = GetActiveShopContext();
-        if (context.Count == 0)
-        {
-            return new GDictionary();
-        }
-        var entries = new GDictArray();
-        foreach (GDictionary entryData in Dictionaries(ReadArray(context, "buy_entries")))
-        {
-            GDictionary entry = RuntimePayloadCopy.Dictionary(
-                entryData,
-                "GameRuntimeSettlementCommandHandler.GetShopWindowData.buy_entry"
-            );
-            if (!entry.ContainsKey("is_enabled"))
-            {
-                entry["is_enabled"] = false;
-            }
-            entries.Add(entry);
-        }
-        foreach (GDictionary entryData in Dictionaries(ReadArray(context, "sell_entries")))
-        {
-            GDictionary entry = RuntimePayloadCopy.Dictionary(
-                entryData,
-                "GameRuntimeSettlementCommandHandler.GetShopWindowData.sell_entry"
-            );
-            if (!entry.ContainsKey("is_enabled"))
-            {
-                entry["is_enabled"] = false;
-            }
-            entries.Add(entry);
-        }
-        context["entries"] = entries;
-        context["summary_text"] = $"持有金币：{ReadInt(context, "gold")}";
-        context["state_summary_text"] = ReadString(context, "feedback_text");
-        context["action_id"] = "shop:trade";
-        context["panel_kind"] = SettlementPanelKinds.ToPayloadValue(SettlementPanelKind.Shop);
-        context["show_member_selector"] = true;
-        context["party_state"] = GetPartyState()?.ToDictionary() ?? new GDictionary();
-        context["member_options"] = _build_member_options();
-        context["default_member_id"] = ResolveDefaultSettlementMemberId().ToString();
-        return context;
-    }
+    internal GodotProjectionLease<GDictionary> GetShopWindowDataLease() =>
+        ProjectWindowDataLease(GetShopWindowDataSnapshotPlain(), "shop");
 
     internal IReadOnlyDictionary<string, object> GetShopWindowDataSnapshotPlain()
     {
@@ -503,37 +456,14 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return context;
     }
 
-    internal GDictionary GetContractBoardWindowData()
-    {
-        GDictionary context = GetActiveContractBoardContext();
-        if (context.Count == 0)
-        {
-            return new GDictionary();
-        }
-        return RuntimePayloadCopy.Dictionary(
-            context,
-            "GameRuntimeSettlementCommandHandler.GetContractBoardWindowData"
-        );
-    }
+    internal GodotProjectionLease<GDictionary> GetContractBoardWindowDataLease() =>
+        ProjectWindowDataLease(GetContractBoardWindowDataSnapshotPlain(), "contract-board");
 
     internal IReadOnlyDictionary<string, object> GetContractBoardWindowDataSnapshotPlain()
     {
         Dictionary<string, object> context = CloneActiveContractBoardContextPlain();
         context.Remove("party_state");
         return context;
-    }
-
-    internal GDictionary GetNpcQuestOfferWindowData()
-    {
-        NpcQuestOfferWindowData data = GetActiveNpcQuestOfferContextTyped();
-        if (data == null)
-        {
-            return new GDictionary();
-        }
-        return RuntimePayloadCopy.Dictionary(
-            data.ToDictionary(),
-            "GameRuntimeSettlementCommandHandler.GetNpcQuestOfferWindowData"
-        );
     }
 
     internal IReadOnlyDictionary<string, object> GetNpcQuestOfferWindowDataSnapshotPlain()
@@ -547,18 +477,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return _has_runtime() ? Runtime.GetActiveNpcQuestOfferData() : null;
     }
 
-    internal GDictionary GetForgeWindowData()
-    {
-        GDictionary context = GetActiveForgeContext();
-        if (context.Count == 0)
-        {
-            return new GDictionary();
-        }
-        return RuntimePayloadCopy.Dictionary(
-            context,
-            "GameRuntimeSettlementCommandHandler.GetForgeWindowData"
-        );
-    }
+    internal GodotProjectionLease<GDictionary> GetForgeWindowDataLease() =>
+        ProjectWindowDataLease(GetForgeWindowDataSnapshotPlain(), "forge");
 
     internal IReadOnlyDictionary<string, object> GetForgeWindowDataSnapshotPlain()
     {
@@ -573,50 +493,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return context;
     }
 
-    internal GDictionary GetStagecoachWindowData()
-    {
-        GDictionary context = GetActiveStagecoachContext();
-        if (context.Count == 0)
-        {
-            return new GDictionary();
-        }
-        var entries = new GDictArray();
-        foreach (GDictionary entryData in Dictionaries(ReadArray(context, "destinations")))
-        {
-            GDictionary entry = RuntimePayloadCopy.Dictionary(
-                entryData,
-                "GameRuntimeSettlementCommandHandler.GetStagecoachWindowData.entry"
-            );
-            if (!entry.ContainsKey("is_enabled"))
-            {
-                entry["is_enabled"] = false;
-            }
-            entries.Add(entry);
-        }
-        context["entries"] = entries;
-        context["summary_text"] = $"持有金币：{ReadInt(context, "gold")}";
-        context["state_summary_text"] = ReadString(context, "feedback_text");
-        context["action_id"] = "stagecoach:travel";
-        context["panel_kind"] = SettlementPanelKinds.ToPayloadValue(SettlementPanelKind.Stagecoach);
-        context["meta"] =
-            $"驿站：{ReadString(context, "origin_name")}  |  金币：{ReadInt(context, "gold")}";
-        context["confirm_label"] = "确认出发";
-        context["cancel_label"] = "返回据点";
-        context["show_member_selector"] = true;
-        context["entry_title"] = "可选路线";
-        context["summary_title"] = "行程概况";
-        context["state_title"] = "行程状态";
-        context["cost_title"] = "行程费用";
-        context["details_title"] = "行程说明";
-        context["member_title"] = "出发成员";
-        context["empty_state_label"] = "状态：暂无路线";
-        context["empty_cost_label"] = "费用：暂无路线";
-        context["empty_details_text"] = "当前没有可用路线。";
-        context["party_state"] = GetPartyState()?.ToDictionary() ?? new GDictionary();
-        context["member_options"] = _build_member_options();
-        context["default_member_id"] = ResolveDefaultSettlementMemberId().ToString();
-        return context;
-    }
+    internal GodotProjectionLease<GDictionary> GetStagecoachWindowDataLease() =>
+        ProjectWindowDataLease(GetStagecoachWindowDataSnapshotPlain(), "stagecoach");
 
     internal IReadOnlyDictionary<string, object> GetStagecoachWindowDataSnapshotPlain()
     {
@@ -653,6 +531,17 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         context["default_member_id"] = ResolveDefaultSettlementMemberId().ToString();
         return context;
     }
+
+    private static GodotProjectionLease<GDictionary> ProjectWindowDataLease(
+        IReadOnlyDictionary<string, object> snapshot,
+        string windowId
+    ) =>
+        RuntimePlainPayload.ProjectDictionaryLease(
+            snapshot,
+            $"settlement-window-{windowId}",
+            LifetimeDomain.Request,
+            $"GameRuntimeSettlementCommandHandler.{windowId}"
+        );
 
     internal GameRuntimeFacade.RuntimeCommandResult CommandExecuteSettlementActionRuntimeTyped(
         string action_id,
@@ -712,7 +601,14 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                     : validation.Message
             );
         }
-        GDictionary serviceEntry = validation.ServiceEntry;
+        using GodotProjectionLease<GDictionary> serviceEntryLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                validation.ServiceEntryPlain,
+                "SettlementActionValidationResult.ServiceEntry",
+                LifetimeDomain.Request,
+                "SettlementActionValidationResult.ServiceEntry"
+            );
+        GDictionary serviceEntry = serviceEntryLease.Value;
         if (serviceEntry.Count == 0)
         {
             return RuntimeCommandError("当前据点未开放该服务。");
@@ -771,7 +667,14 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                     : validation.Message
             );
         }
-        GDictionary serviceEntry = validation.ServiceEntry;
+        using GodotProjectionLease<GDictionary> serviceEntryLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                validation.ServiceEntryPlain,
+                "SettlementActionValidationResult.ServiceEntry",
+                LifetimeDomain.Request,
+                "SettlementActionValidationResult.ServiceEntry"
+            );
+        GDictionary serviceEntry = serviceEntryLease.Value;
         if (serviceEntry.Count == 0)
         {
             return RuntimeCommandError("当前据点未开放该服务。");
@@ -801,17 +704,22 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             return RuntimeCommandError("当前没有打开据点商店。");
         }
-        GDictionary context = GetActiveShopContext();
+        using GodotProjectionLease<GDictionary> contextLease = GetActiveShopContextLease();
+        GDictionary context = contextLease.Value;
         if (context.Count == 0)
         {
             return RuntimeCommandError("当前商店上下文缺失。");
         }
         string settlementId = ReadString(context, "settlement_id");
         SettlementCommandRollbackSnapshot rollbackSnapshot = CaptureRollbackSnapshot();
-        GDictionary settlementState = _get_or_create_settlement_state(settlementId);
+        using GodotProjectionLease<GDictionary> settlementStateLease =
+            _get_or_create_settlement_state(settlementId);
+        GDictionary settlementState = settlementStateLease.Value;
+        using GodotProjectionLease<GDictionary> settlementLease =
+            GetSettlementRecordLease(settlementId);
         SettlementShopTradeResult result = _shop_service.BuyTyped(
             ReadString(context, "interaction_script_id"),
-            GetSettlementRecord(settlementId),
+            settlementLease.Value,
             settlementState,
             _GetItemDefsTyped(),
             GetPartyWarehouseService(),
@@ -852,17 +760,22 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             return RuntimeCommandError("当前没有打开据点商店。");
         }
-        GDictionary context = GetActiveShopContext();
+        using GodotProjectionLease<GDictionary> contextLease = GetActiveShopContextLease();
+        GDictionary context = contextLease.Value;
         if (context.Count == 0)
         {
             return RuntimeCommandError("当前商店上下文缺失。");
         }
         string settlementId = ReadString(context, "settlement_id");
         SettlementCommandRollbackSnapshot rollbackSnapshot = CaptureRollbackSnapshot();
-        GDictionary settlementState = _get_or_create_settlement_state(settlementId);
+        using GodotProjectionLease<GDictionary> settlementStateLease =
+            _get_or_create_settlement_state(settlementId);
+        GDictionary settlementState = settlementStateLease.Value;
+        using GodotProjectionLease<GDictionary> settlementLease =
+            GetSettlementRecordLease(settlementId);
         SettlementShopTradeResult result = _shop_service.SellTyped(
             ReadString(context, "interaction_script_id"),
-            GetSettlementRecord(settlementId),
+            settlementLease.Value,
             settlementState,
             _GetItemDefsTyped(),
             GetPartyWarehouseService(),
@@ -901,7 +814,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             return RuntimeCommandError("当前没有打开驿站路线窗口。");
         }
-        GDictionary context = GetActiveStagecoachContext();
+        using GodotProjectionLease<GDictionary> contextLease =
+            GetActiveStagecoachContextLease();
+        GDictionary context = contextLease.Value;
         if (context.Count == 0)
         {
             return RuntimeCommandError("当前没有可用的驿站路线。");
@@ -934,7 +849,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             return RuntimeCommandError("金币不足，无法启程。");
         }
         string destinationId = destination.SettlementId;
-        GDictionary destinationRecord = GetSettlementRecord(destinationId);
+        using GodotProjectionLease<GDictionary> destinationRecordLease =
+            GetSettlementRecordLease(destinationId);
+        GDictionary destinationRecord = destinationRecordLease.Value;
         if (destinationRecord.Count == 0)
         {
             return RuntimeCommandError("未找到目标据点。");
@@ -997,7 +914,14 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         }
         string settlementId = request.SettlementId.ToString();
         string actionId = request.ActionId.ToString();
-        GDictionary serviceEntry = validation.ServiceEntry;
+        using GodotProjectionLease<GDictionary> serviceEntryLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                validation.ServiceEntryPlain,
+                "SettlementActionValidationResult.ServiceEntry",
+                LifetimeDomain.Request,
+                "SettlementActionValidationResult.ServiceEntry"
+            );
+        GDictionary serviceEntry = serviceEntryLease.Value;
         if (serviceEntry.Count == 0)
         {
             string serviceErrorMessage = "当前据点未开放该服务。";
@@ -1199,7 +1123,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     internal void OnForgeWindowClosed()
     {
-        GDictionary context = GetActiveForgeContext();
+        using GodotProjectionLease<GDictionary> contextLease = GetActiveForgeContextLease();
+        GDictionary context = contextLease.Value;
         string forgeLabel = _resolve_forge_service_label(context);
         ClearActiveForgeContext();
         SetActiveModalKind(RuntimeModalKind.Settlement);
@@ -1224,8 +1149,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             return activeSettlementId;
         }
-        GDictionary settlement = GetSelectedSettlement();
-        return ReadString(settlement, "settlement_id");
+        WorldMapSettlementData settlement = GetSelectedSettlementData();
+        return settlement?.SettlementId ?? "";
     }
 
     private GDictionary BuildSettlementActionPayloadFromRequest(
@@ -1417,7 +1342,14 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             settlement_id,
             action_id
         );
-        GDictionary serviceEntry = serviceResolution.ServiceEntry;
+        using GodotProjectionLease<GDictionary> serviceEntryLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                serviceResolution.ServiceEntryPlain,
+                "SettlementServiceEntryResolution.ServiceEntry",
+                LifetimeDomain.Request,
+                "SettlementServiceEntryResolution.ServiceEntry"
+            );
+        GDictionary serviceEntry = serviceEntryLease.Value;
         if (serviceEntry.Count == 0)
         {
             return SettlementActionValidationResult.Failure(
@@ -1480,7 +1412,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             {
                 return SettlementActionValidationResult.Failure("当前没有打开对应的任务板。");
             }
-            GDictionary contractBoardContext = GetActiveContractBoardContext();
+            using GodotProjectionLease<GDictionary> contractBoardContextLease =
+                GetActiveContractBoardContextLease();
+            GDictionary contractBoardContext = contractBoardContextLease.Value;
             if (ReadString(contractBoardContext, "settlement_id").Trim() != settlement_id)
             {
                 return SettlementActionValidationResult.Failure("当前任务板与请求的据点不一致。");
@@ -1497,7 +1431,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             {
                 return SettlementActionValidationResult.Failure("当前没有打开对应的锻造界面。");
             }
-            GDictionary forgeContext = GetActiveForgeContext();
+            using GodotProjectionLease<GDictionary> forgeContextLease =
+                GetActiveForgeContextLease();
+            GDictionary forgeContext = forgeContextLease.Value;
             if (ReadString(forgeContext, "settlement_id").Trim() != settlement_id)
             {
                 return SettlementActionValidationResult.Failure("当前锻造界面与请求的据点不一致。");
@@ -1537,7 +1473,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         string settlement_id
     )
     {
-        GDictionary settlement = GetSettlementRecord(settlement_id);
+        using GodotProjectionLease<GDictionary> settlementLease =
+            GetSettlementRecordLease(settlement_id);
+        GDictionary settlement = settlementLease.Value;
         if (settlement.Count == 0)
         {
             return SettlementActionValidationResult.Failure("未找到据点数据。");
@@ -1561,12 +1499,16 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         string action_id
     )
     {
-        GDictionary settlement = GetSettlementRecord(settlement_id);
+        using GodotProjectionLease<GDictionary> settlementLease =
+            GetSettlementRecordLease(settlement_id);
+        GDictionary settlement = settlementLease.Value;
         if (settlement.Count == 0)
         {
             return SettlementServiceEntryResolution.Missing();
         }
-        GDictionary settlementState = _get_or_create_settlement_state(settlement_id);
+        using GodotProjectionLease<GDictionary> settlementStateLease =
+            _get_or_create_settlement_state(settlement_id);
+        GDictionary settlementState = settlementStateLease.Value;
         GArray serviceOptions = ReadArray(settlement, "available_services");
         if (serviceOptions.Count == 0)
         {
@@ -1574,10 +1516,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         }
         foreach (GDictionary sourceServiceData in Dictionaries(serviceOptions))
         {
-            GDictionary serviceData = RuntimePayloadCopy.Dictionary(
-                sourceServiceData,
-                "GameRuntimeSettlementCommandHandler.ResolveSettlementServiceEntry"
-            );
+            GDictionary serviceData = sourceServiceData;
             if (ReadString(serviceData, "action_id").Trim() != action_id)
             {
                 continue;
@@ -1607,7 +1546,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     private string _build_unknown_settlement_action_message(string settlement_id, string action_id)
     {
-        GDictionary settlement = GetSettlementRecord(settlement_id);
+        using GodotProjectionLease<GDictionary> settlementLease =
+            GetSettlementRecordLease(settlement_id);
+        GDictionary settlement = settlementLease.Value;
         string settlementLabel = ReadString(settlement, "display_name", settlement_id).Trim();
         if (string.IsNullOrEmpty(settlementLabel))
         {
@@ -1669,7 +1610,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         GDictionary payload
     )
     {
-        GDictionary settlement = GetSettlementRecord(settlement_id);
+        using GodotProjectionLease<GDictionary> settlementLease =
+            GetSettlementRecordLease(settlement_id);
+        GDictionary settlement = settlementLease.Value;
         if (settlement.Count == 0)
         {
             return BuildSettlementServiceResultTyped(false, "未找到据点数据。");
@@ -1806,10 +1749,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                     ["facility_name"] = facility_name,
                     ["interaction_script_id"] = ReadString(payload, "interaction_script_id"),
                     ["npc_name"] = npc_name,
-                    ["payload"] = RuntimePayloadCopy.Dictionary(
-                        payload,
-                        "GameRuntimeSettlementCommandHandler.LowLuckEvent.payload"
-                    ),
+                    ["payload"] = payload,
                     ["service_type"] = service_type,
                 }
             );
@@ -2128,10 +2068,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             )
         )
         {
-            GDictionary serviceData = RuntimePayloadCopy.Dictionary(
-                sourceService,
-                "GameRuntimeSettlementCommandHandler.BuildServiceEntries"
-            );
+            GDictionary serviceData = sourceService;
             SettlementServiceMetadata metadata = BuildServiceMetadataTyped(
                 settlement,
                 serviceData,
@@ -2568,7 +2505,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     private GDictionary _build_contract_board_window_data(string settlement_id, GDictionary payload)
     {
-        GDictionary settlement = GetSettlementRecord(settlement_id);
+        using GodotProjectionLease<GDictionary> settlementLease =
+            GetSettlementRecordLease(settlement_id);
+        GDictionary settlement = settlementLease.Value;
         string providerInteractionId = ReadString(payload, "interaction_script_id").Trim();
         GDictArray entries = _build_contract_board_entries(providerInteractionId);
         string summaryText = ReadString(payload, "feedback_text").Trim();
@@ -3090,11 +3029,15 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     private void _open_shop_modal(string settlement_id, GDictionary payload)
     {
-        GDictionary settlementState = _get_or_create_settlement_state(settlement_id);
+        using GodotProjectionLease<GDictionary> settlementStateLease =
+            _get_or_create_settlement_state(settlement_id);
+        GDictionary settlementState = settlementStateLease.Value;
         settlementState["world_step"] = GetWorldStep();
+        using GodotProjectionLease<GDictionary> settlementLease =
+            GetSettlementRecordLease(settlement_id);
         GDictionary windowData = _shop_service.BuildWindowDataTyped(
             ReadString(payload, "interaction_script_id"),
-            GetSettlementRecord(settlement_id),
+            settlementLease.Value,
             settlementState,
             _GetItemDefsTyped(),
             GetPartyWarehouseService(),
@@ -3113,9 +3056,11 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     private void _open_forge_modal(string settlement_id, GDictionary payload)
     {
+        using GodotProjectionLease<GDictionary> settlementLease =
+            GetSettlementRecordLease(settlement_id);
         GDictionary windowData = _forge_service.BuildWindowDataTyped(
             ReadString(payload, "interaction_script_id"),
-            GetSettlementRecord(settlement_id),
+            settlementLease.Value,
             payload,
             _GetItemDefsTyped(),
             GetRecipeDefsTyped(),
@@ -3123,10 +3068,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         );
         windowData["settlement_id"] = settlement_id;
         windowData["interaction_script_id"] = ReadString(payload, "interaction_script_id");
-        windowData["service_payload"] = RuntimePayloadCopy.Dictionary(
-            payload,
-            "GameRuntimeSettlementCommandHandler.OpenForgeModal.service_payload"
-        );
+        windowData["service_payload"] = payload;
         windowData["member_options"] = _build_member_options();
         StringName selectedMemberId = ReadStringName(payload, "member_id");
         if (selectedMemberId == "")
@@ -3144,7 +3086,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     private void _open_stagecoach_modal(string settlement_id, GDictionary payload)
     {
-        GDictionary settlement = GetSettlementRecord(settlement_id);
+        using GodotProjectionLease<GDictionary> settlementLease =
+            GetSettlementRecordLease(settlement_id);
+        GDictionary settlement = settlementLease.Value;
         SetActiveStagecoachContext(
             new GDictionary
             {
@@ -3166,17 +3110,22 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     private void _refresh_active_shop_context()
     {
-        GDictionary context = GetActiveShopContext();
+        using GodotProjectionLease<GDictionary> contextLease = GetActiveShopContextLease();
+        GDictionary context = contextLease.Value;
         if (context.Count == 0)
         {
             return;
         }
         string settlementId = ReadString(context, "settlement_id");
-        GDictionary settlementState = _get_or_create_settlement_state(settlementId);
+        using GodotProjectionLease<GDictionary> settlementStateLease =
+            _get_or_create_settlement_state(settlementId);
+        GDictionary settlementState = settlementStateLease.Value;
         settlementState["world_step"] = GetWorldStep();
+        using GodotProjectionLease<GDictionary> settlementLease =
+            GetSettlementRecordLease(settlementId);
         GDictionary nextContext = _shop_service.BuildWindowDataTyped(
             ReadString(context, "interaction_script_id"),
-            GetSettlementRecord(settlementId),
+            settlementLease.Value,
             settlementState,
             _GetItemDefsTyped(),
             GetPartyWarehouseService(),
@@ -3191,16 +3140,15 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     private void _refresh_active_contract_board_context(string feedback_text = "")
     {
-        GDictionary context = GetActiveContractBoardContext();
+        using GodotProjectionLease<GDictionary> contextLease =
+            GetActiveContractBoardContextLease();
+        GDictionary context = contextLease.Value;
         if (context.Count == 0)
         {
             return;
         }
         string settlementId = ReadString(context, "settlement_id");
-        GDictionary nextPayload = RuntimePayloadCopy.Dictionary(
-            context,
-            "GameRuntimeSettlementCommandHandler.RefreshContractBoard"
-        );
+        GDictionary nextPayload = context;
         if (!string.IsNullOrEmpty(feedback_text))
         {
             nextPayload["feedback_text"] = feedback_text;
@@ -3211,7 +3159,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     private void _set_contract_board_confirmation_context(StringName quest_id, string confirmation_text)
     {
-        GDictionary context = GetActiveContractBoardContext();
+        using GodotProjectionLease<GDictionary> contextLease =
+            GetActiveContractBoardContextLease();
+        GDictionary context = contextLease.Value;
         context["pending_confirmation_quest_id"] = quest_id.ToString();
         context["pending_confirmation_text"] = confirmation_text;
         context["pending_confirmation_source"] = "contract_board";
@@ -3220,7 +3170,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     private void _clear_contract_board_confirmation_context()
     {
-        GDictionary context = GetActiveContractBoardContext();
+        using GodotProjectionLease<GDictionary> contextLease =
+            GetActiveContractBoardContextLease();
+        GDictionary context = contextLease.Value;
         context.Remove("pending_confirmation_quest_id");
         context.Remove("pending_confirmation_text");
         context.Remove("pending_confirmation_source");
@@ -3229,24 +3181,24 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     private void _refresh_active_forge_context(string feedback_text = "")
     {
-        GDictionary context = GetActiveForgeContext();
+        using GodotProjectionLease<GDictionary> contextLease = GetActiveForgeContextLease();
+        GDictionary context = contextLease.Value;
         if (context.Count == 0)
         {
             return;
         }
         string settlementId = ReadString(context, "settlement_id");
-        GDictionary servicePayload = RuntimePayloadCopy.Dictionary(
-            ReadDictionary(context, "service_payload"),
-            "GameRuntimeSettlementCommandHandler.RefreshForge.service_payload"
-        );
+        GDictionary servicePayload = ReadDictionary(context, "service_payload");
         string interactionScriptId = ReadString(context, "interaction_script_id");
         if (string.IsNullOrEmpty(interactionScriptId))
         {
             interactionScriptId = ReadString(servicePayload, "interaction_script_id");
         }
+        using GodotProjectionLease<GDictionary> settlementLease =
+            GetSettlementRecordLease(settlementId);
         GDictionary nextContext = _forge_service.BuildWindowDataTyped(
             interactionScriptId,
-            GetSettlementRecord(settlementId),
+            settlementLease.Value,
             servicePayload,
             _GetItemDefsTyped(),
             GetRecipeDefsTyped(),
@@ -3327,7 +3279,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         var entries = new List<StagecoachDestinationData>();
         string originSettlementId = ReadString(origin_settlement, "settlement_id");
         Vector2I originCoord = ReadVector2I(origin_settlement, "origin");
-        foreach (GDictionary settlement in Dictionaries(GetAllSettlementRecords()))
+        using GodotProjectionLease<GArray> settlementsLease = GetAllSettlementRecordsLease();
+        foreach (GDictionary settlement in Dictionaries(settlementsLease.Value))
         {
             string settlementId = ReadString(settlement, "settlement_id");
             if (string.IsNullOrEmpty(settlementId) || settlementId == originSettlementId)
@@ -3388,7 +3341,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             return null;
         }
-        GDictionary originSettlement = GetSettlementRecord(originSettlementId);
+        using GodotProjectionLease<GDictionary> originSettlementLease =
+            GetSettlementRecordLease(originSettlementId);
+        GDictionary originSettlement = originSettlementLease.Value;
         if (originSettlement.Count == 0)
         {
             return null;
@@ -3486,24 +3441,49 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     private bool IsSettlementVisited(string settlementId) =>
         Runtime?.IsSettlementVisited(settlementId) ?? false;
 
-    private GDictionary _get_or_create_settlement_state(string settlement_id)
+    private GodotProjectionLease<GDictionary> _get_or_create_settlement_state(
+        string settlement_id
+    )
     {
-        GDictionary settlementState = GetSettlementState(settlement_id);
-        if (settlementState.Count == 0)
+        GodotProjectionLease<GDictionary> settlementStateLease =
+            GetSettlementStateLease(settlement_id);
+        if (settlementStateLease.Value.Count > 0)
+            return settlementStateLease;
+
+        settlementStateLease.Dispose();
+        var settlementStatePlain = new System.Collections.Generic.Dictionary<string, object>(
+            StringComparer.Ordinal
+        )
         {
-            settlementState = new GDictionary
-            {
-                ["visited"] = false,
-                ["reputation"] = 0,
-                ["active_conditions"] = new GArray(),
-                ["cooldowns"] = new GDictionary(),
-                ["shop_inventory_seed"] = TrueRandomSeedService.GenerateSeed(),
-                ["shop_last_refresh_step"] = 0,
-                ["shop_states"] = new GDictionary(),
-            };
-            SetActiveSettlementState(settlement_id, settlementState);
+            ["visited"] = false,
+            ["reputation"] = 0,
+            ["active_conditions"] = new List<object>(),
+            ["cooldowns"] = new System.Collections.Generic.Dictionary<string, object>(
+                StringComparer.Ordinal
+            ),
+            ["shop_inventory_seed"] = TrueRandomSeedService.GenerateSeed(),
+            ["shop_last_refresh_step"] = 0,
+            ["shop_states"] = new System.Collections.Generic.Dictionary<string, object>(
+                StringComparer.Ordinal
+            ),
+        };
+        GodotProjectionLease<GDictionary> createdLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                settlementStatePlain,
+                $"GameRuntimeSettlementCommandHandler.settlement_state.{settlement_id}",
+                LifetimeDomain.Request,
+                $"GameRuntimeSettlementCommandHandler.settlement_state.{settlement_id}"
+            );
+        try
+        {
+            SetActiveSettlementState(settlement_id, createdLease.Value);
+            return createdLease;
         }
-        return settlementState;
+        catch
+        {
+            createdLease.Dispose();
+            throw;
+        }
     }
 
     private SettlementPersistResult FinalizeSuccessfulActionTyped(
@@ -3596,10 +3576,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         int worldStep = GetWorldStep();
         foreach (GDictionary sourceEventData in Dictionaries(ReadArray(payload, "quest_progress_events")))
         {
-            var eventData = RuntimePayloadCopy.Dictionary(
-                sourceEventData,
-                "GameRuntimeSettlementCommandHandler.ExtractQuestProgressEvents"
-            );
+            GDictionary eventData = sourceEventData;
             if (!eventData.ContainsKey("world_step"))
             {
                 eventData["world_step"] = worldStep;
@@ -3661,10 +3638,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             Runtime._settlement_entry_active,
             Runtime._settlement_entry_source_coord,
             Runtime._settlement_entry_target_coord,
-            GetActiveShopContext(),
-            GetActiveContractBoardContext(),
-            GetActiveForgeContext(),
-            GetActiveStagecoachContext(),
+            Runtime.GetActiveShopContextPlain(),
+            Runtime.GetActiveContractBoardContextPlain(),
+            Runtime.GetActiveForgeContextPlain(),
+            Runtime.GetActiveStagecoachContextPlain(),
             GetActiveNpcQuestOfferContextTyped()
         );
     }
@@ -3677,10 +3654,38 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         SetSelectedCoord(snapshot.SelectedCoord);
         SetActiveSettlementId(snapshot.ActiveSettlementId);
         SetSettlementFeedbackText(snapshot.SettlementFeedbackText);
-        SetActiveShopContext(snapshot.ActiveShopContext);
-        SetActiveContractBoardContext(snapshot.ActiveContractBoardContext);
-        SetActiveForgeContext(snapshot.ActiveForgeContext);
-        SetActiveStagecoachContext(snapshot.ActiveStagecoachContext);
+        using GodotProjectionLease<GDictionary> shopContextLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                snapshot.ActiveShopContextPlain,
+                "SettlementRollback.activeShopContext",
+                LifetimeDomain.Request,
+                "SettlementRollback.activeShopContext"
+            );
+        using GodotProjectionLease<GDictionary> contractBoardContextLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                snapshot.ActiveContractBoardContextPlain,
+                "SettlementRollback.activeContractBoardContext",
+                LifetimeDomain.Request,
+                "SettlementRollback.activeContractBoardContext"
+            );
+        using GodotProjectionLease<GDictionary> forgeContextLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                snapshot.ActiveForgeContextPlain,
+                "SettlementRollback.activeForgeContext",
+                LifetimeDomain.Request,
+                "SettlementRollback.activeForgeContext"
+            );
+        using GodotProjectionLease<GDictionary> stagecoachContextLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                snapshot.ActiveStagecoachContextPlain,
+                "SettlementRollback.activeStagecoachContext",
+                LifetimeDomain.Request,
+                "SettlementRollback.activeStagecoachContext"
+            );
+        SetActiveShopContext(shopContextLease.Value);
+        SetActiveContractBoardContext(contractBoardContextLease.Value);
+        SetActiveForgeContext(forgeContextLease.Value);
+        SetActiveStagecoachContext(stagecoachContextLease.Value);
         if (snapshot.ActiveNpcQuestOfferContext != null)
             SetActiveNpcQuestOfferContext(snapshot.ActiveNpcQuestOfferContext);
         if (snapshot.SettlementEntryActive)
@@ -3922,10 +3927,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return Runtime?.GetSettlementFeedbackText() ?? "";
     }
 
-    internal GDictionary GetSelectedSettlement()
-    {
-        return _has_runtime() ? Runtime.GetSelectedSettlement() : new GDictionary();
-    }
+    internal WorldMapSettlementData GetSelectedSettlementData() =>
+        _has_runtime() ? Runtime.GetSelectedSettlementData() : WorldMapSettlementData.Empty;
 
     internal PartyState GetPartyState()
     {
@@ -3937,20 +3940,33 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return GetPartyState()?.GetGold() ?? 0;
     }
 
-    internal GDictionary GetSettlementRecord(string settlement_id)
-    {
-        return _has_runtime() ? Runtime.GetSettlementRecord(settlement_id) : new GDictionary();
-    }
+    internal GodotProjectionLease<GDictionary> GetSettlementRecordLease(string settlement_id) =>
+        _has_runtime()
+            ? Runtime.GetSettlementRecordLease(settlement_id)
+            : EmptyDictionaryLease("settlement_record");
 
-    internal GArray GetAllSettlementRecords()
-    {
-        return _has_runtime() ? Runtime.GetAllSettlementRecords() : new GArray();
-    }
+    internal GodotProjectionLease<GArray> GetAllSettlementRecordsLease() =>
+        _has_runtime()
+            ? Runtime.GetAllSettlementRecordsLease()
+            : RuntimePlainPayload.ProjectArrayLease(
+                Array.Empty<object>(),
+                "GameRuntimeSettlementCommandHandler.empty_settlements",
+                LifetimeDomain.Request,
+                "GameRuntimeSettlementCommandHandler.empty_settlements"
+            );
 
-    internal GDictionary GetSettlementState(string settlement_id)
-    {
-        return _has_runtime() ? Runtime.GetSettlementState(settlement_id) : new GDictionary();
-    }
+    internal GodotProjectionLease<GDictionary> GetSettlementStateLease(string settlement_id) =>
+        _has_runtime()
+            ? Runtime.GetSettlementStateLease(settlement_id)
+            : EmptyDictionaryLease("settlement_state");
+
+    private static GodotProjectionLease<GDictionary> EmptyDictionaryLease(string reason) =>
+        RuntimePlainPayload.ProjectDictionaryLease(
+            new System.Collections.Generic.Dictionary<string, object>(StringComparer.Ordinal),
+            $"GameRuntimeSettlementCommandHandler.empty.{reason}",
+            LifetimeDomain.Request,
+            $"GameRuntimeSettlementCommandHandler.empty.{reason}"
+        );
 
     internal bool SetActiveSettlementState(string settlement_id, GDictionary settlement_state)
     {
@@ -4050,7 +4066,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             return CommandError("运行时尚未初始化。");
         }
-        GDictionary contractBoardContext = GetActiveContractBoardContext();
+        using GodotProjectionLease<GDictionary> contractBoardContextLease =
+            GetActiveContractBoardContextLease();
+        GDictionary contractBoardContext = contractBoardContextLease.Value;
         if (ReadString(contractBoardContext, "action_id").Trim() != action_id)
         {
             string actionMismatchMessage = "当前任务板与请求的服务入口不一致。";
@@ -4115,7 +4133,13 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         }
 
         bool isConfirmationSubmission = ReadBool(payload, "confirm_accept", false);
-        bool hasPendingConfirmation = ReadStringName(GetActiveContractBoardContext(), "pending_confirmation_quest_id") == questId;
+        using GodotProjectionLease<GDictionary> activeContractBoardLease =
+            GetActiveContractBoardContextLease();
+        bool hasPendingConfirmation =
+            ReadStringName(
+                activeContractBoardLease.Value,
+                "pending_confirmation_quest_id"
+            ) == questId;
 
         if (!string.IsNullOrEmpty(questData.AcceptConfirmationText))
         {
@@ -4847,24 +4871,25 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         }
     }
 
-    internal GDictionary GetActiveShopContext()
+    internal GodotProjectionLease<GDictionary> GetActiveShopContextLease()
     {
-        return _has_runtime() ? Runtime.GetActiveShopContext() : new GDictionary();
+        return _has_runtime()
+            ? Runtime.GetActiveShopContextLease()
+            : EmptyContextLease("shop");
     }
 
-    internal GDictionary GetActiveContractBoardContext()
+    internal GodotProjectionLease<GDictionary> GetActiveContractBoardContextLease()
     {
-        return _has_runtime() ? Runtime.GetActiveContractBoardContext() : new GDictionary();
+        return _has_runtime()
+            ? Runtime.GetActiveContractBoardContextLease()
+            : EmptyContextLease("contract_board");
     }
 
-    internal GDictionary GetActiveNpcQuestOfferContext()
+    internal GodotProjectionLease<GDictionary> GetActiveForgeContextLease()
     {
-        return _has_runtime() ? Runtime.GetActiveNpcQuestOfferContext() : new GDictionary();
-    }
-
-    internal GDictionary GetActiveForgeContext()
-    {
-        return _has_runtime() ? Runtime.GetActiveForgeContext() : new GDictionary();
+        return _has_runtime()
+            ? Runtime.GetActiveForgeContextLease()
+            : EmptyContextLease("forge");
     }
 
     internal void SetActiveStagecoachContext(GDictionary context)
@@ -4883,10 +4908,20 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         }
     }
 
-    internal GDictionary GetActiveStagecoachContext()
+    internal GodotProjectionLease<GDictionary> GetActiveStagecoachContextLease()
     {
-        return _has_runtime() ? Runtime.GetActiveStagecoachContext() : new GDictionary();
+        return _has_runtime()
+            ? Runtime.GetActiveStagecoachContextLease()
+            : EmptyContextLease("stagecoach");
     }
+
+    private static GodotProjectionLease<GDictionary> EmptyContextLease(string label) =>
+        RuntimePlainPayload.ProjectDictionaryLease(
+            new Dictionary<string, object>(StringComparer.Ordinal),
+            $"GameRuntimeSettlementCommandHandler.{label}",
+            LifetimeDomain.Request,
+            $"GameRuntimeSettlementCommandHandler.{label}"
+        );
 
     private static IEnumerable<GDictionary> Dictionaries(GArray values)
     {

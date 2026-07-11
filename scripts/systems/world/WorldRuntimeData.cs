@@ -170,8 +170,14 @@ internal sealed class WorldRuntimeData
         }
         if (HasFogStates)
         {
-            result["fog_states"] =
-                RuntimePlainPayload.ProjectDictionary(_fogStates, "WorldRuntimeData.fog_states");
+            using GodotProjectionLease<GDictionary> fogLease =
+                RuntimePlainPayload.ProjectDictionaryLease(
+                    _fogStates,
+                    "WorldRuntimeData.fog_states",
+                    LifetimeDomain.Request,
+                    "WorldRuntimeData.fog_states"
+                );
+            result["fog_states"] = fogLease.Value;
         }
         return result;
     }
@@ -338,7 +344,9 @@ internal sealed class WorldRuntimeData
             {
                 continue;
             }
-            GDictionary payload = worldEvent.DuplicateSourcePayload();
+            using GodotProjectionLease<GDictionary> payloadLease =
+                worldEvent.DuplicateSourcePayloadLease();
+            GDictionary payload = payloadLease.Value;
             payload["is_discovered"] = true;
             WorldMapEventData updated = WorldMapEventData.FromDictionary(payload);
             if (updated == null)
@@ -401,8 +409,16 @@ internal sealed class WorldRuntimeData
             {
                 continue;
             }
-            GDictionary payload = settlement.DuplicateSourcePayload();
-            payload["settlement_state"] = state.ToDictionary();
+            Dictionary<string, object> payloadPlain = settlement.BuildSaveSnapshotPlain();
+            payloadPlain["settlement_state"] = state.BuildSnapshotPlain();
+            using GodotProjectionLease<GDictionary> payloadLease =
+                RuntimePlainPayload.ProjectDictionaryLease(
+                    payloadPlain,
+                    $"WorldRuntimeData.settlement.{settlementId}",
+                    LifetimeDomain.Request,
+                    $"WorldRuntimeData.settlement.{settlementId}"
+                );
+            GDictionary payload = payloadLease.Value;
             _settlements[index] = WorldMapSettlementRecordData.FromDictionary(payload);
             return true;
         }
@@ -456,8 +472,8 @@ internal sealed class WorldRuntimeData
         {
             if (settlement != null && settlement.SettlementId == settlementId)
             {
-                return WorldMapSettlementStateData.FromDictionary(
-                    settlement.GetSettlementStateDictionary()
+                return WorldMapSettlementStateData.FromPlain(
+                    settlement.BuildSettlementStateSnapshotPlain()
                 );
             }
         }
@@ -479,7 +495,9 @@ internal sealed class WorldRuntimeData
         GArray result = new();
         foreach (WorldMapSettlementRecordData settlement in _settlements)
         {
-            result.Add(WorldMapDataProjection.Project(settlement));
+            using GodotProjectionLease<GDictionary> lease =
+                WorldMapDataProjection.ProjectLease(settlement);
+            result.Add(lease.Value);
         }
         return result;
     }
@@ -489,7 +507,9 @@ internal sealed class WorldRuntimeData
         GArray result = new();
         foreach (WorldMapEventData worldEvent in _worldEvents)
         {
-            result.Add(WorldMapDataProjection.Project(worldEvent));
+            using GodotProjectionLease<GDictionary> lease =
+                WorldMapDataProjection.ProjectLease(worldEvent);
+            result.Add(lease.Value);
         }
         return result;
     }
@@ -530,6 +550,8 @@ internal sealed class WorldRuntimeData
             {
                 continue;
             }
+            using GodotProjectionLease<GDictionary> worldDataLease =
+                submap.ProjectWorldDataPayloadLease();
             result[entry.Key] = new GDictionary
             {
                 ["submap_id"] = entry.Key,
@@ -538,7 +560,7 @@ internal sealed class WorldRuntimeData
                 ["return_hint_text"] = submap.ReturnHintText,
                 ["is_generated"] = submap.IsGenerated,
                 ["player_coord"] = submap.PlayerCoord,
-                ["world_data"] = submap.ProjectWorldDataPayload(),
+                ["world_data"] = worldDataLease.Value,
             };
         }
         return result;
@@ -549,7 +571,9 @@ internal sealed class WorldRuntimeData
         GArray result = new();
         foreach (WorldMapNpcData npc in _worldNpcs)
         {
-            result.Add(WorldMapDataProjection.Project(npc));
+            using GodotProjectionLease<GDictionary> lease =
+                WorldMapDataProjection.ProjectLease(npc);
+            result.Add(lease.Value);
         }
         return result;
     }

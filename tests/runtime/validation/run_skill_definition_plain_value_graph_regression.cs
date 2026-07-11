@@ -57,27 +57,6 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
             ContentValueNormalizer.NormalizeDictionary(mathValues, "skill.math.params");
         Dictionary<string, object> cloned = RuntimePlainPayload.CloneDictionary(normalized);
         AssertMathValuesEqual(mathValues, cloned, "plain clone");
-        foreach (KeyValuePair<string, object> entry in normalized)
-        {
-            Variant projected = RuntimePlainPayload.ProjectValue(
-                entry.Value,
-                $"skill.math.direct.{entry.Key}"
-            );
-            object restored = RuntimePlainPayload.RestoreSaveVariantToPlain(
-                projected,
-                $"skill.math.direct.{entry.Key}"
-            );
-            _test.True(
-                restored?.GetType() == entry.Value.GetType(),
-                $"Direct projection should preserve the CLR type for '{entry.Key}'."
-            );
-            _test.Eq(
-                restored,
-                entry.Value,
-                $"Direct projection should round-trip '{entry.Key}' without value loss."
-            );
-        }
-
         LifecycleAuditSnapshot baseline = LifecycleAuditRegistry.Shared.CaptureSnapshot();
         using (
             GodotProjectionLease<GDictionary> lease = RuntimePlainPayload.ProjectDictionaryLease(

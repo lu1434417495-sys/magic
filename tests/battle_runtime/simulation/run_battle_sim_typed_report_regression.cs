@@ -47,7 +47,8 @@ public partial class run_battle_sim_typed_report_regression : LifecycleTestScene
         bool rejected = false;
         try
         {
-            scenario.BuildStartContext();
+            using GodotProjectionLease<GDictionary> contextLease =
+                scenario.BuildStartContextLease();
         }
         catch (InvalidOperationException error)
         {

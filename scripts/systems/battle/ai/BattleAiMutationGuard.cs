@@ -309,7 +309,7 @@ internal sealed class BattleAiMutationGuard
             state.timeline = CloneTimeline(_timeline);
             state.party_backpack_view = _partyBackpackView?.DuplicateState();
             state.SetCells(RestoreCells(_cells), rebuildColumns: false);
-            state.ReplaceCellColumnsPayload(RestoreCellColumns(_cellColumns));
+            state.ReplaceCellColumns(RestoreCellColumns(_cellColumns));
             state.SetUnits(RestoreUnits(_units));
             _stateFields.Restore(state);
         }
@@ -2428,84 +2428,8 @@ internal sealed class BattleAiMutationGuard
     private static BattleStatusEffectState DuplicateStatusEffect(BattleStatusEffectState effect)
     {
         if (effect == null)
-        {
             return null;
-        }
-        return new BattleStatusEffectState
-        {
-            status_id = effect.status_id,
-            source_unit_id = effect.source_unit_id,
-            source_profile_id = effect.source_profile_id,
-            source_layer_id = effect.source_layer_id,
-            source_skill_id = effect.source_skill_id,
-            power = effect.power,
-            @params = BattleStatusEffectState.CopyResidualParams(effect.@params),
-            incoming_damage_multiplier = effect.incoming_damage_multiplier,
-            outgoing_damage_multiplier = effect.outgoing_damage_multiplier,
-            heal_multiplier_percent = effect.heal_multiplier_percent,
-            shield_gain_multiplier_percent = effect.shield_gain_multiplier_percent,
-            attack_roll_penalty = effect.attack_roll_penalty,
-            source_bound_attack_roll_penalty = effect.source_bound_attack_roll_penalty,
-            source_bound_attack_roll_penalty_min_stacks =
-                effect.source_bound_attack_roll_penalty_min_stacks,
-            source_bound_incoming_attack_roll_bonus_per_stack =
-                effect.source_bound_incoming_attack_roll_bonus_per_stack,
-            source_bound_incoming_attack_roll_bonus_min_stacks =
-                effect.source_bound_incoming_attack_roll_bonus_min_stacks,
-            attack_roll_bonus = effect.attack_roll_bonus,
-            attack_roll_advantage = effect.attack_roll_advantage,
-            consume_on_next_attack_check = effect.consume_on_next_attack_check,
-            consume_on_next_save = effect.consume_on_next_save,
-            undispellable = effect.undispellable,
-            dispellable_magic = effect.dispellable_magic,
-            dispellable_harmful_magic = effect.dispellable_harmful_magic,
-            dispellable_beneficial_magic = effect.dispellable_beneficial_magic,
-            damage_tag = effect.damage_tag,
-            damage_tags = new List<StringName>(effect.damage_tags),
-            damage_category = effect.damage_category,
-            mitigation_tier = effect.mitigation_tier,
-            dr_bypass_tag = effect.dr_bypass_tag,
-            body_size_category_override = effect.body_size_category_override,
-            previous_body_size_category = effect.previous_body_size_category,
-            self_save_dc = effect.self_save_dc,
-            self_save_ability = effect.self_save_ability,
-            self_save_tag = effect.self_save_tag,
-            self_save_roll_override = effect.self_save_roll_override,
-            stack_behavior = effect.stack_behavior,
-            stack_limit = effect.stack_limit,
-            source_skill_level = effect.source_skill_level,
-            stacks = effect.stacks,
-            duration = effect.duration,
-            display_label = effect.display_label,
-            tick_interval_tu = effect.tick_interval_tu,
-            next_tick_at_tu = effect.next_tick_at_tu,
-            timeline_damage_dice_count = effect.timeline_damage_dice_count,
-            timeline_damage_dice_sides = effect.timeline_damage_dice_sides,
-            timeline_damage_flat_bonus = effect.timeline_damage_flat_bonus,
-            skip_next_turn_end_decay = effect.skip_next_turn_end_decay,
-            forced_move_immune = effect.forced_move_immune,
-            counts_as_debuff_override = effect.counts_as_debuff_override,
-            counts_as_debuff = effect.counts_as_debuff,
-            lock_counterattack = effect.lock_counterattack,
-            lock_guard = effect.lock_guard,
-            lock_dodge_bonus = effect.lock_dodge_bonus,
-            lock_crit = effect.lock_crit,
-            save_bonus = effect.save_bonus,
-            control_save_bonus = effect.control_save_bonus,
-            passive_reduction = effect.passive_reduction,
-            content_dr = effect.content_dr,
-            guard_block = effect.guard_block,
-            range_bonus = effect.range_bonus,
-            main_skill_lock_other_debuff_count = effect.main_skill_lock_other_debuff_count,
-            save_advantage_tags = new List<StringName>(effect.save_advantage_tags),
-            save_disadvantage_tags = new List<StringName>(effect.save_disadvantage_tags),
-            save_immunity_tags = new List<StringName>(effect.save_immunity_tags),
-            save_tags = new List<StringName>(effect.save_tags),
-            status_tags = new List<StringName>(effect.status_tags),
-            save_bonus_by_tag = new System.Collections.Generic.Dictionary<StringName, int>(
-                effect.save_bonus_by_tag
-            ),
-        };
+        return effect.DuplicateState();
     }
 
     private static WarehouseState DuplicateWarehouse(WarehouseState warehouse)

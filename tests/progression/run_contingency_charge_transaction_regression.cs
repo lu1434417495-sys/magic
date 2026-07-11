@@ -380,7 +380,10 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
         using CharacterManagementModule manager = BuildManager(partyState);
         PartyContingencySetupService service = BuildService(partyState, warehouse, manager);
 
-        GDictionary inlinePayload = ValidSetup("inline_reject").ToDictionary();
+        ContingencyMatrixSetupState inlineSetup = ValidSetup("inline_reject");
+        using GodotProjectionLease<GDictionary> inlinePayloadLease =
+            inlineSetup.ToDictionaryLease();
+        GDictionary inlinePayload = inlinePayloadLease.Value;
         inlinePayload["trigger"] = new GDictionary
         {
             ["type"] = "owner_turn_started",
@@ -470,7 +473,9 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
             _selected_coord = Vector2I.Zero,
             _player_faction_id = "player",
         };
-        runtime._world_map_data_context.BindRootWorldData(gameSession.GetWorldData());
+        using GodotProjectionLease<GDictionary> worldDataLease =
+            gameSession.GetWorldDataLease();
+        runtime._world_map_data_context.BindRootWorldData(worldDataLease.Value);
         runtime._world_map_data_context.SyncActiveWorldContext(
             gameSession._generation_definition,
             new WorldMapGridSystem(),

@@ -113,18 +113,22 @@ public partial class run_battle_runtime_attack_check_smoke : LifecycleTestSceneT
             damageTag: "physical_slash",
             power: 10
         );
-        GDictionary plainResult = AttackEffectResolutionResultReader.BuildGodotPayload(damageResolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> plainResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(damageResolver.ResolveEffects(
             attacker,
             plainTarget,
             new[] { damageEffect },
             DamageResolutionContext.Empty()
         ));
-        GDictionary brokenResult = AttackEffectResolutionResultReader.BuildGodotPayload(damageResolver.ResolveEffects(
+        GDictionary plainResult = plainResultLease.Value;
+        using GodotProjectionLease<GDictionary> brokenResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(damageResolver.ResolveEffects(
             attacker,
             brokenTarget,
             new[] { damageEffect },
             DamageResolutionContext.Empty()
         ));
+        GDictionary brokenResult = brokenResultLease.Value;
         _test.Eq(
             DictInt(brokenResult, "damage", 0),
             DictInt(plainResult, "damage", 0),

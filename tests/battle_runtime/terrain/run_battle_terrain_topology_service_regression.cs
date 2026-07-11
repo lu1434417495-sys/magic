@@ -157,7 +157,7 @@ public partial class run_battle_terrain_topology_service_regression : LifecycleT
         };
         cell.RecalculateRuntimeValues();
         state.SetCell(coord, cell);
-        state.PutCellColumnPayload(coord, BattleCellState.BuildStackedCellsFromSurfaceCell(cell));
+        state.PutCellColumn(coord, BattleCellState.BuildStackedCellsFromSurfaceCell(cell));
     }
 
     private static BattleCellState GetCell(BattleState state, Vector2I coord)

@@ -43,24 +43,28 @@ public sealed class BattleSessionFacade : IDisposable
         return battleSelection.GetSelectedBattleSkillVariantName();
     }
 
-    public GVector2IArray GetSelectedBattleSkillTargetCoords()
+    public IReadOnlyList<Vector2I> GetSelectedBattleSkillTargetCoords()
     {
         if (IsBattleInteractionBlocked())
             return EmptyVector2IArray();
         var battleSelection = GetBattleSelection();
         if (battleSelection == null)
             return EmptyVector2IArray();
-        return DuplicateVector2IArray(battleSelection.GetSelectedBattleSkillTargetCoords());
+        return DuplicateVector2IArray(
+            battleSelection.GetSelectedBattleSkillTargetCoordsSnapshotPlain()
+        );
     }
 
-    public GStringNameArray GetSelectedBattleSkillTargetUnitIds()
+    public IReadOnlyList<StringName> GetSelectedBattleSkillTargetUnitIds()
     {
         if (IsBattleInteractionBlocked())
             return EmptyStringNameArray();
         var battleSelection = GetBattleSelection();
         if (battleSelection == null)
             return EmptyStringNameArray();
-        return DuplicateStringNameArray(battleSelection.GetSelectedBattleSkillTargetUnitIds());
+        return DuplicateStringNameArray(
+            battleSelection.GetSelectedBattleSkillTargetUnitIdsSnapshotPlain()
+        );
     }
 
     internal IReadOnlyList<Vector2I> GetSelectedBattleSkillTargetCoordsSnapshotPlain()
@@ -81,7 +85,7 @@ public sealed class BattleSessionFacade : IDisposable
             ?? System.Array.Empty<StringName>();
     }
 
-    public GVector2IArray GetSelectedBattleSkillValidTargetCoords()
+    public IReadOnlyList<Vector2I> GetSelectedBattleSkillValidTargetCoords()
     {
         if (IsBattleInteractionBlocked())
             return EmptyVector2IArray();
@@ -89,7 +93,7 @@ public sealed class BattleSessionFacade : IDisposable
         if (battleSelection == null)
             return EmptyVector2IArray();
         return DuplicateVector2IArray(
-            battleSelection.GetSelectedBattleSkillValidTargetCoords()
+            battleSelection.GetSelectedBattleSkillValidTargetCoordsSnapshotPlain()
         );
     }
 
@@ -117,7 +121,7 @@ public sealed class BattleSessionFacade : IDisposable
         return battleSelection?.PreviewSelectedBattleSkillAtCoord(coord);
     }
 
-    public GVector2IArray GetBattleMovementReachableCoords()
+    public IReadOnlyList<Vector2I> GetBattleMovementReachableCoords()
     {
         var battleRuntime = GetBattleRuntime();
         if (!IsBattleReady() || !IsBattleActive() || battleRuntime == null)
@@ -130,7 +134,7 @@ public sealed class BattleSessionFacade : IDisposable
         return DuplicateVector2IArray(battleRuntime.GetUnitReachableMoveCoordsTyped(activeUnit));
     }
 
-    public GVector2IArray GetBattleOverlayTargetCoords()
+    public IReadOnlyList<Vector2I> GetBattleOverlayTargetCoords()
     {
         if (!IsBattleReady())
             return EmptyVector2IArray();
@@ -612,7 +616,7 @@ public sealed class BattleSessionFacade : IDisposable
             UpdateStatus(batch.LogLinesTyped[batch.LogLinesTyped.Count - 1]);
         var battleState = GetBattleState();
         if (
-            GetPendingPromotionPrompt().Count > 0
+            HasPendingPromotionPrompt()
             && battleState != null
             && battleState.ModalStateKind == BattleModalStateKind.PromotionChoice
         )
@@ -737,7 +741,7 @@ public sealed class BattleSessionFacade : IDisposable
             if (delta == null || !delta.needs_promotion_modal)
                 continue;
             SetPendingPromotionPrompt(BuildPromotionPrompt(delta));
-            if (GetPendingPromotionPrompt().Count > 0)
+            if (HasPendingPromotionPrompt())
                 return;
         }
     }
@@ -1027,10 +1031,8 @@ public sealed class BattleSessionFacade : IDisposable
         return _runtime?.GetGameSession();
     }
 
-    private Dictionary GetPendingPromotionPrompt()
-    {
-        return _runtime != null ? _runtime.GetPendingPromotionPrompt() : new Dictionary();
-    }
+    private bool HasPendingPromotionPrompt() =>
+        _runtime?.HasPendingPromotionPrompt() ?? false;
 
     private void SetPendingPromotionPrompt(Dictionary prompt)
     {
@@ -1149,19 +1151,19 @@ public sealed class BattleSessionFacade : IDisposable
             : null;
     }
 
-    private static GVector2IArray DuplicateVector2IArray(
+    private static IReadOnlyList<Vector2I> DuplicateVector2IArray(
         System.Collections.Generic.IEnumerable<Vector2I> values
-    ) => new Vector2IList(values).ToGodotArray();
+    ) => new Vector2IList(values);
 
-    private static GVector2IArray EmptyVector2IArray() =>
-        DuplicateVector2IArray(System.Array.Empty<Vector2I>());
+    private static IReadOnlyList<Vector2I> EmptyVector2IArray() =>
+        System.Array.Empty<Vector2I>();
 
-    private static GStringNameArray DuplicateStringNameArray(
+    private static IReadOnlyList<StringName> DuplicateStringNameArray(
         System.Collections.Generic.IEnumerable<StringName> values
-    ) => new StringNameList(values).ToGodotArray();
+    ) => new StringNameList(values);
 
-    private static GStringNameArray EmptyStringNameArray() =>
-        DuplicateStringNameArray(System.Array.Empty<StringName>());
+    private static IReadOnlyList<StringName> EmptyStringNameArray() =>
+        System.Array.Empty<StringName>();
 
     private static GameRuntimeFacade ResolveWeakRef(WeakReference<GameRuntimeFacade> weakRef)
     {

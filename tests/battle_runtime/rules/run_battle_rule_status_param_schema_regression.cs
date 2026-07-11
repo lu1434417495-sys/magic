@@ -58,12 +58,14 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             "legacy_passive",
             new GDictionary { ["passive_reduction"] = 3 }
         );
-        GDictionary legacyPassiveResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> legacyPassiveResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             legacyPassiveTarget,
             new[] { BuildDamageEffect(10) },
             DamageResolutionContext.Empty()
         ));
+        GDictionary legacyPassiveResult = legacyPassiveResultLease.Value;
         _test.Eq(
             DictInt(legacyPassiveResult, "damage", -1),
             10,
@@ -72,12 +74,14 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
 
         BattleUnitState formalPassiveTarget = BuildUnit("formal_passive_target");
         SetTypedStatus(formalPassiveTarget, "formal_passive", passiveReduction: 3);
-        GDictionary formalPassiveResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> formalPassiveResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             formalPassiveTarget,
             new[] { BuildDamageEffect(10) },
             DamageResolutionContext.Empty()
         ));
+        GDictionary formalPassiveResult = formalPassiveResultLease.Value;
         _test.Eq(
             DictInt(formalPassiveResult, "damage", -1),
             7,
@@ -355,12 +359,14 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             "legacy_half_mitigation",
             new GDictionary { [new StringName("mitigation_tier")] = "half" }
         );
-        GDictionary legacyResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> legacyResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             legacySource,
             legacyTarget,
             new[] { BuildDamageEffect(20) },
             DamageResolutionContext.Empty()
         ));
+        GDictionary legacyResult = legacyResultLease.Value;
         _test.Eq(
             DictInt(legacyResult, "damage", -1),
             20,
@@ -376,12 +382,14 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
         BattleUnitState formalSource = BuildUnit("formal_mitigation_source");
         BattleUnitState formalTarget = BuildUnit("formal_mitigation_target");
         SetTypedStatus(formalTarget, "formal_half_mitigation", mitigationTier: "half");
-        GDictionary formalResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> formalResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             formalSource,
             formalTarget,
             new[] { BuildDamageEffect(20) },
             DamageResolutionContext.Empty()
         ));
+        GDictionary formalResult = formalResultLease.Value;
         _test.Eq(
             DictInt(formalResult, "damage", -1),
             10,
@@ -488,12 +496,14 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             "legacy_outgoing_multiplier",
             new GDictionary { [new StringName("outgoing_damage_multiplier")] = 0.5 }
         );
-        GDictionary legacyResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> legacyResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             legacySource,
             legacyTarget,
             new[] { BuildDamageEffect(20) },
             DamageResolutionContext.Empty()
         ));
+        GDictionary legacyResult = legacyResultLease.Value;
         _test.Eq(
             DictInt(legacyResult, "damage", -1),
             20,
@@ -513,12 +523,14 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             "formal_outgoing_multiplier",
             outgoingDamageMultiplier: 0.5
         );
-        GDictionary formalResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> formalResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             formalSource,
             formalTarget,
             new[] { BuildDamageEffect(20) },
             DamageResolutionContext.Empty()
         ));
+        GDictionary formalResult = formalResultLease.Value;
         _test.Eq(
             DictInt(formalResult, "damage", -1),
             10,

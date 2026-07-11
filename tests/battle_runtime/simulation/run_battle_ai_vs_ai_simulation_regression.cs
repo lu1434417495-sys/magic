@@ -26,8 +26,15 @@ public partial class run_battle_ai_vs_ai_simulation_regression : LifecycleTestSc
         BattleSimProfileDefinition baselineProfile = GameSessionTestFactory
             .GetProcessSnapshot()
             .BattleSimProfiles["baseline"];
+        bool scenarioContextBuilt = false;
+        if (scenario != null)
+        {
+            using GodotProjectionLease<GDictionary> contextLease =
+                scenario.BuildStartContextLease();
+            scenarioContextBuilt = contextLease.Value != null;
+        }
         _test.True(
-            scenario != null && scenario.BuildStartContext() != null,
+            scenarioContextBuilt,
             "AI vs AI 示例场景资源应能被 BattleSimScenarioDef 正常加载。"
         );
         _test.True(

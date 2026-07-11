@@ -407,46 +407,60 @@ public partial class ShopWindow : Control
             : "";
     }
 
-    private GDictionary _build_confirm_payload()
+    private GodotProjectionLease<GDictionary> _build_confirm_payload()
     {
         ShopEntry entry = _get_selected_entry();
-        GDictionary payload = RuntimePlainPayload.ProjectDictionary(
+        GodotProjectionLease<GDictionary> lease = RuntimePlainPayload.ProjectDictionaryLease(
             entry.Payload,
+            "ShopWindow.confirm_payload",
+            LifetimeDomain.Request,
             "ShopWindow.confirm_payload"
         );
-        string panelKind = SettlementPanelKinds.ToPayloadValue(_windowData.PanelKind);
-        string submissionSource = SettlementSubmissionSources.ToPayloadValue(
-            SettlementSubmissionSources.FromPanelKind(_windowData.PanelKind)
-        );
-        payload["settlement_id"] = _settlementId;
-        payload["action_id"] = _actionId;
-        payload["interaction_script_id"] = FirstNonEmpty(
-            _windowData.InteractionScriptId,
-            DictString(payload, "interaction_script_id", "")
-        );
-        payload["facility_id"] = FirstNonEmpty(
-            _windowData.FacilityId,
-            DictString(payload, "facility_id", "")
-        );
-        payload["facility_name"] = FirstNonEmpty(
-            _windowData.FacilityName,
-            DictString(payload, "facility_name", "")
-        );
-        payload["npc_id"] = FirstNonEmpty(_windowData.NpcId, DictString(payload, "npc_id", ""));
-        payload["npc_name"] = FirstNonEmpty(
-            _windowData.NpcName,
-            DictString(payload, "npc_name", "")
-        );
-        payload["service_type"] = FirstNonEmpty(
-            _windowData.ServiceType,
-            DictString(payload, "service_type", "")
-        );
-        payload["member_id"] = _selectedMemberId.ToString();
-        payload["default_member_id"] = _selectedMemberId.ToString();
-        payload["submission_source"] = submissionSource;
-        payload["panel_kind"] = panelKind;
-        payload["state_summary_text"] = _windowData.StateSummaryText;
-        return payload;
+        try
+        {
+            GDictionary payload = lease.Value;
+            string panelKind = SettlementPanelKinds.ToPayloadValue(_windowData.PanelKind);
+            string submissionSource = SettlementSubmissionSources.ToPayloadValue(
+                SettlementSubmissionSources.FromPanelKind(_windowData.PanelKind)
+            );
+            payload["settlement_id"] = _settlementId;
+            payload["action_id"] = _actionId;
+            payload["interaction_script_id"] = FirstNonEmpty(
+                _windowData.InteractionScriptId,
+                DictString(payload, "interaction_script_id", "")
+            );
+            payload["facility_id"] = FirstNonEmpty(
+                _windowData.FacilityId,
+                DictString(payload, "facility_id", "")
+            );
+            payload["facility_name"] = FirstNonEmpty(
+                _windowData.FacilityName,
+                DictString(payload, "facility_name", "")
+            );
+            payload["npc_id"] = FirstNonEmpty(
+                _windowData.NpcId,
+                DictString(payload, "npc_id", "")
+            );
+            payload["npc_name"] = FirstNonEmpty(
+                _windowData.NpcName,
+                DictString(payload, "npc_name", "")
+            );
+            payload["service_type"] = FirstNonEmpty(
+                _windowData.ServiceType,
+                DictString(payload, "service_type", "")
+            );
+            payload["member_id"] = _selectedMemberId.ToString();
+            payload["default_member_id"] = _selectedMemberId.ToString();
+            payload["submission_source"] = submissionSource;
+            payload["panel_kind"] = panelKind;
+            payload["state_summary_text"] = _windowData.StateSummaryText;
+            return lease;
+        }
+        catch
+        {
+            lease.Dispose();
+            throw;
+        }
     }
 
     private void _on_entry_selected(int index)
@@ -496,7 +510,8 @@ public partial class ShopWindow : Control
             return;
         }
 
-        GDictionary payload = _build_confirm_payload();
+        using GodotProjectionLease<GDictionary> payloadLease = _build_confirm_payload();
+        GDictionary payload = payloadLease.Value;
         if (_windowData.PendingConfirmationQuestId != (StringName)"")
             payload["confirm_accept"] = true;
 

@@ -577,7 +577,9 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         if (generationDefinition == null)
             return (int)Error.CantOpen;
 
-        GDictionary previousRuntimeState = CaptureRuntimeState();
+        using GodotProjectionLease<GDictionary> previousRuntimeStateLease =
+            CaptureRuntimeStateLease();
+        GDictionary previousRuntimeState = previousRuntimeStateLease.Value;
         WorldGenerationDefinition previousGenerationDefinition = _generation_definition;
 
         int prepareError = PrepareNewWorld(generation_config_path, generationDefinition);
@@ -706,7 +708,9 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         if (generationDefinition == null)
             return (int)Error.CantOpen;
 
-        GDictionary previousRuntimeState = CaptureRuntimeState();
+        using GodotProjectionLease<GDictionary> previousRuntimeStateLease =
+            CaptureRuntimeStateLease();
+        GDictionary previousRuntimeState = previousRuntimeStateLease.Value;
         WorldGenerationDefinition previousGenerationDefinition = _generation_definition;
         _pending_load_error_reason = "";
         int loadError = LoadCurrentPayload(
@@ -868,8 +872,13 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         ReplaceWorldDataPayload(worldData ?? new GDictionary());
     }
 
-    private GDictionary ActiveSaveMetaPayload() =>
-        RuntimePlainPayload.ProjectDictionary(_activeSaveMeta, "GameSession.active_save_meta");
+    private GodotProjectionLease<GDictionary> ActiveSaveMetaPayloadLease() =>
+        RuntimePlainPayload.ProjectDictionaryLease(
+            _activeSaveMeta,
+            "GameSession.active_save_meta",
+            LifetimeDomain.Request,
+            "GameSession.active_save_meta"
+        );
 
     private void ReplaceActiveSaveMetaPayload(GDictionary payload)
     {
@@ -889,8 +898,13 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
 
     private void ClearActiveSaveMetaPayload() => _activeSaveMeta.Clear();
 
-    private GDictionary WorldDataPayload() =>
-        RuntimePlainPayload.ProjectDictionary(_worldData, "GameSession.world_data");
+    private GodotProjectionLease<GDictionary> WorldDataPayloadLease() =>
+        RuntimePlainPayload.ProjectDictionaryLease(
+            _worldData,
+            "GameSession.world_data",
+            LifetimeDomain.Request,
+            "GameSession.world_data"
+        );
 
     private void ReplaceWorldDataPayload(GDictionary payload)
     {
@@ -930,25 +944,32 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
             target[entry.Key] = entry.Value;
     }
 
-    public GDictionary GetWorldData() => WorldDataPayload();
+    internal GodotProjectionLease<GDictionary> GetWorldDataLease() =>
+        WorldDataPayloadLease();
+
+    internal IReadOnlyDictionary<string, object> GetWorldDataSnapshotPlain() =>
+        RuntimePlainPayload.CloneDictionary(_worldData);
 
     public StringName AllocateEquipmentInstanceId()
     {
-        GDictionary worldData = WorldDataPayload();
-        if (worldData == null || !worldData.ContainsKey(WorldEquipmentInstanceSerialKey))
+        if (!_worldData.TryGetValue(WorldEquipmentInstanceSerialKey, out object rawSerial))
             return "";
         GDictionary usedIds = CollectPersistentEquipmentInstanceIds();
-        int serial = GetInt(worldData, WorldEquipmentInstanceSerialKey, 0);
+        int serial = rawSerial switch
+        {
+            int intValue => intValue,
+            long longValue => (int)longValue,
+            _ => 0,
+        };
         if (serial < 1)
             return "";
         while (true)
         {
             StringName candidate = EquipmentInstanceState.FormatInstanceId(serial);
             serial += 1;
-            worldData[WorldEquipmentInstanceSerialKey] = serial;
+            _worldData[WorldEquipmentInstanceSerialKey] = serial;
             if (!usedIds.ContainsKey(candidate.ToString()))
             {
-                ReplaceWorldDataPayload(worldData);
                 MarkRuntimeStateDirty(SaveDirtyScopeWorldData);
                 return candidate;
             }
@@ -1017,18 +1038,29 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         _post_decode_save_reasons.Clear();
     }
 
-    public GDictionary GetSaveStatus()
+    internal GodotProjectionLease<GDictionary> GetSaveStatusLease()
     {
-        return new GDictionary
+        var dirtyScopes = new List<object>();
+        foreach (StringName scope in _runtime_save_dirty_scopes)
+            dirtyScopes.Add(scope);
+        var postDecodeReasons = new List<object>();
+        foreach (StringName reason in _post_decode_save_reasons)
+            postDecodeReasons.Add(reason);
+        return RuntimePlainPayload.ProjectDictionaryLease(
+            new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["has_pending_save"] = HasPendingSave(),
-            ["dirty_scopes"] = _runtime_save_dirty_scopes.ToGodotArray(),
+            ["dirty_scopes"] = dirtyScopes,
             ["battle_save_locked"] = _battle_save_lock_enabled,
             ["last_error"] = _last_save_error,
             ["last_error_reason"] = _last_save_error_reason,
             ["post_decode_save_pending"] = _post_decode_save_pending,
-            ["post_decode_save_reasons"] = _post_decode_save_reasons.ToGodotArray(),
-        };
+            ["post_decode_save_reasons"] = postDecodeReasons,
+        },
+            "game-session-save-status",
+            LifetimeDomain.Request,
+            "GameSession.GetSaveStatusLease"
+        );
     }
 
     private void MarkRuntimeStateDirty(StringName scope)
@@ -1692,28 +1724,48 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         _log_service?.StartNewSession();
     }
 
-    public GDictionary CaptureRuntimeState()
+    internal Dictionary<string, object> CaptureRuntimeStateSnapshotPlain()
     {
-        return new GDictionary
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["active_save_id"] = _active_save_id,
             ["active_save_path"] = _active_save_path,
-            ["active_save_meta"] = ActiveSaveMetaPayload().Duplicate(true),
+            ["active_save_meta"] = RuntimePlainPayload.CloneDictionary(_activeSaveMeta),
             ["generation_config_path"] = _generation_config_path,
-            ["world_data"] = WorldDataPayload().Duplicate(true),
+            ["world_data"] = RuntimePlainPayload.CloneDictionary(_worldData),
             ["player_coord"] = _player_coord,
             ["player_faction_id"] = _player_faction_id,
-            ["party_state"] = _party_state?.ToDictionary() ?? new GDictionary(),
+            ["party_state"] =
+                _party_state?.BuildSaveSnapshotPlain()
+                ?? new Dictionary<string, object>(StringComparer.Ordinal),
             ["has_active_world"] = _has_active_world,
             ["battle_save_lock_enabled"] = _battle_save_lock_enabled,
             ["battle_save_dirty"] = _battle_save_dirty,
             ["runtime_save_dirty"] = _runtime_save_dirty,
-            ["runtime_save_dirty_scopes"] = _runtime_save_dirty_scopes.ToGodotArray(),
+            ["runtime_save_dirty_scopes"] = BuildStringListPlain(_runtime_save_dirty_scopes),
             ["last_save_error"] = _last_save_error,
             ["last_save_error_reason"] = _last_save_error_reason,
             ["post_decode_save_pending"] = _post_decode_save_pending,
-            ["post_decode_save_reasons"] = _post_decode_save_reasons.ToGodotArray(),
+            ["post_decode_save_reasons"] = BuildStringListPlain(_post_decode_save_reasons),
         };
+    }
+
+    internal GodotProjectionLease<GDictionary> CaptureRuntimeStateLease() =>
+        RuntimePlainPayload.ProjectDictionaryLease(
+            CaptureRuntimeStateSnapshotPlain(),
+            "GameSession.CaptureRuntimeState",
+            LifetimeDomain.Request,
+            "GameSession.CaptureRuntimeState"
+        );
+
+    private static List<object> BuildStringListPlain(IEnumerable<StringName> values)
+    {
+        var result = new List<object>();
+        if (values == null)
+            return result;
+        foreach (StringName value in values)
+            result.Add(value.ToString());
+        return result;
     }
 
     public void RestoreRuntimeState(GDictionary state)

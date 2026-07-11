@@ -1622,13 +1622,13 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
             DamageResolutionContext damageContext
         )
         {
-            GDictionary fixedContext = damageContext?.RawContext?.Duplicate(true) ?? new GDictionary();
-            fixedContext["save_roll_override"] = 10;
             return base.ResolveEffects(
                 sourceUnit,
                 targetUnit,
                 effectDefinitions,
-                DamageResolutionContext.FromDictionary(fixedContext)
+                (damageContext ?? DamageResolutionContext.Empty()).WithSaveRollOverrides(
+                    new[] { 10 }
+                )
             );
         }
     }

@@ -490,20 +490,6 @@ public partial class BattleDamageResolver : IDisposable
     private IBattleDamageApplicationHook _damage_application_hook;
     private BattleEquipmentAbilityRuntimeService _equipment_ability_runtime_service;
 
-    private static GArray MarkRuntimeArray(GArray array, string reason)
-    {
-        GArray result = array ?? new GArray();
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, reason);
-        return result;
-    }
-
-    private static GDictionary MarkRuntimeDictionary(GDictionary dictionary, string reason)
-    {
-        GDictionary result = dictionary ?? new GDictionary();
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, reason);
-        return result;
-    }
-
     internal static BattleDamagePreviewRollMode ToDamagePreviewRollMode(StringName value)
     {
         if (value == DamagePreviewRollModeRandom)
@@ -1653,8 +1639,9 @@ public partial class BattleDamageResolver : IDisposable
                     target_unit,
                     effectDefinition
                 );
-                GStringNameArray removedIds =
-                    dispelResult.RemovedStatusIds ?? new GStringNameArray();
+                IReadOnlyList<StringName> removedIds = dispelResult.RemovedStatusIds is { } ids
+                    ? ids
+                    : System.Array.Empty<StringName>();
                 if (removedIds.Count > 0)
                 {
                     dispelEvents.Add(dispelResult);
@@ -1807,10 +1794,7 @@ public partial class BattleDamageResolver : IDisposable
                 ErrorCode = errorCode,
                 SkillId = contextFlags.SkillId,
                 AttackCheck = new AttackCheckInput(skillId: contextFlags.SkillId),
-                TraitTriggerResults = AttackEffectResolutionResultReader.ReadTraitTriggerResults(
-                    contextFlags.RawContext,
-                    "trait_trigger_results"
-                ),
+                TraitTriggerResults = Array.Empty<TraitTriggerEventResult>(),
             }
         );
     }
@@ -2291,17 +2275,13 @@ public partial class BattleDamageResolver : IDisposable
             effectDefinition
         );
         int rolledDamage = Math.Max(RoundToInt(baseDamage * offenseMultiplier), 0);
-        GDictionary mitigationTierResult = ResolveMitigationTierResult(
+        MitigationTierResolution mitigationTierResult = ResolveMitigationTierResult(
             targetUnit,
             damageTag,
             effectDefinition?.MitigationBypassDamageTags,
             effectDefinition?.MitigationBypassTiers
         );
-        StringName mitigationTier = DictStringName(
-            mitigationTierResult,
-            "tier",
-            MitigationTierNormal
-        );
+        StringName mitigationTier = mitigationTierResult.Tier;
         int tierAdjustedDamage = rolledDamage;
         if (mitigationTier == MitigationTierImmune)
         {
@@ -2351,10 +2331,7 @@ public partial class BattleDamageResolver : IDisposable
             MitigationTier = AttackEffectResolutionResultReader.ParseMitigationTier(
                 mitigationTier
             ),
-            MitigationSources =
-                AttackEffectResolutionResultReader.ReadMitigationSourcesFromArray(
-                    GetArray(mitigationTierResult, "sources")
-                ),
+            MitigationSources = mitigationTierResult.Sources,
             BaseDamage = baseDamage,
             CriticalHit = criticalHit,
             AddWeaponDice = ShouldAddWeaponDice(effectDefinition),
@@ -2473,17 +2450,13 @@ public partial class BattleDamageResolver : IDisposable
             && segment.MitigationBypassTiers.Count > 0
                 ? segment.MitigationBypassTiers
                 : effectDefinition?.MitigationBypassTiers;
-        GDictionary mitigationTierResult = ResolveMitigationTierResult(
+        MitigationTierResolution mitigationTierResult = ResolveMitigationTierResult(
             targetUnit,
             damageTag,
             mitigationBypassDamageTags,
             mitigationBypassTiers
         );
-        StringName mitigationTier = DictStringName(
-            mitigationTierResult,
-            "tier",
-            MitigationTierNormal
-        );
+        StringName mitigationTier = mitigationTierResult.Tier;
         int tierAdjustedDamage = rolledDamage;
         if (mitigationTier == MitigationTierImmune)
         {
@@ -2524,10 +2497,7 @@ public partial class BattleDamageResolver : IDisposable
             MitigationTier = AttackEffectResolutionResultReader.ParseMitigationTier(
                 mitigationTier
             ),
-            MitigationSources =
-                AttackEffectResolutionResultReader.ReadMitigationSourcesFromArray(
-                    GetArray(mitigationTierResult, "sources")
-                ),
+            MitigationSources = mitigationTierResult.Sources,
             BaseDamage = baseDamage,
             CriticalHit = false,
             AddWeaponDice = false,
@@ -2604,17 +2574,13 @@ public partial class BattleDamageResolver : IDisposable
             effectDefinition
         );
         int rolledDamage = Math.Max(RoundToInt(baseDamage * offenseMultiplier), 0);
-        GDictionary mitigationTierResult = ResolveMitigationTierResult(
+        MitigationTierResolution mitigationTierResult = ResolveMitigationTierResult(
             targetUnit,
             damageTag,
             taggedRoll.MitigationBypassDamageTags,
             taggedRoll.MitigationBypassTiers
         );
-        StringName mitigationTier = DictStringName(
-            mitigationTierResult,
-            "tier",
-            MitigationTierNormal
-        );
+        StringName mitigationTier = mitigationTierResult.Tier;
         int tierAdjustedDamage = rolledDamage;
         if (mitigationTier == MitigationTierImmune)
         {
@@ -2657,10 +2623,7 @@ public partial class BattleDamageResolver : IDisposable
             MitigationTier = AttackEffectResolutionResultReader.ParseMitigationTier(
                 mitigationTier
             ),
-            MitigationSources =
-                AttackEffectResolutionResultReader.ReadMitigationSourcesFromArray(
-                    GetArray(mitigationTierResult, "sources")
-                ),
+            MitigationSources = mitigationTierResult.Sources,
             BaseDamage = baseDamage,
             CriticalHit = criticalHit,
             AddWeaponDice = false,

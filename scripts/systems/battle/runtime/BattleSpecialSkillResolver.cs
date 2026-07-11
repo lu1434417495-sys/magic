@@ -681,7 +681,6 @@ public class BattleSpecialSkillResolver
             power = Math.Max(power, 1),
             stacks = 1,
             duration = Math.Max(duration_tu, -1),
-            @params = typedStatusParams.ResidualSavePayload,
             counts_as_debuff_override = counts_as_debuff_override,
             counts_as_debuff = counts_as_debuff,
             forced_move_immune = forced_move_immune,
@@ -695,6 +694,7 @@ public class BattleSpecialSkillResolver
             body_size_category_override = body_size_category_override ?? new StringName(""),
             previous_body_size_category = previous_body_size_category ?? new StringName(""),
         };
+        statusEntry.SetParamsTyped(typedStatusParams.ResidualSavePayload);
         typedStatusParams.ApplyTo(statusEntry);
         unit_state.SetStatusEffect(statusEntry);
     }
