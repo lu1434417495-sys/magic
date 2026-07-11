@@ -167,8 +167,6 @@ public class BattleHitResolver : IDisposable
                 )
             );
         }
-        IReadOnlyDictionary<string, Variant> effectParams =
-            repeat_attack_effect?.Parameters ?? new Dictionary<string, Variant>();
         int avgSuccessRate = 0;
         int avgBaseHitRate = 0;
         if (stageChecks.Count > 0)
@@ -190,10 +188,9 @@ public class BattleHitResolver : IDisposable
             HitRatePercent = avgSuccessRate,
             SuccessRatePercent = avgSuccessRate,
             BaseHitRatePercent = avgBaseHitRate,
-            BaseAttackBonus = effectParams != null ? GetInt(effectParams, "base_attack_bonus", 0) : 0,
-            FollowUpAttackPenalty = effectParams != null
-                ? GetInt(effectParams, "follow_up_attack_penalty", 0)
-                : 0,
+            BaseAttackBonus = repeat_attack_effect?.GetIntParamTyped("base_attack_bonus", 0) ?? 0,
+            FollowUpAttackPenalty =
+                repeat_attack_effect?.GetIntParamTyped("follow_up_attack_penalty", 0) ?? 0,
             FatePreview = stageChecks.Count > 0
                 ? BattleFatePreviewData.FromAttackCheck(stageChecks[0])
                 : null,
@@ -2227,19 +2224,6 @@ public class BattleHitResolver : IDisposable
     private static int GetInt(GDictionary source, object key, int fallback = 0)
     {
         if (!TryGetValue(source, key, out dynamic value))
-        {
-            return fallback;
-        }
-        return ToInt(value, fallback);
-    }
-
-    private static int GetInt(
-        IReadOnlyDictionary<string, Variant> source,
-        string key,
-        int fallback = 0
-    )
-    {
-        if (source == null || string.IsNullOrEmpty(key) || !source.TryGetValue(key, out Variant value))
         {
             return fallback;
         }

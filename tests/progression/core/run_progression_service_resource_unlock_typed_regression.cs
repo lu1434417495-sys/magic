@@ -110,7 +110,7 @@ public partial class run_progression_service_resource_unlock_typed_regression : 
             "",
             System.Array.Empty<AttributeModifierDefinition>(),
             "",
-            new Dictionary<int, IReadOnlyDictionary<string, Variant>>(),
+            new Dictionary<int, IReadOnlyDictionary<string, object>>(),
             new CombatSkillDefinition(
                 skillId,
                 "single",
@@ -131,7 +131,7 @@ public partial class run_progression_service_resource_unlock_typed_regression : 
                 0,
                 "",
                 auraCost,
-                new Dictionary<int, IReadOnlyDictionary<string, Variant>>(),
+                new Dictionary<int, IReadOnlyDictionary<string, object>>(),
                 "",
                 "",
                 "",

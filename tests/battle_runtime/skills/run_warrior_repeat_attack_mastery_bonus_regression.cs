@@ -25,7 +25,7 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
 
     private void TestRepeatAttackResolverUsesTypedResourceCosts()
     {
-        RepeatAttackFixture fixture = BuildRepeatAttackFixture(new[] { true });
+        using RepeatAttackFixture fixture = BuildRepeatAttackFixture(new[] { true });
         SkillDefinition skillDefinition = BuildRepeatAttackSkillDefinition(
             "combo_mastery_stage_test",
             apCost: 2,
@@ -56,16 +56,17 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
 
     private void TestRepeatAttackMasteryBonusStartsOnFifthStageEntry()
     {
-        RepeatAttackFixture missFixture = BuildRepeatAttackFixture(
+        using RepeatAttackFixture missFixture = BuildRepeatAttackFixture(
             new[] { true, true, true, true, false }
         );
+        using var missBatch = new BattleEventBatch();
         bool missExecuted = missFixture.Resolver.ApplyRepeatAttackSkillResult(
             missFixture.ActiveUnit,
             missFixture.TargetUnit,
             missFixture.SkillDefinition,
             missFixture.EffectDefinitions,
             missFixture.RepeatEffectDefinition,
-            new BattleEventBatch()
+            missBatch
         );
         _test.True(missExecuted, "连击段数熟练度回归前置：应至少执行到第五段。");
         _test.Eq(
@@ -79,16 +80,17 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
             "连击熟练度 bonus 必须在对应段命中后发放，第五段 miss 不应给 bonus。"
         );
 
-        RepeatAttackFixture hitFixture = BuildRepeatAttackFixture(
+        using RepeatAttackFixture hitFixture = BuildRepeatAttackFixture(
             new[] { true, true, true, true, true, false }
         );
+        using var hitBatch = new BattleEventBatch();
         bool hitExecuted = hitFixture.Resolver.ApplyRepeatAttackSkillResult(
             hitFixture.ActiveUnit,
             hitFixture.TargetUnit,
             hitFixture.SkillDefinition,
             hitFixture.EffectDefinitions,
             hitFixture.RepeatEffectDefinition,
-            new BattleEventBatch()
+            hitBatch
         );
         _test.True(hitExecuted, "连击段数熟练度回归前置：命中夹具应执行。");
         _test.Eq(
@@ -301,7 +303,7 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
         );
         CombatEffectDefinition repeatEffect = TestSkillDefinitionProjection.BuildEffect(
             "repeat_attack_until_fail",
-            parameters: new Dictionary<string, Variant>
+            parameters: new Dictionary<string, object>
             {
                 ["cost_resource"] = "aura",
                 ["follow_up_fixed_cost"] = 0,
@@ -337,8 +339,10 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
         );
     }
 
-    private sealed class RepeatAttackFixture
+    private sealed class RepeatAttackFixture : System.IDisposable
     {
+        private bool _disposed;
+
         public BattleRuntimeModule Runtime;
         public StageOutcomeDamageResolver DamageResolver;
         internal BattleSkillMasteryService MasteryService;
@@ -348,5 +352,31 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
         public SkillDefinition SkillDefinition;
         public IReadOnlyList<CombatEffectDefinition> EffectDefinitions;
         public CombatEffectDefinition RepeatEffectDefinition;
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+            _disposed = true;
+
+            Resolver?.Setup(null, null);
+            MasteryService?.Dispose();
+            BattleTestFixture.DisposeBattleFixture(
+                Runtime,
+                null,
+                ActiveUnit,
+                TargetUnit
+            );
+
+            Runtime = null;
+            DamageResolver = null;
+            MasteryService = null;
+            Resolver = null;
+            ActiveUnit = null;
+            TargetUnit = null;
+            SkillDefinition = null;
+            EffectDefinitions = null;
+            RepeatEffectDefinition = null;
+        }
     }
 }

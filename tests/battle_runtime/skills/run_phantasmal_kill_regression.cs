@@ -381,7 +381,7 @@ public partial class run_phantasmal_kill_regression : LifecycleTestSceneTree
             saveAbility: "willpower",
             saveTag: "illusion",
             savePartialOnSuccess: false,
-            parameters: new Dictionary<string, Variant>
+            parameters: new Dictionary<string, object>
             {
                 ["profile_id"] = "phantasmal_kill",
                 ["failure_execute_threshold_fixed"] = 50,
@@ -399,8 +399,8 @@ public partial class run_phantasmal_kill_regression : LifecycleTestSceneTree
             }
         );
 
-    private static IReadOnlyDictionary<string, Variant> MakePhantasmalKillParameters() =>
-        new Dictionary<string, Variant>
+    private static IReadOnlyDictionary<string, object> MakePhantasmalKillParameters() =>
+        new Dictionary<string, object>
         {
             ["profile_id"] = "phantasmal_kill",
             ["failure_execute_threshold_fixed"] = 50,

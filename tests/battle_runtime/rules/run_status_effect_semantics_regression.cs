@@ -492,7 +492,7 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
             "status",
             statusId: "pinned",
             power: 1,
-            parameters: new Dictionary<string, Variant> { ["duration"] = Variant.From(15) }
+            parameters: new Dictionary<string, object> { ["duration"] = 15 }
         );
 
         BattleStatusEffectState merged = BattleStatusSemanticTable.MergeStatus(effectDef, "source_unit");
@@ -507,7 +507,7 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
             statusId: "pinned",
             power: 1,
             durationTu: 20,
-            parameters: new Dictionary<string, Variant> { ["duration"] = Variant.From(90) }
+            parameters: new Dictionary<string, object> { ["duration"] = 90 }
         );
 
         BattleStatusEffectState merged = BattleStatusSemanticTable.MergeStatus(effectDef, "source_unit");
@@ -521,7 +521,7 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
             "status",
             statusId: "pinned",
             power: 1,
-            parameters: new Dictionary<string, Variant> { ["duration_tu"] = Variant.From(20) }
+            parameters: new Dictionary<string, object> { ["duration_tu"] = 20 }
         );
 
         BattleStatusEffectState merged = BattleStatusSemanticTable.MergeStatus(effectDef, "source_unit");
@@ -539,9 +539,9 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
             statusId: "burning",
             power: 1,
             durationTu: 20,
-            parameters: new Dictionary<string, Variant>
+            parameters: new Dictionary<string, object>
             {
-                ["tick_interval_tu"] = Variant.From(10),
+                ["tick_interval_tu"] = 10,
             }
         );
 
@@ -682,7 +682,7 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
         CombatEffectDefinition legacyEffectBypass = BuildDamageEffect(
             10,
             "physical_slash",
-            parameters: new Dictionary<string, Variant> { ["bypass_tag"] = "armor_pierce" }
+            parameters: new Dictionary<string, object> { ["bypass_tag"] = "armor_pierce" }
         );
         BattleUnitState legacyEffectBypassTarget = BuildUnit("legacy_effect_bypass_target", Vector2I.Zero, 2);
         SetStatusParams(
@@ -758,7 +758,7 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
             10,
             "physical_slash",
             bonusCondition: "target_low_hp",
-            parameters: new Dictionary<string, Variant>
+            parameters: new Dictionary<string, object>
             {
                 ["low_hp_ratio"] = 0.7,
                 ["bonus_damage_dice_count"] = 4,
@@ -1058,7 +1058,7 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
         int hpRatioThresholdPercent = 0,
         int bonusDamageDiceCount = 0,
         int bonusDamageDiceSides = 0,
-        IReadOnlyDictionary<string, Variant> parameters = null
+        IReadOnlyDictionary<string, object> parameters = null
     ) =>
         TestSkillDefinitionProjection.BuildEffect(
             "damage",

@@ -32,7 +32,10 @@ public partial class run_battle_execution_rules_contract_regression : LifecycleT
             "BattleExecutionRulesContract.execute-fields-effect"
         );
 
-        CombatEffectDefinition effectDefinition = CombatEffectDefinition.FromResource(effect);
+        CombatEffectDefinition effectDefinition = CombatEffectDefinition.FromResource(
+            effect,
+            "test.battle_execution_rules.execute_effect"
+        );
         BattleExecutionRuleParams parameters = BattleExecutionRuleParams.FromEffect(
             effectDefinition,
             "execute_skill"

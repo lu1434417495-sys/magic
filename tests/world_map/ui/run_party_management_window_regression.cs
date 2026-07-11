@@ -305,11 +305,11 @@ public partial class run_party_management_window_regression : LifecycleTestScene
             "",
             System.Array.Empty<AttributeModifierDefinition>(),
             "消耗 {ap_cost} AP，最大 {dynamic_max_level}；{custom_text}",
-            new Dictionary<int, IReadOnlyDictionary<string, Variant>>
+            new Dictionary<int, IReadOnlyDictionary<string, object>>
             {
-                [1] = new Dictionary<string, Variant>
+                [1] = new Dictionary<string, object>
                 {
-                    ["custom_text"] = Variant.From("快照文本"),
+                    ["custom_text"] = "快照文本",
                 },
             },
             BuildWindowCombatDefinition(skillId)
@@ -338,12 +338,12 @@ public partial class run_party_management_window_regression : LifecycleTestScene
             0,
             "",
             0,
-            new Dictionary<int, IReadOnlyDictionary<string, Variant>>
+            new Dictionary<int, IReadOnlyDictionary<string, object>>
             {
-                [2] = new Dictionary<string, Variant>
+                [2] = new Dictionary<string, object>
                 {
-                    ["ap_cost"] = Variant.From(5),
-                    ["cooldown_tu"] = Variant.From(20),
+                    ["ap_cost"] = 5,
+                    ["cooldown_tu"] = 20,
                 },
             },
             "",

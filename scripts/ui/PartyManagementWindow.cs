@@ -830,7 +830,7 @@ public partial class PartyManagementWindow : Control
         var lines = new List<string>();
         if (skillDefinition?.CombatProfile == null)
             return lines;
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>> overrides =
+        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> overrides =
             skillDefinition.CombatProfile.LevelOverrides;
         if (overrides.Count == 0)
             return lines;
@@ -841,7 +841,7 @@ public partial class PartyManagementWindow : Control
         {
             if (level <= skillLevel)
                 continue;
-            if (!overrides.TryGetValue(level, out IReadOnlyDictionary<string, Variant> data))
+            if (!overrides.TryGetValue(level, out IReadOnlyDictionary<string, object> data))
                 continue;
             var parts = new List<string>();
             foreach (
@@ -855,7 +855,7 @@ public partial class PartyManagementWindow : Control
                 }
             )
             {
-                if (!data.TryGetValue(costKey, out Variant costValue))
+                if (!data.TryGetValue(costKey, out object costValue))
                     continue;
                 string label = costKey switch
                 {
@@ -866,7 +866,8 @@ public partial class PartyManagementWindow : Control
                     "cooldown_tu" => "冷却",
                     _ => "",
                 };
-                parts.Add($"{label}→{costValue.AsInt32()}");
+                if (TryReadPlainInt(costValue, out int resolvedCost))
+                    parts.Add($"{label}→{resolvedCost}");
             }
             if (parts.Count > 0)
                 nextLevels.Add($"Lv.{level}：{string.Join("，", parts)}");
@@ -874,6 +875,34 @@ public partial class PartyManagementWindow : Control
         if (nextLevels.Count > 0)
             lines.Add($"  升级预览：{string.Join("；", nextLevels)}");
         return lines;
+    }
+
+    private static bool TryReadPlainInt(object value, out int result)
+    {
+        switch (value)
+        {
+            case byte byteValue:
+                result = byteValue;
+                return true;
+            case short shortValue:
+                result = shortValue;
+                return true;
+            case int intValue:
+                result = intValue;
+                return true;
+            case long longValue when longValue >= int.MinValue && longValue <= int.MaxValue:
+                result = (int)longValue;
+                return true;
+            case float floatValue when floatValue >= int.MinValue && floatValue <= int.MaxValue:
+                result = (int)floatValue;
+                return true;
+            case double doubleValue when doubleValue >= int.MinValue && doubleValue <= int.MaxValue:
+                result = (int)doubleValue;
+                return true;
+            default:
+                result = 0;
+                return false;
+        }
     }
 
     private List<string> _build_profession_detail_lines(UnitProgress progression)

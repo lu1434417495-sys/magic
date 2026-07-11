@@ -714,7 +714,7 @@ public partial class run_game_root_content_catalog_regression : LifecycleTestSce
             "",
             Array.Empty<AttributeModifierDefinition>(),
             "",
-            new Dictionary<int, IReadOnlyDictionary<string, Variant>>(),
+            new Dictionary<int, IReadOnlyDictionary<string, object>>(),
             null
         );
     }

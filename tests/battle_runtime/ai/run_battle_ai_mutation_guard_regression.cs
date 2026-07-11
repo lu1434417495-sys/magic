@@ -369,12 +369,12 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "snapshot_skill",
             levelDescriptionConfigs: new Dictionary<
                 int,
-                IReadOnlyDictionary<string, Variant>
+                IReadOnlyDictionary<string, object>
             >
             {
-                [1] = new Dictionary<string, Variant>
+                [1] = new Dictionary<string, object>
                 {
-                    ["variant_probe"] = Variant.From("plain-boundary"),
+                    ["variant_probe"] = "plain-boundary",
                 },
             }
         );

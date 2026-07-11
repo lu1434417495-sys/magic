@@ -429,7 +429,7 @@ public partial class run_contingency_damage_hook_contract_regression : Lifecycle
             saveAbility: "willpower",
             saveTag: "illusion",
             savePartialOnSuccess: false,
-            parameters: new Dictionary<string, Variant>
+            parameters: new Dictionary<string, object>
             {
                 ["profile_id"] = "phantasmal_kill",
                 ["failure_execute_threshold_fixed"] = 50,

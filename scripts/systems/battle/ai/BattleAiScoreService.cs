@@ -860,15 +860,9 @@ public sealed partial class BattleAiScoreService : IDisposable
         string key
     )
     {
-        if (
-            effectDefinition?.Parameters == null
-            || string.IsNullOrEmpty(key)
-            || !effectDefinition.Parameters.TryGetValue(key, out Variant rawValue)
-        )
-        {
-            return "";
-        }
-        return ProgressionDataUtils.to_string_name(rawValue);
+        return effectDefinition == null || string.IsNullOrEmpty(key)
+            ? ""
+            : effectDefinition.GetStringNameParamTyped(key, "");
     }
 
     private static int ReadIntParameter(
@@ -877,15 +871,9 @@ public sealed partial class BattleAiScoreService : IDisposable
         int fallback = 0
     )
     {
-        if (
-            effectDefinition?.Parameters == null
-            || string.IsNullOrEmpty(key)
-            || !effectDefinition.Parameters.TryGetValue(key, out Variant rawValue)
-        )
-        {
-            return fallback;
-        }
-        return rawValue.VariantType == Variant.Type.Int ? rawValue.AsInt32() : fallback;
+        return effectDefinition == null || string.IsNullOrEmpty(key)
+            ? fallback
+            : effectDefinition.GetIntParamTyped(key, fallback);
     }
 
     private static void AddStatusId(

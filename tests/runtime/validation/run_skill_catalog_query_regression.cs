@@ -263,7 +263,11 @@ public partial class run_skill_catalog_query_regression : LifecycleTestSceneTree
             "skill-catalog-query-combat-resource"
         );
 
-        CombatSkillDefinition runtimeCombat = CombatSkillDefinition.FromResource(resourceCombat);
+        CombatSkillDefinition runtimeCombat = CombatSkillDefinition.FromResource(
+            resourceCombat,
+            "skill_catalog_runtime_semantics",
+            "test.skill_catalog.runtime_semantics.combat_profile"
+        );
         _test.True(runtimeCombat != null, "CombatSkillDefinition 应能从合成 Resource 投影。");
         if (runtimeCombat == null)
             return;

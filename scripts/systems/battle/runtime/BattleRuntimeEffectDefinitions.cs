@@ -14,7 +14,7 @@ internal static class BattleRuntimeEffectDefinitions
         StringName statusId,
         int power,
         int durationTu,
-        IReadOnlyDictionary<string, Variant> parameters = null,
+        IReadOnlyDictionary<string, object> parameters = null,
         StringName stackBehavior = default,
         int stackLimit = 0,
         int attackRollPenalty = -1,
@@ -35,16 +35,16 @@ internal static class BattleRuntimeEffectDefinitions
         bool attackRollAdvantage = false
     )
     {
-        IReadOnlyDictionary<string, Variant> mergedParameters = parameters;
+        IReadOnlyDictionary<string, object> mergedParameters = parameters;
         if (
             sourceBoundAttackRollPenalty > 0
             || sourceBoundIncomingAttackRollBonusPerStack > 0
         )
         {
-            var nextParameters = new Dictionary<string, Variant>();
+            var nextParameters = new Dictionary<string, object>(StringComparer.Ordinal);
             if (parameters != null)
             {
-                foreach (KeyValuePair<string, Variant> entry in parameters)
+                foreach (KeyValuePair<string, object> entry in parameters)
                     nextParameters[entry.Key] = entry.Value;
             }
             if (sourceBoundAttackRollPenalty > 0)
@@ -142,27 +142,12 @@ internal static class BattleRuntimeEffectDefinitions
         );
     }
 
-    internal static IReadOnlyDictionary<string, Variant> CopyVariantDictionary(GDictionary source)
+    internal static IReadOnlyDictionary<string, object> CopyVariantDictionary(GDictionary source)
     {
-        if (source == null || source.Count == 0)
-        {
-            return SkillDefinition.CopyVariantMap(null);
-        }
-        var result = new Dictionary<string, Variant>();
-        foreach (Variant rawKey in source.Keys)
-        {
-            string key = rawKey.VariantType switch
-            {
-                Variant.Type.String => rawKey.AsString(),
-                Variant.Type.StringName => rawKey.AsStringName().ToString(),
-                _ => "",
-            };
-            if (!string.IsNullOrEmpty(key))
-            {
-                result[key] = source[rawKey];
-            }
-        }
-        return SkillDefinition.CopyVariantMap(result);
+        return ContentValueNormalizer.NormalizeDictionary(
+            source,
+            "BattleRuntimeEffectDefinitions.parameters"
+        );
     }
 
     private static CombatEffectDefinition Create(
@@ -222,7 +207,7 @@ internal static class BattleRuntimeEffectDefinitions
         int diceSidesBase = 0,
         int diceSidesPerConstitutionMod = 0,
         int diceSidesPerWillpowerMod = 0,
-        IReadOnlyDictionary<string, Variant> parameters = null,
+        IReadOnlyDictionary<string, object> parameters = null,
         IReadOnlyList<StringName> effectCategories = null,
         bool allowRepeatHitsAcrossSteps = false,
         StringName tickEffectType = default,
@@ -349,7 +334,7 @@ internal static class BattleRuntimeEffectDefinitions
             diceSidesBase,
             diceSidesPerConstitutionMod,
             diceSidesPerWillpowerMod,
-            SkillDefinition.CopyVariantMap(parameters),
+            parameters,
             effectCategories ?? EmptyStringNames,
             allowRepeatHitsAcrossSteps,
             Normalize(tickEffectType),

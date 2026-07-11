@@ -225,7 +225,7 @@ public partial class run_character_info_identity_regression : LifecycleTestScene
             "",
             System.Array.Empty<AttributeModifierDefinition>(),
             "",
-            new Dictionary<int, IReadOnlyDictionary<string, Variant>>(),
+            new Dictionary<int, IReadOnlyDictionary<string, object>>(),
             null
         );
         return result;

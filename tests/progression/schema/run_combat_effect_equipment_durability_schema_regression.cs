@@ -30,7 +30,10 @@ public partial class run_combat_effect_equipment_durability_schema_regression : 
                 new() { slot_id = "off_hand", weight = 20 },
             };
 
-        CombatEffectDefinition definition = CombatEffectDefinition.FromResource(resource);
+        CombatEffectDefinition definition = CombatEffectDefinition.FromResource(
+            resource,
+            "test.combat_effect_durability.typed_slot_weights"
+        );
 
         _test.Eq(
             definition.EquipmentDurabilitySlotWeights.Count,
@@ -67,7 +70,10 @@ public partial class run_combat_effect_equipment_durability_schema_regression : 
             [new StringName("main_hand")] = 99,
         };
 
-        CombatEffectDefinition definition = CombatEffectDefinition.FromResource(resource);
+        CombatEffectDefinition definition = CombatEffectDefinition.FromResource(
+            resource,
+            "test.combat_effect_durability.legacy_param"
+        );
 
         _test.Eq(
             definition.EquipmentDurabilitySlotWeights.Count,

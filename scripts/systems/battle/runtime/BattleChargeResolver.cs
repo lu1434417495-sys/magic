@@ -510,7 +510,7 @@ internal sealed class BattleChargeResolver
             return;
         }
 
-        IReadOnlyDictionary<string, Variant> parameters = pathStepAoeEffect.Parameters;
+        IReadOnlyDictionary<string, object> parameters = pathStepAoeEffect.Parameters;
         StringName statusId = GetStringName(parameters, "repeat_hit_status_id");
         if (IsEmpty(statusId))
         {
@@ -538,7 +538,7 @@ internal sealed class BattleChargeResolver
             return;
         }
 
-        IReadOnlyDictionary<string, Variant> extraStatusParams =
+        IReadOnlyDictionary<string, object> extraStatusParams =
             GetVariantDictionary(parameters, "repeat_hit_status_params");
 
         foreach ((StringName unitId, int hitCount) in totalUnitHitCounts)
@@ -590,7 +590,7 @@ internal sealed class BattleChargeResolver
     }
 
     private string FormatRepeatHitStatusLog(
-        IReadOnlyDictionary<string, Variant> parameters,
+        IReadOnlyDictionary<string, object> parameters,
         BattleUnitState targetUnit,
         SkillDefinition skillDefinition,
         int hitCount,
@@ -1887,27 +1887,18 @@ internal sealed class BattleChargeResolver
         StringName skillId = GetStringName(chargeEffect.Parameters, "skill_id", "charge");
         int skillLevel = GetUnitSkillLevel(activeUnit, skillId);
         int maxDistance = Math.Max(GetInt(chargeEffect.Parameters, "base_distance", 3), 0);
-        Variant distanceByLevel = GetVariant(
+        IReadOnlyDictionary<string, object> distanceByLevel = GetVariantDictionary(
             chargeEffect.Parameters,
-            "distance_by_level",
-            default
+            "distance_by_level"
         );
-        if (distanceByLevel.VariantType == Variant.Type.Dictionary)
+        foreach (KeyValuePair<string, object> entry in distanceByLevel)
         {
-            foreach (var breakpointKey in distanceByLevel.AsGodotDictionary().Keys)
+            if (!int.TryParse(entry.Key, out int levelBreakpoint))
             {
-                if (!TryReadInt(breakpointKey, out int levelBreakpoint))
-                {
-                    continue;
-                }
-                if (skillLevel >= levelBreakpoint)
-                {
-                    maxDistance = Math.Max(
-                        maxDistance,
-                        ReadDictionaryInt(distanceByLevel.AsGodotDictionary(), breakpointKey, maxDistance)
-                    );
-                }
+                continue;
             }
+            if (skillLevel >= levelBreakpoint && TryReadInt(entry.Value, out int distance))
+                maxDistance = Math.Max(maxDistance, distance);
         }
         return maxDistance;
     }
@@ -1926,27 +1917,18 @@ internal sealed class BattleChargeResolver
         StringName skillId = GetStringName(chargeEffect.Parameters, "skill_id", "charge");
         int skillLevel = activeUnit.GetKnownSkillLevel(skillId);
         int maxDistance = Math.Max(GetInt(chargeEffect.Parameters, "base_distance", 3), 0);
-        Variant distanceByLevel = GetVariant(
+        IReadOnlyDictionary<string, object> distanceByLevel = GetVariantDictionary(
             chargeEffect.Parameters,
-            "distance_by_level",
-            default
+            "distance_by_level"
         );
-        if (distanceByLevel.VariantType == Variant.Type.Dictionary)
+        foreach (KeyValuePair<string, object> entry in distanceByLevel)
         {
-            foreach (var breakpointKey in distanceByLevel.AsGodotDictionary().Keys)
+            if (!int.TryParse(entry.Key, out int levelBreakpoint))
             {
-                if (!TryReadInt(breakpointKey, out int levelBreakpoint))
-                {
-                    continue;
-                }
-                if (skillLevel >= levelBreakpoint)
-                {
-                    maxDistance = Math.Max(
-                        maxDistance,
-                        ReadDictionaryInt(distanceByLevel.AsGodotDictionary(), breakpointKey, maxDistance)
-                    );
-                }
+                continue;
             }
+            if (skillLevel >= levelBreakpoint && TryReadInt(entry.Value, out int distance))
+                maxDistance = Math.Max(maxDistance, distance);
         }
         return maxDistance;
     }
@@ -2137,188 +2119,116 @@ internal sealed class BattleChargeResolver
         return sorted;
     }
 
-    private static GDictionary GetDict(GDictionary source, string key)
-    {
-        if (!TryResolveStringKey(source, key, out Variant value))
-            return new GDictionary();
-        return value.AsGodotDictionary();
-    }
-
-    private static IReadOnlyDictionary<string, Variant> GetVariantDictionary(
-        IReadOnlyDictionary<string, Variant> source,
+    private static IReadOnlyDictionary<string, object> GetVariantDictionary(
+        IReadOnlyDictionary<string, object> source,
         string key
     )
     {
-        if (!TryResolveStringKey(source, key, out Variant value))
-        {
-            return SkillDefinition.CopyVariantMap(null);
-        }
-        return value.VariantType == Variant.Type.Dictionary
-            ? BattleRuntimeEffectDefinitions.CopyVariantDictionary(value.AsGodotDictionary())
-            : SkillDefinition.CopyVariantMap(null);
-    }
-
-    private static int GetInt(GDictionary source, string key, int fallback = 0)
-    {
-        if (!TryResolveStringKey(source, key, out Variant value))
-            return fallback;
-        return value.AsInt32();
+        return source != null
+            && !string.IsNullOrEmpty(key)
+            && source.TryGetValue(key, out object value)
+            && value is IReadOnlyDictionary<string, object> dictionary
+                ? dictionary
+                : EmptyParameters;
     }
 
     private static int GetInt(
-        IReadOnlyDictionary<string, Variant> source,
+        IReadOnlyDictionary<string, object> source,
         string key,
         int fallback = 0
     )
     {
-        if (!TryResolveStringKey(source, key, out Variant value))
+        if (!TryResolveStringKey(source, key, out object value))
         {
             return fallback;
         }
         return TryReadInt(value, out int result) ? result : fallback;
     }
 
-    private static int GetInt(GDictionary source, int key, int fallback = 0)
-    {
-        if (!TryResolveIntKey(source, key, out Variant value))
-            return fallback;
-        return value.AsInt32();
-    }
-
-    private static string GetString(GDictionary source, string key, string fallback = "")
-    {
-        if (!TryResolveStringKey(source, key, out Variant value))
-            return fallback;
-        string result = value.ToString();
-        return string.IsNullOrEmpty(result) || result == "<null>" ? fallback : result;
-    }
-
     private static string GetString(
-        IReadOnlyDictionary<string, Variant> source,
+        IReadOnlyDictionary<string, object> source,
         string key,
         string fallback = ""
     )
     {
-        if (!TryResolveStringKey(source, key, out Variant value))
+        if (!TryResolveStringKey(source, key, out object value))
         {
             return fallback;
         }
-        string result = value.ToString();
-        return string.IsNullOrEmpty(result) || result == "<null>" ? fallback : result;
-    }
-
-    private static StringName GetStringName(GDictionary source, string key, StringName fallback = default)
-    {
-        if (!TryResolveStringKey(source, key, out Variant value))
-            return fallback;
-        StringName result = ProgressionDataUtils.to_string_name(value);
-        return result != "" ? result : fallback;
+        string result = value switch
+        {
+            string text => text,
+            StringName stringName => stringName.ToString(),
+            _ => "",
+        };
+        return string.IsNullOrEmpty(result) ? fallback : result;
     }
 
     private static StringName GetStringName(
-        IReadOnlyDictionary<string, Variant> source,
+        IReadOnlyDictionary<string, object> source,
         string key,
         StringName fallback = default
     )
     {
-        if (!TryResolveStringKey(source, key, out Variant value))
+        if (!TryResolveStringKey(source, key, out object value))
         {
             return fallback;
         }
-        StringName result = ProgressionDataUtils.to_string_name(value);
+        StringName result = value switch
+        {
+            StringName stringName => stringName,
+            string text => new StringName(text),
+            _ => "",
+        };
         return result != "" ? result : fallback;
     }
 
-    private static Variant GetVariant(
-        IReadOnlyDictionary<string, Variant> source,
-        string key,
-        Variant fallback = default
-    )
-    {
-        return TryResolveStringKey(source, key, out Variant value) ? value : fallback;
-    }
-
-    private static Vector2I GetVector2I(GDictionary source, string key, Vector2I fallback)
-    {
-        if (!TryResolveStringKey(source, key, out Variant value))
-            return fallback;
-        return value.AsVector2I();
-    }
-
-    private static bool TryResolveStringKey(GDictionary source, string key, out Variant value)
-    {
-        value = default;
-        if (source == null || string.IsNullOrEmpty(key))
-        {
-            return false;
-        }
-        if (source.ContainsKey(key))
-        {
-            value = source[key];
-            return true;
-        }
-        return false;
-    }
-
     private static bool TryResolveStringKey(
-        IReadOnlyDictionary<string, Variant> source,
+        IReadOnlyDictionary<string, object> source,
         string key,
-        out Variant value
+        out object value
     )
     {
-        value = default;
+        value = null;
         return source != null
             && !string.IsNullOrEmpty(key)
             && source.TryGetValue(key, out value);
     }
 
-    private static int ReadDictionaryInt(
-        GDictionary source,
-        Variant key,
-        int fallback = 0
-    )
-    {
-        return source != null
-            && source.ContainsKey(key)
-            && TryReadInt(source[key], out int value)
-                ? value
-                : fallback;
-    }
-
-    private static bool TryReadInt(Variant value, out int result)
+    private static bool TryReadInt(object value, out int result)
     {
         result = 0;
-        switch (value.VariantType)
+        switch (value)
         {
-            case Variant.Type.Int:
-                result = value.AsInt32();
+            case byte byteValue:
+                result = byteValue;
                 return true;
-            case Variant.Type.Float:
-                result = (int)value.AsDouble();
+            case short shortValue:
+                result = shortValue;
                 return true;
-            case Variant.Type.String:
-                return int.TryParse(value.AsString(), out result);
-            case Variant.Type.StringName:
-                return int.TryParse(value.AsStringName().ToString(), out result);
+            case int intValue:
+                result = intValue;
+                return true;
+            case long longValue when longValue >= int.MinValue && longValue <= int.MaxValue:
+                result = (int)longValue;
+                return true;
+            case float floatValue when floatValue >= int.MinValue && floatValue <= int.MaxValue:
+                result = (int)floatValue;
+                return true;
+            case double doubleValue when doubleValue >= int.MinValue && doubleValue <= int.MaxValue:
+                result = (int)doubleValue;
+                return true;
+            case string text:
+                return int.TryParse(text, out result);
+            case StringName stringName:
+                return int.TryParse(stringName.ToString(), out result);
             default:
                 return false;
         }
     }
 
-    private static bool TryResolveIntKey(GDictionary source, int key, out Variant value)
-    {
-        value = default;
-        if (source == null)
-        {
-            return false;
-        }
-        if (source.ContainsKey(key))
-        {
-            value = source[key];
-            return true;
-        }
-        return false;
-    }
+    private static readonly IReadOnlyDictionary<string, object> EmptyParameters =
+        new Dictionary<string, object>(StringComparer.Ordinal);
 
     private static bool IsEmpty(StringName value)
     {

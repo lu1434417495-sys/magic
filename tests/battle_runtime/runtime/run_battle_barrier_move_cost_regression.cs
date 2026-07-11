@@ -112,7 +112,7 @@ public partial class run_battle_barrier_move_cost_regression : LifecycleTestScen
             saveAbility: "willpower",
             saveTag: "magic",
             durationTu: 120,
-            parameters: new Dictionary<string, Variant>
+            parameters: new Dictionary<string, object>
             {
                 ["area_pattern"] = "diamond",
                 ["profile_id"] = "prismatic_sphere",

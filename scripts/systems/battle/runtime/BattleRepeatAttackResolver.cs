@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 internal sealed class BattleRepeatAttackResolver
 {
@@ -1075,78 +1074,50 @@ internal sealed class BattleRepeatAttackResolver
         }
     }
 
-    private static int GetInt(GDictionary source, string key, int fallback = 0)
-    {
-        if (!TryResolveStringKey(source, key, out Variant value))
-            return fallback;
-        return value.AsInt32();
-    }
-
-    private static double GetFloat(GDictionary source, string key, double fallback = 0.0)
-    {
-        if (!TryResolveStringKey(source, key, out Variant value))
-            return fallback;
-        return value.AsDouble();
-    }
-
     private static double GetFloat(
-        IReadOnlyDictionary<string, Variant> source,
+        IReadOnlyDictionary<string, object> source,
         string key,
         double fallback = 0.0
     )
     {
-        if (!TryResolveStringKey(source, key, out Variant value))
+        if (!TryResolveStringKey(source, key, out object value))
             return fallback;
-        return value.VariantType switch
+        return value switch
         {
-            Variant.Type.Int => value.AsInt64(),
-            Variant.Type.Float => value.AsDouble(),
+            byte byteValue => byteValue,
+            short shortValue => shortValue,
+            int intValue => intValue,
+            long longValue => longValue,
+            float floatValue => floatValue,
+            double doubleValue => doubleValue,
             _ => fallback,
         };
     }
 
-    private static string GetString(GDictionary source, string key, string fallback = "")
-    {
-        if (!TryResolveStringKey(source, key, out Variant value))
-            return fallback;
-        string result = value.ToString();
-        return string.IsNullOrEmpty(result) || result == "<null>" ? fallback : result;
-    }
-
     private static string GetString(
-        IReadOnlyDictionary<string, Variant> source,
+        IReadOnlyDictionary<string, object> source,
         string key,
         string fallback = ""
     )
     {
-        if (!TryResolveStringKey(source, key, out Variant value))
+        if (!TryResolveStringKey(source, key, out object value))
             return fallback;
-        string result = value.ToString();
-        return string.IsNullOrEmpty(result) || result == "<null>" ? fallback : result;
-    }
-
-    private static bool TryResolveStringKey(GDictionary source, string key, out Variant value)
-    {
-        value = default;
-        if (source == null || string.IsNullOrEmpty(key))
+        string result = value switch
         {
-            return false;
-        }
-        if (source.ContainsKey(key))
-        {
-            value = source[key];
-            return true;
-        }
-        return false;
+            string text => text,
+            StringName stringName => stringName.ToString(),
+            _ => "",
+        };
+        return string.IsNullOrEmpty(result) ? fallback : result;
     }
 
     private static bool TryResolveStringKey(
-        IReadOnlyDictionary<string, Variant> source,
+        IReadOnlyDictionary<string, object> source,
         string key,
-        out Variant value
+        out object value
     )
     {
-        value = default;
+        value = null;
         if (source == null || string.IsNullOrEmpty(key))
         {
             return false;

@@ -90,7 +90,7 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         CombatEffectDefinition effect = BuildDamageEffect(
             5,
             false,
-            parameters: new Dictionary<string, Variant>
+            parameters: new Dictionary<string, object>
             {
                 ["damage_dice_count"] = 3,
                 ["damage_dice_sides"] = 6,
@@ -803,7 +803,7 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         int diceSides = 0,
         int diceBonus = 0,
         StringName damageTag = default,
-        IReadOnlyDictionary<string, Variant> parameters = null
+        IReadOnlyDictionary<string, object> parameters = null
     )
     {
         if (damageTag == default || damageTag == (StringName)"")

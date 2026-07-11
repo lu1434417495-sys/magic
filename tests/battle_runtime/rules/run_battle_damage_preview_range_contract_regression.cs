@@ -146,7 +146,7 @@ public partial class run_battle_damage_preview_range_contract_regression : Lifec
         CombatEffectDefinition effect = BuildDamageEffect(
             1,
             true,
-            parameters: new Dictionary<string, Variant>
+            parameters: new Dictionary<string, object>
             {
                 ["damage_dice_count"] = 3,
                 ["damage_dice_sides"] = 3,
@@ -185,7 +185,7 @@ public partial class run_battle_damage_preview_range_contract_regression : Lifec
         int diceCount = 0,
         int diceSides = 0,
         int diceBonus = 0,
-        IReadOnlyDictionary<string, Variant> parameters = null
+        IReadOnlyDictionary<string, object> parameters = null
     )
     {
         return TestSkillDefinitionProjection.BuildEffect(

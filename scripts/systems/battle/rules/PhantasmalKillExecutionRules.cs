@@ -470,7 +470,13 @@ internal static class PhantasmalKillExecutionRules
         {
             return false;
         }
-        value = ProgressionDataUtils.to_string_name(effectDefinition.Parameters[key]);
+        object rawValue = effectDefinition.Parameters[key];
+        value = rawValue switch
+        {
+            StringName stringName => stringName,
+            string text => new StringName(text),
+            _ => "",
+        };
         return !IsEmpty(value);
     }
 
@@ -485,13 +491,24 @@ internal static class PhantasmalKillExecutionRules
         {
             return false;
         }
-        Variant rawValue = effectDefinition.Parameters[key];
-        if (rawValue.VariantType != Variant.Type.Int)
+        object rawValue = effectDefinition.Parameters[key];
+        switch (rawValue)
         {
-            return false;
+            case byte byteValue:
+                value = byteValue;
+                return true;
+            case short shortValue:
+                value = shortValue;
+                return true;
+            case int intValue:
+                value = intValue;
+                return true;
+            case long longValue when longValue >= int.MinValue && longValue <= int.MaxValue:
+                value = (int)longValue;
+                return true;
+            default:
+                return false;
         }
-        value = rawValue.AsInt32();
-        return true;
     }
 
     private static bool TryReadPositiveIntParam(

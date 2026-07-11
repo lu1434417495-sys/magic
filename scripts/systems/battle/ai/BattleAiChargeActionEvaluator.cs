@@ -342,10 +342,10 @@ internal sealed class BattleAiChargeActionEvaluator
         if (chargeEffect == null)
             return 0;
 
-        int maxDistance = Math.Max(ReadInt(chargeEffect.Parameters, "base_distance", 3), 0);
+        int maxDistance = Math.Max(chargeEffect.GetIntParamTyped("base_distance", 3), 0);
         int skillLevel = GetSkillLevel(
             unitState,
-            ReadStringName(chargeEffect.Parameters, "skill_id", "charge")
+            chargeEffect.GetStringNameParamTyped("skill_id", "charge")
         );
         foreach (ChargeDistanceBreakpoint breakpoint in ReadDistanceBreakpoints(chargeEffect))
         {
@@ -360,34 +360,21 @@ internal sealed class BattleAiChargeActionEvaluator
     )
     {
         var result = new List<ChargeDistanceBreakpoint>();
-        Godot.Collections.Dictionary distanceByLevel = ReadDictionary(
+        IReadOnlyDictionary<string, object> distanceByLevel = ReadDictionary(
             chargeEffect?.Parameters,
             "distance_by_level"
         );
-        foreach (Variant rawKey in distanceByLevel.Keys)
+        foreach (KeyValuePair<string, object> entry in distanceByLevel)
         {
-            if (!TryReadLevelBreakpoint(rawKey, out int levelBreakpoint))
+            if (!int.TryParse(entry.Key, out int levelBreakpoint))
                 continue;
-            int distance = ReadInt(distanceByLevel, rawKey, -1);
+            int distance = ReadInt(entry.Value, -1);
             if (distance < 0)
                 continue;
             result.Add(new ChargeDistanceBreakpoint(levelBreakpoint, distance));
         }
         result.Sort((left, right) => left.Level.CompareTo(right.Level));
         return result;
-    }
-
-    private static bool TryReadLevelBreakpoint(Variant rawKey, out int levelBreakpoint)
-    {
-        levelBreakpoint = 0;
-        if (rawKey.VariantType == Variant.Type.Int)
-        {
-            levelBreakpoint = rawKey.AsInt32();
-            return true;
-        }
-        if (rawKey.VariantType != Variant.Type.String && rawKey.VariantType != Variant.Type.StringName)
-            return false;
-        return int.TryParse(rawKey.AsString(), out levelBreakpoint);
     }
 
     private static ChargeTargetInfo ResolveChargeTargetInfo(BattleUnitState unitState, Vector2I targetCoord)
@@ -782,78 +769,38 @@ internal sealed class BattleAiChargeActionEvaluator
         BattleAiDecision bestDecision = null
     ) => EnemyAiActionHelper.FinalizeActionTrace(context, actionTrace, bestDecision);
 
-    private static Godot.Collections.Dictionary ReadDictionary(
-        IReadOnlyDictionary<string, Variant> data,
+    private static IReadOnlyDictionary<string, object> ReadDictionary(
+        IReadOnlyDictionary<string, object> data,
         string key
     )
     {
-        Variant value = ReadValue(data, key);
-        return value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
-            : new Godot.Collections.Dictionary();
-    }
-
-    private static Godot.Collections.Dictionary ReadDictionary(
-        Godot.Collections.Dictionary data,
-        string key
-    )
-    {
-        Variant value = ReadValue(data, key);
-        return value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
-            : new Godot.Collections.Dictionary();
-    }
-
-    private static int ReadInt(IReadOnlyDictionary<string, Variant> data, string key, int fallback = 0)
-    {
-        Variant value = ReadValue(data, key);
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
-    }
-
-    private static int ReadInt(Godot.Collections.Dictionary data, object key, int fallback = 0)
-    {
-        Variant value = ReadValue(data, key);
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
-    }
-
-    private static StringName ReadStringName(
-        IReadOnlyDictionary<string, Variant> data,
-        string key,
-        StringName fallback = default
-    )
-    {
-        Variant value = ReadValue(data, key);
-        if (value.VariantType == Variant.Type.StringName)
-            return value.AsStringName();
-        if (value.VariantType == Variant.Type.String)
-            return new StringName(value.AsString());
-        return fallback ?? EmptyStringName;
-    }
-
-    private static Variant ReadValue(Godot.Collections.Dictionary data, object key)
-    {
-        if (data == null || key == null)
-            return default;
-        Variant variantKey = key switch
+        if (
+            data != null
+            && !string.IsNullOrEmpty(key)
+            && data.TryGetValue(key, out object value)
+            && value is IReadOnlyDictionary<string, object> dictionary
+        )
         {
-            Variant valueKey => valueKey,
-            StringName stringNameKey => stringNameKey,
-            string stringKey => stringKey,
-            int intKey => intKey,
-            long longKey => longKey,
-            _ => default,
-        };
-        if (variantKey.VariantType == Variant.Type.Nil)
-            return default;
-        return data.ContainsKey(variantKey) ? data[variantKey] : default;
+            return dictionary;
+        }
+        return EmptyParameters;
     }
 
-    private static Variant ReadValue(IReadOnlyDictionary<string, Variant> data, string key)
+    private static int ReadInt(object value, int fallback = 0)
     {
-        if (data == null || string.IsNullOrEmpty(key))
-            return default;
-        return data.TryGetValue(key, out Variant value) ? value : default;
+        return value switch
+        {
+            byte byteValue => byteValue,
+            short shortValue => shortValue,
+            int intValue => intValue,
+            long longValue when longValue >= int.MinValue && longValue <= int.MaxValue =>
+                (int)longValue,
+            _ => fallback,
+        };
     }
+
+    private static readonly IReadOnlyDictionary<string, object> EmptyParameters =
+        new Dictionary<string, object>(StringComparer.Ordinal);
 
     private static Dictionary<string, object> CloneMetadata(
         IReadOnlyDictionary<string, object> source

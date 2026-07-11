@@ -674,7 +674,7 @@ internal sealed class BattleMeteorSwarmResolver
             durationTu: terrain_profile?.duration_tu ?? 0,
             tickIntervalTu: terrain_profile?.tick_interval_tu ?? 0,
             stackBehavior: "refresh",
-            parameters: new Dictionary<string, Variant>
+            parameters: new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["move_cost_stack_key"] = terrain_profile?.move_cost_stack_key ?? "",
                 ["move_cost_stack_mode"] = terrain_profile?.move_cost_stack_mode ?? "",
@@ -728,7 +728,7 @@ internal sealed class BattleMeteorSwarmResolver
         int durationTu = 0,
         int tickIntervalTu = 0,
         StringName stackBehavior = default,
-        IReadOnlyDictionary<string, Variant> parameters = null,
+        IReadOnlyDictionary<string, object> parameters = null,
         BattleAttackRollModifierSpec accuracyModifierSpec = null,
         int attackRollPenalty = -1
     )
@@ -780,7 +780,7 @@ internal sealed class BattleMeteorSwarmResolver
             effectTags: Array.Empty<StringName>(),
             triggerCondition: new StringName(""),
             power: power,
-            parameters: parameters ?? new Dictionary<string, Variant>(),
+            parameters: parameters ?? new Dictionary<string, object>(StringComparer.Ordinal),
             tickEffectType: NormalizeStringName(tickEffectType),
             lifetimePolicy: NormalizeStringName(lifetimePolicy),
             moveCostDelta: moveCostDelta,

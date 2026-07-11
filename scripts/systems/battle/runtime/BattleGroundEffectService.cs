@@ -2945,23 +2945,28 @@ internal class BattleGroundEffectService
         return string.IsNullOrEmpty(result) || result == "<null>" ? fallback : result;
     }
 
-    private static bool HasParameter(IReadOnlyDictionary<string, Variant> source, string key)
+    private static bool HasParameter(IReadOnlyDictionary<string, object> source, string key)
     {
         return source != null && !string.IsNullOrEmpty(key) && source.ContainsKey(key);
     }
 
     private static string ReadString(
-        IReadOnlyDictionary<string, Variant> source,
+        IReadOnlyDictionary<string, object> source,
         string key,
         string fallback = ""
     )
     {
-        if (source == null || string.IsNullOrEmpty(key) || !source.TryGetValue(key, out Variant value))
+        if (source == null || string.IsNullOrEmpty(key) || !source.TryGetValue(key, out object value))
         {
             return fallback;
         }
-        string result = value.ToString();
-        return string.IsNullOrEmpty(result) || result == "<null>" ? fallback : result;
+        string result = value switch
+        {
+            string text => text,
+            StringName stringName => stringName.ToString(),
+            _ => "",
+        };
+        return string.IsNullOrEmpty(result) ? fallback : result;
     }
 
     private static IReadOnlyList<Vector2I> ExpandSquare2Corner(Vector2I center, string corner)

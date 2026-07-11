@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 // M2 temporal 状态族语义回归：time_stasis 冻结个人时间线、time_slow 余数累加、
 // time_reverberation 释放规则与 typed 状态构造边界。
@@ -242,11 +241,12 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
             power: 1,
             durationTu: 60,
             effectTags: new[] { TemporalTag },
-            parameters: new Dictionary<string, Variant>
+            parameters: new Dictionary<string, object>
             {
-                ["save_bonus_by_tag"] = Variant.From(
-                    new GDictionary { [Variant.From(TemporalTag)] = Variant.From(4) }
-                ),
+                ["save_bonus_by_tag"] = new Dictionary<string, object>
+                {
+                    [TemporalTag.ToString()] = 4,
+                },
             }
         );
         BattleStatusEffectState statusEntry = BattleStatusSemanticTable.MergeStatus(
@@ -272,17 +272,18 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
             "save_bonus_by_tag formal key 不应滞留在 owner 内部 @params。"
         );
 
-        // string key 不应被恢复进 typed map（无 string-key fallback）。
+        // Restricted content graphs canonicalize nested dictionary keys to strings.
         CombatEffectDefinition stringKeyDef = TestSkillDefinitionProjection.BuildEffect(
             "status",
             statusId: "string_key_probe",
             power: 1,
             durationTu: 60,
-            parameters: new Dictionary<string, Variant>
+            parameters: new Dictionary<string, object>
             {
-                ["save_bonus_by_tag"] = Variant.From(
-                    new GDictionary { [Variant.From("temporal")] = Variant.From(4) }
-                ),
+                ["save_bonus_by_tag"] = new Dictionary<string, object>
+                {
+                    ["temporal"] = 4,
+                },
             }
         );
         BattleStatusEffectState stringKeyEntry = BattleStatusSemanticTable.MergeStatus(
@@ -291,9 +292,9 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
         );
         _test.True(stringKeyEntry != null, "string-key 探针状态构造应成功。");
         _test.Eq(
-            stringKeyEntry?.save_bonus_by_tag.Count ?? -1,
-            0,
-            "save_bonus_by_tag 的 string key 不应通过 fallback 恢复进 typed map。"
+            stringKeyEntry?.save_bonus_by_tag.GetValueOrDefault(TemporalTag, 0) ?? -1,
+            4,
+            "save_bonus_by_tag 的 canonical string key 应恢复进 typed map。"
         );
     }
 

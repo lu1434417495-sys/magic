@@ -376,6 +376,11 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
         _reports.Add(ContentValidationRunner.FormatReport(invalidFixtureReport));
 
         AssertInvalid(skillResult, "非法技能 fixture 应保持非法。");
+        AssertContainsError(
+            skillResult,
+            "skill.invalid_level_description_malformed_skill.level_description_configs",
+            "非法技能 fixture 应保留 strict projection 的精确路径错误。"
+        );
         _test.True(validSkillResult.ErrorCount == 0, "合法技能 targeting fixture 不应产生 validation 错误。");
 
         AssertInvalid(professionResult, "非法职业 fixture 应保持非法。");
@@ -593,7 +598,7 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
         _test.Eq(effect.SaveTag, new StringName("illusion"), "Phantasmal Kill save_tag 应为 illusion。");
         _test.False(effect.SavePartialOnSuccess, "Phantasmal Kill 不应启用 save_partial_on_success。");
 
-        IReadOnlyDictionary<string, Variant> parameters = effect.Parameters;
+        IReadOnlyDictionary<string, object> parameters = effect.Parameters;
         _test.Eq(parameters?.Count ?? 0, 13, "Phantasmal Kill profile params 应为精确白名单。");
         AssertParamString(parameters, "profile_id", "phantasmal_kill");
         AssertParamInt(parameters, "failure_execute_threshold_fixed", 50);
@@ -1273,19 +1278,20 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
         }
     }
 
-    private void AssertParamInt(IReadOnlyDictionary<string, Variant> parameters, string key, int expected)
+    private void AssertParamInt(IReadOnlyDictionary<string, object> parameters, string key, int expected)
     {
         _test.True(parameters != null && parameters.ContainsKey(key), $"Phantasmal Kill params 应包含 {key}。");
         if (parameters == null || !parameters.ContainsKey(key))
             return;
-        Variant value = parameters[key];
-        _test.Eq(value.VariantType, Variant.Type.Int, $"Phantasmal Kill params.{key} 应为 int。");
-        if (value.VariantType == Variant.Type.Int)
-            _test.Eq(value.AsInt32(), expected, $"Phantasmal Kill params.{key} 应匹配。");
+        object value = parameters[key];
+        bool isPlainInteger = value is byte or short or int or long;
+        _test.True(isPlainInteger, $"Phantasmal Kill params.{key} 应为 plain integer。");
+        if (isPlainInteger)
+            _test.Eq(Convert.ToInt32(value), expected, $"Phantasmal Kill params.{key} 应匹配。");
     }
 
     private void AssertParamString(
-        IReadOnlyDictionary<string, Variant> parameters,
+        IReadOnlyDictionary<string, object> parameters,
         string key,
         string expected
     )
@@ -1293,10 +1299,10 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
         _test.True(parameters != null && parameters.ContainsKey(key), $"Phantasmal Kill params 应包含 {key}。");
         if (parameters == null || !parameters.ContainsKey(key))
             return;
-        Variant value = parameters[key];
-        _test.Eq(value.VariantType, Variant.Type.String, $"Phantasmal Kill params.{key} 应为 string。");
-        if (value.VariantType == Variant.Type.String)
-            _test.Eq(value.AsString(), expected, $"Phantasmal Kill params.{key} 应匹配。");
+        object value = parameters[key];
+        _test.True(value is string, $"Phantasmal Kill params.{key} 应为 plain string。");
+        if (value is string text)
+            _test.Eq(text, expected, $"Phantasmal Kill params.{key} 应匹配。");
     }
 
     private void AssertContainsText(string text, string expectedPart, string message)

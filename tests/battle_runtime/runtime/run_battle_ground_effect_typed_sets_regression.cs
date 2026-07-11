@@ -165,7 +165,7 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
                 "square2_probe",
                 minSkillLevel: 0,
                 effects: Array.Empty<CombatEffectDefinition>(),
-                parameters: new Dictionary<string, Variant> { ["square2_corner"] = "top_left" }
+                parameters: new Dictionary<string, object> { ["square2_corner"] = "top_left" }
             );
             IReadOnlyList<Vector2I> typedCoords = fixture.Runtime._ground_effect_service
                 .BuildGroundEffectCoords(

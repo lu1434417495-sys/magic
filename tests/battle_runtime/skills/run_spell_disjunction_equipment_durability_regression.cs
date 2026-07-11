@@ -227,7 +227,8 @@ public partial class run_spell_disjunction_equipment_durability_regression : Lif
                     ["max_damaged_items"] = 1,
                     ["target_slots"] = new GStringNameArray { "main_hand" },
                 },
-            }
+            },
+            "test.spell_disjunction.equipment_durability_effect"
         );
 
     private void EquipInstance(

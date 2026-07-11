@@ -136,7 +136,7 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
             1,
             Array.Empty<StringName>(),
             Array.Empty<CombatEffectDefinition>(),
-            new Dictionary<string, Variant>()
+            new Dictionary<string, object>()
         );
         return new SkillDefinition(
             skillId,
@@ -167,7 +167,7 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
             "",
             Array.Empty<AttributeModifierDefinition>(),
             "",
-            new Dictionary<int, IReadOnlyDictionary<string, Variant>>(),
+            new Dictionary<int, IReadOnlyDictionary<string, object>>(),
             new CombatSkillDefinition(
                 skillId,
                 "unit",
@@ -188,7 +188,7 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
                 0,
                 "",
                 0,
-                new Dictionary<int, IReadOnlyDictionary<string, Variant>>(),
+                new Dictionary<int, IReadOnlyDictionary<string, object>>(),
                 "",
                 "",
                 "",

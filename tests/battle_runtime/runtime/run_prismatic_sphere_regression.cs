@@ -426,7 +426,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             saveDcMode: "static",
             saveAbility: "willpower",
             saveTag: "magic",
-            parameters: new Dictionary<string, Variant>
+            parameters: new Dictionary<string, object>
             {
                 ["area_pattern"] = "diamond",
                 ["profile_id"] = "prismatic_sphere",

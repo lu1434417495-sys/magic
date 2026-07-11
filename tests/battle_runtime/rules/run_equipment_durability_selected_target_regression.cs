@@ -384,7 +384,7 @@ public partial class run_equipment_durability_selected_target_regression : Lifec
             saveDcSourceAbility: "intelligence",
             saveTag: "equipment_disjunction",
             requireDamageApplied: true,
-            parameters: new System.Collections.Generic.Dictionary<string, Variant>
+            parameters: new System.Collections.Generic.Dictionary<string, object>
             {
                 ["max_damaged_items"] = 1,
                 ["target_slots"] = targetSlots ?? Names("main_hand"),
@@ -416,7 +416,8 @@ public partial class run_equipment_durability_selected_target_regression : Lifec
                     ["slot_weight_map"] = slotWeightMap ?? WeightMap(("main_hand", 1)),
                     ["target_slots"] = targetSlots ?? Names("main_hand"),
                 },
-            }
+            },
+            "test.equipment_durability_selected_target.effect"
         );
 
     private static Godot.Collections.Array<CombatEffectSlotWeightDef> CombatEffectSlotWeights(

@@ -87,13 +87,23 @@ internal static class ContentValidationRunner
         if (includeProgressionSkillChecks)
         {
             using ProgressionContentRegistry progressionRegistry = new();
-            progressionRegistry.ReplaceValidationSources(
-                new GDictionary
-                {
-                    ["skill_defs"] = registry.DuplicateSkillResourceBucketForProgressionRegistry(),
-                }
-            );
-            AppendUniqueErrors(errors, progressionRegistry.CollectValidationErrors());
+            try
+            {
+                progressionRegistry.ReplaceValidationSources(
+                    new GDictionary
+                    {
+                        ["skill_defs"] = registry.DuplicateSkillResourceBucketForProgressionRegistry(),
+                    }
+                );
+                AppendUniqueErrors(errors, progressionRegistry.CollectValidationErrors());
+            }
+            catch (System.IO.InvalidDataException exception)
+            {
+                AppendUniqueErrors(
+                    errors,
+                    new[] { $"Skill projection rejected content: {exception.Message}" }
+                );
+            }
         }
         return BuildDomainResult("skill", directoryPath, errors);
     }

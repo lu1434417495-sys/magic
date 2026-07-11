@@ -4020,7 +4020,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService
             overlayPriority: payload?.OverlayPriority ?? 0,
             displayName: payload?.DisplayName ?? "",
             stackBehavior: stackBehavior,
-            parameters: new Dictionary<string, Variant>()
+            parameters: new Dictionary<string, object>(StringComparer.Ordinal)
         );
     }
 

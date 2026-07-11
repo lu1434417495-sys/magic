@@ -653,15 +653,9 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
         StringName fallback = default
     )
     {
-        if (
-            effectDefinition?.Parameters == null
-            || string.IsNullOrEmpty(key)
-            || !effectDefinition.Parameters.TryGetValue(key, out Variant rawValue)
-        )
-        {
+        if (effectDefinition == null || string.IsNullOrEmpty(key))
             return fallback;
-        }
-        StringName value = ProgressionDataUtils.to_string_name(rawValue);
+        StringName value = effectDefinition.GetStringNameParamTyped(key, fallback);
         return value == "" ? fallback : value;
     }
 
@@ -671,15 +665,9 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
         int fallback = 0
     )
     {
-        if (
-            effectDefinition?.Parameters == null
-            || string.IsNullOrEmpty(key)
-            || !effectDefinition.Parameters.TryGetValue(key, out Variant rawValue)
-        )
-        {
-            return fallback;
-        }
-        return rawValue.VariantType == Variant.Type.Nil ? fallback : rawValue.AsInt32();
+        return effectDefinition == null || string.IsNullOrEmpty(key)
+            ? fallback
+            : effectDefinition.GetIntParamTyped(key, fallback);
     }
 
     private static int GetSkillLevel(BattleUnitState unitState, StringName skillId)

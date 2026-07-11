@@ -96,9 +96,9 @@ public partial class run_battle_range_service_contract_regression : LifecycleTes
             "ground_outer_reach_contract",
             "narrow_cone",
             5,
-            new Dictionary<int, IReadOnlyDictionary<string, Variant>>
+            new Dictionary<int, IReadOnlyDictionary<string, object>>
             {
-                [7] = new Dictionary<string, Variant> { ["area_value"] = 6 },
+                [7] = new Dictionary<string, object> { ["area_value"] = 6 },
             }
         );
         BattleUnitState caster = BuildUnit("ground_outer_reach_caster");
@@ -223,7 +223,7 @@ public partial class run_battle_range_service_contract_regression : LifecycleTes
         StringName skillId,
         StringName areaPattern,
         int areaValue,
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>> levelOverrides = null
+        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> levelOverrides = null
     )
     {
         CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(

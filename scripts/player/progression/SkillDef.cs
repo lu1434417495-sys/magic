@@ -304,6 +304,8 @@ public partial class SkillDef : Resource
     internal IReadOnlyList<StringName> MasterySourcesTyped => _masterySources;
     internal IReadOnlyDictionary<int, Dictionary<string, Variant>> LevelDescriptionConfigsTyped =>
         _levelDescriptionConfigs;
+    internal Godot.Collections.Dictionary LevelDescriptionConfigsProjectionBorrowed =>
+        _levelDescriptionConfigsProjection;
     internal IReadOnlyList<LevelDescriptionConfigEntryData> LevelDescriptionConfigEntriesTyped =>
         _levelDescriptionConfigEntries;
 

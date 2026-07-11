@@ -1009,16 +1009,27 @@ public class BattleSpecialSkillResolver
         }
         gridService.SetOccupantsTyped(state, target_unit.occupied_coords, target_unit.unit_id);
 
-        SetRuntimeBodySizeOverrideStatusEffect(
-            target_unit,
-            statusId,
-            durationTu,
-            source_unit != null ? source_unit.unit_id : new StringName(""),
-            Math.Max(effect_definition.Power, 1),
-            ToGodotDictionary(effect_definition.Parameters),
-            targetCategory,
-            restoreCategory
-        );
+        using (
+            GodotProjectionLease<GDictionary> parametersProjection =
+                RuntimePlainPayload.ProjectDictionaryLease(
+                    effect_definition.Parameters,
+                    "battle-special-skill-effect-parameters",
+                    LifetimeDomain.Battle,
+                    "BattleSpecialSkillResolver.body_size_override_parameters"
+                )
+        )
+        {
+            SetRuntimeBodySizeOverrideStatusEffect(
+                target_unit,
+                statusId,
+                durationTu,
+                source_unit != null ? source_unit.unit_id : new StringName(""),
+                Math.Max(effect_definition.Power, 1),
+                parametersProjection.Value,
+                targetCategory,
+                restoreCategory
+            );
+        }
         AppendChangedCoords(batch, previousOccupiedCoords);
         AppendChangedUnitCoords(batch, target_unit);
         AppendChangedUnitId(batch, target_unit.unit_id);
@@ -1441,17 +1452,6 @@ public class BattleSpecialSkillResolver
     }
 
     private static bool IsEmpty(StringName value) => value == null || value == "";
-
-    private static GDictionary ToGodotDictionary(IReadOnlyDictionary<string, Variant> source)
-    {
-        if (source == null || source.Count == 0)
-            return null;
-        GDictionary result = new();
-        foreach ((string key, Variant value) in source)
-            if (!string.IsNullOrEmpty(key))
-                result[key] = value;
-        return result;
-    }
 
     private BattleState RtState()
     {

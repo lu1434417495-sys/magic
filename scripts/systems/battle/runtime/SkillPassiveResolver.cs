@@ -140,7 +140,7 @@ public static class SkillPassiveResolver
 
         var statusPower = 1;
         var statusRangeBonus = 1;
-        GDictionary statusParams = null;
+        IReadOnlyDictionary<string, object> statusParams = null;
 
         var skillDefinition = GetSkillDefinition(skillDefinitions, ShootingSpecializationSkillId);
 
@@ -173,7 +173,7 @@ public static class SkillPassiveResolver
 
                     statusPower = effectDef.Power;
                     statusRangeBonus = effectDef.RangeBonus > 0 ? effectDef.RangeBonus : 1;
-                    statusParams = ToGodotDictionary(effectDef.Parameters);
+                    statusParams = effectDef.Parameters;
 
                     break;
                 }
@@ -289,7 +289,7 @@ public static class SkillPassiveResolver
                             -1,
                             LastStandSkillId,
                             skillLevel,
-                            ToGodotDictionary(effectDef.Parameters)
+                            effectDef.Parameters
                         );
 
                         unitState.SetStatusEffect(configuredStatus);
@@ -319,11 +319,18 @@ public static class SkillPassiveResolver
         int durationTu,
         StringName sourceSkillId,
         int sourceSkillLevel,
-        GDictionary statusParams = null
+        IReadOnlyDictionary<string, object> statusParams = null
     )
     {
+        using GodotProjectionLease<GDictionary> parametersProjection =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                statusParams,
+                "skill-passive-status-parameters",
+                LifetimeDomain.Battle,
+                "SkillPassiveResolver.status_parameters"
+            );
         BattleStatusEffectParams typedStatusParams =
-            BattleStatusEffectParams.FromDictionary(statusParams);
+            BattleStatusEffectParams.FromDictionary(parametersProjection.Value);
         var statusEntry = new BattleStatusEffectState
         {
             status_id = statusId,
@@ -331,23 +338,13 @@ public static class SkillPassiveResolver
             power = power,
             stacks = 1,
             duration = durationTu,
-            @params = typedStatusParams.ResidualSavePayload,
             source_skill_id = sourceSkillId,
             source_skill_level = sourceSkillLevel,
         };
+        using GDictionary residualSavePayload = typedStatusParams.ResidualSavePayload;
+        statusEntry.@params = residualSavePayload;
         typedStatusParams.ApplyTo(statusEntry);
         return statusEntry;
-    }
-
-    private static GDictionary ToGodotDictionary(IReadOnlyDictionary<string, Variant> source)
-    {
-        if (source == null || source.Count == 0)
-            return null;
-        GDictionary result = new();
-        foreach ((string key, Variant value) in source)
-            if (!string.IsNullOrEmpty(key))
-                result[key] = value;
-        return result;
     }
 
     private static SkillDefinition GetSkillDefinition(

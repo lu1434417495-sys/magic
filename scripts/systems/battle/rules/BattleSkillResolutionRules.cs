@@ -1184,7 +1184,7 @@ public sealed class BattleSkillResolutionRules : IDisposable
             1,
             Array.Empty<StringName>(),
             Array.Empty<CombatEffectDefinition>(),
-            new Dictionary<string, Variant>()
+            new Dictionary<string, object>(StringComparer.Ordinal)
         );
     }
 

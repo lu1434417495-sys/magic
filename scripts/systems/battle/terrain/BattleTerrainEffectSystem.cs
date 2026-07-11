@@ -602,6 +602,15 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         BattleTerrainEffectState effectState
     )
     {
+        using GDictionary projectedParams = effectState?.@params ?? new GDictionary();
+        using GDictionary residualParams = BattleTerrainEffectState.CopyResidualParams(
+            projectedParams
+        );
+        IReadOnlyDictionary<string, object> normalizedParams =
+            ContentValueNormalizer.NormalizeDictionary(
+                residualParams,
+                "BattleTerrainEffectSystem.tick_effect.parameters"
+            );
         return new CombatEffectDefinition(
             effectType: NormalizeStringName(effectState?.effect_type),
             effectTargetTeamFilter: default,
@@ -649,36 +658,9 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
             effectTags: Array.Empty<StringName>(),
             triggerCondition: new StringName(""),
             power: effectState?.power ?? 0,
-            parameters: CopyVariantDictionary(
-                BattleTerrainEffectState.CopyResidualParams(effectState?.@params)
-            ),
+            parameters: normalizedParams,
             triggerEvent: new StringName("")
         );
-    }
-
-    private static IReadOnlyDictionary<string, Variant> CopyVariantDictionary(
-        GDictionary source
-    )
-    {
-        var result = new Dictionary<string, Variant>();
-        if (source == null)
-        {
-            return result;
-        }
-        foreach (Variant rawKey in source.Keys)
-        {
-            string key = rawKey.VariantType switch
-            {
-                Variant.Type.String => rawKey.AsString(),
-                Variant.Type.StringName => rawKey.AsStringName().ToString(),
-                _ => "",
-            };
-            if (!string.IsNullOrEmpty(key))
-            {
-                result[key] = source[rawKey];
-            }
-        }
-        return result;
     }
 
     private static StringName NormalizeStringName(StringName value)
@@ -855,9 +837,17 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         }
 
         effectState.stack_behavior = _NormalizeStackBehavior(effectDefinition.StackBehavior);
-        effectState.@params = BattleTerrainEffectState.CopyResidualParams(
-            effectDefinition.Parameters
+        using GodotProjectionLease<GDictionary> parametersProjection =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                effectDefinition.Parameters,
+                "battle-terrain-effect-parameters",
+                LifetimeDomain.Battle,
+                "BattleTerrainEffectSystem.effect_parameters"
+            );
+        using GDictionary residualParams = BattleTerrainEffectState.CopyResidualParams(
+            parametersProjection.Value
         );
+        effectState.@params = residualParams;
         return effectState;
     }
 

@@ -480,53 +480,6 @@ public partial class CombatEffectDef : Resource
     [Export]
     public Godot.Collections.Dictionary @params { get; set; } = new();
 
-    internal int GetIntParamTyped(string key, int fallback = 0)
-    {
-        if (string.IsNullOrEmpty(key) || @params == null)
-        {
-            return fallback;
-        }
-        if (@params.ContainsKey(key))
-        {
-            Variant value = @params[key];
-            return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
-        }
-        return fallback;
-    }
-
-    internal StringName GetStringNameParamTyped(string key, StringName fallback = default)
-    {
-        if (string.IsNullOrEmpty(key) || @params == null)
-        {
-            return fallback;
-        }
-        if (@params.ContainsKey(key))
-        {
-            StringName normalized = ProgressionDataUtils.to_string_name(@params[key]);
-            return normalized != "" ? normalized : fallback;
-        }
-        return fallback;
-    }
-
-    internal double GetFloatParamTyped(string key, double fallback = 0.0)
-    {
-        if (string.IsNullOrEmpty(key) || @params == null)
-        {
-            return fallback;
-        }
-        if (@params.ContainsKey(key))
-        {
-            Variant value = @params[key];
-            return value.VariantType switch
-            {
-                Variant.Type.Int => value.AsInt64(),
-                Variant.Type.Float => value.AsDouble(),
-                _ => fallback,
-            };
-        }
-        return fallback;
-    }
-
     internal bool HasEffectTagTyped(StringName tag)
     {
         if (tag == "" || effect_tags == null)
@@ -543,53 +496,4 @@ public partial class CombatEffectDef : Resource
         return false;
     }
 
-    internal IReadOnlyList<StringName> GetStringNameListParamTyped(string key)
-    {
-        if (string.IsNullOrEmpty(key) || @params == null)
-        {
-            return System.Array.Empty<StringName>();
-        }
-        if (@params.ContainsKey(key))
-        {
-            return ProgressionDataUtils.to_string_name_array(@params[key]);
-        }
-        return System.Array.Empty<StringName>();
-    }
-
-    internal IReadOnlyDictionary<StringName, int> GetStringNameIntMapParamTyped(string key)
-    {
-        if (string.IsNullOrEmpty(key) || @params == null)
-        {
-            return new Dictionary<StringName, int>();
-        }
-        if (@params.ContainsKey(key))
-        {
-            Variant value = @params[key];
-            if (value.VariantType != Variant.Type.Dictionary)
-            {
-                return new Dictionary<StringName, int>();
-            }
-            var result = new Dictionary<StringName, int>();
-            foreach (Variant rawKey in value.AsGodotDictionary().Keys)
-            {
-                if (rawKey.VariantType != Variant.Type.StringName)
-                {
-                    continue;
-                }
-                Variant rawValue = value.AsGodotDictionary()[rawKey];
-                if (rawValue.VariantType != Variant.Type.Int)
-                {
-                    continue;
-                }
-                StringName id = rawKey.AsStringName();
-                if (id == "")
-                {
-                    continue;
-                }
-                result[id] = rawValue.AsInt32();
-            }
-            return result;
-        }
-        return new Dictionary<StringName, int>();
-    }
 }

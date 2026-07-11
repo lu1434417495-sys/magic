@@ -1200,7 +1200,8 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
                     ["max_damaged_items"] = 1,
                     ["target_slots"] = new GStringNameArray { "main_hand" },
                 },
-            }
+            },
+            "test.executioner_axe.equipment_durability_effect"
         );
 
     private static DamageEventResult[] BuildWeaponDamageEvents() =>

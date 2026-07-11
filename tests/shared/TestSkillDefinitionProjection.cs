@@ -39,7 +39,7 @@ internal static class TestSkillDefinitionProjection
         StringName practiceTier = default,
         IReadOnlyList<AttributeModifierDefinition> attributeModifiers = null,
         string levelDescriptionTemplate = "",
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>> levelDescriptionConfigs = null,
+        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> levelDescriptionConfigs = null,
         ContingencyAutomationDefinition contingencyAutomationProfile = null
     )
     {
@@ -74,7 +74,7 @@ internal static class TestSkillDefinitionProjection
                 ?? System.Array.Empty<AttributeModifierDefinition>(),
             levelDescriptionTemplate: levelDescriptionTemplate ?? "",
             levelDescriptionConfigs: levelDescriptionConfigs
-                ?? new Dictionary<int, IReadOnlyDictionary<string, Variant>>(),
+                ?? new Dictionary<int, IReadOnlyDictionary<string, object>>(),
             combatProfile: combatProfile,
             contingencyAutomationProfile: contingencyAutomationProfile
         );
@@ -88,7 +88,7 @@ internal static class TestSkillDefinitionProjection
         int contingencyLoadOverride = 0,
         IReadOnlyList<StringName> allowedTargetResolvers = null,
         bool requiresManualTargeting = false,
-        IReadOnlyDictionary<string, Variant> allowedParameterBindings = null
+        IReadOnlyDictionary<string, object> allowedParameterBindings = null
     ) =>
         new(
             canBeStoredInContingency,
@@ -98,7 +98,7 @@ internal static class TestSkillDefinitionProjection
             contingencyLoadOverride,
             allowedTargetResolvers ?? System.Array.Empty<StringName>(),
             requiresManualTargeting,
-            allowedParameterBindings ?? new Dictionary<string, Variant>()
+            allowedParameterBindings ?? new Dictionary<string, object>()
         );
 
     internal static CombatSkillDefinition BuildCombatProfile(
@@ -131,7 +131,7 @@ internal static class TestSkillDefinitionProjection
         IReadOnlyList<CombatCastVariantDefinition> castVariants = null,
         IReadOnlyList<StringName> requiredWeaponFamilies = null,
         IReadOnlyList<StringName> deliveryCategories = null,
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>> levelOverrides = null,
+        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> levelOverrides = null,
         StringName masteryTriggerMode = default,
         StringName masteryAmountMode = default
     )
@@ -156,7 +156,7 @@ internal static class TestSkillDefinitionProjection
             attackRollBonus: attackRollBonus,
             attackResolutionMode: DefaultName(attackResolutionMode, ""),
             auraCost: auraCost,
-            levelOverrides: levelOverrides ?? new Dictionary<int, IReadOnlyDictionary<string, Variant>>(),
+            levelOverrides: levelOverrides ?? new Dictionary<int, IReadOnlyDictionary<string, object>>(),
             masteryTriggerMode: masteryTriggerMode,
             masteryAmountMode: masteryAmountMode,
             spellFateMode: default,
@@ -203,7 +203,7 @@ internal static class TestSkillDefinitionProjection
         bool preventRepeatTarget = true,
         StringName forcedMoveMode = default,
         int forcedMoveDistance = 0,
-        IReadOnlyDictionary<string, Variant> parameters = null,
+        IReadOnlyDictionary<string, object> parameters = null,
         StringName bonusCondition = default,
         StringName triggerEvent = default,
         StringName triggerCondition = default,
@@ -350,7 +350,7 @@ internal static class TestSkillDefinitionProjection
         StringName targetMode = default,
         StringName footprintPattern = default,
         int requiredCoordCount = 0,
-        IReadOnlyDictionary<string, Variant> parameters = null
+        IReadOnlyDictionary<string, object> parameters = null
     )
     {
         return new CombatCastVariantDefinition(
@@ -363,7 +363,7 @@ internal static class TestSkillDefinitionProjection
             requiredCoordCount: requiredCoordCount,
             allowedBaseTerrains: System.Array.Empty<StringName>(),
             effectDefinitions: effects ?? System.Array.Empty<CombatEffectDefinition>(),
-            parameters: parameters ?? new Dictionary<string, Variant>()
+            parameters: parameters ?? new Dictionary<string, object>()
         );
     }
 

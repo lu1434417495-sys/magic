@@ -86,13 +86,13 @@ public partial class run_skill_level_description_typed_regression : LifecycleTes
         SkillDefinition skill = BuildSkillDefinition(
             "typed_level_description_formatter_skill",
             "模板{value}{{?bonus}}+{bonus}{{/bonus}}",
-            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, Variant>>
+            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, object>>
             {
-                [0] = new Dictionary<string, Variant> { ["value"] = Variant.From("零级") },
-                [1] = new Dictionary<string, Variant>
+                [0] = new Dictionary<string, object> { ["value"] = "零级" },
+                [1] = new Dictionary<string, object>
                 {
-                    ["value"] = Variant.From("一级"),
-                    ["bonus"] = Variant.From(2),
+                    ["value"] = "一级",
+                    ["bonus"] = 2,
                 },
             }
         );
@@ -161,10 +161,10 @@ public partial class run_skill_level_description_typed_regression : LifecycleTes
                     durationTu: 0,
                     tickIntervalTu: 0,
                     effectTags: System.Array.Empty<StringName>(),
-                    parameters: new Dictionary<string, Variant>
+                    parameters: new Dictionary<string, object>
                     {
-                        ["base_chain_radius"] = Variant.From(1),
-                        ["wet_chain_radius"] = Variant.From(2),
+                        ["base_chain_radius"] = 1,
+                        ["wet_chain_radius"] = 2,
                     }
                 )
             )
@@ -180,7 +180,7 @@ public partial class run_skill_level_description_typed_regression : LifecycleTes
     private static SkillDefinition BuildSkillDefinition(
         StringName skillId,
         string levelDescriptionTemplate,
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>> levelDescriptionConfigs = null,
+        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> levelDescriptionConfigs = null,
         CombatSkillDefinition combatProfile = null
     )
     {
@@ -214,7 +214,7 @@ public partial class run_skill_level_description_typed_regression : LifecycleTes
             attributeModifiers: System.Array.Empty<AttributeModifierDefinition>(),
             levelDescriptionTemplate: levelDescriptionTemplate,
             levelDescriptionConfigs: levelDescriptionConfigs
-                ?? new Dictionary<int, IReadOnlyDictionary<string, Variant>>(),
+                ?? new Dictionary<int, IReadOnlyDictionary<string, object>>(),
             combatProfile: combatProfile
         );
     }
@@ -244,7 +244,7 @@ public partial class run_skill_level_description_typed_regression : LifecycleTes
             attackRollBonus: 0,
             attackResolutionMode: "",
             auraCost: 0,
-            levelOverrides: new Dictionary<int, IReadOnlyDictionary<string, Variant>>(),
+            levelOverrides: new Dictionary<int, IReadOnlyDictionary<string, object>>(),
             masteryTriggerMode: "",
             masteryAmountMode: "",
             spellFateMode: "",

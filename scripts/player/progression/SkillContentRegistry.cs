@@ -284,8 +284,6 @@ public class SkillContentRegistry : System.IDisposable
         }
         GodotContentOwnership.RegisterBorrowedContent(skillDef, resourcePath);
 
-        NormalizeSkillDef(skillDef);
-
         if (skillDef.skill_id == "")
         {
             _validationErrors.Add($"Skill config {resourcePath} is missing skill_id.");
@@ -298,20 +296,6 @@ public class SkillContentRegistry : System.IDisposable
         }
 
         _skill_defs[skillDef.skill_id] = skillDef;
-    }
-
-    private void NormalizeSkillDef(SkillDef skillDef)
-    {
-        if (skillDef == null)
-            return;
-        if (skillDef.skill_id != "" && skillDef.icon_id == "")
-            skillDef.icon_id = skillDef.skill_id;
-        if (
-            skillDef.combat_profile != null
-            && skillDef.skill_id != ""
-            && skillDef.combat_profile.skill_id == ""
-        )
-            skillDef.combat_profile.skill_id = skillDef.skill_id;
     }
 
     private Array<string> CollectValidationErrors()
@@ -339,8 +323,6 @@ public class SkillContentRegistry : System.IDisposable
 
         if (skillDef.display_name.StripEdges().Length == 0)
             errors.Add($"Skill {skillId} is missing display_name.");
-        if (skillDef.icon_id == "")
-            errors.Add($"Skill {skillId} is missing icon_id.");
         if (skillDef.max_level < 0 && skillDef.dynamic_max_level_stat_id == "")
             errors.Add($"Skill {skillId} must have max_level >= 0.");
         if (skillDef.non_core_max_level < 0)
@@ -569,7 +551,7 @@ public class SkillContentRegistry : System.IDisposable
         SkillDef skillDef
     )
     {
-        if (combatProfile.skill_id != skillId)
+        if (combatProfile.skill_id != "" && combatProfile.skill_id != skillId)
             errors.Add($"Skill {skillId} combat_profile.skill_id must match skill_id.");
         if (combatProfile.target_mode == "")
             errors.Add($"Skill {skillId} combat_profile is missing target_mode.");
@@ -3212,7 +3194,10 @@ public class SkillContentRegistry : System.IDisposable
 
     private static bool IsTemporalReleaseEffectResource(CombatEffectDef effectDef)
     {
-        CombatEffectDefinition effectDefinition = CombatEffectDefinition.FromResource(effectDef);
+        CombatEffectDefinition effectDefinition = CombatEffectDefinition.FromResource(
+            effectDef,
+            "skill_content_validation.temporal_release_effect"
+        );
         return BattleTemporalStatusService.IsTemporalReleaseEffect(effectDefinition);
     }
 

@@ -197,7 +197,9 @@ internal static class RuntimePlainPayload
             List<object> listValue => CloneList(listValue),
             IReadOnlyList<object> listValue => CloneList(listValue),
             bool or byte or short or int or long or float or double or string or StringName
-                or Vector2I or Vector2 or Vector3I or Vector3 or Color => value,
+                or Vector2 or Vector2I or Rect2 or Rect2I or Vector3 or Vector3I
+                or Transform2D or Vector4 or Vector4I or Plane or Quaternion or Aabb
+                or Basis or Transform3D or Projection or Color => value,
             Variant => throw UnsupportedCloneValue(value),
             GodotObject => throw UnsupportedCloneValue(value),
             System.IDisposable => throw UnsupportedCloneValue(value),
@@ -418,6 +420,28 @@ internal static class RuntimePlainPayload
                 return value.AsVector3I();
             case Variant.Type.Vector3:
                 return value.AsVector3();
+            case Variant.Type.Rect2:
+                return value.AsRect2();
+            case Variant.Type.Rect2I:
+                return value.AsRect2I();
+            case Variant.Type.Transform2D:
+                return value.AsTransform2D();
+            case Variant.Type.Vector4:
+                return value.AsVector4();
+            case Variant.Type.Vector4I:
+                return value.AsVector4I();
+            case Variant.Type.Plane:
+                return value.AsPlane();
+            case Variant.Type.Quaternion:
+                return value.AsQuaternion();
+            case Variant.Type.Aabb:
+                return value.AsAabb();
+            case Variant.Type.Basis:
+                return value.AsBasis();
+            case Variant.Type.Transform3D:
+                return value.AsTransform3D();
+            case Variant.Type.Projection:
+                return value.AsProjection();
             case Variant.Type.Color:
                 return value.AsColor();
             case Variant.Type.Dictionary:
@@ -476,8 +500,19 @@ internal static class RuntimePlainPayload
             Variant.Type.StringName => value.AsStringName(),
             Variant.Type.Vector2I => value.AsVector2I(),
             Variant.Type.Vector2 => value.AsVector2(),
+            Variant.Type.Rect2 => value.AsRect2(),
+            Variant.Type.Rect2I => value.AsRect2I(),
             Variant.Type.Vector3I => value.AsVector3I(),
             Variant.Type.Vector3 => value.AsVector3(),
+            Variant.Type.Transform2D => value.AsTransform2D(),
+            Variant.Type.Vector4 => value.AsVector4(),
+            Variant.Type.Vector4I => value.AsVector4I(),
+            Variant.Type.Plane => value.AsPlane(),
+            Variant.Type.Quaternion => value.AsQuaternion(),
+            Variant.Type.Aabb => value.AsAabb(),
+            Variant.Type.Basis => value.AsBasis(),
+            Variant.Type.Transform3D => value.AsTransform3D(),
+            Variant.Type.Projection => value.AsProjection(),
             Variant.Type.Color => value.AsColor(),
             Variant.Type.Dictionary => NormalizeDictionary(value.AsGodotDictionary(), path),
             Variant.Type.Array => NormalizeArray(value.AsGodotArray(), path),
@@ -515,8 +550,19 @@ internal static class RuntimePlainPayload
             StringName stringNameValue => stringNameValue,
             Vector2I vector2IValue => vector2IValue,
             Vector2 vector2Value => vector2Value,
+            Rect2 rect2Value => rect2Value,
+            Rect2I rect2IValue => rect2IValue,
             Vector3I vector3IValue => vector3IValue,
             Vector3 vector3Value => vector3Value,
+            Transform2D transform2DValue => transform2DValue,
+            Vector4 vector4Value => vector4Value,
+            Vector4I vector4IValue => vector4IValue,
+            Plane planeValue => planeValue,
+            Quaternion quaternionValue => quaternionValue,
+            Aabb aabbValue => aabbValue,
+            Basis basisValue => basisValue,
+            Transform3D transform3DValue => transform3DValue,
+            Projection projectionValue => projectionValue,
             Color colorValue => colorValue,
             IReadOnlyDictionary<string, object> dictionaryValue =>
                 ProjectDictionary(dictionaryValue, reason),
@@ -597,10 +643,32 @@ internal static class RuntimePlainPayload
                 return vector2IValue;
             case Vector2 vector2Value:
                 return vector2Value;
+            case Rect2 rect2Value:
+                return rect2Value;
+            case Rect2I rect2IValue:
+                return rect2IValue;
             case Vector3I vector3IValue:
                 return vector3IValue;
             case Vector3 vector3Value:
                 return vector3Value;
+            case Transform2D transform2DValue:
+                return transform2DValue;
+            case Vector4 vector4Value:
+                return vector4Value;
+            case Vector4I vector4IValue:
+                return vector4IValue;
+            case Plane planeValue:
+                return planeValue;
+            case Quaternion quaternionValue:
+                return quaternionValue;
+            case Aabb aabbValue:
+                return aabbValue;
+            case Basis basisValue:
+                return basisValue;
+            case Transform3D transform3DValue:
+                return transform3DValue;
+            case Projection projectionValue:
+                return projectionValue;
             case Color colorValue:
                 return colorValue;
             case IReadOnlyDictionary<string, object> dictionaryValue:
@@ -691,6 +759,28 @@ internal static class RuntimePlainPayload
                 return value.AsVector3I();
             case Variant.Type.Vector3:
                 return value.AsVector3();
+            case Variant.Type.Rect2:
+                return value.AsRect2();
+            case Variant.Type.Rect2I:
+                return value.AsRect2I();
+            case Variant.Type.Transform2D:
+                return value.AsTransform2D();
+            case Variant.Type.Vector4:
+                return value.AsVector4();
+            case Variant.Type.Vector4I:
+                return value.AsVector4I();
+            case Variant.Type.Plane:
+                return value.AsPlane();
+            case Variant.Type.Quaternion:
+                return value.AsQuaternion();
+            case Variant.Type.Aabb:
+                return value.AsAabb();
+            case Variant.Type.Basis:
+                return value.AsBasis();
+            case Variant.Type.Transform3D:
+                return value.AsTransform3D();
+            case Variant.Type.Projection:
+                return value.AsProjection();
             case Variant.Type.Color:
                 return value.AsColor();
             case Variant.Type.Dictionary:

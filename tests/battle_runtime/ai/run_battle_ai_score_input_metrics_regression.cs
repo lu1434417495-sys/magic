@@ -336,7 +336,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
             "chain_damage",
             effectTargetTeamFilter: "any",
             preventRepeatTarget: true,
-            parameters: new Dictionary<string, Variant> { ["base_chain_radius"] = radius }
+            parameters: new Dictionary<string, object> { ["base_chain_radius"] = radius }
         );
 
     private static BattleCommand BuildCommand(

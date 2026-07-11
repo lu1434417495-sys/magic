@@ -177,7 +177,7 @@ public partial class run_attack_policy_parity_regression : LifecycleTestSceneTre
     {
         return TestSkillDefinitionProjection.BuildEffect(
             "repeat_attack_until_fail",
-            parameters: new Dictionary<string, Variant>
+            parameters: new Dictionary<string, object>
             {
                 ["base_attack_bonus"] = 1,
                 ["follow_up_attack_penalty"] = 2,

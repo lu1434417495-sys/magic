@@ -10,9 +10,9 @@ public sealed class SkillDefinition
         System.Array.Empty<AttributeModifierDefinition>();
     private static readonly IReadOnlyDictionary<StringName, int> EmptyStringNameIntMap =
         new ReadOnlyDictionary<StringName, int>(new Dictionary<StringName, int>());
-    private static readonly IReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>> EmptyLevelDescriptionConfigs =
-        new ReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>>(
-            new Dictionary<int, IReadOnlyDictionary<string, Variant>>()
+    private static readonly IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> EmptyLevelDescriptionConfigs =
+        new ReadOnlyDictionary<int, IReadOnlyDictionary<string, object>>(
+            new Dictionary<int, IReadOnlyDictionary<string, object>>()
         );
 
     public SkillDefinition(
@@ -44,7 +44,7 @@ public sealed class SkillDefinition
         StringName practiceTier,
         IReadOnlyList<AttributeModifierDefinition> attributeModifiers,
         string levelDescriptionTemplate,
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>> levelDescriptionConfigs,
+        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> levelDescriptionConfigs,
         CombatSkillDefinition combatProfile,
         ContingencyAutomationDefinition contingencyAutomationProfile = null
     )
@@ -77,7 +77,10 @@ public sealed class SkillDefinition
         PracticeTier = practiceTier;
         AttributeModifiers = attributeModifiers ?? EmptyAttributeModifiers;
         LevelDescriptionTemplate = levelDescriptionTemplate ?? "";
-        LevelDescriptionConfigs = levelDescriptionConfigs ?? EmptyLevelDescriptionConfigs;
+        LevelDescriptionConfigs = FreezeLevelValueMap(
+            levelDescriptionConfigs,
+            "SkillDefinition.LevelDescriptionConfigs"
+        );
         CombatProfile = combatProfile;
         ContingencyAutomationProfile = contingencyAutomationProfile;
     }
@@ -110,7 +113,7 @@ public sealed class SkillDefinition
     public StringName PracticeTier { get; }
     public IReadOnlyList<AttributeModifierDefinition> AttributeModifiers { get; }
     public string LevelDescriptionTemplate { get; }
-    public IReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>> LevelDescriptionConfigs { get; }
+    public IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> LevelDescriptionConfigs { get; }
     public CombatSkillDefinition CombatProfile { get; }
     public ContingencyAutomationDefinition ContingencyAutomationProfile { get; }
     internal SkillTypeKind SkillTypeKind => SkillContentRules.ToSkillType(SkillType);
@@ -196,10 +199,11 @@ public sealed class SkillDefinition
     {
         if (source == null)
             return null;
+        string skillPath = $"skill.{source.skill_id}";
         return new SkillDefinition(
             source.skill_id,
             source.display_name,
-            source.icon_id,
+            source.icon_id == "" && source.skill_id != "" ? source.skill_id : source.icon_id,
             source.description,
             source.skill_type,
             source.max_level,
@@ -225,9 +229,19 @@ public sealed class SkillDefinition
             source.practice_tier,
             ProjectAttributeModifiers(source.AttributeModifiersTyped),
             source.level_description_template,
-            CopyLevelConfigMap(source.LevelDescriptionConfigsTyped),
-            CombatSkillDefinition.FromResource(source.combat_profile),
-            ContingencyAutomationDefinition.FromResource(source.contingency_automation_profile)
+            ProjectLevelDescriptionConfigs(
+                source.LevelDescriptionConfigsProjectionBorrowed,
+                $"{skillPath}.level_description_configs"
+            ),
+            CombatSkillDefinition.FromResource(
+                source.combat_profile,
+                source.skill_id,
+                $"{skillPath}.combat_profile"
+            ),
+            ContingencyAutomationDefinition.FromResource(
+                source.contingency_automation_profile,
+                $"{skillPath}.contingency_automation_profile"
+            )
         );
     }
 
@@ -292,27 +306,69 @@ public sealed class SkillDefinition
             : EmptyAttributeModifiers;
     }
 
-    private static IReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>> CopyLevelConfigMap(
-        IReadOnlyDictionary<int, Dictionary<string, Variant>> values
+    private static IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> ProjectLevelDescriptionConfigs(
+        Godot.Collections.Dictionary source,
+        string path
+    )
+    {
+        if (source == null || source.Count == 0)
+            return EmptyLevelDescriptionConfigs;
+        var result = new Dictionary<int, IReadOnlyDictionary<string, object>>(source.Count);
+        int keyIndex = 0;
+        foreach (Variant rawKey in source.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.String)
+            {
+                throw new System.IO.InvalidDataException(
+                    $"Content dictionary at '{path}' requires string level keys; key[{keyIndex}] has {rawKey.VariantType}."
+                );
+            }
+            string key = rawKey.AsString();
+            if (!int.TryParse(key, out int level))
+            {
+                throw new System.IO.InvalidDataException(
+                    $"Content dictionary key at '{path}.{key}' must be an integer level."
+                );
+            }
+            if (result.ContainsKey(level))
+            {
+                throw new System.IO.InvalidDataException(
+                    $"Content dictionary at '{path}' contains duplicate normalized level key '{level}'."
+                );
+            }
+            Variant rawValue = source[rawKey];
+            if (rawValue.VariantType != Variant.Type.Dictionary)
+            {
+                throw new System.IO.InvalidDataException(
+                    $"Content value at '{path}.{key}' must be a Dictionary, got {rawValue.VariantType}."
+                );
+            }
+            using Godot.Collections.Dictionary config = rawValue.AsGodotDictionary();
+            result[level] = ContentValueNormalizer.NormalizeDictionary(
+                config,
+                $"{path}.{key}"
+            );
+            keyIndex++;
+        }
+        return new ReadOnlyDictionary<int, IReadOnlyDictionary<string, object>>(result);
+    }
+
+    internal static IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> FreezeLevelValueMap(
+        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> values,
+        string path
     )
     {
         if (values == null || values.Count == 0)
             return EmptyLevelDescriptionConfigs;
-        var result = new Dictionary<int, IReadOnlyDictionary<string, Variant>>(values.Count);
-        foreach ((int level, Dictionary<string, Variant> config) in values)
+        var result = new Dictionary<int, IReadOnlyDictionary<string, object>>(values.Count);
+        foreach ((int level, IReadOnlyDictionary<string, object> config) in values)
         {
-            result[level] = CopyVariantMap(config);
+            result[level] = ContentValueNormalizer.NormalizeDictionary(
+                config,
+                $"{path}[{level}]"
+            );
         }
-        return new ReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>>(result);
-    }
-
-    internal static IReadOnlyDictionary<string, Variant> CopyVariantMap(
-        IReadOnlyDictionary<string, Variant> values
-    )
-    {
-        if (values == null || values.Count == 0)
-            return new ReadOnlyDictionary<string, Variant>(new Dictionary<string, Variant>());
-        return new ReadOnlyDictionary<string, Variant>(new Dictionary<string, Variant>(values));
+        return new ReadOnlyDictionary<int, IReadOnlyDictionary<string, object>>(result);
     }
 }
 
@@ -320,8 +376,8 @@ public sealed class ContingencyAutomationDefinition
 {
     private static readonly IReadOnlyList<StringName> EmptyStringNames =
         System.Array.Empty<StringName>();
-    private static readonly IReadOnlyDictionary<string, Variant> EmptyBindings =
-        new ReadOnlyDictionary<string, Variant>(new Dictionary<string, Variant>());
+    private static readonly IReadOnlyDictionary<string, object> EmptyBindings =
+        new ReadOnlyDictionary<string, object>(new Dictionary<string, object>());
 
     public ContingencyAutomationDefinition(
         bool canBeStoredInContingency,
@@ -331,7 +387,7 @@ public sealed class ContingencyAutomationDefinition
         int contingencyLoadOverride,
         IReadOnlyList<StringName> allowedTargetResolvers,
         bool requiresManualTargeting,
-        IReadOnlyDictionary<string, Variant> allowedParameterBindings
+        IReadOnlyDictionary<string, object> allowedParameterBindings
     )
     {
         CanBeStoredInContingency = canBeStoredInContingency;
@@ -341,7 +397,10 @@ public sealed class ContingencyAutomationDefinition
         ContingencyLoadOverride = contingencyLoadOverride;
         AllowedTargetResolvers = allowedTargetResolvers ?? EmptyStringNames;
         RequiresManualTargeting = requiresManualTargeting;
-        AllowedParameterBindings = allowedParameterBindings ?? EmptyBindings;
+        AllowedParameterBindings = ContentValueNormalizer.NormalizeDictionary(
+            allowedParameterBindings,
+            "ContingencyAutomationDefinition.AllowedParameterBindings"
+        );
     }
 
     public bool CanBeStoredInContingency { get; }
@@ -351,7 +410,7 @@ public sealed class ContingencyAutomationDefinition
     public int ContingencyLoadOverride { get; }
     public IReadOnlyList<StringName> AllowedTargetResolvers { get; }
     public bool RequiresManualTargeting { get; }
-    public IReadOnlyDictionary<string, Variant> AllowedParameterBindings { get; }
+    public IReadOnlyDictionary<string, object> AllowedParameterBindings { get; }
 
     public bool AllowsTargetResolver(StringName resolver)
     {
@@ -371,7 +430,8 @@ public sealed class ContingencyAutomationDefinition
     }
 
     internal static ContingencyAutomationDefinition FromResource(
-        ContingencyAutomationDef source
+        ContingencyAutomationDef source,
+        string path
     )
     {
         if (source == null)
@@ -384,7 +444,10 @@ public sealed class ContingencyAutomationDefinition
             source.contingency_load_override,
             CopyStringNameArray(source.allowed_target_resolvers),
             source.requires_manual_targeting,
-            CopyBindings(source.allowed_parameter_bindings)
+            ContentValueNormalizer.NormalizeDictionary(
+                source.allowed_parameter_bindings,
+                $"{path}.allowed_parameter_bindings"
+            )
         );
     }
 
@@ -400,28 +463,6 @@ public sealed class ContingencyAutomationDefinition
         return new ReadOnlyCollection<StringName>(result);
     }
 
-    private static IReadOnlyDictionary<string, Variant> CopyBindings(
-        Godot.Collections.Dictionary source
-    )
-    {
-        if (source == null || source.Count == 0)
-            return EmptyBindings;
-        var result = new Dictionary<string, Variant>();
-        foreach (Variant rawKey in source.Keys)
-        {
-            string key = rawKey.VariantType switch
-            {
-                Variant.Type.String => rawKey.AsString(),
-                Variant.Type.StringName => rawKey.AsStringName().ToString(),
-                _ => "",
-            };
-            if (!string.IsNullOrEmpty(key))
-                result[key] = source[rawKey];
-        }
-        return result.Count > 0
-            ? new ReadOnlyDictionary<string, Variant>(result)
-            : EmptyBindings;
-    }
 }
 
 public sealed class CombatSkillDefinition
@@ -432,9 +473,9 @@ public sealed class CombatSkillDefinition
         System.Array.Empty<CombatEffectDefinition>();
     private static readonly IReadOnlyList<CombatCastVariantDefinition> EmptyCastVariants =
         System.Array.Empty<CombatCastVariantDefinition>();
-    private static readonly IReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>> EmptyLevelOverrides =
-        new ReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>>(
-            new Dictionary<int, IReadOnlyDictionary<string, Variant>>()
+    private static readonly IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> EmptyLevelOverrides =
+        new ReadOnlyDictionary<int, IReadOnlyDictionary<string, object>>(
+            new Dictionary<int, IReadOnlyDictionary<string, object>>()
         );
 
     public CombatSkillDefinition(
@@ -457,7 +498,7 @@ public sealed class CombatSkillDefinition
         int attackRollBonus,
         StringName attackResolutionMode,
         int auraCost,
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>> levelOverrides,
+        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> levelOverrides,
         StringName masteryTriggerMode,
         StringName masteryAmountMode,
         StringName spellFateMode,
@@ -510,7 +551,7 @@ public sealed class CombatSkillDefinition
         AttackRollBonus = attackRollBonus;
         AttackResolutionMode = attackResolutionMode;
         AuraCost = auraCost;
-        LevelOverrides = levelOverrides ?? EmptyLevelOverrides;
+        LevelOverrides = FreezeLevelOverrides(levelOverrides);
         MasteryTriggerMode = masteryTriggerMode;
         MasteryAmountMode = masteryAmountMode;
         SpellFateMode = spellFateMode;
@@ -564,7 +605,7 @@ public sealed class CombatSkillDefinition
     public int AttackRollBonus { get; }
     public StringName AttackResolutionMode { get; }
     public int AuraCost { get; }
-    public IReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>> LevelOverrides { get; }
+    public IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> LevelOverrides { get; }
     public StringName MasteryTriggerMode { get; }
     public StringName MasteryAmountMode { get; }
     public StringName SpellFateMode { get; }
@@ -622,7 +663,7 @@ public sealed class CombatSkillDefinition
 
     public CombatSkillResourceCosts GetEffectiveResourceCostValues(int skillLevel)
     {
-        IReadOnlyDictionary<string, Variant> overrides = BuildLevelOverride(skillLevel);
+        IReadOnlyDictionary<string, object> overrides = BuildLevelOverride(skillLevel);
         return new CombatSkillResourceCosts(
             TryReadIntOverride(overrides, "ap_cost", out int effectiveApCost)
                 ? effectiveApCost
@@ -664,20 +705,21 @@ public sealed class CombatSkillDefinition
 
     public PendingCastBindingModeKind GetEffectivePendingCastBindingMode(int skillLevel)
     {
-        IReadOnlyDictionary<string, Variant> overrides = BuildLevelOverride(skillLevel);
+        IReadOnlyDictionary<string, object> overrides = BuildLevelOverride(skillLevel);
         return overrides != null
-            && overrides.TryGetValue("pending_cast_binding_mode", out Variant rawValue)
-            ? BattleTypedNames.ToPendingCastBindingMode(
-                ProgressionDataUtils.to_string_name(rawValue)
-            )
+            && overrides.TryGetValue("pending_cast_binding_mode", out object rawValue)
+            && TryReadStringName(rawValue, out StringName value)
+            ? BattleTypedNames.ToPendingCastBindingMode(value)
             : PendingCastBindingModeKind;
     }
 
     public StringName GetEffectiveAreaPattern(int skillLevel)
     {
-        IReadOnlyDictionary<string, Variant> overrides = BuildLevelOverride(skillLevel);
-        return overrides != null && overrides.TryGetValue("area_pattern", out Variant rawValue)
-            ? ProgressionDataUtils.to_string_name(rawValue)
+        IReadOnlyDictionary<string, object> overrides = BuildLevelOverride(skillLevel);
+        return overrides != null
+            && overrides.TryGetValue("area_pattern", out object rawValue)
+            && TryReadStringName(rawValue, out StringName value)
+            ? value
             : AreaPattern;
     }
 
@@ -830,12 +872,16 @@ public sealed class CombatSkillDefinition
             : EmptyCastVariants;
     }
 
-    internal static CombatSkillDefinition FromResource(CombatSkillDef source)
+    internal static CombatSkillDefinition FromResource(
+        CombatSkillDef source,
+        StringName fallbackSkillId,
+        string path
+    )
     {
         if (source == null)
             return null;
         return new CombatSkillDefinition(
-            source.skill_id,
+            source.skill_id == "" ? fallbackSkillId : source.skill_id,
             source.target_mode,
             source.target_team_filter,
             source.range_pattern,
@@ -854,7 +900,7 @@ public sealed class CombatSkillDefinition
             source.attack_roll_bonus,
             source.attack_resolution_mode,
             source.aura_cost,
-            ProjectLevelOverrides(source.level_overrides),
+            ProjectLevelOverrides(source.level_overrides, $"{path}.level_overrides"),
             source.mastery_trigger_mode,
             source.mastery_amount_mode,
             source.spell_fate_mode,
@@ -876,9 +922,12 @@ public sealed class CombatSkillDefinition
             source.allow_repeat_target,
             source.max_hits_per_target,
             source.selection_order_mode,
-            ProjectEffectDefinitions(source.effect_defs),
-            ProjectEffectDefinitions(source.passive_effect_defs),
-            ProjectCastVariants(source.cast_variants),
+            ProjectEffectDefinitions(source.effect_defs, $"{path}.effect_defs"),
+            ProjectEffectDefinitions(
+                source.passive_effect_defs,
+                $"{path}.passive_effect_defs"
+            ),
+            ProjectCastVariants(source.cast_variants, $"{path}.cast_variants"),
             CopyStringNameArray(source.required_weapon_families),
             CopyStringNameArray(source.excluded_weapon_families),
             CopyStringNameArray(source.excluded_weapon_type_ids),
@@ -889,11 +938,14 @@ public sealed class CombatSkillDefinition
         );
     }
 
-    private IReadOnlyDictionary<string, Variant> BuildLevelOverride(int skillLevel)
+    private IReadOnlyDictionary<string, object> BuildLevelOverride(int skillLevel)
     {
         if (LevelOverrides.Count == 0)
-            return SkillDefinition.CopyVariantMap(null);
-        var merged = new Dictionary<string, Variant>();
+            return ContentValueNormalizer.NormalizeDictionary(
+                (IReadOnlyDictionary<string, object>)null,
+                "CombatSkillDefinition.LevelOverrides"
+            );
+        var merged = new Dictionary<string, object>();
         var eligible = new List<int>();
         foreach (int level in LevelOverrides.Keys)
         {
@@ -903,14 +955,14 @@ public sealed class CombatSkillDefinition
         eligible.Sort();
         foreach (int level in eligible)
         {
-            foreach ((string key, Variant value) in LevelOverrides[level])
+            foreach ((string key, object value) in LevelOverrides[level])
                 merged[key] = value;
         }
-        return new ReadOnlyDictionary<string, Variant>(merged);
+        return new ReadOnlyDictionary<string, object>(merged);
     }
 
     private static int ReadIntOverride(
-        IReadOnlyDictionary<string, Variant> overrides,
+        IReadOnlyDictionary<string, object> overrides,
         string key,
         int fallback
     )
@@ -919,21 +971,15 @@ public sealed class CombatSkillDefinition
     }
 
     private static bool TryReadIntOverride(
-        IReadOnlyDictionary<string, Variant> overrides,
+        IReadOnlyDictionary<string, object> overrides,
         string key,
         out int value
     )
     {
-        if (overrides != null && overrides.TryGetValue(key, out Variant rawValue))
+        if (overrides != null && overrides.TryGetValue(key, out object rawValue))
         {
-            if (rawValue.VariantType == Variant.Type.Int)
+            if (TryReadIntValue(rawValue, out value))
             {
-                value = rawValue.AsInt32();
-                return true;
-            }
-            if (rawValue.VariantType == Variant.Type.Float)
-            {
-                value = (int)rawValue.AsDouble();
                 return true;
             }
         }
@@ -941,24 +987,37 @@ public sealed class CombatSkillDefinition
         return false;
     }
 
-    private static IReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>> ProjectLevelOverrides(
-        Godot.Collections.Dictionary source
+    private static IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> ProjectLevelOverrides(
+        Godot.Collections.Dictionary source,
+        string path
     )
     {
         if (source == null || source.Count == 0)
             return EmptyLevelOverrides;
-        var result = new Dictionary<int, IReadOnlyDictionary<string, Variant>>();
+        var result = new Dictionary<int, IReadOnlyDictionary<string, object>>();
         foreach (Variant rawKey in source.Keys)
         {
             if (!TryReadLevelKey(rawKey, out int level))
-                continue;
+                throw new System.IO.InvalidDataException(
+                    $"Content dictionary key at '{path}' must be an integral level, got {rawKey.VariantType}."
+                );
             Variant rawValue = source[rawKey];
             if (rawValue.VariantType != Variant.Type.Dictionary)
-                continue;
-            result[level] = CopyVariantDictionary(rawValue.AsGodotDictionary());
+                throw new System.IO.InvalidDataException(
+                    $"Content value at '{path}[{level}]' must be a Dictionary, got {rawValue.VariantType}."
+                );
+            if (result.ContainsKey(level))
+                throw new System.IO.InvalidDataException(
+                    $"Content dictionary at '{path}' contains duplicate normalized level key '{level}'."
+                );
+            using Godot.Collections.Dictionary dictionary = rawValue.AsGodotDictionary();
+            result[level] = ContentValueNormalizer.NormalizeDictionary(
+                dictionary,
+                $"{path}[{level}]"
+            );
         }
         return result.Count > 0
-            ? new ReadOnlyDictionary<int, IReadOnlyDictionary<string, Variant>>(result)
+            ? new ReadOnlyDictionary<int, IReadOnlyDictionary<string, object>>(result)
             : EmptyLevelOverrides;
     }
 
@@ -983,31 +1042,44 @@ public sealed class CombatSkillDefinition
         return false;
     }
 
-    private static IReadOnlyDictionary<string, Variant> CopyVariantDictionary(
-        Godot.Collections.Dictionary source
-    )
+    private static IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> FreezeLevelOverrides(
+        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> values
+    ) => SkillDefinition.FreezeLevelValueMap(values, "CombatSkillDefinition.LevelOverrides");
+
+    private static bool TryReadIntValue(object value, out int result)
     {
-        if (source == null || source.Count == 0)
-            return SkillDefinition.CopyVariantMap(null);
-        var result = new Dictionary<string, Variant>();
-        foreach (Variant rawKey in source.Keys)
+        if (value is long longValue && longValue >= int.MinValue && longValue <= int.MaxValue)
         {
-            string key = ReadVariantKey(rawKey);
-            if (string.IsNullOrEmpty(key))
-                continue;
-            result[key] = source[rawKey];
+            result = (int)longValue;
+            return true;
         }
-        return new ReadOnlyDictionary<string, Variant>(result);
+        if (
+            value is double doubleValue
+            && doubleValue >= int.MinValue
+            && doubleValue <= int.MaxValue
+        )
+        {
+            result = (int)doubleValue;
+            return true;
+        }
+        result = 0;
+        return false;
     }
 
-    private static string ReadVariantKey(Variant rawKey)
+    private static bool TryReadStringName(object value, out StringName result)
     {
-        return rawKey.VariantType switch
+        if (value is StringName stringName)
         {
-            Variant.Type.String => rawKey.AsString(),
-            Variant.Type.StringName => rawKey.AsStringName().ToString(),
-            _ => "",
-        };
+            result = stringName;
+            return true;
+        }
+        if (value is string text)
+        {
+            result = new StringName(text);
+            return true;
+        }
+        result = default;
+        return false;
     }
 
     private static IReadOnlyList<int> CopyIntArray(int[] values)
@@ -1032,16 +1104,19 @@ public sealed class CombatSkillDefinition
     }
 
     private static IReadOnlyList<CombatCastVariantDefinition> ProjectCastVariants(
-        Godot.Collections.Array<CombatCastVariantDef> values
+        Godot.Collections.Array<CombatCastVariantDef> values,
+        string path
     )
     {
         if (values == null || values.Count == 0)
             return EmptyCastVariants;
         var result = new List<CombatCastVariantDefinition>(values.Count);
-        foreach (CombatCastVariantDef variant in values)
+        for (int index = 0; index < values.Count; index++)
         {
+            CombatCastVariantDef variant = values[index];
             CombatCastVariantDefinition definition = CombatCastVariantDefinition.FromResource(
-                variant
+                variant,
+                $"{path}[{index}]"
             );
             if (definition != null)
                 result.Add(definition);
@@ -1052,15 +1127,20 @@ public sealed class CombatSkillDefinition
     }
 
     private static IReadOnlyList<CombatEffectDefinition> ProjectEffectDefinitions(
-        Godot.Collections.Array<CombatEffectDef> values
+        Godot.Collections.Array<CombatEffectDef> values,
+        string path
     )
     {
         if (values == null || values.Count == 0)
             return EmptyEffectDefinitions;
         var result = new List<CombatEffectDefinition>(values.Count);
-        foreach (CombatEffectDef effect in values)
+        for (int index = 0; index < values.Count; index++)
         {
-            CombatEffectDefinition definition = CombatEffectDefinition.FromResource(effect);
+            CombatEffectDef effect = values[index];
+            CombatEffectDefinition definition = CombatEffectDefinition.FromResource(
+                effect,
+                $"{path}[{index}]"
+            );
             if (definition != null)
                 result.Add(definition);
         }
@@ -1082,7 +1162,7 @@ public sealed class CombatCastVariantDefinition
         int requiredCoordCount,
         IReadOnlyList<StringName> allowedBaseTerrains,
         IReadOnlyList<CombatEffectDefinition> effectDefinitions,
-        IReadOnlyDictionary<string, Variant> parameters
+        IReadOnlyDictionary<string, object> parameters
     )
     {
         VariantId = variantId;
@@ -1095,9 +1175,10 @@ public sealed class CombatCastVariantDefinition
         AllowedBaseTerrains = allowedBaseTerrains ?? System.Array.Empty<StringName>();
         EffectDefinitions =
             effectDefinitions ?? System.Array.Empty<CombatEffectDefinition>();
-        Parameters =
-            parameters
-            ?? new ReadOnlyDictionary<string, Variant>(new Dictionary<string, Variant>());
+        Parameters = ContentValueNormalizer.NormalizeDictionary(
+            parameters,
+            "CombatCastVariantDefinition.Parameters"
+        );
     }
 
     public StringName VariantId { get; }
@@ -1109,12 +1190,15 @@ public sealed class CombatCastVariantDefinition
     public int RequiredCoordCount { get; }
     public IReadOnlyList<StringName> AllowedBaseTerrains { get; }
     public IReadOnlyList<CombatEffectDefinition> EffectDefinitions { get; }
-    public IReadOnlyDictionary<string, Variant> Parameters { get; }
+    public IReadOnlyDictionary<string, object> Parameters { get; }
     internal BattleTargetMode TargetModeKind => BattleTypedNames.ToTargetMode(TargetMode);
     internal CombatCastFootprintPattern FootprintPatternKind =>
         CombatSkillTargetingContentRules.ToFootprintPattern(FootprintPattern);
 
-    internal static CombatCastVariantDefinition FromResource(CombatCastVariantDef source)
+    internal static CombatCastVariantDefinition FromResource(
+        CombatCastVariantDef source,
+        string path
+    )
     {
         if (source == null)
             return null;
@@ -1127,21 +1211,29 @@ public sealed class CombatCastVariantDefinition
             source.footprint_pattern,
             source.required_coord_count,
             CopyStringNameArray(source.allowed_base_terrains),
-            CopyEffectDefinitions(source.effect_defs),
-            CopyVariantDictionary(source.@params)
+            CopyEffectDefinitions(source.effect_defs, $"{path}.effect_defs"),
+            ContentValueNormalizer.NormalizeDictionary(
+                source.@params,
+                $"{path}.params"
+            )
         );
     }
 
     private static IReadOnlyList<CombatEffectDefinition> CopyEffectDefinitions(
-        Godot.Collections.Array<CombatEffectDef> values
+        Godot.Collections.Array<CombatEffectDef> values,
+        string path
     )
     {
         if (values == null || values.Count == 0)
             return System.Array.Empty<CombatEffectDefinition>();
         var result = new List<CombatEffectDefinition>(values.Count);
-        foreach (CombatEffectDef effect in values)
+        for (int index = 0; index < values.Count; index++)
         {
-            CombatEffectDefinition definition = CombatEffectDefinition.FromResource(effect);
+            CombatEffectDef effect = values[index];
+            CombatEffectDefinition definition = CombatEffectDefinition.FromResource(
+                effect,
+                $"{path}[{index}]"
+            );
             if (definition != null)
                 result.Add(definition);
         }
@@ -1162,26 +1254,6 @@ public sealed class CombatCastVariantDefinition
         return new ReadOnlyCollection<StringName>(result);
     }
 
-    private static IReadOnlyDictionary<string, Variant> CopyVariantDictionary(
-        Godot.Collections.Dictionary source
-    )
-    {
-        if (source == null || source.Count == 0)
-            return new ReadOnlyDictionary<string, Variant>(new Dictionary<string, Variant>());
-        var result = new Dictionary<string, Variant>();
-        foreach (Variant rawKey in source.Keys)
-        {
-            string key = rawKey.VariantType switch
-            {
-                Variant.Type.String => rawKey.AsString(),
-                Variant.Type.StringName => rawKey.AsStringName().ToString(),
-                _ => "",
-            };
-            if (!string.IsNullOrEmpty(key))
-                result[key] = source[rawKey];
-        }
-        return new ReadOnlyDictionary<string, Variant>(result);
-    }
 }
 
 public sealed class CombatDamageSegmentDefinition
@@ -1465,7 +1537,7 @@ public sealed class CombatEffectDefinition
         int diceSidesBase = 0,
         int diceSidesPerConstitutionMod = 0,
         int diceSidesPerWillpowerMod = 0,
-        IReadOnlyDictionary<string, Variant> parameters = null,
+        IReadOnlyDictionary<string, object> parameters = null,
         IReadOnlyList<StringName> effectCategories = null,
         bool allowRepeatHitsAcrossSteps = false,
         StringName tickEffectType = default,
@@ -1605,9 +1677,10 @@ public sealed class CombatEffectDefinition
         DiceSidesBase = diceSidesBase;
         DiceSidesPerConstitutionMod = diceSidesPerConstitutionMod;
         DiceSidesPerWillpowerMod = diceSidesPerWillpowerMod;
-        Parameters =
-            parameters
-            ?? new ReadOnlyDictionary<string, Variant>(new Dictionary<string, Variant>());
+        Parameters = ContentValueNormalizer.NormalizeDictionary(
+            parameters,
+            "CombatEffectDefinition.Parameters"
+        );
         EffectCategories = effectCategories ?? EmptyStringNames;
         AllowRepeatHitsAcrossSteps = allowRepeatHitsAcrossSteps;
         TickEffectType = tickEffectType;
@@ -1745,7 +1818,7 @@ public sealed class CombatEffectDefinition
     public int DiceSidesBase { get; }
     public int DiceSidesPerConstitutionMod { get; }
     public int DiceSidesPerWillpowerMod { get; }
-    public IReadOnlyDictionary<string, Variant> Parameters { get; }
+    public IReadOnlyDictionary<string, object> Parameters { get; }
     public IReadOnlyList<StringName> EffectCategories { get; }
     public bool AllowRepeatHitsAcrossSteps { get; }
     public StringName TickEffectType { get; }
@@ -1836,10 +1909,13 @@ public sealed class CombatEffectDefinition
         {
             return fallback;
         }
-        if (Parameters.TryGetValue(key, out Variant value))
-        {
-            return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
-        }
+        if (
+            Parameters.TryGetValue(key, out object value)
+            && value is long intValue
+            && intValue >= int.MinValue
+            && intValue <= int.MaxValue
+        )
+            return (int)intValue;
         return fallback;
     }
 
@@ -1849,9 +1925,14 @@ public sealed class CombatEffectDefinition
         {
             return fallback;
         }
-        if (Parameters.TryGetValue(key, out Variant value))
+        if (Parameters.TryGetValue(key, out object value))
         {
-            StringName normalized = ProgressionDataUtils.to_string_name(value);
+            StringName normalized = value switch
+            {
+                StringName stringName => stringName,
+                string text => new StringName(text),
+                _ => default,
+            };
             return normalized != "" ? normalized : fallback;
         }
         return fallback;
@@ -1863,12 +1944,12 @@ public sealed class CombatEffectDefinition
         {
             return fallback;
         }
-        if (Parameters.TryGetValue(key, out Variant value))
+        if (Parameters.TryGetValue(key, out object value))
         {
-            return value.VariantType switch
+            return value switch
             {
-                Variant.Type.Int => value.AsInt64(),
-                Variant.Type.Float => value.AsDouble(),
+                long intValue => intValue,
+                double floatValue => floatValue,
                 _ => fallback,
             };
         }
@@ -1897,9 +1978,25 @@ public sealed class CombatEffectDefinition
         {
             return System.Array.Empty<StringName>();
         }
-        if (Parameters.TryGetValue(key, out Variant value))
+        if (Parameters.TryGetValue(key, out object value))
         {
-            return ProgressionDataUtils.to_string_name_array(value);
+            if (value is not IReadOnlyList<object> values)
+                return System.Array.Empty<StringName>();
+            var result = new List<StringName>(values.Count);
+            foreach (object entry in values)
+            {
+                StringName normalized = entry switch
+                {
+                    StringName stringName => stringName,
+                    string text => new StringName(text),
+                    _ => default,
+                };
+                if (normalized != "")
+                    result.Add(normalized);
+            }
+            return result.Count == 0
+                ? System.Array.Empty<StringName>()
+                : new ReadOnlyCollection<StringName>(result);
         }
         return System.Array.Empty<StringName>();
     }
@@ -1910,28 +2007,25 @@ public sealed class CombatEffectDefinition
         {
             return new Dictionary<StringName, int>();
         }
-        if (!Parameters.TryGetValue(key, out Variant value) || value.VariantType != Variant.Type.Dictionary)
+        if (
+            !Parameters.TryGetValue(key, out object value)
+            || value is not IReadOnlyDictionary<string, object> dictionary
+        )
         {
             return new Dictionary<StringName, int>();
         }
         var result = new Dictionary<StringName, int>();
-        Godot.Collections.Dictionary dictionary = value.AsGodotDictionary();
-        foreach (Variant rawKey in dictionary.Keys)
+        foreach ((string rawKey, object rawValue) in dictionary)
         {
-            if (rawKey.VariantType != Variant.Type.StringName)
-            {
-                continue;
-            }
-            StringName id = rawKey.AsStringName();
+            StringName id = new(rawKey);
             if (id == "")
-            {
                 continue;
-            }
-            Variant rawValue = dictionary[rawKey];
-            if (rawValue.VariantType == Variant.Type.Int)
-            {
-                result[id] = rawValue.AsInt32();
-            }
+            if (
+                rawValue is long intValue
+                && intValue >= int.MinValue
+                && intValue <= int.MaxValue
+            )
+                result[id] = (int)intValue;
         }
         return result;
     }
@@ -2216,7 +2310,10 @@ public sealed class CombatEffectDefinition
         );
     }
 
-    internal static CombatEffectDefinition FromResource(CombatEffectDef source)
+    internal static CombatEffectDefinition FromResource(
+        CombatEffectDef source,
+        string path
+    )
     {
         return source == null
             ? null
@@ -2276,7 +2373,10 @@ public sealed class CombatEffectDefinition
                 source.dice_sides_base,
                 source.dice_sides_per_constitution_mod,
                 source.dice_sides_per_willpower_mod,
-                CopyVariantDictionary(source.@params),
+                ContentValueNormalizer.NormalizeDictionary(
+                    source.@params,
+                    $"{path}.params"
+                ),
                 CopyStringNameArray(source.effect_categories),
                 source.allow_repeat_hits_across_steps,
                 source.tick_effect_type,
@@ -2427,24 +2527,4 @@ public sealed class CombatEffectDefinition
             : EmptyStringNames;
     }
 
-    private static IReadOnlyDictionary<string, Variant> CopyVariantDictionary(
-        Godot.Collections.Dictionary source
-    )
-    {
-        if (source == null || source.Count == 0)
-            return new ReadOnlyDictionary<string, Variant>(new Dictionary<string, Variant>());
-        var result = new Dictionary<string, Variant>();
-        foreach (Variant rawKey in source.Keys)
-        {
-            string key = rawKey.VariantType switch
-            {
-                Variant.Type.String => rawKey.AsString(),
-                Variant.Type.StringName => rawKey.AsStringName().ToString(),
-                _ => "",
-            };
-            if (!string.IsNullOrEmpty(key))
-                result[key] = source[rawKey];
-        }
-        return new ReadOnlyDictionary<string, Variant>(result);
-    }
 }

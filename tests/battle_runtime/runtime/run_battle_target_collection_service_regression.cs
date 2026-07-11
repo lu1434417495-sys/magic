@@ -25,12 +25,16 @@ public partial class run_battle_target_collection_service_regression : Lifecycle
     {
         BattleState state = BuildFlatState(new Vector2I(5, 5));
         var service = new BattleTargetCollectionService();
-        CombatSkillDefinition combatProfile = CombatSkillDefinition.FromResource(new CombatSkillDef
-        {
-            target_mode = "ground",
-            area_pattern = "diamond",
-            area_value = 1,
-        });
+        CombatSkillDefinition combatProfile = CombatSkillDefinition.FromResource(
+            new CombatSkillDef
+            {
+                target_mode = "ground",
+                area_pattern = "diamond",
+                area_value = 1,
+            },
+            "target_collection_ground",
+            "test.target_collection.ground_profile"
+        );
 
         BattleTargetCollectionResult result = service.CollectCombatProfileTargetCoords(
             state,
@@ -67,11 +71,15 @@ public partial class run_battle_target_collection_service_regression : Lifecycle
             state,
             gridService,
             sourceUnit.coord,
-            CombatSkillDefinition.FromResource(new CombatSkillDef
-            {
-                target_mode = "unit",
-                target_selection_mode = "self",
-            }),
+            CombatSkillDefinition.FromResource(
+                new CombatSkillDef
+                {
+                    target_mode = "unit",
+                    target_selection_mode = "self",
+                },
+                "target_collection_self",
+                "test.target_collection.self_profile"
+            ),
             Array.Empty<Vector2I>(),
             sourceUnit,
             Array.Empty<BattleUnitState>()
@@ -87,7 +95,11 @@ public partial class run_battle_target_collection_service_regression : Lifecycle
             state,
             gridService,
             sourceUnit.coord,
-            CombatSkillDefinition.FromResource(new CombatSkillDef { target_mode = "unit" }),
+            CombatSkillDefinition.FromResource(
+                new CombatSkillDef { target_mode = "unit" },
+                "target_collection_unit",
+                "test.target_collection.unit_profile"
+            ),
             Array.Empty<Vector2I>(),
             sourceUnit,
             new[] { targetUnit }

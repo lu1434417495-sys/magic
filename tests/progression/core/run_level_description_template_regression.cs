@@ -191,10 +191,10 @@ public partial class run_level_description_template_regression : LifecycleTestSc
         SkillDefinition skillDefinition = TestSkillDefinitionProjection.BuildSkill(
             "level_description_fixture",
             levelDescriptionTemplate: "模板{val}",
-            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, Variant>>
+            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, object>>
             {
-                [0] = new Dictionary<string, Variant> { ["val"] = "新" },
-                [1] = new Dictionary<string, Variant> { ["val"] = "新" },
+                [0] = new Dictionary<string, object> { ["val"] = "新" },
+                [1] = new Dictionary<string, object> { ["val"] = "新" },
             }
         );
 
@@ -216,9 +216,9 @@ public partial class run_level_description_template_regression : LifecycleTestSc
 
         SkillDefinition missingTemplate = TestSkillDefinitionProjection.BuildSkill(
             "missing_template_fixture",
-            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, Variant>>
+            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, object>>
             {
-                [0] = new Dictionary<string, Variant> { ["val"] = "新" },
+                [0] = new Dictionary<string, object> { ["val"] = "新" },
             }
         );
         _test.Eq(
@@ -239,13 +239,24 @@ public partial class run_level_description_template_regression : LifecycleTestSc
 
         SkillDef wrongConfigType = new()
         {
+            skill_id = "wrong_config_type_fixture",
             level_description_template = "模板{val}",
             level_description_configs = new GDictionary { ["0"] = "旧格式描述" },
         };
-        _test.Eq(
-            BuildLevelDescriptionFromResource(wrongConfigType, 0, new GDictionary()),
-            "",
-            "等级配置不是字典时应返回空"
+        string rejectionMessage = "";
+        try
+        {
+            BuildLevelDescriptionFromResource(wrongConfigType, 0, new GDictionary());
+        }
+        catch (System.IO.InvalidDataException exception)
+        {
+            rejectionMessage = exception.Message;
+        }
+        _test.True(
+            rejectionMessage.Contains(
+                "skill.wrong_config_type_fixture.level_description_configs.0"
+            ),
+            "等级配置不是字典时应由投影边界按精确路径拒绝"
         );
     }
 
@@ -255,18 +266,18 @@ public partial class run_level_description_template_regression : LifecycleTestSc
             "zero_optional_profile_fixture",
             levelDescriptionTemplate:
                 "基础{{?attack_roll_bonus}}，攻击检定{attack_roll_bonus}{{/attack_roll_bonus}}{{?aura_cost}}，消耗{aura_cost}斗气{{/aura_cost}}",
-            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, Variant>>
+            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, object>>
             {
-                [0] = new Dictionary<string, Variant> { ["marker"] = "configured" },
-                [1] = new Dictionary<string, Variant> { ["marker"] = "configured" },
+                [0] = new Dictionary<string, object> { ["marker"] = "configured" },
+                [1] = new Dictionary<string, object> { ["marker"] = "configured" },
             },
             combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
                 "zero_optional_profile_fixture",
                 attackRollBonus: 0,
                 auraCost: 0,
-                levelOverrides: new Dictionary<int, IReadOnlyDictionary<string, Variant>>
+                levelOverrides: new Dictionary<int, IReadOnlyDictionary<string, object>>
                 {
-                    [1] = new Dictionary<string, Variant>
+                    [1] = new Dictionary<string, object>
                     {
                         ["attack_roll_bonus"] = 2,
                         ["aura_cost"] = 1,
@@ -317,9 +328,9 @@ public partial class run_level_description_template_regression : LifecycleTestSc
             "typed_effect_description_fixture",
             levelDescriptionTemplate:
                 "造成{dmg}伤害（{damage_save_text}），{shocked_save_text}（{shocked_duration_tu}TU，强度{shocked_power}）。",
-            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, Variant>>
+            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, object>>
             {
-                [0] = new Dictionary<string, Variant> { ["dmg"] = "4D6" },
+                [0] = new Dictionary<string, object> { ["dmg"] = "4D6" },
             },
             combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
                 "typed_effect_description_fixture",
@@ -355,10 +366,10 @@ public partial class run_level_description_template_regression : LifecycleTestSc
         SkillDefinition skillDefinition = TestSkillDefinitionProjection.BuildSkill(
             "locked_cast_variant_description_fixture",
             levelDescriptionTemplate: "基础{base}{{?locked_param}}，高阶{locked_param}{{/locked_param}}",
-            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, Variant>>
+            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, object>>
             {
-                [0] = new Dictionary<string, Variant> { ["base"] = "可用" },
-                [3] = new Dictionary<string, Variant> { ["base"] = "可用" },
+                [0] = new Dictionary<string, object> { ["base"] = "可用" },
+                [3] = new Dictionary<string, object> { ["base"] = "可用" },
             },
             combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
                 "locked_cast_variant_description_fixture",
@@ -371,7 +382,7 @@ public partial class run_level_description_template_regression : LifecycleTestSc
                         {
                             TestSkillDefinitionProjection.BuildEffect(
                                 "damage",
-                                parameters: new Dictionary<string, Variant>
+                                parameters: new Dictionary<string, object>
                                 {
                                     ["locked_param"] = "未锁",
                                 }

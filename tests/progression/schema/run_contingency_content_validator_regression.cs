@@ -518,7 +518,7 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
             "",
             System.Array.Empty<AttributeModifierDefinition>(),
             "",
-            new Dictionary<int, IReadOnlyDictionary<string, Variant>>(),
+            new Dictionary<int, IReadOnlyDictionary<string, object>>(),
             null,
             automation
         );
@@ -539,7 +539,7 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
             0,
             new[] { new StringName(allowedResolver) },
             false,
-            new Dictionary<string, Variant>()
+            new Dictionary<string, object>()
         );
     }
 

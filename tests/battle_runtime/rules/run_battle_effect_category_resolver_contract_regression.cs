@@ -143,7 +143,13 @@ public partial class run_battle_effect_category_resolver_contract_regression : L
 
         var categories = BattleEffectCategoryResolver.ResolveCategories(
             skill,
-            new[] { CombatEffectDefinition.FromResource(effect) }
+            new[]
+            {
+                CombatEffectDefinition.FromResource(
+                    effect,
+                    "test.battle_effect_category.legacy_params"
+                ),
+            }
         );
 
         _test.False(

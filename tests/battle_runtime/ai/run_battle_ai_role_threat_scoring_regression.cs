@@ -246,7 +246,7 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
                 "damage",
                 power: 10,
                 bonusCondition: "target_low_hp",
-                parameters: new Dictionary<string, Variant> { ["low_hp_ratio"] = 0.7 },
+                parameters: new Dictionary<string, object> { ["low_hp_ratio"] = 0.7 },
                 bonusDamageDiceCount: 2,
                 bonusDamageDiceSides: 1
             )

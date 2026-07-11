@@ -385,7 +385,7 @@ public static class BattleStatusSemanticTable
         var statusEntry = BattleStatusEffectState.CreateOrDuplicate(existingEntry);
         statusEntry.status_id = resolvedStatusId;
         statusEntry.source_unit_id = sourceUnitId;
-        statusEntry.@params = CopyResidualParams(effectDefinition.Parameters);
+        AssignResidualParams(statusEntry, effectDefinition.Parameters);
         statusEntry.display_label = effectDefinition.DisplayName ?? "";
         statusEntry.counts_as_debuff_override = effectDefinition.CountsAsDebuffOverride;
         statusEntry.counts_as_debuff = effectDefinition.CountsAsDebuff;
@@ -712,23 +712,24 @@ public static class BattleStatusSemanticTable
         return result;
     }
 
-    private static GDictionary CopyResidualParams(
-        IReadOnlyDictionary<string, Variant> parameters
+    private static void AssignResidualParams(
+        BattleStatusEffectState statusEntry,
+        IReadOnlyDictionary<string, object> parameters
     )
     {
-        if (parameters == null || parameters.Count == 0)
-        {
-            return new GDictionary();
-        }
-        var copied = new GDictionary();
-        foreach (KeyValuePair<string, Variant> entry in parameters)
-        {
-            if (!string.IsNullOrEmpty(entry.Key))
-            {
-                copied[entry.Key] = entry.Value;
-            }
-        }
-        return BattleStatusEffectState.CopyResidualParams(copied);
+        if (statusEntry == null)
+            return;
+        using GodotProjectionLease<GDictionary> projection =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                parameters,
+                "battle-status-semantic-parameters",
+                LifetimeDomain.Battle,
+                "BattleStatusSemanticTable.effect_parameters"
+            );
+        using GDictionary residual = BattleStatusEffectState.CopyResidualParams(
+            projection.Value
+        );
+        statusEntry.@params = residual;
     }
 
     private static int NormalizePositiveTu(int value, string fieldLabel)
