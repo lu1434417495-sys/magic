@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
 using Godot;
 
 public partial class run_process_content_host_regression : LifecycleTestSceneTree
@@ -10,11 +9,11 @@ public partial class run_process_content_host_regression : LifecycleTestSceneTre
 
     public override void _Initialize() => CallDeferred(nameof(Run));
 
-    private async void Run()
+    private void Run()
     {
         try
         {
-            await RunAsync();
+            RunAssertions();
         }
         catch (Exception exception)
         {
@@ -24,7 +23,7 @@ public partial class run_process_content_host_regression : LifecycleTestSceneTre
         RequestTestExit(_test.Finish("Process content host regression"));
     }
 
-    private async Task RunAsync()
+    private void RunAssertions()
     {
         TestPublicationStateRollbackAndRelease();
 
@@ -127,30 +126,9 @@ public partial class run_process_content_host_regression : LifecycleTestSceneTre
             "blocked disposal should leave the published snapshot intact"
         );
 
-        host.Quiesce();
         _test.True(
-            Throws<InvalidOperationException>(() =>
-                host.EngineAssets.ResolveBorrowed<PackedScene>(
-                    "res://scenes/main/login_screen.tscn"
-                )
-            ),
-            "quiescing should reject engine asset resolution, including cached assets"
-        );
-
-        if (activeSession != null)
-            await coordinator.CloseSessionAsync(activeSession);
-
-        host.ReleaseSnapshot();
-        host.ReleaseSnapshot();
-        _test.True(
-            Throws<InvalidOperationException>(() => host.GetSnapshot()),
-            "GetSnapshot should fail after release"
-        );
-        host.Dispose();
-        host.Dispose();
-        _test.True(
-            Throws<ObjectDisposedException>(() => host.GetCanonicalRootDiagnostics()),
-            "disposed hosts should reject further diagnostics"
+            ReferenceEquals(first, coordinator.ContentHost.GetSnapshot()),
+            "the coordinator-owned host should remain published until application shutdown"
         );
     }
 

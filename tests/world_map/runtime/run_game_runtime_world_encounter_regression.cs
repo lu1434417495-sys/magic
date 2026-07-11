@@ -92,7 +92,8 @@ public partial class run_game_runtime_world_encounter_regression : LifecycleTest
                 Vector2I.Zero,
                 Vector2I.Zero
             );
-            InstallWildEncounterRoster(runtime, BuildGrowthRoster());
+            using WildEncounterRosterDef growthRoster = BuildGrowthRoster();
+            InstallWildEncounterRoster(runtime, growthRoster.ToDefinition());
 
             runtime.AdvanceWorldTimeBySteps(1);
 
@@ -182,20 +183,26 @@ public partial class run_game_runtime_world_encounter_regression : LifecycleTest
             },
         };
 
-    private static void InstallWildEncounterRoster(
+    private void InstallWildEncounterRoster(
         GameRuntimeFacade runtime,
-        WildEncounterRosterDef roster
+        WildEncounterRosterDefinition roster
     )
     {
         FieldInfo field = typeof(GameRuntimeFacade).GetField(
-            "_wild_encounter_roster_defs",
+            "_wild_encounter_roster_definitions",
             BindingFlags.Instance | BindingFlags.NonPublic
         );
-        var rosters = field?.GetValue(runtime) as Dictionary<StringName, WildEncounterRosterDef>;
-        if (rosters != null)
+        if (
+            field?.GetValue(runtime)
+            is not Dictionary<StringName, WildEncounterRosterDefinition> rosters
+        )
         {
-            rosters[roster.profile_id] = roster;
+            _test.Fail(
+                "GameRuntimeFacade typed wild-encounter roster definition store should be available."
+            );
+            return;
         }
+        rosters[roster.ProfileId] = roster;
     }
 
     private static int DictInt(GDictionary dictionary, string key, int fallback)

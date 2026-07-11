@@ -10,6 +10,11 @@ public partial class run_text_save_load_regression : LifecycleTestSceneTree
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
+    {
         TestResult exitCode = null;
         try
         {

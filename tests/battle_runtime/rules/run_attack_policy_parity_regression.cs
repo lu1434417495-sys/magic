@@ -181,7 +181,10 @@ public partial class run_attack_policy_parity_regression : LifecycleTestSceneTre
             {
                 ["base_attack_bonus"] = 1,
                 ["follow_up_attack_penalty"] = 2,
-                ["penalty_free_stages_by_level"] = new GDictionary { [3] = 1 },
+                ["penalty_free_stages_by_level"] = new Dictionary<string, object>
+                {
+                    ["3"] = 1,
+                },
             }
         );
     }
