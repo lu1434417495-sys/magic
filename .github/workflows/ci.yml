@@ -67,6 +67,27 @@ jobs:
 
           "${GODOT_BIN}" --headless --import --quit --path .
 
+      - name: Run lifecycle correctness gate
+        shell: bash
+        env:
+          MAGIC_LIFECYCLE_STRICT: "1"
+          MAGIC_LIFECYCLE_TRACE: "1"
+        run: |
+          set -euo pipefail
+
+          python tests/run_regression_suite.py \
+            --godot "${GODOT_BIN}" \
+            --pattern runtime/lifecycle \
+            --jobs 1 \
+            --stop-on-failure \
+            --finalizer-crash-retries 0 \
+            --test-timeout-seconds 180 \
+            --fail-on-output-error \
+            --lifecycle-correctness
+
+          "${GODOT_BIN}" --headless -s \
+            res://tests/runtime/validation/run_runtime_lifecycle_boundary_regression.cs
+
       - name: Run full regression suite
         shell: bash
         run: |

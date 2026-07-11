@@ -125,8 +125,9 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/utils/GodotObjectLifecycle.cs`
   - `scripts/utils/RuntimeStateLifecycle.cs`
   - `scripts/utils/GodotTypedResourceGraphWalker.cs`
+  - `tests/runtime/lifecycle/*.cs`
 - 负责：application shutdown、active save、slot meta、save payload/index、内容注册表、全局会话边界。
-- 边界：`ApplicationLifetimeCoordinator` 是进程退出状态与最终 `SceneTree.Quit` 的唯一 owner，按 Runtime、Session 阶段关闭顶层 participant；`WorldMapSystem` / `HeadlessGameTestSession` 关闭各自持有的 runtime graph，`GameSession` 关闭 session graph，子服务由这些顶层 owner 递归释放而不独立注册。`GameSession` 是会话根、持有 `GameRoot`；`GameContentCatalog` 是正式内容类型的组合根读入口，持有 typed 内容快照缓存并带 revision，生命周期绑定 owning `GameRoot`（root dispose 后 catalog 失效）。`SaveRepository` 拥有底层 save 文件 IO，`GameSession` 拥有 active save / schema / meta / index 归并；`world_data` 的 runtime owner 是 `WorldRuntimeData`，只在 save payload 入口/出口投影。子 payload 破坏性 schema 变化时同步升级 owning save version，且只接受当前版本、不做 legacy 兼容迁移。
+- 边界：`ApplicationLifetimeCoordinator` 是进程内 shutdown state、owner drain、finalizer barrier 与最终 `SceneTree.Quit` 的唯一 owner，按 Runtime、Session 阶段关闭顶层 participant；退出后的 stderr、进程返回码与 GodotSharp fatal marker 由 CU-19 的外层 runner 判定，不回写进程内 report。`WorldMapSystem` / `HeadlessGameTestSession` 关闭各自持有的 runtime graph，`GameSession` 关闭 session graph，子服务由这些顶层 owner 递归释放而不独立注册。`GameSession` 是会话根、持有 `GameRoot`；`GameContentCatalog` 是正式内容类型的组合根读入口，持有 typed 内容快照缓存并带 revision，生命周期绑定 owning `GameRoot`（root dispose 后 catalog 失效）。`SaveRepository` 拥有底层 save 文件 IO，`GameSession` 拥有 active save / schema / meta / index 归并；`world_data` 的 runtime owner 是 `WorldRuntimeData`，只在 save payload 入口/出口投影。子 payload 破坏性 schema 变化时同步升级 owning save version，且只接受当前版本、不做 legacy 兼容迁移。
 - 适合：save schema、序列化、内容接入、全局注册表问题。
 - 邻接单元：CU-01、CU-03、CU-04、CU-10、CU-11、CU-13、CU-20、CU-21。
 
@@ -470,7 +471,9 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 
 - 文件：
   - `docs/superpowers/specs/2026-07-10-godotsharp-lifecycle-architecture-design.md`
+  - `.github/workflows/ci.yml`
   - `tests/run_regression_suite.py`
+  - `tests/tooling/test_run_regression_suite.py`
   - `tests/shared/*`
   - `tests/equipment/*`
   - `tests/warehouse/*`
@@ -483,7 +486,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `tools/*.py`
   - `tools/*.gd`
 - 负责：headless 回归、contract 验证、fixture、截图/签名辅助。
-- 边界：`TestHarness.Finish(...)` 只冻结断言并生成 `TestResult`；C# runner 统一经 `LifecycleTestSceneTree` / `TestExitCoordinator` 把结果提交给 `ApplicationLifetimeCoordinator`，owner teardown、finalizer barrier 与最终退出均由 production shutdown pipeline 负责。GodotSharp 生命周期或退出顺序改动必须同时读取 lifecycle architecture spec。功能测试读取正式 `SkillDef` `.tres` 经 `TestSkillDefinitionProjection.LoadSkillDefinition(...)` 在加载边界投影为 `SkillDefinition`，不把 `SkillDef` 传入服务。
+- 边界：`TestHarness.Finish(...)` 只冻结断言并生成 `TestResult`；C# runner 统一经 `LifecycleTestSceneTree` / `TestExitCoordinator` 把结果提交给 `ApplicationLifetimeCoordinator`，owner teardown、finalizer barrier 与最终退出均由 production shutdown pipeline 负责。外层 `run_regression_suite.py --lifecycle-correctness` 拥有 post-exit correctness 判定：保留调用者的发现、筛选、并发与超时设置，为每个子进程强制 strict/trace、禁用 finalizer retry，并把 GodotSharp fatal marker 独立于普通输出错误判为失败；阶段性 unsafe/resource 输出保留为可见 baseline。CI 在完整回归前以相同 profile 运行专用生命周期门。GodotSharp 生命周期或退出顺序改动必须同时读取 lifecycle architecture spec、runner tooling regression 与 CI 接线。功能测试读取正式 `SkillDef` `.tres` 经 `TestSkillDefinitionProjection.LoadSkillDefinition(...)` 在加载边界投影为 `SkillDefinition`，不把 `SkillDef` 传入服务。
 - 适合：补回归、跑局部验证、定位改动影响面。
 - 邻接单元：按业务域补 CU-10、CU-12、CU-15、CU-17、CU-18、CU-21。
 
@@ -515,7 +518,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `tests/text_runtime/tools/run_*.cs`
   - `tests/text_runtime/README.md`
 - 负责：无 UI session、文本命令、expect 断言、文本/结构化快照。
-- 边界：`HeadlessGameTestSession` 持有 typed `GameSession` / plain C# `GameRuntimeFacade`，owned session teardown 走 `GameSession.Dispose()`；headless C# runner 与其他回归一样通过共享 lifecycle exit adapter 委托 application shutdown pipeline。`GameTextCommandRunner` 的核心命令直接走 typed `GameRuntimeFacade` gateway；battle snapshot 的 contingency surface 包括 `battle.contingency` sidecar snapshot、unit overlay 的 contingency 字段与 `battle.report_entries` 结构化条目。
+- 边界：`HeadlessGameTestSession` 持有 typed `GameSession` / plain C# `GameRuntimeFacade`，owned session teardown 走 `GameSession.Dispose()`；headless C# runner 与其他回归一样通过共享 lifecycle exit adapter 委托 application shutdown pipeline，外层进程结果再由 CU-19 lifecycle correctness profile 判定，headless session 不自行执行 GC、retry 或 post-exit 日志过滤。`GameTextCommandRunner` 的核心命令直接走 typed `GameRuntimeFacade` gateway；battle snapshot 的 contingency surface 包括 `battle.contingency` sidecar snapshot、unit overlay 的 contingency 字段与 `battle.report_entries` 结构化条目。
 - 适合：headless 指令域、snapshot schema、REPL/脚本回归、agent 自动化入口。
 - 邻接单元：CU-02、CU-06、CU-10、CU-15、CU-16、CU-19、CU-20。
 

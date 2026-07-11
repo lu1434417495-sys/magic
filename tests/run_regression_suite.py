@@ -27,6 +27,12 @@ OUTPUT_ERROR_PREFIXES = (
 	"SCRIPT ERROR:",
 	"FATAL:",
 )
+LIFECYCLE_FATAL_MARKERS = (
+	"gchandle.is_released",
+	"GodotObject.Finalize",
+	"Handle is not initialized",
+	"godotsharp_variant_destroy",
+)
 
 
 @dataclass(frozen=True)
@@ -41,6 +47,7 @@ class TestRunResult:
 	user_data_dir: str = ""
 	finalizer_crash_retries: int = 0
 	output_error_lines: tuple[str, ...] = ()
+	lifecycle_fatal_lines: tuple[str, ...] = ()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -64,8 +71,19 @@ def build_parser() -> argparse.ArgumentParser:
 	parser.add_argument(
 		"--finalizer-crash-retries",
 		type=int,
-		default=3,
-		help="Retry a test this many times when Godot Mono aborts in GodotObject.Finalize(). Default: 3.",
+		default=None,
+		help=(
+			"Retry a test this many times when Godot Mono aborts in GodotObject.Finalize(). "
+			"Default: 3; --lifecycle-correctness requires 0 and defaults to 0."
+		),
+	)
+	parser.add_argument(
+		"--lifecycle-correctness",
+		action="store_true",
+		help=(
+			"Run with strict lifecycle diagnostics, no finalizer retries, retained shutdown "
+			"baselines, and fatal post-exit GodotSharp marker detection."
+		),
 	)
 	parser.add_argument(
 		"--user-data-root",
@@ -107,6 +125,31 @@ def resolve_godot_command(command: str) -> str | None:
 	if candidate.exists():
 		return str(candidate)
 	return shutil.which(command)
+
+
+def resolve_finalizer_crash_retries(
+	requested_retries: int | None,
+	lifecycle_correctness: bool,
+) -> int:
+	if lifecycle_correctness:
+		if requested_retries not in (None, 0):
+			raise ValueError(
+				"--lifecycle-correctness requires --finalizer-crash-retries 0 "
+				"(or omitting the retry option)."
+			)
+		return 0
+	return 3 if requested_retries is None else requested_retries
+
+
+def build_child_process_env(
+	base_env: dict[str, str],
+	lifecycle_correctness: bool,
+) -> dict[str, str]:
+	env = dict(base_env)
+	if lifecycle_correctness:
+		env["MAGIC_LIFECYCLE_STRICT"] = "1"
+		env["MAGIC_LIFECYCLE_TRACE"] = "1"
+	return env
 
 
 def get_repo_path(repo_root: Path, path: Path) -> str:
@@ -209,6 +252,22 @@ def find_output_error_lines(stdout: str, stderr: str, max_lines: int = 20) -> tu
 	return tuple(matches)
 
 
+def find_lifecycle_fatal_lines(
+	stdout: str,
+	stderr: str,
+	max_lines: int = 20,
+) -> tuple[str, ...]:
+	matches: list[str] = []
+	for stream_name, text in (("stdout", stdout or ""), ("stderr", stderr or "")):
+		for line in text.splitlines():
+			if not any(marker in line for marker in LIFECYCLE_FATAL_MARKERS):
+				continue
+			matches.append(f"{stream_name}: {line}")
+			if len(matches) >= max_lines:
+				return tuple(matches)
+	return tuple(matches)
+
+
 def terminate_process_tree(process: subprocess.Popen[str]) -> None:
 	if os.name == "nt":
 		try:
@@ -270,6 +329,7 @@ def run_godot_process(
 	env: dict[str, str] | None,
 	realtime_output: bool,
 	test_timeout_seconds: float,
+	retain_lifecycle_output: bool = False,
 ) -> tuple[int, str, str, tuple[str, ...]]:
 	process = subprocess.Popen(
 		[godot_command, "--headless", "--script", test_path],
@@ -294,11 +354,15 @@ def run_godot_process(
 		try:
 			for line in stream:
 				raw_lines.append(line)
-				if LEAKED_UNSAFE_REFERENCE_MARKER in line:
+				if not retain_lifecycle_output and LEAKED_UNSAFE_REFERENCE_MARKER in line:
 					leaked_unsafe_count += 1
 					skip_finalize_stack = True
 					continue
-				if skip_finalize_stack and LEAKED_UNSAFE_REFERENCE_STACK in line:
+				if (
+					not retain_lifecycle_output
+					and skip_finalize_stack
+					and LEAKED_UNSAFE_REFERENCE_STACK in line
+				):
 					skip_finalize_stack = False
 					continue
 				skip_finalize_stack = False
@@ -374,6 +438,8 @@ def run_one_test(
 	finalizer_crash_retries: int,
 	fail_on_output_error: bool,
 	test_timeout_seconds: float,
+	child_process_env: dict[str, str] | None = None,
+	lifecycle_correctness: bool = False,
 ) -> TestRunResult:
 	start = time.perf_counter()
 	user_data_dir = ""
@@ -385,12 +451,15 @@ def run_one_test(
 	returncode = 0
 	retry_count = 0
 	output_error_lines: tuple[str, ...] = ()
+	lifecycle_fatal_lines: tuple[str, ...] = ()
 	max_attempts = max(finalizer_crash_retries, 0) + 1
 	for attempt in range(max_attempts):
-		env = None
+		base_env = child_process_env if child_process_env is not None else os.environ
+		env = build_child_process_env(base_env, lifecycle_correctness)
 		if user_data_root is not None:
 			attempt_root = Path(user_data_dir) / f"attempt_{attempt + 1}"
-			env = prepare_user_data_env(os.environ, attempt_root)
+			env = prepare_user_data_env(base_env, attempt_root)
+			env = build_child_process_env(env, lifecycle_correctness)
 		returncode, stdout, stderr, detected_output_error_lines = run_godot_process(
 			godot_command,
 			repo_root,
@@ -398,8 +467,13 @@ def run_one_test(
 			env,
 			realtime_output,
 			test_timeout_seconds,
+			retain_lifecycle_output=lifecycle_correctness,
 		)
 		if not is_godot_finalizer_crash(returncode, stderr) or attempt + 1 >= max_attempts:
+			if lifecycle_correctness:
+				lifecycle_fatal_lines = find_lifecycle_fatal_lines(stdout, stderr)
+				if returncode == 0 and lifecycle_fatal_lines:
+					returncode = 1
 			if fail_on_output_error:
 				output_error_lines = detected_output_error_lines
 				if returncode == 0 and output_error_lines:
@@ -418,6 +492,7 @@ def run_one_test(
 		user_data_dir=user_data_dir,
 		finalizer_crash_retries=retry_count,
 		output_error_lines=output_error_lines,
+		lifecycle_fatal_lines=lifecycle_fatal_lines,
 	)
 
 
@@ -450,6 +525,10 @@ def print_test_result(result: TestRunResult, show_output: bool) -> None:
 		print("--- output error markers ---", flush=True)
 		for line in result.output_error_lines:
 			print(line, flush=True)
+	if result.lifecycle_fatal_lines:
+		print("--- lifecycle fatal markers ---", flush=True)
+		for line in result.lifecycle_fatal_lines:
+			print(line, flush=True)
 	if show_output and result.stdout:
 		print("--- stdout ---", flush=True)
 		print(result.stdout, flush=True)
@@ -475,6 +554,8 @@ def run_tests_serial(
 	finalizer_crash_retries: int,
 	fail_on_output_error: bool,
 	test_timeout_seconds: float,
+	child_process_env: dict[str, str] | None = None,
+	lifecycle_correctness: bool = False,
 ) -> tuple[int, list[TestRunResult]]:
 	failed_tests: list[TestRunResult] = []
 	passed_count = 0
@@ -495,6 +576,8 @@ def run_tests_serial(
 			finalizer_crash_retries=finalizer_crash_retries,
 			fail_on_output_error=fail_on_output_error,
 			test_timeout_seconds=test_timeout_seconds,
+			child_process_env=child_process_env,
+			lifecycle_correctness=lifecycle_correctness,
 		)
 		if result.returncode == 0:
 			passed_count += 1
@@ -518,6 +601,8 @@ def run_tests_parallel(
 	finalizer_crash_retries: int,
 	fail_on_output_error: bool,
 	test_timeout_seconds: float,
+	child_process_env: dict[str, str] | None = None,
+	lifecycle_correctness: bool = False,
 ) -> tuple[int, list[TestRunResult]]:
 	failed_tests: list[TestRunResult] = []
 	passed_count = 0
@@ -546,6 +631,8 @@ def run_tests_parallel(
 			finalizer_crash_retries,
 			fail_on_output_error,
 			test_timeout_seconds,
+			child_process_env,
+			lifecycle_correctness,
 		)
 		active[future] = test_path
 
@@ -563,7 +650,10 @@ def run_tests_parallel(
 				result = future.result()
 				if result.returncode == 0:
 					passed_count += 1
-					print_test_result(result, show_output=verbose)
+					print_test_result(
+						result,
+						show_output=verbose or lifecycle_correctness,
+					)
 				else:
 					failed_tests.append(result)
 					print_test_result(result, show_output=True)
@@ -581,7 +671,19 @@ def run_tests_parallel(
 
 
 def main() -> int:
-	args = build_parser().parse_args()
+	parser = build_parser()
+	args = parser.parse_args()
+	try:
+		finalizer_crash_retries = resolve_finalizer_crash_retries(
+			args.finalizer_crash_retries,
+			args.lifecycle_correctness,
+		)
+	except ValueError as exc:
+		parser.error(str(exc))
+	child_process_env = build_child_process_env(
+		dict(os.environ),
+		args.lifecycle_correctness,
+	)
 	if args.log_file:
 		log_path = Path(args.log_file)
 		log_file = open(log_path, "a", encoding="utf-8")
@@ -643,9 +745,11 @@ def main() -> int:
 			tests,
 			args.verbose,
 			args.stop_on_failure,
-			args.finalizer_crash_retries,
+			finalizer_crash_retries,
 			args.fail_on_output_error,
 			args.test_timeout_seconds,
+			child_process_env,
+			args.lifecycle_correctness,
 		)
 	else:
 		user_data_root, cleanup_user_data_root = create_user_data_root(args)
@@ -663,9 +767,11 @@ def main() -> int:
 				args.verbose,
 				args.stop_on_failure,
 				user_data_root,
-				args.finalizer_crash_retries,
+				finalizer_crash_retries,
 				args.fail_on_output_error,
 				args.test_timeout_seconds,
+				child_process_env,
+				args.lifecycle_correctness,
 			)
 		finally:
 			if cleanup_user_data_root and not failed_tests:
@@ -691,8 +797,14 @@ def main() -> int:
 				if result.output_error_lines
 				else ""
 			)
+			lifecycle_fatal_suffix = (
+				f" lifecycle_fatals={len(result.lifecycle_fatal_lines)}"
+				if result.lifecycle_fatal_lines
+				else ""
+			)
 			print(
-				f"- {result.test_path} exit={result.returncode}{suffix}{retry_suffix}{output_error_suffix}"
+				f"- {result.test_path} exit={result.returncode}{suffix}{retry_suffix}"
+				f"{output_error_suffix}{lifecycle_fatal_suffix}"
 			)
 		return 1
 
