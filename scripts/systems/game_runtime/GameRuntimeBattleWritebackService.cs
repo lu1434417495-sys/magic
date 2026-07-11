@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using Godot.Collections;
+using PlainDictionary = System.Collections.Generic.Dictionary<string, object>;
 
 internal sealed class GameRuntimeBattleWritebackService : IDisposable
 {
@@ -19,7 +20,7 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
         private BattleLocalWritebackResult(
             bool ok,
             string errorCode,
-            Dictionary details,
+            IReadOnlyDictionary<string, object> details,
             int committedMemberCount,
             int usedSlots,
             int capacity
@@ -27,8 +28,8 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
         {
             Ok = ok;
             ErrorCode = errorCode ?? "";
-            Details = RuntimePlainPayload.NormalizeDictionary(
-                details,
+            Details = ContentValueNormalizer.NormalizeDictionary(
+                details ?? new PlainDictionary(StringComparer.Ordinal),
                 "GameRuntimeBattleWritebackService.Result.details"
             );
             CommittedMemberCount = Mathf.Max(committedMemberCount, 0);
@@ -41,54 +42,93 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
             int usedSlots,
             int capacity
         ) =>
-            new(true, "", new Dictionary(), committedMemberCount, usedSlots, capacity);
+            new(
+                true,
+                "",
+                new PlainDictionary(StringComparer.Ordinal),
+                committedMemberCount,
+                usedSlots,
+                capacity
+            );
 
         internal static BattleLocalWritebackResult Failed(
             string errorCode,
-            Dictionary details = null
+            IReadOnlyDictionary<string, object> details = null
         ) =>
             new(false, errorCode, details, 0, 0, 0);
 
-        internal static BattleLocalWritebackResult FromFailureDictionary(Dictionary failure)
+        internal static BattleLocalWritebackResult FromFailure(
+            BattleLocalWritebackFailure failure
+        )
         {
-            return Failed(
-                DictionaryString(
-                    failure,
-                    "error_code",
-                    "battle_local_writeback_inoption_failed"
-                ),
-                DictionaryDictionary(failure, "details")
-            );
+            return failure == null
+                ? Failed("battle_local_writeback_inoption_failed")
+                : Failed(failure.ErrorCode, failure.Details);
         }
 
     }
 
+    internal sealed class BattleLocalWritebackFailure
+    {
+        private BattleLocalWritebackFailure(
+            string errorCode,
+            IReadOnlyDictionary<string, object> details
+        )
+        {
+            ErrorCode = errorCode ?? "";
+            Details = ContentValueNormalizer.NormalizeDictionary(
+                details ?? new PlainDictionary(StringComparer.Ordinal),
+                "GameRuntimeBattleWritebackService.Failure.details"
+            );
+        }
+
+        internal string ErrorCode { get; }
+        internal IReadOnlyDictionary<string, object> Details { get; }
+
+        internal static BattleLocalWritebackFailure Create(
+            string errorCode,
+            IReadOnlyDictionary<string, object> details = null
+        ) => new(errorCode, details);
+    }
+
     private sealed class BattleLocalCandidateValidationResult
     {
-        internal bool Ok { get; set; }
-        internal Dictionary Failure { get; set; } = new();
-        internal int UsedSlots { get; set; }
-        internal int Capacity { get; set; }
+        private BattleLocalCandidateValidationResult(
+            bool ok,
+            BattleLocalWritebackFailure failure,
+            int usedSlots,
+            int capacity
+        )
+        {
+            Ok = ok;
+            Failure = failure;
+            UsedSlots = Mathf.Max(usedSlots, 0);
+            Capacity = Mathf.Max(capacity, 0);
+        }
+
+        internal bool Ok { get; }
+        internal BattleLocalWritebackFailure Failure { get; }
+        internal int UsedSlots { get; }
+        internal int Capacity { get; }
 
         internal static BattleLocalCandidateValidationResult Success(int usedSlots, int capacity)
         {
-            return new BattleLocalCandidateValidationResult
-            {
-                Ok = true,
-                UsedSlots = usedSlots,
-                Capacity = capacity,
-            };
+            return new BattleLocalCandidateValidationResult(true, null, usedSlots, capacity);
         }
 
-        internal static BattleLocalCandidateValidationResult Failed(Dictionary failure)
+        internal static BattleLocalCandidateValidationResult Failed(
+            BattleLocalWritebackFailure failure
+        )
         {
-            return new BattleLocalCandidateValidationResult
-            {
-                Ok = false,
-                Failure = failure ?? BuildBattleLocalWritebackFailure(
-                    "battle_local_writeback_invalid_candidate_party"
-                ),
-            };
+            return new BattleLocalCandidateValidationResult(
+                false,
+                failure
+                    ?? BuildBattleLocalWritebackFailure(
+                        "battle_local_writeback_invalid_candidate_party"
+                    ),
+                0,
+                0
+            );
         }
     }
 
@@ -174,10 +214,13 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
         {
             var unitState = battleState.GetUnit(allyUnitId);
             if (unitState == null)
-                return BattleLocalWritebackResult.FromFailureDictionary(
+                return BattleLocalWritebackResult.FromFailure(
                     BuildBattleLocalWritebackFailure(
                         "battle_local_writeback_missing_ally_unit",
-                        new Dictionary { ["unit_id"] = allyUnitId.ToString() }
+                        new PlainDictionary(StringComparer.Ordinal)
+                        {
+                            ["unit_id"] = allyUnitId.ToString(),
+                        }
                     )
                 );
 
@@ -186,19 +229,22 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
                 continue;
 
             if (committedMemberIds.ContainsKey(memberId))
-                return BattleLocalWritebackResult.FromFailureDictionary(
+                return BattleLocalWritebackResult.FromFailure(
                     BuildBattleLocalWritebackFailure(
                         "battle_local_writeback_duplicate_member_unit",
-                        new Dictionary { ["member_id"] = memberId.ToString() }
+                        new PlainDictionary(StringComparer.Ordinal)
+                        {
+                            ["member_id"] = memberId.ToString(),
+                        }
                     )
                 );
 
             PartyMemberState memberState = candidateParty.GetMemberState(memberId);
             if (memberState == null)
-                return BattleLocalWritebackResult.FromFailureDictionary(
+                return BattleLocalWritebackResult.FromFailure(
                     BuildBattleLocalWritebackFailure(
                         "battle_local_writeback_member_not_found",
-                        new Dictionary
+                        new PlainDictionary(StringComparer.Ordinal)
                         {
                             ["member_id"] = memberId.ToString(),
                             ["unit_id"] = unitState.unit_id.ToString(),
@@ -207,10 +253,10 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
                 );
 
             if (!unitState.equipment_view_initialized)
-                return BattleLocalWritebackResult.FromFailureDictionary(
+                return BattleLocalWritebackResult.FromFailure(
                     BuildBattleLocalWritebackFailure(
                         "battle_local_writeback_uninitialized_equipment_view",
-                        new Dictionary
+                        new PlainDictionary(StringComparer.Ordinal)
                         {
                             ["member_id"] = memberId.ToString(),
                             ["unit_id"] = unitState.unit_id.ToString(),
@@ -220,10 +266,10 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
 
             var equipmentView = unitState.equipment_view;
             if (equipmentView == null)
-                return BattleLocalWritebackResult.FromFailureDictionary(
+                return BattleLocalWritebackResult.FromFailure(
                     BuildBattleLocalWritebackFailure(
                         "battle_local_writeback_invalid_equipment_view",
-                        new Dictionary
+                        new PlainDictionary(StringComparer.Ordinal)
                         {
                             ["member_id"] = memberId.ToString(),
                             ["unit_id"] = unitState.unit_id.ToString(),
@@ -233,10 +279,10 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
 
             EquipmentState equipmentCopy = equipmentView.DuplicateState();
             if (equipmentCopy == null)
-                return BattleLocalWritebackResult.FromFailureDictionary(
+                return BattleLocalWritebackResult.FromFailure(
                     BuildBattleLocalWritebackFailure(
                         "battle_local_writeback_invalid_equipment_view",
-                        new Dictionary
+                        new PlainDictionary(StringComparer.Ordinal)
                         {
                             ["member_id"] = memberId.ToString(),
                             ["unit_id"] = unitState.unit_id.ToString(),
@@ -250,7 +296,7 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
 
         var validationResult = ValidateBattleLocalCandidatePartyState(candidateParty);
         if (!validationResult.Ok)
-            return BattleLocalWritebackResult.FromFailureDictionary(validationResult.Failure);
+            return BattleLocalWritebackResult.FromFailure(validationResult.Failure);
 
         _runtime.SetPartyState(candidateParty);
         SyncRuntimePartyServicesAfterBattleLocalWriteback();
@@ -293,7 +339,7 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
                 instanceId,
                 itemId,
                 "backpack",
-                out Dictionary failure
+                out BattleLocalWritebackFailure failure
             ))
                 return BattleLocalCandidateValidationResult.Failed(failure);
         }
@@ -310,7 +356,10 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
                 return BattleLocalCandidateValidationResult.Failed(
                     BuildBattleLocalWritebackFailure(
                         "battle_local_writeback_invalid_equipment_state",
-                        new Dictionary { ["member_id"] = memberId.ToString() }
+                        new PlainDictionary(StringComparer.Ordinal)
+                        {
+                            ["member_id"] = memberId.ToString(),
+                        }
                     )
                 );
 
@@ -323,7 +372,7 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
                     return BattleLocalCandidateValidationResult.Failed(
                         BuildBattleLocalWritebackFailure(
                             "battle_local_writeback_invalid_equipment_entry",
-                            new Dictionary
+                            new PlainDictionary(StringComparer.Ordinal)
                             {
                                 ["member_id"] = memberId.ToString(),
                                 ["entry_slot_id"] = entrySlotId.ToString(),
@@ -343,7 +392,7 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
                     instanceId,
                     itemId,
                     ownerLabel,
-                    out Dictionary failure
+                    out BattleLocalWritebackFailure failure
                 ))
                     return BattleLocalCandidateValidationResult.Failed(failure);
             }
@@ -359,7 +408,11 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
             return BattleLocalCandidateValidationResult.Failed(
                 BuildBattleLocalWritebackFailure(
                     "battle_local_writeback_capacity_mismatch",
-                    new Dictionary { ["used_slots"] = usedSlots, ["capacity"] = capacity }
+                    new PlainDictionary(StringComparer.Ordinal)
+                    {
+                        ["used_slots"] = usedSlots,
+                        ["capacity"] = capacity,
+                    }
                 )
             );
 
@@ -371,10 +424,10 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
         StringName instanceId,
         StringName itemId,
         string ownerLabel,
-        out Dictionary failure
+        out BattleLocalWritebackFailure failure
     )
     {
-        failure = new Dictionary();
+        failure = null;
         if (instanceId == "")
             return true;
 
@@ -384,7 +437,7 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
             var previousOwner = DictionaryDictionary(instanceOwnerById, instanceKey);
             failure = BuildBattleLocalWritebackFailure(
                 "battle_local_writeback_instance_conflict",
-                new Dictionary
+                new PlainDictionary(StringComparer.Ordinal)
                 {
                     ["instance_id"] = instanceKey,
                     ["item_id"] = itemId.ToString(),
@@ -460,17 +513,12 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
         return new System.Collections.Generic.Dictionary<StringName, ItemDefinition>();
     }
 
-    private static Dictionary BuildBattleLocalWritebackFailure(
+    private static BattleLocalWritebackFailure BuildBattleLocalWritebackFailure(
         string errorCode,
-        Dictionary details = null
+        IReadOnlyDictionary<string, object> details = null
     )
     {
-        return new Dictionary
-        {
-            ["ok"] = false,
-            ["error_code"] = errorCode,
-            ["details"] = details ?? new Dictionary(),
-        };
+        return BattleLocalWritebackFailure.Create(errorCode, details);
     }
 
     private void ReportBattleLocalWritebackConsistencyFailure(
