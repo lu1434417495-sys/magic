@@ -124,13 +124,14 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/utils/GodotObjectOwnership.cs`
   - `scripts/utils/NativeLeaseScope.cs`
   - `scripts/utils/GodotProjectionLease.cs`
+  - `scripts/utils/RuntimePlainPayload.cs`
   - `scripts/utils/RuntimeResourceFactories.cs`
   - `scripts/utils/GodotObjectLifecycle.cs`
   - `scripts/utils/RuntimeStateLifecycle.cs`
   - `scripts/utils/GodotTypedResourceGraphWalker.cs`
   - `tests/runtime/lifecycle/*.cs`
 - 负责：application shutdown、active save、slot meta、save payload/index、内容注册表、全局会话边界。
-- 边界：`ApplicationLifetimeCoordinator` 是进程内 shutdown state、owner drain、finalizer barrier 与最终 `SceneTree.Quit` 的唯一 owner，按 Runtime、Session 阶段关闭顶层 participant；退出后的 stderr、进程返回码与 GodotSharp fatal marker 由 CU-19 的外层 runner 判定，不回写进程内 report。`NativeLeaseScope` 显式拥有 runtime 创建的 pathless native wrapper，`GodotProjectionLease` 显式拥有短期 Godot collection 投影并只弱登记 borrowed child；两者都通过 lifecycle audit 记录 owner/domain，不遍历对象图。`WorldMapSystem` / `HeadlessGameTestSession` 关闭各自持有的 runtime graph，`GameSession` 关闭 session graph，子服务由这些顶层 owner 递归释放而不独立注册。`GameSession` 是会话根、持有 `GameRoot`；`GameContentCatalog` 是正式内容类型的组合根读入口，持有 typed 内容快照缓存并带 revision，生命周期绑定 owning `GameRoot`（root dispose 后 catalog 失效）。`SaveRepository` 拥有底层 save 文件 IO，`GameSession` 拥有 active save / schema / meta / index 归并；`world_data` 的 runtime owner 是 `WorldRuntimeData`，只在 save payload 入口/出口投影。子 payload 破坏性 schema 变化时同步升级 owning save version，且只接受当前版本、不做 legacy 兼容迁移。
+- 边界：`ApplicationLifetimeCoordinator` 是进程内 shutdown state、owner drain、finalizer barrier 与最终 `SceneTree.Quit` 的唯一 owner，按 Runtime、Session 阶段关闭顶层 participant；退出后的 stderr、进程返回码与 GodotSharp fatal marker 由 CU-19 的外层 runner 判定，不回写进程内 report。`NativeLeaseScope` 显式拥有 runtime 创建的 pathless native wrapper，`GodotProjectionLease` 显式拥有短期 Godot collection 投影并只弱登记 borrowed child；两者都通过 lifecycle audit 记录 owner/domain，不遍历对象图。`WorldMapSystem` / `HeadlessGameTestSession` 关闭各自持有的 runtime graph，`GameSession` 关闭 session graph，子服务由这些顶层 owner 递归释放而不独立注册。`GameSession` 是会话根、持有 `GameRoot`；`GameContentCatalog` 是正式内容类型的组合根读入口，持有 typed 内容快照缓存并带 revision，生命周期绑定 owning `GameRoot`（root dispose 后 catalog 失效）。`SaveRepository` 拥有底层 save 文件 IO，`GameSession` 拥有 active save / schema / meta / index 归并；save/slot-index 的 session cache 与读回结果保持 plain C# graph，写入时才创建 Request-domain `GodotProjectionLease`，每个 nested collection 由同一 lease 显式拥有；`FileAccess` / `DirAccess` 由 Request-domain `NativeLeaseScope` 拥有，并在 Windows rename 前显式关闭文件句柄。`GetVar(false)` 结果必须在 file/Variant 仍存活时立即还原为 plain/typed state，不让 raw Godot payload 逃逸。`world_data` 的 runtime owner 是 `WorldRuntimeData`，只在 save payload 入口/出口投影。子 payload 破坏性 schema 变化时同步升级 owning save version，且只接受当前版本、不做 legacy 兼容迁移。
 - 适合：save schema、序列化、内容接入、全局注册表问题。
 - 邻接单元：CU-01、CU-03、CU-04、CU-10、CU-11、CU-13、CU-20、CU-21。
 
@@ -205,7 +206,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/ui/NpcQuestOfferDialog.cs`
   - `scenes/ui/npc_quest_offer_dialog.tscn`
 - 负责：world/battle 切换、窗口互斥、命令编排、场景同步、战后回写、运行时总入口。
-- 边界：`GameRuntimeFacade` 通过当前 root/session 解析 `GameContentCatalog`，只在仍绑定当前 session（`IsBoundToSession`）时复用，用 revision 校验有效性。世界运行态 owner 是 `WorldRuntimeData`（settlement / submap / encounter anchors / world events / fog 等先进 typed owner），经 `WorldMapDataProjection` 投影 save/window/proxy。跨 party/world/coord 的提交统一走 `RuntimeTransaction` stage + `CommitRuntimeState`；`PartyState` 替换必须保持 session/runtime/services canonical root 一致，root 替换走 `RuntimeTransaction` / facade rebind。命令输入以 typed request（`SettlementActionRequest` / `PromotionSelectionData` / `PartyItemUseOptions` 等）为正式边界。
+- 边界：`GameRuntimeFacade` 通过当前 root/session 解析 `GameContentCatalog`，只在仍绑定当前 session（`IsBoundToSession`）时复用，用 revision 校验有效性。世界运行态 owner 是 `WorldRuntimeData`（settlement / submap / encounter anchors / world events / fog 等先进 typed owner），其 canonical save graph 由 plain `BuildSaveSnapshotPlain()` 生成，Godot API/window/proxy 仍经 `WorldMapDataProjection` 做短期投影。跨 party/world/coord 的提交统一走 `RuntimeTransaction` stage + `CommitRuntimeState`；`PartyState` 替换必须保持 session/runtime/services canonical root 一致，root 替换走 `RuntimeTransaction` / facade rebind。命令输入以 typed request（`SettlementActionRequest` / `PromotionSelectionData` / `PartyItemUseOptions` 等）为正式边界。
 - 适合：runtime 接线、模式切换、世界场景同步、据点/仓库/奖励/任务命令入口。
 - 邻接单元：CU-02、CU-04、CU-05、CU-07、CU-08、CU-09、CU-10、CU-12、CU-15、CU-18、CU-21。
 
@@ -295,6 +296,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 
 - 文件：
   - `scripts/player/progression/PartyState.cs`
+  - `scripts/player/progression/PartyState.SaveSnapshot.cs`
   - `scripts/player/progression/PartyMemberStateCollection.cs`
   - `scripts/player/progression/PartyMemberState.cs`
   - `scripts/player/progression/Contingency*State.cs`
@@ -311,7 +313,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/progression/PendingCharacterReward*.cs`
   - `scripts/systems/progression/CharacterProgressionDelta.cs`
 - 负责：队伍状态、成员状态、成长状态、任务状态、角色奖励载体。
-- 边界：`PartyState.member_states` owner 是 `PartyMemberStateCollection`；`PartyMemberState` 持有 `ContingencyMatrixSetupState`（只承载战斗外 setup / 充能 / 消耗回写事实，不承载战斗内 release queue / hook）。其余成长、任务、奖励状态都是 plain C# runtime/save DTO。角色 trait 与装备 roll trait 的持久实例边界是 `TraitInstanceState` / `TraitInstanceCollection`：成员实例只承载 `character` source、装备实例只承载 `equipment_roll` source，反序列化按严格字段集与 source kind 校验。
+- 边界：`PartyState.member_states` owner 是 `PartyMemberStateCollection`；`PartyMemberState` 持有 `ContingencyMatrixSetupState`（只承载战斗外 setup / 充能 / 消耗回写事实，不承载战斗内 release queue / hook）。其余成长、任务、奖励状态都是 plain C# runtime/save DTO。`PartyState.BuildSaveSnapshotPlain()` 是 Party save graph 的 canonical 序列化源，Godot Dictionary 边界投影也从该 plain snapshot 构建，避免并行 schema 源。角色 trait 与装备 roll trait 的持久实例边界是 `TraitInstanceState` / `TraitInstanceCollection`：成员实例只承载 `character` source、装备实例只承载 `equipment_roll` source，反序列化按严格字段集与 source kind 校验。
 - 适合：party schema、角色状态字段、奖励队列、成长状态序列化。
 - 邻接单元：CU-02、CU-09、CU-10、CU-12、CU-13、CU-14、CU-19。
 
@@ -395,9 +397,11 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/battle/fate/*.cs`
   - `scripts/systems/battle/core/BattleCommand.cs`
   - `scripts/systems/battle/core/BattlePreview.cs`
+  - `scripts/systems/battle/core/BattlePreviewProjection.cs`
   - `scripts/systems/battle/core/AutoCastRequest.cs`
   - `scripts/systems/battle/core/Contingency*.cs`
   - `scripts/systems/battle/core/BattleEventBatch.cs`
+  - `scripts/systems/battle/core/BattleEventBatchProjection.cs`
   - `scripts/systems/battle/rules/Battle*.cs`
   - `scripts/systems/battle/runtime/BattleContingencySystem.cs`
   - `scripts/systems/battle/runtime/ContingencyTargetResolverService.cs`
@@ -409,7 +413,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 - 装备能力运行时动作边界：`BattleEquipmentAbilityRuntimeService` 解析 before-hit / after-hit / after-skill / after-kill / after-damage / after-attack-check / after-status-expired 的 typed action payload 并写入 `BattleEventBatch` / `BattleState`，包括强制暴击来源、内部 SkillDef 结算、直接伤害、治疗、按 fact 治疗、清状态/target mark、状态栈消费、授予技能、召唤单位、召唤物消费、临时边特征、持久装备 counter 修改、持久状态同步与立即武器追击；有时限 target mark 的剩余 TU 存在 `BattleEquipmentTargetMarkState`，由 `BattleRuntimeSkillTurnResolver` 与目标状态时钟同步推进。`BattleAttackCheckPolicyService` 把强制暴击及来源装备实例/binding/action 写入本次 `AttackCheckInput`，未命中不升级；预览只有在 `CritLocked`/force-hit-no-crit 均未生效时才公开“命中后必定暴击”，命中后的击杀归因沿该来源进入 on-kill；`BattleDamageResolver` 在真实武器攻击检定提交后分发 after-attack-check，并把声明合并的内部技能结果并回父攻击；`BattleSkillExecutionOrchestrator` 只向装备技能提交通用目标结果摘要和 `BattleKillProvenance`，装备授予技能入口取 binding 固定 `skill_level` 与角色已学同名技能等级的较高值；来源绑定武器追加伤害通过伤害事件携带来源技能 id，只有角色已学该技能时才向该技能熟练度写入，不按具体武器分支。
 - 强制暴击击杀归因边界：`BattleKillProvenance` 只在最终 `AttackEffectResolutionResult.CriticalHit` 为真时保留 forced-critical 的装备实例/binding/action；禁暴击或其他后续规则把结果降为普通命中时，击杀按实际主手攻击归因，不得误触发依赖 forced-critical binding 的 on-kill 反应。装备能力发起的立即武器攻击可以提供外层 provenance 作为 fallback：最终强制暴击来源优先覆盖它，未形成强制暴击时仍保留外层 binding/action 的 on-kill 语义。
 - 装备能力 AP 恢复边界：`ModifyActionPointsActionPayloadDef.mode = restore_current_action_points_capped` 可在 after-kill 等通用 action 阶段恢复指定单位的当前 AP，并以该单位 `attribute_snapshot[action_points]` 为正常上限；已达到或超过上限时不增加也不反向降低。触发次数限制若需要必须由内容显式声明，运行时不默认附加 once-per-turn。
-- 边界：读条 / pending cast 是 runtime-only battle state（不进 save），由 `BattleCastingTimeService` / `BattleTimelineDriver` / `BattleRuntimeSkillTurnResolver` / `BattleSkillExecutionOrchestrator` 协作，manual cancel 走 typed command path。contingency 战斗侧由 `BattleContingencySystem` 从 persistent setup 初始化、经 `ContingencyTargetResolverService` 解析目标、排队执行 `AutoCastRequest`；consumed 单一真相是 `BattleUnitState.MarkContingencySetupConsumed`，写回契约是 `IBattleRuntimeCharacterGateway.Validate/CommitContingencyConsumedSetups`，失败随 finalization rollback。temporal 状态族（`time_stasis` / `time_slow` / `time_reverberation`）与装备投影出的时间进度倍率规则归属 `BattleTemporalStatusService`，由 timeline / casting / turn-resolver / grid 协作执行；下一回合 AP 清零这类 turn-start AP 规则归属 `BattleStatusSemanticTable` + `BattleRuntimeSkillTurnResolver`，不在具体武器技能里硬编码。
+- 边界：`BattleEventBatch` / `BattlePreview` 的 canonical state 与 report facts 保持 plain C# 只读视图；只有同步 Godot 消费边界通过 Request-domain `BattleEventBatchProjection` / `BattlePreviewProjection` 构建短期 root lease，damage/range/save-branch 等 nested collection 由同一 lease 在创建时显式拥有。读条 / pending cast 是 runtime-only battle state（不进 save），由 `BattleCastingTimeService` / `BattleTimelineDriver` / `BattleRuntimeSkillTurnResolver` / `BattleSkillExecutionOrchestrator` 协作，manual cancel 走 typed command path。contingency 战斗侧由 `BattleContingencySystem` 从 persistent setup 初始化、经 `ContingencyTargetResolverService` 解析目标、排队执行 `AutoCastRequest`；consumed 单一真相是 `BattleUnitState.MarkContingencySetupConsumed`，写回契约是 `IBattleRuntimeCharacterGateway.Validate/CommitContingencyConsumedSetups`，失败随 finalization rollback。temporal 状态族（`time_stasis` / `time_slow` / `time_reverberation`）与装备投影出的时间进度倍率规则归属 `BattleTemporalStatusService`，由 timeline / casting / turn-resolver / grid 协作执行；下一回合 AP 清零这类 turn-start AP 规则归属 `BattleStatusSemanticTable` + `BattleRuntimeSkillTurnResolver`，不在具体武器技能里硬编码。
 - 适合：战斗流程、战斗结算、特殊技能流程、战斗内事务。
 - 邻接单元：CU-02、CU-10、CU-11、CU-12、CU-13、CU-14、CU-16、CU-17、CU-18、CU-20、CU-21。
 

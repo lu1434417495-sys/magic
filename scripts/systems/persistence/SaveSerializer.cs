@@ -3,7 +3,53 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GDictionaryArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
+
+internal sealed class SaveDecodeResult
+{
+    internal SaveDecodeResult(int error)
+    {
+        Error = error;
+        ActiveSaveMeta = new Dictionary<string, object>(StringComparer.Ordinal);
+        WorldData = new Dictionary<string, object>(StringComparer.Ordinal);
+        PartyState = new PartyState();
+        ActiveSaveId = "";
+        GenerationConfigPath = "";
+        PlayerFactionId = "player";
+    }
+
+    internal SaveDecodeResult(
+        Dictionary<string, object> activeSaveMeta,
+        Dictionary<string, object> worldData,
+        PartyState partyState,
+        string activeSaveId,
+        string generationConfigPath,
+        WorldMapGenerationConfig generationConfig,
+        Vector2I playerCoord,
+        string playerFactionId
+    )
+    {
+        Error = (int)Godot.Error.Ok;
+        ActiveSaveMeta = activeSaveMeta
+            ?? new Dictionary<string, object>(StringComparer.Ordinal);
+        WorldData = worldData ?? new Dictionary<string, object>(StringComparer.Ordinal);
+        PartyState = partyState ?? new PartyState();
+        ActiveSaveId = activeSaveId ?? "";
+        GenerationConfigPath = generationConfigPath ?? "";
+        GenerationConfig = generationConfig;
+        PlayerCoord = playerCoord;
+        PlayerFactionId = playerFactionId ?? "player";
+    }
+
+    internal int Error { get; }
+    internal Dictionary<string, object> ActiveSaveMeta { get; }
+    internal Dictionary<string, object> WorldData { get; }
+    internal PartyState PartyState { get; }
+    internal string ActiveSaveId { get; }
+    internal string GenerationConfigPath { get; }
+    internal WorldMapGenerationConfig GenerationConfig { get; }
+    internal Vector2I PlayerCoord { get; }
+    internal string PlayerFactionId { get; }
+}
 
 public sealed class SaveSerializer
 {
@@ -22,80 +68,74 @@ public sealed class SaveSerializer
         _max_active_member_count = maxActiveMemberCount;
     }
 
-    public GDictionary BuildSavePayload(
+    internal GodotProjectionLease<GDictionary> BuildSavePayloadLease(
         string activeSaveId,
         string generationConfigPath,
-        GDictionary activeSaveMeta,
-        GDictionary worldData,
+        IReadOnlyDictionary<string, object> activeSaveMeta,
+        IReadOnlyDictionary<string, object> worldData,
         Vector2I playerCoord,
         string playerFactionId,
         PartyState partyState,
         int savedAtUnixTime
     )
     {
-        return MinimizeSavePayloadStrings(
-            new GDictionary
-            {
-                ["version"] = _save_version,
-                ["save_id"] = activeSaveId,
-                ["generation_config_path"] = generationConfigPath,
-                ["world_state"] = BuildWorldStatePayload(
-                    worldData,
-                    playerCoord,
-                    playerFactionId
-                ),
-                ["party_state"] = SerializePartyState(partyState),
-                ["meta"] = BuildMetaPayload(savedAtUnixTime),
-                ["save_slot_meta"] = activeSaveMeta?.Duplicate(true) ?? new GDictionary(),
-            }
+        Dictionary<string, object> worldState = BuildWorldStatePlain(
+            worldData,
+            playerCoord,
+            playerFactionId
+        );
+        Dictionary<string, object> payload = new(StringComparer.Ordinal)
+        {
+            ["version"] = _save_version,
+            ["save_id"] = activeSaveId,
+            ["generation_config_path"] = generationConfigPath,
+            ["world_state"] = worldState,
+            ["party_state"] = SerializePartyStatePlain(partyState),
+            ["meta"] = BuildMetaPayloadPlain(savedAtUnixTime),
+            ["save_slot_meta"] = RuntimePlainPayload.CloneDictionary(activeSaveMeta),
+        };
+        return RuntimePlainPayload.ProjectDictionaryLease(
+            payload,
+            "save-payload",
+            LifetimeDomain.Request,
+            "SaveSerializer.BuildSavePayloadLease",
+            minimizeStrings: true
         );
     }
 
-    public GDictionary BuildWorldStatePayload(
-        GDictionary worldData,
+    internal GodotProjectionLease<GDictionary> BuildWorldStatePayloadLease(
+        IReadOnlyDictionary<string, object> worldData,
         Vector2I playerCoord,
         string playerFactionId
     )
     {
-        return new GDictionary
-        {
-            ["world_data"] = SerializeWorldData(worldData ?? new GDictionary()),
-            ["player_coord"] = playerCoord,
-            ["player_faction_id"] = playerFactionId,
-        };
+        return RuntimePlainPayload.ProjectDictionaryLease(
+            BuildWorldStatePlain(worldData, playerCoord, playerFactionId),
+            "world-state-payload",
+            LifetimeDomain.Request,
+            "SaveSerializer.BuildWorldStatePayloadLease"
+        );
     }
 
-    internal GDictionary BuildWorldStatePayload(
-        WorldRuntimeData worldData,
-        Vector2I playerCoord,
-        string playerFactionId
-    )
-    {
-        return BuildWorldStatePayload(worldData?.ToDictionary() ?? new GDictionary(), playerCoord, playerFactionId);
-    }
-
-    public GDictionary BuildMetaPayload(int savedAtUnixTime)
-    {
-        return new GDictionary
-        {
-            ["saved_at_unix_time"] = savedAtUnixTime,
-            ["save_format"] = SaveFormat,
-        };
-    }
-
-    public GDictionary DecodePayload(
-        GDictionary payload,
+    internal bool TryDecodePayload(
+        IReadOnlyDictionary<string, object> payload,
         string generationConfigPath,
         WorldMapGenerationConfig generationConfig,
-        GDictionary saveMeta
+        IReadOnlyDictionary<string, object> saveMeta,
+        out SaveDecodeResult result
     )
     {
-        GDictionary payloadData = RestoreMinimizedSavePayloadStrings(
-            payload ?? new GDictionary()
-        );
-        GDictionary normalizedRequestedMeta = NormalizeSaveMeta(saveMeta ?? new GDictionary());
-        if (payloadData.Count == 0 || normalizedRequestedMeta.Count == 0)
-            return ErrorResult();
+        result = new SaveDecodeResult((int)Error.InvalidData);
+        if (
+            payload == null
+            || !TryNormalizeSaveMetaPlain(
+                saveMeta,
+                out Dictionary<string, object> normalizedRequestedMeta
+            )
+        )
+        {
+            return false;
+        }
         string[] requiredPayloadKeys =
         {
             "version",
@@ -106,132 +146,130 @@ public sealed class SaveSerializer
             "meta",
             "save_slot_meta",
         };
-        if (!HasExactKeys(payloadData, requiredPayloadKeys))
-            return ErrorResult();
+        if (!HasExactPlainKeys(payload, requiredPayloadKeys))
+            return false;
         if (
-            !payloadData.ContainsKey("version")
-            || payloadData["version"].VariantType != Variant.Type.Int
-            || payloadData["version"].AsInt32() != _save_version
+            !TryReadPlainInt(payload, "version", out int version)
+            || version != _save_version
+            || !TryReadPlainString(payload, "save_id", out string activeSaveId)
+            || !TryReadPlainString(
+                payload,
+                "generation_config_path",
+                out string payloadGenerationConfigPath
+            )
         )
-            return ErrorResult();
+            return false;
         if (
-            !payloadData.ContainsKey("save_id")
-            || payloadData["save_id"].VariantType != Variant.Type.String
+            !string.Equals(
+                payloadGenerationConfigPath,
+                generationConfigPath,
+                StringComparison.Ordinal
+            )
+            || !string.Equals(
+                activeSaveId,
+                ReadPlainString(normalizedRequestedMeta, "save_id"),
+                StringComparison.Ordinal
+            )
         )
-            return ErrorResult();
+            return false;
         if (
-            !payloadData.ContainsKey("generation_config_path")
-            || payloadData["generation_config_path"].VariantType != Variant.Type.String
+            !TryReadPlainDictionary(payload, "world_state", out var worldState)
+            || !TryReadPlainDictionary(payload, "party_state", out var partyPayload)
+            || !TryReadPlainDictionary(payload, "meta", out var payloadMeta)
+            || !TryReadPlainDictionary(payload, "save_slot_meta", out var payloadSaveMeta)
         )
-            return ErrorResult();
-        if (payloadData["generation_config_path"].AsString() != generationConfigPath)
-            return ErrorResult();
-        if (
-            payloadData["save_id"].AsString()
-            != ReadString(normalizedRequestedMeta, "save_id")
-        )
-            return ErrorResult();
-        if (
-            !payloadData.ContainsKey("world_state")
-            || payloadData["world_state"].VariantType != Variant.Type.Dictionary
-        )
-            return ErrorResult();
-        if (
-            !payloadData.ContainsKey("party_state")
-            || payloadData["party_state"].VariantType != Variant.Type.Dictionary
-        )
-            return ErrorResult();
-        if (
-            !payloadData.ContainsKey("meta")
-            || payloadData["meta"].VariantType != Variant.Type.Dictionary
-        )
-            return ErrorResult();
-        if (
-            !payloadData.ContainsKey("save_slot_meta")
-            || payloadData["save_slot_meta"].VariantType != Variant.Type.Dictionary
-        )
-            return ErrorResult();
+            return false;
 
-        GDictionary worldState = payloadData["world_state"].AsGodotDictionary();
-        if (!HasExactKeys(worldState, new[] { "world_data", "player_coord", "player_faction_id" }))
-            return ErrorResult();
-        if (worldState["world_data"].VariantType != Variant.Type.Dictionary)
-            return ErrorResult();
-        GDictionary rawWorldData = worldState["world_data"].AsGodotDictionary();
-        if (!string.IsNullOrEmpty(GetWorldDataValidationError(rawWorldData)))
-            return ErrorResult();
-        WorldRuntimeData rawRuntimeData = WorldRuntimeData.FromDictionary(rawWorldData);
-        if (rawRuntimeData == null)
-            return ErrorResult();
-        GDictionary worldData = NormalizeWorldData(rawRuntimeData);
-        if (worldData.Count == 0)
-            return ErrorResult();
-        if (!IsSupportedVector2I(worldState["player_coord"]))
-            return ErrorResult();
-        if (!IsStringValue(worldState["player_faction_id"]))
-            return ErrorResult();
-        string playerFactionId = worldState["player_faction_id"].AsString().StripEdges();
+        if (
+            !HasExactPlainKeys(
+                worldState,
+                new[] { "world_data", "player_coord", "player_faction_id" }
+            )
+            || !TryReadPlainDictionary(worldState, "world_data", out var rawWorldData)
+            || !worldState.TryGetValue("player_coord", out object playerCoordValue)
+            || playerCoordValue is not Vector2I playerCoord
+            || !TryReadPlainString(
+                worldState,
+                "player_faction_id",
+                out string playerFactionId
+            )
+            || !TryNormalizeWorldDataPlain(rawWorldData, out Dictionary<string, object> worldData)
+        )
+            return false;
+        playerFactionId = playerFactionId.Trim();
         if (string.IsNullOrEmpty(playerFactionId))
-            return ErrorResult();
+            return false;
 
-        GDictionary payloadMeta = payloadData["meta"].AsGodotDictionary();
-        if (!HasExactKeys(payloadMeta, new[] { "saved_at_unix_time", "save_format" }))
-            return ErrorResult();
         if (
-            payloadMeta["saved_at_unix_time"].VariantType != Variant.Type.Int
-            || payloadMeta["save_format"].VariantType != Variant.Type.String
+            !HasExactPlainKeys(
+                payloadMeta,
+                new[] { "saved_at_unix_time", "save_format" }
+            )
+            || !TryReadPlainInt(payloadMeta, "saved_at_unix_time", out _)
+            || !TryReadPlainString(payloadMeta, "save_format", out string saveFormat)
+            || !string.Equals(saveFormat, SaveFormat, StringComparison.Ordinal)
         )
-            return ErrorResult();
-        if (payloadMeta["save_format"].AsString() != SaveFormat)
-            return ErrorResult();
+            return false;
 
-        GDictionary normalizedMeta = NormalizeSaveMeta(
-            payloadData["save_slot_meta"].AsGodotDictionary()
-        );
-        if (normalizedMeta.Count == 0)
-            return ErrorResult();
-        if (ReadString(normalizedMeta, "save_id") != payloadData["save_id"].AsString())
-            return ErrorResult();
         if (
-            ReadString(normalizedMeta, "save_id")
-            != ReadString(normalizedRequestedMeta, "save_id")
+            !TryNormalizeSaveMetaPlain(
+                payloadSaveMeta,
+                out Dictionary<string, object> normalizedMeta
+            )
+            || !string.Equals(
+                ReadPlainString(normalizedMeta, "save_id"),
+                activeSaveId,
+                StringComparison.Ordinal
+            )
+            || !string.Equals(
+                ReadPlainString(normalizedMeta, "save_id"),
+                ReadPlainString(normalizedRequestedMeta, "save_id"),
+                StringComparison.Ordinal
+            )
+            || !string.Equals(
+                ReadPlainString(normalizedMeta, "generation_config_path"),
+                generationConfigPath,
+                StringComparison.Ordinal
+            )
+            || !string.Equals(
+                ReadPlainString(normalizedRequestedMeta, "generation_config_path"),
+                generationConfigPath,
+                StringComparison.Ordinal
+            )
         )
-            return ErrorResult();
-        if (ReadString(normalizedMeta, "generation_config_path") != generationConfigPath)
-            return ErrorResult();
-        if (
-            ReadString(normalizedRequestedMeta, "generation_config_path")
-            != generationConfigPath
+            return false;
+
+        PartyState partyState;
+        using (
+            GodotProjectionLease<GDictionary> partyLease =
+                RuntimePlainPayload.ProjectDictionaryLease(
+                    partyPayload,
+                    "save-party-decode",
+                    LifetimeDomain.Request,
+                    "SaveSerializer.TryDecodePayload.party_state"
+                )
         )
-            return ErrorResult();
-
-        PartyState partyState = PartyState.FromDictionary(
-            payloadData["party_state"].AsGodotDictionary()
-        );
-        if (partyState == null)
-            return ErrorResult();
-
-        return new GDictionary
         {
-            ["error"] = (int)Error.Ok,
-            ["active_save_id"] = payloadData["save_id"].AsString(),
-            ["active_save_meta"] = normalizedMeta,
-            ["generation_config_path"] = generationConfigPath,
-            ["generation_config"] = generationConfig,
-            ["world_data"] = worldData,
-            ["player_coord"] = read_vector2i(
-                worldState.ContainsKey("player_coord")
-                    ? worldState["player_coord"]
-                    : Variant.From(Vector2I.Zero),
-                Vector2I.Zero
-            ),
-            ["player_faction_id"] = playerFactionId,
-            ["party_state"] =
-                NormalizePartyState(partyState)?.ToDictionary() ?? new GDictionary(),
-        };
+            partyState = PartyState.FromDictionary(partyLease.Value);
+        }
+        if (partyState == null)
+            return false;
+        partyState = NormalizeParsedPartyState(partyState);
+
+        result = new SaveDecodeResult(
+            normalizedMeta,
+            worldData,
+            partyState,
+            activeSaveId,
+            generationConfigPath,
+            generationConfig,
+            playerCoord,
+            playerFactionId
+        );
+        return true;
     }
 
-    public GDictionary BuildSaveMeta(
+    internal Dictionary<string, object> BuildSaveMetaPlain(
         string saveId,
         string displayName,
         string generationConfigPath,
@@ -242,75 +280,28 @@ public sealed class SaveSerializer
         int updatedAtUnixTime
     )
     {
-        return NormalizeSaveMeta(
-            new GDictionary
-            {
-                ["save_id"] = saveId,
-                ["display_name"] = string.IsNullOrEmpty(displayName) ? saveId : displayName,
-                ["world_preset_id"] = presetId.ToString(),
-                ["world_preset_name"] = presetName,
-                ["generation_config_path"] = generationConfigPath,
-                ["world_size_cells"] = worldSizeCells,
-                ["created_at_unix_time"] = createdAtUnixTime,
-                ["updated_at_unix_time"] = updatedAtUnixTime,
-            }
-        );
-    }
-
-    public GDictionary ExtractSaveMetaFromPayload(GDictionary payload)
-    {
-        GDictionary payloadData = RestoreMinimizedSavePayloadStrings(
-            payload ?? new GDictionary()
-        );
-        string[] requiredPayloadKeys =
+        var raw = new Dictionary<string, object>(StringComparer.Ordinal)
         {
-            "version",
-            "save_id",
-            "generation_config_path",
-            "world_state",
-            "party_state",
-            "meta",
-            "save_slot_meta",
+            ["save_id"] = saveId ?? "",
+            ["display_name"] = string.IsNullOrEmpty(displayName) ? saveId ?? "" : displayName,
+            ["world_preset_id"] = presetId.ToString(),
+            ["world_preset_name"] = presetName ?? "",
+            ["generation_config_path"] = generationConfigPath ?? "",
+            ["world_size_cells"] = worldSizeCells,
+            ["created_at_unix_time"] = createdAtUnixTime,
+            ["updated_at_unix_time"] = updatedAtUnixTime,
         };
-        if (!HasExactKeys(payloadData, requiredPayloadKeys))
-            return new GDictionary();
-        if (payloadData["save_id"].VariantType != Variant.Type.String)
-            return new GDictionary();
-        if (
-            payloadData["version"].VariantType != Variant.Type.Int
-            || payloadData["version"].AsInt32() != _save_version
-        )
-            return new GDictionary();
-        if (payloadData["generation_config_path"].VariantType != Variant.Type.String)
-            return new GDictionary();
-        string saveId = payloadData["save_id"].AsString().StripEdges();
-        string generationConfigPath = payloadData["generation_config_path"].AsString().StripEdges();
-        if (string.IsNullOrEmpty(saveId) || string.IsNullOrEmpty(generationConfigPath))
-            return new GDictionary();
-        if (
-            !payloadData.ContainsKey("save_slot_meta")
-            || payloadData["save_slot_meta"].VariantType != Variant.Type.Dictionary
-        )
-            return new GDictionary();
-        GDictionary normalizedMeta = NormalizeSaveMeta(
-            payloadData["save_slot_meta"].AsGodotDictionary()
-        );
-        if (normalizedMeta.Count == 0)
-            return new GDictionary();
-        if (ReadString(normalizedMeta, "save_id").StripEdges() != saveId)
-            return new GDictionary();
-        if (
-            ReadString(normalizedMeta, "generation_config_path").StripEdges()
-            != generationConfigPath
-        )
-            return new GDictionary();
-        return normalizedMeta;
+        return TryNormalizeSaveMetaPlain(raw, out Dictionary<string, object> normalized)
+            ? normalized
+            : new Dictionary<string, object>(StringComparer.Ordinal);
     }
 
-    public GDictionary NormalizeSaveMeta(GDictionary rawMeta)
+    internal bool TryNormalizeSaveMetaPlain(
+        IReadOnlyDictionary<string, object> rawMeta,
+        out Dictionary<string, object> normalized
+    )
     {
-        if (rawMeta == null)
-            return new GDictionary();
+        normalized = new Dictionary<string, object>(StringComparer.Ordinal);
         string[] required =
         {
             "save_id",
@@ -322,68 +313,120 @@ public sealed class SaveSerializer
             "created_at_unix_time",
             "updated_at_unix_time",
         };
+        if (rawMeta == null || rawMeta.Count != required.Length)
+            return false;
         foreach (string key in required)
         {
             if (!rawMeta.ContainsKey(key))
-                return new GDictionary();
-        }
-        if (!HasExactKeys(rawMeta, required))
-            return new GDictionary();
-        string[] stringKeys =
-        {
-            "save_id",
-            "display_name",
-            "world_preset_id",
-            "world_preset_name",
-            "generation_config_path",
-        };
-        foreach (string key in stringKeys)
-        {
-            if (rawMeta[key].VariantType != Variant.Type.String)
-                return new GDictionary();
+                return false;
         }
 
         if (
-            rawMeta["created_at_unix_time"].VariantType != Variant.Type.Int
-            || rawMeta["updated_at_unix_time"].VariantType != Variant.Type.Int
+            !TryReadPlainString(rawMeta, "save_id", out string saveId)
+            || !IsValidSaveIdToken(saveId)
+            || !TryReadPlainString(rawMeta, "display_name", out string displayName)
+            || !TryReadPlainString(rawMeta, "world_preset_id", out string worldPresetId)
+            || !TryReadPlainString(rawMeta, "world_preset_name", out string worldPresetName)
+            || !TryReadPlainString(
+                rawMeta,
+                "generation_config_path",
+                out string generationConfigPath
+            )
+            || !TryReadPlainInt(rawMeta, "created_at_unix_time", out int createdAt)
+            || !TryReadPlainInt(rawMeta, "updated_at_unix_time", out int updatedAt)
+            || !rawMeta.TryGetValue("world_size_cells", out object worldSizeValue)
+            || worldSizeValue is not Vector2I worldSizeCells
         )
-            return new GDictionary();
+        {
+            return false;
+        }
 
-        string saveId = rawMeta["save_id"].AsString();
-        if (!IsValidSaveIdToken(saveId))
-            return new GDictionary();
-        string displayName = rawMeta["display_name"].AsString().StripEdges();
-        if (displayName.Length == 0)
-            return new GDictionary();
-        string generationConfigPath = rawMeta["generation_config_path"].AsString().StripEdges();
-        if (generationConfigPath.Length == 0)
-            return new GDictionary();
-        string worldPresetName = rawMeta["world_preset_name"].AsString().StripEdges();
-        if (worldPresetName.Length == 0)
-            return new GDictionary();
+        displayName = displayName.Trim();
+        worldPresetName = worldPresetName.Trim();
+        generationConfigPath = generationConfigPath.Trim();
+        if (
+            displayName.Length == 0
+            || worldPresetName.Length == 0
+            || generationConfigPath.Length == 0
+            || worldSizeCells.X <= 0
+            || worldSizeCells.Y <= 0
+            || createdAt <= 0
+            || updatedAt <= 0
+        )
+        {
+            return false;
+        }
 
-        if (!IsSupportedVector2I(rawMeta["world_size_cells"]))
-            return new GDictionary();
-        Vector2I worldSizeCells = read_vector2i(rawMeta["world_size_cells"], Vector2I.Zero);
-        if (worldSizeCells.X <= 0 || worldSizeCells.Y <= 0)
-            return new GDictionary();
-
-        int createdAt = rawMeta["created_at_unix_time"].AsInt32();
-        int updatedAt = rawMeta["updated_at_unix_time"].AsInt32();
-        if (createdAt <= 0 || updatedAt <= 0)
-            return new GDictionary();
-
-        return new GDictionary
+        normalized = new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["save_id"] = saveId,
             ["display_name"] = displayName,
-            ["world_preset_id"] = rawMeta["world_preset_id"].AsString(),
+            ["world_preset_id"] = worldPresetId,
             ["world_preset_name"] = worldPresetName,
             ["generation_config_path"] = generationConfigPath,
             ["world_size_cells"] = worldSizeCells,
             ["created_at_unix_time"] = createdAt,
             ["updated_at_unix_time"] = updatedAt,
         };
+        return true;
+    }
+
+    internal bool TryExtractSaveMetaPlain(
+        IReadOnlyDictionary<string, object> payload,
+        out Dictionary<string, object> saveMeta
+    )
+    {
+        saveMeta = new Dictionary<string, object>(StringComparer.Ordinal);
+        string[] requiredPayloadKeys =
+        {
+            "version",
+            "save_id",
+            "generation_config_path",
+            "world_state",
+            "party_state",
+            "meta",
+            "save_slot_meta",
+        };
+        if (!HasExactPlainKeys(payload, requiredPayloadKeys))
+            return false;
+        if (
+            !TryReadPlainInt(payload, "version", out int version)
+            || version != _save_version
+            || !TryReadPlainString(payload, "save_id", out string saveId)
+            || !TryReadPlainString(
+                payload,
+                "generation_config_path",
+                out string generationConfigPath
+            )
+            || !TryReadPlainDictionary(payload, "save_slot_meta", out var rawSaveMeta)
+            || !TryNormalizeSaveMetaPlain(rawSaveMeta, out Dictionary<string, object> normalized)
+        )
+        {
+            return false;
+        }
+
+        saveId = saveId.Trim();
+        generationConfigPath = generationConfigPath.Trim();
+        if (
+            saveId.Length == 0
+            || generationConfigPath.Length == 0
+            || !string.Equals(
+                ReadPlainString(normalized, "save_id"),
+                saveId,
+                StringComparison.Ordinal
+            )
+            || !string.Equals(
+                ReadPlainString(normalized, "generation_config_path"),
+                generationConfigPath,
+                StringComparison.Ordinal
+            )
+        )
+        {
+            return false;
+        }
+
+        saveMeta = normalized;
+        return true;
     }
 
     public GDictionary NormalizeWorldData(GDictionary worldData)
@@ -721,6 +764,14 @@ public sealed class SaveSerializer
         if (normalized == null)
             return new PartyState();
 
+        return NormalizeParsedPartyState(normalized);
+    }
+
+    private PartyState NormalizeParsedPartyState(PartyState normalized)
+    {
+        if (normalized == null)
+            return new PartyState();
+
         var livingMemberIds = new Godot.Collections.Array<StringName>();
         foreach (string key in normalized.member_states.GetSortedIdStrings())
         {
@@ -860,63 +911,71 @@ public sealed class SaveSerializer
         return true;
     }
 
-    internal GDictionary ReadSaveIndexPayload(FileAccess indexFile)
+    internal bool TryReadSaveIndexPayloadPlain(
+        FileAccess indexFile,
+        out Dictionary<string, object> payload
+    )
     {
+        payload = new Dictionary<string, object>(StringComparer.Ordinal);
         if (indexFile == null)
-            return null;
+            return false;
         long fileLength = (long)indexFile.GetLength();
         if (fileLength <= 0)
-            return new GDictionary();
+            return true;
 
         byte[] rawBytes = indexFile.GetBuffer(fileLength);
         if (rawBytes.Length == 0)
-            return new GDictionary();
+            return true;
         if (rawBytes.Length < 8 || DetectTextSaveIndexBuffer(rawBytes))
-            return null;
+            return false;
 
         indexFile.Seek(0);
         using Variant rawPayload = indexFile.GetVar(false);
-        if (rawPayload.VariantType != Variant.Type.Dictionary)
-            return null;
-        return RestoreMinimizedSavePayloadStrings(rawPayload.AsGodotDictionary());
-    }
-
-    public GDictionaryArray SerializeSaveIndexEntries(GDictionaryArray entries)
-    {
-        GDictionaryArray serializedEntries = new();
-        if (entries == null)
-            return serializedEntries;
-        foreach (GDictionary entry in entries)
-        {
-            GDictionary normalizedEntry = NormalizeSaveMeta(entry);
-            if (normalizedEntry.Count == 0)
-                continue;
-            serializedEntries.Add(normalizedEntry.Duplicate(true));
-        }
-        return serializedEntries;
-    }
-
-    public GDictionary BuildSaveIndexPayload(GDictionaryArray entries)
-    {
-        return MinimizeSavePayloadStrings(
-            new GDictionary
-            {
-                ["version"] = _save_index_version,
-                ["saves"] = SerializeSaveIndexEntries(entries ?? new GDictionaryArray()),
-            }
+        return RuntimePlainPayload.TryRestoreSaveVariantDictionary(
+            rawPayload,
+            "SaveSerializer.save_index",
+            out payload
         );
     }
 
-    public GDictionary DeserializeSaveIndexEntry(GDictionary rawEntry)
+    internal GodotProjectionLease<GDictionary> BuildSaveIndexPayloadLease(
+        IReadOnlyList<Dictionary<string, object>> entries
+    )
     {
-        if (rawEntry == null || rawEntry.Count == 0)
-            return new GDictionary();
-        return NormalizeSaveMeta(rawEntry);
+        List<object> serializedEntries = new();
+        if (entries != null)
+        {
+            foreach (Dictionary<string, object> entry in entries)
+            {
+                if (
+                    TryNormalizeSaveMetaPlain(
+                        entry,
+                        out Dictionary<string, object> normalizedEntry
+                    )
+                )
+                {
+                    serializedEntries.Add(normalizedEntry);
+                }
+            }
+        }
+
+        Dictionary<string, object> payload = new(StringComparer.Ordinal)
+        {
+            ["version"] = _save_index_version,
+            ["saves"] = serializedEntries,
+        };
+        return RuntimePlainPayload.ProjectDictionaryLease(
+            payload,
+            "save-index-payload",
+            LifetimeDomain.Request,
+            "SaveSerializer.BuildSaveIndexPayloadLease",
+            minimizeStrings: true
+        );
     }
 
     public bool IsSaveIndexIntValue(int value)
     {
-        return IsSaveIndexIntegerValue(Variant.From(value));
+        return true;
     }
 
     public bool IsSaveIndexFloatValue(double value)
@@ -934,99 +993,165 @@ public sealed class SaveSerializer
         return false;
     }
 
-    internal bool IsSaveIndexIntegerValue(Variant rawValue)
-    {
-        return rawValue.VariantType == Variant.Type.Int;
-    }
-
     public bool IsTextSaveIndexBuffer(byte[] rawBytes)
     {
         return DetectTextSaveIndexBuffer(rawBytes ?? System.Array.Empty<byte>());
     }
 
-    public GDictionaryArray MergeSaveIndexEntries(
-        GDictionaryArray primaryEntries,
-        GDictionaryArray fallbackEntries
-    )
+    private Dictionary<string, object> BuildWorldStatePlain(
+        IReadOnlyDictionary<string, object> worldData,
+        Vector2I playerCoord,
+        string playerFactionId
+        )
     {
-        GDictionaryArray mergedEntries = DuplicateSaveMetaEntries(primaryEntries);
-        if (fallbackEntries == null)
-            return SortSaveMetaEntries(mergedEntries);
-        foreach (GDictionary fallbackEntry in fallbackEntries)
-            mergedEntries = UpsertSaveMeta(mergedEntries, fallbackEntry);
-        return SortSaveMetaEntries(mergedEntries);
-    }
-
-    public GDictionaryArray UpsertSaveMeta(GDictionaryArray entries, GDictionary saveMeta)
-    {
-        GDictionary normalizedMeta = NormalizeSaveMeta(saveMeta);
-        if (normalizedMeta.Count == 0)
-            return SortSaveMetaEntries(entries ?? new GDictionaryArray());
-
-        string normalizedSaveId = ReadString(normalizedMeta, "save_id");
-        List<GDictionary> updatedEntries = new();
-        bool replaced = false;
-        if (entries != null)
+        WorldRuntimeData runtimeData;
+        using GodotProjectionLease<GDictionary> validationLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                worldData,
+                "save-world-data-validation",
+                LifetimeDomain.Request,
+                "SaveSerializer.BuildWorldStatePlain.validation"
+            );
+        GDictionary validationPayload = validationLease.Value;
+        runtimeData = WorldRuntimeData.FromDictionary(validationPayload);
+        if (runtimeData == null)
         {
-            foreach (GDictionary entry in entries)
-            {
-                GDictionary normalizedExistingEntry = NormalizeSaveMeta(entry);
-                if (normalizedExistingEntry.Count == 0)
-                    continue;
-                if (ReadString(normalizedExistingEntry, "save_id") == normalizedSaveId)
-                {
-                    updatedEntries.Add(normalizedMeta);
-                    replaced = true;
-                }
-                else
-                {
-                    updatedEntries.Add(normalizedExistingEntry);
-                }
-            }
+            throw new InvalidOperationException(
+                "Corrupt save world_data: typed world runtime data parse failed."
+            );
         }
-        if (!replaced)
-            updatedEntries.Add(normalizedMeta);
-        return SortSaveMetaEntries(updatedEntries);
-    }
+        string validationError = GetWorldDataValidationError(validationPayload);
+        if (!string.IsNullOrEmpty(validationError))
+            throw new InvalidOperationException(validationError);
 
-    public bool SortSaveMetaNewestFirst(GDictionary a, GDictionary b)
-    {
-        return CompareSaveMetaNewestFirst(a, b) < 0;
-    }
-
-    public GDictionary MinimizeSavePayloadStrings(GDictionary payload)
-    {
-        var minimized = MinimizeSavePayloadValue(Variant.From(payload ?? new GDictionary()));
-        return minimized.VariantType == Variant.Type.Dictionary
-            ? minimized.AsGodotDictionary()
-            : new GDictionary();
-    }
-
-    public GDictionary RestoreMinimizedSavePayloadStrings(GDictionary payload)
-    {
-        var restored = RestoreMinimizedSavePayloadValue(
-            Variant.From(payload ?? new GDictionary())
-        );
-        return restored.VariantType == Variant.Type.Dictionary
-            ? restored.AsGodotDictionary()
-            : new GDictionary();
-    }
-
-    public GDictionary Serialize(GDictionary worldData, PartyState partyState)
-    {
-        return new GDictionary
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
-            ["world_data"] = SerializeWorldData(worldData ?? new GDictionary()),
-            ["party_state"] = SerializePartyState(partyState),
+            ["world_data"] = runtimeData.BuildSaveSnapshotPlain(),
+            ["player_coord"] = playerCoord,
+            ["player_faction_id"] = playerFactionId,
         };
     }
 
-    private static GDictionary SerializePartyState(PartyState partyState)
+    private bool TryNormalizeWorldDataPlain(
+        IReadOnlyDictionary<string, object> worldData,
+        out Dictionary<string, object> normalized
+    )
     {
-        if (partyState == null)
-            return new GDictionary();
-        return partyState.ToDictionary().Duplicate(true);
+        normalized = new Dictionary<string, object>(StringComparer.Ordinal);
+        if (worldData == null)
+            return false;
+        using GodotProjectionLease<GDictionary> validationLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                worldData,
+                "save-world-data-decode",
+                LifetimeDomain.Request,
+                "SaveSerializer.TryNormalizeWorldDataPlain"
+            );
+        GDictionary validationPayload = validationLease.Value;
+        if (!string.IsNullOrEmpty(GetWorldDataValidationError(validationPayload)))
+            return false;
+        WorldRuntimeData runtimeData = WorldRuntimeData.FromDictionary(validationPayload);
+        if (runtimeData == null)
+            return false;
+        normalized = runtimeData.BuildSaveSnapshotPlain();
+        return true;
     }
+
+    private static bool HasExactPlainKeys(
+        IReadOnlyDictionary<string, object> values,
+        IReadOnlyList<string> requiredKeys
+    )
+    {
+        if (values == null || requiredKeys == null || values.Count != requiredKeys.Count)
+            return false;
+        for (int index = 0; index < requiredKeys.Count; index++)
+        {
+            if (!values.ContainsKey(requiredKeys[index]))
+                return false;
+        }
+        return true;
+    }
+
+    private static bool TryReadPlainDictionary(
+        IReadOnlyDictionary<string, object> values,
+        string key,
+        out IReadOnlyDictionary<string, object> dictionary
+    )
+    {
+        dictionary = null;
+        if (values == null || !values.TryGetValue(key, out object value))
+            return false;
+        dictionary = value as IReadOnlyDictionary<string, object>;
+        return dictionary != null;
+    }
+
+    private static bool TryReadPlainString(
+        IReadOnlyDictionary<string, object> values,
+        string key,
+        out string text
+    )
+    {
+        text = "";
+        if (
+            values == null
+            || !values.TryGetValue(key, out object value)
+            || value is not string stringValue
+        )
+        {
+            return false;
+        }
+        text = stringValue;
+        return true;
+    }
+
+    private static bool TryReadPlainInt(
+        IReadOnlyDictionary<string, object> values,
+        string key,
+        out int number
+    )
+    {
+        number = 0;
+        if (values == null || !values.TryGetValue(key, out object value))
+            return false;
+        long candidate = value switch
+        {
+            byte byteValue => byteValue,
+            short shortValue => shortValue,
+            int intValue => intValue,
+            long longValue => longValue,
+            _ => long.MinValue,
+        };
+        if (candidate < int.MinValue || candidate > int.MaxValue)
+            return false;
+        number = (int)candidate;
+        return true;
+    }
+
+    private static string ReadPlainString(
+        IReadOnlyDictionary<string, object> values,
+        string key
+    ) =>
+        values != null && values.TryGetValue(key, out object value)
+            ? value switch
+            {
+                string stringValue => stringValue,
+                StringName stringNameValue => stringNameValue.ToString(),
+                _ => value?.ToString() ?? "",
+            }
+            : "";
+
+    private static Dictionary<string, object> SerializePartyStatePlain(PartyState partyState)
+    {
+        return partyState?.BuildSaveSnapshotPlain()
+            ?? new Dictionary<string, object>(StringComparer.Ordinal);
+    }
+
+    private static Dictionary<string, object> BuildMetaPayloadPlain(int savedAtUnixTime) =>
+        new(StringComparer.Ordinal)
+        {
+            ["saved_at_unix_time"] = savedAtUnixTime,
+            ["save_format"] = SaveFormat,
+        };
 
     private static bool TryAddRosterMember(
         PartyState partyState,
@@ -1094,78 +1219,6 @@ public sealed class SaveSerializer
                 continue;
             }
         }
-        return result;
-    }
-
-    private static Variant MinimizeSavePayloadValue(Variant value)
-    {
-        return value.VariantType switch
-        {
-            Variant.Type.Dictionary => Variant.From(
-                MinimizeSavePayloadDictionary(value.AsGodotDictionary())
-            ),
-            Variant.Type.Array => Variant.From(MinimizeSavePayloadArray(value.AsGodotArray())),
-            Variant.Type.String or Variant.Type.StringName
-                => Variant.From(ProgressionDataUtils.to_string_name(value)),
-            _ => value,
-        };
-    }
-
-    private static GDictionary MinimizeSavePayloadDictionary(GDictionary values)
-    {
-        var result = new GDictionary();
-        foreach (var rawKey in values.Keys)
-        {
-            var minimizedKey = IsMinimizableString(rawKey)
-                ? Variant.From(ProgressionDataUtils.to_string_name(rawKey))
-                : rawKey;
-            result[minimizedKey] = MinimizeSavePayloadValue(values[rawKey]);
-        }
-        return result;
-    }
-
-    private static GArray MinimizeSavePayloadArray(GArray values)
-    {
-        var result = new GArray();
-        foreach (var item in values)
-            result.Add(MinimizeSavePayloadValue(item));
-        return result;
-    }
-
-    private static Variant RestoreMinimizedSavePayloadValue(Variant value)
-    {
-        return value.VariantType switch
-        {
-            Variant.Type.Dictionary => Variant.From(
-                RestoreMinimizedSavePayloadDictionary(value.AsGodotDictionary())
-            ),
-            Variant.Type.Array => Variant.From(
-                RestoreMinimizedSavePayloadArray(value.AsGodotArray())
-            ),
-            Variant.Type.StringName => Variant.From(value.AsString()),
-            _ => value,
-        };
-    }
-
-    private static GDictionary RestoreMinimizedSavePayloadDictionary(GDictionary values)
-    {
-        var result = new GDictionary();
-        foreach (var rawKey in values.Keys)
-        {
-            var restoredKey =
-                rawKey.VariantType == Variant.Type.StringName
-                    ? Variant.From(rawKey.AsString())
-                    : rawKey;
-            result[restoredKey] = RestoreMinimizedSavePayloadValue(values[rawKey]);
-        }
-        return result;
-    }
-
-    private static GArray RestoreMinimizedSavePayloadArray(GArray values)
-    {
-        var result = new GArray();
-        foreach (var item in values)
-            result.Add(RestoreMinimizedSavePayloadValue(item));
         return result;
     }
 
@@ -1373,11 +1426,6 @@ public sealed class SaveSerializer
         return "";
     }
 
-    private static GDictionary ErrorResult()
-    {
-        return new GDictionary { ["error"] = (int)Error.InvalidData };
-    }
-
     private static bool DetectTextSaveIndexBuffer(byte[] rawBytes)
     {
         bool sawContent = false;
@@ -1409,9 +1457,6 @@ public sealed class SaveSerializer
     }
 
     private static bool IsStringValue(Variant value) => value.VariantType == Variant.Type.String;
-
-    private static bool IsMinimizableString(Variant value) =>
-        value.VariantType == Variant.Type.String || value.VariantType == Variant.Type.StringName;
 
     private static bool IsSupportedVector2I(Variant value)
     {
@@ -1570,56 +1615,4 @@ public sealed class SaveSerializer
         return value == null || value.ToString().Length == 0;
     }
 
-    private static GDictionaryArray DuplicateSaveMetaEntries(GDictionaryArray entries)
-    {
-        GDictionaryArray duplicatedEntries = new();
-        if (entries == null)
-            return duplicatedEntries;
-        foreach (GDictionary entry in entries)
-        {
-            if (entry != null && entry.Count > 0)
-                duplicatedEntries.Add(entry.Duplicate(true));
-        }
-        return duplicatedEntries;
-    }
-
-    private static GDictionaryArray SortSaveMetaEntries(GDictionaryArray entries)
-    {
-        List<GDictionary> normalizedEntries = new();
-        if (entries != null)
-        {
-            foreach (GDictionary entry in entries)
-            {
-                if (entry != null && entry.Count > 0)
-                    normalizedEntries.Add(entry.Duplicate(true));
-            }
-        }
-        return SortSaveMetaEntries(normalizedEntries);
-    }
-
-    private static GDictionaryArray SortSaveMetaEntries(List<GDictionary> entries)
-    {
-        entries.Sort(CompareSaveMetaNewestFirst);
-        GDictionaryArray result = new();
-        foreach (GDictionary entry in entries)
-            result.Add(entry);
-        return result;
-    }
-
-    private static int CompareSaveMetaNewestFirst(GDictionary a, GDictionary b)
-    {
-        int updatedA = ReadInt(a, "updated_at_unix_time");
-        int updatedB = ReadInt(b, "updated_at_unix_time");
-        if (updatedA != updatedB)
-            return updatedB.CompareTo(updatedA);
-
-        int createdA = ReadInt(a, "created_at_unix_time");
-        int createdB = ReadInt(b, "created_at_unix_time");
-        if (createdA != createdB)
-            return createdB.CompareTo(createdA);
-
-        string saveIdA = ReadString(a, "save_id");
-        string saveIdB = ReadString(b, "save_id");
-        return -string.CompareOrdinal(saveIdA, saveIdB);
-    }
 }

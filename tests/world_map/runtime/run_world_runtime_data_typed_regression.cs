@@ -113,11 +113,13 @@ public partial class run_world_runtime_data_typed_regression : LifecycleTestScen
     {
         SaveSerializer serializer = new();
         WorldRuntimeData runtimeData = WorldRuntimeData.FromDictionary(BuildWorldData(3));
-        GDictionary worldState = serializer.BuildWorldStatePayload(
-            runtimeData,
-            new Vector2I(2, 1),
-            "player"
-        );
+        using GodotProjectionLease<GDictionary> worldStateLease =
+            serializer.BuildWorldStatePayloadLease(
+                runtimeData.BuildSaveSnapshotPlain(),
+                new Vector2I(2, 1),
+                "player"
+            );
+        GDictionary worldState = worldStateLease.Value;
 
         WorldRuntimeData roundTrip = WorldRuntimeData.FromDictionary(
             worldState["world_data"].AsGodotDictionary()

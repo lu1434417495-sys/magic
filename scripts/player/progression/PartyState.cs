@@ -402,42 +402,10 @@ public partial class PartyState
 
     public Godot.Collections.Dictionary ToDictionary()
     {
-        var msd = member_states.ToSaveDictionary();
-        var prd = new Godot.Collections.Array<Godot.Collections.Dictionary>();
-        foreach (var r in pending_character_rewards)
-            if (r != null)
-                prd.Add(PendingCharacterRewardPayload.Project(r));
-        var aqd = _serialize_quest_state_array(active_quests);
-        var cqd = _serialize_quest_state_array(claimable_quests);
-        return new Godot.Collections.Dictionary
-        {
-            { "version", version },
-            { "gold", GetGold() },
-            { "leader_member_id", (string)leader_member_id },
-            { "main_character_member_id", (string)main_character_member_id },
-            { "fate_run_flags", _serialize_flags(fate_run_flags) },
-            { "meta_flags", _serialize_flags(meta_flags) },
-            {
-                "active_member_ids",
-                ProgressionDataUtils.string_name_array_to_string_array(active_member_ids)
-            },
-            {
-                "reserve_member_ids",
-                ProgressionDataUtils.string_name_array_to_string_array(reserve_member_ids)
-            },
-            { "member_states", msd },
-            { "pending_character_rewards", prd },
-            { "active_quests", aqd },
-            { "claimable_quests", cqd },
-            {
-                "completed_quest_ids",
-                ProgressionDataUtils.string_name_array_to_string_array(_nusna(completed_quest_ids))
-            },
-            {
-                "warehouse_state",
-                warehouse_state?.ToDictionary() ?? new Godot.Collections.Dictionary()
-            },
-        };
+        return RuntimePlainPayload.ProjectDictionary(
+            BuildSaveSnapshotPlain(),
+            "PartyState.ToDictionary"
+        );
     }
 
     internal static bool TryReadPartyPayload(object rawValue, out PartyState value)
@@ -652,50 +620,11 @@ public partial class PartyState
         return partyState;
     }
 
-    private static Godot.Collections.Array<Godot.Collections.Dictionary> _serialize_quest_state_array(
-        IEnumerable<QuestState> qs
-    )
-    {
-        var e = new System.Collections.Generic.List<(string, Godot.Collections.Dictionary)>();
-        if (qs != null)
-        {
-            foreach (var q in qs)
-                if (q != null && q.quest_id != "")
-                    e.Add(((string)q.quest_id, q.ToDictionary()));
-        }
-        e.Sort((a, b) => string.CompareOrdinal(a.Item1, b.Item1));
-        var r = new Godot.Collections.Array<Godot.Collections.Dictionary>();
-        foreach (var (_, d) in e)
-            r.Add(RuntimePayloadCopy.Dictionary(d, "PartyState.ProjectQuestStates"));
-        return r;
-    }
-
     private static Dictionary<StringName, bool> DuplicateBoolMap(
         Dictionary<StringName, bool> values
     )
     {
         return values != null ? new Dictionary<StringName, bool>(values) : new Dictionary<StringName, bool>();
-    }
-
-    private static Godot.Collections.Dictionary DuplicateMemberStates(
-        Godot.Collections.Dictionary values
-    )
-    {
-        var result = new Godot.Collections.Dictionary();
-        if (values == null)
-            return result;
-
-        foreach (var rawKey in values.Keys)
-        {
-            var memberId = ProgressionDataUtils.to_string_name(rawKey);
-            if (memberId == "")
-                continue;
-            PartyMemberState.TryReadMemberPayload(values[rawKey], out PartyMemberState memberState);
-            var duplicate = memberState?.DuplicateState();
-            if (duplicate != null)
-                result[memberId] = duplicate.ToDictionary();
-        }
-        return result;
     }
 
     private static List<PendingCharacterReward> DuplicatePendingCharacterRewards(
@@ -720,22 +649,6 @@ public partial class PartyState
             if (questState != null)
                 result.Add(questState.DuplicateState());
         return result;
-    }
-
-    private static StringNameList _nusna(IEnumerable<StringName> v)
-    {
-        var r = new StringNameList();
-        var s = new HashSet<StringName>();
-        if (v == null)
-            return r;
-        foreach (var n in v)
-        {
-            if (n != "" && s.Add(n))
-            {
-                r.Add(n);
-            }
-        }
-        return r;
     }
 
     private static bool _has_exact_fields(
@@ -870,16 +783,4 @@ public partial class PartyState
         return true;
     }
 
-    private static Godot.Collections.Dictionary _serialize_flags(Dictionary<StringName, bool> values)
-    {
-        var r = new Godot.Collections.Dictionary();
-        var sorted = new List<StringName>(values.Keys);
-        sorted.Sort((a, b) => string.CompareOrdinal(a.ToString(), b.ToString()));
-        foreach (var fid in sorted)
-        {
-            if (fid != "")
-                r[(string)fid] = values[fid];
-        }
-        return r;
-    }
 }

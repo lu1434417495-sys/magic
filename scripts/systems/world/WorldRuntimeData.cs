@@ -176,6 +176,136 @@ internal sealed class WorldRuntimeData
         return result;
     }
 
+    internal Dictionary<string, object> BuildSaveSnapshotPlain()
+    {
+        var returnStack = new List<object>();
+        foreach (WorldMapSubmapReturnStackEntry entry in _submapReturnStack)
+        {
+            if (entry == null)
+                continue;
+            returnStack.Add(
+                new Dictionary<string, object>(System.StringComparer.Ordinal)
+                {
+                    ["map_id"] = entry.MapId,
+                    ["coord"] = entry.Coord,
+                }
+            );
+        }
+
+        var settlements = new List<object>();
+        foreach (WorldMapSettlementRecordData settlement in _settlements)
+        {
+            if (settlement != null)
+                settlements.Add(settlement.BuildSaveSnapshotPlain());
+        }
+
+        var worldEvents = new List<object>();
+        foreach (WorldMapEventData worldEvent in _worldEvents)
+        {
+            if (worldEvent != null)
+                worldEvents.Add(worldEvent.BuildSaveSnapshotPlain());
+        }
+
+        var encounterAnchors = new List<object>();
+        foreach (EncounterAnchorData encounterAnchor in _encounterAnchors)
+        {
+            if (encounterAnchor == null)
+                continue;
+            encounterAnchors.Add(
+                new Dictionary<string, object>(System.StringComparer.Ordinal)
+                {
+                    ["entity_id"] = encounterAnchor.entity_id.ToString(),
+                    ["display_name"] = encounterAnchor.display_name ?? "",
+                    ["world_coord"] = encounterAnchor.world_coord,
+                    ["faction_id"] = encounterAnchor.faction_id.ToString(),
+                    ["enemy_roster_template_id"] =
+                        encounterAnchor.enemy_roster_template_id.ToString(),
+                    ["region_tag"] = encounterAnchor.region_tag.ToString(),
+                    ["vision_range"] = encounterAnchor.vision_range,
+                    ["is_cleared"] = encounterAnchor.is_cleared,
+                    ["encounter_kind"] = encounterAnchor.encounter_kind.ToString(),
+                    ["encounter_profile_id"] =
+                        encounterAnchor.encounter_profile_id.ToString(),
+                    ["growth_stage"] = encounterAnchor.growth_stage,
+                    ["suppressed_until_step"] = encounterAnchor.suppressed_until_step,
+                }
+            );
+        }
+
+        var resourceNodes = new List<object>();
+        foreach (WorldMapResourceNodeData resourceNode in _resourceNodes)
+        {
+            if (resourceNode == null || !resourceNode.Exists)
+                continue;
+            resourceNodes.Add(
+                new Dictionary<string, object>(System.StringComparer.Ordinal)
+                {
+                    ["node_id"] = resourceNode.NodeId,
+                    ["node_kind"] = resourceNode.NodeKind,
+                    ["display_name"] = resourceNode.DisplayName,
+                    ["world_coord"] = resourceNode.WorldCoord,
+                    ["yield_item_id"] = resourceNode.YieldItemId,
+                    ["source_settlement_id"] = resourceNode.SourceSettlementId,
+                    ["max_charges"] = resourceNode.MaxCharges,
+                    ["remaining_charges"] = resourceNode.RemainingCharges,
+                }
+            );
+        }
+
+        var mountedSubmaps = new Dictionary<string, object>(System.StringComparer.Ordinal);
+        foreach (KeyValuePair<string, WorldMapMountedSubmapData> entry in _mountedSubmaps)
+        {
+            WorldMapMountedSubmapData submap = entry.Value;
+            if (submap == null || string.IsNullOrEmpty(entry.Key))
+                continue;
+            mountedSubmaps[entry.Key] = new Dictionary<string, object>(
+                System.StringComparer.Ordinal
+            )
+            {
+                ["submap_id"] = entry.Key,
+                ["display_name"] = submap.DisplayName,
+                ["generation_config_path"] = submap.GenerationConfigPath,
+                ["return_hint_text"] = submap.ReturnHintText,
+                ["is_generated"] = submap.IsGenerated,
+                ["player_coord"] = submap.PlayerCoord,
+                ["world_data"] = submap.BuildWorldDataSnapshotPlain(),
+            };
+        }
+
+        var result = new Dictionary<string, object>(System.StringComparer.Ordinal)
+        {
+            [WorldMapSeedKey] = MapSeed,
+            ["world_step"] = WorldStep,
+            [WorldEquipmentInstanceSerialKey] = NextEquipmentInstanceSerial,
+            ["active_submap_id"] = ActiveSubmapId,
+            ["submap_return_stack"] = returnStack,
+            ["settlements"] = settlements,
+            ["world_events"] = worldEvents,
+            ["encounter_anchors"] = encounterAnchors,
+            ["resource_nodes"] = resourceNodes,
+            ["mounted_submaps"] = mountedSubmaps,
+        };
+        if (HasWorldNpcs)
+        {
+            var worldNpcs = new List<object>();
+            foreach (WorldMapNpcData npc in _worldNpcs)
+            {
+                if (npc != null && !npc.IsEmpty)
+                    worldNpcs.Add(npc.BuildSaveSnapshotPlain());
+            }
+            result["world_npcs"] = worldNpcs;
+        }
+        if (HasPlayerStartCoord)
+            result["player_start_coord"] = PlayerStartCoord;
+        if (HasPlayerStartSettlementId)
+            result["player_start_settlement_id"] = PlayerStartSettlementId;
+        if (HasPlayerStartSettlementName)
+            result["player_start_settlement_name"] = PlayerStartSettlementName;
+        if (HasFogStates)
+            result["fog_states"] = RuntimePlainPayload.CloneDictionary(_fogStates);
+        return result;
+    }
+
     // Write fog states straight into the typed payload, so saving fog after a move
     // doesn't have to ToDictionary/FromDictionary the whole world.
     internal void SetFogStates(GDictionary fogStates)

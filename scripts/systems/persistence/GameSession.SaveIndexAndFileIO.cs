@@ -1,12 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GDictionaryArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
-using GStringArray = Godot.Collections.Array<string>;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 // Partial slice of GameSession — save directory/file atomic IO + save index/meta read/write/merge.
 // Pure physical split: same class, no behavior change. See GameSession.cs.
@@ -23,7 +18,10 @@ public partial class GameSession
         return EnsureSaveRepository().BuildSaveFilePath(save_id);
     }
 
-    private int WriteSavePayloadAtomically(string save_path, GDictionary payload)
+    private int WriteSavePayloadAtomically(
+        string save_path,
+        GodotProjectionLease<GDictionary> payload
+    )
     {
         return EnsureSaveRepository().WriteSavePayloadAtomically(save_path, payload);
     }
@@ -53,16 +51,13 @@ public partial class GameSession
         return EnsureSaveRepository().RemoveFileIfExists(virtual_path);
     }
 
-    public GDictionaryArray LoadSaveIndexEntries()
+    private List<Dictionary<string, object>> LoadSaveIndexEntriesPlain()
     {
         if (IsSaveIndexCacheCurrent())
-            return ProjectSaveIndexEntriesCache(
-                _saveIndexEntriesCache,
-                "GameSession.LoadSaveIndexEntries.cache"
-            );
+            return CloneSaveIndexEntries(_saveIndexEntriesCache);
 
         bool shouldRewriteIndex = false;
-        GArray rawEntries = new();
+        List<Dictionary<string, object>> entries = new();
         int indexRecoveryError = FileIOCoordinator.RecoverReplaceTarget(
             SaveIndexPath,
             SaveFileCompressionMode,
@@ -78,36 +73,37 @@ public partial class GameSession
         }
         else
         {
-            FileAccess indexFile = FileAccess.OpenCompressed(
+            using NativeLeaseScope fileScope = new(
+                "save-index-read",
+                LifetimeDomain.Request
+            );
+            FileAccess openedIndexFile = FileAccess.OpenCompressed(
                 SaveIndexPath,
                 FileAccess.ModeFlags.Read,
                 (FileAccess.CompressionMode)SaveFileCompressionMode
             );
-            if (indexFile == null)
+            if (openedIndexFile == null)
             {
                 shouldRewriteIndex = true;
             }
             else
             {
+                FileAccess indexFile = fileScope.Own(
+                    openedIndexFile,
+                    $"open:{SaveIndexPath}"
+                );
                 try
                 {
-                    bool hasIndexPayload = TryReadSaveIndexPayload(indexFile, out GDictionary rawPayloadDict);
+                    bool hasIndexPayload = TryReadSaveIndexPayload(
+                        indexFile,
+                        out Dictionary<string, object> plainPayload
+                    );
                     indexFile.Close();
                     if (hasIndexPayload)
                     {
-                        TryRead(rawPayloadDict, "version", out var indexVersionValue);
-                        TryRead(rawPayloadDict, "saves", out var savesValue);
-                        if (
-                            !_is_save_index_integer_value(indexVersionValue)
-                            || indexVersionValue.AsInt32() != SaveIndexVersion
-                            || savesValue.VariantType != Variant.Type.Array
-                        )
+                        if (!TryReadPlainSaveIndexEntries(plainPayload, out entries))
                         {
                             shouldRewriteIndex = true;
-                        }
-                        else
-                        {
-                            rawEntries = savesValue.AsGodotArray();
                         }
                     }
                     else
@@ -117,77 +113,78 @@ public partial class GameSession
                 }
                 finally
                 {
-                    GodotObjectLifecycle.DisposeGodotObject(indexFile);
+                    indexFile.Close();
                 }
             }
         }
 
-        GDictionaryArray entries = NormalizeSaveIndexEntries(rawEntries);
-        GDictionaryArray rebuiltEntries = RebuildSaveIndexEntriesFromSaveFiles();
-        GDictionaryArray mergedEntries = MergeSaveIndexEntries(entries, rebuiltEntries);
+        List<Dictionary<string, object>> rebuiltEntries =
+            RebuildSaveIndexEntriesFromSaveFilesPlain();
+        List<Dictionary<string, object>> mergedEntries = MergeSaveIndexEntriesPlain(
+            entries,
+            rebuiltEntries
+        );
         if (shouldRewriteIndex || !SaveIndexEntriesMatch(entries, mergedEntries))
-            WriteSaveIndex(mergedEntries);
+            WriteSaveIndexPlain(mergedEntries);
         else
             SetSaveIndexCache(mergedEntries);
-        return DuplicateSaveIndexEntries(mergedEntries);
+        return CloneSaveIndexEntries(mergedEntries);
     }
 
-    public GDictionaryArray PeekSaveIndexEntriesReadOnly()
+    private List<Dictionary<string, object>> PeekSaveIndexEntriesPlain()
     {
         if (IsSaveIndexCacheCurrent())
-            return ProjectSaveIndexEntriesCache(
-                _saveIndexEntriesCache,
-                "GameSession.PeekSaveIndexEntriesReadOnly.cache"
-            );
+            return CloneSaveIndexEntries(_saveIndexEntriesCache);
         if (!FileAccess.FileExists(SaveIndexPath))
-            return new GDictionaryArray();
+            return new List<Dictionary<string, object>>();
 
-        FileAccess indexFile = FileAccess.OpenCompressed(
+        using NativeLeaseScope fileScope = new(
+            "save-index-peek",
+            LifetimeDomain.Request
+        );
+        FileAccess openedIndexFile = FileAccess.OpenCompressed(
             SaveIndexPath,
             FileAccess.ModeFlags.Read,
             (FileAccess.CompressionMode)SaveFileCompressionMode
         );
-        if (indexFile == null)
-            return new GDictionaryArray();
-        GDictionary rawPayloadDict;
+        if (openedIndexFile == null)
+            return new List<Dictionary<string, object>>();
+        FileAccess indexFile = fileScope.Own(
+            openedIndexFile,
+            $"open:{SaveIndexPath}"
+        );
+        Dictionary<string, object> plainPayload;
         try
         {
-            bool hasIndexPayload = TryReadSaveIndexPayload(indexFile, out rawPayloadDict);
+            bool hasIndexPayload = TryReadSaveIndexPayload(indexFile, out plainPayload);
             indexFile.Close();
             if (!hasIndexPayload)
-                return new GDictionaryArray();
+                return new List<Dictionary<string, object>>();
         }
         finally
         {
-            GodotObjectLifecycle.DisposeGodotObject(indexFile);
+            indexFile.Close();
         }
 
-        TryRead(rawPayloadDict, "version", out var indexVersionValue);
-        TryRead(rawPayloadDict, "saves", out var savesValue);
-        if (
-            !_is_save_index_integer_value(indexVersionValue)
-            || indexVersionValue.AsInt32() != SaveIndexVersion
-            || savesValue.VariantType != Variant.Type.Array
-        )
-        {
-            return new GDictionaryArray();
-        }
-
-        GDictionaryArray entries = NormalizeSaveIndexEntries(savesValue.AsGodotArray());
+        if (!TryReadPlainSaveIndexEntries(plainPayload, out List<Dictionary<string, object>> entries))
+            return new List<Dictionary<string, object>>();
         SetSaveIndexCache(entries);
-        return DuplicateSaveIndexEntries(entries);
+        return CloneSaveIndexEntries(entries);
     }
 
-    public int WriteSaveIndex(GDictionaryArray entries)
+    private int WriteSaveIndexPlain(IReadOnlyList<Dictionary<string, object>> entries)
     {
         int ensureDirError = EnsureSaveDirectory();
         if (ensureDirError != (int)Error.Ok)
             return ensureDirError;
 
-        GDictionaryArray normalizedEntries = NormalizeSaveIndexEntries(ToUntypedArray(entries));
+        List<Dictionary<string, object>> normalizedEntries =
+            NormalizeSaveIndexEntriesPlain(entries);
+        using GodotProjectionLease<GDictionary> payload =
+            BuildSaveIndexPayloadLease(normalizedEntries);
         int writeError = EnsureSaveRepository().WriteCompressedVariantAtomically(
             SaveIndexPath,
-            BuildSaveIndexPayload(normalizedEntries),
+            payload,
             "session.save.index",
             "save index"
         );
@@ -197,16 +194,33 @@ public partial class GameSession
         return (int)Error.Ok;
     }
 
-    private bool TryReadSaveIndexPayload(FileAccess index_file, out GDictionary payload)
+    private bool TryReadSaveIndexPayload(
+        FileAccess index_file,
+        out Dictionary<string, object> payload
+    )
     {
-        GDictionary rawPayload = _save_serializer.ReadSaveIndexPayload(index_file);
-        if (rawPayload != null)
+        return _save_serializer.TryReadSaveIndexPayloadPlain(index_file, out payload);
+    }
+
+    private bool TryReadPlainSaveIndexEntries(
+        IReadOnlyDictionary<string, object> payload,
+        out List<Dictionary<string, object>> entries
+    )
+    {
+        entries = new List<Dictionary<string, object>>();
+        if (
+            payload == null
+            || !payload.TryGetValue("version", out object versionValue)
+            || versionValue is not long version
+            || version != SaveIndexVersion
+            || !payload.TryGetValue("saves", out object savesValue)
+            || savesValue is not IReadOnlyList<object> rawEntries
+        )
         {
-            payload = rawPayload;
-            return true;
+            return false;
         }
-        payload = new GDictionary();
-        return false;
+        entries = NormalizeSaveIndexEntriesPlain(rawEntries);
+        return true;
     }
 
     private bool IsSaveIndexCacheCurrent()
@@ -216,9 +230,11 @@ public partial class GameSession
         return _saveIndexCacheSignature.Matches(GetSaveIndexFileSignature());
     }
 
-    private void SetSaveIndexCache(GDictionaryArray entries)
+    private void SetSaveIndexCache(
+        IReadOnlyList<Dictionary<string, object>> entries
+    )
     {
-        _saveIndexEntriesCache = NormalizeSaveIndexEntryCache(entries);
+        _saveIndexEntriesCache = CloneSaveIndexEntries(entries);
         _saveIndexCacheValid = true;
         _saveIndexCacheSignature = GetSaveIndexFileSignature();
     }
@@ -237,9 +253,20 @@ public partial class GameSession
 
         int size = -1;
         string fingerprint = "";
-        FileAccess indexFile = FileAccess.Open(SaveIndexPath, FileAccess.ModeFlags.Read);
-        if (indexFile != null)
+        using NativeLeaseScope fileScope = new(
+            "save-index-fingerprint",
+            LifetimeDomain.Request
+        );
+        FileAccess openedIndexFile = FileAccess.Open(
+            SaveIndexPath,
+            FileAccess.ModeFlags.Read
+        );
+        if (openedIndexFile != null)
         {
+            FileAccess indexFile = fileScope.Own(
+                openedIndexFile,
+                $"open:{SaveIndexPath}"
+            );
             try
             {
                 long fileLength = (long)indexFile.GetLength();
@@ -250,7 +277,7 @@ public partial class GameSession
             }
             finally
             {
-                GodotObjectLifecycle.DisposeGodotObject(indexFile);
+                indexFile.Close();
             }
         }
         return new SaveIndexFileSignature(
@@ -277,81 +304,24 @@ public partial class GameSession
         }
     }
 
-    private static T MarkRuntimePayload<T>(T payload, string reason)
-        where T : class
-    {
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(payload, reason);
-        return payload;
-    }
-
-    private GDictionaryArray DuplicateSaveIndexEntries(GDictionaryArray entries)
-    {
-        GDictionaryArray duplicatedEntries = new();
-        if (entries == null)
-        {
-            RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-                duplicatedEntries,
-                "GameSession.DuplicateSaveIndexEntries.empty"
-            );
-            return duplicatedEntries;
-        }
-        foreach (GDictionary entry in entries)
-            duplicatedEntries.Add(
-                RuntimePayloadCopy.Dictionary(
-                    entry,
-                    "GameSession.DuplicateSaveIndexEntries.entry"
-                )
-            );
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(
-            duplicatedEntries,
-            "GameSession.DuplicateSaveIndexEntries"
-        );
-        return duplicatedEntries;
-    }
-
-    private List<Dictionary<string, object>> NormalizeSaveIndexEntryCache(
-        GDictionaryArray entries
+    private static List<Dictionary<string, object>> CloneSaveIndexEntries(
+        IEnumerable<Dictionary<string, object>> entries
     )
     {
         var result = new List<Dictionary<string, object>>();
         if (entries == null)
             return result;
-        foreach (GDictionary entry in entries)
+        foreach (Dictionary<string, object> entry in entries)
         {
-            result.Add(
-                RuntimePlainPayload.NormalizeDictionary(
-                    entry,
-                    "GameSession.SaveIndexCache.entry"
-                )
-            );
+            if (entry != null)
+                result.Add(RuntimePlainPayload.CloneDictionary(entry));
         }
         return result;
     }
 
-    private GDictionaryArray ProjectSaveIndexEntriesCache(
-        IEnumerable<Dictionary<string, object>> entries,
-        string reason
-    )
-    {
-        GDictionaryArray projectedEntries = new();
-        if (entries != null)
-        {
-            int index = 0;
-            foreach (Dictionary<string, object> entry in entries)
-            {
-                projectedEntries.Add(
-                    RuntimePlainPayload.ProjectDictionary(entry, $"{reason}[{index}]")
-                );
-                index++;
-            }
-        }
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(projectedEntries, reason);
-        return projectedEntries;
-    }
-
     private bool SaveIndexEntriesMatch(
-        GDictionaryArray left_entries,
-        GDictionaryArray right_entries
+        IReadOnlyList<Dictionary<string, object>> left_entries,
+        IReadOnlyList<Dictionary<string, object>> right_entries
     )
     {
         if (
@@ -368,7 +338,10 @@ public partial class GameSession
         return true;
     }
 
-    private bool SaveIndexEntryMatches(GDictionary left_entry, GDictionary right_entry)
+    private bool SaveIndexEntryMatches(
+        IReadOnlyDictionary<string, object> left_entry,
+        IReadOnlyDictionary<string, object> right_entry
+    )
     {
         string[] keys =
         {
@@ -383,67 +356,101 @@ public partial class GameSession
         };
         foreach (string key in keys)
         {
-            TryRead(left_entry, key, out var leftVal);
-            TryRead(right_entry, key, out var rightVal);
-            if (!VariantEquals(leftVal, rightVal))
+            object leftValue = left_entry != null && left_entry.TryGetValue(key, out object left)
+                ? left
+                : null;
+            object rightValue = right_entry != null && right_entry.TryGetValue(key, out object right)
+                ? right
+                : null;
+            if (!Equals(leftValue, rightValue))
                 return false;
         }
         return true;
     }
 
-    private GDictionaryArray NormalizeSaveIndexEntries(GArray raw_entries)
+    internal GodotProjectionLease<GDictionary> BuildSaveIndexPayloadLease(
+        IReadOnlyList<Dictionary<string, object>> entries
+    )
     {
-        GDictionaryArray entries = new();
-        if (raw_entries == null)
+        return _save_serializer.BuildSaveIndexPayloadLease(entries);
+    }
+
+    private List<Dictionary<string, object>> NormalizeSaveIndexEntriesPlain(
+        IReadOnlyList<object> rawEntries
+    )
+    {
+        var entries = new List<Dictionary<string, object>>();
+        if (rawEntries == null)
             return entries;
-        foreach (GDictionary rawEntry in ReadDictionaryItems(raw_entries))
+        for (int index = 0; index < rawEntries.Count; index++)
         {
-            GDictionary entry = NormalizeSaveMeta(
-                DeserializeSaveIndexEntry(rawEntry)
-            );
-            if (entry.Count == 0)
+            if (
+                rawEntries[index] is not IReadOnlyDictionary<string, object> rawEntry
+                || !_save_serializer.TryNormalizeSaveMetaPlain(
+                    rawEntry,
+                    out Dictionary<string, object> entry
+                )
+                || !FileAccess.FileExists(
+                    BuildSaveFilePath(ReadPlainString(entry, "save_id"))
+                )
+            )
+            {
                 continue;
-            if (!FileAccess.FileExists(BuildSaveFilePath(GetString(entry, "save_id"))))
-                continue;
+            }
             entries.Add(entry);
         }
-        SortSaveMetaNewestFirst(entries);
+        SortSaveMetaNewestFirstPlain(entries);
         return entries;
     }
 
-    public GDictionaryArray SerializeSaveIndexEntries(GDictionaryArray entries)
+    private List<Dictionary<string, object>> NormalizeSaveIndexEntriesPlain(
+        IReadOnlyList<Dictionary<string, object>> rawEntries
+    )
     {
-        return _save_serializer.SerializeSaveIndexEntries(entries);
+        var entries = new List<Dictionary<string, object>>();
+        if (rawEntries == null)
+            return entries;
+        for (int index = 0; index < rawEntries.Count; index++)
+        {
+            if (
+                !_save_serializer.TryNormalizeSaveMetaPlain(
+                    rawEntries[index],
+                    out Dictionary<string, object> entry
+                )
+                || !FileAccess.FileExists(
+                    BuildSaveFilePath(ReadPlainString(entry, "save_id"))
+                )
+            )
+            {
+                continue;
+            }
+            entries.Add(entry);
+        }
+        SortSaveMetaNewestFirstPlain(entries);
+        return entries;
     }
 
-    public GDictionary BuildSaveIndexPayload(GDictionaryArray entries)
-    {
-        return _save_serializer.BuildSaveIndexPayload(entries);
-    }
-
-    public GDictionary DeserializeSaveIndexEntry(GDictionary raw_entry)
-    {
-        return _save_serializer.DeserializeSaveIndexEntry(raw_entry);
-    }
-
-    private bool _is_save_index_integer_value(Variant value)
-    {
-        return value.VariantType == Variant.Type.Int
-            && _save_serializer.IsSaveIndexIntegerValue(value.AsInt32());
-    }
-
-    private GDictionaryArray RebuildSaveIndexEntriesFromSaveFiles()
+    private List<Dictionary<string, object>> RebuildSaveIndexEntriesFromSaveFilesPlain()
     {
         if (!DirAccess.DirExistsAbsolute(ProjectSettings.GlobalizePath(SaveDirectory)))
-            return new GDictionaryArray();
+            return new List<Dictionary<string, object>>();
 
-        DirAccess saveDir = DirAccess.Open(SaveDirectory);
-        if (saveDir == null)
-            return new GDictionaryArray();
+        using NativeLeaseScope directoryScope = new(
+            "save-index-directory-scan",
+            LifetimeDomain.Request
+        );
+        DirAccess openedSaveDir = DirAccess.Open(SaveDirectory);
+        if (openedSaveDir == null)
+            return new List<Dictionary<string, object>>();
+        DirAccess saveDir = directoryScope.Own(
+            openedSaveDir,
+            $"open:{SaveDirectory}"
+        );
 
         try
         {
-            GDictionary rebuiltById = new();
+            Dictionary<string, Dictionary<string, object>> rebuiltById =
+                new(StringComparer.Ordinal);
             Error listError = saveDir.ListDirBegin();
             if (listError != Error.Ok)
             {
@@ -465,41 +472,45 @@ public partial class GameSession
                 if (!_save_serializer.IsValidSaveIdToken(candidateSaveId))
                     continue;
                 string savePath = $"{SaveDirectory}/{fileName}";
-                GDictionary readResult = ReadSavePayload(savePath, false);
-                if (GetInt(readResult, "error", (int)Error.InvalidData) != (int)Error.Ok)
+                int readError = ReadSavePayload(
+                    savePath,
+                    out Dictionary<string, object> plainPayload,
+                    false
+                );
+                if (readError != (int)Error.Ok)
                     continue;
-                if (!TryRead(readResult, "payload", out var payloadValue)
-                    || payloadValue.VariantType != Variant.Type.Dictionary)
+                if (
+                    !_save_serializer.TryExtractSaveMetaPlain(
+                        plainPayload,
+                        out Dictionary<string, object> saveMeta
+                    )
+                )
                     continue;
-                GDictionary payload = payloadValue.AsGodotDictionary();
-                GDictionary saveMeta = ExtractSaveMetaFromPayload(payload);
-                if (saveMeta.Count == 0)
-                    continue;
-                string generationConfigPath = GetString(saveMeta, "generation_config_path");
+                string generationConfigPath = ReadPlainString(
+                    saveMeta,
+                    "generation_config_path"
+                );
                 WorldMapGenerationConfig generationConfig = LoadGenerationConfig(
                     generationConfigPath
                 );
                 if (generationConfig == null)
                     continue;
-                GDictionary decodeResult = _save_serializer.DecodePayload(
-                    payload,
-                    generationConfigPath,
-                    generationConfig,
-                    saveMeta
-                );
-                if (GetInt(decodeResult, "error", (int)Error.InvalidData) != (int)Error.Ok)
+                if (
+                    !_save_serializer.TryDecodePayload(
+                        plainPayload,
+                        generationConfigPath,
+                        generationConfig,
+                        saveMeta,
+                        out SaveDecodeResult decodeResult
+                    )
+                )
                     continue;
                 try
                 {
                     if (
                         ValidateDecodedPartyIdentityForSave(
-                            PartyState.TryReadPartyPayload(
-                                decodeResult["party_state"],
-                                out PartyState decodedPartyStateForMeta
-                            )
-                                ? decodedPartyStateForMeta
-                                : null,
-                            GetString(saveMeta, "save_id"),
+                            decodeResult.PartyState,
+                            ReadPlainString(saveMeta, "save_id"),
                             "index_rebuild"
                         ) != (int)Error.Ok
                     )
@@ -511,36 +522,37 @@ public partial class GameSession
                 {
                     continue;
                 }
-                rebuiltById[GetString(saveMeta, "save_id")] = saveMeta;
+                rebuiltById[ReadPlainString(saveMeta, "save_id")] =
+                    RuntimePlainPayload.CloneDictionary(saveMeta);
             }
 
-            GDictionaryArray rebuiltEntries = new();
-            foreach (var saveMetaValue in rebuiltById.Values)
-            {
-                if (TryUnboxToDictionary(saveMetaValue, out GDictionary saveMeta))
-                    rebuiltEntries.Add(saveMeta);
-            }
-            SortSaveMetaNewestFirst(rebuiltEntries);
+            var rebuiltEntries = new List<Dictionary<string, object>>();
+            foreach (Dictionary<string, object> saveMeta in rebuiltById.Values)
+                rebuiltEntries.Add(RuntimePlainPayload.CloneDictionary(saveMeta));
+            SortSaveMetaNewestFirstPlain(rebuiltEntries);
             return rebuiltEntries;
         }
         finally
         {
             saveDir.ListDirEnd();
-            GodotObjectLifecycle.DisposeGodotObject(saveDir);
         }
     }
 
-    public GDictionaryArray MergeSaveIndexEntries(
-        GDictionaryArray primary_entries,
-        GDictionaryArray fallback_entries
+    private List<Dictionary<string, object>> MergeSaveIndexEntriesPlain(
+        IReadOnlyList<Dictionary<string, object>> primaryEntries,
+        IReadOnlyList<Dictionary<string, object>> fallbackEntries
     )
     {
-        return _save_serializer.MergeSaveIndexEntries(primary_entries, fallback_entries);
-    }
-
-    public GDictionary ExtractSaveMetaFromPayload(GDictionary payload)
-    {
-        return _save_serializer.ExtractSaveMetaFromPayload(payload);
+        List<Dictionary<string, object>> merged = NormalizeSaveIndexEntriesPlain(
+            primaryEntries
+        );
+        if (fallbackEntries != null)
+        {
+            foreach (Dictionary<string, object> fallbackEntry in fallbackEntries)
+                merged = UpsertSaveMetaPlain(merged, fallbackEntry);
+        }
+        SortSaveMetaNewestFirstPlain(merged);
+        return merged;
     }
 
     private int ValidateDecodedPartyIdentityForSave(
@@ -555,57 +567,159 @@ public partial class GameSession
         );
         if (identityErrors.Count == 0)
             return (int)Error.Ok;
-        GArray errorPayload = new();
+        List<object> errorPayload = new();
         foreach (string identityError in identityErrors)
             errorPayload.Add(identityError);
+        Dictionary<string, object> contextPayload = new(StringComparer.Ordinal)
+        {
+            ["save_id"] = save_id ?? "",
+            ["context"] = context.ToString(),
+            ["errors"] = errorPayload,
+        };
+        using GodotProjectionLease<GDictionary> contextLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                contextPayload,
+                "save-identity-error-context",
+                LifetimeDomain.Request,
+                "GameSession.ValidateDecodedPartyIdentityForSave"
+            );
         PushSessionError(
             "session.save.identity_invalid",
             $"Save slot {save_id} has invalid party identity payload.",
-            Json.Stringify(
-                new GDictionary
-                {
-                    ["save_id"] = save_id,
-                    ["context"] = context,
-                    ["errors"] = errorPayload,
-                }
-            )
+            Json.Stringify(contextLease.Value)
         );
         return (int)Error.InvalidData;
     }
 
-    public GDictionaryArray UpsertSaveMeta(GDictionaryArray entries, GDictionary save_meta)
+    private List<Dictionary<string, object>> UpsertSaveMetaPlain(
+        IReadOnlyList<Dictionary<string, object>> entries,
+        IReadOnlyDictionary<string, object> saveMeta
+    )
     {
-        return _save_serializer.UpsertSaveMeta(entries, save_meta);
-    }
-
-    private GDictionary GetSaveMetaById(string save_id)
-    {
-        foreach (GDictionary entry in LoadSaveIndexEntries())
+        var updated = new List<Dictionary<string, object>>();
+        if (
+            !_save_serializer.TryNormalizeSaveMetaPlain(
+                saveMeta,
+                out Dictionary<string, object> normalizedMeta
+            )
+        )
         {
-            if (GetString(entry, "save_id") == save_id)
-                return entry;
+            if (entries != null)
+                updated.AddRange(CloneSaveIndexEntries(entries));
+            SortSaveMetaNewestFirstPlain(updated);
+            return updated;
         }
-        return new GDictionary();
-    }
 
-    private GDictionary FindMostRecentSaveByConfig(string generation_config_path)
-    {
-        foreach (GDictionary entry in LoadSaveIndexEntries())
+        string saveId = ReadPlainString(normalizedMeta, "save_id");
+        bool replaced = false;
+        if (entries != null)
         {
-            if (GetString(entry, "generation_config_path") == generation_config_path)
-                return entry;
+            foreach (Dictionary<string, object> entry in entries)
+            {
+                if (
+                    !_save_serializer.TryNormalizeSaveMetaPlain(
+                        entry,
+                        out Dictionary<string, object> normalizedExisting
+                    )
+                )
+                {
+                    continue;
+                }
+                if (
+                    string.Equals(
+                        ReadPlainString(normalizedExisting, "save_id"),
+                        saveId,
+                        StringComparison.Ordinal
+                    )
+                )
+                {
+                    updated.Add(RuntimePlainPayload.CloneDictionary(normalizedMeta));
+                    replaced = true;
+                }
+                else
+                {
+                    updated.Add(normalizedExisting);
+                }
+            }
         }
-        return new GDictionary();
+        if (!replaced)
+            updated.Add(RuntimePlainPayload.CloneDictionary(normalizedMeta));
+        SortSaveMetaNewestFirstPlain(updated);
+        return updated;
     }
 
-    public GDictionary NormalizeSaveMeta(GDictionary raw_meta)
+    private Dictionary<string, object> GetSaveMetaByIdPlain(string saveId)
     {
-        return _save_serializer.NormalizeSaveMeta(raw_meta ?? new GDictionary());
+        foreach (Dictionary<string, object> entry in LoadSaveIndexEntriesPlain())
+        {
+            if (
+                string.Equals(
+                    ReadPlainString(entry, "save_id"),
+                    saveId,
+                    StringComparison.Ordinal
+                )
+            )
+                return RuntimePlainPayload.CloneDictionary(entry);
+        }
+        return new Dictionary<string, object>(StringComparer.Ordinal);
     }
 
-    private bool SortSaveMetaNewestFirst(GDictionary a, GDictionary b)
+    private static void SortSaveMetaNewestFirstPlain(
+        List<Dictionary<string, object>> entries
+    )
     {
-        return _save_serializer.SortSaveMetaNewestFirst(a, b);
+        entries?.Sort(CompareSaveMetaNewestFirstPlain);
+    }
+
+    private static int CompareSaveMetaNewestFirstPlain(
+        Dictionary<string, object> left,
+        Dictionary<string, object> right
+    )
+    {
+        int leftUpdated = ReadPlainInt(left, "updated_at_unix_time");
+        int rightUpdated = ReadPlainInt(right, "updated_at_unix_time");
+        if (leftUpdated != rightUpdated)
+            return rightUpdated.CompareTo(leftUpdated);
+
+        int leftCreated = ReadPlainInt(left, "created_at_unix_time");
+        int rightCreated = ReadPlainInt(right, "created_at_unix_time");
+        if (leftCreated != rightCreated)
+            return rightCreated.CompareTo(leftCreated);
+
+        return -string.CompareOrdinal(
+            ReadPlainString(left, "save_id"),
+            ReadPlainString(right, "save_id")
+        );
+    }
+
+    private static string ReadPlainString(
+        IReadOnlyDictionary<string, object> values,
+        string key,
+        string fallback = ""
+    ) =>
+        values != null
+        && values.TryGetValue(key, out object value)
+        && value is string stringValue
+            ? stringValue
+            : fallback ?? "";
+
+    private static int ReadPlainInt(
+        IReadOnlyDictionary<string, object> values,
+        string key,
+        int fallback = 0
+    )
+    {
+        if (values == null || !values.TryGetValue(key, out object value))
+            return fallback;
+        return value switch
+        {
+            byte byteValue => byteValue,
+            short shortValue => shortValue,
+            int intValue => intValue,
+            long longValue when longValue >= int.MinValue && longValue <= int.MaxValue =>
+                (int)longValue,
+            _ => fallback,
+        };
     }
 
     public int RemoveDirectoryRecursive(string virtual_path)

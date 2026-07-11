@@ -1,12 +1,13 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
 public static class FileIOCoordinator
 {
-    public static int WriteCompressedVariantAtomically(
+    internal static int WriteCompressedVariantAtomically(
         string virtual_path,
-        GDictionary payload,
+        GodotProjectionLease<GDictionary> payload,
         int compression_mode,
         string error_event_prefix,
         string label,
@@ -20,26 +21,39 @@ public static class FileIOCoordinator
             return cleanupTempError;
         }
 
-        FileAccess file = FileAccess.OpenCompressed(
+        ArgumentNullException.ThrowIfNull(payload);
+        using NativeLeaseScope requestScope = new(
+            $"file-write:{label}",
+            LifetimeDomain.Request
+        );
+        FileAccess openedFile = FileAccess.OpenCompressed(
             tempPath,
             FileAccess.ModeFlags.Write,
             (FileAccess.CompressionMode)compression_mode
         );
-        if (file == null)
+        if (openedFile == null)
         {
             Error openError = FileAccess.GetOpenError();
             PushError(
                 error_sink,
                 $"{error_event_prefix}.open_failed",
                 $"Failed to open {label} file {tempPath}. Error: {(int)openError}",
-                Json.Stringify(new GDictionary { ["path"] = tempPath, ["open_error"] = (int)openError })
+                BuildJsonContext(
+                    new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        ["path"] = tempPath,
+                        ["open_error"] = (int)openError,
+                    },
+                    "FileIOCoordinator.open_failed"
+                )
             );
             return (int)openError;
         }
+        FileAccess file = requestScope.Own(openedFile, $"open:{tempPath}");
 
         try
         {
-            file.StoreVar(payload, false);
+            file.StoreVar(payload.Value, false);
             Error writeError = file.GetError();
             file.Close();
             if (writeError != Error.Ok)
@@ -49,7 +63,14 @@ public static class FileIOCoordinator
                     error_sink,
                     $"{error_event_prefix}.write_failed",
                     $"Failed to write {label} file {tempPath}. Error: {(int)writeError}",
-                    Json.Stringify(new GDictionary { ["path"] = tempPath, ["write_error"] = (int)writeError })
+                    BuildJsonContext(
+                        new Dictionary<string, object>(StringComparer.Ordinal)
+                        {
+                            ["path"] = tempPath,
+                            ["write_error"] = (int)writeError,
+                        },
+                        "FileIOCoordinator.write_failed"
+                    )
                 );
                 return (int)writeError;
             }
@@ -62,9 +83,15 @@ public static class FileIOCoordinator
                 error_sink
             );
         }
+        catch
+        {
+            file.Close();
+            RemoveFileIfExists(tempPath);
+            throw;
+        }
         finally
         {
-            GodotObjectLifecycle.DisposeGodotObject(file);
+            file.Close();
         }
     }
 
@@ -95,12 +122,15 @@ public static class FileIOCoordinator
                     error_sink,
                     $"{error_event_prefix}.backup_failed",
                     $"Failed to prepare existing {label} file {target_path} for replacement. Error: {backupError}",
-                    Json.Stringify(new GDictionary
-                    {
-                        ["target_path"] = target_path,
-                        ["backup_path"] = backupPath,
-                        ["backup_error"] = backupError,
-                    })
+                    BuildJsonContext(
+                        new Dictionary<string, object>(StringComparer.Ordinal)
+                        {
+                            ["target_path"] = target_path,
+                            ["backup_path"] = backupPath,
+                            ["backup_error"] = backupError,
+                        },
+                        "FileIOCoordinator.backup_failed"
+                    )
                 );
                 return backupError;
             }
@@ -118,12 +148,15 @@ public static class FileIOCoordinator
                 error_sink,
                 $"{error_event_prefix}.replace_failed",
                 $"Failed to replace {label} file {target_path}. Error: {replaceError}",
-                Json.Stringify(new GDictionary
-                {
-                    ["source_path"] = source_path,
-                    ["target_path"] = target_path,
-                    ["replace_error"] = replaceError,
-                })
+                BuildJsonContext(
+                    new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        ["source_path"] = source_path,
+                        ["target_path"] = target_path,
+                        ["replace_error"] = replaceError,
+                    },
+                    "FileIOCoordinator.replace_failed"
+                )
             );
             return replaceError;
         }
@@ -183,7 +216,14 @@ public static class FileIOCoordinator
                 error_sink,
                 $"{error_event_prefix}.backup_invalid",
                 $"Failed to recover {label} file {target_path} because backup {backupPath} is invalid.",
-                Json.Stringify(new GDictionary { ["target_path"] = target_path, ["backup_path"] = backupPath })
+                BuildJsonContext(
+                    new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        ["target_path"] = target_path,
+                        ["backup_path"] = backupPath,
+                    },
+                    "FileIOCoordinator.backup_invalid"
+                )
             );
             return (int)Error.InvalidData;
         }
@@ -195,12 +235,15 @@ public static class FileIOCoordinator
                 error_sink,
                 $"{error_event_prefix}.backup_restore_failed",
                 $"Failed to restore {label} file {target_path} from backup {backupPath}. Error: {restoreError}",
-                Json.Stringify(new GDictionary
-                {
-                    ["target_path"] = target_path,
-                    ["backup_path"] = backupPath,
-                    ["restore_error"] = restoreError,
-                })
+                BuildJsonContext(
+                    new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        ["target_path"] = target_path,
+                        ["backup_path"] = backupPath,
+                        ["restore_error"] = restoreError,
+                    },
+                    "FileIOCoordinator.backup_restore_failed"
+                )
             );
             return restoreError;
         }
@@ -217,15 +260,20 @@ public static class FileIOCoordinator
             return false;
         }
 
-        FileAccess file = FileAccess.OpenCompressed(
+        using NativeLeaseScope requestScope = new(
+            "file-readability",
+            LifetimeDomain.Request
+        );
+        FileAccess openedFile = FileAccess.OpenCompressed(
             virtual_path,
             FileAccess.ModeFlags.Read,
             (FileAccess.CompressionMode)compression_mode
         );
-        if (file == null)
+        if (openedFile == null)
         {
             return false;
         }
+        FileAccess file = requestScope.Own(openedFile, $"open:{virtual_path}");
         try
         {
             if ((long)file.GetLength() < 8)
@@ -235,13 +283,17 @@ public static class FileIOCoordinator
             }
 
             using Variant readValue = file.GetVar(false);
+            _ = RuntimePlainPayload.RestoreSaveVariantToPlain(
+                readValue,
+                $"FileIOCoordinator.readability:{virtual_path}"
+            );
             Error readError = file.GetError();
             file.Close();
             return readError == Error.Ok;
         }
         finally
         {
-            GodotObjectLifecycle.DisposeGodotObject(file);
+            file.Close();
         }
     }
 
@@ -274,18 +326,30 @@ public static class FileIOCoordinator
             return (int)Error.Ok;
         }
 
-        DirAccess dir = DirAccess.Open(virtual_path);
-        if (dir == null)
+        using NativeLeaseScope directoryScope = new(
+            $"directory-remove:{virtual_path}",
+            LifetimeDomain.Request
+        );
+        DirAccess openedDir = DirAccess.Open(virtual_path);
+        if (openedDir == null)
         {
             Error openError = DirAccess.GetOpenError();
             PushError(
                 error_sink,
                 "session.cleanup.open_directory_failed",
                 $"Failed to open directory {virtual_path} for cleanup. Error: {(int)openError}",
-                Json.Stringify(new GDictionary { ["virtual_path"] = virtual_path, ["open_error"] = (int)openError })
+                BuildJsonContext(
+                    new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        ["virtual_path"] = virtual_path,
+                        ["open_error"] = (int)openError,
+                    },
+                    "FileIOCoordinator.open_directory_failed"
+                )
             );
             return (int)openError;
         }
+        DirAccess dir = directoryScope.Own(openedDir, $"open:{virtual_path}");
 
         bool listingStarted = false;
         try
@@ -297,7 +361,14 @@ public static class FileIOCoordinator
                     error_sink,
                     "session.cleanup.list_directory_failed",
                     $"Failed to list directory {virtual_path} for cleanup. Error: {(int)listError}",
-                    Json.Stringify(new GDictionary { ["virtual_path"] = virtual_path, ["list_error"] = (int)listError })
+                    BuildJsonContext(
+                        new Dictionary<string, object>(StringComparer.Ordinal)
+                        {
+                            ["virtual_path"] = virtual_path,
+                            ["list_error"] = (int)listError,
+                        },
+                        "FileIOCoordinator.list_directory_failed"
+                    )
                 );
                 return (int)listError;
             }
@@ -341,8 +412,22 @@ public static class FileIOCoordinator
         {
             if (listingStarted)
                 dir.ListDirEnd();
-            GodotObjectLifecycle.DisposeGodotObject(dir);
         }
+    }
+
+    private static string BuildJsonContext(
+        IReadOnlyDictionary<string, object> values,
+        string reason
+    )
+    {
+        using GodotProjectionLease<GDictionary> contextLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                values,
+                "file-io-error-context",
+                LifetimeDomain.Request,
+                reason
+            );
+        return Json.Stringify(contextLease.Value);
     }
 
     private static void PushError(

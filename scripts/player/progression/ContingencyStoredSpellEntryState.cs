@@ -10,7 +10,7 @@ public enum ContingencyFallbackPolicyKind
     AbortRemainingIfInvalid,
 }
 
-public class ContingencyStoredSpellEntryState
+public partial class ContingencyStoredSpellEntryState
 {
     private static readonly string[] PayloadKeys =
     {

@@ -177,26 +177,6 @@ public partial class GameSession
             target.Add(value ?? "");
     }
 
-    private void SortSaveMetaNewestFirst(GDictionaryArray entries)
-    {
-        var list = new List<GDictionary>();
-        foreach (GDictionary entry in entries)
-            list.Add(entry);
-        list.Sort(
-            (a, b) =>
-            {
-                if (SortSaveMetaNewestFirst(a, b))
-                    return -1;
-                if (SortSaveMetaNewestFirst(b, a))
-                    return 1;
-                return 0;
-            }
-        );
-        entries.Clear();
-        foreach (GDictionary entry in list)
-            entries.Add(entry);
-    }
-
     private static Variant ToVariant(object value)
     {
         return value switch

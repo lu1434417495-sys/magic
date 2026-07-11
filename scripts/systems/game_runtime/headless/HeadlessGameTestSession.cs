@@ -112,10 +112,10 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
         return WorldPresetRegistry.ListPresets();
     }
 
-    internal Godot.Collections.Array<GDictionary> ListSaveSlots()
+    internal List<Dictionary<string, object>> ListSaveSlotsPlain()
     {
         EnsureGameSession();
-        return _gameSession.ListSaveSlots();
+        return _gameSession.ListSaveSlotsPlain();
     }
 
     internal SessionCommandOutcome CreateNewGameTyped(StringName preset_id)
@@ -575,17 +575,20 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
             ["world_loaded"] = HasWorldLoaded(),
             ["presets"] = NormalizeEnumerable(WorldPresetRegistry.ListPresets()),
             ["save_slots"] =
-                NormalizeEnumerable(_gameSession != null ? _gameSession.PeekSaveSlots() : new GArray()),
+                NormalizeEnumerable(
+                    _gameSession != null
+                        ? _gameSession.PeekSaveSlotsPlain()
+                        : new List<Dictionary<string, object>>()
+                ),
         };
 
         var snapshot = new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["session"] = sessionSnapshot,
-            ["validation"] = NormalizeDictionary(
+            ["validation"] =
                 _gameSession != null
                     ? _gameSession.GetContentValidationSnapshot()
-                    : new GDictionary()
-            ),
+                    : new Dictionary<string, object>(StringComparer.Ordinal),
             ["status"] = new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["view"] = "none",

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
@@ -40,7 +41,8 @@ public partial class run_world_map_save_transaction_regression : LifecycleTestSc
 
             try
             {
-                GDictionary originalPayload = ReadActiveSavePayload(context.GameSession);
+                Dictionary<string, object> originalPayload =
+                    ReadActiveSavePayload(context.GameSession);
                 Vector2I originalCoord = PayloadPlayerCoord(originalPayload);
                 GameRuntimeFacade.RuntimeCommandResult result =
                     context.Facade.CommandWorldMoveTyped(direction, 1);
@@ -55,7 +57,8 @@ public partial class run_world_map_save_transaction_regression : LifecycleTestSc
                 }
 
                 _test.True(context.GameSession.HasPendingSave(), "普通大地图移动后应只标记 pending save。");
-                GDictionary diskPayload = ReadActiveSavePayload(context.GameSession);
+                Dictionary<string, object> diskPayload =
+                    ReadActiveSavePayload(context.GameSession);
                 _test.Eq(
                     PayloadPlayerCoord(diskPayload),
                     originalCoord,
@@ -88,31 +91,41 @@ public partial class run_world_map_save_transaction_regression : LifecycleTestSc
         return new RuntimeContext(gameSession, facade);
     }
 
-    private static GDictionary ReadActiveSavePayload(GameSession gameSession)
+    private static Dictionary<string, object> ReadActiveSavePayload(
+        GameSession gameSession
+    )
     {
         string savePath = gameSession.GetActiveSavePath();
         if (string.IsNullOrEmpty(savePath))
         {
-            return new GDictionary();
+            return new Dictionary<string, object>(StringComparer.Ordinal);
         }
 
-        GDictionary readResult = gameSession.ReadSavePayload(savePath, false);
-        if (!readResult.ContainsKey("payload"))
-        {
-            return new GDictionary();
-        }
-        return readResult["payload"].AsGodotDictionary();
+        int readError = gameSession.ReadSavePayload(
+            savePath,
+            out Dictionary<string, object> payload,
+            false
+        );
+        return readError == (int)Error.Ok
+            ? payload
+            : new Dictionary<string, object>(StringComparer.Ordinal);
     }
 
-    private static Vector2I PayloadPlayerCoord(GDictionary payload)
+    private static Vector2I PayloadPlayerCoord(
+        IReadOnlyDictionary<string, object> payload
+    )
     {
-        if (payload == null || !payload.ContainsKey("world_state"))
+        if (
+            payload == null
+            || !payload.TryGetValue("world_state", out object worldStateValue)
+            || worldStateValue is not IReadOnlyDictionary<string, object> worldState
+        )
         {
             return Vector2I.Zero;
         }
-        GDictionary worldState = payload["world_state"].AsGodotDictionary();
-        return worldState.ContainsKey("player_coord")
-            ? worldState["player_coord"].AsVector2I()
+        return worldState.TryGetValue("player_coord", out object coordValue)
+            && coordValue is Vector2I coord
+            ? coord
             : Vector2I.Zero;
     }
 

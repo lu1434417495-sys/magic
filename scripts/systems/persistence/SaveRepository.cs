@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -25,8 +26,13 @@ internal sealed class SaveRepository
         _shouldFailPayloadWrite = shouldFailPayloadWrite;
     }
 
-    internal GDictionary ReadSavePayload(string savePath, bool emitErrors = true)
+    internal int ReadSavePayload(
+        string savePath,
+        out Dictionary<string, object> payload,
+        bool emitErrors = true
+    )
     {
+        payload = new Dictionary<string, object>(StringComparer.Ordinal);
         int recoveryError = FileIOCoordinator.RecoverReplaceTarget(
             savePath,
             _compressionMode,
@@ -35,7 +41,7 @@ internal sealed class SaveRepository
             PushError
         );
         if (recoveryError != (int)Error.Ok && recoveryError != (int)Error.DoesNotExist)
-            return new GDictionary { ["error"] = recoveryError };
+            return recoveryError;
         if (!FileAccess.FileExists(savePath))
         {
             if (emitErrors)
@@ -44,15 +50,19 @@ internal sealed class SaveRepository
                     $"GameSession could not find persisted save {savePath}."
                 );
             }
-            return new GDictionary { ["error"] = (int)Error.DoesNotExist };
+            return (int)Error.DoesNotExist;
         }
 
-        FileAccess saveFile = FileAccess.OpenCompressed(
+        using NativeLeaseScope requestScope = new(
+            "save-repository-read",
+            LifetimeDomain.Request
+        );
+        FileAccess openedFile = FileAccess.OpenCompressed(
             savePath,
             FileAccess.ModeFlags.Read,
             (FileAccess.CompressionMode)_compressionMode
         );
-        if (saveFile == null)
+        if (openedFile == null)
         {
             Error openError = FileAccess.GetOpenError();
             if (emitErrors)
@@ -61,8 +71,9 @@ internal sealed class SaveRepository
                     $"Failed to open persisted save {savePath}. Error: {(int)openError}"
                 );
             }
-            return new GDictionary { ["error"] = (int)openError };
+            return (int)openError;
         }
+        FileAccess saveFile = requestScope.Own(openedFile, $"open:{savePath}");
 
         try
         {
@@ -70,23 +81,25 @@ internal sealed class SaveRepository
             if (saveSize < 8)
             {
                 saveFile.Close();
-                return new GDictionary { ["error"] = (int)Error.InvalidData };
+                return (int)Error.InvalidData;
             }
 
             using Variant rawPayload = saveFile.GetVar(false);
+            bool restored = RuntimePlainPayload.TryRestoreSaveVariantDictionary(
+                rawPayload,
+                $"SaveRepository:{savePath}",
+                out Dictionary<string, object> restoredPayload
+            );
             saveFile.Close();
-            if (rawPayload.VariantType != Variant.Type.Dictionary)
-                return new GDictionary { ["error"] = (int)Error.InvalidData };
+            if (!restored)
+                return (int)Error.InvalidData;
 
-            return new GDictionary
-            {
-                ["error"] = (int)Error.Ok,
-                ["payload"] = rawPayload.AsGodotDictionary().Duplicate(true),
-            };
+            payload = restoredPayload;
+            return (int)Error.Ok;
         }
         finally
         {
-            GodotObjectLifecycle.DisposeGodotObject(saveFile);
+            saveFile.Close();
         }
     }
 
@@ -103,7 +116,10 @@ internal sealed class SaveRepository
         return $"{_saveDirectory}/{saveId}.dat";
     }
 
-    internal int WriteSavePayloadAtomically(string savePath, GDictionary payload)
+    internal int WriteSavePayloadAtomically(
+        string savePath,
+        GodotProjectionLease<GDictionary> payload
+    )
     {
         if (_shouldFailPayloadWrite?.Invoke() ?? false)
             return (int)Error.CantCreate;
@@ -117,7 +133,7 @@ internal sealed class SaveRepository
 
     internal int WriteCompressedVariantAtomically(
         string virtualPath,
-        GDictionary payload,
+        GodotProjectionLease<GDictionary> payload,
         string errorEventPrefix,
         string label
     )

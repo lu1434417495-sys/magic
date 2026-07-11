@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GDictionaryArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
@@ -115,8 +116,8 @@ public partial class LoginScreen : Control
             return;
         }
 
-        GDictionaryArray saveSlots = gameSession.ListSaveSlots();
-        save_list_window.ShowWindow(ToUntypedArray(saveSlots));
+        List<Dictionary<string, object>> saveSlots = gameSession.ListSaveSlotsPlain();
+        save_list_window.ShowWindow(saveSlots);
         status_label.Text =
             saveSlots.Count == 0
                 ? "当前没有可加载的存档。可以先点击“进入游戏”或“测试地图”创建新存档。"
@@ -190,8 +191,12 @@ public partial class LoginScreen : Control
             return false;
         }
 
-        GDictionary snapshot = gameSession.RefreshContentValidationSnapshot();
-        if (!DictBool(snapshot, "ok", false) || !gameSession.IsContentValidationOk())
+        Dictionary<string, object> snapshot =
+            gameSession.RefreshContentValidationSnapshot();
+        bool snapshotOk = false;
+        if (snapshot.TryGetValue("ok", out object okValue) && okValue is bool okValueBool)
+            snapshotOk = okValueBool;
+        if (!snapshotOk || !gameSession.IsContentValidationOk())
         {
             _show_error("内容校验失败，无法开始建卡。请查看日志并修正配置。");
             return false;

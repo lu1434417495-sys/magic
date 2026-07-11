@@ -116,9 +116,14 @@ public partial class run_text_save_load_regression : LifecycleTestSceneTree
     {
         if (runner == null || string.IsNullOrEmpty(saveId))
             return false;
-        foreach (GDictionary slot in runner.GetSession().GetGameSession().ListSaveSlots())
+        foreach (
+            Dictionary<string, object> slot in runner
+                .GetSession()
+                .GetGameSession()
+                .ListSaveSlotsPlain()
+        )
         {
-            if (DictString(slot, "save_id") == saveId)
+            if (TypedString(slot, "save_id") == saveId)
                 return true;
         }
         return false;

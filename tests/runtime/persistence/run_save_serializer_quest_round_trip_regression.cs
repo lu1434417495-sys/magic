@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -53,25 +55,29 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         partyState.AddCompletedQuestId("intro_contract");
 
         SaveSerializer serializer = gameSession._save_serializer;
-        GDictionary payload = BuildSavePayloadForSession(gameSession, partyState);
+        using GodotProjectionLease<GDictionary> payloadLease =
+            BuildSavePayloadForSession(gameSession, partyState);
+        GDictionary payload = payloadLease.Value;
         _test.Eq(
             DictInt(payload, "version", -1),
             12,
             "World resource node schema should bump top-level save version to 12."
         );
-        GDictionary decodeResult = serializer.DecodePayload(
+        Dictionary<string, object> payloadPlain = RuntimePlainPayload.RestoreSaveDictionary(
             payload,
+            "quest-round-trip.payload"
+        );
+        bool decoded = serializer.TryDecodePayload(
+            payloadPlain,
             gameSession.GetGenerationConfigPath(),
             gameSession.GetGenerationConfig(),
-            gameSession.GetActiveSaveMeta()
+            gameSession.CaptureActiveSaveMetaPlain(),
+            out SaveDecodeResult decodeResult
         );
-        _test.Eq(DictInt(decodeResult, "error", (int)Error.InvalidData), (int)Error.Ok, "SaveSerializer 应能成功解码带 quest schema 的 payload。");
+        _test.True(decoded, "SaveSerializer 应能成功解码带 quest schema 的 payload。");
+        _test.Eq(decodeResult.Error, (int)Error.Ok, "成功解码应返回 Ok。");
 
-        PartyState restoredPartyState =
-            decodeResult.ContainsKey("party_state")
-            && PartyState.TryReadPartyPayload(decodeResult["party_state"], out PartyState decodedPartyState)
-                ? decodedPartyState
-                : null;
+        PartyState restoredPartyState = decoded ? decodeResult.PartyState : null;
         _test.True(restoredPartyState != null, "解码后的 payload 应返回 PartyState。");
         if (restoredPartyState != null)
         {
@@ -115,33 +121,39 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         }
 
         SaveSerializer serializer = gameSession._save_serializer;
-        GDictionary payload = BuildSavePayloadForSession(gameSession, gameSession.GetPartyState());
+        using GodotProjectionLease<GDictionary> payloadLease =
+            BuildSavePayloadForSession(gameSession, gameSession.GetPartyState());
+        Dictionary<string, object> payload = RuntimePlainPayload.RestoreSaveDictionary(
+            payloadLease.Value,
+            "old-equipment.payload"
+        );
         payload["version"] = 10;
 
-        GDictionary partyPayload = payload["party_state"].AsGodotDictionary();
+        Dictionary<string, object> partyPayload = PlainDictionary(payload, "party_state");
         partyPayload["version"] = 6;
-        GDictionary warehousePayload = partyPayload["warehouse_state"].AsGodotDictionary();
-        warehousePayload["equipment_instances"] = new GArray
+        Dictionary<string, object> warehousePayload = PlainDictionary(
+            partyPayload,
+            "warehouse_state"
+        );
+        warehousePayload["equipment_instances"] = new List<object>
         {
             MakeOldFiveFieldEquipmentInstancePayload("eq_old_version_gate")
         };
 
         _test.True(
-            serializer.ExtractSaveMetaFromPayload(payload).Count == 0,
+            !serializer.TryExtractSaveMetaPlain(payload, out _),
             "Root save version 10 should be rejected by the top-level version gate before party/equipment parsing."
         );
 
-        GDictionary decodeResult = serializer.DecodePayload(
+        bool decoded = serializer.TryDecodePayload(
             payload,
             gameSession.GetGenerationConfigPath(),
             gameSession.GetGenerationConfig(),
-            gameSession.GetActiveSaveMeta()
+            gameSession.CaptureActiveSaveMetaPlain(),
+            out SaveDecodeResult decodeResult
         );
-        _test.Eq(
-            DictInt(decodeResult, "error", (int)Error.Ok),
-            (int)Error.InvalidData,
-            "Root version 10 / PartyState version 6 / five-field equipment save should reject as old schema."
-        );
+        _test.True(!decoded, "Root version 10 / PartyState version 6 / five-field equipment save should reject as old schema.");
+        _test.Eq(decodeResult.Error, (int)Error.InvalidData, "旧 schema 解码结果应标记 InvalidData。");
 
         CleanupTestSession(gameSession);
     }
@@ -160,21 +172,26 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
             }
 
             SaveSerializer serializer = gameSession._save_serializer;
-            GDictionary payload = BuildSavePayloadForSession(gameSession, gameSession.GetPartyState());
-            GDictionary partyPayload = (GDictionary)payload["party_state"].AsGodotDictionary().Duplicate(true);
+            using GodotProjectionLease<GDictionary> payloadLease =
+                BuildSavePayloadForSession(gameSession, gameSession.GetPartyState());
+            Dictionary<string, object> payload = RuntimePlainPayload.RestoreSaveDictionary(
+                payloadLease.Value,
+                $"missing-party-field.{fieldName}"
+            );
+            Dictionary<string, object> partyPayload = PlainDictionary(
+                payload,
+                "party_state"
+            );
             partyPayload.Remove(fieldName);
-            payload["party_state"] = partyPayload;
-            GDictionary decodeResult = serializer.DecodePayload(
+            bool decoded = serializer.TryDecodePayload(
                 payload,
                 gameSession.GetGenerationConfigPath(),
                 gameSession.GetGenerationConfig(),
-                gameSession.GetActiveSaveMeta()
+                gameSession.CaptureActiveSaveMetaPlain(),
+                out SaveDecodeResult decodeResult
             );
-            _test.Eq(
-                DictInt(decodeResult, "error", (int)Error.Ok),
-                (int)Error.InvalidData,
-                $"缺少 {fieldName} 的存档应直接判为坏数据。"
-            );
+            _test.True(!decoded, $"缺少 {fieldName} 的存档应直接判为坏数据。");
+            _test.Eq(decodeResult.Error, (int)Error.InvalidData, $"缺少 {fieldName} 应返回 InvalidData。");
 
             CleanupTestSession(gameSession);
         }
@@ -192,32 +209,46 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         }
 
         SaveSerializer serializer = gameSession._save_serializer;
-        GDictionary payload = BuildSavePayloadForSession(gameSession, gameSession.GetPartyState());
-        payload["save_slot_meta"] = new GDictionary
+        using GodotProjectionLease<GDictionary> payloadLease =
+            BuildSavePayloadForSession(gameSession, gameSession.GetPartyState());
+        Dictionary<string, object> payload = RuntimePlainPayload.RestoreSaveDictionary(
+            payloadLease.Value,
+            "missing-save-meta.payload"
+        );
+        Dictionary<string, object> activeSaveMeta = gameSession.CaptureActiveSaveMetaPlain();
+        payload["save_slot_meta"] = new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["save_id"] = gameSession.GetActiveSaveId(),
             ["generation_config_path"] = gameSession.GetGenerationConfigPath(),
-            ["world_preset_id"] = DictString(gameSession.GetActiveSaveMeta(), "world_preset_id"),
+            ["world_preset_id"] = PlainString(activeSaveMeta, "world_preset_id"),
         };
-        _test.True(serializer.ExtractSaveMetaFromPayload(payload).Count == 0, "缺失 display_name/world_size/timestamps 的 save_slot_meta 应直接拒绝。");
-        GDictionary decodeResult = serializer.DecodePayload(
+        _test.True(
+            !serializer.TryExtractSaveMetaPlain(payload, out _),
+            "缺失 display_name/world_size/timestamps 的 save_slot_meta 应直接拒绝。"
+        );
+        bool decoded = serializer.TryDecodePayload(
             payload,
             gameSession.GetGenerationConfigPath(),
             gameSession.GetGenerationConfig(),
-            gameSession.GetActiveSaveMeta()
+            activeSaveMeta,
+            out SaveDecodeResult decodeResult
         );
-        _test.Eq(DictInt(decodeResult, "error", (int)Error.Ok), (int)Error.InvalidData, "缺失完整 save_slot_meta 的 payload 应直接判为坏数据。");
+        _test.True(!decoded, "缺失完整 save_slot_meta 的 payload 应直接判为坏数据。");
+        _test.Eq(decodeResult.Error, (int)Error.InvalidData, "缺失完整 save_slot_meta 应返回 InvalidData。");
 
         CleanupTestSession(gameSession);
     }
 
-    private static GDictionary BuildSavePayloadForSession(GameSession gameSession, PartyState partyState)
+    private static GodotProjectionLease<GDictionary> BuildSavePayloadForSession(
+        GameSession gameSession,
+        PartyState partyState
+    )
     {
-        return gameSession._save_serializer.BuildSavePayload(
+        return gameSession._save_serializer.BuildSavePayloadLease(
             gameSession.GetActiveSaveId(),
             gameSession.GetGenerationConfigPath(),
-            gameSession.GetActiveSaveMeta(),
-            gameSession.GetWorldData(),
+            gameSession.CaptureActiveSaveMetaPlain(),
+            gameSession.CaptureWorldDataPlain(),
             gameSession.GetPlayerCoord(),
             gameSession.GetPlayerFactionId(),
             partyState,
@@ -225,8 +256,10 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         );
     }
 
-    private static GDictionary MakeOldFiveFieldEquipmentInstancePayload(string instanceId) =>
-        new()
+    private static Dictionary<string, object> MakeOldFiveFieldEquipmentInstancePayload(
+        string instanceId
+    ) =>
+        new(StringComparer.Ordinal)
         {
             ["instance_id"] = instanceId,
             ["item_id"] = "bronze_sword",
@@ -234,8 +267,32 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
             ["current_durability"] = EquipmentDurabilityRules.GetDefaultCurrentDurability(
                 (int)EquipmentInstanceState.RarityTier.COMMON
             ),
-            ["trait_instances"] = new GArray(),
+            ["trait_instances"] = new List<object>(),
         };
+
+    private static Dictionary<string, object> PlainDictionary(
+        IReadOnlyDictionary<string, object> values,
+        string key
+    )
+    {
+        return values != null
+            && values.TryGetValue(key, out object value)
+            && value is Dictionary<string, object> dictionary
+            ? dictionary
+            : new Dictionary<string, object>(StringComparer.Ordinal);
+    }
+
+    private static string PlainString(
+        IReadOnlyDictionary<string, object> values,
+        string key
+    )
+    {
+        return values != null
+            && values.TryGetValue(key, out object value)
+            && value is string text
+            ? text
+            : "";
+    }
 
     private static void CleanupTestSession(GameSession gameSession)
     {
@@ -250,8 +307,4 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         return dictionary != null && dictionary.ContainsKey(key) ? dictionary[key].AsInt32() : fallback;
     }
 
-    private static string DictString(GDictionary dictionary, string key)
-    {
-        return dictionary != null && dictionary.ContainsKey(key) ? dictionary[key].AsString() : "";
-    }
 }

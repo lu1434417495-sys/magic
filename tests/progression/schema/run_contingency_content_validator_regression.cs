@@ -377,8 +377,9 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
                 BuildSetupPayload(storedSkillId: "mage_chain_contingency"),
                 LearnedSkill("mage_chain_contingency", 5)
             );
-            GDictionary payload = BuildSavePayloadForSession(session, invalidPartyState);
-            Error writeError = OverwriteActiveSavePayload(session, payload);
+            using GodotProjectionLease<GDictionary> payloadLease =
+                BuildSavePayloadForSession(session, invalidPartyState);
+            Error writeError = OverwriteActiveSavePayload(session, payloadLease);
             _test.Eq(writeError, Error.Ok, "Load-time validator test should overwrite save payload.");
             if (writeError != Error.Ok)
                 return;
@@ -671,16 +672,16 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
         };
     }
 
-    private static GDictionary BuildSavePayloadForSession(
+    private static GodotProjectionLease<GDictionary> BuildSavePayloadForSession(
         GameSession gameSession,
         PartyState partyState
     )
     {
-        return gameSession._save_serializer.BuildSavePayload(
+        return gameSession._save_serializer.BuildSavePayloadLease(
             gameSession.GetActiveSaveId(),
             gameSession.GetGenerationConfigPath(),
-            gameSession.GetActiveSaveMeta(),
-            gameSession.GetWorldData(),
+            gameSession.CaptureActiveSaveMetaPlain(),
+            gameSession.CaptureWorldDataPlain(),
             gameSession.GetPlayerCoord(),
             gameSession.GetPlayerFactionId(),
             partyState,
@@ -688,17 +689,18 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
         );
     }
 
-    private static Error OverwriteActiveSavePayload(GameSession gameSession, GDictionary payload)
+    private static Error OverwriteActiveSavePayload(
+        GameSession gameSession,
+        GodotProjectionLease<GDictionary> payload
+    )
     {
-        using FileAccess saveFile = FileAccess.OpenCompressed(
+        return (Error)FileIOCoordinator.WriteCompressedVariantAtomically(
             gameSession.GetActiveSavePath(),
-            FileAccess.ModeFlags.Write,
-            (FileAccess.CompressionMode)SaveCompressionMode
+            payload,
+            SaveCompressionMode,
+            "test.contingency.invalid_save",
+            "invalid contingency save fixture"
         );
-        if (saveFile == null)
-            return FileAccess.GetOpenError();
-        saveFile.StoreVar(payload, false);
-        return Error.Ok;
     }
 
     private static bool HasStringName(IReadOnlyList<StringName> values, StringName target)

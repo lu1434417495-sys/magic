@@ -178,7 +178,7 @@ public sealed class GameTextCommandRunner : IDisposable
     {
         if (tokens.Count < 2 || tokens[1] != "list")
             return Result(false, "用法: save list");
-        return Result(true, $"Listed {_session.ListSaveSlots().Count} saves.");
+        return Result(true, $"Listed {_session.ListSaveSlotsPlain().Count} saves.");
     }
 
     private CommandOutcome ExecuteGameCommand(List<string> tokens)

@@ -28,7 +28,7 @@ public enum ContingencyTimingKind
     OwnerTurnStarted,
 }
 
-public class ContingencyTriggerState
+public partial class ContingencyTriggerState
 {
     private readonly Dictionary<string, object> _payload = new(System.StringComparer.Ordinal);
     private readonly List<StringName> _statusTags = new();

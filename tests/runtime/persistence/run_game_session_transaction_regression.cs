@@ -37,7 +37,7 @@ public partial class run_game_session_transaction_regression : LifecycleTestScen
                 return;
             }
 
-            GDictionary originalPayload = ReadActiveSavePayload(gameSession);
+            Dictionary<string, object> originalPayload = ReadActiveSavePayload(gameSession);
             Vector2I originalCoord = PayloadPlayerCoord(originalPayload);
             Vector2I stagedCoord = originalCoord + Vector2I.Right;
 
@@ -46,7 +46,7 @@ public partial class run_game_session_transaction_regression : LifecycleTestScen
             _test.Eq(gameSession.GetPlayerCoord(), stagedCoord, "set_player_coord 后内存坐标应立即更新。");
             _test.True(gameSession.HasPendingSave(), "setter 更新后应存在 pending save。");
 
-            GDictionary diskPayload = ReadActiveSavePayload(gameSession);
+            Dictionary<string, object> diskPayload = ReadActiveSavePayload(gameSession);
             _test.Eq(PayloadPlayerCoord(diskPayload), originalCoord, "未 commit 前 setter 不应把玩家坐标写入磁盘。");
         }
         finally
@@ -67,7 +67,7 @@ public partial class run_game_session_transaction_regression : LifecycleTestScen
                 return;
             }
 
-            GDictionary originalPayload = ReadActiveSavePayload(gameSession);
+            Dictionary<string, object> originalPayload = ReadActiveSavePayload(gameSession);
             Vector2I originalCoord = PayloadPlayerCoord(originalPayload);
             int originalWorldStep = PayloadWorldStep(originalPayload);
             Vector2I stagedCoord = originalCoord + Vector2I.Right;
@@ -81,7 +81,7 @@ public partial class run_game_session_transaction_regression : LifecycleTestScen
             _test.Eq(commitError, Error.Ok, "commit_runtime_state 应一次性持久化完整运行时快照。");
             _test.False(gameSession.HasPendingSave(), "commit 成功后 pending save 应被清空。");
 
-            GDictionary committedPayload = ReadActiveSavePayload(gameSession);
+            Dictionary<string, object> committedPayload = ReadActiveSavePayload(gameSession);
             _test.Eq(PayloadPlayerCoord(committedPayload), stagedCoord, "commit 后磁盘应保存 staged 玩家坐标。");
             _test.Eq(PayloadWorldStep(committedPayload), originalWorldStep + 7, "commit 后磁盘应保存 staged world_data。");
         }
@@ -103,7 +103,7 @@ public partial class run_game_session_transaction_regression : LifecycleTestScen
                 return;
             }
 
-            GDictionary originalPayload = ReadActiveSavePayload(gameSession);
+            Dictionary<string, object> originalPayload = ReadActiveSavePayload(gameSession);
             Vector2I originalCoord = PayloadPlayerCoord(originalPayload);
             Vector2I stagedCoord = originalCoord + Vector2I.Right;
             _test.Eq((Error)gameSession.SetPlayerCoord(stagedCoord), Error.Ok, "事务失败回归前置：坐标 staging 应成功。");
@@ -120,7 +120,7 @@ public partial class run_game_session_transaction_regression : LifecycleTestScen
                 "commit 失败后 dirty_scopes 应保留玩家坐标变更。"
             );
 
-            GDictionary diskPayload = ReadActiveSavePayload(gameSession);
+            Dictionary<string, object> diskPayload = ReadActiveSavePayload(gameSession);
             _test.Eq(PayloadPlayerCoord(diskPayload), originalCoord, "commit 失败后磁盘坐标应保持旧快照。");
         }
         finally
@@ -143,7 +143,7 @@ public partial class run_game_session_transaction_regression : LifecycleTestScen
             }
 
             string saveId = gameSession.GetActiveSaveId();
-            GDictionary originalPayload = ReadActiveSavePayload(gameSession);
+            Dictionary<string, object> originalPayload = ReadActiveSavePayload(gameSession);
             Vector2I stagedCoord = PayloadPlayerCoord(originalPayload) + Vector2I.Right;
             _test.Eq((Error)gameSession.SetPlayerCoord(stagedCoord), Error.Ok, "卸载提交回归前置：坐标 staging 应成功。");
             _test.True(gameSession.HasPendingSave(), "卸载前应存在 pending save。");
@@ -172,36 +172,62 @@ public partial class run_game_session_transaction_regression : LifecycleTestScen
         }
     }
 
-    private static GDictionary ReadActiveSavePayload(GameSession gameSession)
+    private static Dictionary<string, object> ReadActiveSavePayload(GameSession gameSession)
     {
         string savePath = gameSession.GetActiveSavePath();
         if (string.IsNullOrEmpty(savePath))
         {
-            return new GDictionary();
+            return new Dictionary<string, object>(StringComparer.Ordinal);
         }
 
-        GDictionary readResult = gameSession.ReadSavePayload(savePath, false);
-        if (DictError(readResult, "error", Error.CantOpen) != Error.Ok)
-        {
-            return new GDictionary();
-        }
-        return readResult.ContainsKey("payload") && readResult["payload"].VariantType == Variant.Type.Dictionary
-            ? readResult["payload"].AsGodotDictionary()
-            : new GDictionary();
+        int readError = gameSession.ReadSavePayload(
+            savePath,
+            out Dictionary<string, object> payload,
+            false
+        );
+        return readError == (int)Error.Ok
+            ? payload
+            : new Dictionary<string, object>(StringComparer.Ordinal);
     }
 
-    private static Vector2I PayloadPlayerCoord(GDictionary payload)
+    private static Vector2I PayloadPlayerCoord(
+        IReadOnlyDictionary<string, object> payload
+    )
     {
-        GDictionary worldState = DictDictionary(payload, "world_state");
-        return DictVector2I(worldState, "player_coord", Vector2I.Zero);
+        IReadOnlyDictionary<string, object> worldState = PlainDictionary(
+            payload,
+            "world_state"
+        );
+        return worldState.TryGetValue("player_coord", out object value)
+            && value is Vector2I coord
+            ? coord
+            : Vector2I.Zero;
     }
 
-    private static int PayloadWorldStep(GDictionary payload)
+    private static int PayloadWorldStep(IReadOnlyDictionary<string, object> payload)
     {
-        GDictionary worldState = DictDictionary(payload, "world_state");
-        GDictionary worldData = DictDictionary(worldState, "world_data");
-        return DictInt(worldData, "world_step", 0);
+        IReadOnlyDictionary<string, object> worldState = PlainDictionary(
+            payload,
+            "world_state"
+        );
+        IReadOnlyDictionary<string, object> worldData = PlainDictionary(
+            worldState,
+            "world_data"
+        );
+        return worldData.TryGetValue("world_step", out object value)
+            ? Convert.ToInt32(value)
+            : 0;
     }
+
+    private static IReadOnlyDictionary<string, object> PlainDictionary(
+        IReadOnlyDictionary<string, object> values,
+        string key
+    ) =>
+        values != null
+        && values.TryGetValue(key, out object value)
+        && value is IReadOnlyDictionary<string, object> dictionary
+            ? dictionary
+            : new Dictionary<string, object>(StringComparer.Ordinal);
 
     private static Variant DictionaryGet(GDictionary values, string key)
     {

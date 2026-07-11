@@ -25,7 +25,7 @@ public partial class SelectableListWindow : Control
     private Button _confirmButton;
     private Button _cancelButton;
     private Button _footerCancelButton;
-    private readonly List<GDictionary> _items = new();
+    private readonly List<Dictionary<string, object>> _items = new();
 
     public override void _Ready()
     {
@@ -75,14 +75,49 @@ public partial class SelectableListWindow : Control
 
     public void ShowWindow(GArray items, StringName default_id)
     {
+        var plainItems = new List<Dictionary<string, object>>();
+        if (items != null)
+        {
+            foreach (Variant rawItem in items)
+            {
+                if (rawItem.VariantType != Variant.Type.Dictionary)
+                    continue;
+                using GDictionary item = rawItem.AsGodotDictionary();
+                plainItems.Add(
+                    RuntimePlainPayload.NormalizeDictionary(
+                        item,
+                        "SelectableListWindow.item"
+                    )
+                );
+            }
+        }
+        ShowWindow(plainItems, default_id);
+    }
+
+    internal void ShowWindow(IReadOnlyList<Dictionary<string, object>> items)
+    {
+        ShowWindow(items, "");
+    }
+
+    internal void ShowWindow(
+        IReadOnlyList<Dictionary<string, object>> items,
+        StringName default_id
+    )
+    {
         Visible = true;
         _items.Clear();
         _itemList.Clear();
 
-        foreach (GDictionary item in ReadDictionaryItems(items))
+        if (items != null)
         {
-            _items.Add(item);
-            _itemList.AddItem(_format_item_label(item));
+            foreach (Dictionary<string, object> item in items)
+            {
+                if (item == null)
+                    continue;
+                Dictionary<string, object> snapshot = RuntimePlainPayload.CloneDictionary(item);
+                _items.Add(snapshot);
+                _itemList.AddItem(_format_item_label(snapshot));
+            }
         }
 
         bool hasItems = _items.Count > 0;
@@ -141,13 +176,13 @@ public partial class SelectableListWindow : Control
         return _get_item_id(_items[index]);
     }
 
-    protected virtual string _format_item_label(GDictionary item) => "";
+    protected virtual string _format_item_label(IReadOnlyDictionary<string, object> item) => "";
 
-    protected virtual string _format_detail_text(GDictionary item) => "";
+    protected virtual string _format_detail_text(IReadOnlyDictionary<string, object> item) => "";
 
     protected virtual string _format_empty_detail() => "当前没有可用的条目。";
 
-    protected virtual StringName _get_item_id(GDictionary item) => "";
+    protected virtual StringName _get_item_id(IReadOnlyDictionary<string, object> item) => "";
 
     protected virtual void _emit_confirmed_for_id(StringName item_id) { }
 
@@ -259,14 +294,4 @@ public partial class SelectableListWindow : Control
         return style;
     }
 
-    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray items)
-    {
-        if (items == null)
-            yield break;
-        foreach (Variant item in items)
-        {
-            if (item.VariantType == Variant.Type.Dictionary)
-                yield return item.AsGodotDictionary();
-        }
-    }
 }

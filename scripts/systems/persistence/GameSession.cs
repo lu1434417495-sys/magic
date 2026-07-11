@@ -78,6 +78,19 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
                 ["errors"] = ToGodotStringArray(Errors),
             };
         }
+
+        public Dictionary<string, object> BuildSnapshotPlain()
+        {
+            var errors = new List<object>();
+            foreach (string error in Errors)
+                errors.Add(error);
+            return new Dictionary<string, object>(StringComparer.Ordinal)
+            {
+                ["ok"] = Ok,
+                ["error_count"] = ErrorCount,
+                ["errors"] = errors,
+            };
+        }
     }
 
     private sealed class ContentValidationSnapshotData
@@ -127,6 +140,31 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
                 ["ok"] = Ok,
                 ["error_count"] = ErrorCount,
                 ["domain_order"] = BuildDomainOrderArray(),
+                ["domains"] = domainSnapshots,
+            };
+        }
+
+        public Dictionary<string, object> BuildSnapshotPlain()
+        {
+            var domainSnapshots = new Dictionary<string, object>(StringComparer.Ordinal);
+            foreach (string domainId in ContentValidationDomainOrder)
+            {
+                domainSnapshots[domainId] = Domains.TryGetValue(
+                    domainId,
+                    out ContentValidationDomainSnapshotData domain
+                )
+                    ? domain?.BuildSnapshotPlain()
+                        ?? new Dictionary<string, object>(StringComparer.Ordinal)
+                    : new Dictionary<string, object>(StringComparer.Ordinal);
+            }
+            var domainOrder = new List<object>();
+            foreach (string domainId in ContentValidationDomainOrder)
+                domainOrder.Add(domainId);
+            return new Dictionary<string, object>(StringComparer.Ordinal)
+            {
+                ["ok"] = Ok,
+                ["error_count"] = ErrorCount,
+                ["domain_order"] = domainOrder,
                 ["domains"] = domainSnapshots,
             };
         }
@@ -251,7 +289,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         RefreshItemContent();
         RefreshRecipeContent();
         RefreshEnemyContent();
-        RefreshContentValidationSnapshot();
+        RefreshContentValidationSnapshotState();
         ReportContentValidationErrors();
 
         _log_sink = new GameSessionLogSink(this);
@@ -471,7 +509,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         string resolvedPresetName = string.IsNullOrEmpty(preset_name)
             ? WorldPresetRegistry.GetFallbackPresetName(generation_config_path)
             : preset_name;
-        ReplaceActiveSaveMetaPayload(BuildSaveMeta(
+        ReplaceActiveSaveMetaPlain(BuildSaveMetaPlain(
             saveId,
             saveId,
             generation_config_path,
@@ -506,9 +544,11 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         return persistError;
     }
 
-    public GDictionaryArray ListSaveSlots() => LoadSaveIndexEntries();
+    internal List<Dictionary<string, object>> ListSaveSlotsPlain() =>
+        LoadSaveIndexEntriesPlain();
 
-    public GDictionaryArray PeekSaveSlots() => PeekSaveIndexEntriesReadOnly();
+    internal List<Dictionary<string, object>> PeekSaveSlotsPlain() =>
+        PeekSaveIndexEntriesPlain();
 
     public int LoadSave(string save_id)
     {
@@ -518,7 +558,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         if (contentValidationError != (int)Error.Ok)
             return contentValidationError;
 
-        GDictionary saveMeta = GetSaveMetaById(save_id);
+        Dictionary<string, object> saveMeta = GetSaveMetaByIdPlain(save_id);
         if (saveMeta.Count == 0)
         {
             throw new InvalidOperationException(
@@ -527,30 +567,30 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         }
 
         string savePath = BuildSaveFilePath(save_id);
-        GDictionary readResult = ReadSavePayload(savePath);
-        int readError = GetInt(readResult, "error", (int)Error.CantOpen);
+        int readError = ReadSavePayload(
+            savePath,
+            out Dictionary<string, object> plainPayload
+        );
         if (readError != (int)Error.Ok)
             return readError;
 
-        if (!TryRead(readResult, "payload", out var payloadValue)
-            || payloadValue.VariantType != Variant.Type.Dictionary)
+        if (plainPayload.Count == 0)
         {
             throw new InvalidOperationException(
                 $"GameSession loaded an invalid payload from {savePath}."
             );
         }
-
-        GDictionary payload = _save_serializer.RestoreMinimizedSavePayloadStrings(
-            payloadValue.AsGodotDictionary()
-        );
-        if (!payload.ContainsKey("generation_config_path"))
+        if (
+            !plainPayload.TryGetValue("generation_config_path", out object generationPathValue)
+            || generationPathValue is not string generationConfigPath
+        )
         {
             throw new InvalidOperationException(
                 $"Save slot {save_id} is missing generation_config_path."
             );
         }
 
-        string generationConfigPath = GetString(payload, "generation_config_path").StripEdges();
+        generationConfigPath = generationConfigPath.Trim();
         if (string.IsNullOrEmpty(generationConfigPath))
         {
             throw new InvalidOperationException(
@@ -565,7 +605,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         GDictionary previousRuntimeState = CaptureRuntimeState();
         _pending_load_error_reason = "";
         int loadError = LoadCurrentPayload(
-            payload,
+            plainPayload,
             generationConfigPath,
             generationConfig,
             saveMeta
@@ -602,7 +642,11 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
 
     public string GetActiveSavePath() => _active_save_path;
 
-    public GDictionary GetActiveSaveMeta() => ActiveSaveMetaPayload().Duplicate(true);
+    internal Dictionary<string, object> CaptureActiveSaveMetaPlain() =>
+        RuntimePlainPayload.CloneDictionary(_activeSaveMeta);
+
+    internal Dictionary<string, object> CaptureWorldDataPlain() =>
+        RuntimePlainPayload.CloneDictionary(_worldData);
 
     internal GameLogService GetLogService() => _log_service;
 
@@ -624,13 +668,10 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
     public string AllocateUniqueSaveId(string prefix = "save") =>
         GenerateUniqueSaveId((int)Time.GetUnixTimeFromSystem(), prefix);
 
-    public GDictionary GetContentValidationSnapshot() =>
-        MarkRuntimePayload(
-            _contentValidationSnapshotData.ToDictionary(),
-            "GameSession.GetContentValidationSnapshot"
-        );
+    internal Dictionary<string, object> GetContentValidationSnapshot() =>
+        _contentValidationSnapshotData.BuildSnapshotPlain();
 
-    public GDictionary RefreshContentValidationSnapshot()
+    internal Dictionary<string, object> RefreshContentValidationSnapshot()
     {
         RefreshContentValidationSnapshotState();
         return GetContentValidationSnapshot();
@@ -711,7 +752,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         }
         _has_active_world = true;
         _battle_save_lock_enabled = false;
-        ReplaceActiveSaveMetaPayload(BuildSaveMeta(
+        ReplaceActiveSaveMetaPlain(BuildSaveMetaPlain(
             _active_save_id,
             _active_save_id,
             _generation_config_path,
@@ -772,6 +813,13 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         );
     }
 
+    private void ReplaceActiveSaveMetaPlain(
+        IReadOnlyDictionary<string, object> payload
+    )
+    {
+        ReplacePlainPayload(_activeSaveMeta, payload);
+    }
+
     private void ClearActiveSaveMetaPayload() => _activeSaveMeta.Clear();
 
     private GDictionary WorldDataPayload() =>
@@ -780,6 +828,11 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
     private void ReplaceWorldDataPayload(GDictionary payload)
     {
         ReplacePlainPayload(_worldData, payload ?? new GDictionary(), "GameSession.world_data");
+    }
+
+    private void ReplaceWorldDataPlain(IReadOnlyDictionary<string, object> payload)
+    {
+        ReplacePlainPayload(_worldData, payload);
     }
 
     private void ClearWorldDataPayload() => _worldData.Clear();
@@ -797,6 +850,17 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         {
             target[entry.Key] = entry.Value;
         }
+    }
+
+    private static void ReplacePlainPayload(
+        Dictionary<string, object> target,
+        IReadOnlyDictionary<string, object> payload
+    )
+    {
+        target.Clear();
+        Dictionary<string, object> cloned = RuntimePlainPayload.CloneDictionary(payload);
+        foreach (KeyValuePair<string, object> entry in cloned)
+            target[entry.Key] = entry.Value;
     }
 
     public GDictionary GetWorldData() => WorldDataPayload();
@@ -1350,12 +1414,18 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
             return false;
 
         bool attemptedCandidate = false;
-        foreach (GDictionary saveMeta in LoadSaveIndexEntries())
+        foreach (Dictionary<string, object> saveMeta in LoadSaveIndexEntriesPlain())
         {
-            if (GetString(saveMeta, "generation_config_path") != generation_config_path)
+            if (
+                !string.Equals(
+                    ReadPlainString(saveMeta, "generation_config_path"),
+                    generation_config_path,
+                    StringComparison.Ordinal
+                )
+            )
                 continue;
             attemptedCandidate = true;
-            string candidateSaveId = GetString(saveMeta, "save_id");
+            string candidateSaveId = ReadPlainString(saveMeta, "save_id");
             if (LoadSave(candidateSaveId) == (int)Error.Ok)
                 return true;
             LogSessionInfo(
@@ -1421,28 +1491,29 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
             return ensureDirError;
 
         int now = (int)Time.GetUnixTimeFromSystem();
-        GDictionary activeSaveMeta = ActiveSaveMetaPayload();
-        string displayName = GetString(activeSaveMeta, "display_name", _active_save_id);
-        ReplaceActiveSaveMetaPayload(BuildSaveMeta(
+        string displayName = ReadPlainString(
+            _activeSaveMeta,
+            "display_name",
+            _active_save_id
+        );
+        ReplaceActiveSaveMetaPlain(BuildSaveMetaPlain(
             _active_save_id,
             displayName,
             _generation_config_path,
-            new StringName(GetString(activeSaveMeta, "world_preset_id")),
-            GetString(activeSaveMeta, "world_preset_name"),
+            new StringName(ReadPlainString(_activeSaveMeta, "world_preset_id")),
+            ReadPlainString(_activeSaveMeta, "world_preset_name"),
             _generation_config != null ? _generation_config.GetWorldSizeCells() : Vector2I.Zero,
-            GetInt(activeSaveMeta, "created_at_unix_time", now),
+            ReadPlainInt(_activeSaveMeta, "created_at_unix_time", now),
             now
         ));
 
-        int payloadWriteError = WriteSavePayloadAtomically(
-            _active_save_path,
-            BuildSavePayload(now)
-        );
+        using GodotProjectionLease<GDictionary> payload = BuildSavePayloadLease(now);
+        int payloadWriteError = WriteSavePayloadAtomically(_active_save_path, payload);
         if (payloadWriteError != (int)Error.Ok)
             return payloadWriteError;
 
-        int indexError = WriteSaveIndex(
-            UpsertSaveMeta(LoadSaveIndexEntries(), ActiveSaveMetaPayload())
+        int indexError = WriteSaveIndexPlain(
+            UpsertSaveMetaPlain(LoadSaveIndexEntriesPlain(), _activeSaveMeta)
         );
         if (indexError != (int)Error.Ok)
             return indexError;
@@ -1452,29 +1523,27 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
     }
 
     private int LoadCurrentPayload(
-        GDictionary payload,
+        IReadOnlyDictionary<string, object> payload,
         string generation_config_path,
         WorldMapGenerationConfig generation_config,
-        GDictionary save_meta
+        IReadOnlyDictionary<string, object> save_meta
     )
     {
-        GDictionary decodeResult = _save_serializer.DecodePayload(
-            payload,
-            generation_config_path,
-            generation_config,
-            save_meta
-        );
-        int decodeError = GetInt(decodeResult, "error", (int)Error.InvalidData);
-        if (decodeError != (int)Error.Ok)
-            return decodeError;
+        if (
+            !_save_serializer.TryDecodePayload(
+                payload,
+                generation_config_path,
+                generation_config,
+                save_meta,
+                out SaveDecodeResult decodeResult
+            )
+        )
+            return decodeResult.Error;
 
-        PartyState decodedPartyState =
-            PartyState.TryReadPartyPayload(decodeResult["party_state"], out PartyState parsedPartyState)
-                ? parsedPartyState
-                : new PartyState();
+        PartyState decodedPartyState = decodeResult.PartyState;
         int identityError = ValidateDecodedPartyIdentityForSave(
             decodedPartyState,
-            GetString(decodeResult, "active_save_id"),
+            decodeResult.ActiveSaveId,
             "load_save"
         );
         if (identityError != (int)Error.Ok)
@@ -1500,22 +1569,15 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         }
 
         ResetRuntimeState();
-        _active_save_id = GetString(decodeResult, "active_save_id");
+        _active_save_id = decodeResult.ActiveSaveId;
         _active_save_path = BuildSaveFilePath(_active_save_id);
-        ReplaceActiveSaveMetaPayload(GetDictionary(decodeResult, "active_save_meta").Duplicate(true));
-        _generation_config_path = GetString(
-            decodeResult,
-            "generation_config_path",
-            generation_config_path
-        );
-        _generation_config =
-            (ReadGodotObject(decodeResult, "generation_config") ?? generation_config)
-                as WorldMapGenerationConfig
-            ?? generation_config;
+        ReplaceActiveSaveMetaPlain(decodeResult.ActiveSaveMeta);
+        _generation_config_path = decodeResult.GenerationConfigPath;
+        _generation_config = decodeResult.GenerationConfig ?? generation_config;
         RegisterStaticContentOwnership(_generation_config);
-        ReplaceWorldDataPayload(GetDictionary(decodeResult, "world_data").Duplicate(true));
-        _player_coord = GetVector2I(decodeResult, "player_coord", Vector2I.Zero);
-        _player_faction_id = GetString(decodeResult, "player_faction_id", "player");
+        ReplaceWorldDataPlain(decodeResult.WorldData);
+        _player_coord = decodeResult.PlayerCoord;
+        _player_faction_id = decodeResult.PlayerFactionId;
         _party_state = decodedPartyState;
         _has_active_world = true;
 
@@ -1570,13 +1632,15 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         );
     }
 
-    private GDictionary BuildSavePayload(int saved_at_unix_time)
+    private GodotProjectionLease<GDictionary> BuildSavePayloadLease(
+        int saved_at_unix_time
+    )
     {
-        return _save_serializer.BuildSavePayload(
+        return _save_serializer.BuildSavePayloadLease(
             _active_save_id,
             _generation_config_path,
-            ActiveSaveMetaPayload(),
-            WorldDataPayload(),
+            _activeSaveMeta,
+            _worldData,
             _player_coord,
             _player_faction_id,
             _party_state,
@@ -1584,21 +1648,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         );
     }
 
-    private GDictionary BuildWorldStatePayload()
-    {
-        return _save_serializer.BuildWorldStatePayload(
-            WorldDataPayload(),
-            _player_coord,
-            _player_faction_id
-        );
-    }
-
-    private GDictionary BuildMetaPayload(int saved_at_unix_time)
-    {
-        return _save_serializer.BuildMetaPayload(saved_at_unix_time);
-    }
-
-    public GDictionary BuildSaveMeta(
+    private Dictionary<string, object> BuildSaveMetaPlain(
         string save_id,
         string display_name,
         string generation_config_path,
@@ -1609,7 +1659,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         int updated_at_unix_time
     )
     {
-        return _save_serializer.BuildSaveMeta(
+        return _save_serializer.BuildSaveMetaPlain(
             save_id,
             display_name,
             generation_config_path,
@@ -1623,13 +1673,18 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
 
     private string GenerateUniqueSaveId(int timestamp, string prefix = "save")
     {
-        GDictionary existingSaveIds = new();
-        foreach (GDictionary entry in LoadSaveIndexEntries())
-        {
-            existingSaveIds[GetString(entry, "save_id")] = true;
-        }
+        HashSet<string> existingSaveIds = new(StringComparer.Ordinal);
+        foreach (Dictionary<string, object> entry in LoadSaveIndexEntriesPlain())
+            existingSaveIds.Add(ReadPlainString(entry, "save_id"));
 
-        GDictionary datetime = Time.GetDatetimeDictFromUnixTime(timestamp);
+        using NativeLeaseScope datetimeScope = new(
+            "save-id-datetime",
+            LifetimeDomain.Request
+        );
+        GDictionary datetime = datetimeScope.Own(
+            Time.GetDatetimeDictFromUnixTime(timestamp),
+            "Time.GetDatetimeDictFromUnixTime"
+        );
         string normalizedPrefix = (prefix ?? "").StripEdges().Replace(" ", "_");
         if (string.IsNullOrEmpty(normalizedPrefix))
             normalizedPrefix = "save";
@@ -1648,7 +1703,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         {
             string saveId = $"{idPrefix}_{TrueRandomSeedService.RandiRange(0, 999999):D6}";
             if (
-                !existingSaveIds.ContainsKey(saveId)
+                !existingSaveIds.Contains(saveId)
                 && !FileAccess.FileExists(BuildSaveFilePath(saveId))
             )
             {
@@ -1698,9 +1753,13 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         return generationConfig;
     }
 
-    public GDictionary ReadSavePayload(string save_path, bool emit_errors = true)
+    public int ReadSavePayload(
+        string save_path,
+        out Dictionary<string, object> payload,
+        bool emit_errors = true
+    )
     {
-        return EnsureSaveRepository().ReadSavePayload(save_path, emit_errors);
+        return EnsureSaveRepository().ReadSavePayload(save_path, out payload, emit_errors);
     }
 
     private PartyState NormalizePartyState(PartyState party_state)

@@ -987,6 +987,9 @@ public sealed class WorldMapMountedSubmapData
     internal GDictionary ProjectWorldDataPayload() =>
         WorldMapPlainPayload.Project(_worldData, "WorldMapMountedSubmapData.worldData");
 
+    internal Dictionary<string, object> BuildWorldDataSnapshotPlain() =>
+        RuntimePlainPayload.CloneDictionary(_worldData);
+
     public string DisplayNameOrFallback(string fallback) =>
         DisplayName.Length > 0 ? DisplayName : fallback;
 
@@ -1101,6 +1104,9 @@ public sealed class WorldMapSettlementRecordData
 
     internal GDictionary DuplicateSourcePayload() =>
         WorldMapPlainPayload.Project(_sourceData, "WorldMapSettlementRecordData.sourceData");
+
+    internal Dictionary<string, object> BuildSaveSnapshotPlain() =>
+        RuntimePlainPayload.CloneDictionary(_sourceData);
 
     internal GDictionary GetSettlementStateDictionary() =>
         WorldMapDictionaryReaders.ReadDictionary(
@@ -1320,6 +1326,9 @@ public sealed class WorldMapNpcData
     internal GDictionary DuplicateSourcePayload() =>
         WorldMapPlainPayload.Project(_sourceData, "WorldMapNpcData.sourceData");
 
+    internal Dictionary<string, object> BuildSaveSnapshotPlain() =>
+        RuntimePlainPayload.CloneDictionary(_sourceData);
+
     public static WorldMapNpcData FromDictionary(GDictionary data)
     {
         if (data == null || data.Count == 0)
@@ -1421,6 +1430,9 @@ public sealed class WorldMapEventData
 
     internal GDictionary DuplicateSourcePayload() =>
         WorldMapPlainPayload.Project(_sourceData, "WorldMapEventData.sourceData");
+
+    internal Dictionary<string, object> BuildSaveSnapshotPlain() =>
+        RuntimePlainPayload.CloneDictionary(_sourceData);
 
     private static StringName ReadStringName(GDictionary data, string key)
     {

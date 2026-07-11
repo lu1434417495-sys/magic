@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -275,7 +276,7 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
 
         var serializer = new SaveSerializer();
         serializer.Setup(11, 3, 4);
-        GDictionary saveMeta = serializer.BuildSaveMeta(
+        Dictionary<string, object> saveMeta = serializer.BuildSaveMetaPlain(
             "save_contingency_schema",
             "Schema Test",
             "res://data/configs/world_map/default_world_generation.tres",
@@ -285,25 +286,32 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
             100,
             100
         );
-        GDictionary payload = serializer.BuildSavePayload(
+        using GDictionary worldData = BuildWorldDataPayload();
+        using GodotProjectionLease<GDictionary> payloadLease =
+            serializer.BuildSavePayloadLease(
             "save_contingency_schema",
             "res://data/configs/world_map/default_world_generation.tres",
             saveMeta,
-            BuildWorldDataPayload(),
+            RuntimePlainPayload.RestoreSaveDictionary(worldData, "test.world_data"),
             Vector2I.Zero,
             "player",
             PartyState.FromDictionary(partyPayload),
             100
         );
+        Dictionary<string, object> payload = RuntimePlainPayload.RestoreSaveDictionary(
+            payloadLease.Value,
+            "contingency-version-gate.payload"
+        );
         payload["version"] = 10;
-        GDictionary decoded = serializer.DecodePayload(
+        bool decoded = serializer.TryDecodePayload(
             payload,
             "res://data/configs/world_map/default_world_generation.tres",
             new WorldMapGenerationConfig(),
-            saveMeta
+            saveMeta,
+            out SaveDecodeResult decodeResult
         );
         _test.True(
-            decoded["error"].AsInt32() != (int)Error.Ok,
+            !decoded && decodeResult.Error != (int)Error.Ok,
             "Root save version 10 should fail without migration."
         );
     }
