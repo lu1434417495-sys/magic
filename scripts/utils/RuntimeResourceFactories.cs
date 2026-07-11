@@ -22,18 +22,18 @@ internal sealed class RuntimeEnemyAiResourceFactory
 
     internal EnemyAiBrainDef NewBrain(Action<EnemyAiBrainDef> configure, string reason)
     {
-        return Create(new EnemyAiBrainDef(), configure, reason);
+        return Create(() => new EnemyAiBrainDef(), configure, reason);
     }
 
     internal EnemyAiStateDef NewState(Action<EnemyAiStateDef> configure, string reason)
     {
-        return Create(new EnemyAiStateDef(), configure, reason);
+        return Create(() => new EnemyAiStateDef(), configure, reason);
     }
 
     internal TAction NewAction<TAction>(Action<TAction> configure, string reason)
         where TAction : EnemyAiAction, new()
     {
-        return Create(new TAction(), configure, reason);
+        return Create(() => new TAction(), configure, reason);
     }
 
     internal EnemyAiAction OwnAction(EnemyAiAction action, string reason)
@@ -70,18 +70,45 @@ internal sealed class RuntimeEnemyAiResourceFactory
             : _legacyScope.Own(resource, Label(reason));
     }
 
-    private T Create<T>(T resource, Action<T> configure, string reason)
+    private T Create<T>(Func<T> create, Action<T> configure, string reason)
         where T : Resource
     {
         if (_nativeScope != null)
         {
-            _nativeScope.Own(resource, Label(reason));
-            configure?.Invoke(resource);
-            return resource;
+            if (_nativeScope.IsClosed)
+                throw new ObjectDisposedException(nameof(NativeLeaseScope));
+
+            T resource = null;
+            try
+            {
+                resource = create();
+                configure?.Invoke(resource);
+                return _nativeScope.Own(resource, Label(reason));
+            }
+            catch (Exception creationFailure)
+            {
+                if (resource == null)
+                    throw;
+
+                try
+                {
+                    resource.Dispose();
+                }
+                catch (Exception disposeFailure)
+                {
+                    throw new AggregateException(
+                        "Native resource creation failed and cleanup also failed.",
+                        creationFailure,
+                        disposeFailure
+                    );
+                }
+                throw;
+            }
         }
 
-        configure?.Invoke(resource);
-        return _legacyScope.Own(resource, Label(reason));
+        T legacyResource = create();
+        configure?.Invoke(legacyResource);
+        return _legacyScope.Own(legacyResource, Label(reason));
     }
 
     private string Label(string reason) =>
