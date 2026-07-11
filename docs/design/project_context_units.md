@@ -24,7 +24,7 @@
 - 运行时业务态由 plain C# typed owner（DTO / 服务 / typed 集合）承载；`Godot.Collections.Dictionary` / `Array` 只在 save/schema、UI/window、资源导入、Godot API 这些边界短暂投影，不作为长期真相源。
 - runtime helper / service 默认是 plain C# `IDisposable`，不用 `RefCounted` / `GlobalClass` 或 GodotObject validity/dispose 生命周期（少数声明 Godot Signal 的除外）。
 - fixed schema 名称（枚举式固定值）优先由 enum/typed 规则拥有，不恢复 public GD helper 或字符串白名单；正式内容 key 是 `StringName`，不从 string key 或 value 内 id 回建索引。
-- 静态内容（`.tres`）经各 `*ContentRegistry` 载入并投影为 typed 定义；runtime 只消费 `GameContentCatalog` / session 的 typed 快照，不回读弱类型 content payload。
+- 静态内容（`.tres`）经各 `*ContentRegistry` 载入、校验并投影为 typed 定义，再由进程级 `ContentSnapshot` 冻结发布；session、catalog、runtime 与 BattleSim 只借用 typed definition 索引，不回读 authored Resource 或弱类型 content payload。
 
 ## 全局排除
 
@@ -76,7 +76,8 @@
 
 ```text
 LoginScreen -> GameSession
-GameSession -> GameRoot -> GameContentCatalog -> typed content registries
+ApplicationLifetimeCoordinator -> ProcessContentHost -> immutable ContentSnapshot
+ContentSnapshot -> GameSession -> GameRoot -> GameContentCatalog -> typed definition indices
 GameSession -> GameRuntimeFacade -> WorldMapRuntimeProxy -> WorldMapSystem
 GameRuntimeFacade -> BattleSessionFacade -> BattleRuntimeModule
 GameRuntimeFacade -> CharacterManagementModule -> Progression / Equipment / Attribute services
@@ -106,7 +107,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 - 适合：开始菜单、建卡 UI、预设入口、存档列表、显示设置。
 - 邻接单元：CU-02、CU-03、CU-14。
 
-### CU-02 GameSession、存档、序列化、全局内容缓存
+### CU-02 GameSession、存档、序列化、进程内容快照
 
 - 文件：
   - `docs/superpowers/specs/2026-07-10-godotsharp-lifecycle-architecture-design.md`
@@ -117,7 +118,6 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/content/ContentSnapshot.cs`
   - `scripts/systems/content/ContentSnapshotBuilder.cs`
   - `scripts/systems/content/IContentResourceLoader.cs`
-  - `scripts/systems/content/ILegacyEnemyContentCatalog.cs`
   - `scripts/systems/content/EngineAssetResolver.cs`
   - `scripts/systems/content/GameRoot.cs`
   - `scripts/systems/content/GameContentCatalog.cs`
@@ -126,18 +126,20 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/player/warehouse/*ContentRegistry.cs`
   - `scripts/enemies/EnemyContentRegistry.cs`
   - `scripts/enemies/EnemyContentSeed.cs`
+  - `scripts/enemies/definitions/*.cs`
   - `scripts/systems/battle/core/special_profiles/BattleSpecialProfileRegistry.cs`
   - `scripts/utils/GodotObjectOwnership.cs`
   - `scripts/utils/NativeLeaseScope.cs`
   - `scripts/utils/GodotProjectionLease.cs`
   - `scripts/utils/RuntimePlainPayload.cs`
-  - `scripts/utils/RuntimeResourceFactories.cs`
   - `scripts/utils/GodotObjectLifecycle.cs`
   - `scripts/utils/RuntimeStateLifecycle.cs`
   - `scripts/utils/GodotTypedResourceGraphWalker.cs`
   - `tests/runtime/lifecycle/*.cs`
-- 负责：application shutdown、active save、slot meta、save payload/index、内容注册表、全局会话边界。
-- 边界：`ApplicationLifetimeCoordinator` 是进程内 shutdown state、owner drain、finalizer barrier 与最终 `SceneTree.Quit` 的唯一 owner，按 Runtime、Session 阶段关闭顶层 participant；退出后的 stderr、进程返回码与 GodotSharp fatal marker 由 CU-19 的外层 runner 判定，不回写进程内 report。它同时拥有唯一的 `ProcessContentHost`：启动期按 canonical path 加载、校验并投影 authored Resource，成功后 seal 并发布一个跨 session 复用的 immutable `ContentSnapshot`；`EngineAssetResolver` 独立借用 scene/texture/audio 等 engine asset，quiescing 后拒绝新解析。`GameSession` 只登记为 snapshot borrower，关闭时先解绑 `GameRoot` / `GameContentCatalog` 再注销 borrower，不重建任何非 AI registry。Phase 3 唯一允许的 raw content debt 是 `ProcessContentHost.LegacyEnemyContentRegistry`（domain `ProcessContent`，Phase 4 删除），其 interface、raw root 类型与 borrower 文件清单由 lifecycle boundary gate 精确锁定，不能扩散。`NativeLeaseScope` 显式拥有 runtime 创建的 pathless native wrapper，`GodotProjectionLease` 显式拥有短期 Godot collection 投影并只弱登记 borrowed child；两者都通过 lifecycle audit 记录 owner/domain，不遍历对象图。`WorldMapSystem` / `HeadlessGameTestSession` 关闭各自持有的 runtime graph，`GameSession` 关闭 session graph，子服务由这些顶层 owner 递归释放而不独立注册。`GameSession` 是会话根、持有 `GameRoot`；`GameContentCatalog` 是正式内容类型的组合根读入口，借用 process snapshot 并带 revision，生命周期绑定 owning `GameRoot`（root dispose 后 catalog 失效）。`SaveRepository` 拥有底层 save 文件 IO，`GameSession` 拥有 active save / schema / meta / index 归并；save/slot-index 的 session cache 与读回结果保持 plain C# graph，写入时才创建 Request-domain `GodotProjectionLease`，每个 nested collection 由同一 lease 显式拥有；`FileAccess` / `DirAccess` 由 Request-domain `NativeLeaseScope` 拥有，并在 Windows rename 前显式关闭文件句柄。`GetVar(false)` 结果必须在 file/Variant 仍存活时立即还原为 plain/typed state，不让 raw Godot payload 逃逸。`world_data` 的 runtime owner 是 `WorldRuntimeData`，只在 save payload 入口/出口投影。子 payload 破坏性 schema 变化时同步升级 owning save version，且只接受当前版本、不做 legacy 兼容迁移。
+- 负责：application shutdown、active save、slot meta、save payload/index、进程内容构建与全局会话边界。
+- 内容快照边界：`ApplicationLifetimeCoordinator` 拥有唯一 `ProcessContentHost`；host 在启动期按 canonical path 加载 authored Resource，`ContentSnapshotBuilder` 在同一个同步构建作用域内完成 registry 校验与 typed 投影，成功后 seal 一个跨 session 复用的 immutable `ContentSnapshot`。敌方模板、AI brain/action graph、wild encounter roster 与正式 BattleSim profile 和其他静态内容一起发布为 definition 索引；`EnemyContentRegistry` 只存在于该构建作用域。`GameSession`、`GameRoot`、`GameContentCatalog`、world/battle runtime 与 BattleSim 不持有 raw enemy registry 或 authored Resource mirror；内容读入口不设 `ILegacyEnemyContentCatalog` / `LegacyEnemyContentRegistry`，production lifecycle 的 Enemy/AI legacy debt 必须保持为零。`EngineAssetResolver` 独立借用 scene/texture/audio 等 engine asset，quiescing 后拒绝新解析。
+- 生命周期边界：`ApplicationLifetimeCoordinator` 是进程内 shutdown state、owner drain、finalizer barrier 与最终 `SceneTree.Quit` 的唯一 owner，按 Runtime、Session 阶段关闭顶层 participant；退出后的 stderr、进程返回码与 GodotSharp fatal marker 由 CU-19 的外层 runner 判定，不回写进程内 report。`GameSession` 只登记为 snapshot borrower，关闭时先解绑 `GameRoot` / `GameContentCatalog` 再注销 borrower，不重建任何 content registry。`NativeLeaseScope` 显式拥有 runtime 创建的 pathless native wrapper，`GodotProjectionLease` 显式拥有短期 Godot collection 投影并只弱登记 borrowed child；两者都通过 lifecycle audit 记录 owner/domain，不遍历对象图。`WorldMapSystem` / `HeadlessGameTestSession` 关闭各自持有的 runtime graph，`GameSession` 关闭 session graph，子服务由这些顶层 owner 递归释放而不独立注册。`GameSession` 是会话根、持有 `GameRoot`；`GameContentCatalog` 是正式内容类型的组合根读入口，借用 process snapshot 并带 revision，生命周期绑定 owning `GameRoot`（root dispose 后 catalog 失效）。
+- 持久化边界：`SaveRepository` 拥有底层 save 文件 IO，`GameSession` 拥有 active save / schema / meta / index 归并；save/slot-index 的 session cache 与读回结果保持 plain C# graph，写入时才创建 Request-domain `GodotProjectionLease`，每个 nested collection 由同一 lease 显式拥有；`FileAccess` / `DirAccess` 由 Request-domain `NativeLeaseScope` 拥有，并在 Windows rename 前显式关闭文件句柄。`GetVar(false)` 结果必须在 file/Variant 仍存活时立即还原为 plain/typed state，不让 raw Godot payload 逃逸。`world_data` 的 runtime owner 是 `WorldRuntimeData`，只在 save payload 入口/出口投影。子 payload 破坏性 schema 变化时同步升级 owning save version，且只接受当前版本、不做 legacy 兼容迁移。
 - 物品内容边界：`ItemContentRegistry` / `RecipeContentRegistry` 只在同步加载与校验阶段持有 authored `ItemDef` / `RecipeDef`，随后立即投影为递归只读的 `ItemDefinition` / `RecipeDefinition`。`GameSession`、`GameContentCatalog`、runtime、battle、settlement 与 UI 只借用 definition 索引，不保留 raw registry mirror，也不把 definition 回投为 Godot Dictionary。
 - 适合：save schema、序列化、内容接入、全局注册表问题。
 - 邻接单元：CU-01、CU-03、CU-04、CU-10、CU-11、CU-13、CU-20、CU-21。
@@ -454,11 +456,17 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/battle/rules/DamageApplicationProjection.cs`
   - `scripts/systems/battle/rules/IBattleDamageApplicationHook.cs`
   - `scripts/systems/battle/ai/*.cs`
+  - `scripts/enemies/definitions/*.cs`
   - `scripts/enemies/actions/*.cs`
+  - `scripts/systems/battle/sim/BattleSimContentProvider.cs`
+  - `scripts/systems/battle/sim/BattleSimProfileDefinition.cs`
+  - `scripts/systems/battle/sim/BattleSimOverride*.cs`
   - `scripts/player/progression/combat_effect_def.gd`
   - `scripts/player/warehouse/Weapon*.cs`
-- 负责：BattleState、地形/边规则、伤害、命中、状态语义、AI 评分与决策规则。
-- 边界：伤害上下文正式链是 `DamageResolutionContext`，写回前 hook 边界是 `DamageApplicationProjection` / `IBattleDamageApplicationHook`（hook / release suppression 由战斗 runtime 的 contingency owner 管理，不入 damage payload / AI 评分 / save schema）。一次 AI 选择只通过 `BattleAiDecisionResult` 交出 deep-copied decision/command/score/trace，context clear 后不保留 state、plan、score profile 或 nested Godot collection alias；mutation guard 使用 typed `BattleAiMutationSnapshot` 精确恢复 fingerprint，`BattleAiRuntimeActionPlan` 的 generation 在 clear/rebind/dispose 时显式关闭。`BattleUnitState` 状态效果正式源是 `BattleStatusEffectCollection`，状态上的一次性攻击优势、攻击/豁免加值由 `BattleStatusEffectState` typed 字段声明，真实攻击检定消耗归 `BattleDamageResolver`，真实豁免消耗归 `BattleSaveResolver`，preview/probability 不消费；execute effect 的 `soul_fracture_duration_tu = 0` 明确表示不施加灵魂裂隙，正数才生成该状态；typed save / damage mitigation 真相源是 `save_advantage_tags` / `damage_resistances`；layered barrier 真相源是 `BattleBarrierStore` / `BattleBarrierInstanceState`；临时边特征真相源是 `BattleTemporaryEdgeFeatureState`，由 `BattleEdgeService` 叠加进 runtime edge face，移动/占位/寻路仍消费统一 edge face。`BattleStatusSemanticTable` 拥有通用状态语义（如 `paralyzed` 的行动、移动与 pending cast 阻断），不在具体武器能力中硬编码。`BattleFateEventBus` 事件 surface 是 typed `BattleFateEventPayload`，misfortune 直接触发用 `MisfortuneTriggerRequest`。fixed schema 名称（combat resource id / damage tag / mitigation tier / target-team filter / save tag/ability / forced-move mode 等）由 enum/typed utility 解析。
+- 负责：BattleState、地形/边规则、伤害、命中、状态语义、AI definition 执行、评分与决策规则，以及 BattleSim typed override。
+- AI definition/runtime 边界：CU-20 的 authored `EnemyAiBrainDef` / `EnemyAiAction` / `BattleAiScoreProfile` 只负责资源 schema 与加载期校验；进入 runtime 的正式输入是 `EnemyAiBrainDefinition`、具体 `*ActionDefinition` 与 `BattleAiScoreProfileDefinition`。`BattleAiActionAssembler` 从 definition graph 构建 managed `BattleAiRuntimeActionPlan`，各 `BattleAi*ActionEvaluator` 拥有实际决策算法；authoring Resource 不执行 battle 行为，也不通过 duplicate、instance id 或动态属性回到 runtime。一次 AI 选择只通过 `BattleAiDecisionResult` 交出 deep-copied decision/command/score/trace，context clear 后不保留 state、plan、score profile 或 nested Godot collection alias；mutation guard 使用 typed `BattleAiMutationSnapshot` 精确恢复 fingerprint，action plan generation 在 clear/rebind/dispose 时显式关闭。
+- BattleSim override 边界：`BattleSimContentProvider` 只借用 process snapshot 的 skill、enemy template、enemy brain 与 profile definitions；`BattleSimOverrideApplier` 复制 definition 索引，并以新的 `SkillDefinition` / `EnemyAiBrainDefinition` / `EnemyAiActionDefinition` / `BattleAiScoreProfileDefinition` 值表达本次模拟 patch。override 结果只属于该次 simulation，不改写 process snapshot，也不对 authored Resource 调用 `Duplicate` / `Set`。
+- 战斗规则边界：伤害上下文正式链是 `DamageResolutionContext`，写回前 hook 边界是 `DamageApplicationProjection` / `IBattleDamageApplicationHook`（hook / release suppression 由战斗 runtime 的 contingency owner 管理，不入 damage payload / AI 评分 / save schema）。`BattleUnitState` 状态效果正式源是 `BattleStatusEffectCollection`，状态上的一次性攻击优势、攻击/豁免加值由 `BattleStatusEffectState` typed 字段声明，真实攻击检定消耗归 `BattleDamageResolver`，真实豁免消耗归 `BattleSaveResolver`，preview/probability 不消费；execute effect 的 `soul_fracture_duration_tu = 0` 明确表示不施加灵魂裂隙，正数才生成该状态；typed save / damage mitigation 真相源是 `save_advantage_tags` / `damage_resistances`；layered barrier 真相源是 `BattleBarrierStore` / `BattleBarrierInstanceState`；临时边特征真相源是 `BattleTemporaryEdgeFeatureState`，由 `BattleEdgeService` 叠加进 runtime edge face，移动/占位/寻路仍消费统一 edge face。`BattleStatusSemanticTable` 拥有通用状态语义（如 `paralyzed` 的行动、移动与 pending cast 阻断），不在具体武器能力中硬编码。`BattleFateEventBus` 事件 surface 是 typed `BattleFateEventPayload`，misfortune 直接触发用 `MisfortuneTriggerRequest`。fixed schema 名称（combat resource id / damage tag / mitigation tier / target-team filter / save tag/ability / forced-move mode 等）由 enum/typed utility 解析。
 - 伤害段边界：`BattleDamageResolver` 负责把 `CombatEffectDefinition.ExtraDamageSegments` 结算为同一次 damage effect 下的额外 `DamageEventResult`；额外段复用该 effect 的 save result 与目标倍率规则，但不继承武器骰、暴击额外骰或装备追加骰。目标分类倍率只读 `BattleUnitState.creature_type_tags`，不回查敌人模板或物品/trait catalog。
 - 装备伤害骰边界：装备能力 `add_damage_dice` 与状态来源绑定的武器额外骰由 `BattleDamageResolver` 统一结算；来源绑定骰只在状态 `source_unit_id` 匹配攻击者且本次 effect 实际包含武器伤害时触发，并入 bonus damage dice 以复用暴击额外骰路径；装备能力骰数可由通用 fact（如装备能力状态 fact）按 authoring 公式放大，具体武器的成长键仍只在 `.tres`；`subtract=true` 的骰只扣减匹配主伤害标签的本次基础伤害，不生成负数额外伤害段。
 - 桥接：装备能力的命中检定加值、优势、防御组件调整、命中后强制暴击与召唤物数量/距离修正由 `BattleEquipmentAbilityRuntimeService` 从 `BattleUnitState.equipment_ability_sources`、`BattleUnitState.attribute_snapshot`、typed target mark 和 battle-only 召唤单位 blackboard 收集，经 `BattleAttackCheckPolicyService` 汇总后交给 `BattleHitResolver` 生成本次 `AttackCheckInput`；命中检定加值与强制暴击可用 `require_weapon_damage` 限定只作用于含武器伤害的攻击定义，也可通过 `attribute_modifier_id` 从使用者属性快照读取动态调整值。装备能力固定伤害减免由同一 runtime service 收集后进入 `BattleDamageResolver` fixed mitigation 汇总。忽略 AC component 等规则只调整本次目标 AC，不改写目标 `attribute_snapshot[armor_class]`。召唤单位是否为 summoned 的规则只读 `BattleAiBlackboard` / 状态效果，不从武器内容表反查。
@@ -477,6 +485,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `data/configs/enemies/rosters/*.tres`
   - `assets/main/battle/terrain/canyon/*.png`
 - 负责：战斗地形生成、wild encounter roster 装配、prop 注入。
+- 边界：`WildEncounterRosterDef` / stage / unit entry 只属于 authoring 与 snapshot 投影边界；`EncounterRosterBuilder`、`WildEncounterGrowthSystem` 与 battle runtime 只消费 `WildEncounterRosterDefinition` / `EnemyTemplateDefinition` / `EnemyAiBrainDefinition`，并生成 battle-only plain state，不保留 roster/template Resource。
 - 适合：canyon 地形、spawn/roster、战斗 props、地形 profile。
 - 邻接单元：CU-15、CU-16、CU-18、CU-20。
 
@@ -523,20 +532,30 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 - 适合：补回归、跑局部验证、定位改动影响面。
 - 邻接单元：按业务域补 CU-10、CU-12、CU-15、CU-17、CU-18、CU-21。
 
-### CU-20 敌方模板、AI brain、行动定义种子内容
+### CU-20 敌方模板、AI brain/action、roster 与 BattleSim profile 内容
 
 - 文件：
-  - `scripts/enemies/*.gd`
   - `scripts/enemies/*.cs`
   - `scripts/enemies/actions/*.cs`
+  - `scripts/enemies/definitions/*.cs`
+  - `scripts/systems/battle/ai/BattleAiScoreProfile.cs`
+  - `scripts/systems/battle/sim/BattleSimProfileDef.cs`
+  - `scripts/systems/battle/sim/BattleSimProfileDefinition.cs`
+  - `scripts/systems/battle/sim/BattleSimOverridePatchDefinition.cs`
+  - `scripts/systems/content/ContentSnapshot.cs`
+  - `scripts/systems/content/ContentSnapshotBuilder.cs`
   - `scripts/systems/world/EncounterRosterBuilder.cs`
   - `data/configs/enemies/enemy_content_seed.tres`
   - `data/configs/enemies/brains/*.tres`
   - `data/configs/enemies/templates/*.tres`
   - `data/configs/enemies/rosters/*.tres`
-- 负责：敌方模板、AI brain/state/action、generation slot、transition rule、wild encounter roster 内容。
-- 边界：敌方内容校验需要 skill catalog 时消费加载边界已投影好的 `SkillDefinition` 索引，不由 `EnemyTemplateDef` 提供 `SkillDef` resource 到 DTO 的投影。
-- 适合：新敌人、敌方技能表、AI 状态与动作、roster 内容。
+  - `data/configs/battle_sim/profiles/*.tres`
+- 负责：敌方模板、AI brain/state/action、generation slot、transition rule、wild encounter roster、BattleSim profile 的 authoring schema、加载期校验与 immutable definition 投影。
+- 敌方内容边界：`EnemyContentSeed`、`EnemyTemplateDef`、`EnemyAiBrainDef`、各 action Resource 与 `WildEncounterRosterDef` 只由 `ProcessContentHost` 作为 canonical authored roots 持有，并且只在同步加载/校验阶段供 registry 读取；`EnemyContentRegistry.ProjectDefinitions(...)` 在 snapshot seal 前递归投影 `EnemyTemplateDefinition`、`EnemyAiBrainDefinition`、具体 `*ActionDefinition`、generation/transition definitions 与 `WildEncounterRosterDefinition`。`ContentSnapshot` 冻结这些索引后，session、catalog、world、battle 与 headless runtime 只借用同一 definition graph，不存在 raw enemy catalog 或 session 级 registry mirror。
+- AI authoring 边界：`EnemyAiActionDefinition.FromResource(...)` 是 action Resource 到具体 definition 类型的唯一分派点；`EnemyAiBrainDefinition` 冻结 state/action/generation/transition 与 score profile 图。新 action 类型需要同时检查 authoring schema、definition 投影以及 CU-16 的 assembler/evaluator/dispatch，但实际战斗算法只属于 CU-16，不能放回 Resource 类。
+- BattleSim profile 边界：`BattleSimProfileDef` 及其弱类型 `override_patches` 只在加载入口转换为 `BattleSimProfileDefinition` / `BattleSimOverridePatchDefinition`；正式 profile 随 process snapshot 发布，simulation runtime 与 report 只传递 definition。具体 patch 的 typed copy-on-write 规则归 CU-16。
+- 跨表校验边界：敌方内容需要 skill/item catalog 时消费加载边界已经投影好的 `SkillDefinition` / `ItemDefinition` 索引，不由 `EnemyTemplateDef` 提供 raw `SkillDef` / `ItemDef` 到 runtime 的投影。
+- 适合：新敌人、敌方技能表、AI 状态与动作、roster 内容、BattleSim profile authoring。
 - 邻接单元：CU-02、CU-10、CU-15、CU-16、CU-17、CU-18。
 
 ### CU-21 Headless runtime、文本命令与快照渲染
@@ -608,15 +627,22 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 - 必带：CU-11、CU-12、CU-13、CU-14
 - 按需补：CU-09、CU-15、CU-19
 
-### 只改敌方模板、敌方技能表、AI brain
+### 只改敌方模板、敌方技能表、AI brain/action 或 roster 内容
 
-- 必带：CU-20、CU-16
-- 按需补：CU-10、CU-15、CU-17、CU-18
+- 必带：CU-20、CU-02
+- AI action、transition、score 或 evaluator 必补：CU-16
+- 按需补：CU-10（item/weapon 投影）、CU-15（battle 接线）、CU-17（roster/growth）、CU-18（展示）、CU-19（回归）
+
+### 只改 BattleSim profile、definition override 或 simulation content provider
+
+- 必带：CU-02、CU-16、CU-20
+- 按需补：CU-15、CU-17、CU-19
 
 ### 只改战斗规则、伤害、AI、terrain effect
 
 - 必带：CU-15、CU-16
-- 按需补：CU-13、CU-17、CU-18、CU-20
+- AI definition/evaluator 改动必补：CU-20；若触及 process snapshot 或 BattleSim profile，再补 CU-02
+- 按需补：CU-13、CU-17、CU-18、CU-19
 
 ### 只改战斗地形、props、battle build
 
@@ -643,7 +669,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 - 必带：CU-02、CU-19
 - 设计必读：`docs/superpowers/specs/2026-07-10-godotsharp-lifecycle-architecture-design.md`
 - 启动必读：`project.godot`
-- 按需补：CU-06、CU-15、CU-16、CU-18、CU-21
+- 按需补：CU-06、CU-15、CU-16、CU-18、CU-20、CU-21；涉及敌方/AI/BattleSim 内容快照时同时读取 CU-16 与 CU-20
 
 ## 不推荐的切法
 
