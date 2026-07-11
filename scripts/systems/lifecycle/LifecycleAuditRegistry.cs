@@ -243,6 +243,42 @@ internal sealed class LifecycleAuditRegistry
             _transferredCount++;
     }
 
+    internal bool TryTransferActiveDomain(
+        LifecycleAuditActiveKind kind,
+        string diagnosticId,
+        string sourceDomain,
+        string targetDomain,
+        out string failure
+    )
+    {
+        failure = string.Empty;
+        if (string.IsNullOrWhiteSpace(targetDomain))
+        {
+            failure = $"Lifecycle transfer target domain is required. id={diagnosticId}";
+            return false;
+        }
+
+        lock (_sync)
+        {
+            if (!_activeDiagnostics.TryGetValue(diagnosticId, out ActiveDiagnostic diagnostic))
+            {
+                failure = $"Lifecycle transfer diagnostic is not active. id={diagnosticId}";
+                return false;
+            }
+            if (diagnostic.Kind != kind || diagnostic.OwnerDomain != sourceDomain)
+            {
+                failure =
+                    "Lifecycle transfer metadata does not match. "
+                    + $"id={diagnosticId}, expected_kind={diagnostic.Kind}, actual_kind={kind}, "
+                    + $"expected_domain={diagnostic.OwnerDomain}, actual_domain={sourceDomain}";
+                return false;
+            }
+
+            _activeDiagnostics[diagnosticId] = diagnostic with { OwnerDomain = targetDomain };
+            return true;
+        }
+    }
+
     internal void RecordEscaped(string diagnostic)
     {
         lock (_sync)

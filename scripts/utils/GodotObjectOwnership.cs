@@ -92,6 +92,108 @@ internal static class GodotWrapperOwnershipRegistry
         }
     }
 
+    internal static bool TryClaimLeaseOwnership(
+        object wrapper,
+        object owner,
+        string reason,
+        out string failure
+    )
+    {
+        failure = string.Empty;
+        if (wrapper == null || owner == null)
+        {
+            failure = "Lease ownership requires a wrapper and owner.";
+            return false;
+        }
+
+        lock (Sync)
+        {
+            if (Entries.TryGetValue(wrapper, out Entry existing))
+            {
+                failure =
+                    $"Godot wrapper already has an owner. type={wrapper.GetType().Name}, old={existing.Kind}, old_reason={existing.Reason}, reason={reason}";
+                return false;
+            }
+
+            var entry = new Entry
+            {
+                Wrapper = new WeakReference<object>(wrapper),
+                Kind = GodotWrapperOwnershipKind.OwnedTransientRuntime,
+                Owner = new WeakReference(owner),
+                Reason = reason ?? string.Empty,
+                TypeName = wrapper.GetType().Name,
+            };
+            Entries.Add(wrapper, entry);
+            EntryRefs.Add(entry.Wrapper);
+            return true;
+        }
+    }
+
+    internal static bool TryTransferLeaseOwnership(
+        object wrapper,
+        object sourceOwner,
+        object targetOwner,
+        string reason,
+        out string failure
+    )
+    {
+        failure = string.Empty;
+        if (wrapper == null || sourceOwner == null || targetOwner == null)
+        {
+            failure = "Lease transfer requires a wrapper, source owner, and target owner.";
+            return false;
+        }
+
+        lock (Sync)
+        {
+            if (
+                !Entries.TryGetValue(wrapper, out Entry entry)
+                || entry.Kind != GodotWrapperOwnershipKind.OwnedTransientRuntime
+                || !OwnerMatches(entry, sourceOwner)
+            )
+            {
+                failure =
+                    $"Lease transfer source does not own the wrapper. type={wrapper.GetType().Name}, reason={reason}";
+                return false;
+            }
+
+            entry.Owner = new WeakReference(targetOwner);
+            entry.Reason = reason ?? string.Empty;
+            return true;
+        }
+    }
+
+    internal static bool TryReleaseLeaseOwnership(
+        object wrapper,
+        object owner,
+        out string failure
+    )
+    {
+        failure = string.Empty;
+        if (wrapper == null || owner == null)
+        {
+            failure = "Lease release requires a wrapper and owner.";
+            return false;
+        }
+
+        lock (Sync)
+        {
+            if (
+                !Entries.TryGetValue(wrapper, out Entry entry)
+                || entry.Kind != GodotWrapperOwnershipKind.OwnedTransientRuntime
+                || !OwnerMatches(entry, owner)
+            )
+            {
+                failure =
+                    $"Lease release owner does not match. type={wrapper.GetType().Name}";
+                return false;
+            }
+
+            Entries.Remove(wrapper);
+            return true;
+        }
+    }
+
     internal static bool TryGetKind(object wrapper, out GodotWrapperOwnershipKind kind)
     {
         kind = GodotWrapperOwnershipKind.Unknown;

@@ -122,12 +122,15 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/enemies/EnemyContentSeed.cs`
   - `scripts/systems/battle/core/special_profiles/BattleSpecialProfileRegistry.cs`
   - `scripts/utils/GodotObjectOwnership.cs`
+  - `scripts/utils/NativeLeaseScope.cs`
+  - `scripts/utils/GodotProjectionLease.cs`
+  - `scripts/utils/RuntimeResourceFactories.cs`
   - `scripts/utils/GodotObjectLifecycle.cs`
   - `scripts/utils/RuntimeStateLifecycle.cs`
   - `scripts/utils/GodotTypedResourceGraphWalker.cs`
   - `tests/runtime/lifecycle/*.cs`
 - 负责：application shutdown、active save、slot meta、save payload/index、内容注册表、全局会话边界。
-- 边界：`ApplicationLifetimeCoordinator` 是进程内 shutdown state、owner drain、finalizer barrier 与最终 `SceneTree.Quit` 的唯一 owner，按 Runtime、Session 阶段关闭顶层 participant；退出后的 stderr、进程返回码与 GodotSharp fatal marker 由 CU-19 的外层 runner 判定，不回写进程内 report。`WorldMapSystem` / `HeadlessGameTestSession` 关闭各自持有的 runtime graph，`GameSession` 关闭 session graph，子服务由这些顶层 owner 递归释放而不独立注册。`GameSession` 是会话根、持有 `GameRoot`；`GameContentCatalog` 是正式内容类型的组合根读入口，持有 typed 内容快照缓存并带 revision，生命周期绑定 owning `GameRoot`（root dispose 后 catalog 失效）。`SaveRepository` 拥有底层 save 文件 IO，`GameSession` 拥有 active save / schema / meta / index 归并；`world_data` 的 runtime owner 是 `WorldRuntimeData`，只在 save payload 入口/出口投影。子 payload 破坏性 schema 变化时同步升级 owning save version，且只接受当前版本、不做 legacy 兼容迁移。
+- 边界：`ApplicationLifetimeCoordinator` 是进程内 shutdown state、owner drain、finalizer barrier 与最终 `SceneTree.Quit` 的唯一 owner，按 Runtime、Session 阶段关闭顶层 participant；退出后的 stderr、进程返回码与 GodotSharp fatal marker 由 CU-19 的外层 runner 判定，不回写进程内 report。`NativeLeaseScope` 显式拥有 runtime 创建的 pathless native wrapper，`GodotProjectionLease` 显式拥有短期 Godot collection 投影并只弱登记 borrowed child；两者都通过 lifecycle audit 记录 owner/domain，不遍历对象图。`WorldMapSystem` / `HeadlessGameTestSession` 关闭各自持有的 runtime graph，`GameSession` 关闭 session graph，子服务由这些顶层 owner 递归释放而不独立注册。`GameSession` 是会话根、持有 `GameRoot`；`GameContentCatalog` 是正式内容类型的组合根读入口，持有 typed 内容快照缓存并带 revision，生命周期绑定 owning `GameRoot`（root dispose 后 catalog 失效）。`SaveRepository` 拥有底层 save 文件 IO，`GameSession` 拥有 active save / schema / meta / index 归并；`world_data` 的 runtime owner 是 `WorldRuntimeData`，只在 save payload 入口/出口投影。子 payload 破坏性 schema 变化时同步升级 owning save version，且只接受当前版本、不做 legacy 兼容迁移。
 - 适合：save schema、序列化、内容接入、全局注册表问题。
 - 邻接单元：CU-01、CU-03、CU-04、CU-10、CU-11、CU-13、CU-20、CU-21。
 

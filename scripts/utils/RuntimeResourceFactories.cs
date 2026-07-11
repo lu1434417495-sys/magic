@@ -4,40 +4,41 @@ using Godot;
 
 internal sealed class RuntimeEnemyAiResourceFactory
 {
-    private readonly GodotTransientResourceScope _scope;
+    private readonly GodotTransientResourceScope _legacyScope;
+    private readonly NativeLeaseScope _nativeScope;
     private readonly string _ownerName;
 
     internal RuntimeEnemyAiResourceFactory(GodotTransientResourceScope scope, string ownerName)
     {
-        _scope = scope ?? throw new ArgumentNullException(nameof(scope));
+        _legacyScope = scope ?? throw new ArgumentNullException(nameof(scope));
+        _ownerName = string.IsNullOrEmpty(ownerName) ? "RuntimeEnemyAiResourceFactory" : ownerName;
+    }
+
+    internal RuntimeEnemyAiResourceFactory(NativeLeaseScope scope, string ownerName)
+    {
+        _nativeScope = scope ?? throw new ArgumentNullException(nameof(scope));
         _ownerName = string.IsNullOrEmpty(ownerName) ? "RuntimeEnemyAiResourceFactory" : ownerName;
     }
 
     internal EnemyAiBrainDef NewBrain(Action<EnemyAiBrainDef> configure, string reason)
     {
-        var brain = new EnemyAiBrainDef();
-        configure?.Invoke(brain);
-        return _scope.Own(brain, Label(reason));
+        return Create(new EnemyAiBrainDef(), configure, reason);
     }
 
     internal EnemyAiStateDef NewState(Action<EnemyAiStateDef> configure, string reason)
     {
-        var state = new EnemyAiStateDef();
-        configure?.Invoke(state);
-        return _scope.Own(state, Label(reason));
+        return Create(new EnemyAiStateDef(), configure, reason);
     }
 
     internal TAction NewAction<TAction>(Action<TAction> configure, string reason)
         where TAction : EnemyAiAction, new()
     {
-        var action = new TAction();
-        configure?.Invoke(action);
-        return _scope.Own(action, Label(reason));
+        return Create(new TAction(), configure, reason);
     }
 
     internal EnemyAiAction OwnAction(EnemyAiAction action, string reason)
     {
-        return action != null ? _scope.Own(action, Label(reason)) : null;
+        return action != null ? Own(action, reason) : null;
     }
 
     internal Godot.Collections.Array<StringName> NewStringNameArray(
@@ -45,13 +46,42 @@ internal sealed class RuntimeEnemyAiResourceFactory
         string reason
     )
     {
+        if (_nativeScope != null)
+        {
+            throw new InvalidOperationException(
+                "Typed Godot arrays are not IDisposable and must be removed before this factory uses a NativeLeaseScope."
+            );
+        }
+
         var result = new Godot.Collections.Array<StringName>();
         if (values != null)
         {
             foreach (StringName value in values)
                 result.Add(value);
         }
-        return _scope.OwnWrapper(result, Label(reason));
+        return _legacyScope.OwnWrapper(result, Label(reason));
+    }
+
+    private T Own<T>(T resource, string reason)
+        where T : Resource
+    {
+        return _nativeScope != null
+            ? _nativeScope.Own(resource, Label(reason))
+            : _legacyScope.Own(resource, Label(reason));
+    }
+
+    private T Create<T>(T resource, Action<T> configure, string reason)
+        where T : Resource
+    {
+        if (_nativeScope != null)
+        {
+            _nativeScope.Own(resource, Label(reason));
+            configure?.Invoke(resource);
+            return resource;
+        }
+
+        configure?.Invoke(resource);
+        return _legacyScope.Own(resource, Label(reason));
     }
 
     private string Label(string reason) =>
