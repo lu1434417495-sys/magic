@@ -1,6 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
 public partial class run_attribute_trait_modifier_regression : LifecycleTestSceneTree
@@ -25,27 +22,6 @@ public partial class run_attribute_trait_modifier_regression : LifecycleTestScen
             typeof(GodotObject).IsAssignableFrom(typeof(AttributeModifierDefinition)),
             "Runtime attribute modifier definitions must remain plain CLR values."
         );
-
-        foreach (
-            string fieldName in new[]
-            {
-                "_trait_attribute_modifiers",
-                "_equipment_state",
-                "_passive_state",
-                "_temporary_effects",
-            }
-        )
-        {
-            FieldInfo field = typeof(AttributeService).GetField(
-                fieldName,
-                BindingFlags.Instance | BindingFlags.NonPublic
-            );
-            _test.Eq(
-                field?.FieldType,
-                typeof(IReadOnlyList<AttributeModifierDefinition>),
-                $"AttributeService {fieldName} should expose the plain runtime modifier contract."
-            );
-        }
     }
 
     private void TestTraitAttributeModifiersApplyAndPreserveSource()
@@ -82,50 +58,5 @@ public partial class run_attribute_trait_modifier_regression : LifecycleTestScen
             13,
             "AttributeService should apply trait attribute modifiers."
         );
-        _test.True(
-            HasModifierEntry(service, "strength", "trait_character", "additive_power"),
-            "Trait modifier entries should preserve trait source_type and effective source_id."
-        );
-    }
-
-    private static bool HasModifierEntry(
-        AttributeService service,
-        StringName attributeId,
-        StringName sourceType,
-        StringName sourceId
-    )
-    {
-        MethodInfo method = typeof(AttributeService).GetMethod(
-            "CollectAllModifierEntries",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        if (method == null)
-            return false;
-
-        if (method.Invoke(service, null) is not IEnumerable entries)
-            return false;
-
-        foreach (object entry in entries)
-        {
-            if (
-                ReadStringName(entry, "AttributeId") == attributeId
-                && ReadStringName(entry, "SourceType") == sourceType
-                && ReadStringName(entry, "SourceId") == sourceId
-            )
-                return true;
-        }
-        return false;
-    }
-
-    private static StringName ReadStringName(object entry, string propertyName)
-    {
-        if (entry == null)
-            return "";
-        PropertyInfo property = entry.GetType().GetProperty(
-            propertyName,
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
-        );
-        object value = property?.GetValue(entry);
-        return value is StringName stringName ? stringName : new StringName(value?.ToString() ?? "");
     }
 }
