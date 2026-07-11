@@ -1747,12 +1747,6 @@ public class BattleTerrainGenerator : IDisposable
                 context != null && context.ContainsKey("battle_terrain_profile")
                     ? context["battle_terrain_profile"].ToString()
                     : "",
-            ["battle_map_size"] =
-                context != null
-                    && context.ContainsKey("battle_map_size")
-                    && context["battle_map_size"].VariantType == Variant.Type.Vector2I
-                    ? context["battle_map_size"].AsVector2I()
-                    : Vector2I.Zero,
             ["battle_test_vertical_slice"] =
                 context != null
                     && context.ContainsKey("battle_test_vertical_slice")
@@ -1760,6 +1754,8 @@ public class BattleTerrainGenerator : IDisposable
                     ? context["battle_test_vertical_slice"].AsBool()
                     : false,
         };
+        if (TryReadExplicitMapSize(context, out Vector2I explicitMapSize))
+            snapshot["battle_map_size"] = explicitMapSize;
         return RuntimePlainPayload.ProjectDictionaryInto(
             lease,
             snapshot,
@@ -1773,36 +1769,50 @@ public class BattleTerrainGenerator : IDisposable
         IReadOnlyList<Vector2I> formalSizes
     )
     {
-        var configured =
-            encounterContext != null && encounterContext.ContainsKey("battle_map_size")
-                ? encounterContext["battle_map_size"]
-                : default;
-        if (configured.VariantType == Variant.Type.Vector2I)
-        {
-            Vector2I mapSize = configured.AsVector2I();
-            if (mapSize.X > 0 && mapSize.Y > 0)
-            {
-                return mapSize;
-            }
-        }
+        if (TryReadExplicitMapSize(encounterContext, out Vector2I mapSize))
+            return mapSize;
         return formalSizes.Count > 0 ? formalSizes[0] : fallback;
     }
 
     private static Vector2I ResolveCanyonMapSize(GDictionary encounterContext)
     {
-        var configured =
-            encounterContext != null && encounterContext.ContainsKey("battle_map_size")
-                ? encounterContext["battle_map_size"]
-                : default;
-        if (configured.VariantType == Variant.Type.Vector2I)
-        {
-            return configured.AsVector2I();
-        }
+        if (TryReadExplicitMapSize(encounterContext, out Vector2I mapSize))
+            return mapSize;
         if (ReadBool(encounterContext, "battle_test_vertical_slice", false))
         {
             return CanyonTestSize;
         }
         return CanyonFormalSizes[0];
+    }
+
+    private static bool TryReadExplicitMapSize(
+        GDictionary context,
+        out Vector2I mapSize
+    )
+    {
+        mapSize = default;
+        if (context == null || !context.ContainsKey("battle_map_size"))
+            return false;
+
+        Variant configured = context["battle_map_size"];
+        if (configured.VariantType != Variant.Type.Vector2I)
+        {
+            throw new ArgumentException(
+                "battle_map_size must be a Vector2I.",
+                "battle_map_size"
+            );
+        }
+
+        mapSize = configured.AsVector2I();
+        if (mapSize.X <= 0 || mapSize.Y <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                "battle_map_size",
+                mapSize,
+                "battle_map_size components must be positive."
+            );
+        }
+        return true;
     }
 
     private static long BuildBattleSeed(GDictionary encounterContext)

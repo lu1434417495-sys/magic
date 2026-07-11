@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
@@ -14,6 +15,7 @@ public partial class run_battle_board_regression : LifecycleTestSceneTree
 
     private static readonly Vector2 ViewportSize = new(1280.0f, 720.0f);
     private static readonly Vector2I TestMapSize = new(19, 11);
+    private static readonly Vector2I ExplicitMapSize = new(21, 13);
     private static readonly Vector2I TestWorldCoord = new(7, 11);
     private const int TestSeed = 424242;
     private const int MaxReadyFrames = 24;
@@ -25,6 +27,7 @@ public partial class run_battle_board_regression : LifecycleTestSceneTree
     {
         Root.Size = new Vector2I((int)ViewportSize.X, (int)ViewportSize.Y);
         TestCanyonGenerationUsesTypedColumnsAndSupportedProps();
+        TestCanyonMapSizeInputContract();
         TestRenderProfileFormalSourceSpecs();
         await TestBoardSceneRendersGeneratedCanyon();
         RequestTestExit(_test.Finish("Battle board regression"));
@@ -57,6 +60,78 @@ public partial class run_battle_board_regression : LifecycleTestSceneTree
         AssertColumnsMatchSurfaceCells(first);
         AssertSpawnCoordsAvoidWater(first, "canyon");
         AssertLayoutUsesSupportedProps(first);
+    }
+
+    private void TestCanyonMapSizeInputContract()
+    {
+        using var generator = new BattleTerrainGenerator();
+        EncounterAnchorData encounterAnchor = BuildEncounterAnchor(
+            "battle_board_map_size_contract",
+            "battle board map size contract",
+            "canyon"
+        );
+        using GDictionary missingSizeContext = new()
+        {
+            ["world_coord"] = TestWorldCoord,
+            ["world_seed"] = TestSeed,
+            ["battle_terrain_profile"] = "canyon",
+        };
+        using GodotProjectionLease<GDictionary> missingSizeLease = generator.GenerateLease(
+            encounterAnchor,
+            TestSeed,
+            missingSizeContext,
+            LifetimeDomain.Request
+        );
+        _test.Eq(
+            DictVector2I(missingSizeLease.Value, "map_size"),
+            TestMapSize,
+            "未提供 battle_map_size 时应选择 canyon 正式缺省尺寸。"
+        );
+
+        using GDictionary explicitSizeContext = new()
+        {
+            ["world_coord"] = TestWorldCoord,
+            ["world_seed"] = TestSeed,
+            ["battle_terrain_profile"] = "canyon",
+            ["battle_map_size"] = ExplicitMapSize,
+        };
+        using GodotProjectionLease<GDictionary> explicitSizeLease = generator.GenerateLease(
+            encounterAnchor,
+            TestSeed,
+            explicitSizeContext,
+            LifetimeDomain.Request
+        );
+        _test.Eq(
+            DictVector2I(explicitSizeLease.Value, "map_size"),
+            ExplicitMapSize,
+            "显式正 battle_map_size 应原样进入 canyon layout。"
+        );
+
+        bool rejectedZeroSize = false;
+        try
+        {
+            using GDictionary zeroSizeContext = new()
+            {
+                ["world_coord"] = TestWorldCoord,
+                ["world_seed"] = TestSeed,
+                ["battle_terrain_profile"] = "canyon",
+                ["battle_map_size"] = Vector2I.Zero,
+            };
+            using GodotProjectionLease<GDictionary> _ = generator.GenerateLease(
+                encounterAnchor,
+                TestSeed,
+                zeroSizeContext,
+                LifetimeDomain.Request
+            );
+        }
+        catch (ArgumentOutOfRangeException exception)
+        {
+            rejectedZeroSize = exception.ParamName == "battle_map_size";
+        }
+        _test.True(
+            rejectedZeroSize,
+            "显式零 battle_map_size 必须被拒绝，不能冒充缺省尺寸。"
+        );
     }
 
     private void TestRenderProfileFormalSourceSpecs()
