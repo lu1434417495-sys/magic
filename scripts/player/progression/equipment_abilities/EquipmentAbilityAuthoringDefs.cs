@@ -50,7 +50,10 @@ public sealed partial class EquipmentAbilityConditionGroupDef : Resource
     [Export] public StringName mode { get; set; } = "";
     [Export] public bool negate { get; set; }
     [Export] public Godot.Collections.Array<EquipmentAbilityConditionDef> conditions { get; set; } = new();
-    [Export] public Godot.Collections.Array<EquipmentAbilityConditionGroupDef> groups { get; set; } = new();
+    // Keep the recursive authoring edge Resource-typed. A CSharpScript-typed
+    // self array makes the script resource retain itself through its exported
+    // property metadata and survive until engine teardown.
+    [Export] public Godot.Collections.Array<Resource> groups { get; set; } = new();
 }
 
 [GlobalClass]

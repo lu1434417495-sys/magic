@@ -11,7 +11,14 @@ internal enum GodotWrapperOwnershipKind
     OwnedTransientRuntime,
     RuntimeState,
     SceneTreeOwned,
-    TestQuarantine,
+}
+
+internal static class GodotWrapperTypeClassifier
+{
+    internal static bool IsSupportedDirectWrapper(object value) =>
+        value is GodotObject
+        || value is Godot.Collections.Array
+        || value is Godot.Collections.Dictionary;
 }
 
 internal static class GodotWrapperOwnershipRegistry
@@ -38,7 +45,7 @@ internal static class GodotWrapperOwnershipRegistry
     {
         if (wrapper == null)
             return false;
-        if (!GodotTypedResourceGraphWalker.IsGodotWrapper(wrapper))
+        if (!GodotWrapperTypeClassifier.IsSupportedDirectWrapper(wrapper))
             return false;
 
         if (wrapper is Node && kind != GodotWrapperOwnershipKind.SceneTreeOwned)
@@ -89,6 +96,11 @@ internal static class GodotWrapperOwnershipRegistry
         if (wrapper == null || owner == null)
         {
             failure = "Lease ownership requires a wrapper and owner.";
+            return false;
+        }
+        if (wrapper is Node)
+        {
+            failure = "A lease cannot own a SceneTree Node.";
             return false;
         }
 
@@ -268,20 +280,6 @@ internal static class GodotWrapperOwnershipRegistry
         Register(obj, GodotWrapperOwnershipKind.RuntimeState, owner: null, reason: reason);
     }
 
-    internal static void SuppressKnown(object wrapper)
-    {
-        if (wrapper == null)
-            return;
-        if (!IsKnown(wrapper))
-        {
-            LifecycleViolation.Report(
-                $"Cannot suppress unknown Godot wrapper. type={wrapper.GetType().Name}"
-            );
-            return;
-        }
-        SuppressWrapper(wrapper);
-    }
-
     internal static void AssertOwnedTransient(GodotObject obj, string reason)
     {
         if (obj == null || IsOwnedTransient(obj))
@@ -307,20 +305,6 @@ internal static class GodotWrapperOwnershipRegistry
         LifecycleViolation.Report(
             $"Unknown Godot Resource ownership. type={resource.GetType().Name}, path={resource.ResourcePath}, reason={reason}"
         );
-    }
-
-    internal static void SuppressWrapper(object wrapper)
-    {
-        if (wrapper == null)
-            return;
-        try
-        {
-            GC.SuppressFinalize(wrapper);
-            GC.KeepAlive(wrapper);
-        }
-        catch (Exception)
-        {
-        }
     }
 
     private static bool OwnerMatches(Entry entry, object owner)
@@ -392,21 +376,7 @@ internal static class GodotObjectOwnershipRegistry
 
 internal static class GodotContentOwnership
 {
-    private static readonly object StaticSync = new();
     private static readonly object StaticContentOwner = new();
-    private static readonly HashSet<object> StaticStrongWrappers = new(
-        GodotWrapperReferenceComparer.Instance
-    );
-    private static readonly HashSet<string> StaticStrongKeys = new(StringComparer.Ordinal);
-
-    internal static int StaticStrongWrapperCount
-    {
-        get
-        {
-            lock (StaticSync)
-                return StaticStrongWrappers.Count;
-        }
-    }
 
     internal static void RegisterBorrowedContent(Resource root, string reason)
     {
@@ -420,10 +390,9 @@ internal static class GodotContentOwnership
             return;
         }
 
-        RegisterStaticContent(
+        RegisterStaticWrapper(
             root,
             GodotWrapperOwnershipKind.BorrowedStaticContent,
-            reason,
             reason
         );
     }
@@ -440,11 +409,10 @@ internal static class GodotContentOwnership
             return;
         }
 
-        RegisterStaticContent(
+        RegisterStaticWrapper(
             root,
             GodotWrapperOwnershipKind.DerivedStaticContent,
-            derivedKey,
-            reason
+            BuildLabel(derivedKey, reason)
         );
     }
 
@@ -460,11 +428,10 @@ internal static class GodotContentOwnership
             return;
         }
 
-        RegisterStaticContentGraph(
+        RegisterStaticWrapper(
             root,
             GodotWrapperOwnershipKind.DerivedStaticContent,
-            derivedKey,
-            reason
+            BuildLabel(derivedKey, reason)
         );
     }
 
@@ -474,90 +441,42 @@ internal static class GodotContentOwnership
     internal static bool IsStaticContent(object wrapper) =>
         GodotWrapperOwnershipRegistry.IsBorrowedOrDerivedStaticContent(wrapper);
 
-    internal static void RetainStaticContentForFinalizerDrain()
-    {
-        GC.KeepAlive(StaticStrongWrappers);
-    }
-
-    internal static void SuppressBorrowedContentForProcessExit()
-    {
-        if (ApplicationLifetimeDiagnostics.CurrentPhase == ApplicationShutdownPhase.Running)
-            LifecycleAuditRegistry.Shared.RecordNormalPhaseSuppress();
-
-        List<object> staticWrappers;
-        lock (StaticSync)
-        {
-            staticWrappers = new List<object>(StaticStrongWrappers);
-        }
-
-        TraceStaticFinalizerDrain(staticWrappers.Count);
-        foreach (object wrapper in staticWrappers)
-            GodotWrapperOwnershipRegistry.SuppressWrapper(wrapper);
-
-        GC.KeepAlive(StaticStrongWrappers);
-    }
-
-    private static void RegisterStaticContent(
-        Resource root,
+    private static void RegisterStaticWrapper(
+        object wrapper,
         GodotWrapperOwnershipKind kind,
-        string key,
         string reason
     )
     {
-        RegisterStaticContentGraph(root, kind, key, reason);
-    }
-
-    private static void RegisterStaticContentGraph(
-        object root,
-        GodotWrapperOwnershipKind kind,
-        string key,
-        string reason
-    )
-    {
-        string label = string.IsNullOrEmpty(reason) ? key : $"{reason}:{key}";
-        string strongKey = $"{kind}:{key}";
-        lock (StaticSync)
+        if (!GodotWrapperTypeClassifier.IsSupportedDirectWrapper(wrapper))
         {
-            StaticStrongKeys.Add(strongKey);
-        }
-        GodotTypedResourceGraphWalker.VisitValueGraph(root, wrapper =>
-        {
-            if (wrapper is Node)
-            {
-                LifecycleViolation.Report(
-                    $"Node cannot be part of static content graph. type={wrapper.GetType().Name}, reason={label}"
-                );
-                return;
-            }
-            if (GodotWrapperOwnershipRegistry.IsOwnedTransient(wrapper))
-            {
-                LifecycleViolation.Report(
-                    $"Static content graph contains owned transient wrapper. type={wrapper.GetType().Name}, reason={label}"
-                );
-                return;
-            }
-
-            bool registered = true;
-            if (!GodotWrapperOwnershipRegistry.IsBorrowedOrDerivedStaticContent(wrapper))
-            {
-                registered = GodotWrapperOwnershipRegistry.Register(wrapper, kind, StaticContentOwner, label);
-            }
-            if (!registered)
-                return;
-
-            lock (StaticSync)
-            {
-                StaticStrongWrappers.Add(wrapper);
-            }
-        });
-    }
-
-    private static void TraceStaticFinalizerDrain(int count)
-    {
-        if (System.Environment.GetEnvironmentVariable("MAGIC_LIFECYCLE_TRACE") != "1")
+            LifecycleViolation.Report(
+                $"Static content registration requires a direct GodotObject, Array, or Dictionary wrapper. type={wrapper.GetType().Name}, reason={reason}"
+            );
             return;
-        GD.Print($"[lifecycle] suppressing static content wrappers: {count}");
+        }
+        if (wrapper is Node)
+        {
+            LifecycleViolation.Report(
+                $"Node cannot be registered as static content. type={wrapper.GetType().Name}, reason={reason}"
+            );
+            return;
+        }
+        if (GodotWrapperOwnershipRegistry.IsOwnedTransient(wrapper))
+        {
+            LifecycleViolation.Report(
+                $"Owned transient wrapper cannot be registered as static content. type={wrapper.GetType().Name}, reason={reason}"
+            );
+            return;
+        }
+
+        if (!GodotWrapperOwnershipRegistry.IsBorrowedOrDerivedStaticContent(wrapper))
+        {
+            GodotWrapperOwnershipRegistry.Register(wrapper, kind, StaticContentOwner, reason);
+        }
     }
+
+    private static string BuildLabel(string key, string reason) =>
+        string.IsNullOrEmpty(reason) ? key : $"{reason}:{key}";
 }
 
 internal sealed class GodotWrapperReferenceComparer : IEqualityComparer<object>
@@ -591,128 +510,32 @@ internal static class GodotRuntimeResourceOwnership
             );
             return root;
         }
-
-        GodotTypedResourceGraphWalker.VisitWrappers(root, wrapper =>
-        {
-            if (wrapper is Node)
-            {
-                LifecycleViolation.Report(
-                    $"Node cannot be part of owned transient resource graph. type={wrapper.GetType().Name}, reason={reason}"
-                );
-                return;
-            }
-
-            if (GodotContentOwnership.IsStaticContent(wrapper))
-            {
-                LifecycleViolation.Report(
-                    $"Owned transient graph contains static content wrapper. root={root.GetType().Name}, child={wrapper.GetType().Name}, reason={reason}"
-                );
-                return;
-            }
-
-            if (wrapper is Resource resource && !string.IsNullOrEmpty(resource.ResourcePath))
-            {
-                LifecycleViolation.Report(
-                    $"Owned transient resource has ResourcePath. type={resource.GetType().Name}, path={resource.ResourcePath}, reason={reason}"
-                );
-                return;
-            }
-
-            if (!GodotWrapperOwnershipRegistry.Register(
-                wrapper,
-                GodotWrapperOwnershipKind.OwnedTransientRuntime,
-                owner,
-                reason
-            ))
-            {
-                return;
-            }
-            owner.RetainWrapper(wrapper);
-            GodotWrapperOwnershipRegistry.SuppressWrapper(wrapper);
-        });
+        owner.RetainDirectWrapper(root, reason);
         return root;
-    }
-
-    internal static void SuppressOwnedTransientGraph(Resource root)
-    {
-        if (root == null)
-            return;
-        GodotWrapperOwnershipRegistry.AssertOwnedTransient(root, "SuppressOwnedTransientGraph");
-        GodotTypedResourceGraphWalker.VisitWrappers(root, wrapper =>
-        {
-            if (GodotWrapperOwnershipRegistry.IsOwnedTransient(wrapper))
-                GodotWrapperOwnershipRegistry.SuppressWrapper(wrapper);
-        });
-    }
-}
-
-internal static class GodotTestRuntimeQuarantine
-{
-    private static readonly object Sync = new();
-    private static readonly HashSet<object> StrongWrappers = new(GodotWrapperReferenceComparer.Instance);
-
-    internal static void Retain(IEnumerable<object> wrappers, string reason)
-    {
-        if (wrappers == null)
-            return;
-
-        lock (Sync)
-        {
-            foreach (object wrapper in wrappers)
-            {
-                if (wrapper == null || !GodotTypedResourceGraphWalker.IsGodotWrapper(wrapper))
-                    continue;
-                StrongWrappers.Add(wrapper);
-                GodotWrapperOwnershipRegistry.SuppressWrapper(wrapper);
-            }
-        }
-
-        if (System.Environment.GetEnvironmentVariable("MAGIC_LIFECYCLE_TRACE") == "1")
-        {
-            GD.Print(
-                $"[lifecycle] quarantined runtime wrappers: {StrongWrappers.Count}, reason={reason}"
-            );
-        }
     }
 }
 
 internal sealed class GodotTransientResourceScope : IDisposable
 {
-    private enum QuarantineMode
-    {
-        None = 0,
-        Test,
-    }
-
-    private readonly List<object> _strongWrappers = new();
-    private readonly HashSet<object> _strongWrapperSet = new(GodotWrapperReferenceComparer.Instance);
-    private readonly List<object> _rootGraphs = new();
-    private readonly HashSet<object> _rootGraphSet = new(GodotWrapperReferenceComparer.Instance);
-    private bool _disposed;
+    private readonly List<object> _ownedWrappers = new();
+    private readonly HashSet<object> _ownedWrapperSet = new(
+        GodotWrapperReferenceComparer.Instance
+    );
+    private bool _closed;
 
     internal GodotTransientResourceScope(string name)
-        : this(name, QuarantineMode.None) { }
-
-    private GodotTransientResourceScope(string name, QuarantineMode quarantineMode)
     {
         Name = string.IsNullOrEmpty(name) ? "unnamed" : name;
-        QuarantineOnDrain = quarantineMode != QuarantineMode.None;
     }
 
-    internal static GodotTransientResourceScope CreateTestQuarantine(string name) =>
-        new(name, QuarantineMode.Test);
-
     internal string Name { get; }
-    internal bool QuarantineOnDrain { get; }
 
     internal T Own<T>(T resource, string reason)
         where T : Resource
     {
-        if (_disposed)
-            throw new ObjectDisposedException(nameof(GodotTransientResourceScope));
+        ThrowIfClosed();
         if (resource == null)
             return null;
-        RetainRootGraph(resource);
         GodotRuntimeResourceOwnership.MarkOwnedTransient(resource, this, $"{Name}:{reason}");
         return resource;
     }
@@ -720,93 +543,72 @@ internal sealed class GodotTransientResourceScope : IDisposable
     internal T OwnWrapper<T>(T wrapper, string reason)
         where T : class
     {
-        if (_disposed)
-            throw new ObjectDisposedException(nameof(GodotTransientResourceScope));
+        ThrowIfClosed();
         if (wrapper == null)
             return null;
 
-        string label = $"{Name}:{reason}";
-        RetainRootGraph(wrapper);
-        RegisterOwnedValueGraph(wrapper, label);
+        RetainDirectWrapper(wrapper, $"{Name}:{reason}");
         return wrapper;
     }
 
-    internal T OwnValueGraph<T>(T value, string reason)
-        where T : class
+    internal void RetainDirectWrapper(object wrapper, string reason)
     {
-        if (_disposed)
-            throw new ObjectDisposedException(nameof(GodotTransientResourceScope));
-        if (value == null)
-            return null;
-
-        string label = $"{Name}:{reason}";
-        RetainRootGraph(value);
-        RegisterOwnedValueGraph(value, label);
-        return value;
-    }
-
-    private void RegisterOwnedValueGraph(object value, string label)
-    {
-        GodotTypedResourceGraphWalker.VisitValueGraph(value, ownedWrapper =>
+        ThrowIfClosed();
+        if (wrapper == null || !GodotWrapperTypeClassifier.IsSupportedDirectWrapper(wrapper))
+            return;
+        if (wrapper is Node)
         {
-            if (ownedWrapper is Node)
-            {
-                LifecycleViolation.Report(
-                    $"Node cannot be part of owned transient wrapper graph. type={ownedWrapper.GetType().Name}, reason={label}"
-                );
-                return;
-            }
+            LifecycleViolation.Report(
+                $"Node cannot be owned by a transient resource scope. type={wrapper.GetType().Name}, reason={reason}"
+            );
+            return;
+        }
+        if (wrapper is Resource resource && !string.IsNullOrEmpty(resource.ResourcePath))
+        {
+            LifecycleViolation.Report(
+                $"Transient resource scope cannot own a path-backed Resource. type={resource.GetType().Name}, path={resource.ResourcePath}, reason={reason}"
+            );
+            return;
+        }
+        if (wrapper is GodotObject godotObject && !IsValid(godotObject))
+        {
+            LifecycleViolation.Report(
+                $"Transient resource scope cannot own an invalid GodotObject. type={wrapper.GetType().Name}, reason={reason}"
+            );
+            return;
+        }
+        if (GodotWrapperOwnershipRegistry.IsBorrowedOrDerivedStaticContent(wrapper))
+        {
+            LifecycleViolation.Report(
+                $"Transient resource scope cannot own borrowed content. type={wrapper.GetType().Name}, reason={reason}"
+            );
+            return;
+        }
+        if (!_ownedWrapperSet.Add(wrapper))
+            return;
 
-            if (GodotWrapperOwnershipRegistry.IsBorrowedOrDerivedStaticContent(ownedWrapper))
-            {
-                return;
-            }
-
-            if (GodotWrapperOwnershipRegistry.IsRuntimeState(ownedWrapper))
-            {
-                RetainWrapper(ownedWrapper);
-                GodotWrapperOwnershipRegistry.SuppressWrapper(ownedWrapper);
-                return;
-            }
-
-            if (GodotWrapperOwnershipRegistry.IsOwnedTransient(ownedWrapper))
-            {
-                if (GodotWrapperOwnershipRegistry.IsOwnedTransientByOwner(ownedWrapper, this))
-                {
-                    RetainWrapper(ownedWrapper);
-                    GodotWrapperOwnershipRegistry.SuppressWrapper(ownedWrapper);
-                    return;
-                }
-
-                LifecycleViolation.Report(
-                    $"Owned transient wrapper graph contains wrapper owned by another scope. type={ownedWrapper.GetType().Name}, reason={label}"
-                );
-                return;
-            }
-
-            if (
-                ownedWrapper is Resource resource
-                && !string.IsNullOrEmpty(resource.ResourcePath)
-            )
-            {
-                LifecycleViolation.Report(
-                    $"Owned transient wrapper graph contains path-backed resource. type={resource.GetType().Name}, path={resource.ResourcePath}, reason={label}"
-                );
-                return;
-            }
-
-            if (!GodotWrapperOwnershipRegistry.Register(
-                ownedWrapper,
+        bool registered;
+        try
+        {
+            registered = GodotWrapperOwnershipRegistry.Register(
+                wrapper,
                 GodotWrapperOwnershipKind.OwnedTransientRuntime,
                 this,
-                label
-            ))
-            {
-                return;
-            }
-            RetainWrapper(ownedWrapper);
-            GodotWrapperOwnershipRegistry.SuppressWrapper(ownedWrapper);
-        });
+                reason
+            );
+        }
+        catch
+        {
+            _ownedWrapperSet.Remove(wrapper);
+            throw;
+        }
+        if (!registered)
+        {
+            _ownedWrapperSet.Remove(wrapper);
+            return;
+        }
+
+        _ownedWrappers.Add(wrapper);
     }
 
     internal Godot.Collections.Dictionary NewDictionary(string reason)
@@ -819,42 +621,65 @@ internal sealed class GodotTransientResourceScope : IDisposable
         return OwnWrapper(new Godot.Collections.Array(), reason);
     }
 
-    internal void RetainWrapper(object wrapper)
-    {
-        if (wrapper == null || !_strongWrapperSet.Add(wrapper))
-            return;
-        _strongWrappers.Add(wrapper);
-    }
-
-    private void RetainRootGraph(object root)
-    {
-        if (root == null || !_rootGraphSet.Add(root))
-            return;
-        _rootGraphs.Add(root);
-    }
-
-    internal void Drain()
-    {
-        foreach (object wrapper in _strongWrappers)
-            GodotWrapperOwnershipRegistry.SuppressWrapper(wrapper);
-
-        if (QuarantineOnDrain)
-            GodotTestRuntimeQuarantine.Retain(_strongWrappers, Name);
-
-        _strongWrappers.Clear();
-        _strongWrapperSet.Clear();
-        _rootGraphs.Clear();
-        _rootGraphSet.Clear();
-    }
-
-    internal void Close() => Drain();
+    internal void Close() => Dispose();
 
     public void Dispose()
     {
-        if (_disposed)
+        if (_closed)
             return;
-        Drain();
-        _disposed = true;
+        _closed = true;
+
+        var failures = new List<Exception>();
+        for (int index = _ownedWrappers.Count - 1; index >= 0; index--)
+        {
+            object wrapper = _ownedWrappers[index];
+            try
+            {
+                ((IDisposable)wrapper).Dispose();
+            }
+            catch (Exception exception)
+            {
+                failures.Add(exception);
+            }
+
+            if (!GodotWrapperOwnershipRegistry.TryReleaseLeaseOwnership(
+                wrapper,
+                this,
+                out string releaseFailure
+            ))
+            {
+                failures.Add(new InvalidOperationException(releaseFailure));
+            }
+        }
+
+        _ownedWrappers.Clear();
+        _ownedWrapperSet.Clear();
+
+        if (failures.Count > 0)
+        {
+            throw new AggregateException(
+                $"Transient resource scope disposal failed. owner={Name}",
+                failures
+            );
+        }
+    }
+
+    private void ThrowIfClosed()
+    {
+        if (_closed)
+            throw new ObjectDisposedException(nameof(GodotTransientResourceScope), Name);
+    }
+
+    private static bool IsValid(GodotObject wrapper)
+    {
+        try
+        {
+            return wrapper != null && GodotObject.IsInstanceValid(wrapper);
+        }
+        catch (ObjectDisposedException)
+        {
+            return false;
+        }
     }
 }
 

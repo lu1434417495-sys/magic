@@ -444,6 +444,18 @@ public partial class ApplicationLifetimeCoordinator : Node, IApplicationShutdown
                 $"{audit.NonTerminalCount} non-terminal lifecycle objects remain active"
             );
         }
+        if (_contentHost != null)
+        {
+            IReadOnlyList<string> snapshotBorrowers =
+                _contentHost.GetSnapshotBorrowerDiagnostics();
+            if (snapshotBorrowers.Count != 0)
+            {
+                failures.Add(
+                    "process content snapshot borrowers remain active: "
+                        + string.Join(",", snapshotBorrowers)
+                );
+            }
+        }
 
         failure = string.Join("; ", failures);
         return failures.Count == 0;
@@ -452,10 +464,13 @@ public partial class ApplicationLifetimeCoordinator : Node, IApplicationShutdown
     ValueTask IApplicationShutdownHooks.ReleaseContentAsync(ShutdownReport report)
     {
         EnsureMainThread();
-        _contentHost?.ReleaseSnapshot();
-        _contentHost?.Dispose();
-        _contentHost = null;
-        GodotObjectLifecycle.PrepareForFinalizerDrain();
+        ProcessContentHost host = _contentHost;
+        if (host != null)
+        {
+            host.ReleaseSnapshot();
+            host.Dispose();
+            _contentHost = null;
+        }
         ApplicationLifetimeDiagnostics.RecordPhase(ApplicationShutdownPhase.ContentReleased);
         return ValueTask.CompletedTask;
     }

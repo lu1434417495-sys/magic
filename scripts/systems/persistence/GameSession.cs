@@ -425,15 +425,9 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
 
     public new void Dispose()
     {
-        bool sessionInTree = IsSessionInTree();
         CloseNormal();
         if (GodotObject.IsInstanceValid(this))
-        {
-            if (sessionInTree)
-                Free();
-            else
-                base.Dispose();
-        }
+            Free();
     }
 
     public override void _ExitTree() => CloseNormal();
@@ -494,6 +488,90 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         ClearSessionGodotObjectReferences();
         _contentSnapshot = null;
         ReleaseContentBorrower();
+    }
+
+    private static void DisposeCapturedPartyState(GDictionary runtimeState)
+    {
+        if (runtimeState == null || !runtimeState.ContainsKey("party_state"))
+            return;
+        if (PartyState.TryReadPartyPayload(runtimeState["party_state"], out PartyState partyState))
+            DisposePartyStateGraph(partyState);
+        runtimeState["party_state"] = default(Variant);
+    }
+
+    private static void DisposePartyStateGraph(
+        PartyState state,
+        PartyState preservedState = null
+    )
+    {
+        if (state == null || ReferenceEquals(state, preservedState))
+            return;
+
+        foreach (PartyMemberState memberState in state.GetMemberStates())
+            DisposePartyMemberStateGraph(memberState);
+        DisposeWarehouseStateGraph(state.warehouse_state);
+        state.member_states.Clear();
+        state.active_member_ids.Clear();
+        state.reserve_member_ids.Clear();
+        state.pending_character_rewards.Clear();
+        state.active_quests.Clear();
+        state.claimable_quests.Clear();
+        state.completed_quest_ids.Clear();
+    }
+
+    private static void DisposePartyMemberStateGraph(PartyMemberState memberState)
+    {
+        if (memberState == null)
+            return;
+        DisposeUnitProgressGraph(memberState.progression);
+        DisposeEquipmentStateGraph(memberState.equipment_state);
+        _ = memberState.ReleaseContingencySetupsForDispose();
+        memberState.trait_instances.Clear();
+        memberState.active_stage_advancement_modifier_ids.Clear();
+    }
+
+    private static void DisposeUnitProgressGraph(UnitProgress progress)
+    {
+        if (progress == null)
+            return;
+        foreach (UnitProfessionProgress professionProgress in progress.ProfessionsTyped.Values)
+            DisposeProfessionProgressGraph(professionProgress);
+        progress.SetPendingProfessionChoices(null);
+    }
+
+    private static void DisposeProfessionProgressGraph(
+        UnitProfessionProgress professionProgress
+    )
+    {
+        if (professionProgress == null)
+            return;
+        professionProgress.promotion_history.Clear();
+        professionProgress.core_skill_ids.Clear();
+        professionProgress.granted_skill_ids.Clear();
+    }
+
+    private static void DisposeEquipmentStateGraph(EquipmentState equipmentState)
+    {
+        if (equipmentState == null)
+            return;
+        foreach (StringName entrySlotId in equipmentState.GetEntrySlotIdsTyped())
+            equipmentState.ClearEntrySlot(entrySlotId);
+    }
+
+    private static void DisposeWarehouseStateGraph(WarehouseState warehouseState)
+    {
+        if (warehouseState == null)
+            return;
+        warehouseState.stacks.Clear();
+        warehouseState.equipment_instances.Clear();
+    }
+
+    private void ClearSessionGodotObjectReferences()
+    {
+        _generation_definition = null;
+        _bound_generation_definition = null;
+        _bound_generation_definition_path = "";
+        _contentValidationSnapshotData = new ContentValidationSnapshotData();
     }
 
     public int EnsureWorldReady(string generation_config_path)

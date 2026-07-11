@@ -144,7 +144,6 @@ public partial class run_direct_field_write_guard_regression : LifecycleTestScen
         TestScannerAllowsOwnerInternalWrites();
         TestRepositoryScripts();
 
-        GC.SuppressFinalize(this);
         RequestTestExit(_test.Finish("Direct field write guard regression"));
     }
 

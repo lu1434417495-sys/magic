@@ -156,25 +156,14 @@ public partial class run_application_lifetime_coordinator_regression : Lifecycle
         );
         _test.Eq(
             audit.LegacyDebt.Count,
-            1,
-            "coordinator captures exactly one phase-1 lifecycle debt"
-        );
-        if (audit.LegacyDebt.Count != 1)
-            return;
-
-        LifecycleLegacyDebtSnapshot debt = audit.LegacyDebt[0];
-        _test.Eq(
-            debt.DebtId,
-            "battle-board-controller-quarantine",
-            "coordinator debt ID is exact"
+            0,
+            "coordinator starts with no lifecycle legacy debt"
         );
         _test.Eq(
-            debt.Source,
-            "scripts/ui/BattleBoardController.cs",
-            "coordinator debt source is exact"
+            audit.QuarantineCount,
+            0L,
+            "coordinator starts with no quarantined wrappers"
         );
-        _test.Eq(debt.OwnerDomain, "SceneTree", "coordinator debt owner domain is exact");
-        _test.Eq(debt.DeletePhase, 2, "coordinator debt deletion phase is exact");
     }
 
     private async Task TestRealRuntimeParticipantRegistrationContracts(

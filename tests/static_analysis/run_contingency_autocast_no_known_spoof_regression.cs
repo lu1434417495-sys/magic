@@ -34,7 +34,6 @@ public partial class run_contingency_autocast_no_known_spoof_regression : Lifecy
             );
         }
 
-        GC.SuppressFinalize(this);
         RequestTestExit(_test.Finish("Contingency auto-cast known-skill spoof guard"));
     }
 

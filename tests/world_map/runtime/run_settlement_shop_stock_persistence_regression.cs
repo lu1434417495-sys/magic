@@ -7,9 +7,7 @@ public partial class run_settlement_shop_stock_persistence_regression : Lifecycl
 {
     private readonly TestHarness _test = new();
     private readonly GodotTransientResourceScope _runtimeScope =
-        GodotTransientResourceScope.CreateTestQuarantine(
-            "settlement_shop_stock_persistence"
-        );
+        new("settlement_shop_stock_persistence");
 
     public override void _Initialize()
     {
@@ -63,8 +61,6 @@ public partial class run_settlement_shop_stock_persistence_regression : Lifecycl
             );
             hero.progression.unit_base_attributes.custom_stats["storage_space"] = 10;
             party.SetMemberState(hero);
-            _runtimeScope.OwnValueGraph(party, "party-built");
-
             warehouse = new PartyWarehouseService();
             warehouse.Setup(party, new System.Collections.Generic.Dictionary<StringName, ItemDefinition>
             {

@@ -742,8 +742,20 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 );
             }
         }
-        foreach (EquipmentAbilityConditionGroupDef child in group.groups)
+        foreach (Resource childResource in group.groups)
+        {
+            if (childResource is not EquipmentAbilityConditionGroupDef child)
+            {
+                AddError(
+                    errors,
+                    "EQA_CONDITION_GROUP_TYPE_INVALID",
+                    $"{path}.groups",
+                    "nested condition group must use EquipmentAbilityConditionGroupDef"
+                );
+                continue;
+            }
             ValidateConditionGroup(child, $"{path}.groups", context, errors);
+        }
     }
 
     private void ValidateAction(
@@ -2933,8 +2945,14 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             );
         }
         var groups = new List<EquipmentConditionGroupDefinition>();
-        foreach (EquipmentAbilityConditionGroupDef group in value.groups)
+        foreach (Resource groupResource in value.groups)
         {
+            if (groupResource is not EquipmentAbilityConditionGroupDef group)
+            {
+                throw new InvalidOperationException(
+                    "Validated equipment condition group contains an invalid nested resource type."
+                );
+            }
             EquipmentConditionGroupDefinition projected = ProjectConditionGroup(group);
             if (projected != null)
                 groups.Add(projected);

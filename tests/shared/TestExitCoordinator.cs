@@ -6,6 +6,7 @@ internal static class TestExitCoordinator
 {
     internal static async void Complete(SceneTree tree, TestResult result)
     {
+        TestResourceOwnership.Close();
         await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
         await SubmitAsync(tree, result);
     }

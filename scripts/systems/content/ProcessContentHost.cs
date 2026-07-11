@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
 using Godot;
@@ -162,28 +161,12 @@ internal sealed class ProcessContentHost : IContentResourceLoader, IDisposable
             this,
             canonicalPath
         );
-        if (loaded is EnemyContentSeed)
-            RegisterBorrowedGraphMetadata(loaded, canonicalPath);
         LifecycleAuditRegistry.Shared.RegisterProcessContentRoot(
             canonicalPath,
             loaded.GetType(),
             loaded
         );
         return loaded;
-    }
-
-    private void RegisterBorrowedGraphMetadata(Resource root, string canonicalPath)
-    {
-        GodotTypedResourceGraphWalker.VisitValueGraph(
-            root,
-            wrapper =>
-                GodotWrapperOwnershipRegistry.Register(
-                    wrapper,
-                    GodotWrapperOwnershipKind.BorrowedStaticContent,
-                    this,
-                    canonicalPath
-                )
-        );
     }
 
     internal ContentSnapshot BuildAndSeal()
@@ -270,14 +253,13 @@ internal sealed class ProcessContentHost : IContentResourceLoader, IDisposable
     {
         if (_disposed || !_publication.HasSnapshot)
             return;
-        RemoveExpiredBorrowers();
         if (_snapshotBorrowers.Count != 0)
         {
-            LifecycleViolation.Report(
+            string message =
                 "Process content snapshot cannot be released while borrowers remain active: "
-                    + string.Join(",", _snapshotBorrowers.Keys.OrderBy(id => id, StringComparer.Ordinal))
-            );
-            return;
+                + string.Join(",", GetSnapshotBorrowerDiagnostics());
+            LifecycleViolation.Report(message);
+            throw new InvalidOperationException(message);
         }
 
         _publication.Release();
@@ -288,16 +270,20 @@ internal sealed class ProcessContentHost : IContentResourceLoader, IDisposable
     {
         if (_disposed)
             return;
-        ReleaseSnapshot();
-        if (_publication.HasSnapshot)
-            return;
 
+        ReleaseSnapshot();
         _disposed = true;
         _acceptingLoads = false;
         EngineAssets.Dispose();
         foreach (string canonicalPath in _roots.Keys)
             LifecycleAuditRegistry.Shared.ReleaseProcessContentRoot(canonicalPath);
         _roots.Clear();
+    }
+
+    internal IReadOnlyList<string> GetSnapshotBorrowerDiagnostics()
+    {
+        ThrowIfDisposed();
+        return _snapshotBorrowers.Keys.OrderBy(id => id, StringComparer.Ordinal).ToArray();
     }
 
     private static ContentSnapshotBuildArtifact BuildDefaultSnapshot(
@@ -320,16 +306,6 @@ internal sealed class ProcessContentHost : IContentResourceLoader, IDisposable
             _roots.Remove(canonicalPath);
             LifecycleAuditRegistry.Shared.ReleaseProcessContentRoot(canonicalPath);
         }
-    }
-
-    private void RemoveExpiredBorrowers()
-    {
-        string[] expiredIds = _snapshotBorrowers
-            .Where(entry => !entry.Value.TryGetTarget(out _))
-            .Select(entry => entry.Key)
-            .ToArray();
-        foreach (string borrowerId in expiredIds)
-            UnregisterSnapshotBorrower(borrowerId);
     }
 
     private void ThrowIfDisposed()

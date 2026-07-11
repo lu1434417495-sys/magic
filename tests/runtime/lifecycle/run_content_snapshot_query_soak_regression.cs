@@ -42,8 +42,6 @@ public partial class run_content_snapshot_query_soak_regression : LifecycleTestS
         int expectedAuditRootCount =
             LifecycleAuditRegistry.Shared.CaptureSnapshot().ProcessContentRootCount;
         int expectedSnapshotObjectCount = CountSnapshotObjects(snapshot);
-        int expectedMigratedWrapperCount = CountMigratedDomainWrappers(snapshot);
-        int expectedStaticStrongWrapperCount = GodotContentOwnership.StaticStrongWrapperCount;
         StringName itemId = FirstKey(snapshot.Items);
 
         _test.True(expectedRootCount > 0, "soak precondition: process host has canonical roots");
@@ -51,19 +49,9 @@ public partial class run_content_snapshot_query_soak_regression : LifecycleTestS
             expectedSnapshotObjectCount > 0,
             "soak precondition: immutable snapshot graph is populated"
         );
-        _test.Eq(
-            expectedMigratedWrapperCount,
-            0,
-            "migrated snapshot graph starts with no Resource or Godot collection wrapper"
-        );
         _test.True(
             snapshot.Skills.ContainsKey(KnownSkillId),
             $"soak precondition: snapshot contains {KnownSkillId}"
-        );
-        _test.Eq(
-            GodotObjectLifecycle.FinalizerDrainWaveLimit,
-            16,
-            "process and measurement barriers use the bounded nested-resource drain contract"
         );
         _test.True(
             !StringNameIsEmpty(itemId),
@@ -82,8 +70,6 @@ public partial class run_content_snapshot_query_soak_regression : LifecycleTestS
             expectedRootCount,
             expectedAuditRootCount,
             expectedSnapshotObjectCount,
-            expectedMigratedWrapperCount,
-            expectedStaticStrongWrapperCount,
             "after initial session close"
         );
 
@@ -122,8 +108,6 @@ public partial class run_content_snapshot_query_soak_regression : LifecycleTestS
                 expectedRootCount,
                 expectedAuditRootCount,
                 expectedSnapshotObjectCount,
-                expectedMigratedWrapperCount,
-                expectedStaticStrongWrapperCount,
                 $"after session cycle {cycle + 1}"
             );
         }
@@ -188,8 +172,6 @@ public partial class run_content_snapshot_query_soak_regression : LifecycleTestS
         int expectedRootCount,
         int expectedAuditRootCount,
         int expectedSnapshotObjectCount,
-        int expectedMigratedWrapperCount,
-        int expectedStaticStrongWrapperCount,
         string label
     )
     {
@@ -210,24 +192,7 @@ public partial class run_content_snapshot_query_soak_regression : LifecycleTestS
             expectedSnapshotObjectCount,
             $"{label}: immutable snapshot object count"
         );
-        _test.Eq(
-            CountMigratedDomainWrappers(expectedSnapshot),
-            expectedMigratedWrapperCount,
-            $"{label}: migrated-domain wrapper count"
-        );
-        _test.Eq(
-            GodotContentOwnership.StaticStrongWrapperCount,
-            expectedStaticStrongWrapperCount,
-            $"{label}: legacy static strong-wrapper count"
-        );
         _test.Eq(audit.ActiveContentBorrowerCount, 0, $"{label}: active content borrowers");
-    }
-
-    private static int CountMigratedDomainWrappers(ContentSnapshot snapshot)
-    {
-        int count = 0;
-        GodotTypedResourceGraphWalker.VisitValueGraph(snapshot, _ => count++);
-        return count;
     }
 
     private static int CountSnapshotObjects(ContentSnapshot snapshot)

@@ -6,9 +6,7 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
 {
     private readonly TestHarness _test = new();
     private readonly GodotTransientResourceScope _runtimeScope =
-        GodotTransientResourceScope.CreateTestQuarantine(
-            "enemy_multi_unit_skill_command"
-        );
+        new("enemy_multi_unit_skill_command");
 
     public override void _Initialize()
     {
@@ -42,16 +40,13 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
             state.SetUnit(source);
             state.SetUnit(targetA);
             state.SetUnit(targetB);
-            var context = _runtimeScope.OwnValueGraph(
-                new BattleAiContext
-                {
-                    state = state,
-                    unit_state = source,
-                    grid_service = new BattleGridService(),
-                    skill_cast_block_reason_callback = (_, _) => BattleSkillCastBlockReasonKind.None,
-                },
-                "context"
-            );
+            var context = new BattleAiContext
+            {
+                state = state,
+                unit_state = source,
+                grid_service = new BattleGridService(),
+                skill_cast_block_reason_callback = (_, _) => BattleSkillCastBlockReasonKind.None,
+            };
             context.SetSkillDefinitions(
                 new Dictionary<StringName, SkillDefinition>
                 {
@@ -80,7 +75,6 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
             _test.True(command != null, "command was null");
             if (command != null)
             {
-                _runtimeScope.OwnValueGraph(command, "command");
                 _test.Eq(command.skill_id, skillId, "skill id was preserved");
                 _test.Eq(command.skill_variant_id, new StringName("multi"), "variant id was preserved");
                 _test.Eq(command.TargetUnitIdsTyped.Count, 2, "expected 2 target ids");

@@ -81,7 +81,7 @@ public partial class run_native_lease_scope_regression : LifecycleTestSceneTree
             Throws<InvalidOperationException>(() => rejectionScope.Own(node, "node")),
             "Node ownership is rejected before retention"
         );
-        node.Dispose();
+        node.Free();
 
         Resource pathBacked = GD.Load<Resource>(
             "res://data/configs/age_profiles/dragonborn_age_profile.tres"

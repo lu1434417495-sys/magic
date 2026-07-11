@@ -15,9 +15,9 @@ internal static class GodotObjectLifecycle
 
     internal static void CollectPendingFinalizers()
     {
-        // Finalizing a RefCounted authored root can release nested C# Resource
-        // handles one layer at a time. Drain a bounded number of waves while
-        // Godot is still alive, then finish with a collection-only pass.
+        // Authored C# Resources can retain child Resource GC handles until the
+        // parent finalizer releases its native RefCounted reference. A later
+        // collection is therefore required to discover the next child layer.
         for (int wave = 0; wave < FinalizerDrainWaveLimit; wave++)
         {
             GC.Collect();
@@ -29,11 +29,6 @@ internal static class GodotObjectLifecycle
         GC.Collect();
     }
 
-    internal static void PrepareForFinalizerDrain()
-    {
-        GodotContentOwnership.RetainStaticContentForFinalizerDrain();
-    }
-
     internal static void DisposeGodotObject(FileAccess owned) => DisposeNativeIoWrapper(owned);
 
     internal static void DisposeGodotObject(DirAccess owned) => DisposeNativeIoWrapper(owned);
@@ -42,7 +37,6 @@ internal static class GodotObjectLifecycle
     {
         if (owned == null)
             return;
-        GC.SuppressFinalize(owned);
         try
         {
             if (GodotObject.IsInstanceValid(owned))
@@ -52,5 +46,4 @@ internal static class GodotObjectLifecycle
         {
         }
     }
-
 }
