@@ -359,27 +359,33 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
 
     private void TestProceduralWildSpawnRegionTagsIgnoreRuleOrder()
     {
-        WorldMapGenerationConfig config = BuildWildSpawnDensityConfig(out bool ok);
-        if (!ok || config == null)
-        {
-            return;
-        }
-
-        config.wild_monster_distribution = new Godot.Collections.Array<Resource>
-        {
-            BuildWildSpawnRule("south_wilds", "南境雾兽", "mist_beast", "mist_hollow"),
-            BuildWildSpawnRule("north_wilds", "北境狼群", "wolf_pack", ""),
-        };
-        WorldGenerationDefinition definition = TestWorldGenerationDefinitionFactory.Project(
+        WorldGenerationDefinition definition = BuildWildSpawnDensityDefinition(
             "res://tests/world_map/runtime/wild_spawn_region_order.tres",
-            config
+            new[]
+            {
+                BuildWildSpawnRuleDefinition(
+                    "south_wilds",
+                    "南境雾兽",
+                    "mist_beast",
+                    "mist_hollow"
+                ),
+                BuildWildSpawnRuleDefinition(
+                    "north_wilds",
+                    "北境狼群",
+                    "wolf_pack",
+                    ""
+                ),
+            }
         );
+        if (definition == null)
+            return;
 
         WorldMapGridSystem gridSystem = new();
         gridSystem.Setup(definition.WorldSizeInChunks, definition.ChunkSize);
         WorldMapSpawnSystem spawnSystem = new();
-        GDictionary worldData = WorldMapSpawnProjection.Project(
-            spawnSystem.BuildWorldTyped(definition, gridSystem)
+        WorldMapSpawnSystem.WorldBuildData worldBuild = spawnSystem.BuildWorldTyped(
+            definition,
+            gridSystem
         );
 
         int midpointChunkY = definition.WorldSizeInChunks.Y / 2;
@@ -387,9 +393,8 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
         bool foundSouthInSouth = false;
         bool misplacedNorth = false;
         bool misplacedSouth = false;
-        foreach (Variant encounterValue in ArrayValue(worldData, "encounter_anchors"))
+        foreach (EncounterAnchorData encounterAnchor in worldBuild.EncounterAnchors)
         {
-            EncounterAnchorData encounterAnchor = ReadEncounterAnchor(encounterValue);
             if (encounterAnchor == null)
             {
                 continue;
@@ -432,33 +437,38 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
 
     private void TestProceduralWildSpawnDensityCanBeConfigured()
     {
-        WorldMapGenerationConfig config = BuildWildSpawnDensityConfig(out bool ok);
-        if (!ok || config == null)
-        {
-            return;
-        }
-
-        config.wild_monster_distribution = new Godot.Collections.Array<Resource>
-        {
-            BuildWildSpawnRule("north_wilds", "北境狼群", "wolf_pack", ""),
-            BuildWildSpawnRule("south_wilds", "南境雾兽", "mist_beast", "mist_hollow"),
-        };
-        WorldGenerationDefinition definition = TestWorldGenerationDefinitionFactory.Project(
+        WorldGenerationDefinition definition = BuildWildSpawnDensityDefinition(
             "res://tests/world_map/runtime/wild_spawn_density.tres",
-            config
+            new[]
+            {
+                BuildWildSpawnRuleDefinition(
+                    "north_wilds",
+                    "北境狼群",
+                    "wolf_pack",
+                    ""
+                ),
+                BuildWildSpawnRuleDefinition(
+                    "south_wilds",
+                    "南境雾兽",
+                    "mist_beast",
+                    "mist_hollow"
+                ),
+            }
         );
+        if (definition == null)
+            return;
 
         WorldMapGridSystem gridSystem = new();
         gridSystem.Setup(definition.WorldSizeInChunks, definition.ChunkSize);
         WorldMapSpawnSystem spawnSystem = new();
-        GDictionary worldData = WorldMapSpawnProjection.Project(
-            spawnSystem.BuildWorldTyped(definition, gridSystem)
+        WorldMapSpawnSystem.WorldBuildData worldBuild = spawnSystem.BuildWorldTyped(
+            definition,
+            gridSystem
         );
 
         int singleEncounterCount = 0;
-        foreach (Variant encounterValue in ArrayValue(worldData, "encounter_anchors"))
+        foreach (EncounterAnchorData encounterAnchor in worldBuild.EncounterAnchors)
         {
-            EncounterAnchorData encounterAnchor = ReadEncounterAnchor(encounterValue);
             if (
                 encounterAnchor != null
                 && encounterAnchor.encounter_kind == EncounterAnchorData.ToStringName(EncounterAnchorKind.Single)
@@ -679,76 +689,73 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
         }
     }
 
-    private WorldMapGenerationConfig BuildWildSpawnDensityConfig(out bool ok)
+    private WorldGenerationDefinition BuildWildSpawnDensityDefinition(
+        string canonicalPath,
+        IReadOnlyList<WildSpawnRuleDefinition> wildSpawnRules
+    )
     {
-        ok = false;
-        WorldMapGenerationConfig baseConfig = ResourceLoader.Load<WorldMapGenerationConfig>(
-            TestWorldConfig
-        );
-        _test.True(baseConfig != null, "wild spawn 回归需要可加载的测试世界配置。");
-        if (baseConfig == null)
+        WorldGenerationDefinition source = GetProcessWorldDefinition(TestWorldConfig);
+        _test.True(source != null, "wild spawn 回归需要 process snapshot 中的测试世界 definition。");
+        if (source == null)
         {
             return null;
         }
-        GodotContentOwnership.RegisterBorrowedContent(
-            baseConfig,
-            $"world_map_shared_content_injection:{TestWorldConfig}"
+        return new WorldGenerationDefinition(
+            ContentPathCanonicalizer.Canonicalize(canonicalPath),
+            source.Seed,
+            source.WorldSizeInChunks,
+            source.ChunkSize,
+            source.PlayerStartCoord,
+            source.PlayerVisionRange,
+            source.ProceduralGenerationEnabled,
+            proceduralWildSpawnChunkChanceDenominator: 1,
+            injectDefaultMainWorldContent: false,
+            source.ProceduralVillageCount,
+            source.ProceduralTownCount,
+            source.ProceduralCityCount,
+            source.ProceduralCapitalCount,
+            source.ProceduralWorldStrongholdCount,
+            source.ProceduralMetropolisCount,
+            source.VillageSpacingCells,
+            source.TownSpacingCells,
+            source.CitySpacingCells,
+            source.CapitalSpacingCells,
+            source.WorldStrongholdSpacingCells,
+            source.MetropolisSpacingCells,
+            guaranteeStartingWildEncounter: false,
+            source.StartingWildSpawnMinDistance,
+            source.StartingWildSpawnMaxDistance,
+            source.EffectiveSettlementLibrary,
+            source.EffectiveFacilityLibrary,
+            source.SettlementDistribution,
+            wildSpawnRules,
+            source.MountedSubmaps,
+            source.WorldEvents,
+            defaultSettlementBundle: null,
+            defaultWildSpawnBundle: null,
+            new Dictionary<string, WorldMapSettlementNamePoolDefinition>(
+                StringComparer.Ordinal
+            )
         );
-        WorldMapSettlementBundle settlementBundle = ResourceLoader.Load<WorldMapSettlementBundle>(
-            SharedSettlementBundlePath
-        );
-        _test.True(settlementBundle != null, "wild spawn 回归需要可加载的共享据点 bundle。");
-        if (settlementBundle == null)
-        {
-            return null;
-        }
-        GodotContentOwnership.RegisterBorrowedContent(
-            settlementBundle,
-            $"world_map_shared_content_injection:{SharedSettlementBundlePath}"
-        );
-
-        WorldMapGenerationConfig config = TestResourceOwnership.Own(
-            baseConfig.Duplicate(true) as WorldMapGenerationConfig,
-            "world_map_shared_content_injection.wild_spawn_density_config"
-        );
-        _test.True(config != null, "测试世界配置应支持 duplicate(true)。");
-        if (config == null)
-        {
-            return null;
-        }
-
-        config.inject_default_main_world_content = false;
-        config.settlement_library = TestResourceOwnership.OwnWrapper(
-            settlementBundle.settlement_library.Duplicate(true),
-            "world_map_shared_content_injection.settlement_library"
-        );
-        config.facility_library = TestResourceOwnership.OwnWrapper(
-            settlementBundle.facility_library.Duplicate(true),
-            "world_map_shared_content_injection.facility_library"
-        );
-        config.guarantee_starting_wild_encounter = false;
-        config.procedural_wild_spawn_chunk_chance_denominator = 1;
-        ok = true;
-        return config;
     }
 
-    private static WildSpawnRule BuildWildSpawnRule(
+    private static WildSpawnRuleDefinition BuildWildSpawnRuleDefinition(
         string regionTag,
         string monsterName,
         string enemyRosterTemplateId,
         string encounterProfileId
     )
     {
-        return new WildSpawnRule
-        {
-            region_tag = regionTag,
-            monster_name = monsterName,
-            enemy_roster_template_id = enemyRosterTemplateId,
-            encounter_profile_id = encounterProfileId,
-            density_per_chunk = 1,
-            min_distance_to_settlement = 3,
-            vision_range = 1,
-        };
+        return new WildSpawnRuleDefinition(
+            regionTag,
+            monsterName,
+            enemyRosterTemplateId,
+            encounterProfileId,
+            densityPerChunk: 1,
+            minDistanceToSettlement: 3,
+            visionRange: 1,
+            System.Array.Empty<Vector2I>()
+        );
     }
 
     private GameSession CreateWorld(
