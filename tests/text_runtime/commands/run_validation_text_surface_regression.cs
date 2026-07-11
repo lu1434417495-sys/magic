@@ -13,6 +13,11 @@ public partial class run_validation_text_surface_regression : LifecycleTestScene
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
+    {
         var runner = new GameTextCommandRunner();
         runner.initialize();
 

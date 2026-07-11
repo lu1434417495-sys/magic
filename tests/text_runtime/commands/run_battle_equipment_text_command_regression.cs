@@ -22,6 +22,11 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
+    {
         var runner = new GameTextCommandRunner();
         runner.initialize();
 

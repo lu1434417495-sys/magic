@@ -7,6 +7,11 @@ public partial class run_text_command_parse_regression : LifecycleTestSceneTree
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
+    {
         var runner = new GameTextCommandRunner();
         runner.initialize();
 

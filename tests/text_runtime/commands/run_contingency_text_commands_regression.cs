@@ -12,6 +12,11 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
+    {
         var runner = new GameTextCommandRunner();
         runner.initialize();
         try
