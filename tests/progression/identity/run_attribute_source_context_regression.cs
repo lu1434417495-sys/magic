@@ -17,10 +17,12 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
     private void Run()
     {
         TestAttributeSourceContextNoLongerRequiresGodotRegistration();
+        TestDerivedAttributeRuleUsesPlainCoefficientMaps();
         TestAttributeSnapshotExposesBaseAttributeModifiers();
         TestAttributeModifierOverlayCanTargetDerivedAbilityModifier();
         TestAttributeServiceSetupContextAppliesIdentityModifiers();
         TestAttributeServiceSetupBoundaryIndexesTypedDefinitions();
+        TestEquipmentRuntimeModifierProjectionUsesDefinitions();
         TestAttributeServiceSetupContextUsesExactDefinitionKeys();
         TestCharacterManagementBuildsAttributeSourceContext();
 
@@ -30,6 +32,26 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
     private void TestAttributeSourceContextNoLongerRequiresGodotRegistration()
     {
         Type contextType = typeof(AttributeSourceContext);
+        _test.False(
+            typeof(GodotObject).IsAssignableFrom(contextType),
+            "AttributeSourceContext should remain a plain CLR boundary object."
+        );
+        foreach (
+            string fieldName in new[]
+            {
+                "trait_attribute_modifiers",
+                "equipment_state",
+                "passive_state",
+                "temporary_effects",
+            }
+        )
+        {
+            _test.Eq(
+                contextType.GetField(fieldName)?.FieldType,
+                typeof(IReadOnlyList<AttributeModifierDefinition>),
+                $"AttributeSourceContext.{fieldName} should contain plain definitions."
+            );
+        }
     }
 
     private void TestAttributeSnapshotExposesBaseAttributeModifiers()
@@ -90,19 +112,45 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
         );
     }
 
+    private void TestDerivedAttributeRuleUsesPlainCoefficientMaps()
+    {
+        Dictionary<StringName, int> coefficients = new() { ["strength"] = 1 };
+        DerivedAttributeRule rule = new(
+            "half_strength",
+            0,
+            coefficients,
+            2,
+            -10,
+            10,
+            0
+        );
+        coefficients["strength"] = 99;
+
+        _test.Eq(
+            rule.coefficients["strength"],
+            1,
+            "DerivedAttributeRule should snapshot its managed coefficient input."
+        );
+        _test.Eq(
+            rule.evaluate(new Dictionary<StringName, int> { ["strength"] = -1 }),
+            -1,
+            "DerivedAttributeRule should preserve floor rounding for negative fractional values."
+        );
+    }
+
     private void TestAttributeModifierOverlayCanTargetDerivedAbilityModifier()
     {
         UnitProgress progress = MakeProgress("modifier_overlay");
         progress.unit_base_attributes.SetAttributeValue("perception", 12);
-        AttributeModifier equipmentPerceptionModifier =
-            Modifier(AttributeService.ToStringName(AttributeIdKind.PerceptionModifier), 3);
+        AttributeModifierDefinition equipmentPerceptionModifier =
+            Definition(AttributeService.ToStringName(AttributeIdKind.PerceptionModifier), 3);
 
         AttributeService service = new();
         service.SetupContext(
             new AttributeSourceContext
             {
                 unit_progress = progress,
-                equipment_state = new List<AttributeModifier> { equipmentPerceptionModifier },
+                equipment_state = new[] { equipmentPerceptionModifier },
             }
         );
 
@@ -206,8 +254,10 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
         };
         progress.SetSkillProgress(skillProgress);
 
-        AttributeModifier equipmentHp = Modifier(AttributeService.ToStringName(AttributeIdKind.HpMax), 10);
-        AttributeModifier temporaryHp = Modifier(AttributeService.ToStringName(AttributeIdKind.HpMax), 50);
+        AttributeModifierDefinition equipmentHp =
+            Definition(AttributeService.ToStringName(AttributeIdKind.HpMax), 10);
+        AttributeModifierDefinition temporaryHp =
+            Definition(AttributeService.ToStringName(AttributeIdKind.HpMax), 50);
 
         AttributeService service = new();
         service.SetupContext(
@@ -222,9 +272,9 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
                 {
                     [profession.profession_id] = profession,
                 },
-                equipment_state = new List<AttributeModifier> { equipmentHp },
-                passive_state = new List<AttributeModifier>(),
-                temporary_effects = new List<AttributeModifier> { temporaryHp },
+                equipment_state = new[] { equipmentHp },
+                passive_state = System.Array.Empty<AttributeModifierDefinition>(),
+                temporary_effects = new[] { temporaryHp },
             }
         );
 
@@ -319,6 +369,73 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
             0,
             "value.profession_id 不应补偿错误的 StringName key。"
         );
+    }
+
+    private void TestEquipmentRuntimeModifierProjectionUsesDefinitions()
+    {
+        ItemDef armor = new()
+        {
+            item_id = "runtime_armor",
+            item_category = "equipment",
+            equipment_type_id = "armor",
+            equipment_slot_ids = new Godot.Collections.Array<string> { "body" },
+            max_dex_bonus = 2,
+            attribute_modifiers = new Godot.Collections.Array<AttributeModifier>
+            {
+                Modifier("strength", 3, sourceType: "equipment", sourceId: "runtime_armor"),
+            },
+        };
+        EquipmentState equipmentState = new();
+        _test.True(
+            equipmentState.SetEquippedEntry(
+                "body",
+                armor.item_id,
+                new[] { new StringName("body") },
+                EquipmentInstanceState.CreateInstance(
+                    armor.item_id,
+                    "runtime_armor_instance"
+                )
+            ),
+            "Equipment modifier fixture should equip the runtime armor."
+        );
+
+        PartyEquipmentService service = new();
+        try
+        {
+            service.Setup(
+                new PartyState(),
+                new Dictionary<StringName, ItemDef> { [armor.item_id] = armor }
+            );
+            IReadOnlyList<AttributeModifierDefinition> definitions =
+                service.BuildAttributeModifiersTyped(equipmentState);
+
+            _test.Eq(
+                definitions.Count,
+                2,
+                "Equipment projection should include authored and armor cap definitions."
+            );
+            if (definitions.Count != 2)
+                return;
+            _test.Eq(
+                definitions[0].AttributeId,
+                new StringName("strength"),
+                "Authored equipment modifier order should be preserved."
+            );
+            _test.Eq(
+                definitions[1].AttributeId,
+                AttributeService.ToStringName(AttributeIdKind.ArmorMaxDexBonus),
+                "Dynamic armor max-dex projection should append a plain definition."
+            );
+            _test.Eq(
+                definitions[1].Value,
+                2,
+                "Armor max-dex definition should preserve its numeric value."
+            );
+        }
+        finally
+        {
+            service.Dispose();
+        }
     }
 
     private void TestCharacterManagementBuildsAttributeSourceContext()
@@ -574,7 +691,9 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
         StringName attributeId,
         int value,
         StringName mode = default,
-        int valuePerRank = 0
+        int valuePerRank = 0,
+        StringName sourceType = default,
+        StringName sourceId = default
     )
     {
         return new AttributeModifier
@@ -585,8 +704,27 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
                 : AttributeModifier.ToStringName(AttributeModifierMode.Flat),
             value = value,
             value_per_rank = valuePerRank,
+            source_type = sourceType,
+            source_id = sourceId,
         };
     }
+
+    private static AttributeModifierDefinition Definition(
+        StringName attributeId,
+        int value,
+        StringName mode = default,
+        int valuePerRank = 0,
+        StringName sourceType = default,
+        StringName sourceId = default
+    ) =>
+        new(
+            attributeId,
+            mode != "" ? mode : AttributeModifier.ToStringName(AttributeModifierMode.Flat),
+            value,
+            valuePerRank,
+            sourceType,
+            sourceId
+        );
 
     private static GResourceArray ResourceModifiers(params AttributeModifier[] modifiers)
     {

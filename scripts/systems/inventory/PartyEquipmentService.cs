@@ -211,25 +211,28 @@ public class PartyEquipmentService
         return entries;
     }
 
-    internal List<AttributeModifier> BuildAttributeModifiersTyped(
+    internal IReadOnlyList<AttributeModifierDefinition> BuildAttributeModifiersTyped(
         EquipmentState equipmentState
     )
     {
-        var r = new List<AttributeModifier>();
+        var r = new List<AttributeModifierDefinition>();
         if (equipmentState == null)
-            return r;
+            return Array.Empty<AttributeModifierDefinition>();
         foreach (var esId in equipmentState.GetEntrySlotIdsTyped())
         {
             var itemId = equipmentState.GetEquippedItemId(esId);
             var id = GetItemDef(itemId);
             if (id == null || !id.IsEquipment())
                 continue;
-            foreach (var m in id.GetAttributeModifiersTyped())
-                if (m != null)
-                    r.Add(m);
+            foreach (AttributeModifier modifier in id.GetAttributeModifiersTyped())
+            {
+                AttributeModifierDefinition definition = modifier?.ToDefinition();
+                if (definition != null)
+                    r.Add(definition);
+            }
             _append_armor_max_dex_modifier(r, id);
         }
-        return r;
+        return r.Count > 0 ? r.AsReadOnly() : Array.Empty<AttributeModifierDefinition>();
     }
 
     internal EquipmentEquipPreviewResult PreviewEquipTyped(
@@ -554,7 +557,7 @@ public class PartyEquipmentService
     }
 
     private void _append_armor_max_dex_modifier(
-        List<AttributeModifier> mods,
+        List<AttributeModifierDefinition> mods,
         ItemDef id
     )
     {
@@ -564,14 +567,14 @@ public class PartyEquipmentService
         if (mdb < 0)
             return;
         mods.Add(
-            new AttributeModifier
-            {
-                attribute_id = AttributeService.ToStringName(AttributeIdKind.ArmorMaxDexBonus),
-                mode = AttributeModifier.ToStringName(AttributeModifierMode.Flat),
-                value = mdb,
-                source_type = "equipment",
-                source_id = id.item_id,
-            }
+            new AttributeModifierDefinition(
+                AttributeService.ToStringName(AttributeIdKind.ArmorMaxDexBonus),
+                AttributeModifier.ToStringName(AttributeModifierMode.Flat),
+                mdb,
+                0,
+                "equipment",
+                id.item_id
+            )
         );
     }
 

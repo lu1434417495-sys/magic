@@ -72,4 +72,7 @@ public partial class AttributeModifier : Resource
     {
         return ModeKind == AttributeModifierMode.Flat;
     }
+
+    internal AttributeModifierDefinition ToDefinition() =>
+        AttributeModifierDefinition.FromResource(this);
 }

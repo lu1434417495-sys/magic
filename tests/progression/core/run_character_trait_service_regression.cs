@@ -67,18 +67,23 @@ public partial class run_character_trait_service_regression : LifecycleTestScene
     {
         var service = BuildService();
         EffectiveTraitSet set = service.BuildEffectiveTraits("hero");
-        List<AttributeModifier> modifiers = service.ResolveTraitAttributeModifiers(set);
+        IReadOnlyList<AttributeModifierDefinition> modifiers =
+            service.ResolveTraitAttributeModifiers(set);
 
-        AttributeModifier attack = FindModifier(modifiers, "attack_bonus");
+        AttributeModifierDefinition attack = FindModifier(modifiers, "attack_bonus");
         _test.True(attack != null, "Trait attribute modifiers should include attack_bonus.");
-        _test.Eq(attack.value, 4, "additive trait modifier should multiply base value by effective stacks.");
         _test.Eq(
-            attack.source_type,
+            attack.Value,
+            4,
+            "additive trait modifier should multiply base value by effective stacks."
+        );
+        _test.Eq(
+            attack.SourceType,
             new StringName("trait_character"),
             "character trait modifier should use trait source type."
         );
         _test.Eq(
-            attack.source_id,
+            attack.SourceId,
             new StringName("additive_power"),
             "collapsed modifier source_id should be final effective key."
         );
@@ -156,16 +161,16 @@ public partial class run_character_trait_service_regression : LifecycleTestScene
         return trait;
     }
 
-    private static AttributeModifier FindModifier(
-        IEnumerable<AttributeModifier> modifiers,
+    private static AttributeModifierDefinition FindModifier(
+        IEnumerable<AttributeModifierDefinition> modifiers,
         StringName attributeId
     )
     {
         if (modifiers == null)
             return null;
-        foreach (AttributeModifier modifier in modifiers)
+        foreach (AttributeModifierDefinition modifier in modifiers)
         {
-            if (modifier != null && modifier.attribute_id == attributeId)
+            if (modifier != null && modifier.AttributeId == attributeId)
                 return modifier;
         }
         return null;

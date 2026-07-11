@@ -283,9 +283,7 @@ public sealed class SkillDefinition
         var result = new List<AttributeModifierDefinition>(values.Count);
         foreach (AttributeModifier modifier in values)
         {
-            AttributeModifierDefinition definition = AttributeModifierDefinition.FromResource(
-                modifier
-            );
+            AttributeModifierDefinition definition = modifier?.ToDefinition();
             if (definition != null)
                 result.Add(definition);
         }
@@ -315,57 +313,6 @@ public sealed class SkillDefinition
         if (values == null || values.Count == 0)
             return new ReadOnlyDictionary<string, Variant>(new Dictionary<string, Variant>());
         return new ReadOnlyDictionary<string, Variant>(new Dictionary<string, Variant>(values));
-    }
-}
-
-public sealed class AttributeModifierDefinition
-{
-    public AttributeModifierDefinition(
-        StringName attributeId,
-        StringName mode,
-        int value,
-        int valuePerRank,
-        StringName sourceType,
-        StringName sourceId
-    )
-    {
-        AttributeId = attributeId;
-        Mode = mode;
-        Value = value;
-        ValuePerRank = valuePerRank;
-        SourceType = sourceType;
-        SourceId = sourceId;
-    }
-
-    public StringName AttributeId { get; }
-    public StringName Mode { get; }
-    public int Value { get; }
-    public int ValuePerRank { get; }
-    public StringName SourceType { get; }
-    public StringName SourceId { get; }
-
-    public int GetValueForRank(int rank)
-    {
-        int normalizedRank = Mathf.Max(rank, 1);
-        return Value + ValuePerRank * (normalizedRank - 1);
-    }
-
-    public bool IsPercent() => AttributeModifier.ToMode(Mode) == AttributeModifierMode.Percent;
-
-    public bool IsFlat() => AttributeModifier.ToMode(Mode) == AttributeModifierMode.Flat;
-
-    internal static AttributeModifierDefinition FromResource(AttributeModifier source)
-    {
-        return source == null
-            ? null
-            : new AttributeModifierDefinition(
-                source.attribute_id,
-                source.mode,
-                source.value,
-                source.value_per_rank,
-                source.source_type,
-                source.source_id
-            );
     }
 }
 

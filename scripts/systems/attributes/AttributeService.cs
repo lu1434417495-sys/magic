@@ -150,10 +150,14 @@ public sealed class AttributeService
     private UnitProgress _unit_progress;
     private Dictionary<StringName, SkillDefinition> _skill_definitions = new();
     private Dictionary<StringName, ProfessionDef> _profession_defs = new();
-    private List<AttributeModifier> _trait_attribute_modifiers = new();
-    private List<AttributeModifier> _equipment_state = new();
-    private List<AttributeModifier> _passive_state = new();
-    private List<AttributeModifier> _temporary_effects = new();
+    private IReadOnlyList<AttributeModifierDefinition> _trait_attribute_modifiers =
+        System.Array.Empty<AttributeModifierDefinition>();
+    private IReadOnlyList<AttributeModifierDefinition> _equipment_state =
+        System.Array.Empty<AttributeModifierDefinition>();
+    private IReadOnlyList<AttributeModifierDefinition> _passive_state =
+        System.Array.Empty<AttributeModifierDefinition>();
+    private IReadOnlyList<AttributeModifierDefinition> _temporary_effects =
+        System.Array.Empty<AttributeModifierDefinition>();
     private int _reserved_mp_max;
     private Dictionary<StringName, DerivedAttributeRule> _derived_rules = new();
     private AttributeSourceContext _context;
@@ -190,10 +194,12 @@ public sealed class AttributeService
             _context.profession_defs != null
                 ? new Dictionary<StringName, ProfessionDef>(_context.profession_defs)
                 : new Dictionary<StringName, ProfessionDef>();
-        _trait_attribute_modifiers = CopyAttributeModifierList(_context.trait_attribute_modifiers);
-        _equipment_state = CopyAttributeModifierList(_context.equipment_state);
-        _passive_state = CopyAttributeModifierList(_context.passive_state);
-        _temporary_effects = CopyAttributeModifierList(_context.temporary_effects);
+        _trait_attribute_modifiers = CopyAttributeModifierDefinitionList(
+            _context.trait_attribute_modifiers
+        );
+        _equipment_state = CopyAttributeModifierDefinitionList(_context.equipment_state);
+        _passive_state = CopyAttributeModifierDefinitionList(_context.passive_state);
+        _temporary_effects = CopyAttributeModifierDefinitionList(_context.temporary_effects);
         _reserved_mp_max = Mathf.Max(_context.reserved_mp_max, 0);
         _context.skill_definitions = _skill_definitions;
         _context.profession_defs = _profession_defs;
@@ -546,14 +552,16 @@ public sealed class AttributeService
         if (!UnitBaseAttributes.IsBaseAttributeId(_context.versatility_pick))
             return;
 
-        var modifier = new AttributeModifier
-        {
-            attribute_id = _context.versatility_pick,
-            mode = AttributeModifier.ToStringName(AttributeModifierMode.Flat),
-            value = 1,
-        };
+        var modifier = new AttributeModifierDefinition(
+            _context.versatility_pick,
+            AttributeModifier.ToStringName(AttributeModifierMode.Flat),
+            1,
+            0,
+            "",
+            ""
+        );
         StringName sourceId = _context.race_def != null ? _context.race_def.race_id : "versatility";
-        var modifiers = new List<AttributeModifier> { modifier };
+        var modifiers = new[] { modifier };
         AppendModifierEntries(entries, modifiers, "versatility", sourceId, 1);
     }
 
@@ -625,7 +633,7 @@ public sealed class AttributeService
 
     private void AppendExternalModifierEntries(
         List<AttributeModifierEntry> entries,
-        List<AttributeModifier> state,
+        IReadOnlyList<AttributeModifierDefinition> state,
         StringName defaultSourceType
     )
     {
@@ -636,7 +644,7 @@ public sealed class AttributeService
 
     private static void AppendTraitModifierEntries(
         List<AttributeModifierEntry> entries,
-        List<AttributeModifier> state
+        IReadOnlyList<AttributeModifierDefinition> state
     )
     {
         if (state == null || state.Count == 0)
@@ -658,32 +666,14 @@ public sealed class AttributeService
         foreach (T modifierValue in modifiers)
         {
             if (modifierValue is AttributeModifier modifier)
-                AppendModifierEntry(entries, modifier, sourceType, sourceId, rank);
+            {
+                AttributeModifierDefinition definition = modifier.ToDefinition();
+                if (definition != null)
+                    AppendModifierEntry(entries, definition, sourceType, sourceId, rank);
+            }
             else if (modifierValue is AttributeModifierDefinition definition)
                 AppendModifierEntry(entries, definition, sourceType, sourceId, rank);
         }
-    }
-
-    private static void AppendModifierEntry(
-        List<AttributeModifierEntry> entries,
-        AttributeModifier modifier,
-        StringName sourceType,
-        StringName sourceId,
-        int rank
-    )
-    {
-        if (modifier == null || modifier.attribute_id == "")
-            return;
-
-        entries.Add(
-            new AttributeModifierEntry(
-                modifier.attribute_id,
-                modifier.ModeKind,
-                modifier.GetValueForRank(rank),
-                sourceType != "" ? sourceType : modifier.source_type,
-                sourceId != "" ? sourceId : modifier.source_id
-            )
-        );
     }
 
     private static void AppendModifierEntry(
@@ -966,7 +956,7 @@ public sealed class AttributeService
         rules[STAMINA_MAX] = new DerivedAttributeRule(
             STAMINA_MAX,
             24,
-            new GDictionary
+            new Dictionary<StringName, int>
             {
                 [UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution)] = 5,
                 [UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength)] = 1,
@@ -980,7 +970,10 @@ public sealed class AttributeService
         rules[ACTION_POINTS] = new DerivedAttributeRule(
             ACTION_POINTS,
             1,
-            new GDictionary { [UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility)] = 1 },
+            new Dictionary<StringName, int>
+            {
+                [UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility)] = 1,
+            },
             10,
             1,
             0,
@@ -1003,11 +996,13 @@ public sealed class AttributeService
         return _unit_progress.GetSkillProgress(skillId);
     }
 
-    private static List<AttributeModifier> CopyAttributeModifierList(
-        List<AttributeModifier> values
+    private static IReadOnlyList<AttributeModifierDefinition> CopyAttributeModifierDefinitionList(
+        IReadOnlyList<AttributeModifierDefinition> values
     )
     {
-        return values != null ? new List<AttributeModifier>(values) : new List<AttributeModifier>();
+        return values != null && values.Count > 0
+            ? new List<AttributeModifierDefinition>(values).AsReadOnly()
+            : System.Array.Empty<AttributeModifierDefinition>();
     }
 
     private static bool ContainsAttributeId(StringName[] values, StringName attributeId)

@@ -8,8 +8,11 @@ public partial class EnemyTemplateDef : Resource
 {
     private static readonly StringName DROP_TYPE_ITEM = "item",
         DROP_TYPE_RANDOM_EQUIPMENT = "random_equipment";
-    private static readonly Godot.Collections.Array<StringName> UNSUPPORTED_WEAPON_ATTRIBUTE_OVERRIDE_KEYS =
-        new() { "weapon_attack_range", "weapon_physical_damage_tag" };
+    private static readonly StringName[] UNSUPPORTED_WEAPON_ATTRIBUTE_OVERRIDE_KEYS =
+    {
+        "weapon_attack_range",
+        "weapon_physical_damage_tag",
+    };
     private static readonly StringName TagBeast = "beast",
         NATURAL_WEAPON_PROFILE_TYPE_ID = "natural_weapon",
         NATURAL_WEAPON_DEFAULT_DAMAGE_TAG = "physical_blunt";

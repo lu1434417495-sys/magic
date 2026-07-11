@@ -49,15 +49,19 @@ internal sealed class CharacterTraitService
         return new EffectiveTraitSet(ApplyStackPolicies(raw));
     }
 
-    public List<AttributeModifier> ResolveTraitAttributeModifiers(EffectiveTraitSet set)
+    public IReadOnlyList<AttributeModifierDefinition> ResolveTraitAttributeModifiers(
+        EffectiveTraitSet set
+    )
     {
-        List<AttributeModifier> result = new();
+        List<AttributeModifierDefinition> result = new();
         if (set == null)
-            return result;
+            return System.Array.Empty<AttributeModifierDefinition>();
 
         foreach (EffectiveTraitInstance instance in set.Instances)
             AppendAttributeModifiers(result, instance);
-        return result;
+        return result.Count > 0
+            ? result.AsReadOnly()
+            : System.Array.Empty<AttributeModifierDefinition>();
     }
 
     private void CollectIdentity(StringName memberId, List<EffectiveTraitInstance> raw)
@@ -443,7 +447,7 @@ internal sealed class CharacterTraitService
     }
 
     private static void AppendAttributeModifiers(
-        List<AttributeModifier> result,
+        List<AttributeModifierDefinition> result,
         EffectiveTraitInstance instance
     )
     {
@@ -460,17 +464,15 @@ internal sealed class CharacterTraitService
                 continue;
 
             result.Add(
-                new AttributeModifier
-                {
-                    attribute_id = baseModifier.attribute_id,
-                    mode = baseModifier.mode,
-                    value =
-                        baseModifier.GetValueForRank(instance.Rank)
+                new AttributeModifierDefinition(
+                    baseModifier.attribute_id,
+                    baseModifier.mode,
+                    baseModifier.GetValueForRank(instance.Rank)
                         * Mathf.Max(instance.Stacks, 1),
-                    value_per_rank = 0,
-                    source_type = sourceType,
-                    source_id = instance.EffectiveInstanceKey,
-                }
+                    0,
+                    sourceType,
+                    instance.EffectiveInstanceKey
+                )
             );
         }
     }

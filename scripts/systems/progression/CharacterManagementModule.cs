@@ -493,17 +493,18 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         context.versatility_pick = member_state.versatility_pick;
         context.reserved_mp_max = member_state.GetTotalReservedMpMax();
         var equipment_state = equipment_state_override ?? member_state.equipment_state;
-        context.equipment_state = _party_equipment_service.BuildAttributeModifiersTyped(
-            equipment_state
-        );
+        IReadOnlyList<AttributeModifierDefinition> equipmentModifiers =
+            _party_equipment_service.BuildAttributeModifiersTyped(equipment_state);
+        context.equipment_state = equipmentModifiers;
         if (_character_trait_service != null)
         {
             EffectiveTraitSet effectiveTraits = _character_trait_service.BuildEffectiveTraits(
                 member_id,
                 equipment_state
             );
-            context.trait_attribute_modifiers =
+            IReadOnlyList<AttributeModifierDefinition> traitModifiers =
                 _character_trait_service.ResolveTraitAttributeModifiers(effectiveTraits);
+            context.trait_attribute_modifiers = traitModifiers;
         }
         context.stage_advancement_modifiers = _collect_active_stage_advancement_modifiers(
             member_state

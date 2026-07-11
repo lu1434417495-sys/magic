@@ -6,9 +6,11 @@ using GDictionary = Godot.Collections.Dictionary;
 public sealed class SettlementForgeService : System.IDisposable
 {
     private const string MasterReforgeInteractionId = "service_master_reforge";
-    private static readonly GDictionary GenericForgeInteractionIds = new()
+    private static readonly HashSet<string> GenericForgeInteractionIds = new(
+        System.StringComparer.Ordinal
+    )
     {
-        ["service_repair_gear"] = true,
+        "service_repair_gear",
     };
 
     private readonly RecipeContentRegistry _recipeRegistry = new();
@@ -38,7 +40,8 @@ public sealed class SettlementForgeService : System.IDisposable
     public bool IsSupportedInteraction(string interaction_script_id)
     {
         string normalizedInteractionId = (interaction_script_id ?? "").StripEdges();
-        return normalizedInteractionId == MasterReforgeInteractionId || GenericForgeInteractionIds.ContainsKey(normalizedInteractionId);
+        return normalizedInteractionId == MasterReforgeInteractionId
+            || GenericForgeInteractionIds.Contains(normalizedInteractionId);
     }
 
     public bool HasAvailableRecipeTyped(

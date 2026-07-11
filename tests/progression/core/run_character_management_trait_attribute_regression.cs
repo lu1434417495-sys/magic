@@ -81,12 +81,12 @@ public partial class run_character_management_trait_attribute_regression : Lifec
                 "CharacterManagementModule should inject trait-derived attribute modifiers into context."
             );
             _test.Eq(
-                context.trait_attribute_modifiers[0].source_type,
+                context.trait_attribute_modifiers[0].SourceType,
                 new StringName("trait_character"),
                 "CharacterManagementModule should preserve trait modifier source type."
             );
             _test.Eq(
-                context.trait_attribute_modifiers[0].source_id,
+                context.trait_attribute_modifiers[0].SourceId,
                 new StringName("character_boost"),
                 "Collapsed character trait modifier source id should use effective trait key."
             );

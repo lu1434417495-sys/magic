@@ -14,8 +14,38 @@ public partial class run_attribute_trait_modifier_regression : LifecycleTestScen
 
     private void Run()
     {
+        TestRuntimeModifierContractsArePlain();
         TestTraitAttributeModifiersApplyAndPreserveSource();
         RequestTestExit(_test.Finish("Attribute trait modifier regression"));
+    }
+
+    private void TestRuntimeModifierContractsArePlain()
+    {
+        _test.False(
+            typeof(GodotObject).IsAssignableFrom(typeof(AttributeModifierDefinition)),
+            "Runtime attribute modifier definitions must remain plain CLR values."
+        );
+
+        foreach (
+            string fieldName in new[]
+            {
+                "_trait_attribute_modifiers",
+                "_equipment_state",
+                "_passive_state",
+                "_temporary_effects",
+            }
+        )
+        {
+            FieldInfo field = typeof(AttributeService).GetField(
+                fieldName,
+                BindingFlags.Instance | BindingFlags.NonPublic
+            );
+            _test.Eq(
+                field?.FieldType,
+                typeof(IReadOnlyList<AttributeModifierDefinition>),
+                $"AttributeService {fieldName} should expose the plain runtime modifier contract."
+            );
+        }
     }
 
     private void TestTraitAttributeModifiersApplyAndPreserveSource()
@@ -32,16 +62,16 @@ public partial class run_attribute_trait_modifier_regression : LifecycleTestScen
             new AttributeSourceContext
             {
                 unit_progress = progress,
-                trait_attribute_modifiers = new List<AttributeModifier>
+                trait_attribute_modifiers = new AttributeModifierDefinition[]
                 {
-                    new()
-                    {
-                        attribute_id = "strength",
-                        mode = AttributeModifier.ToStringName(AttributeModifierMode.Flat),
-                        value = 3,
-                        source_type = "trait_character",
-                        source_id = "additive_power",
-                    },
+                    new(
+                        "strength",
+                        AttributeModifier.ToStringName(AttributeModifierMode.Flat),
+                        3,
+                        0,
+                        "trait_character",
+                        "additive_power"
+                    ),
                 },
             }
         );

@@ -17,10 +17,14 @@ public sealed class AttributeSourceContext
     public AscensionStageDef ascension_stage_def;
     public StringName versatility_pick = "";
     public int reserved_mp_max;
-    public List<AttributeModifier> trait_attribute_modifiers = new();
-    public List<AttributeModifier> equipment_state = new();
-    public List<AttributeModifier> passive_state = new();
-    public List<AttributeModifier> temporary_effects = new();
+    public IReadOnlyList<AttributeModifierDefinition> trait_attribute_modifiers =
+        System.Array.Empty<AttributeModifierDefinition>();
+    public IReadOnlyList<AttributeModifierDefinition> equipment_state =
+        System.Array.Empty<AttributeModifierDefinition>();
+    public IReadOnlyList<AttributeModifierDefinition> passive_state =
+        System.Array.Empty<AttributeModifierDefinition>();
+    public IReadOnlyList<AttributeModifierDefinition> temporary_effects =
+        System.Array.Empty<AttributeModifierDefinition>();
     public List<StageAdvancementModifier> stage_advancement_modifiers = new();
 
     public void SetEffectiveAgeStage(

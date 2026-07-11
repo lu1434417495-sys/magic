@@ -26,7 +26,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     private const int USE_DEFAULT_ACTION_THRESHOLD = -1;
     private static readonly StringName WARRIOR_BODY_ARMOR_ITEM_ID = "iron_scale_mail";
     private static readonly StringName ARCHER_BODY_ARMOR_ITEM_ID = "leather_jerkin";
-    private static readonly Godot.Collections.Array<StringName> ATTRIBUTE_ROLL_IDS = new()
+    private static readonly StringName[] ATTRIBUTE_ROLL_IDS =
     {
         UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength),
         UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility),
