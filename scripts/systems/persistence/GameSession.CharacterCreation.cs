@@ -461,8 +461,10 @@ public partial class GameSession
         StringName itemId = ResolveStartingWeaponItemIdForSkill(skillDefinition);
         if (itemId == "")
             return;
-        ItemDef itemDef = GetObject<ItemDef>(_item_defs, itemId);
-        if (itemDef == null || !itemDef.IsWeapon())
+        if (
+            !_itemDefinitionIndex.TryGetValue(itemId, out ItemDefinition itemDefinition)
+            || !itemDefinition.IsWeapon()
+        )
             return;
         StringName instanceId = AllocateEquipmentInstanceId();
         if (instanceId == "")
@@ -471,7 +473,7 @@ public partial class GameSession
             itemId,
             instanceId
         );
-        IReadOnlyList<StringName> occupiedSlots = itemDef.GetFinalOccupiedSlotIdsTyped(
+        IReadOnlyList<StringName> occupiedSlots = itemDefinition.GetFinalOccupiedSlotIdsTyped(
             EquipmentRules.ToStringName(EquipmentSlotKind.MainHand)
         );
         member_state.equipment_state.SetEquippedEntry(
@@ -557,8 +559,10 @@ public partial class GameSession
         {
             if (itemId == "")
                 continue;
-            ItemDef itemDef = GetObject<ItemDef>(_item_defs, itemId);
-            if (itemDef != null && itemDef.IsWeapon())
+            if (
+                _itemDefinitionIndex.TryGetValue(itemId, out ItemDefinition itemDefinition)
+                && itemDefinition.IsWeapon()
+            )
                 return itemId;
         }
         return "";

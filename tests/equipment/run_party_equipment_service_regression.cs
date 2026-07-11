@@ -26,12 +26,11 @@ public partial class run_party_equipment_service_regression : LifecycleTestScene
     private void TestTwoHandPreviewUsesTypedBatchEntriesWithoutMutatingState()
     {
         PartyState partyState = BuildPartyState();
-        GDictionary itemDefs = BuildItemDefs();
-        Dictionary<StringName, ItemDef> typedItemDefs = BuildItemDefIndex(itemDefs);
+        Dictionary<StringName, ItemDefinition> itemDefinitions = BuildItemDefinitions();
         PartyWarehouseService warehouseService = new();
-        warehouseService.Setup(partyState, typedItemDefs);
+        warehouseService.Setup(partyState, itemDefinitions);
         PartyEquipmentService equipmentService = new();
-        equipmentService.Setup(partyState, typedItemDefs, warehouseService);
+        equipmentService.Setup(partyState, itemDefinitions, warehouseService);
 
         warehouseService.AddItemTyped("bronze_sword", 1);
         var equipResult = equipmentService.EquipItemTyped("hero", "bronze_sword");
@@ -234,9 +233,9 @@ public partial class run_party_equipment_service_regression : LifecycleTestScene
         );
     }
 
-    private static GDictionary BuildItemDefs()
+    private static Dictionary<StringName, ItemDefinition> BuildItemDefinitions()
     {
-        GDictionary itemDefs = new()
+        return new Dictionary<StringName, ItemDefinition>
         {
             [new StringName("bronze_sword")] = new ItemDef
             {
@@ -247,7 +246,7 @@ public partial class run_party_equipment_service_regression : LifecycleTestScene
                 max_stack = 1,
                 EquipmentTypeKind = ItemEquipmentTypeKind.Weapon,
                 equipment_slot_ids = new Godot.Collections.Array<string> { "main_hand" },
-            },
+            }.ToDefinition(),
             [new StringName("iron_greatsword")] = new ItemDef
             {
                 item_id = "iron_greatsword",
@@ -262,7 +261,7 @@ public partial class run_party_equipment_service_regression : LifecycleTestScene
                     "main_hand",
                     "off_hand",
                 },
-            },
+            }.ToDefinition(),
             [new StringName("iron_sword")] = new ItemDef
             {
                 item_id = "iron_sword",
@@ -272,14 +271,8 @@ public partial class run_party_equipment_service_regression : LifecycleTestScene
                 max_stack = 1,
                 EquipmentTypeKind = ItemEquipmentTypeKind.Weapon,
                 equipment_slot_ids = new Godot.Collections.Array<string> { "main_hand" },
-            },
+            }.ToDefinition(),
         };
-        GodotContentOwnership.RegisterDerivedWrapper(
-            itemDefs,
-            "PartyEquipmentService.BuildItemDefs",
-            "PartyEquipmentService.BuildItemDefs"
-        );
-        return itemDefs;
     }
 
     private static GDictionary BuildEquipmentInstancePayload(
@@ -300,15 +293,13 @@ public partial class run_party_equipment_service_regression : LifecycleTestScene
 
     private static LootCommitFixture BuildLootCommitFixture()
     {
-        GDictionary itemDefs = BuildItemDefs();
+        Dictionary<StringName, ItemDefinition> itemDefinitions = BuildItemDefinitions();
         PartyState partyState = BuildPartyState();
         PartyWarehouseService warehouseService = new();
-        warehouseService.Setup(partyState, BuildItemDefIndex(itemDefs));
+        warehouseService.Setup(partyState, itemDefinitions);
 
-        GameSession gameSession = new()
-        {
-            _item_defs = itemDefs,
-        };
+        GameSession gameSession = new();
+        gameSession.ReplaceItemDefinitionsForTests(itemDefinitions);
         GameRuntimeFacade runtime = new()
         {
             _game_session = gameSession,
@@ -319,26 +310,6 @@ public partial class run_party_equipment_service_regression : LifecycleTestScene
         runtime._battle_loot_commit_service.Setup(runtime);
         return new LootCommitFixture(runtime, gameSession, runtime._battle_loot_commit_service, partyState);
     }
-
-    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
-    {
-        Dictionary<StringName, ItemDef> result = new();
-        if (itemDefs == null)
-            return result;
-        foreach (Variant rawKey in itemDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            StringName itemId = rawKey.AsStringName();
-            if (itemId == "")
-                continue;
-            if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
-                result[itemId] = itemDef;
-        }
-        return result;
-    }
-
-
 
     private void AssertStringListEq(List<string> actual, List<string> expected, string message)
     {

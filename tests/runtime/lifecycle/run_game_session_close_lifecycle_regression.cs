@@ -121,9 +121,9 @@ public partial class run_game_session_close_lifecycle_regression : LifecycleTest
             $"{label} should resolve the known {KnownSkillId} skill."
         );
         _test.True(
-            catalog.GetItemDefsTyped().TryGetValue(KnownItemId, out ItemDef item)
+            catalog.GetItemDefsTyped().TryGetValue(KnownItemId, out ItemDefinition item)
                 && item != null
-                && item.item_id == KnownItemId,
+                && item.ItemId == KnownItemId,
             $"{label} should resolve the known {KnownItemId} item."
         );
     }

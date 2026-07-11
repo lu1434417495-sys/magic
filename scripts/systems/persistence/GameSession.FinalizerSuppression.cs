@@ -183,8 +183,6 @@ public partial class GameSession
             _progression_content_registry?.GetStageAdvancementDefsTyped(),
             visited
         );
-        SuppressResourceValues(_item_content_registry?.GetItemDefsTyped(), visited);
-        SuppressResourceValues(_recipe_content_registry?.GetRecipeDefsTyped(), visited);
         SuppressResourceValues(_enemy_content_registry?.GetEnemyTemplatesTyped(), visited);
         SuppressResourceValues(_enemy_content_registry?.GetEnemyAiBrainsTyped(), visited);
         SuppressResourceValues(_enemy_content_registry?.GetWildEncounterRostersTyped(), visited);
@@ -197,8 +195,6 @@ public partial class GameSession
         var visited = new HashSet<GodotObject>();
         SuppressOwnedContentFinalizerGraphsForShutdown(visited);
         SuppressGodotObjectFinalizerGraph(_generation_config, visited);
-        SuppressResourceDictionaryProjectionFinalizers(_item_defs, visited);
-        SuppressResourceDictionaryProjectionFinalizers(_recipe_defs, visited);
         SuppressResourceDictionaryProjectionFinalizers(_enemy_templates, visited);
         SuppressResourceDictionaryProjectionFinalizers(_enemy_ai_brains, visited);
         SuppressResourceDictionaryProjectionFinalizers(_wild_encounter_rosters, visited);
@@ -235,23 +231,20 @@ public partial class GameSession
     private void ClearSessionGodotObjectReferences()
     {
         _generation_config = null;
-        ClearResourceDictionaryProjection(_item_defs);
-        ClearResourceDictionaryProjection(_recipe_defs);
         ClearResourceDictionaryProjection(_enemy_templates);
         ClearResourceDictionaryProjection(_enemy_ai_brains);
         ClearResourceDictionaryProjection(_wild_encounter_rosters);
         _skillDefinitionIndex.Clear();
-        _item_defs = new GDictionary();
-        _recipe_defs = new GDictionary();
         _enemy_templates = new GDictionary();
         _enemy_ai_brains = new GDictionary();
         _wild_encounter_rosters = new GDictionary();
         _contentValidationSnapshotData = new ContentValidationSnapshotData();
+        _itemValidationErrorsForTests.Clear();
         _professionDefIndex.Clear();
         _achievementDefIndex.Clear();
         _questDefIndex.Clear();
-        _itemDefIndex.Clear();
-        _recipeDefIndex.Clear();
+        _itemDefinitionIndex.Clear();
+        _recipeDefinitionIndex.Clear();
         _enemyTemplateIndex.Clear();
         _enemyAiBrainIndex.Clear();
         _wildEncounterRosterIndex.Clear();

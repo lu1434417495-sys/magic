@@ -218,7 +218,7 @@ internal static class ContentValidationRunner
         if (skillDefs != null && skillDefs.Count > 0)
             AppendUniqueErrors(
                 combinedErrors,
-                ValidateSkillBookItems(ProjectItemDefs(registry.GetItemDefsTyped()), skillDefs)
+                ValidateSkillBookItems(registry.GetItemDefsTyped(), skillDefs)
             );
         if (traitDefinitions != null && traitDefinitions.Count > 0)
         {
@@ -236,11 +236,11 @@ internal static class ContentValidationRunner
 
     public static ValidationDomainResult ValidateRecipeDirectory(
         string directoryPath,
-        GDictionary itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
         using RecipeContentRegistry registry = new();
-        registry.Setup(BuildItemDefIndex(itemDefs));
+        registry.Setup(itemDefinitions);
         registry.LoadFromDirectory(directoryPath);
         return BuildDomainResult("recipe", directoryPath, registry.Validate());
     }
@@ -317,7 +317,7 @@ internal static class ContentValidationRunner
     public static ValidationDomainResult ValidateQuestEntries(
         string label,
         IReadOnlyList<QuestValidationEntry> questEntries,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates
     )
@@ -353,7 +353,7 @@ internal static class ContentValidationRunner
         errors.AddRange(
             QuestContentValidator.ValidateTyped(
                 questDefs,
-                itemDefs ?? new Dictionary<StringName, ItemDef>(),
+                itemDefinitions ?? new Dictionary<StringName, ItemDefinition>(),
                 skillDefinitions ?? new Dictionary<StringName, SkillDefinition>(),
                 enemyTemplates ?? new Dictionary<StringName, EnemyTemplateDef>(),
                 Array.Empty<string>()
@@ -443,33 +443,48 @@ internal static class ContentValidationRunner
         );
     }
 
-    private static List<string> ValidateSkillBookItems(GDictionary itemDefs, GDictionary skillDefs)
+    private static List<string> ValidateSkillBookItems(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
+        GDictionary skillDefs
+    )
     {
         List<string> errors = new();
-        foreach (string itemKey in SortedStringKeys(itemDefs))
+        itemDefinitions ??= new Dictionary<StringName, ItemDefinition>();
+        var sortedItemIds = new List<StringName>(itemDefinitions.Keys);
+        sortedItemIds.Sort(
+            (left, right) => string.CompareOrdinal(left.ToString(), right.ToString())
+        );
+        foreach (StringName itemId in sortedItemIds)
         {
-            ItemDef itemDef = DictGetByStringName<ItemDef>(itemDefs, itemKey);
-            if (itemDef == null)
+            if (
+                !itemDefinitions.TryGetValue(itemId, out ItemDefinition itemDefinition)
+                || itemDefinition == null
+            )
                 continue;
-            if (string.CompareOrdinal(itemDef.GetItemCategoryNormalized(), "skill_book") != 0)
+            if (
+                string.CompareOrdinal(
+                    itemDefinition.GetItemCategoryNormalized(),
+                    "skill_book"
+                ) != 0
+            )
                 continue;
-            if (itemDef.granted_skill_id == "")
+            if (itemDefinition.GrantedSkillId == "")
                 continue;
             SkillDef skillDef = DictGetByStringName<SkillDef>(
                 skillDefs,
-                itemDef.granted_skill_id.ToString()
+                itemDefinition.GrantedSkillId.ToString()
             );
             if (skillDef == null)
             {
                 errors.Add(
-                    $"Skill book item {itemDef.item_id} references missing skill {itemDef.granted_skill_id}."
+                    $"Skill book item {itemDefinition.ItemId} references missing skill {itemDefinition.GrantedSkillId}."
                 );
                 continue;
             }
             if (skillDef.LearnSourceKind != SkillLearnSourceKind.Book)
             {
                 errors.Add(
-                    $"Skill book item {itemDef.item_id} granted_skill_id {itemDef.granted_skill_id} learn_source must be book, got {skillDef.learn_source}."
+                    $"Skill book item {itemDefinition.ItemId} granted_skill_id {itemDefinition.GrantedSkillId} learn_source must be book, got {skillDef.learn_source}."
                 );
             }
         }
@@ -483,9 +498,9 @@ internal static class ContentValidationRunner
             )
                 continue;
             StringName canonicalItemId = BuildSkillBookItemId(skillDef.skill_id);
-            ItemDef occupyingItem = DictGetByStringName<ItemDef>(
-                itemDefs,
-                canonicalItemId.ToString()
+            itemDefinitions.TryGetValue(
+                canonicalItemId,
+                out ItemDefinition occupyingItem
             );
             if (occupyingItem == null)
                 continue;
@@ -496,10 +511,10 @@ internal static class ContentValidationRunner
                 );
                 continue;
             }
-            if (occupyingItem.granted_skill_id != skillDef.skill_id)
+            if (occupyingItem.GrantedSkillId != skillDef.skill_id)
             {
                 errors.Add(
-                    $"Skill book item {canonicalItemId} occupies generated skill book id for skill {skillDef.skill_id} but grants {occupyingItem.granted_skill_id}."
+                    $"Skill book item {canonicalItemId} occupies generated skill book id for skill {skillDef.skill_id} but grants {occupyingItem.GrantedSkillId}."
                 );
             }
         }
@@ -536,38 +551,6 @@ internal static class ContentValidationRunner
                 resources[skillId] = skillDef;
         }
         return SkillDefinition.ProjectIndex(resources);
-    }
-
-    private static GDictionary ProjectItemDefs(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
-    {
-        GDictionary result = new();
-        if (itemDefs == null)
-            return result;
-        foreach ((StringName itemId, ItemDef itemDef) in itemDefs)
-        {
-            if (itemId == "" || itemDef == null)
-                continue;
-            result[itemId] = itemDef;
-        }
-        return result;
-    }
-
-    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
-    {
-        Dictionary<StringName, ItemDef> result = new();
-        if (itemDefs == null)
-            return result;
-        foreach (Variant rawKey in itemDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            StringName itemId = rawKey.AsStringName();
-            if (itemId == "")
-                continue;
-            if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
-                result[itemId] = itemDef;
-        }
-        return result;
     }
 
     private static T DictGetByStringName<T>(GDictionary source, string key)

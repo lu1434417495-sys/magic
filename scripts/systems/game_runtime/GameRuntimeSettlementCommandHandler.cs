@@ -3963,16 +3963,16 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return _has_runtime() ? Runtime.GetPartyWarehouseService() : null;
     }
 
-    private IReadOnlyDictionary<StringName, ItemDef> _GetItemDefsTyped()
+    private IReadOnlyDictionary<StringName, ItemDefinition> _GetItemDefsTyped()
     {
         if (!_has_runtime())
         {
-            return new Dictionary<StringName, ItemDef>();
+            return new Dictionary<StringName, ItemDefinition>();
         }
         GameSession gameSession = Runtime.GetGameSession();
         return gameSession != null
             ? gameSession.GetItemDefsTyped()
-            : new Dictionary<StringName, ItemDef>();
+            : new Dictionary<StringName, ItemDefinition>();
     }
 
     private IReadOnlyDictionary<StringName, TraitDefinition> _GetTraitDefsTyped()
@@ -3992,16 +3992,16 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return Runtime?.GetItemDisplayName(item_id) ?? item_id.ToString();
     }
 
-    internal IReadOnlyDictionary<StringName, RecipeDef> GetRecipeDefsTyped()
+    internal IReadOnlyDictionary<StringName, RecipeDefinition> GetRecipeDefsTyped()
     {
         if (!_has_runtime())
         {
-            return new Dictionary<StringName, RecipeDef>();
+            return new Dictionary<StringName, RecipeDefinition>();
         }
         GameSession gameSession = Runtime.GetGameSession();
         return gameSession != null
             ? gameSession.GetRecipeDefsTyped()
-            : new Dictionary<StringName, RecipeDef>();
+            : new Dictionary<StringName, RecipeDefinition>();
     }
 
     internal IReadOnlyDictionary<StringName, QuestDefinition> GetQuestDefsTyped()

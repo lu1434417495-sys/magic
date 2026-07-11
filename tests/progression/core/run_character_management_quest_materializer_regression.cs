@@ -1054,9 +1054,9 @@ public partial class run_character_management_quest_materializer_regression : Li
         };
     }
 
-    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
+    private static Dictionary<StringName, ItemDefinition> BuildItemDefIndex(GDictionary itemDefs)
     {
-        Dictionary<StringName, ItemDef> result = new();
+        Dictionary<StringName, ItemDefinition> result = new();
         if (itemDefs == null)
             return result;
         foreach (Variant rawKey in itemDefs.Keys)
@@ -1067,7 +1067,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             if (itemId == "")
                 continue;
             if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
-                result[itemId] = itemDef;
+                result[itemId] = itemDef.ToDefinition();
         }
         return result;
     }

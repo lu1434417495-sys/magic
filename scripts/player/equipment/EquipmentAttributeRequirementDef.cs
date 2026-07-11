@@ -8,4 +8,7 @@ public partial class EquipmentAttributeRequirementDef : Resource
 
     [Export(PropertyHint.Range, "0,999,1")]
     public int min_value;
+
+    internal EquipmentAttributeRequirementDefinition ToDefinition() =>
+        EquipmentAttributeRequirementDefinition.FromResource(this);
 }

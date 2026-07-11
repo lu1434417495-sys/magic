@@ -800,7 +800,7 @@ public partial class run_contingency_target_resolver_regression : LifecycleTestS
             },
             new Dictionary<StringName, ProfessionDefinition>(),
             new Dictionary<StringName, AchievementDefinition>(),
-            new Dictionary<StringName, ItemDef>(),
+            new Dictionary<StringName, ItemDefinition>(),
             new Dictionary<StringName, QuestDefinition>(),
             new Dictionary<StringName, TraitDefinition>(),
             null,

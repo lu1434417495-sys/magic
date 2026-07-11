@@ -84,7 +84,7 @@ public partial class run_shieldbreaker_weapon_projection_regression : LifecycleT
             );
         }
 
-        ItemDef shieldbreaker = content.ItemDefs[ShieldbreakerItemId];
+        ItemDefinition shieldbreaker = content.ItemDefs[ShieldbreakerItemId];
         AssertShieldbreakerItemContent(shieldbreaker);
 
         using BattleRuntimeScope runtimeScope = BuildRuntime(content);
@@ -278,10 +278,10 @@ public partial class run_shieldbreaker_weapon_projection_regression : LifecycleT
         );
     }
 
-    private void AssertShieldbreakerItemContent(ItemDef item)
+    private void AssertShieldbreakerItemContent(ItemDefinition item)
     {
-        _test.Eq(item.display_name, "碎盾", "碎盾 display_name 应来自真实内容。");
-        _test.Eq(item.base_item_id, new StringName(""), "碎盾 resolved item 应已完成模板合并。");
+        _test.Eq(item.DisplayName, "碎盾", "碎盾 display_name 应来自真实内容。");
+        _test.Eq(item.BaseItemId, new StringName(""), "碎盾 resolved item 应已完成模板合并。");
         _test.True(item.IsWeapon(), "碎盾 resolved item 应继承 weapon equipment 类型。");
         _test.Eq(
             item.GetWeaponPhysicalDamageTag(),
@@ -300,13 +300,13 @@ public partial class run_shieldbreaker_weapon_projection_regression : LifecycleT
         );
         if (item.GetAttributeModifiersTyped().Count > 0)
         {
-            AttributeModifier modifier = item.GetAttributeModifiersTyped()[0];
+            AttributeModifierDefinition modifier = item.GetAttributeModifiersTyped()[0];
             _test.Eq(
-                modifier.attribute_id,
+                modifier.AttributeId,
                 AttributeService.ARMOR_AC_BONUS,
                 "碎盾 +1 AC 应使用 armor_ac_bonus 组件。"
             );
-            _test.Eq(modifier.value, 1, "碎盾 armor_ac_bonus 应为 +1。");
+            _test.Eq(modifier.Value, 1, "碎盾 armor_ac_bonus 应为 +1。");
         }
     }
 
@@ -431,7 +431,7 @@ public partial class run_shieldbreaker_weapon_projection_regression : LifecycleT
             Bindings = progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped();
         }
 
-        internal IReadOnlyDictionary<StringName, ItemDef> ItemDefs { get; }
+        internal IReadOnlyDictionary<StringName, ItemDefinition> ItemDefs { get; }
         internal IReadOnlyDictionary<StringName, SkillDefinition> SkillDefs { get; }
         internal IReadOnlyDictionary<StringName, ProfessionDefinition> ProfessionDefs { get; }
         internal IReadOnlyDictionary<StringName, AchievementDefinition> AchievementDefs { get; }

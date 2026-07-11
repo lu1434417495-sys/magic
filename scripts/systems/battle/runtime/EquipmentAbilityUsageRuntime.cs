@@ -15,7 +15,7 @@ internal static class EquipmentAbilityUsageRuntime
         int worldStep,
         BattleState battleState,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindingIndex,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefinitions,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
         out StringName disabledReason
     )
     {
@@ -97,7 +97,7 @@ internal static class EquipmentAbilityUsageRuntime
         EquipmentAbilityBindingDefinition binding,
         BattleState battleState,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindingIndex,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefinitions
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
         if (group == null)
@@ -146,7 +146,7 @@ internal static class EquipmentAbilityUsageRuntime
         EquipmentAbilityBindingDefinition binding,
         BattleState battleState,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindingIndex,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefinitions
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
         if (
@@ -191,7 +191,7 @@ internal static class EquipmentAbilityUsageRuntime
     private static bool HasEquipmentTagAvailabilityConditionPasses(
         HasEquipmentTagConditionPayloadDefinition payload,
         BattleUnitState unit,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefinitions
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
         if (payload == null || unit == null || itemDefinitions == null || itemDefinitions.Count == 0)
@@ -207,17 +207,17 @@ internal static class EquipmentAbilityUsageRuntime
         );
         if (
             itemId == ""
-            || !itemDefinitions.TryGetValue(itemId, out ItemDef itemDef)
-            || itemDef == null
+            || !itemDefinitions.TryGetValue(itemId, out ItemDefinition itemDefinition)
+            || itemDefinition == null
         )
         {
             return false;
         }
-        return AllTagsPresent(itemDef, payload.AllTags)
+        return AllTagsPresent(itemDefinition, payload.AllTags)
             && (
                 payload.AnyTags == null
                 || payload.AnyTags.Count == 0
-                || AnyTagPresent(itemDef, payload.AnyTags)
+                || AnyTagPresent(itemDefinition, payload.AnyTags)
             );
     }
 
@@ -802,22 +802,28 @@ internal static class EquipmentAbilityUsageRuntime
         return null;
     }
 
-    private static bool AllTagsPresent(ItemDef itemDef, IReadOnlyList<StringName> requiredTags)
+    private static bool AllTagsPresent(
+        ItemDefinition itemDefinition,
+        IReadOnlyList<StringName> requiredTags
+    )
     {
         if (requiredTags == null || requiredTags.Count == 0)
             return true;
         foreach (StringName requiredTag in requiredTags)
-            if (!BattleEquipmentRequirementRules.ItemHasTag(itemDef, requiredTag))
+            if (!BattleEquipmentRequirementRules.ItemHasTag(itemDefinition, requiredTag))
                 return false;
         return true;
     }
 
-    private static bool AnyTagPresent(ItemDef itemDef, IReadOnlyList<StringName> requiredTags)
+    private static bool AnyTagPresent(
+        ItemDefinition itemDefinition,
+        IReadOnlyList<StringName> requiredTags
+    )
     {
         if (requiredTags == null || requiredTags.Count == 0)
             return true;
         foreach (StringName requiredTag in requiredTags)
-            if (BattleEquipmentRequirementRules.ItemHasTag(itemDef, requiredTag))
+            if (BattleEquipmentRequirementRules.ItemHasTag(itemDefinition, requiredTag))
                 return true;
         return false;
     }

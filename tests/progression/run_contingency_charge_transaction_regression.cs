@@ -705,7 +705,7 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
         return result;
     }
 
-	private static Dictionary<StringName, ItemDef> BuildItemIndex() =>
+	private static Dictionary<StringName, ItemDefinition> BuildItemIndex() =>
 		new()
         {
             [GemId] = new ItemDef
@@ -715,7 +715,7 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
                 CategoryKind = ItemCategoryKind.Misc,
                 is_stackable = true,
                 max_stack = 99,
-            },
+            }.ToDefinition(),
 		};
 
     private void AssertSetupState(

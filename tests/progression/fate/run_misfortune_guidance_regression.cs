@@ -46,7 +46,7 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
         MisfortuneGuidanceService guidance = context.Guidance;
         FaithService faith = context.Faith;
         BattleRuntimeModule battleRuntime = context.BattleRuntime;
-        IReadOnlyDictionary<StringName, ItemDef> itemDefIndex = context.ItemDefIndex;
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefIndex = context.ItemDefIndex;
         if (
             partyState == null
             || manager == null
@@ -248,7 +248,7 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
     private static TestContext BuildContext()
     {
         GDictionary itemDefs = BuildItemDefs();
-        Dictionary<StringName, ItemDef> itemDefIndex = BuildItemDefIndex(itemDefs);
+        Dictionary<StringName, ItemDefinition> itemDefIndex = BuildItemDefIndex(itemDefs);
         PartyState partyState = new()
         {
             leader_member_id = HeroId,
@@ -326,16 +326,16 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
         };
     }
 
-    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
+    private static Dictionary<StringName, ItemDefinition> BuildItemDefIndex(GDictionary itemDefs)
     {
-        var result = new Dictionary<StringName, ItemDef>();
+        var result = new Dictionary<StringName, ItemDefinition>();
         foreach (Variant key in itemDefs.Keys)
         {
             if (key.VariantType != Variant.Type.StringName)
                 continue;
             ItemDef itemDef = itemDefs[key].As<ItemDef>();
             if (itemDef != null)
-                result[key.AsStringName()] = itemDef;
+                result[key.AsStringName()] = itemDef.ToDefinition();
         }
         return result;
     }
@@ -598,7 +598,7 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
             FaithService faith,
             BattleRuntimeModule battleRuntime,
             GDictionary itemDefs,
-            IReadOnlyDictionary<StringName, ItemDef> itemDefIndex
+            IReadOnlyDictionary<StringName, ItemDefinition> itemDefIndex
         )
         {
             PartyState = partyState;
@@ -616,7 +616,7 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
         public FaithService Faith { get; }
         public BattleRuntimeModule BattleRuntime { get; }
         public GDictionary ItemDefs { get; }
-        public IReadOnlyDictionary<StringName, ItemDef> ItemDefIndex { get; }
+        public IReadOnlyDictionary<StringName, ItemDefinition> ItemDefIndex { get; }
 
         public void Dispose()
         {

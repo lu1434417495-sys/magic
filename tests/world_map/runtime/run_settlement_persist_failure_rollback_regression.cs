@@ -543,7 +543,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
             partyState,
             questDefs
         );
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = gameSession.GetItemDefsTyped();
 
         var runtime = new GameRuntimeFacade
         {

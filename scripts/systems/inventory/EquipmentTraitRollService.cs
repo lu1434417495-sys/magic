@@ -43,27 +43,28 @@ public class EquipmentTraitRollService : IDisposable
             _rollUnit = rollUnit;
     }
 
-    public void MintWithRolls(EquipmentInstanceState instance, ItemDef itemDef)
+    public void MintWithRolls(EquipmentInstanceState instance, ItemDefinition itemDefinition)
     {
-        if (instance == null || itemDef == null || instance.instance_id == "")
+        if (instance == null || itemDefinition == null || instance.instance_id == "")
             return;
 
-        List<TraitRollGroupDef> rollGroups = itemDef.GetTraitRollGroupsTyped();
+        IReadOnlyList<TraitRollGroupDefinition> rollGroups =
+            itemDefinition.GetTraitRollGroupsTyped();
         if (rollGroups.Count == 0)
             return;
 
         List<TraitInstanceState> nextTraits = new();
-        foreach (TraitRollGroupDef group in rollGroups)
+        foreach (TraitRollGroupDefinition group in rollGroups)
         {
-            foreach (TraitRollGroupEntryDef entry in RollGroup(group))
+            foreach (TraitRollGroupEntryDefinition entry in RollGroup(group))
             {
-                TraitDefinition traitDef = FindTraitDef(entry.trait_id);
+                TraitDefinition traitDef = FindTraitDef(entry.TraitId);
                 if (traitDef == null)
                     continue;
                 nextTraits.Add(
                     TraitInstanceState.Create(
                         BuildTraitInstanceId(instance.instance_id, nextTraits.Count + 1),
-                        entry.trait_id,
+                        entry.TraitId,
                         TraitSourceKind.EquipmentRoll,
                         instance.instance_id,
                         rollValues: RollValuesFor(traitDef)
@@ -92,27 +93,27 @@ public class EquipmentTraitRollService : IDisposable
         return true;
     }
 
-    private List<TraitRollGroupEntryDef> RollGroup(TraitRollGroupDef group)
+    private List<TraitRollGroupEntryDefinition> RollGroup(TraitRollGroupDefinition group)
     {
-        List<TraitRollGroupEntryDef> hits = new();
-        if (group == null || group.roll_count < 1)
+        List<TraitRollGroupEntryDefinition> hits = new();
+        if (group == null || group.RollCount < 1)
             return hits;
 
         int maxSatisfiableHits = CountMaxSatisfiableHits(group);
-        if (group.roll_count > maxSatisfiableHits)
+        if (group.RollCount > maxSatisfiableHits)
         {
             GameLog.Warning(
-                $"Equipment trait roll group {group.group_id} is unsatisfiable: roll_count {group.roll_count} exceeds max satisfiable hits {maxSatisfiableHits}.",
+                $"Equipment trait roll group {group.GroupId} is unsatisfiable: roll_count {group.RollCount} exceeds max satisfiable hits {maxSatisfiableHits}.",
                 "equipment_traits.unsatisfiable_roll_group",
                 "equipment"
             );
             return hits;
         }
 
-        List<TraitRollGroupEntryDef> candidates = BuildValidCandidates(group);
-        for (int rollIndex = 0; rollIndex < group.roll_count && candidates.Count > 0; rollIndex++)
+        List<TraitRollGroupEntryDefinition> candidates = BuildValidCandidates(group);
+        for (int rollIndex = 0; rollIndex < group.RollCount && candidates.Count > 0; rollIndex++)
         {
-            TraitRollGroupEntryDef picked = WeightedPick(candidates);
+            TraitRollGroupEntryDefinition picked = WeightedPick(candidates);
             if (picked == null)
                 break;
             hits.Add(picked);
@@ -121,14 +122,16 @@ public class EquipmentTraitRollService : IDisposable
         return hits;
     }
 
-    private List<TraitRollGroupEntryDef> BuildValidCandidates(TraitRollGroupDef group)
+    private List<TraitRollGroupEntryDefinition> BuildValidCandidates(
+        TraitRollGroupDefinition group
+    )
     {
-        List<TraitRollGroupEntryDef> candidates = new();
-        foreach (TraitRollGroupEntryDef entry in group.entries)
+        List<TraitRollGroupEntryDefinition> candidates = new();
+        foreach (TraitRollGroupEntryDefinition entry in group.Entries)
         {
-            if (entry == null || entry.trait_id == "" || entry.weight <= 0)
+            if (entry == null || entry.TraitId == "" || entry.Weight <= 0)
                 continue;
-            TraitDefinition traitDef = FindTraitDef(entry.trait_id);
+            TraitDefinition traitDef = FindTraitDef(entry.TraitId);
             if (traitDef == null)
                 continue;
             if (!TraitContentRules.IsSourceKindAllowed(traitDef, TraitSourceKind.EquipmentRoll))
@@ -138,22 +141,24 @@ public class EquipmentTraitRollService : IDisposable
         return candidates;
     }
 
-    private TraitRollGroupEntryDef WeightedPick(List<TraitRollGroupEntryDef> candidates)
+    private TraitRollGroupEntryDefinition WeightedPick(
+        List<TraitRollGroupEntryDefinition> candidates
+    )
     {
         if (candidates == null || candidates.Count == 0)
             return null;
 
         int totalWeight = 0;
-        foreach (TraitRollGroupEntryDef entry in candidates)
-            totalWeight += Mathf.Max(entry.weight, 0);
+        foreach (TraitRollGroupEntryDefinition entry in candidates)
+            totalWeight += Mathf.Max(entry.Weight, 0);
         if (totalWeight <= 0)
             return null;
 
         float roll = Mathf.Clamp(_rollUnit(), 0.0f, 0.999999f) * totalWeight;
         int cumulative = 0;
-        foreach (TraitRollGroupEntryDef entry in candidates)
+        foreach (TraitRollGroupEntryDefinition entry in candidates)
         {
-            cumulative += Mathf.Max(entry.weight, 0);
+            cumulative += Mathf.Max(entry.Weight, 0);
             if (roll < cumulative)
                 return entry;
         }
@@ -161,16 +166,16 @@ public class EquipmentTraitRollService : IDisposable
     }
 
     private static void RemovePickedAndExclusivePeers(
-        List<TraitRollGroupEntryDef> candidates,
-        TraitRollGroupEntryDef picked
+        List<TraitRollGroupEntryDefinition> candidates,
+        TraitRollGroupEntryDefinition picked
     )
     {
-        if (picked.exclusive_group == "")
+        if (picked.ExclusiveGroup == "")
         {
             candidates.Remove(picked);
             return;
         }
-        candidates.RemoveAll(entry => entry.exclusive_group == picked.exclusive_group);
+        candidates.RemoveAll(entry => entry.ExclusiveGroup == picked.ExclusiveGroup);
     }
 
     private List<TraitRollValueState> RollValuesFor(TraitDefinition traitDef)
@@ -211,20 +216,20 @@ public class EquipmentTraitRollService : IDisposable
         return values;
     }
 
-    private static int CountMaxSatisfiableHits(TraitRollGroupDef group)
+    private static int CountMaxSatisfiableHits(TraitRollGroupDefinition group)
     {
         int count = 0;
         HashSet<StringName> exclusiveGroups = new();
-        foreach (TraitRollGroupEntryDef entry in group.entries)
+        foreach (TraitRollGroupEntryDefinition entry in group.Entries)
         {
             if (entry == null)
                 continue;
-            if (entry.exclusive_group == "")
+            if (entry.ExclusiveGroup == "")
             {
                 count++;
                 continue;
             }
-            if (exclusiveGroups.Add(entry.exclusive_group))
+            if (exclusiveGroups.Add(entry.ExclusiveGroup))
                 count++;
         }
         return count;

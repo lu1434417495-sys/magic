@@ -1192,7 +1192,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService
         StringName itemId = ProgressionDataUtils.to_string_name(
             targetUnit.GetEquipmentView()?.GetEquippedItemId(slotId) ?? ""
         );
-        ItemDef itemDef = ResolveItemDef(itemId);
+        ItemDefinition itemDef = ResolveItemDef(itemId);
         if (itemDef == null)
             return false;
         if (!AllTagsPresent(itemDef, payload.RequiredTargetItemTags))
@@ -3543,7 +3543,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService
         }
         if (payload.AnyItemTags == null || payload.AnyItemTags.Count == 0)
             return true;
-        ItemDef itemDef = ResolveItemDef(entry.ItemId);
+        ItemDefinition itemDef = ResolveItemDef(entry.ItemId);
         return AnyTagPresent(itemDef, payload.AnyItemTags);
     }
 
@@ -5860,7 +5860,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService
             return false;
         if (!EquipmentTargetMatchesRarity(target, payload))
             return false;
-        ItemDef itemDef = ResolveItemDef(target.ItemId);
+        ItemDefinition itemDef = ResolveItemDef(target.ItemId);
         if (itemDef == null)
             return false;
         if (!AllTagsPresent(itemDef, payload.RequiredItemTags))
@@ -6108,7 +6108,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService
         StringName itemId = ProgressionDataUtils.to_string_name(
             subject.GetEquipmentView()?.GetEquippedItemId(selector) ?? ""
         );
-        ItemDef itemDef = ResolveItemDef(itemId);
+        ItemDefinition itemDef = ResolveItemDef(itemId);
         if (itemDef == null)
             return false;
         bool hasAll = AllTagsPresent(itemDef, payload.AllTags);
@@ -7331,18 +7331,22 @@ internal sealed class BattleEquipmentAbilityRuntimeService
         return priority;
     }
 
-    private ItemDef ResolveItemDef(StringName itemId)
+    private ItemDefinition ResolveItemDef(StringName itemId)
     {
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = _runtime?.GetItemDefIndexTyped();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs =
+            _runtime?.GetItemDefIndexTyped();
         StringName normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
         return normalizedItemId != ""
             && itemDefs != null
-            && itemDefs.TryGetValue(normalizedItemId, out ItemDef itemDef)
+            && itemDefs.TryGetValue(normalizedItemId, out ItemDefinition itemDef)
             ? itemDef
             : null;
     }
 
-    private static bool AllTagsPresent(ItemDef itemDef, IReadOnlyList<StringName> requiredTags)
+    private static bool AllTagsPresent(
+        ItemDefinition itemDef,
+        IReadOnlyList<StringName> requiredTags
+    )
     {
         if (requiredTags == null || requiredTags.Count == 0)
             return true;
@@ -7352,7 +7356,10 @@ internal sealed class BattleEquipmentAbilityRuntimeService
         return true;
     }
 
-    private static bool AnyTagPresent(ItemDef itemDef, IReadOnlyList<StringName> requiredTags)
+    private static bool AnyTagPresent(
+        ItemDefinition itemDef,
+        IReadOnlyList<StringName> requiredTags
+    )
     {
         if (requiredTags == null || requiredTags.Count == 0)
             return true;

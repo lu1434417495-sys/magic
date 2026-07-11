@@ -835,7 +835,7 @@ public partial class run_sacred_hammer_weapon_ability_regression : LifecycleTest
         }
 
         internal BattleRuntimeModule Runtime { get; }
-        internal IReadOnlyDictionary<StringName, ItemDef> ItemDefs { get; }
+        internal IReadOnlyDictionary<StringName, ItemDefinition> ItemDefs { get; }
         internal IReadOnlyDictionary<StringName, SkillDefinition> SkillDefs { get; }
         internal IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs { get; }
         internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> Bindings { get; }

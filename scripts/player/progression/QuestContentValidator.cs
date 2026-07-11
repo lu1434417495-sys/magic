@@ -5,7 +5,7 @@ public static class QuestContentValidator
 {
     public static List<string> ValidateTyped(
         IReadOnlyDictionary<StringName, QuestDefinition> questDefs,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
         IEnumerable<string> registrationErrors = null
@@ -175,7 +175,7 @@ public static class QuestContentValidator
     private static void AppendObjectiveReferenceErrors(
         ICollection<string> errors,
         QuestDefinition questDef,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates
     )
     {
@@ -209,7 +209,7 @@ public static class QuestContentValidator
     private static void AppendRewardReferenceErrors(
         ICollection<string> errors,
         QuestDefinition questDef,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {

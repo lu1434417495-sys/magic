@@ -455,12 +455,12 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
         }
     }
 
-    private IReadOnlyDictionary<StringName, ItemDef> GetRuntimeItemDefsTyped()
+    private IReadOnlyDictionary<StringName, ItemDefinition> GetRuntimeItemDefsTyped()
     {
         GameSession gameSession = _runtime?.GetGameSession();
         if (gameSession != null)
             return gameSession.GetItemDefsTyped();
-        return new System.Collections.Generic.Dictionary<StringName, ItemDef>();
+        return new System.Collections.Generic.Dictionary<StringName, ItemDefinition>();
     }
 
     private static Dictionary BuildBattleLocalWritebackFailure(

@@ -11,4 +11,9 @@ public partial class TraitRollGroupDef : Resource
 
     [Export]
     public Godot.Collections.Array<TraitRollGroupEntryDef> entries { get; set; } = new();
+
+    internal Godot.Collections.Array<TraitRollGroupEntryDef> EntriesProjectionBorrowed => entries;
+
+    internal TraitRollGroupDefinition ToDefinition() =>
+        TraitRollGroupDefinition.FromResource(this);
 }

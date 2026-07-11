@@ -132,7 +132,7 @@ public partial class run_character_management_achievement_summary_regression : L
             new Dictionary<StringName, SkillDefinition>(),
             new Dictionary<StringName, ProfessionDefinition>(),
             projectedAchievementDefs,
-            new Dictionary<StringName, ItemDef>(),
+            new Dictionary<StringName, ItemDefinition>(),
             new Dictionary<StringName, QuestDefinition>(),
             null,
             new ProgressionIdentityCatalogData()

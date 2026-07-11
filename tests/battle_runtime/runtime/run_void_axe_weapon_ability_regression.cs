@@ -343,7 +343,7 @@ public partial class run_void_axe_weapon_ability_regression : LifecycleTestScene
         private readonly ProgressionContentRegistry _progressionRegistry;
         private readonly PartyState _party;
         internal BattleRuntimeModule Runtime { get; }
-        internal IReadOnlyDictionary<StringName, ItemDef> ItemDefs { get; }
+        internal IReadOnlyDictionary<StringName, ItemDefinition> ItemDefs { get; }
         internal IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs { get; }
         internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> Bindings { get; }
 

@@ -34,6 +34,8 @@ public partial class run_settlement_shop_stock_persistence_regression : Lifecycl
                 },
                 "item-defs"
             );
+            ItemDefinition potionDefinition = ((ItemDef)
+                itemDefs[new StringName("potion")]).ToDefinition();
 
             var party = _runtimeScope.OwnWrapper(
                 new PartyState
@@ -64,9 +66,9 @@ public partial class run_settlement_shop_stock_persistence_regression : Lifecycl
             _runtimeScope.OwnValueGraph(party, "party-built");
 
             warehouse = new PartyWarehouseService();
-            warehouse.Setup(party, new System.Collections.Generic.Dictionary<StringName, ItemDef>
+            warehouse.Setup(party, new System.Collections.Generic.Dictionary<StringName, ItemDefinition>
             {
-                [new StringName("potion")] = (ItemDef)itemDefs[new StringName("potion")],
+                [new StringName("potion")] = potionDefinition,
             });
 
             var settlementState = _runtimeScope.OwnWrapper(
@@ -104,9 +106,9 @@ public partial class run_settlement_shop_stock_persistence_regression : Lifecycl
                     "settlement-context"
                 ),
                 settlementState,
-                new System.Collections.Generic.Dictionary<StringName, ItemDef>
+                new System.Collections.Generic.Dictionary<StringName, ItemDefinition>
                 {
-                    [new StringName("potion")] = (ItemDef)itemDefs[new StringName("potion")],
+                    [new StringName("potion")] = potionDefinition,
                 },
                 warehouse,
                 party,

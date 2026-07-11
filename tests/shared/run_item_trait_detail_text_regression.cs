@@ -26,14 +26,14 @@ public partial class run_item_trait_detail_text_regression : LifecycleTestSceneT
 
     private void TestComposeFoldsTraitMechanicsBelowFlavor()
     {
-        ItemDef item = BuildItem("一柄会撕开心绪的细剑。", "weapon.sword.demo.sting", "weapon.sword.demo.rend");
+        ItemDefinition item = BuildItem("一柄会撕开心绪的细剑。", "weapon.sword.demo.sting", "weapon.sword.demo.rend");
         var traitDefs = new Dictionary<StringName, TraitDefinition>
         {
             ["weapon.sword.demo.sting"] = BuildTrait("噬心之刺", "暴击时额外造成2D6 psychic伤害。"),
             ["weapon.sword.demo.rend"] = BuildTrait("情感撕裂", "命中叠加60TU情感撕裂，最多3层。"),
         };
 
-        string text = ItemTraitDetailText.Compose(item.description, item, traitDefs);
+        string text = ItemTraitDetailText.Compose(item.Description, item, traitDefs);
         _test.True(text.Contains("一柄会撕开心绪的细剑。"), "应保留 item flavor 描述。");
         _test.True(text.Contains("【噬心之刺】"), "应含第一个 trait 名。");
         _test.True(text.Contains("暴击时额外造成2D6 psychic伤害。"), "应含第一个 trait 机制描述。");
@@ -48,9 +48,9 @@ public partial class run_item_trait_detail_text_regression : LifecycleTestSceneT
 
     private void TestComposeReturnsFlavorWhenNoTraits()
     {
-        ItemDef item = BuildItem("普通铁剑。");
+        ItemDefinition item = BuildItem("普通铁剑。");
         string text = ItemTraitDetailText.Compose(
-            item.description,
+            item.Description,
             item,
             new Dictionary<StringName, TraitDefinition>()
         );
@@ -59,7 +59,7 @@ public partial class run_item_trait_detail_text_regression : LifecycleTestSceneT
 
     private void TestBuildLinesSkipsUnknownAndNamelessTraits()
     {
-        ItemDef item = BuildItem("测试。", "weapon.known", "weapon.unknown", "weapon.nameless");
+        ItemDefinition item = BuildItem("测试。", "weapon.known", "weapon.unknown", "weapon.nameless");
         var traitDefs = new Dictionary<StringName, TraitDefinition>
         {
             ["weapon.known"] = BuildTrait("已知", "有效机制。"),
@@ -73,12 +73,12 @@ public partial class run_item_trait_detail_text_regression : LifecycleTestSceneT
             _test.False(line.Contains("unknown"), "未注册 trait id 不应出现。");
     }
 
-    private static ItemDef BuildItem(string description, params string[] traitIds)
+    private static ItemDefinition BuildItem(string description, params string[] traitIds)
     {
         var item = new ItemDef { item_id = "demo_item", description = description };
         foreach (string traitId in traitIds)
             item.trait_ids.Add(traitId);
-        return item;
+        return item.ToDefinition();
     }
 
     private static TraitDefinition BuildTrait(string displayName, string description) =>

@@ -524,14 +524,14 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
         private readonly ItemContentRegistry _itemRegistry;
         private readonly ProgressionContentRegistry _progressionRegistry;
         private readonly PartyState _partyState;
-        private readonly Dictionary<StringName, ItemDef> _itemDefs;
+        private readonly Dictionary<StringName, ItemDefinition> _itemDefs;
 
         private LunareclipseFixture(
             ItemContentRegistry itemRegistry,
             ProgressionContentRegistry progressionRegistry,
             PartyState partyState,
             BattleRuntimeModule runtime,
-            Dictionary<StringName, ItemDef> itemDefs
+            Dictionary<StringName, ItemDefinition> itemDefs
         )
         {
             _itemRegistry = itemRegistry;
@@ -546,7 +546,7 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
         }
 
         internal BattleRuntimeModule Runtime { get; }
-        internal IReadOnlyDictionary<StringName, ItemDef> ItemDefs { get; }
+        internal IReadOnlyDictionary<StringName, ItemDefinition> ItemDefs { get; }
         internal IReadOnlyDictionary<StringName, SkillDefinition> SkillDefs { get; }
         internal IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs { get; }
         internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> Bindings { get; }
@@ -555,7 +555,7 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
         {
             ItemContentRegistry itemRegistry = new();
             ProgressionContentRegistry progressionRegistry = new();
-            Dictionary<StringName, ItemDef> itemDefs = new(itemRegistry.GetItemDefsTyped());
+            Dictionary<StringName, ItemDefinition> itemDefs = new(itemRegistry.GetItemDefsTyped());
             itemDefs[HeavyArmorItemId] = BuildHeavyArmorItem();
             PartyState partyState = BuildPartyState("hero");
             CharacterManagementModule characterManagement = new();
@@ -645,9 +645,9 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
             return units[0];
         }
 
-        private static ItemDef BuildHeavyArmorItem()
+        private static ItemDefinition BuildHeavyArmorItem()
         {
-            return TestResourceOwnership.Own(
+            ItemDef rawItem = TestResourceOwnership.Own(
                 new ItemDef
                 {
                     item_id = HeavyArmorItemId,
@@ -668,6 +668,7 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
                 },
                 "LunareclipseFixture.BuildHeavyArmorItem"
             );
+            return rawItem.ToDefinition();
         }
 
         private static PartyState BuildPartyState(StringName memberId)

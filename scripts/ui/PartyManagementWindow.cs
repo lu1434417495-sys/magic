@@ -58,8 +58,8 @@ public partial class PartyManagementWindow : Control
     public PartyState _party_state;
     private IReadOnlyDictionary<StringName, AchievementDefinition> _achievement_defs =
         new Dictionary<StringName, AchievementDefinition>();
-    private IReadOnlyDictionary<StringName, ItemDef> _item_defs =
-        new Dictionary<StringName, ItemDef>();
+    private IReadOnlyDictionary<StringName, ItemDefinition> _itemDefinitions =
+        new Dictionary<StringName, ItemDefinition>();
     private IReadOnlyDictionary<StringName, SkillDefinition> _skill_definitions =
         new Dictionary<StringName, SkillDefinition>();
     private IReadOnlyDictionary<StringName, ProfessionDefinition> _profession_defs =
@@ -136,9 +136,12 @@ public partial class PartyManagementWindow : Control
             RefreshView();
     }
 
-    public void SetItemDefs(IReadOnlyDictionary<StringName, ItemDef> item_defs)
+    public void SetItemDefs(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
+    )
     {
-        _item_defs = item_defs ?? new Dictionary<StringName, ItemDef>();
+        _itemDefinitions =
+            itemDefinitions ?? new Dictionary<StringName, ItemDefinition>();
         if (Visible)
             RefreshView();
     }
@@ -694,7 +697,7 @@ public partial class PartyManagementWindow : Control
 
     private void _append_equipment_card(List<string> lines, StringName itemId)
     {
-        ItemDef itemDef = GetTypedObject(_item_defs, itemId);
+        ItemDefinition itemDef = GetTypedObject(_itemDefinitions, itemId);
         string header = $"[b][color=#e8c36a]{_escape_bbcode(_get_item_display_name(itemId))}[/color][/b]";
         if (itemDef != null)
         {
@@ -714,8 +717,8 @@ public partial class PartyManagementWindow : Control
         if (itemDef == null)
             return;
 
-        if (!string.IsNullOrEmpty(itemDef.description))
-            lines.Add(_escape_bbcode(itemDef.description));
+        if (!string.IsNullOrEmpty(itemDef.Description))
+            lines.Add(_escape_bbcode(itemDef.Description));
 
         foreach (StringName traitId in itemDef.GetTraitIdsTyped())
         {
@@ -1005,9 +1008,9 @@ public partial class PartyManagementWindow : Control
 
     private string _get_item_display_name(StringName itemId)
     {
-        ItemDef itemDef = GetTypedObject(_item_defs, itemId);
-        return itemDef != null && !string.IsNullOrEmpty(itemDef.display_name)
-            ? itemDef.display_name
+        ItemDefinition itemDef = GetTypedObject(_itemDefinitions, itemId);
+        return itemDef != null && !string.IsNullOrEmpty(itemDef.DisplayName)
+            ? itemDef.DisplayName
             : itemId.ToString();
     }
 
@@ -1016,25 +1019,27 @@ public partial class PartyManagementWindow : Control
         return GetTypedObject(_trait_defs, traitId);
     }
 
-    private static string _build_weapon_damage_label(ItemDef itemDef)
+    private static string _build_weapon_damage_label(ItemDefinition itemDef)
     {
-        if (itemDef?.weapon_profile is not WeaponProfileDef profile)
+        WeaponProfileDefinition profile = itemDef?.WeaponProfile;
+        if (profile == null)
             return "";
         var parts = new List<string>();
-        if (profile.one_handed_dice != null)
-            parts.Add(profile.one_handed_dice.ToRollLabel());
-        if (profile.two_handed_dice != null)
+        if (profile.OneHandedDice != null)
+            parts.Add(profile.OneHandedDice.ToRollLabel());
+        if (profile.TwoHandedDice != null)
         {
-            string twoHanded = profile.two_handed_dice.ToRollLabel();
+            string twoHanded = profile.TwoHandedDice.ToRollLabel();
             if (parts.Count == 0 || parts[0] != twoHanded)
                 parts.Add(twoHanded);
         }
         return string.Join(" \\ ", parts);
     }
 
-    private static string _build_weapon_property_label(ItemDef itemDef)
+    private static string _build_weapon_property_label(ItemDefinition itemDef)
     {
-        if (itemDef?.weapon_profile is not WeaponProfileDef profile)
+        WeaponProfileDefinition profile = itemDef?.WeaponProfile;
+        if (profile == null)
             return "";
         var labels = new List<string>();
         foreach (StringName property in profile.GetPropertiesTyped())

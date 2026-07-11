@@ -35,7 +35,7 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
         {
             [template.brain_id] = BuildBrain(template.brain_id, template.initial_state_id),
         };
-        var itemDefIndex = new Dictionary<StringName, ItemDef>
+        var itemDefinitionIndex = new Dictionary<StringName, ItemDefinition>
         {
             [template.attack_equipment_item_id] = MakeWeapon(
                 template.attack_equipment_item_id,
@@ -49,7 +49,7 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
 
         GStringArray errors = template.ValidateSchemaTyped(
             brainIndex,
-            itemDefIndex,
+            itemDefinitionIndex,
             skillDefinitionIndex
         );
         _test.True(
@@ -70,7 +70,7 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
         };
         GDictionary itemDefs = new()
         {
-            [new StringName("dictionary_schema_weapon")] = MakeWeapon(
+            [new StringName("dictionary_schema_weapon")] = MakeWeaponResource(
                 "dictionary_schema_weapon",
                 "dictionary_schema_weapon_type"
             ),
@@ -82,7 +82,7 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
 
         GStringArray errors = template.ValidateSchemaTyped(
             EnemyTemplateDef.BuildBrainIndex(knownBrains),
-            EnemyTemplateDef.BuildItemDefIndex(itemDefs),
+            BuildItemDefinitionIndex(itemDefs),
             BuildSkillDefinitionIndex(skillDefs)
         );
         _test.True(
@@ -109,6 +109,25 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
             StringName keySkillId = rawKey.AsStringName();
             if (keySkillId != "")
                 result[keySkillId] = skillDefinition;
+        }
+        return result;
+    }
+
+    private static Dictionary<StringName, ItemDefinition> BuildItemDefinitionIndex(
+        GDictionary itemDefs
+    )
+    {
+        var result = new Dictionary<StringName, ItemDefinition>();
+        if (itemDefs == null)
+            return result;
+        foreach (Variant rawKey in itemDefs.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+                continue;
+            ItemDef itemResource = itemDefs[rawKey].As<ItemDef>();
+            StringName itemId = rawKey.AsStringName();
+            if (itemResource != null && itemId != "")
+                result[itemId] = itemResource.ToDefinition();
         }
         return result;
     }
@@ -140,7 +159,7 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
 
         GStringArray errors = template.ValidateSchemaTyped(
             brainIndex,
-            new Dictionary<StringName, ItemDef>(),
+            new Dictionary<StringName, ItemDefinition>(),
             skillDefinitionIndex
         );
         _test.True(
@@ -294,7 +313,7 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
             "派生 HP 应为 首级取骰面最大值 (12+6) + 后9级 × (d12均值6.5 + 体质修正3×2)，向下取整后 × 2x2占位4格 = 520。"
         );
 
-        var itemDefIndex = new Dictionary<StringName, ItemDef>
+        var itemDefinitionIndex = new Dictionary<StringName, ItemDefinition>
         {
             [template.attack_equipment_item_id] = MakeWeapon(
                 template.attack_equipment_item_id,
@@ -302,7 +321,7 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
             ),
         };
         _test.Eq(
-            template.GetDerivedAttackBonusTyped(itemDefIndex),
+            template.GetDerivedAttackBonusTyped(itemDefinitionIndex),
             4,
             "近战武器的派生攻击加值应等于力量修正 (18 → +4)。"
         );
@@ -322,7 +341,9 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
         rangedTemplate.natural_weapon_attack_range = 5;
         rangedTemplate.base_attribute_overrides[new StringName("perception")] = 12;
         _test.Eq(
-            rangedTemplate.GetDerivedAttackBonusTyped(),
+            rangedTemplate.GetDerivedAttackBonusTyped(
+                new Dictionary<StringName, ItemDefinition>()
+            ),
             1,
             "远程(攻击范围>2)天生武器的派生攻击加值应等于感知修正 (12 → +1)。"
         );
@@ -440,7 +461,10 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
     private static SkillDefinition BuildSkillDefinition(StringName skillId, int maxLevel) =>
         TestSkillDefinitionProjection.BuildSkill(skillId, displayName: skillId.ToString(), maxLevel: maxLevel);
 
-    private static ItemDef MakeWeapon(StringName itemId, StringName weaponTypeId)
+    private static ItemDefinition MakeWeapon(StringName itemId, StringName weaponTypeId) =>
+        MakeWeaponResource(itemId, weaponTypeId).ToDefinition();
+
+    private static ItemDef MakeWeaponResource(StringName itemId, StringName weaponTypeId)
     {
         var itemDef = new ItemDef
         {
@@ -466,7 +490,10 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
                 flat_bonus = 0,
             },
         };
-        return itemDef;
+        return TestResourceOwnership.Own(
+            itemDef,
+            $"EnemyTemplateSchemaBoundary.MakeWeaponResource.{itemId}"
+        );
     }
 
     private static GStringArray ValidateWithReferenceTables(EnemyTemplateDef template)
@@ -475,7 +502,7 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
         {
             [template.brain_id] = BuildBrain(template.brain_id, template.initial_state_id),
         };
-        var itemDefIndex = new Dictionary<StringName, ItemDef>
+        var itemDefinitionIndex = new Dictionary<StringName, ItemDefinition>
         {
             [template.attack_equipment_item_id] = MakeWeapon(
                 template.attack_equipment_item_id,
@@ -486,7 +513,11 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
         {
             ["typed_schema_skill"] = BuildSkillDefinition("typed_schema_skill", maxLevel: 2),
         };
-        return template.ValidateSchemaTyped(brainIndex, itemDefIndex, skillDefinitionIndex);
+        return template.ValidateSchemaTyped(
+            brainIndex,
+            itemDefinitionIndex,
+            skillDefinitionIndex
+        );
     }
 
     private static void SetSaveAdvantageTags(

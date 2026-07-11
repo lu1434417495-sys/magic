@@ -416,13 +416,13 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
 
     private static RuntimeFixture BuildFixture(int capacity)
     {
-        GDictionary itemDefs = BuildItemDefs();
+        Dictionary<StringName, ItemDefinition> itemDefinitions = BuildItemDefinitions();
         PartyState partyState = BuildPartyState(capacity);
         PartyWarehouseService warehouseService = new();
-        warehouseService.Setup(partyState, BuildItemDefIndex(itemDefs));
+        warehouseService.Setup(partyState, itemDefinitions);
 
         GameSession gameSession = new();
-        gameSession.ReplaceItemDefsForTests(itemDefs);
+        gameSession.ReplaceItemDefinitionsForTests(itemDefinitions);
         GameRuntimeFacade runtime = new()
         {
             _game_session = gameSession,
@@ -458,7 +458,7 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
         return partyState;
     }
 
-    private static GDictionary BuildItemDefs()
+    private static Dictionary<StringName, ItemDefinition> BuildItemDefinitions()
     {
         ItemDef sword = new()
         {
@@ -473,31 +473,13 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
                 EquipmentRules.ToStringName(EquipmentSlotKind.MainHand).ToString(),
             },
         };
-        GDictionary itemDefs = new() { [new StringName("iron_sword")] = sword };
-        GodotContentOwnership.RegisterDerivedWrapper(
-            itemDefs,
-            "BattleLootCommitService.BuildItemDefs",
-            "BattleLootCommitService.BuildItemDefs"
-        );
-        return itemDefs;
-    }
-
-    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
-    {
-        Dictionary<StringName, ItemDef> result = new();
-        if (itemDefs == null)
-            return result;
-        foreach (Variant rawKey in itemDefs.Keys)
+        ItemDefinition swordDefinition = TestResourceOwnership
+            .Own(sword, "BattleLootCommitService.BuildItemDefinitions.iron_sword")
+            .ToDefinition();
+        return new Dictionary<StringName, ItemDefinition>
         {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            StringName itemId = rawKey.AsStringName();
-            if (itemId == "")
-                continue;
-            if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
-                result[itemId] = itemDef;
-        }
-        return result;
+            [swordDefinition.ItemId] = swordDefinition,
+        };
     }
 
     private BattleSessionFacadeFixture BuildBattleSessionInvalidRewardFixture()

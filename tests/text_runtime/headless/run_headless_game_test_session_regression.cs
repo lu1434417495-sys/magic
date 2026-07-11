@@ -461,7 +461,6 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
 
         StringName templateId = "string_key_facade_template";
         StringName brainId = "string_key_facade_brain";
-        StringName itemId = "string_key_facade_item";
         EnemyAiBrainDef brain = new()
         {
             brain_id = brainId,
@@ -478,7 +477,6 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
             brain_id = brainId,
             enemy_count = 1,
         };
-        ItemDef item = new() { item_id = itemId, display_name = "String Key Item" };
 
         _test.True(
             sharedGameSession.InstallTestContentDefStringKey(
@@ -497,21 +495,12 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
             "应能注入 string-key-only enemy_template fixture。"
         );
         _test.True(
-            sharedGameSession.InstallTestContentDefStringKey("item", itemId.ToString(), item)
-                == (int)Error.Ok,
-            "应能注入 string-key-only item fixture。"
-        );
-        _test.True(
             !sharedGameSession.GetEnemyAiBrainsTyped().ContainsKey(brainId),
             "typed enemy_ai_brains getter 应过滤 string-key-only fixture。"
         );
         _test.True(
             !sharedGameSession.GetEnemyTemplatesTyped().ContainsKey(templateId),
             "typed enemy_templates getter 应过滤 string-key-only fixture。"
-        );
-        _test.True(
-            !sharedGameSession.GetItemDefsTyped().ContainsKey(itemId),
-            "typed item_defs getter 应过滤 string-key-only fixture。"
         );
 
         HeadlessGameTestSession session = new();
@@ -547,14 +536,6 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
             _test.True(
                 !runtime._battle_runtime.GetEnemyAiBrainIndexTyped().ContainsKey(brainId),
                 "GameRuntimeFacade.setup 不应把 string-key-only enemy brain 恢复进 battle runtime typed index。"
-            );
-            _test.True(
-                !runtime._battle_runtime.BuildItemDefIndexSnapshotTyped().ContainsKey(itemId),
-                "GameRuntimeFacade.setup 不应把 string-key-only item 恢复进 battle runtime typed item index。"
-            );
-            _test.True(
-                !runtime._battle_runtime.BuildItemDefIndexSnapshotTyped().ContainsKey(itemId),
-                "GameRuntimeFacade.setup 不应把 string-key-only item 投影进 battle runtime typed item index。"
             );
         }
         finally

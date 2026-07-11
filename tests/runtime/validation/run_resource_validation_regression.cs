@@ -71,12 +71,13 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
         using EnemyContentRegistry enemyRegistry = new();
 
         GDictionary skillDefs = progressionRegistry.DuplicateSkillResourceBucketForValidation();
-        GDictionary itemDefs = ProjectItemDefs(itemRegistry.GetItemDefsTyped());
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs =
+            itemRegistry.GetItemDefsTyped();
         GDictionary enemyTemplates = ProjectEnemyTemplates(enemyRegistry.GetEnemyTemplatesTyped());
         GDictionary wildEncounterRosters = ProjectEnemyRosters(
             enemyRegistry.GetWildEncounterRostersTyped()
         );
-        IReadOnlyDictionary<StringName, ItemDef> typedItemDefs = itemRegistry.GetItemDefsTyped();
+        IReadOnlyDictionary<StringName, ItemDefinition> typedItemDefs = itemDefs;
         IReadOnlyDictionary<StringName, SkillDefinition> typedSkillDefinitions =
             progressionRegistry.GetSkillDefinitionsTyped();
 
@@ -657,20 +658,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
         {
             [skillId] = skillDefinition,
         };
-    }
-
-    private static GDictionary ProjectItemDefs(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
-    {
-        GDictionary result = new();
-        if (itemDefs == null)
-            return result;
-        foreach ((StringName itemId, ItemDef itemDef) in itemDefs)
-        {
-            if (itemId == "" || itemDef == null)
-                continue;
-            result[itemId] = itemDef;
-        }
-        return result;
     }
 
     private static GDictionary ProjectEnemyTemplates(
@@ -1318,24 +1305,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
     private void AssertContainsText(string text, string expectedPart, string message)
     {
         _test.True((text ?? "").Contains(expectedPart), $"{message} text={text}");
-    }
-
-    private static IReadOnlyDictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
-    {
-        Dictionary<StringName, ItemDef> result = new();
-        if (itemDefs == null)
-            return result;
-        foreach (Variant rawKey in itemDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            StringName itemId = rawKey.AsStringName();
-            if (itemId == "")
-                continue;
-            if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
-                result[itemId] = itemDef;
-        }
-        return result;
     }
 
     private static IReadOnlyDictionary<StringName, SkillDef> BuildSkillDefIndex(GDictionary skillDefs)

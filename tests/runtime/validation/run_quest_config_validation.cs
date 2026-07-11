@@ -28,7 +28,7 @@ public partial class run_quest_config_validation : LifecycleTestSceneTree
         using SkillContentRegistry skillRegistry = new();
         using EnemyContentRegistry enemyRegistry = new();
 
-        Dictionary<StringName, ItemDef> itemDefs = new(itemRegistry.GetItemDefsTyped());
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = itemRegistry.GetItemDefsTyped();
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             skillRegistry.GetSkillDefinitionsTyped();
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =

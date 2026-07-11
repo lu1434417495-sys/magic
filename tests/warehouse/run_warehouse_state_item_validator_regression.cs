@@ -116,7 +116,7 @@ public partial class run_warehouse_state_item_validator_regression : LifecycleTe
         );
     }
 
-    private static Dictionary<StringName, ItemDef> BuildItemDefs()
+    private static Dictionary<StringName, ItemDefinition> BuildItemDefs()
     {
         ItemDef herb = new()
         {
@@ -138,10 +138,12 @@ public partial class run_warehouse_state_item_validator_regression : LifecycleTe
             },
         };
 
-        return new Dictionary<StringName, ItemDef>
+        ItemDefinition herbDefinition = herb.ToDefinition();
+        ItemDefinition swordDefinition = sword.ToDefinition();
+        return new Dictionary<StringName, ItemDefinition>
         {
-            [herb.item_id] = herb,
-            [sword.item_id] = sword,
+            [herbDefinition.ItemId] = herbDefinition,
+            [swordDefinition.ItemId] = swordDefinition,
         };
     }
 

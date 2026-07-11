@@ -135,10 +135,12 @@ public partial class run_validation_text_surface_regression : LifecycleTestScene
         if (gameSession == null)
             return;
 
-        ItemContentRegistry originalRegistry = gameSession.GetItemContentRegistryForTests();
-        var invalidItemRegistry = new ItemContentRegistry();
-        invalidItemRegistry.RebuildFromDirectories(new GArray { InvalidItemDirectory }, new GArray());
-        gameSession.SetItemContentRegistryForTests(invalidItemRegistry);
+        using var invalidItemRegistry = new ItemContentRegistry();
+        invalidItemRegistry.RebuildFromDirectories(
+            new GArray { InvalidItemDirectory },
+            new GArray()
+        );
+        gameSession.SetItemValidationErrorsForTests(invalidItemRegistry.ValidateTyped());
         gameSession.RefreshContentValidationSnapshot();
 
         GameTextCommandResult snapshotResult = RunCommand(runner, "snapshot");
@@ -165,10 +167,7 @@ public partial class run_validation_text_surface_regression : LifecycleTestScene
         RunCommand(runner, "expect field validation.ok == false");
         RunCommand(runner, "expect field validation.domains.item.error_count == 6");
 
-        gameSession.SetItemContentRegistryForTests(originalRegistry);
-        invalidItemRegistry.Dispose();
-        invalidItemRegistry = null;
-        originalRegistry = null;
+        gameSession.SetItemValidationErrorsForTests(null);
         gameSession.RefreshContentValidationSnapshot();
     }
 

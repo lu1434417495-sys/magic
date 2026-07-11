@@ -152,8 +152,10 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
         using var gameSessionScope = new GameSessionScope();
         GameSession gameSession = gameSessionScope.Session;
         StringName templateId = "runtime_start_custom_enemy_template";
-        var itemDefs = new Dictionary<StringName, ItemDef>(gameSession.GetItemDefsTyped());
-        ItemDef customWeapon = MakeWeapon(
+        var itemDefs = new Dictionary<StringName, ItemDefinition>(
+            gameSession.GetItemDefsTyped()
+        );
+        ItemDefinition customWeapon = MakeWeapon(
             "runtime_start_custom_enemy_halberd",
             "halberd",
             "physical_pierce",
@@ -162,14 +164,14 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
             MakeWeaponDice(1, 12, 1),
             new StringName[] { "reach", "versatile" }
         );
-        itemDefs[customWeapon.item_id] = customWeapon;
+        itemDefs[customWeapon.ItemId] = customWeapon;
 
         var enemyTemplates = new Dictionary<StringName, EnemyTemplateDef>(
             gameSession.GetEnemyTemplatesTyped()
         );
         enemyTemplates[templateId] = BuildCustomEnemyTemplate(
             templateId,
-            customWeapon.item_id
+            customWeapon.ItemId
         );
 
         using var runtime = new BattleRuntimeModule();
@@ -214,7 +216,7 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
             );
             _test.Eq(
                 enemyUnit.weapon_item_id,
-                customWeapon.item_id,
+                customWeapon.ItemId,
                 "敌方模板 attack_equipment_item_id 应保留传入 item_defs 中的自定义武器 ID。"
             );
             _test.Eq(
@@ -240,8 +242,10 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
         using var gameSessionScope = new GameSessionScope();
         GameSession gameSession = gameSessionScope.Session;
         StringName templateId = "runtime_start_illusion_immune_enemy_template";
-        var itemDefs = new Dictionary<StringName, ItemDef>(gameSession.GetItemDefsTyped());
-        ItemDef customWeapon = MakeWeapon(
+        var itemDefs = new Dictionary<StringName, ItemDefinition>(
+            gameSession.GetItemDefsTyped()
+        );
+        ItemDefinition customWeapon = MakeWeapon(
             "runtime_start_illusion_immune_enemy_blade",
             "illusion_blade",
             "physical_slash",
@@ -250,9 +254,9 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
             null,
             Array.Empty<StringName>()
         );
-        itemDefs[customWeapon.item_id] = customWeapon;
+        itemDefs[customWeapon.ItemId] = customWeapon;
 
-        EnemyTemplateDef template = BuildCustomEnemyTemplate(templateId, customWeapon.item_id);
+        EnemyTemplateDef template = BuildCustomEnemyTemplate(templateId, customWeapon.ItemId);
         SetSaveAdvantageTags(template, "illusion_immunity");
         var enemyTemplates = new Dictionary<StringName, EnemyTemplateDef>
         {
@@ -320,7 +324,9 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
         using var gameSessionScope = new GameSessionScope();
         GameSession gameSession = gameSessionScope.Session;
         StringName templateId = "runtime_start_formula_dragonling_template";
-        var itemDefs = new Dictionary<StringName, ItemDef>(gameSession.GetItemDefsTyped());
+        var itemDefs = new Dictionary<StringName, ItemDefinition>(
+            gameSession.GetItemDefsTyped()
+        );
 
         EnemyTemplateDef template = TestResourceOwnership.Own(
             new EnemyTemplateDef
@@ -420,8 +426,10 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
         using var gameSessionScope = new GameSessionScope();
         GameSession gameSession = gameSessionScope.Session;
         StringName templateId = "runtime_start_damage_resist_enemy_template";
-        var itemDefs = new Dictionary<StringName, ItemDef>(gameSession.GetItemDefsTyped());
-        ItemDef customWeapon = MakeWeapon(
+        var itemDefs = new Dictionary<StringName, ItemDefinition>(
+            gameSession.GetItemDefsTyped()
+        );
+        ItemDefinition customWeapon = MakeWeapon(
             "runtime_start_damage_resist_enemy_blade",
             "damage_resist_blade",
             "physical_slash",
@@ -430,9 +438,9 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
             null,
             Array.Empty<StringName>()
         );
-        itemDefs[customWeapon.item_id] = customWeapon;
+        itemDefs[customWeapon.ItemId] = customWeapon;
 
-        EnemyTemplateDef template = BuildCustomEnemyTemplate(templateId, customWeapon.item_id);
+        EnemyTemplateDef template = BuildCustomEnemyTemplate(templateId, customWeapon.ItemId);
         template.damage_resistances = new GDictionary
         {
             [new StringName("physical_pierce")] = new StringName("half"),
@@ -679,7 +687,7 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
         property?.SetValue(template, tags);
     }
 
-    private static ItemDef MakeWeapon(
+    private static ItemDefinition MakeWeapon(
         StringName itemId,
         StringName weaponTypeId,
         StringName damageTag,
@@ -718,7 +726,9 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
             }
         }
         itemDef.weapon_profile = profile;
-        return TestResourceOwnership.Own(itemDef, "EnemyTemplateRuntimeStart.MakeWeapon");
+        return TestResourceOwnership
+            .Own(itemDef, "EnemyTemplateRuntimeStart.MakeWeapon")
+            .ToDefinition();
     }
 
     private static WeaponDamageDiceDef MakeWeaponDice(int count, int sides, int bonus)

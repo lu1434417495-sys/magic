@@ -317,7 +317,7 @@ public partial class run_giants_heel_weapon_ability_regression : LifecycleTestSc
     }
 
     private static void AssertEquipmentRequirementBlocksMediumAndAllowsLarge(
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs
     )
     {
         PartyState mediumParty = BuildPartyState("medium_hero", "medium", strength: 18);
@@ -547,7 +547,7 @@ public partial class run_giants_heel_weapon_ability_regression : LifecycleTestSc
 
     private static PartyWarehouseService BuildWarehouseService(
         PartyState partyState,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs
     )
     {
         PartyWarehouseService warehouseService = new();
@@ -557,7 +557,7 @@ public partial class run_giants_heel_weapon_ability_regression : LifecycleTestSc
 
     private static PartyEquipmentService BuildEquipmentService(
         PartyState partyState,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         PartyWarehouseService warehouseService
     )
     {
@@ -630,7 +630,7 @@ public partial class run_giants_heel_weapon_ability_regression : LifecycleTestSc
         }
 
         internal BattleRuntimeModule Runtime { get; }
-        internal IReadOnlyDictionary<StringName, ItemDef> ItemDefs { get; }
+        internal IReadOnlyDictionary<StringName, ItemDefinition> ItemDefs { get; }
         internal IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs { get; }
         internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> Bindings { get; }
 

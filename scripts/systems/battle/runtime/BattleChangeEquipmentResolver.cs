@@ -1097,8 +1097,8 @@ internal class BattleChangeEquipmentResolver
         StringName normItem = ProgressionDataUtils.to_string_name(itemId);
         StringName normSlot = ProgressionDataUtils.to_string_name(slotId);
         List<StringName> fallbackOccupied = ResolveChangeEquipmentOccupiedSlots(command, normSlot);
-        ItemDef itemDef = GetChangeEquipmentItemDef(normItem);
-        if (itemDef == null)
+        ItemDefinition itemDefinition = GetChangeEquipmentItemDefinition(normItem);
+        if (itemDefinition == null)
         {
             if (HasChangeEquipmentItemCatalog())
             {
@@ -1111,7 +1111,7 @@ internal class BattleChangeEquipmentResolver
             }
             return new ChangeEquipmentRuleResult(true, occupiedSlotIds: fallbackOccupied);
         }
-        if (!itemDef.IsEquipment())
+        if (!itemDefinition.IsEquipment())
         {
             return new ChangeEquipmentRuleResult(
                 false,
@@ -1120,7 +1120,7 @@ internal class BattleChangeEquipmentResolver
                 fallbackOccupied
             );
         }
-        List<StringName> allowedSlots = itemDef.GetEquipmentSlotIdsTyped();
+        List<StringName> allowedSlots = itemDefinition.GetEquipmentSlotIdsTyped();
         if (!allowedSlots.Contains(normSlot))
         {
             return new ChangeEquipmentRuleResult(
@@ -1132,14 +1132,16 @@ internal class BattleChangeEquipmentResolver
         }
         ChangeEquipmentRuleResult requirementRule = ResolveChangeEquipmentRequirementRule(
             activeUnit,
-            itemDef,
+            itemDefinition,
             normItem
         );
         if (!requirementRule.Allowed)
         {
             return requirementRule;
         }
-        var occupiedSlots = new List<StringName>(itemDef.GetFinalOccupiedSlotIdsTyped(normSlot));
+        var occupiedSlots = new List<StringName>(
+            itemDefinition.GetFinalOccupiedSlotIdsTyped(normSlot)
+        );
         if (occupiedSlots.Count == 0)
         {
             occupiedSlots = new List<StringName> { normSlot };
@@ -1161,8 +1163,8 @@ internal class BattleChangeEquipmentResolver
         StringName normItem = ProgressionDataUtils.to_string_name(itemId);
         StringName normSlot = ProgressionDataUtils.to_string_name(slotId);
         List<StringName> fallbackOccupied = ResolveChangeEquipmentOccupiedSlots(command, normSlot);
-        ItemDef itemDef = GetChangeEquipmentItemDef(normItem);
-        if (itemDef == null)
+        ItemDefinition itemDefinition = GetChangeEquipmentItemDefinition(normItem);
+        if (itemDefinition == null)
         {
             if (HasChangeEquipmentItemCatalog())
             {
@@ -1175,7 +1177,7 @@ internal class BattleChangeEquipmentResolver
             }
             return new ChangeEquipmentRuleResult(true, occupiedSlotIds: fallbackOccupied);
         }
-        if (!itemDef.IsEquipment())
+        if (!itemDefinition.IsEquipment())
         {
             return new ChangeEquipmentRuleResult(
                 false,
@@ -1184,7 +1186,7 @@ internal class BattleChangeEquipmentResolver
                 fallbackOccupied
             );
         }
-        List<StringName> allowedSlots = itemDef.GetEquipmentSlotIdsTyped();
+        List<StringName> allowedSlots = itemDefinition.GetEquipmentSlotIdsTyped();
         if (!allowedSlots.Contains(normSlot))
         {
             return new ChangeEquipmentRuleResult(
@@ -1196,14 +1198,16 @@ internal class BattleChangeEquipmentResolver
         }
         ChangeEquipmentRuleResult requirementRule = ResolveChangeEquipmentRequirementRule(
             activeUnit,
-            itemDef,
+            itemDefinition,
             normItem
         );
         if (!requirementRule.Allowed)
         {
             return requirementRule;
         }
-        var occupiedSlots = new List<StringName>(itemDef.GetFinalOccupiedSlotIdsTyped(normSlot));
+        var occupiedSlots = new List<StringName>(
+            itemDefinition.GetFinalOccupiedSlotIdsTyped(normSlot)
+        );
         if (occupiedSlots.Count == 0)
         {
             occupiedSlots = new List<StringName> { normSlot };
@@ -1217,20 +1221,20 @@ internal class BattleChangeEquipmentResolver
 
     private ChangeEquipmentRuleResult ResolveChangeEquipmentRequirementRule(
         BattleUnitState activeUnit,
-        ItemDef itemDef,
+        ItemDefinition itemDefinition,
         StringName itemId
     )
     {
-        if (itemDef == null)
+        if (itemDefinition == null)
         {
             return new ChangeEquipmentRuleResult(true);
         }
-        EquipmentRequirement equipReq = itemDef.equip_requirement as EquipmentRequirement;
-        if (equipReq == null)
+        EquipmentRequirementDefinition equipRequirement = itemDefinition.EquipRequirement;
+        if (equipRequirement == null)
         {
             return new ChangeEquipmentRuleResult(true);
         }
-        string itemLabel = GetChangeEquipmentItemDisplayName(itemDef, itemId);
+        string itemLabel = GetChangeEquipmentItemDisplayName(itemDefinition, itemId);
         if (
             activeUnit == null
             || StringNameIsEmpty(activeUnit.source_member_id)
@@ -1260,7 +1264,7 @@ internal class BattleChangeEquipmentResolver
                 BuildChangeEquipmentRequirementFailureMessage(itemLabel)
             );
         }
-        if (equipReq.CheckResult(memberState).Allowed)
+        if (equipRequirement.CheckResult(memberState).Allowed)
         {
             return new ChangeEquipmentRuleResult(true);
         }
@@ -1273,20 +1277,20 @@ internal class BattleChangeEquipmentResolver
 
     private ChangeEquipmentRuleResult ResolveChangeEquipmentRequirementRule(
         BattleUnitReadView activeUnit,
-        ItemDef itemDef,
+        ItemDefinition itemDefinition,
         StringName itemId
     )
     {
-        if (itemDef == null)
+        if (itemDefinition == null)
         {
             return new ChangeEquipmentRuleResult(true);
         }
-        EquipmentRequirement equipReq = itemDef.equip_requirement as EquipmentRequirement;
-        if (equipReq == null)
+        EquipmentRequirementDefinition equipRequirement = itemDefinition.EquipRequirement;
+        if (equipRequirement == null)
         {
             return new ChangeEquipmentRuleResult(true);
         }
-        string itemLabel = GetChangeEquipmentItemDisplayName(itemDef, itemId);
+        string itemLabel = GetChangeEquipmentItemDisplayName(itemDefinition, itemId);
         if (
             !activeUnit.IsValid
             || StringNameIsEmpty(activeUnit.SourceMemberId)
@@ -1316,7 +1320,7 @@ internal class BattleChangeEquipmentResolver
                 BuildChangeEquipmentRequirementFailureMessage(itemLabel)
             );
         }
-        if (equipReq.CheckResult(memberState).Allowed)
+        if (equipRequirement.CheckResult(memberState).Allowed)
         {
             return new ChangeEquipmentRuleResult(true);
         }
@@ -1332,16 +1336,19 @@ internal class BattleChangeEquipmentResolver
         return $"当前无法装备 {itemLabel}。";
     }
 
-    private string GetChangeEquipmentItemDisplayName(ItemDef itemDef, StringName itemId)
+    private string GetChangeEquipmentItemDisplayName(
+        ItemDefinition itemDefinition,
+        StringName itemId
+    )
     {
-        if (itemDef != null && !string.IsNullOrEmpty(itemDef.display_name))
+        if (itemDefinition != null && !string.IsNullOrEmpty(itemDefinition.DisplayName))
         {
-            return itemDef.display_name;
+            return itemDefinition.DisplayName;
         }
         return itemId.ToString();
     }
 
-    private ItemDef GetChangeEquipmentItemDef(StringName itemId)
+    private ItemDefinition GetChangeEquipmentItemDefinition(StringName itemId)
     {
         StringName normalized = ProgressionDataUtils.to_string_name(itemId);
         IBattleRuntimeCharacterGateway characterGateway = _runtime?.GetCharacterGatewayTyped();

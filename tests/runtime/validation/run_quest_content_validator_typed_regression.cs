@@ -31,7 +31,7 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
 
         IReadOnlyDictionary<StringName, QuestDefinition> questDefs =
             progressionRegistry.GetQuestDefsTyped();
-        Dictionary<StringName, ItemDef> itemDefs = new(itemRegistry.GetItemDefsTyped());
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = itemRegistry.GetItemDefsTyped();
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             progressionRegistry.GetSkillDefinitionsTyped();
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
@@ -64,7 +64,7 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
         {
             [invalidQuest.QuestId] = invalidQuest,
         };
-        Dictionary<StringName, ItemDef> itemDefs = new(itemRegistry.GetItemDefsTyped());
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = itemRegistry.GetItemDefsTyped();
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             skillRegistry.GetSkillDefinitionsTyped();
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
@@ -100,7 +100,7 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
         {
             [npcQuest.QuestId] = npcQuest,
         };
-        Dictionary<StringName, ItemDef> itemDefs = new(itemRegistry.GetItemDefsTyped());
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = itemRegistry.GetItemDefsTyped();
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             skillRegistry.GetSkillDefinitionsTyped();
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =

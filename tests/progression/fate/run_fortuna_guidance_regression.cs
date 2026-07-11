@@ -241,7 +241,7 @@ public partial class run_fortuna_guidance_regression : LifecycleTestSceneTree
             new Dictionary<StringName, SkillDefinition>(),
             new Dictionary<StringName, ProfessionDefinition>(),
             progressionRegistry.GetAchievementDefsTyped(),
-            new Dictionary<StringName, ItemDef>(),
+            new Dictionary<StringName, ItemDefinition>(),
             new Dictionary<StringName, QuestDefinition>(),
             null,
             new ProgressionIdentityCatalogData()

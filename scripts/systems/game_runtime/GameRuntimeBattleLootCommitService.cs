@@ -393,7 +393,7 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
             return ItemCommitResult.Create(true, "", "", 0, System.Array.Empty<BattleLootEntry>());
         var gameSession = _runtime._game_session;
         var itemDefs = gameSession.GetItemDefsTyped();
-        itemDefs.TryGetValue(itemId, out ItemDef itemDef);
+        itemDefs.TryGetValue(itemId, out ItemDefinition itemDef);
         if (itemDef == null)
             return ItemCommitResult.Create(
                 false,
@@ -480,7 +480,7 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
             );
         var gameSession = _runtime._game_session;
         var itemDefs = gameSession.GetItemDefsTyped();
-        itemDefs.TryGetValue(itemId, out ItemDef itemDef);
+        itemDefs.TryGetValue(itemId, out ItemDefinition itemDef);
         if (itemDef == null)
             return ItemCommitResult.Create(
                 false,
@@ -538,7 +538,7 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
     private void RestoreLootCommitState(
         PartyState partyState,
         PartyWarehouseService partyWarehouseService,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         WarehouseState warehouseStateBefore,
         IReadOnlyDictionary<StringName, bool> fateRunFlagsBefore
     )

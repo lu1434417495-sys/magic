@@ -31,7 +31,7 @@ public sealed partial class BattleRuntimeModule
     }
 
     internal void SyncContentCatalogsTyped(
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null,
         IReadOnlyDictionary<StringName, TraitDefinition> traitDefs = null,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null,
@@ -45,7 +45,7 @@ public sealed partial class BattleRuntimeModule
             skillDefinitions
             ?? catalogSkillDefinitions;
         ApplySkillDefinitionsTyped(resolvedSkillDefinitions);
-        ApplyItemDefsTyped(itemDefs);
+        ApplyItemDefinitionsTyped(itemDefinitions);
         ApplyTraitDefsTyped(traitDefs);
         ApplyEquipmentAbilityBindingsTyped(equipmentAbilityBindings);
         ApplyBarrierProfileDefinitionsTyped(barrierProfileDefinitions);
@@ -237,20 +237,24 @@ public sealed partial class BattleRuntimeModule
         || _equipment_drop_service != null
         || _equipment_instance_id_allocator != null;
 
-    private void ApplyItemDefsTyped(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
+    private void ApplyItemDefinitionsTyped(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
+    )
     {
         _itemDefIndex.Clear();
-        if (itemDefs == null || itemDefs.Count == 0)
+        if (itemDefinitions == null || itemDefinitions.Count == 0)
         {
             return;
         }
-        foreach ((StringName itemId, ItemDef itemDef) in itemDefs)
+        foreach (
+            (StringName itemId, ItemDefinition itemDefinition) in itemDefinitions
+        )
         {
-            if (itemId == "" || itemDef == null || itemDef.item_id == "")
+            if (itemId == "" || itemDefinition == null || itemDefinition.ItemId == "")
             {
                 continue;
             }
-            _itemDefIndex[itemDef.item_id] = itemDef;
+            _itemDefIndex[itemDefinition.ItemId] = itemDefinition;
         }
     }
 
@@ -329,7 +333,8 @@ public sealed partial class BattleRuntimeModule
     internal IReadOnlyDictionary<StringName, EnemyAiBrainDef> GetEnemyAiBrainIndexTyped() =>
         _enemyAiBrainIndex;
 
-    internal IReadOnlyDictionary<StringName, ItemDef> GetItemDefIndexTyped() => _itemDefIndex;
+    internal IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefIndexTyped() =>
+        _itemDefIndex;
 
     internal IReadOnlyDictionary<StringName, TraitDefinition> GetTraitDefIndexTyped() => _traitDefIndex;
 
@@ -354,9 +359,9 @@ public sealed partial class BattleRuntimeModule
         batch.AddLogLine(message);
     }
 
-    internal Dictionary<StringName, ItemDef> BuildItemDefIndexSnapshotTyped()
+    internal Dictionary<StringName, ItemDefinition> BuildItemDefIndexSnapshotTyped()
     {
-        return new Dictionary<StringName, ItemDef>(_itemDefIndex);
+        return new Dictionary<StringName, ItemDefinition>(_itemDefIndex);
     }
 
     internal Dictionary<StringName, TraitDefinition> BuildTraitDefIndexSnapshotTyped()

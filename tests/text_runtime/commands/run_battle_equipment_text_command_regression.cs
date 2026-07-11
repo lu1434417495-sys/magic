@@ -227,46 +227,29 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
         if (gameSession == null)
             return;
         _test.Eq(
-            (Error)gameSession.InstallTestContentDef(
-                "item",
-                VersatileTestWeaponId,
-                BuildVersatileTestWeaponDef()
+            (Error)gameSession.InstallItemDefinitionForTests(
+                BuildVersatileTestWeaponDef().ToDefinition()
             ),
             Error.Ok,
             "应能注册战斗换装测试用 versatile 武器。"
         );
         _test.Eq(
-            (Error)gameSession.InstallTestContentDef(
-                "item",
-                OffhandTestItemId,
-                BuildOffhandTestItemDef()
+            (Error)gameSession.InstallItemDefinitionForTests(
+                BuildOffhandTestItemDef().ToDefinition()
             ),
             Error.Ok,
             "应能注册战斗换装测试用副手物品。"
         );
         _test.Eq(
-            (Error)gameSession.InstallTestContentDef(
-                "item",
-                RestrictedTestHelmId,
-                BuildRestrictedTestHelmDef()
+            (Error)gameSession.InstallItemDefinitionForTests(
+                BuildRestrictedTestHelmDef().ToDefinition()
             ),
             Error.Ok,
             "应能注册战斗换装测试用受限头盔。"
         );
         _test.Eq(
-            (Error)gameSession.InstallTestContentDefStringKey(
-                "item",
-                StringKeyOnlyTestHelmId.ToString(),
-                BuildStringKeyOnlyTestHelmDef()
-            ),
-            Error.Ok,
-            "应能以 String key 注册战斗换装测试用头盔。"
-        );
-        _test.Eq(
-            (Error)gameSession.InstallTestContentDef(
-                "item",
-                DuplicateTestCharmId,
-                BuildDuplicateTestCharmDef()
+            (Error)gameSession.InstallItemDefinitionForTests(
+                BuildDuplicateTestCharmDef().ToDefinition()
             ),
             Error.Ok,
             "应能注册战斗换装测试用重复饰品。"
@@ -383,20 +366,6 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
             equipment_slot_ids = new GStringArray { "head" },
             tags = new GStringNameArray { "head", "armor", "test" },
             equip_requirement = new EquipmentRequirement { min_body_size = 99 },
-        };
-    }
-
-    private static ItemDef BuildStringKeyOnlyTestHelmDef()
-    {
-        return new ItemDef
-        {
-            item_id = StringKeyOnlyTestHelmId,
-            display_name = "WPNDICE String Key Only Helm",
-            is_stackable = false,
-            item_category = "equipment",
-            equipment_type_id = "armor",
-            equipment_slot_ids = new GStringArray { "head" },
-            tags = new GStringNameArray { "head", "armor", "test" },
         };
     }
 

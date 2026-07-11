@@ -190,7 +190,7 @@ public partial class run_party_warehouse_batch_swap_regression : LifecycleTestSc
     private static PartyWarehouseService BuildService(PartyState partyState)
     {
         PartyWarehouseService service = new();
-        service.Setup(partyState, BuildItemDefIndex(BuildItemDefs()));
+        service.Setup(partyState, BuildItemDefinitions());
         return service;
     }
 
@@ -218,9 +218,9 @@ public partial class run_party_warehouse_batch_swap_regression : LifecycleTestSc
         return partyState;
     }
 
-    private static GDictionary BuildItemDefs()
+    private static Dictionary<StringName, ItemDefinition> BuildItemDefinitions()
     {
-        return new GDictionary
+        return new Dictionary<StringName, ItemDefinition>
         {
             [new StringName("potion")] = BuildStackItem("potion"),
             [new StringName("herb")] = BuildStackItem("herb"),
@@ -237,29 +237,11 @@ public partial class run_party_warehouse_batch_swap_regression : LifecycleTestSc
                 {
                     EquipmentRules.ToStringName(EquipmentSlotKind.MainHand).ToString(),
                 },
-            },
+            }.ToDefinition(),
         };
     }
 
-    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
-    {
-        Dictionary<StringName, ItemDef> result = new();
-        if (itemDefs == null)
-            return result;
-        foreach (Variant rawKey in itemDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            StringName itemId = rawKey.AsStringName();
-            if (itemId == "")
-                continue;
-            if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
-                result[itemId] = itemDef;
-        }
-        return result;
-    }
-
-    private static ItemDef BuildStackItem(StringName itemId)
+    private static ItemDefinition BuildStackItem(StringName itemId)
     {
         return new ItemDef
         {
@@ -268,7 +250,7 @@ public partial class run_party_warehouse_batch_swap_regression : LifecycleTestSc
             CategoryKind = ItemCategoryKind.Misc,
             is_stackable = true,
             max_stack = 99,
-        };
+        }.ToDefinition();
     }
 
 

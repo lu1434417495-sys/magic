@@ -122,7 +122,7 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
             new Dictionary<StringName, SkillDefinition>(),
             new Dictionary<StringName, ProfessionDefinition>(),
             new Dictionary<StringName, AchievementDefinition>(),
-            new Dictionary<StringName, ItemDef>(),
+            new Dictionary<StringName, ItemDefinition>(),
             ProjectQuestDefs(questDefs),
             true,
             null,
@@ -210,7 +210,7 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
             new Dictionary<StringName, SkillDefinition>(),
             new Dictionary<StringName, ProfessionDefinition>(),
             new Dictionary<StringName, AchievementDefinition>(),
-            new Dictionary<StringName, ItemDef>(),
+            new Dictionary<StringName, ItemDefinition>(),
             new Dictionary<StringName, QuestDefinition>
             {
                 [questDef.QuestId] = questDef,

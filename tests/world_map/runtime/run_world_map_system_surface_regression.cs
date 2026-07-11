@@ -184,7 +184,7 @@ public partial class run_world_map_system_surface_regression : LifecycleTestScen
 
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             gameSession.GetSkillDefinitionsTyped();
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = gameSession.GetItemDefsTyped();
         var sortedSkillIds = new List<StringName>(skillDefinitions.Keys);
         sortedSkillIds.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
         foreach (StringName skillId in sortedSkillIds)

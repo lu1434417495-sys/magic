@@ -66,7 +66,7 @@ public sealed class PartyWarehouseService : IDisposable
     }
 
     private PartyState _party_state = new();
-    private Dictionary<StringName, ItemDef> _item_defs = new();
+    private Dictionary<StringName, ItemDefinition> _itemDefinitions = new();
     private WarehouseState _party_backpack_view;
     private Func<StringName> _equipment_instance_id_allocator;
     private EquipmentTraitRollService _equipment_trait_roll_service;
@@ -75,14 +75,16 @@ public sealed class PartyWarehouseService : IDisposable
 
     public void Setup(
         PartyState partyState,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
         Func<StringName> equipmentInstanceIdAllocator = null,
         EquipmentTraitRollService equipmentTraitRollService = null
     )
     {
         _party_state = partyState ?? new PartyState();
-        _item_defs =
-            itemDefs != null ? new Dictionary<StringName, ItemDef>(itemDefs) : new Dictionary<StringName, ItemDef>();
+        _itemDefinitions =
+            itemDefinitions != null
+                ? new Dictionary<StringName, ItemDefinition>(itemDefinitions)
+                : new Dictionary<StringName, ItemDefinition>();
         _party_backpack_view = null;
         _equipment_instance_id_allocator = equipmentInstanceIdAllocator;
         _equipment_trait_roll_service = equipmentTraitRollService;
@@ -91,20 +93,22 @@ public sealed class PartyWarehouseService : IDisposable
     public void Setup(PartyState partyState) =>
         Setup(
             partyState,
-            default(IReadOnlyDictionary<StringName, ItemDef>),
+            default(IReadOnlyDictionary<StringName, ItemDefinition>),
             default(Func<StringName>)
         );
 
     public void SetupPartyBackpackView(
         PartyState partyState,
         WarehouseState partyBackpackView,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
         Func<StringName> equipmentInstanceIdAllocator = null,
         EquipmentTraitRollService equipmentTraitRollService = null)
     {
         _party_state = partyState ?? new PartyState();
-        _item_defs =
-            itemDefs != null ? new Dictionary<StringName, ItemDef>(itemDefs) : new Dictionary<StringName, ItemDef>();
+        _itemDefinitions =
+            itemDefinitions != null
+                ? new Dictionary<StringName, ItemDefinition>(itemDefinitions)
+                : new Dictionary<StringName, ItemDefinition>();
         _party_backpack_view = partyBackpackView ?? new WarehouseState();
         _equipment_instance_id_allocator = equipmentInstanceIdAllocator;
         _equipment_trait_roll_service = equipmentTraitRollService;
@@ -116,7 +120,7 @@ public sealed class PartyWarehouseService : IDisposable
             return;
         _disposed = true;
         _party_state = null;
-        _item_defs.Clear();
+        _itemDefinitions.Clear();
         _party_backpack_view = null;
         _equipment_instance_id_allocator = null;
         _equipment_trait_roll_service = null;
@@ -202,11 +206,12 @@ public sealed class PartyWarehouseService : IDisposable
         return entries;
     }
 
-    public ItemDef GetItemDef(StringName itemId)
+    public ItemDefinition GetItemDef(StringName itemId)
     {
         var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
-        return normalizedItemId != "" && _item_defs.TryGetValue(normalizedItemId, out var itemDef)
-            ? itemDef
+        return normalizedItemId != ""
+            && _itemDefinitions.TryGetValue(normalizedItemId, out var itemDefinition)
+            ? itemDefinition
             : null;
     }
 
@@ -878,11 +883,6 @@ public sealed class PartyWarehouseService : IDisposable
         return null;
     }
 
-    private static ItemDef ReadItemDef(object rawValue)
-    {
-        return TryAsItemDef(rawValue, out var itemDef) ? itemDef : null;
-    }
-
     private WarehouseAddItemResult _process_add(
         StringName itemId,
         int quantity,
@@ -1154,18 +1154,18 @@ public sealed class PartyWarehouseService : IDisposable
         var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
         int resolvedQuantity = Mathf.Max(quantity, 0);
         var itemDef = GetItemDef(normalizedItemId);
-        var grantedSkillId = itemDef?.granted_skill_id ?? new StringName("");
+        var grantedSkillId = itemDef?.GrantedSkillId ?? new StringName("");
         return new WarehouseInventoryEntry(
             normalizedItemId,
             itemDef,
-            itemDef != null && itemDef.display_name.Length > 0
-                ? itemDef.display_name
+            itemDef != null && itemDef.DisplayName.Length > 0
+                ? itemDef.DisplayName
                 : normalizedItemId.ToString(),
-            itemDef?.description ?? "该物品定义缺失，当前仅保留存档中的 item_id 与数量。",
-            itemDef?.icon ?? "",
+            itemDef?.Description ?? "该物品定义缺失，当前仅保留存档中的 item_id 与数量。",
+            itemDef?.Icon ?? "",
             resolvedQuantity,
             CountItem(normalizedItemId),
-            itemDef?.is_stackable ?? resolvedQuantity > 1,
+            itemDef?.IsStackable ?? resolvedQuantity > 1,
             itemDef?.GetEffectiveMaxStack() ?? Mathf.Max(resolvedQuantity, 1),
             itemDef != null ? itemDef.GetItemCategoryNormalized() : new StringName(""),
             itemDef != null && itemDef.IsSkillBook(),
@@ -1253,28 +1253,6 @@ public sealed class PartyWarehouseService : IDisposable
         if (data.ContainsKey(stringNameKey))
             return data[stringNameKey];
         return null;
-    }
-
-    private static bool TryAsItemDef(object rawValue, out ItemDef value)
-    {
-        if (rawValue is ItemDef itemDef)
-        {
-            value = itemDef;
-            return true;
-        }
-
-        try
-        {
-            dynamic dynamicValue = rawValue;
-            value = dynamicValue.As<ItemDef>();
-            return value != null;
-        }
-        catch
-        {
-        }
-
-        value = null;
-        return false;
     }
 
     private static bool TryRawDictionary(

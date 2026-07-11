@@ -89,7 +89,7 @@ public partial class run_confirmed_bugfix_regression : LifecycleTestSceneTree
         );
 
         PartyEquipmentService equipmentService = new();
-        equipmentService.Setup(partyState, new Dictionary<StringName, ItemDef>());
+        equipmentService.Setup(partyState, new Dictionary<StringName, ItemDefinition>());
         var result = equipmentService.UnequipItemTyped("member_a", "main_hand");
         _test.True(result.Success, "缺失 item_def 的已装备实例仍应可卸下。");
         _test.Eq(

@@ -29,7 +29,8 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
 
     private void TestItemResourcesSurfaceEquipmentFlags()
     {
-        GDictionary itemDefs = LoadLowLuckItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions =
+            LoadLowLuckItemDefinitions();
         var cases = new[]
         {
             (LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.ReverseFateAmulet), LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.ReverseFateAmulet)),
@@ -40,11 +41,17 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
 
         foreach ((StringName itemId, StringName attributeId) in cases)
         {
-            _test.True(HasItemDef(itemDefs, itemId), $"ItemContentRegistry 应加载 {itemId}。");
-            if (!HasItemDef(itemDefs, itemId))
+            _test.True(
+                HasItemDefinition(itemDefinitions, itemId),
+                $"ItemContentRegistry 应加载 {itemId}。"
+            );
+            if (!HasItemDefinition(itemDefinitions, itemId))
                 continue;
 
-            AttributeSnapshot snapshot = BuildEquippedMemberSnapshot(itemDefs, itemId);
+            AttributeSnapshot snapshot = BuildEquippedMemberSnapshot(
+                itemDefinitions,
+                itemId
+            );
             _test.True(
                 snapshot != null && snapshot.GetValue(attributeId) > 0,
                 $"{itemId} 装备后应把 {attributeId} 写入属性快照。"
@@ -242,10 +249,17 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
 
     private void AssertBloodDebtRecoveryPenalty()
     {
-        GDictionary itemDefs = LoadLowLuckItemDefs();
-        PartyState plainParty = BuildRestoreParty(equipBloodDebt: false, itemDefs);
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions =
+            LoadLowLuckItemDefinitions();
+        PartyState plainParty = BuildRestoreParty(
+            equipBloodDebt: false,
+            itemDefinitions
+        );
         PartyMemberState plainMember = plainParty.GetMemberState(HeroId);
-        GameRuntimeFacade plainRuntime = BuildRestoreRuntime(plainParty, itemDefs);
+        GameRuntimeFacade plainRuntime = BuildRestoreRuntime(
+            plainParty,
+            itemDefinitions
+        );
         AttributeSnapshot plainSnapshot = plainRuntime.GetMemberAttributeSnapshot(HeroId);
         int plainHpMax = Math.Max(plainSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)), plainMember.current_hp);
         int plainMpMax = Math.Max(plainSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax)), plainMember.current_mp);
@@ -253,9 +267,15 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
         plainHandler.SetupRuntime(plainRuntime);
         plainHandler.RestorePartyResources(1.0f, true);
 
-        PartyState shawlParty = BuildRestoreParty(equipBloodDebt: true, itemDefs);
+        PartyState shawlParty = BuildRestoreParty(
+            equipBloodDebt: true,
+            itemDefinitions
+        );
         PartyMemberState shawlMember = shawlParty.GetMemberState(HeroId);
-        GameRuntimeFacade shawlRuntime = BuildRestoreRuntime(shawlParty, itemDefs);
+        GameRuntimeFacade shawlRuntime = BuildRestoreRuntime(
+            shawlParty,
+            itemDefinitions
+        );
         AttributeSnapshot shawlSnapshot = shawlRuntime.GetMemberAttributeSnapshot(HeroId);
         int shawlHpMax = Math.Max(shawlSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)), shawlMember.current_hp);
         int shawlMpMax = Math.Max(shawlSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax)), shawlMember.current_mp);
@@ -290,20 +310,24 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
         shawlRuntime.Dispose();
     }
 
-    private static GDictionary LoadLowLuckItemDefs()
+    private static IReadOnlyDictionary<StringName, ItemDefinition> LoadLowLuckItemDefinitions()
     {
-        ItemContentRegistry registry = new();
-        GDictionary itemDefs = ProjectItemDefs(registry.GetItemDefsTyped());
-        registry.Dispose();
-        return itemDefs;
+        using ItemContentRegistry registry = new();
+        return new Dictionary<StringName, ItemDefinition>(registry.GetItemDefsTyped());
     }
 
-    private static bool HasItemDef(GDictionary itemDefs, StringName itemId)
+    private static bool HasItemDefinition(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
+        StringName itemId
+    )
     {
-        return itemDefs != null && (itemDefs.ContainsKey(itemId) || itemDefs.ContainsKey(itemId.ToString()));
+        return itemDefinitions != null && itemDefinitions.ContainsKey(itemId);
     }
 
-    private static AttributeSnapshot BuildEquippedMemberSnapshot(GDictionary itemDefs, StringName itemId)
+    private static AttributeSnapshot BuildEquippedMemberSnapshot(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
+        StringName itemId
+    )
     {
         PartyState partyState = BuildPartyShell();
         PartyMemberState memberState = BuildMemberState(HeroId, hiddenLuckAtBirth: -5);
@@ -316,7 +340,7 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
         partyState.SetMemberState(memberState);
 
         CharacterManagementModule manager = new();
-        manager.setup(partyState, item_defs: BuildItemDefIndex(itemDefs));
+        manager.setup(partyState, item_defs: itemDefinitions);
         return manager.GetMemberAttributeSnapshot(HeroId);
     }
 
@@ -504,7 +528,10 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
         state.SetUnit(unit);
     }
 
-    private static PartyState BuildRestoreParty(bool equipBloodDebt, GDictionary itemDefs)
+    private static PartyState BuildRestoreParty(
+        bool equipBloodDebt,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
+    )
     {
         PartyState partyState = BuildPartyShell();
         PartyMemberState memberState = BuildMemberState(HeroId, hiddenLuckAtBirth: -5);
@@ -526,34 +553,18 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
         return partyState;
     }
 
-    private static GameRuntimeFacade BuildRestoreRuntime(PartyState partyState, GDictionary itemDefs)
+    private static GameRuntimeFacade BuildRestoreRuntime(
+        PartyState partyState,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
+    )
     {
         GameRuntimeFacade runtime = new();
         runtime.SetPartyState(partyState);
         runtime._character_management.setup(
             partyState,
-            item_defs: BuildItemDefIndex(itemDefs)
+            item_defs: itemDefinitions
         );
         return runtime;
-    }
-
-    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
-    {
-        var result = new Dictionary<StringName, ItemDef>();
-        if (itemDefs == null)
-            return result;
-        foreach (Variant key in itemDefs.Keys)
-        {
-            StringName itemId = key.VariantType == Variant.Type.StringName
-                ? key.AsStringName()
-                : new StringName(key.ToString());
-            if (itemId == "")
-                continue;
-            ItemDef itemDef = itemDefs[key].AsGodotObject() as ItemDef;
-            if (itemDef != null)
-                result[itemId] = itemDef;
-        }
-        return result;
     }
 
     private static StringName SlotForItem(StringName itemId)
@@ -570,17 +581,6 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
     }
 
     private static GStringNameArray BuildSlotArray(StringName slotId) => new() { slotId };
-
-    private static GDictionary ProjectItemDefs(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
-    {
-        GDictionary projected = new();
-        if (itemDefs == null)
-            return projected;
-
-        foreach (KeyValuePair<StringName, ItemDef> pair in itemDefs)
-            projected[pair.Key] = pair.Value;
-        return projected;
-    }
 
     private static GDictionary ExtractFirstDamageEvent(GDictionary result)
     {

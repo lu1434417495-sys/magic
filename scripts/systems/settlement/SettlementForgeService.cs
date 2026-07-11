@@ -13,12 +13,9 @@ public sealed class SettlementForgeService : System.IDisposable
         "service_repair_gear",
     };
 
-    private readonly RecipeContentRegistry _recipeRegistry = new();
-
     public void Dispose()
     {
         System.GC.SuppressFinalize(this);
-        _recipeRegistry.Dispose();
     }
 
     private sealed class RecipeItemValidationResult
@@ -47,15 +44,13 @@ public sealed class SettlementForgeService : System.IDisposable
     public bool HasAvailableRecipeTyped(
         GDictionary settlement,
         GDictionary payload,
-        IReadOnlyDictionary<StringName, ItemDef> item_defs,
-        IReadOnlyDictionary<StringName, RecipeDef> recipe_defs = null
+        IReadOnlyDictionary<StringName, ItemDefinition> item_defs,
+        IReadOnlyDictionary<StringName, RecipeDefinition> recipe_defs = null
     )
     {
-        IReadOnlyDictionary<StringName, RecipeDef> resolvedRecipeDefs = _resolve_recipe_defs(
-            item_defs,
-            recipe_defs
-        );
-        if (resolvedRecipeDefs.Count == 0)
+        IReadOnlyDictionary<StringName, RecipeDefinition> resolvedRecipeDefinitions =
+            _resolve_recipe_defs(recipe_defs);
+        if (resolvedRecipeDefinitions.Count == 0)
         {
             return false;
         }
@@ -63,7 +58,7 @@ public sealed class SettlementForgeService : System.IDisposable
             _resolve_recipe(
                 settlement ?? new GDictionary(),
                 payload ?? new GDictionary(),
-                resolvedRecipeDefs,
+                resolvedRecipeDefinitions,
                 null
             ) != null;
     }
@@ -71,15 +66,15 @@ public sealed class SettlementForgeService : System.IDisposable
     internal SettlementServiceResult ExecuteRecipeResultTyped(
         GDictionary settlement,
         GDictionary payload,
-        IReadOnlyDictionary<StringName, ItemDef> item_defs,
-        IReadOnlyDictionary<StringName, RecipeDef> recipe_defs,
+        IReadOnlyDictionary<StringName, ItemDefinition> item_defs,
+        IReadOnlyDictionary<StringName, RecipeDefinition> recipe_defs,
         PartyWarehouseService warehouse,
         PartyState partyState,
         IEnumerable<QuestProgressService.QuestProgressEventData> quest_progress_events = null)
     {
         settlement ??= new GDictionary();
         payload ??= new GDictionary();
-        recipe_defs ??= new Dictionary<StringName, RecipeDef>();
+        recipe_defs ??= new Dictionary<StringName, RecipeDefinition>();
 
         GDictionary serviceProfile = _resolve_service_profile(payload);
         if (warehouse == null || partyState == null)
@@ -87,16 +82,14 @@ public sealed class SettlementForgeService : System.IDisposable
             return _build_result(false, "当前工坊服务尚未准备完成。", quest_progress_events);
         }
 
-        IReadOnlyDictionary<StringName, RecipeDef> resolvedRecipeDefs = _resolve_recipe_defs(
-            item_defs,
-            recipe_defs
-        );
-        if (resolvedRecipeDefs.Count == 0)
+        IReadOnlyDictionary<StringName, RecipeDefinition> resolvedRecipeDefinitions =
+            _resolve_recipe_defs(recipe_defs);
+        if (resolvedRecipeDefinitions.Count == 0)
         {
             return _build_result(false, "当前配方配置缺失，暂时无法执行。", quest_progress_events);
         }
 
-        RecipeDef recipe = _resolve_recipe(settlement, payload, resolvedRecipeDefs, warehouse);
+        RecipeDefinition recipe = _resolve_recipe(settlement, payload, resolvedRecipeDefinitions, warehouse);
         if (recipe == null)
         {
             return _build_result(false, ReadString(serviceProfile, "no_recipe_message", "当前工坊没有可执行的配方。"), quest_progress_events);
@@ -109,7 +102,7 @@ public sealed class SettlementForgeService : System.IDisposable
         }
 
         GArray withdrawalItems = _expand_input_items(recipe);
-        GArray depositItems = _build_repeated_item_array(recipe.output_item_id, recipe.output_quantity);
+        GArray depositItems = _build_repeated_item_array(recipe.OutputItemId, recipe.OutputQuantity);
         var previewResult = warehouse.PreviewBatchSwapEntriesTyped(withdrawalItems, depositItems);
         if (!previewResult.Allowed)
         {
@@ -122,8 +115,8 @@ public sealed class SettlementForgeService : System.IDisposable
             return _build_result(false, _build_failed_forge_message(recipe, item_defs, warehouse, commitResult.ErrorCode, payload), quest_progress_events);
         }
 
-        ItemDef outputItemDef = GetItemDef(item_defs, recipe.output_item_id);
-        string message = _build_success_message(recipe, item_defs, settlement, payload, outputItemDef);
+        ItemDefinition outputItemDefinition = GetItemDefinition(item_defs, recipe.OutputItemId);
+        string message = _build_success_message(recipe, item_defs, settlement, payload, outputItemDefinition);
         return _build_result(
             true,
             message,
@@ -131,16 +124,16 @@ public sealed class SettlementForgeService : System.IDisposable
             true,
             new GDictionary
             {
-                ["recipe_id"] = recipe.recipe_id.ToString(),
-                ["removed_entries"] = _build_recipe_entry_options(recipe.input_item_ids, recipe.input_item_quantities),
-                ["added_entries"] = _build_recipe_entry_options(new Godot.Collections.Array<StringName> { recipe.output_item_id }, new[] { recipe.output_quantity }),
+                ["recipe_id"] = recipe.RecipeId.ToString(),
+                ["removed_entries"] = _build_recipe_entry_options(recipe.InputItemIds, recipe.InputItemQuantities),
+                ["added_entries"] = _build_recipe_entry_options(new Godot.Collections.Array<StringName> { recipe.OutputItemId }, new[] { recipe.OutputQuantity }),
             },
             new GDictionary
             {
-                ["recipe_id"] = recipe.recipe_id.ToString(),
+                ["recipe_id"] = recipe.RecipeId.ToString(),
                 ["facility_tags"] = _build_facility_tags(settlement, payload),
-                ["output_item_id"] = recipe.output_item_id.ToString(),
-                ["output_quantity"] = recipe.output_quantity,
+                ["output_item_id"] = recipe.OutputItemId.ToString(),
+                ["output_quantity"] = recipe.OutputQuantity,
             });
     }
 
@@ -148,25 +141,23 @@ public sealed class SettlementForgeService : System.IDisposable
         string interaction_script_id,
         GDictionary settlement_record,
         GDictionary payload,
-        IReadOnlyDictionary<StringName, ItemDef> item_defs,
-        IReadOnlyDictionary<StringName, RecipeDef> recipe_defs,
+        IReadOnlyDictionary<StringName, ItemDefinition> item_defs,
+        IReadOnlyDictionary<StringName, RecipeDefinition> recipe_defs,
         PartyWarehouseService warehouse,
         string feedback_text = "")
     {
         settlement_record ??= new GDictionary();
         payload ??= new GDictionary();
-        recipe_defs ??= new Dictionary<StringName, RecipeDef>();
+        recipe_defs ??= new Dictionary<StringName, RecipeDefinition>();
 
         GDictionary serviceProfile = _resolve_service_profile(payload, interaction_script_id);
-        IReadOnlyDictionary<StringName, RecipeDef> resolvedRecipeDefs = _resolve_recipe_defs(
-            item_defs,
-            recipe_defs
-        );
+        IReadOnlyDictionary<StringName, RecipeDefinition> resolvedRecipeDefinitions =
+            _resolve_recipe_defs(recipe_defs);
         GArray recipeEntries = _build_recipe_window_entries(
             settlement_record,
             payload,
             item_defs,
-            resolvedRecipeDefs,
+            resolvedRecipeDefinitions,
             warehouse,
             interaction_script_id
         );
@@ -220,10 +211,10 @@ public sealed class SettlementForgeService : System.IDisposable
         };
     }
 
-    private RecipeDef _resolve_recipe(
+    private RecipeDefinition _resolve_recipe(
         GDictionary settlement,
         GDictionary payload,
-        IReadOnlyDictionary<StringName, RecipeDef> recipeDefs,
+        IReadOnlyDictionary<StringName, RecipeDefinition> recipeDefs,
         PartyWarehouseService warehouse)
     {
         if (recipeDefs == null || recipeDefs.Count == 0)
@@ -234,12 +225,12 @@ public sealed class SettlementForgeService : System.IDisposable
         StringName requestedRecipeId = ReadStringName(payload, "recipe_id");
         if (requestedRecipeId != "")
         {
-            RecipeDef requestedRecipe = GetRecipeDef(recipeDefs, requestedRecipeId);
+            RecipeDefinition requestedRecipe = GetRecipeDefinition(recipeDefs, requestedRecipeId);
             return requestedRecipe != null && _recipe_matches_facility(requestedRecipe, settlement, payload) ? requestedRecipe : null;
         }
 
-        var matchedRecipes = new System.Collections.Generic.List<RecipeDef>();
-        foreach (RecipeDef recipe in recipeDefs.Values)
+        var matchedRecipes = new System.Collections.Generic.List<RecipeDefinition>();
+        foreach (RecipeDefinition recipe in recipeDefs.Values)
         {
             if (recipe == null || !_recipe_matches_facility(recipe, settlement, payload))
             {
@@ -257,7 +248,7 @@ public sealed class SettlementForgeService : System.IDisposable
             return matchedRecipes[0];
         }
 
-        foreach (RecipeDef recipe in matchedRecipes)
+        foreach (RecipeDefinition recipe in matchedRecipes)
         {
             if (_can_fulfill_recipe_inputs(recipe, warehouse))
             {
@@ -267,20 +258,20 @@ public sealed class SettlementForgeService : System.IDisposable
         return matchedRecipes[0];
     }
 
-    private List<RecipeDef> _list_matching_recipes(
+    private List<RecipeDefinition> _list_matching_recipes(
         GDictionary settlement,
         GDictionary payload,
-        IReadOnlyDictionary<StringName, RecipeDef> recipeDefs
+        IReadOnlyDictionary<StringName, RecipeDefinition> recipeDefs
     )
     {
-        var matchedRecipes = new List<RecipeDef>();
+        var matchedRecipes = new List<RecipeDefinition>();
         if (recipeDefs == null)
         {
             return matchedRecipes;
         }
         foreach (StringName recipeId in SortedRecipeIds(recipeDefs))
         {
-            RecipeDef recipe = GetRecipeDef(recipeDefs, recipeId);
+            RecipeDefinition recipe = GetRecipeDefinition(recipeDefs, recipeId);
             if (recipe == null || !_recipe_matches_facility(recipe, settlement, payload))
             {
                 continue;
@@ -290,33 +281,23 @@ public sealed class SettlementForgeService : System.IDisposable
         return matchedRecipes;
     }
 
-    private IReadOnlyDictionary<StringName, RecipeDef> _resolve_recipe_defs(
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
-        IReadOnlyDictionary<StringName, RecipeDef> recipeDefs = null
+    private static IReadOnlyDictionary<StringName, RecipeDefinition> _resolve_recipe_defs(
+        IReadOnlyDictionary<StringName, RecipeDefinition> recipeDefs = null
     )
     {
-        if (recipeDefs != null && recipeDefs.Count > 0)
-        {
-            return recipeDefs;
-        }
-        _recipeRegistry.Setup(itemDefs);
-        if (_recipeRegistry.ValidateTyped().Count > 0)
-        {
-            return new Dictionary<StringName, RecipeDef>();
-        }
-        return _recipeRegistry.GetRecipeDefsTyped();
+        return recipeDefs ?? new Dictionary<StringName, RecipeDefinition>();
     }
 
     private GArray _build_recipe_window_entries(
         GDictionary settlement,
         GDictionary payload,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
-        IReadOnlyDictionary<StringName, RecipeDef> recipeDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
+        IReadOnlyDictionary<StringName, RecipeDefinition> recipeDefs,
         PartyWarehouseService warehouse,
         string interactionScriptId)
     {
         var entries = new GArray();
-        foreach (RecipeDef recipe in _list_matching_recipes(settlement, payload, recipeDefs))
+        foreach (RecipeDefinition recipe in _list_matching_recipes(settlement, payload, recipeDefs))
         {
             if (recipe != null)
             {
@@ -327,14 +308,14 @@ public sealed class SettlementForgeService : System.IDisposable
     }
 
     private GDictionary _build_recipe_window_entry(
-        RecipeDef recipe,
+        RecipeDefinition recipe,
         GDictionary settlement,
         GDictionary payload,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         PartyWarehouseService warehouse,
         string interactionScriptId)
     {
-        string outputSummary = _build_item_label(recipe.output_item_id, itemDefs, recipe.output_quantity, GetItemDef(itemDefs, recipe.output_item_id));
+        string outputSummary = _build_item_label(recipe.OutputItemId, itemDefs, recipe.OutputQuantity, GetItemDefinition(itemDefs, recipe.OutputItemId));
         string materialSummary = _build_recipe_input_summary(recipe, itemDefs);
         string stateLabel = "状态：可重铸";
         string disabledReason = "";
@@ -355,7 +336,7 @@ public sealed class SettlementForgeService : System.IDisposable
         }
         else
         {
-            var previewResult = warehouse.PreviewBatchSwapEntriesTyped(_expand_input_items(recipe), _build_repeated_item_array(recipe.output_item_id, recipe.output_quantity));
+            var previewResult = warehouse.PreviewBatchSwapEntriesTyped(_expand_input_items(recipe), _build_repeated_item_array(recipe.OutputItemId, recipe.OutputQuantity));
             if (!previewResult.Allowed)
             {
                 isEnabled = false;
@@ -364,7 +345,7 @@ public sealed class SettlementForgeService : System.IDisposable
             }
         }
 
-        string detailsText = recipe.description;
+        string detailsText = recipe.Description;
         if (string.IsNullOrEmpty(detailsText))
         {
             detailsText = $"消耗 {materialSummary}，可{ReadString(serviceProfile, "recipe_action_phrase", "制作为")} {outputSummary}。";
@@ -381,9 +362,9 @@ public sealed class SettlementForgeService : System.IDisposable
 
         return new GDictionary
         {
-            ["entry_id"] = $"recipe:{recipe.recipe_id}",
-            ["recipe_id"] = recipe.recipe_id.ToString(),
-            ["display_name"] = !string.IsNullOrEmpty(recipe.display_name) ? recipe.display_name : recipe.recipe_id.ToString(),
+            ["entry_id"] = $"recipe:{recipe.RecipeId}",
+            ["recipe_id"] = recipe.RecipeId.ToString(),
+            ["display_name"] = !string.IsNullOrEmpty(recipe.DisplayName) ? recipe.DisplayName : recipe.RecipeId.ToString(),
             ["summary_text"] = $"{materialSummary} -> {outputSummary}",
             ["details_text"] = detailsText,
             ["state_label"] = stateLabel,
@@ -394,14 +375,14 @@ public sealed class SettlementForgeService : System.IDisposable
         };
     }
 
-    private bool _recipe_matches_facility(RecipeDef recipe, GDictionary settlement, GDictionary payload)
+    private bool _recipe_matches_facility(RecipeDefinition recipe, GDictionary settlement, GDictionary payload)
     {
-        if (recipe.required_facility_tags.Count == 0)
+        if (recipe.RequiredFacilityTags.Count == 0)
         {
             return true;
         }
         GDictionary availableTags = _build_facility_tag_set(settlement, payload);
-        foreach (var rawTag in recipe.required_facility_tags)
+        foreach (var rawTag in recipe.RequiredFacilityTags)
         {
             StringName normalizedTag = ProgressionDataUtils.to_string_name(rawTag);
             if (normalizedTag == "")
@@ -523,12 +504,12 @@ public sealed class SettlementForgeService : System.IDisposable
         return ReadString(facility, "template_id", ReadString(facility, "facility_id")).StripEdges();
     }
 
-    private static bool _can_fulfill_recipe_inputs(RecipeDef recipe, PartyWarehouseService warehouse)
+    private static bool _can_fulfill_recipe_inputs(RecipeDefinition recipe, PartyWarehouseService warehouse)
     {
-        for (int inputIndex = 0; inputIndex < recipe.input_item_ids.Count; inputIndex++)
+        for (int inputIndex = 0; inputIndex < recipe.InputItemIds.Count; inputIndex++)
         {
-            StringName itemId = ProgressionDataUtils.to_string_name(recipe.input_item_ids[inputIndex]);
-            int requiredQuantity = inputIndex < recipe.input_item_quantities.Length ? recipe.input_item_quantities[inputIndex] : 0;
+            StringName itemId = ProgressionDataUtils.to_string_name(recipe.InputItemIds[inputIndex]);
+            int requiredQuantity = inputIndex < recipe.InputItemQuantities.Count ? recipe.InputItemQuantities[inputIndex] : 0;
             if (warehouse.CountItem(itemId) < requiredQuantity)
             {
                 return false;
@@ -538,32 +519,32 @@ public sealed class SettlementForgeService : System.IDisposable
     }
 
     private static RecipeItemValidationResult _validate_recipe_items(
-        RecipeDef recipe,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+        RecipeDefinition recipe,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs
     )
     {
-        foreach (var inputItemId in recipe.input_item_ids)
+        foreach (var inputItemId in recipe.InputItemIds)
         {
             StringName normalizedInput = ProgressionDataUtils.to_string_name(inputItemId);
             if (normalizedInput == "" || itemDefs == null || !itemDefs.ContainsKey(normalizedInput))
             {
                 return RecipeItemValidationResult.Failed(
-                    $"配方 {recipe.recipe_id} 引用了缺失的输入物品 {normalizedInput}。"
+                    $"配方 {recipe.RecipeId} 引用了缺失的输入物品 {normalizedInput}。"
                 );
             }
         }
-        if (recipe.output_item_id == "" || itemDefs == null || !itemDefs.ContainsKey(recipe.output_item_id))
+        if (recipe.OutputItemId == "" || itemDefs == null || !itemDefs.ContainsKey(recipe.OutputItemId))
         {
             return RecipeItemValidationResult.Failed(
-                $"配方 {recipe.recipe_id} 引用了缺失的产出物品 {recipe.output_item_id}。"
+                $"配方 {recipe.RecipeId} 引用了缺失的产出物品 {recipe.OutputItemId}。"
             );
         }
         return RecipeItemValidationResult.Success();
     }
 
     private string _build_failed_forge_message(
-        RecipeDef recipe,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        RecipeDefinition recipe,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         PartyWarehouseService warehouse,
         string warehouseErrorCode,
         GDictionary payload = null)
@@ -583,39 +564,39 @@ public sealed class SettlementForgeService : System.IDisposable
                 return $"{ReadString(serviceProfile, "missing_material_prefix", "缺少配方材料：")}{string.Join("、", ToStringList(missingItems))}。";
             }
         }
-        return !string.IsNullOrEmpty(recipe.failure_reason)
-            ? recipe.failure_reason
+        return !string.IsNullOrEmpty(recipe.FailureReason)
+            ? recipe.FailureReason
             : ReadString(serviceProfile, "fallback_failure_message", "当前无法完成该配方。");
     }
 
     private GArray _build_missing_input_entries(
-        RecipeDef recipe,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        RecipeDefinition recipe,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         PartyWarehouseService warehouse)
     {
         var missingEntries = new GArray();
-        for (int inputIndex = 0; inputIndex < recipe.input_item_ids.Count; inputIndex++)
+        for (int inputIndex = 0; inputIndex < recipe.InputItemIds.Count; inputIndex++)
         {
-            StringName itemId = ProgressionDataUtils.to_string_name(recipe.input_item_ids[inputIndex]);
-            int requiredQuantity = inputIndex < recipe.input_item_quantities.Length ? recipe.input_item_quantities[inputIndex] : 0;
+            StringName itemId = ProgressionDataUtils.to_string_name(recipe.InputItemIds[inputIndex]);
+            int requiredQuantity = inputIndex < recipe.InputItemQuantities.Count ? recipe.InputItemQuantities[inputIndex] : 0;
             int ownedQuantity = warehouse.CountItem(itemId);
             if (ownedQuantity >= requiredQuantity)
             {
                 continue;
             }
             int shortage = requiredQuantity - ownedQuantity;
-            missingEntries.Add(_build_item_label(itemId, itemDefs, shortage, GetItemDef(itemDefs, itemId)));
+            missingEntries.Add(_build_item_label(itemId, itemDefs, shortage, GetItemDefinition(itemDefs, itemId)));
         }
         return missingEntries;
     }
 
-    private static GArray _expand_input_items(RecipeDef recipe)
+    private static GArray _expand_input_items(RecipeDefinition recipe)
     {
         var itemIds = new GArray();
-        for (int inputIndex = 0; inputIndex < recipe.input_item_ids.Count; inputIndex++)
+        for (int inputIndex = 0; inputIndex < recipe.InputItemIds.Count; inputIndex++)
         {
-            StringName itemId = ProgressionDataUtils.to_string_name(recipe.input_item_ids[inputIndex]);
-            int quantity = inputIndex < recipe.input_item_quantities.Length ? recipe.input_item_quantities[inputIndex] : 0;
+            StringName itemId = ProgressionDataUtils.to_string_name(recipe.InputItemIds[inputIndex]);
+            int quantity = inputIndex < recipe.InputItemQuantities.Count ? recipe.InputItemQuantities[inputIndex] : 0;
             foreach (var repeated in _build_repeated_item_array(itemId, quantity))
             {
                 itemIds.Add(repeated);
@@ -636,27 +617,30 @@ public sealed class SettlementForgeService : System.IDisposable
     }
 
     private static string _build_recipe_input_summary(
-        RecipeDef recipe,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+        RecipeDefinition recipe,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs
     )
     {
         var parts = new System.Collections.Generic.List<string>();
-        for (int inputIndex = 0; inputIndex < recipe.input_item_ids.Count; inputIndex++)
+        for (int inputIndex = 0; inputIndex < recipe.InputItemIds.Count; inputIndex++)
         {
-            StringName itemId = ProgressionDataUtils.to_string_name(recipe.input_item_ids[inputIndex]);
-            int quantity = inputIndex < recipe.input_item_quantities.Length ? recipe.input_item_quantities[inputIndex] : 0;
-            parts.Add(_build_item_label(itemId, itemDefs, quantity, GetItemDef(itemDefs, itemId)));
+            StringName itemId = ProgressionDataUtils.to_string_name(recipe.InputItemIds[inputIndex]);
+            int quantity = inputIndex < recipe.InputItemQuantities.Count ? recipe.InputItemQuantities[inputIndex] : 0;
+            parts.Add(_build_item_label(itemId, itemDefs, quantity, GetItemDefinition(itemDefs, itemId)));
         }
         return string.Join("、", parts);
     }
 
-    private static GArray _build_recipe_entry_options(Godot.Collections.Array<StringName> itemIds, int[] quantities)
+    private static GArray _build_recipe_entry_options(
+        IReadOnlyList<StringName> itemIds,
+        IReadOnlyList<int> quantities
+    )
     {
         var entries = new GArray();
         for (int entryIndex = 0; entryIndex < itemIds.Count; entryIndex++)
         {
             StringName itemId = ProgressionDataUtils.to_string_name(itemIds[entryIndex]);
-            int quantity = entryIndex < quantities.Length ? quantities[entryIndex] : 0;
+            int quantity = entryIndex < quantities.Count ? quantities[entryIndex] : 0;
             if (itemId == "" || quantity <= 0)
             {
                 continue;
@@ -672,29 +656,29 @@ public sealed class SettlementForgeService : System.IDisposable
 
     private static string _build_item_label(
         StringName itemId,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         int quantity,
-        ItemDef itemDef = null)
+        ItemDefinition itemDef = null)
     {
         string displayName = itemId.ToString();
-        itemDef ??= GetItemDef(itemDefs, itemId);
-        if (itemDef != null && !string.IsNullOrEmpty(itemDef.display_name))
+        itemDef ??= GetItemDefinition(itemDefs, itemId);
+        if (itemDef != null && !string.IsNullOrEmpty(itemDef.DisplayName))
         {
-            displayName = itemDef.display_name;
+            displayName = itemDef.DisplayName;
         }
         return $"{Mathf.Max(quantity, 0)} 件 {displayName}";
     }
 
     private string _build_success_message(
-        RecipeDef recipe,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        RecipeDefinition recipe,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         GDictionary settlement,
         GDictionary payload,
-        ItemDef outputItemDef = null)
+        ItemDefinition outputItemDefinition = null)
     {
         GDictionary serviceProfile = _resolve_service_profile(payload);
         string inputSummary = _build_recipe_input_summary(recipe, itemDefs);
-        string outputSummary = _build_item_label(recipe.output_item_id, itemDefs, recipe.output_quantity, outputItemDef);
+        string outputSummary = _build_item_label(recipe.OutputItemId, itemDefs, recipe.OutputQuantity, outputItemDefinition);
         if (_is_master_reforge_interaction(ReadString(payload, "interaction_script_id")))
         {
             return $"大师工坊已将 {inputSummary} 重铸为 {outputSummary}。";
@@ -796,8 +780,8 @@ public sealed class SettlementForgeService : System.IDisposable
         return result;
     }
 
-    private static RecipeDef GetRecipeDef(
-        IReadOnlyDictionary<StringName, RecipeDef> recipeDefs,
+    private static RecipeDefinition GetRecipeDefinition(
+        IReadOnlyDictionary<StringName, RecipeDefinition> recipeDefs,
         StringName key
     )
     {
@@ -805,11 +789,11 @@ public sealed class SettlementForgeService : System.IDisposable
         {
             return null;
         }
-        return recipeDefs.TryGetValue(key, out RecipeDef value) ? value : null;
+        return recipeDefs.TryGetValue(key, out RecipeDefinition value) ? value : null;
     }
 
     private static List<StringName> SortedRecipeIds(
-        IReadOnlyDictionary<StringName, RecipeDef> recipeDefs
+        IReadOnlyDictionary<StringName, RecipeDefinition> recipeDefs
     )
     {
         var result = new List<StringName>();
@@ -825,8 +809,8 @@ public sealed class SettlementForgeService : System.IDisposable
         return result;
     }
 
-    private static ItemDef GetItemDef(
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+    private static ItemDefinition GetItemDefinition(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         StringName key
     )
     {
@@ -834,7 +818,7 @@ public sealed class SettlementForgeService : System.IDisposable
         {
             return null;
         }
-        return itemDefs.TryGetValue(key, out ItemDef itemDef) ? itemDef : null;
+        return itemDefs.TryGetValue(key, out ItemDefinition itemDef) ? itemDef : null;
     }
 
     private static string ReadString(GDictionary data, string key, string fallback = "")

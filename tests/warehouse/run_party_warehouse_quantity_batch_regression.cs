@@ -215,7 +215,7 @@ public partial class run_party_warehouse_quantity_batch_regression : LifecycleTe
     private static PartyWarehouseService BuildService(PartyState partyState)
     {
         PartyWarehouseService service = new();
-        service.Setup(partyState, BuildItemDefIndex());
+        service.Setup(partyState, BuildItemDefinitionIndex());
         return service;
     }
 
@@ -243,7 +243,7 @@ public partial class run_party_warehouse_quantity_batch_regression : LifecycleTe
         return partyState;
     }
 
-    private static Dictionary<StringName, ItemDef> BuildItemDefIndex() =>
+    private static Dictionary<StringName, ItemDefinition> BuildItemDefinitionIndex() =>
         new()
         {
             ["potion"] = BuildStackItem("potion", 99),
@@ -262,18 +262,18 @@ public partial class run_party_warehouse_quantity_batch_regression : LifecycleTe
                 {
                     EquipmentRules.ToStringName(EquipmentSlotKind.MainHand).ToString(),
                 },
-            },
+            }.ToDefinition(),
         };
 
-    private static ItemDef BuildStackItem(StringName itemId, int maxStack) =>
-        new()
+    private static ItemDefinition BuildStackItem(StringName itemId, int maxStack) =>
+        new ItemDef
         {
             item_id = itemId,
             display_name = itemId.ToString(),
             CategoryKind = ItemCategoryKind.Misc,
             is_stackable = true,
             max_stack = maxStack,
-        };
+        }.ToDefinition();
 
     private static string StackQuantities(WarehouseState warehouseState, StringName itemId)
     {

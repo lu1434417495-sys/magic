@@ -68,11 +68,11 @@ public interface IBattleRuntimeCharacterGateway : IBattleRatingCharacterGateway
 {
     PartyState GetPartyState();
 
-    IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped();
+    IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsTyped();
 
     bool HasItemDefCatalog();
 
-    ItemDef GetItemDef(StringName item_id);
+    ItemDefinition GetItemDef(StringName item_id);
 
     PartyMemberState GetMemberState(StringName member_id);
 

@@ -1197,10 +1197,10 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             ? GetContentCatalogTyped().GetSkillDefinitionsTyped()
             : new Dictionary<StringName, SkillDefinition>();
 
-    internal IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped() =>
+    internal IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsTyped() =>
         GetContentCatalogTyped() != null
             ? GetContentCatalogTyped().GetItemDefsTyped()
-            : new Dictionary<StringName, ItemDef>();
+            : new Dictionary<StringName, ItemDefinition>();
 
     internal ISkillCatalog GetSkillCatalogTyped() =>
         GetContentCatalogTyped()?.GetSkillCatalogTyped();
@@ -2296,19 +2296,23 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         PartyWarehouseService service,
         PartyState party_state
     ) =>
-        SetupPartyWarehouseService(service, party_state, new Dictionary<StringName, ItemDef>());
+        SetupPartyWarehouseService(
+            service,
+            party_state,
+            new Dictionary<StringName, ItemDefinition>()
+        );
 
     internal void SetupPartyWarehouseService(
         PartyWarehouseService service,
         PartyState party_state,
-        IReadOnlyDictionary<StringName, ItemDef> item_defs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
         if (service == null)
             return;
         service.Setup(
             party_state,
-            item_defs ?? new Dictionary<StringName, ItemDef>(),
+            itemDefinitions ?? new Dictionary<StringName, ItemDefinition>(),
             GetEquipmentInstanceIdAllocator(),
             GetEquipmentTraitRollService()
         );
@@ -2319,7 +2323,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         var typedItemDefs =
             GetContentCatalogTyped() != null
                 ? GetContentCatalogTyped().GetItemDefsTyped()
-                : new Dictionary<StringName, ItemDef>();
+                : new Dictionary<StringName, ItemDefinition>();
         var typedSkillDefinitions =
             GetContentCatalogTyped() != null
                 ? GetContentCatalogTyped().GetSkillDefinitionsTyped()
@@ -2530,8 +2534,8 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     internal string GetItemDisplayName(StringName item_id)
     {
         var itemDef = _party_warehouse_service.GetItemDef(item_id);
-        if (itemDef != null && !string.IsNullOrEmpty(itemDef.display_name))
-            return itemDef.display_name;
+        if (itemDef != null && !string.IsNullOrEmpty(itemDef.DisplayName))
+            return itemDef.DisplayName;
         return item_id.ToString();
     }
 

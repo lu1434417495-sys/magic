@@ -183,7 +183,7 @@ public partial class run_character_trait_service_regression : LifecycleTestScene
     {
         private readonly PartyMemberState _member;
         private readonly EquipmentState _equipment;
-        private readonly Dictionary<StringName, ItemDef> _items = new();
+        private readonly Dictionary<StringName, ItemDefinition> _items = new();
         private readonly RaceDefinition _raceDefinition;
 
         public FakeGateway()
@@ -227,11 +227,15 @@ public partial class run_character_trait_service_regression : LifecycleTestScene
                 )
             );
 
-            _items["iron_sword"] = new ItemDef
-            {
-                item_id = "iron_sword",
-                trait_ids = new Godot.Collections.Array<StringName> { "fixed_guard" },
-            };
+            ItemDef itemResource = TestResourceOwnership.Own(
+                new ItemDef
+                {
+                    item_id = "iron_sword",
+                    trait_ids = new Godot.Collections.Array<StringName> { "fixed_guard" },
+                },
+                "run_character_trait_service_regression.FakeGateway.iron_sword"
+            );
+            _items["iron_sword"] = itemResource.ToDefinition();
 
             EquipmentInstanceState equipmentInstance =
                 EquipmentInstanceState.CreateInstance("iron_sword", "eq_000001");
@@ -291,7 +295,9 @@ public partial class run_character_trait_service_regression : LifecycleTestScene
         public EquipmentState GetEquipmentStateForTraitAggregation(StringName memberId) =>
             memberId == _member.member_id ? _equipment : null;
 
-        public ItemDef GetItemDefForTraitAggregation(StringName itemId) =>
-            _items.TryGetValue(itemId, out ItemDef itemDef) ? itemDef : null;
+        public ItemDefinition GetItemDefForTraitAggregation(StringName itemId) =>
+            _items.TryGetValue(itemId, out ItemDefinition itemDefinition)
+                ? itemDefinition
+                : null;
     }
 }

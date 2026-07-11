@@ -108,19 +108,21 @@ internal sealed class BattleSkillAvailabilityService
         new ReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition>(
             new Dictionary<StringName, EquipmentAbilityBindingDefinition>()
         );
-    private static readonly IReadOnlyDictionary<StringName, ItemDef> EmptyItemDefinitions =
-        new ReadOnlyDictionary<StringName, ItemDef>(new Dictionary<StringName, ItemDef>());
+    private static readonly IReadOnlyDictionary<StringName, ItemDefinition> EmptyItemDefinitions =
+        new ReadOnlyDictionary<StringName, ItemDefinition>(
+            new Dictionary<StringName, ItemDefinition>()
+        );
 
     private readonly ISkillCatalog _skillCatalog;
     private readonly IReadOnlyDictionary<StringName, SkillDefinition> _skillDefinitions;
     private readonly IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> _equipmentAbilityBindings;
-    private readonly IReadOnlyDictionary<StringName, ItemDef> _itemDefinitions;
+    private readonly IReadOnlyDictionary<StringName, ItemDefinition> _itemDefinitions;
 
     internal BattleSkillAvailabilityService(
         ISkillCatalog skillCatalog,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefinitions = null
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null
     )
     {
         _skillCatalog = skillCatalog;
@@ -133,7 +135,7 @@ internal sealed class BattleSkillAvailabilityService
     internal BattleSkillAvailabilityService(
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefinitions = null
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null
     )
         : this(null, skillDefinitions, equipmentAbilityBindings, itemDefinitions) { }
 

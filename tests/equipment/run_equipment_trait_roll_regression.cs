@@ -26,7 +26,7 @@ public partial class run_equipment_trait_roll_regression : LifecycleTestSceneTre
     {
         EquipmentTraitRollService service = BuildService();
         EquipmentInstanceState instance = EquipmentInstanceState.CreateTransientInstance("iron_sword");
-        ItemDef item = BuildItem();
+        ItemDefinition item = BuildItem();
 
         service.MintWithRolls(instance, item);
 
@@ -110,7 +110,7 @@ public partial class run_equipment_trait_roll_regression : LifecycleTestSceneTre
         PartyWarehouseService warehouse = new();
         warehouse.Setup(
             party,
-            new Dictionary<StringName, ItemDef> { ["iron_sword"] = BuildItem() },
+            new Dictionary<StringName, ItemDefinition> { ["iron_sword"] = BuildItem() },
             () => "eq_000777",
             rollService
         );
@@ -163,7 +163,7 @@ public partial class run_equipment_trait_roll_regression : LifecycleTestSceneTre
         PartyWarehouseService warehouse = new();
         warehouse.Setup(
             party,
-            new Dictionary<StringName, ItemDef> { ["iron_sword"] = BuildItem() },
+            new Dictionary<StringName, ItemDefinition> { ["iron_sword"] = BuildItem() },
             () => "eq_unused",
             rollService
         );
@@ -237,7 +237,7 @@ public partial class run_equipment_trait_roll_regression : LifecycleTestSceneTre
             rollValueSchema
         );
 
-    private static ItemDef BuildItem()
+    private static ItemDefinition BuildItem()
     {
         TraitRollGroupDef group = new()
         {
@@ -268,7 +268,7 @@ public partial class run_equipment_trait_roll_regression : LifecycleTestSceneTre
             max_stack = 1,
             equipment_slot_ids = new Godot.Collections.Array<string> { "main_hand" },
             trait_roll_groups = new Godot.Collections.Array<TraitRollGroupDef> { group },
-        };
+        }.ToDefinition();
     }
 
     private static PartyState BuildPartyWithCapacity(int capacity)

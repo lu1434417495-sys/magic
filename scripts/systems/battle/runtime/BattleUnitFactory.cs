@@ -150,29 +150,34 @@ internal sealed class BattleUnitFactory
 
     private BattleTerrainGenerator GetTerrainGenerator() => _runtime?.GetTerrainGenerator();
 
-    private Dictionary<StringName, ItemDef> BuildItemDefIndexSnapshotWithGatewayItem(
+    private Dictionary<StringName, ItemDefinition> BuildItemDefIndexSnapshotWithGatewayItem(
         StringName itemId
     )
     {
-        Dictionary<StringName, ItemDef> itemDefs =
-            _runtime?.BuildItemDefIndexSnapshotTyped() ?? new Dictionary<StringName, ItemDef>();
+        Dictionary<StringName, ItemDefinition> itemDefinitions =
+            _runtime?.BuildItemDefIndexSnapshotTyped()
+            ?? new Dictionary<StringName, ItemDefinition>();
         StringName normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
         if (normalizedItemId == "")
         {
-            return itemDefs;
+            return itemDefinitions;
         }
-        ItemDef gatewayItemDef = GetCharacterGateway()?.GetItemDef(normalizedItemId);
-        if (gatewayItemDef == null)
+        ItemDefinition gatewayItemDefinition = GetCharacterGateway()?.GetItemDef(
+            normalizedItemId
+        );
+        if (gatewayItemDefinition == null)
         {
-            return itemDefs;
+            return itemDefinitions;
         }
-        itemDefs[normalizedItemId] = gatewayItemDef;
-        StringName defItemId = ProgressionDataUtils.to_string_name(gatewayItemDef.item_id);
+        itemDefinitions[normalizedItemId] = gatewayItemDefinition;
+        StringName defItemId = ProgressionDataUtils.to_string_name(
+            gatewayItemDefinition.ItemId
+        );
         if (defItemId != "")
         {
-            itemDefs[defItemId] = gatewayItemDef;
+            itemDefinitions[defItemId] = gatewayItemDefinition;
         }
-        return itemDefs;
+        return itemDefinitions;
     }
 
     private IReadOnlyDictionary<StringName, TraitDefinition> GetTraitDefIndex() =>
@@ -182,28 +187,33 @@ internal sealed class BattleUnitFactory
         _runtime?.GetEquipmentAbilityBindingIndexTyped()
         ?? new Dictionary<StringName, EquipmentAbilityBindingDefinition>();
 
-    private Dictionary<StringName, ItemDef> BuildItemDefIndexSnapshotWithEquipmentView(
+    private Dictionary<StringName, ItemDefinition> BuildItemDefIndexSnapshotWithEquipmentView(
         EquipmentState equipmentView
     )
     {
-        Dictionary<StringName, ItemDef> itemDefs =
-            _runtime?.BuildItemDefIndexSnapshotTyped() ?? new Dictionary<StringName, ItemDef>();
+        Dictionary<StringName, ItemDefinition> itemDefinitions =
+            _runtime?.BuildItemDefIndexSnapshotTyped()
+            ?? new Dictionary<StringName, ItemDefinition>();
         if (equipmentView == null)
-            return itemDefs;
+            return itemDefinitions;
         foreach (StringName entrySlotId in equipmentView.GetEntrySlotIdsTyped())
         {
             EquipmentEntryState entry = equipmentView.GetEntry(entrySlotId);
             if (entry == null || entry.item_id == "")
                 continue;
-            ItemDef gatewayItemDef = GetCharacterGateway()?.GetItemDef(entry.item_id);
-            if (gatewayItemDef == null)
+            ItemDefinition gatewayItemDefinition = GetCharacterGateway()?.GetItemDef(
+                entry.item_id
+            );
+            if (gatewayItemDefinition == null)
                 continue;
-            itemDefs[entry.item_id] = gatewayItemDef;
-            StringName defItemId = ProgressionDataUtils.to_string_name(gatewayItemDef.item_id);
+            itemDefinitions[entry.item_id] = gatewayItemDefinition;
+            StringName defItemId = ProgressionDataUtils.to_string_name(
+                gatewayItemDefinition.ItemId
+            );
             if (defItemId != "")
-                itemDefs[defItemId] = gatewayItemDef;
+                itemDefinitions[defItemId] = gatewayItemDefinition;
         }
-        return itemDefs;
+        return itemDefinitions;
     }
 
     private PartyMemberState GetMemberState(StringName memberId)

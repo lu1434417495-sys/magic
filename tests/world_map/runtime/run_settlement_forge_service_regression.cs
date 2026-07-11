@@ -31,7 +31,8 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
 
     private void TestMasterReforgeServiceSuccess()
     {
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = LoadItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = LoadItemDefs();
+        IReadOnlyDictionary<StringName, RecipeDefinition> recipeDefs = LoadRecipeDefs(itemDefs);
         PartyState partyState = BuildPartyState(6);
         var warehouseService = new PartyWarehouseService();
         warehouseService.Setup(partyState, itemDefs);
@@ -60,7 +61,7 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
             BuildSettlementRecord(),
             BuildReforgePayload(),
             itemDefs,
-            default(IReadOnlyDictionary<StringName, RecipeDef>),
+            recipeDefs,
             warehouseService,
             partyState,
             new[]
@@ -95,7 +96,8 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
 
     private void TestMasterReforgeServiceMissingMaterials()
     {
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = LoadItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = LoadItemDefs();
+        IReadOnlyDictionary<StringName, RecipeDefinition> recipeDefs = LoadRecipeDefs(itemDefs);
         PartyState partyState = BuildPartyState(6);
         var warehouseService = new PartyWarehouseService();
         warehouseService.Setup(partyState, itemDefs);
@@ -106,7 +108,7 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
             BuildSettlementRecord(),
             BuildReforgePayload(),
             itemDefs,
-            default(IReadOnlyDictionary<StringName, RecipeDef>),
+            recipeDefs,
             warehouseService,
             partyState
         );
@@ -305,7 +307,7 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
     private async Task<RuntimeFixture> BuildRuntimeFixture(string suffix, PartyState partyState, GDictionary settlementRecord)
     {
         GameSession gameSession = await InstallGameSession($"ForgeHandlerGameSession_{suffix}");
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = gameSession.GetItemDefsTyped();
         GDictionary worldData = BuildWorldData(settlementRecord);
         ConfigureSessionForRuntimeTest(gameSession, $"forge_handler_{suffix}", worldData, partyState);
 
@@ -572,9 +574,19 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
         }
     }
 
-    private static IReadOnlyDictionary<StringName, ItemDef> LoadItemDefs()
+    private static IReadOnlyDictionary<StringName, ItemDefinition> LoadItemDefs()
     {
-        return new ItemContentRegistry().GetItemDefsTyped();
+        using ItemContentRegistry registry = new();
+        return new Dictionary<StringName, ItemDefinition>(registry.GetItemDefsTyped());
+    }
+
+    private static IReadOnlyDictionary<StringName, RecipeDefinition> LoadRecipeDefs(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs
+    )
+    {
+        using RecipeContentRegistry registry = new();
+        registry.Setup(itemDefs);
+        return new Dictionary<StringName, RecipeDefinition>(registry.GetRecipeDefsTyped());
     }
 
     private static GDictionary FindServiceEntry(GArray services, string interactionScriptId)

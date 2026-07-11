@@ -393,7 +393,7 @@ public partial class run_bloodline_ascension_regression : LifecycleTestSceneTree
             skillDefinitions,
             new Dictionary<StringName, ProfessionDefinition>(),
             new Dictionary<StringName, AchievementDefinition>(),
-            new Dictionary<StringName, ItemDef>(),
+            new Dictionary<StringName, ItemDefinition>(),
             new Dictionary<StringName, QuestDefinition>(),
             null,
             MakeIdentityCatalog(bundle)

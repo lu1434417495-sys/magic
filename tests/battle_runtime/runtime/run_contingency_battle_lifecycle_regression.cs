@@ -502,7 +502,7 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
             new Dictionary<StringName, SkillDefinition>(),
             new Dictionary<StringName, ProfessionDefinition>(),
             new Dictionary<StringName, AchievementDefinition>(),
-            new Dictionary<StringName, ItemDef>(),
+            new Dictionary<StringName, ItemDefinition>(),
             new Dictionary<StringName, QuestDefinition>(),
             new Dictionary<StringName, TraitDefinition>(),
             null,
@@ -773,12 +773,12 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
 
         public PartyState GetPartyState() => _partyProvider?.Invoke();
 
-        public IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped() =>
-            new Dictionary<StringName, ItemDef>();
+        public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsTyped() =>
+            new Dictionary<StringName, ItemDefinition>();
 
         public bool HasItemDefCatalog() => false;
 
-        public ItemDef GetItemDef(StringName item_id) => null;
+        public ItemDefinition GetItemDef(StringName item_id) => null;
 
         public PartyMemberState GetMemberState(StringName member_id) =>
             GetPartyState()?.GetMemberState(member_id);

@@ -84,7 +84,7 @@ public partial class run_rustoath_weapon_ability_regression : LifecycleTestScene
         AssertRustoathArmorCorrosionBindingShape(fixture);
 
         _test.True(
-            fixture.ItemDefs.TryGetValue(RustoathItemId, out ItemDef rustoathDef),
+            fixture.ItemDefs.TryGetValue(RustoathItemId, out ItemDefinition rustoathDef),
             "锈蚀之誓应能从 typed item registry 读取。"
         );
         if (rustoathDef != null)
@@ -730,7 +730,7 @@ public partial class run_rustoath_weapon_ability_regression : LifecycleTestScene
         }
 
         internal BattleRuntimeModule Runtime { get; }
-        internal IReadOnlyDictionary<StringName, ItemDef> ItemDefs { get; }
+        internal IReadOnlyDictionary<StringName, ItemDefinition> ItemDefs { get; }
         internal IReadOnlyDictionary<StringName, SkillDefinition> SkillDefs { get; }
         internal IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs { get; }
         internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> Bindings { get; }

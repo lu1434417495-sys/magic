@@ -48,7 +48,7 @@ public sealed class MisfortuneBlackOmenService
     private static readonly StringName[] CursedRelicRequiredTags = { "cursed", "relic" };
 
     private CharacterManagementModule _characterGateway;
-    private readonly Dictionary<StringName, ItemDef> _itemDefs = new();
+    private readonly Dictionary<StringName, ItemDefinition> _itemDefinitions = new();
 
     internal static StringName ToStringName(MisfortuneBlackOmenHookKind kind)
     {
@@ -66,25 +66,25 @@ public sealed class MisfortuneBlackOmenService
 
     public void Setup(
         CharacterManagementModule characterGateway = null,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = null
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null
     )
     {
         _characterGateway = characterGateway;
-        _itemDefs.Clear();
-        if (itemDefs == null)
+        _itemDefinitions.Clear();
+        if (itemDefinitions == null)
             return;
 
-        foreach (var (itemId, itemDef) in itemDefs)
+        foreach (var (itemId, itemDefinition) in itemDefinitions)
         {
-            if (itemId != "" && itemDef != null)
-                _itemDefs[itemId] = itemDef;
+            if (itemId != "" && itemDefinition != null)
+                _itemDefinitions[itemId] = itemDefinition;
         }
     }
 
     public void Dispose()
     {
         _characterGateway = null;
-        _itemDefs.Clear();
+        _itemDefinitions.Clear();
     }
 
     public MisfortuneBlackOmenResult TryRunHook(
@@ -232,16 +232,23 @@ public sealed class MisfortuneBlackOmenService
     {
         if (payload.HasCursedRelic.HasValue)
             return payload.HasCursedRelic.Value;
-        if (memberState?.equipment_state == null || _itemDefs.Count == 0)
+        if (memberState?.equipment_state == null || _itemDefinitions.Count == 0)
             return false;
 
         foreach (var slotId in memberState.equipment_state.GetEntrySlotIdsTyped())
         {
             var entry = memberState.equipment_state.GetEntry(slotId);
             var itemId = entry?.item_id ?? new StringName("");
-            if (entry == null || itemId == "" || !_itemDefs.TryGetValue(itemId, out ItemDef itemDef))
+            if (
+                entry == null
+                || itemId == ""
+                || !_itemDefinitions.TryGetValue(
+                    itemId,
+                    out ItemDefinition itemDefinition
+                )
+            )
                 continue;
-            if (HasAllTags(itemDef, CursedRelicRequiredTags))
+            if (HasAllTags(itemDefinition, CursedRelicRequiredTags))
                 return true;
         }
         return false;
@@ -270,12 +277,15 @@ public sealed class MisfortuneBlackOmenService
         return false;
     }
 
-    private static bool HasAllTags(ItemDef itemDef, IReadOnlyList<StringName> requiredTags)
+    private static bool HasAllTags(
+        ItemDefinition itemDefinition,
+        IReadOnlyList<StringName> requiredTags
+    )
     {
-        if (itemDef == null || requiredTags == null || requiredTags.Count == 0)
+        if (itemDefinition == null || requiredTags == null || requiredTags.Count == 0)
             return false;
 
-        var itemTags = itemDef.GetTagsTyped();
+        var itemTags = itemDefinition.GetTagsTyped();
         foreach (var requiredTag in requiredTags)
         {
             if (!itemTags.Contains(requiredTag))

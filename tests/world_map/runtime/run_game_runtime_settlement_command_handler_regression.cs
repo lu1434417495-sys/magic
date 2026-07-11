@@ -759,17 +759,19 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
     private void TestSettlementShopServiceRejectsBadEntrySchema()
     {
         var shopService = new SettlementShopService();
-        GDictionary itemDefs = ProjectItemDefs(new ItemContentRegistry().GetItemDefsTyped());
+        Dictionary<StringName, ItemDefinition> itemDefs = new(
+            new ItemContentRegistry().GetItemDefsTyped()
+        );
         GDictionary settlementRecord = MinimalSettlementRecord("spring_village_01", "春泉村", Vector2I.Zero, new GArray());
         PartyState validParty = BuildPartyState(10, 100);
         var validWarehouse = new PartyWarehouseService();
-        validWarehouse.Setup(validParty, BuildItemDefIndex(itemDefs));
+        validWarehouse.Setup(validParty, itemDefs);
         validWarehouse.AddItemTyped("travel_ration", 3);
         GDictionary validWindowData = shopService.BuildWindowDataTyped(
             "service_basic_supply",
             settlementRecord,
             BuildShopState(new GArray { new GDictionary { ["item_id"] = "healing_herb", ["quantity"] = 2, ["unit_price"] = 12, ["sold_out"] = false } }),
-            BuildItemDefIndex(itemDefs),
+            itemDefs,
             validWarehouse,
             100
         );
@@ -791,13 +793,13 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
         {
             PartyState partyState = BuildPartyState(10, 100);
             var warehouse = new PartyWarehouseService();
-            warehouse.Setup(partyState, BuildItemDefIndex(itemDefs));
+            warehouse.Setup(partyState, itemDefs);
             GDictionary settlementState = BuildShopState(new GArray { entry.Duplicate(true) });
             GDictionary windowData = shopService.BuildWindowDataTyped(
                 "service_basic_supply",
                 settlementRecord,
                 settlementState,
-                BuildItemDefIndex(itemDefs),
+                itemDefs,
                 warehouse,
                 partyState.gold
             );
@@ -808,7 +810,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                     "service_basic_supply",
                     settlementRecord,
                     settlementState,
-                    BuildItemDefIndex(itemDefs),
+                    itemDefs,
                     warehouse,
                     partyState,
                     "healing_herb",
@@ -820,19 +822,26 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             _test.Eq(warehouse.CountItem("healing_herb"), 0, $"{label} 的坏 shop stock 不应写入仓库。");
         }
 
-        GDictionary noPriceItemDefs = itemDefs.Duplicate();
-        ItemDef noPriceItem = MakeShopItemDef("无价样品", "没有正式回收价。", 10, 0, true);
-        noPriceItem.item_id = "no_price_sample";
-        noPriceItemDefs[new StringName("no_price_sample")] = noPriceItem;
+        Dictionary<StringName, ItemDefinition> noPriceItemDefs = new(itemDefs)
+        {
+            ["no_price_sample"] = MakeShopItemDefinition(
+                "no_price_sample",
+                "无价样品",
+                "没有正式回收价。",
+                10,
+                0,
+                true
+            ),
+        };
         PartyState noPriceParty = BuildPartyState(10, 0);
         var noPriceWarehouse = new PartyWarehouseService();
-        noPriceWarehouse.Setup(noPriceParty, BuildItemDefIndex(noPriceItemDefs));
+        noPriceWarehouse.Setup(noPriceParty, noPriceItemDefs);
         noPriceWarehouse.AddItemTyped("no_price_sample", 1);
         GDictionary noPriceWindowData = shopService.BuildWindowDataTyped(
             "service_basic_supply",
             settlementRecord,
             BuildShopState(new GArray()),
-            BuildItemDefIndex(noPriceItemDefs),
+            noPriceItemDefs,
             noPriceWarehouse,
             100
         );
@@ -842,7 +851,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                 "service_basic_supply",
                 settlementRecord,
                 BuildShopState(new GArray()),
-                BuildItemDefIndex(noPriceItemDefs),
+                noPriceItemDefs,
                 noPriceWarehouse,
                 noPriceParty,
                 "no_price_sample",
@@ -931,20 +940,6 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
         }
     }
 
-    private static GDictionary ProjectItemDefs(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
-    {
-        GDictionary result = new();
-        if (itemDefs == null)
-            return result;
-        foreach ((StringName itemId, ItemDef itemDef) in itemDefs)
-        {
-            if (itemId == "" || itemDef == null)
-                continue;
-            result[itemId] = itemDef;
-        }
-        return result;
-    }
-
     private static GDictionary ProjectShopTradeResult(SettlementShopTradeResult result)
     {
         var payload = new GDictionary
@@ -962,24 +957,6 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
         if (!string.IsNullOrEmpty(result.InstanceId))
             payload["instance_id"] = result.InstanceId;
         return payload;
-    }
-
-    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
-    {
-        Dictionary<StringName, ItemDef> result = new();
-        if (itemDefs == null)
-            return result;
-        foreach (Variant rawKey in itemDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            StringName itemId = rawKey.AsStringName();
-            if (itemId == "")
-                continue;
-            if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
-                result[itemId] = itemDef;
-        }
-        return result;
     }
 
     private async Task TestSettlementHandlerRejectsInvalidOrSpoofedActions()
@@ -1134,7 +1111,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             partyState,
             questDefs ?? new Dictionary<StringName, QuestDefinition>()
         );
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = gameSession.GetItemDefsTyped();
 
         var runtime = new GameRuntimeFacade
         {
@@ -1508,17 +1485,42 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
         };
     }
 
-    private static ItemDef MakeShopItemDef(string displayName, string description, int buyPrice, int sellPrice, bool sellable)
+    private static ItemDefinition MakeShopItemDefinition(
+        StringName itemId,
+        string displayName,
+        string description,
+        int buyPrice,
+        int sellPrice,
+        bool sellable
+    )
     {
-        return new ItemDef
-        {
-            display_name = displayName,
-            description = description,
-            icon = "",
-            buy_price = buyPrice,
-            sell_price = sellPrice,
-            sellable = sellable,
-        };
+        return new ItemDefinition(
+            itemId,
+            "",
+            displayName,
+            description,
+            "",
+            false,
+            0,
+            buyPrice,
+            sellPrice,
+            sellable,
+            1,
+            ItemDefinition.ToStringName(ItemCategoryKind.Misc),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<TraitRollGroupDefinition>(),
+            System.Array.Empty<string>(),
+            System.Array.Empty<AttributeModifierDefinition>(),
+            "",
+            System.Array.Empty<string>(),
+            null,
+            "",
+            null,
+            -1
+        );
     }
 
     private static void MakeVisible(GameRuntimeFacade runtime, Vector2I center)

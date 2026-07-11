@@ -42,7 +42,7 @@ public partial class run_passive_status_orchestrator_regression : LifecycleTestS
             registry.GetSkillDefinitionsTyped(),
             registry.GetProfessionDefsTyped(),
             new Dictionary<StringName, AchievementDefinition>(),
-            new Dictionary<StringName, ItemDef>(),
+            new Dictionary<StringName, ItemDefinition>(),
             new Dictionary<StringName, QuestDefinition>(),
             registry.GetTraitDefsTyped(),
             null,

@@ -339,17 +339,36 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
         return result;
     }
 
-    private static Dictionary<StringName, ItemDef> BuildItemIndex() =>
+    private static Dictionary<StringName, ItemDefinition> BuildItemIndex() =>
         new()
         {
-            ["special_contingency_gem"] = new ItemDef
-            {
-                item_id = "special_contingency_gem",
-                display_name = "Special Contingency Gem",
-                CategoryKind = ItemCategoryKind.Misc,
-                is_stackable = true,
-                max_stack = 99,
-            },
+            ["special_contingency_gem"] = new ItemDefinition(
+                "special_contingency_gem",
+                "",
+                "Special Contingency Gem",
+                "",
+                "",
+                true,
+                0,
+                0,
+                0,
+                true,
+                99,
+                ItemDefinition.ToStringName(ItemCategoryKind.Misc),
+                System.Array.Empty<StringName>(),
+                System.Array.Empty<StringName>(),
+                System.Array.Empty<StringName>(),
+                System.Array.Empty<StringName>(),
+                System.Array.Empty<TraitRollGroupDefinition>(),
+                System.Array.Empty<string>(),
+                System.Array.Empty<AttributeModifierDefinition>(),
+                "",
+                System.Array.Empty<string>(),
+                null,
+                "",
+                null,
+                -1
+            ),
         };
 
     private async Task DisposeNode(Node node)

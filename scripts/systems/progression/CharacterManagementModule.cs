@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -75,7 +76,7 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         public EquipmentState GetEquipmentStateForTraitAggregation(StringName memberId) =>
             _owner?.GetMemberState(memberId)?.equipment_state;
 
-        public ItemDef GetItemDefForTraitAggregation(StringName itemId) =>
+        public ItemDefinition GetItemDefForTraitAggregation(StringName itemId) =>
             _owner?.GetItemDef(itemId);
     }
 
@@ -133,7 +134,11 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         new Dictionary<StringName, SkillDefinition>();
     private Dictionary<StringName, ProfessionDefinition> _profession_def_index = new();
     private Dictionary<StringName, AchievementDefinition> _achievement_def_index = new();
-    private Dictionary<StringName, ItemDef> _item_def_index = new();
+    private Dictionary<StringName, ItemDefinition> _item_def_index = new();
+    private IReadOnlyDictionary<StringName, ItemDefinition> _item_def_view =
+        new ReadOnlyDictionary<StringName, ItemDefinition>(
+            new Dictionary<StringName, ItemDefinition>()
+        );
     private Dictionary<StringName, QuestDefinition> _quest_def_index = new();
     private Dictionary<StringName, TraitDefinition> _trait_def_index = new();
     private Dictionary<StringName, RaceDefinition> _race_def_index = new();
@@ -200,7 +205,7 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         IReadOnlyDictionary<StringName, SkillDefinition> skill_definitions = null,
         IReadOnlyDictionary<StringName, ProfessionDefinition> profession_defs = null,
         IReadOnlyDictionary<StringName, AchievementDefinition> achievement_defs = null,
-        IReadOnlyDictionary<StringName, ItemDef> item_defs = null,
+        IReadOnlyDictionary<StringName, ItemDefinition> item_defs = null,
         IReadOnlyDictionary<StringName, QuestDefinition> quest_defs = null,
         Func<StringName> equipment_instance_id_allocator = null,
         ProgressionIdentityCatalogData progression_identity_catalog = null
@@ -222,7 +227,7 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         IReadOnlyDictionary<StringName, SkillDefinition> skill_definitions,
         IReadOnlyDictionary<StringName, ProfessionDefinition> profession_defs,
         IReadOnlyDictionary<StringName, AchievementDefinition> achievement_defs,
-        IReadOnlyDictionary<StringName, ItemDef> item_defs,
+        IReadOnlyDictionary<StringName, ItemDefinition> item_defs,
         IReadOnlyDictionary<StringName, QuestDefinition> quest_defs,
         IReadOnlyDictionary<StringName, TraitDefinition> trait_defs,
         Func<StringName> equipment_instance_id_allocator,
@@ -246,7 +251,7 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         IReadOnlyDictionary<StringName, SkillDefinition> skill_definitions,
         IReadOnlyDictionary<StringName, ProfessionDefinition> profession_defs,
         IReadOnlyDictionary<StringName, AchievementDefinition> achievement_defs,
-        IReadOnlyDictionary<StringName, ItemDef> item_defs,
+        IReadOnlyDictionary<StringName, ItemDefinition> item_defs,
         IReadOnlyDictionary<StringName, QuestDefinition> quest_defs,
         bool has_quest_def_catalog,
         Func<StringName> equipment_instance_id_allocator,
@@ -270,7 +275,7 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         IReadOnlyDictionary<StringName, SkillDefinition> skill_definitions,
         IReadOnlyDictionary<StringName, ProfessionDefinition> profession_defs,
         IReadOnlyDictionary<StringName, AchievementDefinition> achievement_defs,
-        IReadOnlyDictionary<StringName, ItemDef> item_defs,
+        IReadOnlyDictionary<StringName, ItemDefinition> item_defs,
         IReadOnlyDictionary<StringName, QuestDefinition> quest_defs,
         bool has_quest_def_catalog,
         IReadOnlyDictionary<StringName, TraitDefinition> trait_defs,
@@ -284,6 +289,7 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         _profession_def_index = CloneContentDefIndex(profession_defs);
         _achievement_def_index = CloneContentDefIndex(achievement_defs);
         _item_def_index = CloneContentDefIndex(item_defs);
+        _item_def_view = new ReadOnlyDictionary<StringName, ItemDefinition>(_item_def_index);
         _has_quest_def_catalog = has_quest_def_catalog;
         _quest_def_index = CloneContentDefIndex(quest_defs);
         _trait_def_index = CloneContentDefIndex(trait_defs);
@@ -339,7 +345,8 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
 
     public PartyState GetPartyState() => _party_state;
 
-    public IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped() => _item_def_index;
+    public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsTyped() =>
+        _item_def_view;
 
     public bool HasItemDefCatalog() => _item_def_index.Count > 0;
 
@@ -1041,10 +1048,13 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         );
         if (weapon_item_id == "")
             return _build_unarmed_weapon_projection();
-        var item_def = GetItemDef(weapon_item_id);
-        return item_def == null || !item_def.IsWeapon()
+        ItemDefinition itemDefinition = GetItemDef(weapon_item_id);
+        return itemDefinition == null || !itemDefinition.IsWeapon()
             ? new WeaponProjection()
-            : _build_weapon_projection_from_item_def(item_def, resolved_equipment_view);
+            : _build_weapon_projection_from_item_definition(
+                itemDefinition,
+                resolved_equipment_view
+            );
     }
 
     public BattleEffectiveTraitProjection BuildEffectiveTraitProjectionForEquipmentView(
@@ -1070,22 +1080,22 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         return ProgressionDataUtils.to_string_name(projection.weapon_physical_damage_tag);
     }
 
-    private WeaponProjection _build_weapon_projection_from_item_def(
-        ItemDef item_def,
+    private WeaponProjection _build_weapon_projection_from_item_definition(
+        ItemDefinition itemDefinition,
         EquipmentState equipment_state
     )
     {
-        if (item_def == null || !item_def.IsWeapon())
+        if (itemDefinition == null || !itemDefinition.IsWeapon())
             return new WeaponProjection();
-        var profile = item_def.weapon_profile as WeaponProfileDef;
+        WeaponProfileDefinition profile = itemDefinition.WeaponProfile;
         if (profile == null)
             return new WeaponProjection();
-        WeaponDice one_handed_dice = _weapon_dice_to_typed(profile.one_handed_dice);
-        WeaponDice two_handed_dice = _weapon_dice_to_typed(profile.two_handed_dice);
+        WeaponDice one_handed_dice = _weapon_dice_to_typed(profile.OneHandedDice);
+        WeaponDice two_handed_dice = _weapon_dice_to_typed(profile.TwoHandedDice);
         var properties = _weapon_profile_properties(profile);
         var is_versatile = properties.Contains(new StringName("versatile"));
         var uses_two_hands = _resolve_weapon_uses_two_hands(
-            item_def,
+            itemDefinition,
             equipment_state,
             one_handed_dice,
             two_handed_dice,
@@ -1094,21 +1104,23 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         return new WeaponProjection
         {
             weapon_profile_kind = BattleUnitState.ToStringName(BattleWeaponProfileKind.Equipped),
-            weapon_item_id = item_def.item_id,
-            weapon_profile_type_id = ProgressionDataUtils.to_string_name(profile.weapon_type_id),
-            weapon_range_type = item_def.GetWeaponRangeType(),
-            weapon_family = ProgressionDataUtils.to_string_name(profile.family),
+            weapon_item_id = itemDefinition.ItemId,
+            weapon_profile_type_id = ProgressionDataUtils.to_string_name(
+                profile.WeaponTypeId
+            ),
+            weapon_range_type = itemDefinition.GetWeaponRangeType(),
+            weapon_family = ProgressionDataUtils.to_string_name(profile.Family),
             weapon_current_grip = _resolve_weapon_current_grip(
                 one_handed_dice,
                 two_handed_dice,
                 uses_two_hands
             ),
-            weapon_attack_range = Mathf.Max(profile.attack_range, 0),
+            weapon_attack_range = Mathf.Max(profile.AttackRange, 0),
             weapon_one_handed_dice = one_handed_dice,
             weapon_two_handed_dice = two_handed_dice,
             weapon_is_versatile = is_versatile,
             weapon_uses_two_hands = uses_two_hands,
-            weapon_physical_damage_tag = item_def.GetWeaponPhysicalDamageTag(),
+            weapon_physical_damage_tag = itemDefinition.GetWeaponPhysicalDamageTag(),
         };
     }
 
@@ -1131,20 +1143,22 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
             weapon_two_handed_dice = new WeaponDice(),
             weapon_is_versatile = false,
             weapon_uses_two_hands = false,
-            weapon_physical_damage_tag = ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Blunt),
+            weapon_physical_damage_tag = ItemDefinition.ToStringName(
+                WeaponPhysicalDamageTagKind.Blunt
+            ),
         };
 
     private bool _resolve_weapon_uses_two_hands(
-        ItemDef item_def,
+        ItemDefinition itemDefinition,
         EquipmentState equipment_state,
         WeaponDice one_handed_dice,
         WeaponDice two_handed_dice,
         bool is_versatile
     )
     {
-        if (item_def == null)
+        if (itemDefinition == null)
             return false;
-        var occupied_slots = item_def.GetFinalOccupiedSlotIdsTyped("main_hand");
+        var occupied_slots = itemDefinition.GetFinalOccupiedSlotIdsTyped("main_hand");
         if (occupied_slots.Contains(new StringName("off_hand")))
             return true;
         if ((one_handed_dice == null || one_handed_dice.IsEmpty()) && two_handed_dice != null && !two_handed_dice.IsEmpty())
@@ -1174,11 +1188,12 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         || ProgressionDataUtils.to_string_name(equipment_state.GetEntrySlotForSlot("off_hand"))
             == "";
 
-    private static List<StringName> _weapon_profile_properties(WeaponProfileDef profile) =>
+    private static List<StringName> _weapon_profile_properties(WeaponProfileDefinition profile) =>
         profile?.GetPropertiesTyped() ?? new List<StringName>();
 
-    private static WeaponDice _weapon_dice_to_typed(WeaponDamageDiceDef dice_resource) =>
-        WeaponDice.FromResource(dice_resource);
+    private static WeaponDice _weapon_dice_to_typed(
+        WeaponDamageDiceDefinition diceDefinition
+    ) => WeaponDice.FromDefinition(diceDefinition);
 
     public bool LearnSkill(StringName member_id, StringName skill_id) =>
         LearnSkillTyped(member_id, skill_id);

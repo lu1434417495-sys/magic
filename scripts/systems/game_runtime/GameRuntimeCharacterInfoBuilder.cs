@@ -343,23 +343,23 @@ internal sealed class GameRuntimeCharacterInfoBuilder
 
     private void AppendEquipmentItemEntries(
         Godot.Collections.Array<Dictionary> entries,
-        System.Collections.Generic.IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        System.Collections.Generic.IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         System.Collections.Generic.IReadOnlyDictionary<StringName, TraitDefinition> traitDefs,
         StringName itemId,
         string slotLabel,
         System.Collections.Generic.HashSet<StringName> renderedItemIds
     )
     {
-        if (!itemDefs.TryGetValue(itemId, out ItemDef itemDef) || itemDef == null)
+        if (!itemDefs.TryGetValue(itemId, out ItemDefinition itemDef) || itemDef == null)
             return;
         renderedItemIds.Add(itemId);
-        string itemName = string.IsNullOrEmpty(itemDef.display_name)
+        string itemName = string.IsNullOrEmpty(itemDef.DisplayName)
             ? itemId.ToString()
-            : itemDef.display_name;
+            : itemDef.DisplayName;
 
         // Detail (flavor + trait mechanics) is revealed only on hover, so the row stays
         // compact and the character info window is not flooded with every slot's mechanics.
-        string detail = ItemTraitDetailText.Compose(itemDef.description, itemDef, traitDefs);
+        string detail = ItemTraitDetailText.Compose(itemDef.Description, itemDef, traitDefs);
         if (string.IsNullOrEmpty(detail))
         {
             entries.Add(new Dictionary { ["label"] = slotLabel, ["value"] = itemName });

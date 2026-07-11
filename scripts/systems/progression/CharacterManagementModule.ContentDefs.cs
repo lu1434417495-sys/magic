@@ -21,7 +21,7 @@ public sealed partial class CharacterManagementModule
             ? achievementDef
             : null;
 
-    public ItemDef GetItemDef(StringName itemId) =>
+    public ItemDefinition GetItemDef(StringName itemId) =>
         itemId != "" && _item_def_index.TryGetValue(itemId, out var itemDef) ? itemDef : null;
 
     private RaceDefinition GetRaceDef(StringName raceId) =>
@@ -637,7 +637,7 @@ public sealed partial class CharacterManagementModule
         var itemDef = GetItemDef(reward_item_id);
         if (itemDef == null)
             return QuestItemRewardPreviewData.Failed("item_reward_missing_def");
-        var item_display_name = itemDef.display_name.StripEdges();
+        var item_display_name = itemDef.DisplayName.StripEdges();
         if (item_display_name.Length == 0)
             return QuestItemRewardPreviewData.Failed("invalid_item_display_name");
         return QuestItemRewardPreviewData.Success(

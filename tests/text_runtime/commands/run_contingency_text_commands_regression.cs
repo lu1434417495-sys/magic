@@ -106,7 +106,9 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         if (gameSession == null)
             return;
         _test.Eq(
-            (Error)gameSession.InstallTestContentDef("item", GemId, BuildGemItemDef()),
+            (Error)gameSession.InstallItemDefinitionForTests(
+                BuildGemItemDef().ToDefinition()
+            ),
             Error.Ok,
             "contingency text fixture should install the contingency gem item def."
         );

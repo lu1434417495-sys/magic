@@ -250,7 +250,8 @@ public partial class run_text_command_warehouse_use_regression : LifecycleTestSc
 
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped();
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions =
+            gameSession.GetItemDefsTyped();
         var sortedSkillIds = new List<StringName>(skillDefinitions.Keys);
         sortedSkillIds.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
         foreach (StringName skillId in sortedSkillIds)
@@ -266,7 +267,7 @@ public partial class run_text_command_warehouse_use_regression : LifecycleTestSc
             if (skillProgress != null && skillProgress.is_learned)
                 continue;
             StringName itemId = BuildSkillBookItemId(skillId);
-            if (!itemDefs.ContainsKey(itemId))
+            if (!itemDefinitions.ContainsKey(itemId))
                 continue;
             return new BookSkillPickData { SkillId = skillId, ItemId = itemId };
         }

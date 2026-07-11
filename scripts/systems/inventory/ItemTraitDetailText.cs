@@ -11,14 +11,14 @@ internal static class ItemTraitDetailText
     // Per-trait lines: a "【name】" header followed by the trait description (if any).
     // Traits without a display_name are skipped; unknown trait ids are skipped.
     internal static List<string> BuildTraitLines(
-        ItemDef itemDef,
+        ItemDefinition itemDefinition,
         IReadOnlyDictionary<StringName, TraitDefinition> traitDefs
     )
     {
         var lines = new List<string>();
-        if (itemDef == null || traitDefs == null)
+        if (itemDefinition == null || traitDefs == null)
             return lines;
-        foreach (StringName traitId in itemDef.GetTraitIdsTyped())
+        foreach (StringName traitId in itemDefinition.GetTraitIdsTyped())
         {
             if (!traitDefs.TryGetValue(traitId, out TraitDefinition traitDef) || traitDef == null)
                 continue;
@@ -38,12 +38,12 @@ internal static class ItemTraitDetailText
     // unchanged when the item has no renderable traits.
     internal static string Compose(
         string baseDescription,
-        ItemDef itemDef,
+        ItemDefinition itemDefinition,
         IReadOnlyDictionary<StringName, TraitDefinition> traitDefs
     )
     {
         string baseText = (baseDescription ?? "").Trim();
-        List<string> traitLines = BuildTraitLines(itemDef, traitDefs);
+        List<string> traitLines = BuildTraitLines(itemDefinition, traitDefs);
         if (traitLines.Count == 0)
             return baseText;
 

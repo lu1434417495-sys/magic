@@ -7,7 +7,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 public class PartyEquipmentService
 {
     private PartyState _party_state;
-    private Dictionary<StringName, ItemDef> _item_defs = new();
+    private Dictionary<StringName, ItemDefinition> _itemDefinitions = new();
     private PartyWarehouseService _warehouse_service;
     private bool _ownsWarehouseService;
 
@@ -148,18 +148,24 @@ public class PartyEquipmentService
 
     public void Setup(
         PartyState partyState,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
         PartyWarehouseService warehouseService = null,
         Func<StringName> equipmentInstanceIdAllocator = null
     )
     {
         ReleaseOwnedWarehouseService();
         _party_state = partyState ?? new PartyState();
-        _item_defs =
-            itemDefs != null ? new Dictionary<StringName, ItemDef>(itemDefs) : new Dictionary<StringName, ItemDef>();
+        _itemDefinitions =
+            itemDefinitions != null
+                ? new Dictionary<StringName, ItemDefinition>(itemDefinitions)
+                : new Dictionary<StringName, ItemDefinition>();
         _warehouse_service = warehouseService ?? new PartyWarehouseService();
         _ownsWarehouseService = warehouseService == null;
-        _warehouse_service.Setup(_party_state, _item_defs, equipmentInstanceIdAllocator);
+        _warehouse_service.Setup(
+            _party_state,
+            _itemDefinitions,
+            equipmentInstanceIdAllocator
+        );
     }
 
     public void Dispose()
@@ -167,13 +173,15 @@ public class PartyEquipmentService
         ReleaseOwnedWarehouseService();
         _warehouse_service = null;
         _party_state = null;
-        _item_defs.Clear();
+        _itemDefinitions.Clear();
     }
 
-    public ItemDef GetItemDef(StringName itemId)
+    public ItemDefinition GetItemDef(StringName itemId)
     {
         var n = ProgressionDataUtils.to_string_name(itemId);
-        return n != "" && _item_defs.TryGetValue(n, out var itemDef) ? itemDef : null;
+        return n != "" && _itemDefinitions.TryGetValue(n, out var itemDefinition)
+            ? itemDefinition
+            : null;
     }
 
     public EquipmentState GetEquipmentState(StringName memberId)
@@ -200,11 +208,11 @@ public class PartyEquipmentService
                     ItemId = itemId,
                     InstanceId = es.GetEquippedInstanceId(slotId),
                     EquipmentTypeId = itemDef?.GetEquipmentTypeIdNormalized() ?? "",
-                    DisplayName = itemDef != null && itemDef.display_name.Length > 0
-                        ? itemDef.display_name
+                    DisplayName = itemDef != null && itemDef.DisplayName.Length > 0
+                        ? itemDef.DisplayName
                         : itemId.ToString(),
-                    Icon = itemDef?.icon ?? "",
-                    Description = itemDef?.description ?? "",
+                    Icon = itemDef?.Icon ?? "",
+                    Description = itemDef?.Description ?? "",
                 }
             );
         }
@@ -224,12 +232,9 @@ public class PartyEquipmentService
             var id = GetItemDef(itemId);
             if (id == null || !id.IsEquipment())
                 continue;
-            foreach (AttributeModifier modifier in id.GetAttributeModifiersTyped())
-            {
-                AttributeModifierDefinition definition = modifier?.ToDefinition();
+            foreach (AttributeModifierDefinition definition in id.GetAttributeModifiersTyped())
                 if (definition != null)
                     r.Add(definition);
-            }
             _append_armor_max_dex_modifier(r, id);
         }
         return r.Count > 0 ? r.AsReadOnly() : Array.Empty<AttributeModifierDefinition>();
@@ -339,9 +344,9 @@ public class PartyEquipmentService
                     }
                 );
         }
-        if (id.equip_requirement is EquipmentRequirement eqReq)
+        if (id.EquipRequirement is EquipmentRequirementDefinition requirement)
         {
-            var cr = eqReq.CheckResult(ms);
+            var cr = requirement.CheckResult(ms);
             if (!cr.Allowed)
             {
                 var fcode = cr.Blockers.Count > 0 ? cr.Blockers[0] : "requirement_failed";
@@ -558,7 +563,7 @@ public class PartyEquipmentService
 
     private void _append_armor_max_dex_modifier(
         List<AttributeModifierDefinition> mods,
-        ItemDef id
+        ItemDefinition id
     )
     {
         if (id == null || !id.IsArmor())
@@ -573,7 +578,7 @@ public class PartyEquipmentService
                 mdb,
                 0,
                 "equipment",
-                id.item_id
+                id.ItemId
             )
         );
     }

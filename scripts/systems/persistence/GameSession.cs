@@ -243,18 +243,17 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
     internal BattleSpecialProfileRegistry _battle_special_profile_registry = new();
     internal GameRoot _game_root = new();
 
-    public GDictionary _item_defs = new();
-    public GDictionary _recipe_defs = new();
     public GDictionary _enemy_templates = new();
     public GDictionary _enemy_ai_brains = new();
     public GDictionary _wild_encounter_rosters = new();
     private ContentValidationSnapshotData _contentValidationSnapshotData = new();
+    private List<string> _itemValidationErrorsForTests = new();
     private Dictionary<StringName, SkillDefinition> _skillDefinitionIndex = new();
     private Dictionary<StringName, ProfessionDefinition> _professionDefIndex = new();
     private Dictionary<StringName, AchievementDefinition> _achievementDefIndex = new();
     private Dictionary<StringName, QuestDefinition> _questDefIndex = new();
-    private Dictionary<StringName, ItemDef> _itemDefIndex = new();
-    private Dictionary<StringName, RecipeDef> _recipeDefIndex = new();
+    private Dictionary<StringName, ItemDefinition> _itemDefinitionIndex = new();
+    private Dictionary<StringName, RecipeDefinition> _recipeDefinitionIndex = new();
     private Dictionary<StringName, EnemyTemplateDef> _enemyTemplateIndex = new();
     private Dictionary<StringName, EnemyAiBrainDef> _enemyAiBrainIndex = new();
     private Dictionary<StringName, WildEncounterRosterDef> _wildEncounterRosterIndex = new();
@@ -695,25 +694,32 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         RefreshContentCatalog();
     }
 
-    internal ItemContentRegistry GetItemContentRegistryForTests() => _item_content_registry;
-
-    internal void ReplaceItemDefsForTests(GDictionary itemDefs)
+    internal void ReplaceItemDefinitionsForTests(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
+    )
     {
-        _itemDefIndex = BuildItemDefIndex(itemDefs);
-        _item_defs = RegisterContentProjectionWrapper(
-            itemDefs != null ? (GDictionary)itemDefs.Duplicate(true) : new GDictionary(),
-            "GameSession.ReplaceItemDefsForTests"
-        );
+        _itemDefinitionIndex = itemDefinitions != null
+            ? new Dictionary<StringName, ItemDefinition>(itemDefinitions)
+            : new Dictionary<StringName, ItemDefinition>();
         RefreshRecipeContent();
         RefreshContentCatalog();
     }
 
-    internal void SetItemContentRegistryForTests(ItemContentRegistry registry)
+    internal int InstallItemDefinitionForTests(ItemDefinition itemDefinition)
     {
-        _item_content_registry = registry ?? new ItemContentRegistry();
-        RefreshItemContent();
+        if (itemDefinition == null || itemDefinition.ItemId == "")
+            return (int)Error.InvalidParameter;
+        _itemDefinitionIndex[itemDefinition.ItemId] = itemDefinition;
         RefreshRecipeContent();
         RefreshContentCatalog();
+        return (int)Error.Ok;
+    }
+
+    internal void SetItemValidationErrorsForTests(IReadOnlyList<string> errors)
+    {
+        _itemValidationErrorsForTests = errors != null
+            ? new List<string>(errors)
+            : new List<string>();
     }
 
     internal WorldMapContentValidator GetWorldContentValidatorForTests() =>
@@ -1155,14 +1161,14 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
             ?? new Dictionary<StringName, BarrierProfileDefinition>();
     }
 
-    public IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped()
+    public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsTyped()
     {
-        return new Dictionary<StringName, ItemDef>(_itemDefIndex);
+        return new Dictionary<StringName, ItemDefinition>(_itemDefinitionIndex);
     }
 
-    public IReadOnlyDictionary<StringName, RecipeDef> GetRecipeDefsTyped()
+    public IReadOnlyDictionary<StringName, RecipeDefinition> GetRecipeDefsTyped()
     {
-        return new Dictionary<StringName, RecipeDef>(_recipeDefIndex);
+        return new Dictionary<StringName, RecipeDefinition>(_recipeDefinitionIndex);
     }
 
     public IReadOnlyDictionary<StringName, EnemyTemplateDef> GetEnemyTemplatesTyped()
@@ -1236,12 +1242,6 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
             case "skill":
                 registry = new GDictionary();
                 return false;
-            case "item":
-                registry = _item_defs;
-                return true;
-            case "recipe":
-                registry = _recipe_defs;
-                return true;
             case "enemy_template":
                 registry = _enemy_templates;
                 return true;
@@ -1261,12 +1261,6 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
     {
         switch (domain_id.ToString())
         {
-            case "item":
-                _itemDefIndex = BuildItemDefIndex(_item_defs);
-                break;
-            case "recipe":
-                _recipeDefIndex = BuildRecipeDefIndex(_recipe_defs);
-                break;
             case "enemy_template":
                 _enemyTemplateIndex = BuildEnemyTemplateIndex(_enemy_templates);
                 break;

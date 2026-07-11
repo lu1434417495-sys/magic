@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.IO;
 using Godot;
 using VT = Godot.Variant.Type;
 
@@ -8,12 +10,12 @@ public class ItemContentRegistry : System.IDisposable
     private const string ItemTemplateDirectory = "res://data/configs/items_templates";
 
     private static bool _defaultSnapshotBuilt;
-    private static readonly Dictionary<StringName, ItemDef> _defaultItemDefs = new();
+    private static readonly Dictionary<StringName, ItemDefinition> _defaultItemDefs = new();
     private static readonly List<string> _defaultValidationErrors = new();
 
-    private readonly Dictionary<StringName, ItemDef> _itemDefs = new();
-    private readonly Dictionary<StringName, ItemDef> _templateDefs = new();
-    private readonly Dictionary<StringName, ItemDef> _resolvedTemplateCache = new();
+    private readonly Dictionary<StringName, ItemDefinition> _itemDefs = new();
+    private readonly Dictionary<StringName, ItemDefinition> _templateDefs = new();
+    private readonly Dictionary<StringName, ItemDefinition> _resolvedTemplateCache = new();
     private readonly List<string> _validationErrors = new();
     private bool _hasBuilt;
     private bool _disposed;
@@ -98,10 +100,10 @@ public class ItemContentRegistry : System.IDisposable
         return result;
     }
 
-    internal IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped()
+    internal IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsTyped()
     {
         EnsureBuilt();
-        return _itemDefs;
+        return new ReadOnlyDictionary<StringName, ItemDefinition>(_itemDefs);
     }
 
     internal IReadOnlyList<string> ValidateTyped()
@@ -208,7 +210,16 @@ public class ItemContentRegistry : System.IDisposable
         {
             return;
         }
-        _templateDefs[templateDef.item_id] = templateDef;
+        try
+        {
+            _templateDefs[templateDef.item_id] = ItemDefinition.FromResource(templateDef);
+        }
+        catch (InvalidDataException exception)
+        {
+            _validationErrors.Add(
+                $"Item template {resourcePath} projection failed: {exception.Message}"
+            );
+        }
     }
 
     private void ResolveAllTemplates()
@@ -307,54 +318,65 @@ public class ItemContentRegistry : System.IDisposable
             return;
         }
 
-        var itemDef = ResolveWithTemplateChain(
-            rawDef,
-            _templateDefs,
-            new List<StringName>(),
-            _resolvedTemplateCache,
-            _validationErrors
-        );
+        ItemDefinition itemDef;
+        try
+        {
+            itemDef = ResolveWithTemplateChain(
+                ItemDefinition.FromResource(rawDef),
+                _templateDefs,
+                new List<StringName>(),
+                _resolvedTemplateCache,
+                _validationErrors
+            );
+        }
+        catch (InvalidDataException exception)
+        {
+            _validationErrors.Add(
+                $"Item config {resourcePath} projection failed: {exception.Message}"
+            );
+            return;
+        }
         if (itemDef == null)
             return;
 
         var itemTags = itemDef.GetTagsTyped();
         var itemCraftingGroups = itemDef.GetCraftingGroupsTyped();
-        if (_itemDefs.ContainsKey(itemDef.item_id))
+        if (_itemDefs.ContainsKey(itemDef.ItemId))
         {
-            _validationErrors.Add($"Duplicate item_id registered: {(string)itemDef.item_id}");
+            _validationErrors.Add($"Duplicate item_id registered: {(string)itemDef.ItemId}");
             return;
         }
 
         if (itemDef.CategoryKind == ItemCategoryKind.Unknown)
         {
             _validationErrors.Add(
-                $"Item {(string)itemDef.item_id} declares unsupported item_category {(string)itemDef.item_category}; expected one of misc / equipment / skill_book."
+                $"Item {(string)itemDef.ItemId} declares unsupported item_category {(string)itemDef.ItemCategory}; expected one of misc / equipment / skill_book."
             );
             return;
         }
-        if (itemDef.is_stackable && itemDef.max_stack <= 0)
+        if (itemDef.IsStackable && itemDef.MaxStack <= 0)
         {
-            _validationErrors.Add($"Item {(string)itemDef.item_id} must have max_stack >= 1.");
+            _validationErrors.Add($"Item {(string)itemDef.ItemId} must have max_stack >= 1.");
             return;
         }
-        if (itemDef.base_price > 0 && itemDef.sellable && itemDef.buy_price <= 0)
+        if (itemDef.BasePrice > 0 && itemDef.Sellable && itemDef.BuyPrice <= 0)
         {
             _validationErrors.Add(
-                $"Sellable item {(string)itemDef.item_id} must declare explicit buy_price."
+                $"Sellable item {(string)itemDef.ItemId} must declare explicit buy_price."
             );
             return;
         }
-        if (itemDef.base_price > 0 && itemDef.sellable && itemDef.sell_price <= 0)
+        if (itemDef.BasePrice > 0 && itemDef.Sellable && itemDef.SellPrice <= 0)
         {
             _validationErrors.Add(
-                $"Sellable item {(string)itemDef.item_id} must declare explicit sell_price."
+                $"Sellable item {(string)itemDef.ItemId} must declare explicit sell_price."
             );
             return;
         }
         if (itemTags.Contains(new StringName("material")) && itemCraftingGroups.Count == 0)
         {
             _validationErrors.Add(
-                $"Material item {(string)itemDef.item_id} must declare at least one crafting_group."
+                $"Material item {(string)itemDef.ItemId} must declare at least one crafting_group."
             );
             return;
         }
@@ -364,37 +386,37 @@ public class ItemContentRegistry : System.IDisposable
         )
         {
             _validationErrors.Add(
-                $"Quest item {(string)itemDef.item_id} must declare at least one quest_group."
+                $"Quest item {(string)itemDef.ItemId} must declare at least one quest_group."
             );
             return;
         }
         if (
-            itemDef.CategoryKind == ItemCategoryKind.SkillBook && itemDef.granted_skill_id == ""
+            itemDef.CategoryKind == ItemCategoryKind.SkillBook && itemDef.GrantedSkillId == ""
         )
         {
             _validationErrors.Add(
-                $"Skill book item {(string)itemDef.item_id} must declare granted_skill_id."
+                $"Skill book item {(string)itemDef.ItemId} must declare granted_skill_id."
             );
             return;
         }
 
         if (itemDef.HasEquipmentCategory())
         {
-            if (itemDef.is_stackable || itemDef.GetEffectiveMaxStack() != 1)
+            if (itemDef.IsStackable || itemDef.GetEffectiveMaxStack() != 1)
             {
                 _validationErrors.Add(
-                    $"Equipment item {(string)itemDef.item_id} must be non-stackable."
+                    $"Equipment item {(string)itemDef.ItemId} must be non-stackable."
                 );
                 return;
             }
-            if (itemDef.equipment_slot_ids.Count == 0)
+            if (itemDef.EquipmentSlotIds.Count == 0)
             {
                 _validationErrors.Add(
-                    $"Equipment item {(string)itemDef.item_id} must declare at least one slot."
+                    $"Equipment item {(string)itemDef.ItemId} must declare at least one slot."
                 );
                 return;
             }
-            foreach (string rawSlotId in itemDef.equipment_slot_ids)
+            foreach (string rawSlotId in itemDef.EquipmentSlotIds)
             {
                 if (
                     EquipmentRules.IsValidSlot(
@@ -403,14 +425,14 @@ public class ItemContentRegistry : System.IDisposable
                 )
                     continue;
                 _validationErrors.Add(
-                    $"Equipment item {(string)itemDef.item_id} declares invalid slot {rawSlotId}."
+                    $"Equipment item {(string)itemDef.ItemId} declares invalid slot {rawSlotId}."
                 );
                 return;
             }
             if (!itemDef.HasValidEquipmentType())
             {
                 _validationErrors.Add(
-                    $"Equipment item {(string)itemDef.item_id} must declare equipment_type_id as weapon, armor, or accessory."
+                    $"Equipment item {(string)itemDef.ItemId} must declare equipment_type_id as weapon, armor, or accessory."
                 );
                 return;
             }
@@ -419,13 +441,13 @@ public class ItemContentRegistry : System.IDisposable
 
             for (
                 int modifierIndex = 0;
-                modifierIndex < itemDef.attribute_modifiers.Count;
+                modifierIndex < itemDef.AttributeModifiers.Count;
                 modifierIndex++
             )
             {
-                var modifier = itemDef.attribute_modifiers[modifierIndex];
+                AttributeModifierDefinition modifier = itemDef.AttributeModifiers[modifierIndex];
                 string modifierLabel =
-                    $"Item {(string)itemDef.item_id} attribute_modifiers[{modifierIndex}]";
+                    $"Item {(string)itemDef.ItemId} attribute_modifiers[{modifierIndex}]";
                 if (modifier == null)
                 {
                     _validationErrors.Add(
@@ -433,49 +455,49 @@ public class ItemContentRegistry : System.IDisposable
                     );
                     return;
                 }
-                if (modifier.attribute_id == "")
+                if (modifier.AttributeId == "")
                 {
                     _validationErrors.Add($"{modifierLabel}.attribute_id must be non-empty.");
                     return;
                 }
-                if (!AttributeModifier.IsValidMode(modifier.mode))
+                if (!AttributeModifier.IsValidMode(modifier.Mode))
                 {
                     _validationErrors.Add(
-                        $"{modifierLabel}.mode uses unsupported value {(string)modifier.mode}."
+                        $"{modifierLabel}.mode uses unsupported value {(string)modifier.Mode}."
                     );
                     return;
                 }
             }
 
-            if (itemDef.occupied_slot_ids.Count > 0)
+            if (itemDef.OccupiedSlotIds.Count > 0)
             {
-                if (itemDef.equipment_slot_ids.Count != 1)
+                if (itemDef.EquipmentSlotIds.Count != 1)
                 {
                     _validationErrors.Add(
-                        $"Equipment item {(string)itemDef.item_id} declares occupied_slot_ids but equipment_slot_ids must be exactly 1 entry slot."
+                        $"Equipment item {(string)itemDef.ItemId} declares occupied_slot_ids but equipment_slot_ids must be exactly 1 entry slot."
                     );
                     return;
                 }
 
                 var seenOccupied = new HashSet<StringName>();
                 var entrySlotId = ProgressionDataUtils.to_string_name(
-                    Variant.From(itemDef.equipment_slot_ids[0])
+                    Variant.From(itemDef.EquipmentSlotIds[0])
                 );
                 bool containsEntrySlot = false;
-                foreach (string rawSlotId in itemDef.occupied_slot_ids)
+                foreach (string rawSlotId in itemDef.OccupiedSlotIds)
                 {
                     var slotId = ProgressionDataUtils.to_string_name(Variant.From(rawSlotId));
                     if (!EquipmentRules.IsValidSlot(slotId))
                     {
                         _validationErrors.Add(
-                            $"Equipment item {(string)itemDef.item_id} declares invalid occupied_slot {rawSlotId}."
+                            $"Equipment item {(string)itemDef.ItemId} declares invalid occupied_slot {rawSlotId}."
                         );
                         return;
                     }
                     if (seenOccupied.Contains(slotId))
                     {
                         _validationErrors.Add(
-                            $"Equipment item {(string)itemDef.item_id} declares duplicate occupied_slot {(string)slotId}."
+                            $"Equipment item {(string)itemDef.ItemId} declares duplicate occupied_slot {(string)slotId}."
                         );
                         return;
                     }
@@ -486,19 +508,19 @@ public class ItemContentRegistry : System.IDisposable
                 if (!containsEntrySlot)
                 {
                     _validationErrors.Add(
-                        $"Equipment item {(string)itemDef.item_id} occupied_slot_ids must include the entry_slot {(string)entrySlotId}."
+                        $"Equipment item {(string)itemDef.ItemId} occupied_slot_ids must include the entry_slot {(string)entrySlotId}."
                     );
                     return;
                 }
             }
         }
 
-        _itemDefs[itemDef.item_id] = itemDef;
+        _itemDefs[itemDef.ItemId] = itemDef;
     }
 
     private bool ValidateRawWeaponProfilePropertiesMode(ItemDef itemDef, string label)
     {
-        WeaponProfileDef profile = itemDef?.weapon_profile as WeaponProfileDef;
+        WeaponProfileDef profile = itemDef?.weapon_profile;
         if (profile == null)
         {
             return true;
@@ -513,83 +535,76 @@ public class ItemContentRegistry : System.IDisposable
         return false;
     }
 
-    private bool ValidateWeaponProfile(ItemDef itemDef)
+    private bool ValidateWeaponProfile(ItemDefinition itemDef)
     {
-        var resolvedProfile = GetWeaponProfile(itemDef);
-        if (itemDef.weapon_profile == null)
-        {
-            _validationErrors.Add(
-                $"Weapon item {(string)itemDef.item_id} must declare weapon_profile."
-            );
-            return false;
-        }
+        WeaponProfileDefinition resolvedProfile = itemDef.WeaponProfile;
         if (resolvedProfile == null)
         {
             _validationErrors.Add(
-                $"Weapon item {(string)itemDef.item_id} must declare weapon_profile as WeaponProfileDef."
+                $"Weapon item {(string)itemDef.ItemId} must declare weapon_profile."
             );
             return false;
         }
-        if (resolvedProfile.weapon_type_id == "")
+        if (resolvedProfile.WeaponTypeId == "")
         {
             _validationErrors.Add(
-                $"Weapon item {(string)itemDef.item_id} weapon_profile.weapon_type_id must be non-empty."
+                $"Weapon item {(string)itemDef.ItemId} weapon_profile.weapon_type_id must be non-empty."
             );
             return false;
         }
-        if (resolvedProfile.family == "")
+        if (resolvedProfile.Family == "")
         {
             _validationErrors.Add(
-                $"Weapon item {(string)itemDef.item_id} weapon_profile.family must be non-empty."
+                $"Weapon item {(string)itemDef.ItemId} weapon_profile.family must be non-empty."
             );
             return false;
         }
-        if (resolvedProfile.range_type == "")
+        if (resolvedProfile.RangeType == "")
         {
             _validationErrors.Add(
-                $"Weapon item {(string)itemDef.item_id} weapon_profile.range_type must be non-empty."
+                $"Weapon item {(string)itemDef.ItemId} weapon_profile.range_type must be non-empty."
             );
             return false;
         }
-        if (resolvedProfile.damage_tag == "")
+        if (resolvedProfile.DamageTag == "")
         {
             _validationErrors.Add(
-                $"Weapon item {(string)itemDef.item_id} weapon_profile.damage_tag must be non-empty."
+                $"Weapon item {(string)itemDef.ItemId} weapon_profile.damage_tag must be non-empty."
             );
             return false;
         }
-        if (resolvedProfile.attack_range <= 0)
+        if (resolvedProfile.AttackRange <= 0)
         {
             _validationErrors.Add(
-                $"Weapon item {(string)itemDef.item_id} weapon_profile.attack_range must be >= 1 (got {resolvedProfile.attack_range})."
+                $"Weapon item {(string)itemDef.ItemId} weapon_profile.attack_range must be >= 1 (got {resolvedProfile.AttackRange})."
             );
             return false;
         }
-        if (resolvedProfile.one_handed_dice == null && resolvedProfile.two_handed_dice == null)
+        if (resolvedProfile.OneHandedDice == null && resolvedProfile.TwoHandedDice == null)
         {
             _validationErrors.Add(
-                $"Weapon item {(string)itemDef.item_id} weapon_profile must declare at least one of one_handed_dice or two_handed_dice."
+                $"Weapon item {(string)itemDef.ItemId} weapon_profile must declare at least one of one_handed_dice or two_handed_dice."
             );
             return false;
         }
 
         var diceErrors = new Godot.Collections.Array<string>();
-        if (resolvedProfile.one_handed_dice != null)
+        if (resolvedProfile.OneHandedDice != null)
         {
             foreach (
-                string error in WeaponDamageDiceDef.ValidateDice(
-                    $"Weapon item {(string)itemDef.item_id} weapon_profile.one_handed_dice",
-                    resolvedProfile.one_handed_dice
+                string error in WeaponDamageDiceDefinition.ValidateDice(
+                    $"Weapon item {(string)itemDef.ItemId} weapon_profile.one_handed_dice",
+                    resolvedProfile.OneHandedDice
                 )
             )
                 diceErrors.Add(error);
         }
-        if (resolvedProfile.two_handed_dice != null)
+        if (resolvedProfile.TwoHandedDice != null)
         {
             foreach (
-                string error in WeaponDamageDiceDef.ValidateDice(
-                    $"Weapon item {(string)itemDef.item_id} weapon_profile.two_handed_dice",
-                    resolvedProfile.two_handed_dice
+                string error in WeaponDamageDiceDefinition.ValidateDice(
+                    $"Weapon item {(string)itemDef.ItemId} weapon_profile.two_handed_dice",
+                    resolvedProfile.TwoHandedDice
                 )
             )
                 diceErrors.Add(error);
@@ -603,29 +618,18 @@ public class ItemContentRegistry : System.IDisposable
         if (itemDef.GetWeaponPhysicalDamageTag() == "")
         {
             _validationErrors.Add(
-                $"Weapon item {(string)itemDef.item_id} must declare one valid weapon_profile.damage_tag."
+                $"Weapon item {(string)itemDef.ItemId} must declare one valid weapon_profile.damage_tag."
             );
             return false;
         }
         return true;
     }
 
-    public static ItemDef ResolveWithTemplateChain(
-        ItemDef item_def,
-        Godot.Collections.Dictionary template_defs,
-        Godot.Collections.Array visited,
-        Godot.Collections.Dictionary cache,
-        Godot.Collections.Array errors
-    )
-    {
-        return ResolveWithTemplateChainProjected(item_def, template_defs, visited, cache, errors);
-    }
-
-    private static ItemDef ResolveWithTemplateChain(
-        ItemDef itemDef,
-        IReadOnlyDictionary<StringName, ItemDef> templateDefs,
+    private static ItemDefinition ResolveWithTemplateChain(
+        ItemDefinition itemDef,
+        IReadOnlyDictionary<StringName, ItemDefinition> templateDefs,
         List<StringName> visited,
-        Dictionary<StringName, ItemDef> cache,
+        Dictionary<StringName, ItemDefinition> cache,
         List<string> errors
     )
     {
@@ -635,7 +639,7 @@ public class ItemContentRegistry : System.IDisposable
             return null;
         }
 
-        var currentId = itemDef.item_id;
+        StringName currentId = itemDef.ItemId;
         if (visited.Contains(currentId))
         {
             string chainText = string.Join(", ", visited) + $" -> {(string)currentId}";
@@ -645,10 +649,10 @@ public class ItemContentRegistry : System.IDisposable
             return null;
         }
 
-        if (itemDef.base_item_id == "")
+        if (itemDef.BaseItemId == "")
             return itemDef;
 
-        var templateId = itemDef.base_item_id;
+        StringName templateId = itemDef.BaseItemId;
         if (!templateDefs.ContainsKey(templateId))
         {
             errors.Add(
@@ -657,7 +661,7 @@ public class ItemContentRegistry : System.IDisposable
             return null;
         }
 
-        ItemDef resolvedTemplate;
+        ItemDefinition resolvedTemplate;
         if (cache.ContainsKey(templateId))
         {
             resolvedTemplate = cache[templateId];
@@ -678,278 +682,6 @@ public class ItemContentRegistry : System.IDisposable
 
         return resolvedTemplate == null
             ? null
-            : MergeWithTemplateAsDerivedContent(
-                resolvedTemplate,
-                itemDef,
-                "ItemContentRegistry.ResolveWithTemplateChain"
-            );
-    }
-
-    private static ItemDef ResolveWithTemplateChainProjected(
-        ItemDef itemDef,
-        Godot.Collections.Dictionary templateDefs,
-        Godot.Collections.Array visited,
-        Godot.Collections.Dictionary cache,
-        Godot.Collections.Array errors
-    )
-    {
-        if (itemDef == null)
-        {
-            errors.Add("resolve_with_template_chain received null item_def.");
-            return null;
-        }
-
-        var currentId = itemDef.item_id;
-        if (ArrayHasStringName(visited, currentId))
-        {
-            string chainText = ArrayString(visited) + $" -> {(string)currentId}";
-            errors.Add(
-                $"Item template inheritance cycle detected at {(string)currentId} (chain: {chainText})."
-            );
-            return null;
-        }
-
-        if (itemDef.base_item_id == "")
-            return itemDef;
-
-        var templateId = itemDef.base_item_id;
-        if (!templateDefs.ContainsKey(templateId))
-        {
-            errors.Add(
-                $"Item {(string)currentId} references missing template {(string)templateId}."
-            );
-            return null;
-        }
-
-        ItemDef resolvedTemplate;
-        if (cache.ContainsKey(templateId))
-        {
-            resolvedTemplate = DictItemDef(cache, templateId);
-        }
-        else
-        {
-            var nextVisited = new Godot.Collections.Array(visited);
-            nextVisited.Add(currentId);
-            resolvedTemplate = ResolveWithTemplateChainProjected(
-                DictItemDef(templateDefs, templateId),
-                templateDefs,
-                nextVisited,
-                cache,
-                errors
-            );
-            if (resolvedTemplate != null)
-                cache[templateId] = resolvedTemplate;
-        }
-
-        return resolvedTemplate == null
-            ? null
-            : MergeWithTemplateAsDerivedContent(
-                resolvedTemplate,
-                itemDef,
-                "ItemContentRegistry.ResolveWithTemplateChainProjected"
-            );
-    }
-
-    private static ItemDef MergeWithTemplateAsDerivedContent(
-        ItemDef template,
-        ItemDef instance,
-        string reason
-    )
-    {
-        ItemDef merged = MergeWithTemplate(template, instance);
-        if (merged != null)
-        {
-            GodotContentOwnership.RegisterDerivedContent(
-                merged,
-                $"item:{(string)merged.item_id}",
-                reason
-            );
-        }
-        return merged;
-    }
-
-    public static ItemDef MergeWithTemplate(ItemDef template, ItemDef instance)
-    {
-        var merged = new ItemDef
-        {
-            item_id = instance.item_id,
-            base_item_id = "",
-            display_name =
-                instance.display_name != "" ? instance.display_name : template.display_name,
-            description = instance.description != "" ? instance.description : template.description,
-            icon = instance.icon != "" ? instance.icon : template.icon,
-            equipment_type_id =
-                instance.equipment_type_id != ""
-                    ? instance.equipment_type_id
-                    : template.equipment_type_id,
-            weapon_profile = WeaponProfileDef.Merge(
-                GetWeaponProfile(template),
-                GetWeaponProfile(instance)
-            ),
-            granted_skill_id =
-                instance.granted_skill_id != ""
-                    ? instance.granted_skill_id
-                    : template.granted_skill_id,
-            item_category =
-                instance.item_category != "" ? instance.item_category : template.item_category,
-            base_price = instance.base_price != 0 ? instance.base_price : template.base_price,
-            buy_price = instance.buy_price != 0 ? instance.buy_price : template.buy_price,
-            sell_price = instance.sell_price != 0 ? instance.sell_price : template.sell_price,
-            max_dex_bonus =
-                instance.max_dex_bonus >= 0 ? instance.max_dex_bonus : template.max_dex_bonus,
-            is_stackable = instance.is_stackable,
-            max_stack = instance.max_stack,
-            sellable = instance.sellable,
-            equipment_slot_ids =
-                instance.equipment_slot_ids.Count > 0
-                    ? DuplicateStringArray(instance.equipment_slot_ids)
-                    : DuplicateStringArray(template.equipment_slot_ids),
-            occupied_slot_ids =
-                instance.occupied_slot_ids.Count > 0
-                    ? DuplicateStringArray(instance.occupied_slot_ids)
-                    : DuplicateStringArray(template.occupied_slot_ids),
-            equip_requirement = instance.equip_requirement ?? template.equip_requirement,
-            tags = MergeStringNameArray(template.tags, instance.tags),
-            crafting_groups = MergeStringNameArray(
-                template.crafting_groups,
-                instance.crafting_groups
-            ),
-            quest_groups = MergeStringNameArray(template.quest_groups, instance.quest_groups),
-            trait_ids = MergeStringNameArray(template.trait_ids, instance.trait_ids),
-            trait_roll_groups = MergeTraitRollGroups(
-                template.trait_roll_groups,
-                instance.trait_roll_groups
-            ),
-            attribute_modifiers = MergeAttributeModifiers(
-                template.attribute_modifiers,
-                instance.attribute_modifiers,
-                instance.item_id
-            ),
-        };
-        return merged;
-    }
-
-    private static Godot.Collections.Array<TraitRollGroupDef> MergeTraitRollGroups(
-        Godot.Collections.Array<TraitRollGroupDef> templateGroups,
-        Godot.Collections.Array<TraitRollGroupDef> instanceGroups
-    )
-    {
-        Godot.Collections.Array<TraitRollGroupDef> result = new();
-        Dictionary<StringName, int> indexById = new();
-
-        void AddOrReplace(TraitRollGroupDef group)
-        {
-            if (group == null || group.group_id == "")
-                return;
-            TraitRollGroupDef copy = group.Duplicate(true) as TraitRollGroupDef;
-            if (copy == null)
-                return;
-            if (indexById.TryGetValue(copy.group_id, out int existingIndex))
-            {
-                result[existingIndex] = copy;
-                return;
-            }
-            indexById[copy.group_id] = result.Count;
-            result.Add(copy);
-        }
-
-        foreach (TraitRollGroupDef group in templateGroups)
-            AddOrReplace(group);
-        foreach (TraitRollGroupDef group in instanceGroups)
-            AddOrReplace(group);
-        return result;
-    }
-
-    private static Godot.Collections.Array<StringName> MergeStringNameArray(
-        Godot.Collections.Array<StringName> templateValues,
-        Godot.Collections.Array<StringName> instanceValues
-    )
-    {
-        var seen = new HashSet<StringName>();
-        var merged = new Godot.Collections.Array<StringName>();
-        foreach (var value in templateValues)
-        {
-            var normalized = ProgressionDataUtils.to_string_name(Variant.From(value));
-            if (normalized == "" || seen.Contains(normalized))
-                continue;
-            seen.Add(normalized);
-            merged.Add(normalized);
-        }
-        foreach (var value in instanceValues)
-        {
-            var normalized = ProgressionDataUtils.to_string_name(Variant.From(value));
-            if (normalized == "" || seen.Contains(normalized))
-                continue;
-            seen.Add(normalized);
-            merged.Add(normalized);
-        }
-        return merged;
-    }
-
-    private static Godot.Collections.Array<string> DuplicateStringArray(
-        Godot.Collections.Array<string> sourceValues
-    )
-    {
-        var copied = new Godot.Collections.Array<string>();
-        foreach (string value in sourceValues)
-            copied.Add(value);
-        return copied;
-    }
-
-    private static WeaponProfileDef GetWeaponProfile(ItemDef itemDef)
-    {
-        return itemDef?.weapon_profile as WeaponProfileDef;
-    }
-
-    private static Godot.Collections.Array<AttributeModifier> MergeAttributeModifiers(
-        Godot.Collections.Array<AttributeModifier> templateMods,
-        Godot.Collections.Array<AttributeModifier> instanceMods,
-        StringName finalItemId
-    )
-    {
-        var merged = new Godot.Collections.Array<AttributeModifier>();
-        foreach (var sourceMod in templateMods)
-        {
-            if (sourceMod == null)
-                continue;
-            var copy = sourceMod.Duplicate(true) as AttributeModifier;
-            copy.source_id = finalItemId;
-            merged.Add(copy);
-        }
-        foreach (var sourceMod in instanceMods)
-        {
-            if (sourceMod == null)
-                continue;
-            var copy = sourceMod.Duplicate(true) as AttributeModifier;
-            copy.source_id = finalItemId;
-            merged.Add(copy);
-        }
-        return merged;
-    }
-
-    private static bool ArrayHasStringName(Godot.Collections.Array values, StringName expected)
-    {
-        foreach (var value in values)
-        {
-            if (ProgressionDataUtils.to_string_name(value) == expected)
-                return true;
-        }
-        return false;
-    }
-
-    private static string ArrayString(Godot.Collections.Array values)
-    {
-        var parts = new List<string>();
-        foreach (var value in values)
-            parts.Add(value.AsString());
-        return "[" + string.Join(", ", parts) + "]";
-    }
-
-    private static ItemDef DictItemDef(Godot.Collections.Dictionary values, StringName key)
-    {
-        if (!values.ContainsKey(key))
-            return null;
-        var value = values[key];
-        return value.VariantType == Variant.Type.Object ? value.AsGodotObject() as ItemDef : null;
+            : ItemDefinition.MergeWithTemplate(resolvedTemplate, itemDef);
     }
 }

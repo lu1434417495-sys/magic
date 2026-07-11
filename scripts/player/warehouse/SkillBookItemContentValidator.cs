@@ -4,13 +4,13 @@ using Godot;
 public static class SkillBookItemContentValidator
 {
     public static List<string> Validate(
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefs
     )
     {
         var errors = new List<string>();
 
-        itemDefs ??= new Dictionary<StringName, ItemDef>();
+        itemDefs ??= new Dictionary<StringName, ItemDefinition>();
         skillDefs ??= new Dictionary<StringName, SkillDefinition>();
 
         _append_skill_book_reference_errors(errors, itemDefs, skillDefs);
@@ -22,7 +22,7 @@ public static class SkillBookItemContentValidator
 
     private static void _append_skill_book_reference_errors(
         List<string> errors,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefs
     )
     {
@@ -30,32 +30,32 @@ public static class SkillBookItemContentValidator
         {
             var itemId = new StringName(itemKey);
 
-            if (!itemDefs.TryGetValue(itemId, out ItemDef itemDef))
+            if (!itemDefs.TryGetValue(itemId, out ItemDefinition itemDef))
                 continue;
 
             if (itemDef.CategoryKind != ItemCategoryKind.SkillBook)
                 continue;
-            if (itemDef.granted_skill_id == "")
+            if (itemDef.GrantedSkillId == "")
                 continue;
 
-            if (!skillDefs.TryGetValue(itemDef.granted_skill_id, out SkillDefinition skillDef))
+            if (!skillDefs.TryGetValue(itemDef.GrantedSkillId, out SkillDefinition skillDef))
             {
                 errors.Add(
-                    $"Skill book item {itemDef.item_id} references missing skill {itemDef.granted_skill_id}."
+                    $"Skill book item {itemDef.ItemId} references missing skill {itemDef.GrantedSkillId}."
                 );
                 continue;
             }
 
             if (skillDef.LearnSource != "book")
                 errors.Add(
-                    $"Skill book item {itemDef.item_id} granted_skill_id {itemDef.granted_skill_id} learn_source must be book, got {skillDef.LearnSource}."
+                    $"Skill book item {itemDef.ItemId} granted_skill_id {itemDef.GrantedSkillId} learn_source must be book, got {skillDef.LearnSource}."
                 );
         }
     }
 
     private static void _append_canonical_id_collision_errors(
         List<string> errors,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefs
     )
     {
@@ -77,7 +77,7 @@ public static class SkillBookItemContentValidator
                 skillDef.SkillId
             );
 
-            if (!itemDefs.TryGetValue(canonicalItemId, out ItemDef occupyingItem))
+            if (!itemDefs.TryGetValue(canonicalItemId, out ItemDefinition occupyingItem))
                 continue;
 
             if (occupyingItem.CategoryKind != ItemCategoryKind.SkillBook)
@@ -88,9 +88,9 @@ public static class SkillBookItemContentValidator
                 continue;
             }
 
-            if (occupyingItem.granted_skill_id != skillDef.SkillId)
+            if (occupyingItem.GrantedSkillId != skillDef.SkillId)
                 errors.Add(
-                    $"Skill book item {canonicalItemId} occupies generated skill book id for skill {skillDef.SkillId} but grants {occupyingItem.granted_skill_id}."
+                    $"Skill book item {canonicalItemId} occupies generated skill book id for skill {skillDef.SkillId} but grants {occupyingItem.GrantedSkillId}."
                 );
         }
     }

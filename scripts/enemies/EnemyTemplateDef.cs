@@ -113,26 +113,31 @@ public partial class EnemyTemplateDef : Resource
         ProgressionDataUtils.to_string_name(attack_equipment_item_id);
 
     internal WeaponProjection GetWeaponProjectionTyped(
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = null
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null
     )
     {
         if (HasTag(TagBeast))
             return GetNaturalWeaponProjectionTyped();
-        WeaponProjection aep = GetAttackEquipmentProjectionTyped(itemDefs);
+        WeaponProjection aep = GetAttackEquipmentProjectionTyped(itemDefinitions);
         if (aep != null && !aep.IsEmpty())
             return aep;
         return GetUnarmedWeaponProjectionTyped();
     }
 
     internal WeaponProjection GetAttackEquipmentProjectionTyped(
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = null
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null
     )
     {
         var itemId = GetAttackEquipmentItemIdResolved();
         if (itemId == "")
             return new WeaponProjection();
-        var itemDef = _resolve_attack_equipment_item_def(itemId, itemDefs);
-        return itemDef != null ? _build_weapon_projection_from_item_def(itemDef) : new WeaponProjection();
+        ItemDefinition itemDefinition = _resolve_attack_equipment_item_definition(
+            itemId,
+            itemDefinitions
+        );
+        return itemDefinition != null
+            ? _build_weapon_projection_from_item_definition(itemDefinition)
+            : new WeaponProjection();
     }
 
     internal WeaponProjection GetNaturalWeaponProjectionTyped()
@@ -225,10 +230,10 @@ public partial class EnemyTemplateDef : Resource
     }
 
     internal int GetDerivedAttackBonusTyped(
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = null
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null
     )
     {
-        WeaponProjection projection = GetWeaponProjectionTyped(itemDefs);
+        WeaponProjection projection = GetWeaponProjectionTyped(itemDefinitions);
         int attackRange =
             projection != null && !projection.IsEmpty() ? projection.weapon_attack_range : 1;
         StringName abilityId = attackRange > 2 ? "perception" : "strength";
@@ -272,7 +277,7 @@ public partial class EnemyTemplateDef : Resource
 
     internal Godot.Collections.Array<string> ValidateSchemaTyped(
         IReadOnlyDictionary<StringName, EnemyAiBrainDef> knownBrains = null,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = null,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null
     )
     {
@@ -349,7 +354,7 @@ public partial class EnemyTemplateDef : Resource
                 $"Enemy template {template_id} must not declare attribute_overrides.armor_class; use base attributes and AC component bonuses."
             );
         skillDefinitions ??= new Dictionary<StringName, SkillDefinition>();
-        itemDefs ??= new Dictionary<StringName, ItemDef>();
+        itemDefinitions ??= new Dictionary<StringName, ItemDefinition>();
         HashSet<StringName> declaredSkillIds = _build_declared_skill_id_set();
         foreach (var e in _validate_template_skill_ids(skillDefinitions))
             errors.Add(e);
@@ -382,7 +387,7 @@ public partial class EnemyTemplateDef : Resource
         }
         else
         {
-            foreach (var e in _validate_attack_equipment(itemDefs))
+            foreach (var e in _validate_attack_equipment(itemDefinitions))
                 errors.Add(e);
         }
         foreach (var entry in drop_entries)
@@ -405,7 +410,7 @@ public partial class EnemyTemplateDef : Resource
                 );
             if (ii == "")
                 errors.Add($"Enemy template {template_id} drop {dei} is missing item_id.");
-            else if (_try_get_indexed_item_def(ii, itemDefs) == null)
+            else if (_try_get_indexed_item_definition(ii, itemDefinitions) == null)
                 errors.Add(
                     $"Enemy template {template_id} drop {dei} references missing item_id {ii}."
                 );
@@ -607,7 +612,7 @@ public partial class EnemyTemplateDef : Resource
     }
 
     private Godot.Collections.Array<string> _validate_attack_equipment(
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
         var errors = new Godot.Collections.Array<string>();
@@ -619,60 +624,43 @@ public partial class EnemyTemplateDef : Resource
             );
             return errors;
         }
-        var id = _try_get_indexed_item_def(iid, itemDefs);
-        if (id == null)
+        ItemDefinition itemDefinition = _try_get_indexed_item_definition(iid, itemDefinitions);
+        if (itemDefinition == null)
         {
             errors.Add(
                 $"Enemy template {template_id} references missing attack_equipment_item_id {iid}."
             );
             return errors;
         }
-        if (!id.IsWeapon())
+        if (!itemDefinition.IsWeapon())
             errors.Add(
                 $"Enemy template {template_id} attack_equipment_item_id {iid} must reference a weapon equipment item."
             );
-        if (id.GetWeaponAttackRange() <= 0)
+        if (itemDefinition.GetWeaponAttackRange() <= 0)
             errors.Add(
                 $"Enemy template {template_id} attack_equipment_item_id {iid} must project weapon attack range >= 1."
             );
-        if (id.GetWeaponPhysicalDamageTag() == "")
+        if (itemDefinition.GetWeaponPhysicalDamageTag() == "")
             errors.Add(
                 $"Enemy template {template_id} attack_equipment_item_id {iid} must project a weapon physical damage tag."
             );
         return errors;
     }
 
-    private static ItemDef _resolve_attack_equipment_item_def(
+    private static ItemDefinition _resolve_attack_equipment_item_definition(
         StringName iid,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
-    ) => _resolve_item_def(iid, itemDefs);
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
+    ) => _try_get_indexed_item_definition(iid, itemDefinitions);
 
-    private static ItemDef _try_get_indexed_item_def(
+    private static ItemDefinition _try_get_indexed_item_definition(
         StringName iid,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     ) =>
-        itemDefs != null && itemDefs.TryGetValue(iid, out ItemDef itemDef) && itemDef != null
-            ? itemDef
+        itemDefinitions != null
+        && itemDefinitions.TryGetValue(iid, out ItemDefinition itemDefinition)
+        && itemDefinition != null
+            ? itemDefinition
             : null;
-
-    private static ItemDef _resolve_item_def(
-        StringName iid,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
-    ) => _resolve_item_def(iid, itemDefs, false);
-
-    private static ItemDef _resolve_item_def(
-        StringName iid,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
-        bool registryFallbackAttempted
-    )
-    {
-        if (_try_get_indexed_item_def(iid, itemDefs) is ItemDef itemDef)
-            return itemDef;
-        if (registryFallbackAttempted || (itemDefs != null && itemDefs.Count > 0))
-            return null;
-        using var reg = new ItemContentRegistry();
-        return _resolve_item_def(iid, reg.GetItemDefsTyped(), true);
-    }
 
     internal static Dictionary<StringName, EnemyAiBrainDef> BuildBrainIndex(
         Godot.Collections.Dictionary knownBrains
@@ -710,44 +698,6 @@ public partial class EnemyTemplateDef : Resource
         return skillDefinitions != null
             ? new Dictionary<StringName, SkillDefinition>(skillDefinitions)
             : new Dictionary<StringName, SkillDefinition>();
-    }
-
-    internal static Dictionary<StringName, ItemDef> BuildItemDefIndex(
-        Godot.Collections.Dictionary itemDefs
-    )
-    {
-        var result = new Dictionary<StringName, ItemDef>();
-        if (itemDefs == null)
-        {
-            return result;
-        }
-        foreach (Variant rawKey in itemDefs.Keys)
-        {
-            if (rawKey.VariantType != VT.StringName)
-            {
-                continue;
-            }
-            ItemDef itemDef = itemDefs[rawKey].As<ItemDef>();
-            if (itemDef == null)
-            {
-                continue;
-            }
-            StringName keyItemId = rawKey.AsStringName();
-            if (keyItemId != "")
-            {
-                result[keyItemId] = itemDef;
-            }
-        }
-        return result;
-    }
-
-    internal static Dictionary<StringName, ItemDef> CloneItemDefIndex(
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
-    )
-    {
-        return itemDefs != null
-            ? new Dictionary<StringName, ItemDef>(itemDefs)
-            : new Dictionary<StringName, ItemDef>();
     }
 
     private static Dictionary<StringName, int> BuildIntDictionary(Godot.Collections.Dictionary source)
@@ -827,43 +777,49 @@ public partial class EnemyTemplateDef : Resource
         return false;
     }
 
-    private WeaponProjection _build_weapon_projection_from_item_def(ItemDef itemDef)
+    private WeaponProjection _build_weapon_projection_from_item_definition(
+        ItemDefinition itemDefinition
+    )
     {
-        if (itemDef == null || !itemDef.IsWeapon())
+        if (itemDefinition == null || !itemDefinition.IsWeapon())
             return new WeaponProjection();
-        var profile = itemDef.weapon_profile as WeaponProfileDef;
+        WeaponProfileDefinition profile = itemDefinition.WeaponProfile;
         if (profile == null)
             return new WeaponProjection();
-        var ohd = WeaponDice.FromResource(profile.one_handed_dice);
-        var thd = WeaponDice.FromResource(profile.two_handed_dice);
+        WeaponDice ohd = WeaponDice.FromDefinition(profile.OneHandedDice);
+        WeaponDice thd = WeaponDice.FromDefinition(profile.TwoHandedDice);
         var props = _weapon_profile_properties(profile);
         bool isV = props.Contains("versatile");
-        bool ut = _resolve_weapon_uses_two_hands(itemDef, ohd, thd, isV);
+        bool ut = _resolve_weapon_uses_two_hands(itemDefinition, ohd, thd, isV);
         return new WeaponProjection
         {
             weapon_profile_kind = BattleUnitState.ToStringName(BattleWeaponProfileKind.Equipped),
-            weapon_item_id = itemDef.item_id,
-            weapon_profile_type_id = ProgressionDataUtils.to_string_name(profile.weapon_type_id),
+            weapon_item_id = itemDefinition.ItemId,
+            weapon_profile_type_id = ProgressionDataUtils.to_string_name(profile.WeaponTypeId),
             weapon_current_grip = _resolve_weapon_current_grip(ohd, thd, ut),
-            weapon_attack_range = Mathf.Max(profile.attack_range, 0),
+            weapon_attack_range = Mathf.Max(profile.AttackRange, 0),
             weapon_one_handed_dice = ohd,
             weapon_two_handed_dice = thd,
             weapon_is_versatile = isV,
             weapon_uses_two_hands = ut,
-            weapon_physical_damage_tag = itemDef.GetWeaponPhysicalDamageTag(),
+            weapon_physical_damage_tag = itemDefinition.GetWeaponPhysicalDamageTag(),
         };
     }
 
     private static bool _resolve_weapon_uses_two_hands(
-        ItemDef itemDef,
+        ItemDefinition itemDefinition,
         WeaponDice ohd,
         WeaponDice thd,
         bool isV
     )
     {
-        if (itemDef == null)
+        if (itemDefinition == null)
             return false;
-        if (itemDef.GetFinalOccupiedSlotIdsTyped("main_hand").Contains(new StringName("off_hand")))
+        if (
+            itemDefinition
+                .GetFinalOccupiedSlotIdsTyped("main_hand")
+                .Contains(new StringName("off_hand"))
+        )
             return true;
         if (ohd.IsEmpty() && !thd.IsEmpty())
             return true;
@@ -882,7 +838,7 @@ public partial class EnemyTemplateDef : Resource
     }
 
     private static Godot.Collections.Array<StringName> _weapon_profile_properties(
-        WeaponProfileDef profile
+        WeaponProfileDefinition profile
     )
     {
         var r = new Godot.Collections.Array<StringName>();
@@ -923,5 +879,6 @@ public partial class EnemyTemplateDef : Resource
     ) => data.ContainsKey(key);
 
     private static bool _is_valid_weapon_physical_damage_tag(StringName dt) =>
-        ItemDef.ToWeaponPhysicalDamageTagKind(dt) != WeaponPhysicalDamageTagKind.Unknown;
+        ItemDefinition.ToWeaponPhysicalDamageTagKind(dt)
+        != WeaponPhysicalDamageTagKind.Unknown;
 }

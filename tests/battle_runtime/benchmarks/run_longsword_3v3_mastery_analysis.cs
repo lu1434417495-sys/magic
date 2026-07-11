@@ -177,7 +177,7 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
                 overrides.EnemyAiBrains,
                 null,
                 default,
-                new System.Collections.Generic.Dictionary<StringName, ItemDef>(),
+                new System.Collections.Generic.Dictionary<StringName, ItemDefinition>(),
                 useFormalTerrain ? null : terrainGenerator
             );
             runtime.SetAiTraceEnabled(false);
@@ -227,12 +227,12 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
 
         public PartyState GetPartyState() => null;
 
-        public IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped() =>
-            new Dictionary<StringName, ItemDef>();
+        public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsTyped() =>
+            new Dictionary<StringName, ItemDefinition>();
 
         public bool HasItemDefCatalog() => false;
 
-        public ItemDef GetItemDef(StringName item_id) => null;
+        public ItemDefinition GetItemDef(StringName item_id) => null;
 
         public PartyMemberState GetMemberState(StringName member_id) => null;
 

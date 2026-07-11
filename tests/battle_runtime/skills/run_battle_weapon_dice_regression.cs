@@ -1134,12 +1134,12 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
 
         public PartyState GetPartyState() => null;
 
-        public IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped() =>
-            new Dictionary<StringName, ItemDef>();
+        public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsTyped() =>
+            new Dictionary<StringName, ItemDefinition>();
 
         public bool HasItemDefCatalog() => false;
 
-        public ItemDef GetItemDef(StringName item_id) => null;
+        public ItemDefinition GetItemDef(StringName item_id) => null;
 
         public PartyMemberState GetMemberState(StringName member_id) => null;
 

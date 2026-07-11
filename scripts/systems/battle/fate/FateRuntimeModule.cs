@@ -221,7 +221,7 @@ internal sealed class FateRuntimeModule
     internal Godot.Collections.Array<StringName> HandleMisfortuneForgeResult(
         StringName member_id,
         SettlementServiceResult result,
-        IReadOnlyDictionary<StringName, ItemDef> item_defs = null
+        IReadOnlyDictionary<StringName, ItemDefinition> item_defs = null
     )
     {
         if (_misfortuneGuidanceService == null)
@@ -231,8 +231,8 @@ internal sealed class FateRuntimeModule
                 member_id,
                 BuildMisfortuneForgeGuidanceInput(result),
                 item_defs != null
-                    ? new Dictionary<StringName, ItemDef>(item_defs)
-                    : new Dictionary<StringName, ItemDef>()
+                    ? new Dictionary<StringName, ItemDefinition>(item_defs)
+                    : new Dictionary<StringName, ItemDefinition>()
             )
         );
     }

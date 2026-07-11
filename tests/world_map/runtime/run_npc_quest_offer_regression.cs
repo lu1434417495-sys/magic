@@ -1341,7 +1341,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
             partyState,
             questDefs ?? new Dictionary<StringName, QuestDefinition>()
         );
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = gameSession.GetItemDefsTyped();
 
         var runtime = new GameRuntimeFacade
         {

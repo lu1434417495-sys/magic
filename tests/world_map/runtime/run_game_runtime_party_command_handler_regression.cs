@@ -55,8 +55,7 @@ public partial class run_game_runtime_party_command_handler_regression : Lifecyc
 
     private static GameRuntimeFacade BuildRuntime(PartyState partyState, bool addBronzeSword)
     {
-        IReadOnlyDictionary<StringName, ItemDef> typedItemDefs = new ItemContentRegistry().GetItemDefsTyped();
-        GDictionary itemDefs = ProjectItemDefs(typedItemDefs);
+        IReadOnlyDictionary<StringName, ItemDefinition> typedItemDefs = new ItemContentRegistry().GetItemDefsTyped();
         int equipmentSerial = 1;
         Func<StringName> equipmentInstanceIdAllocator = () =>
             new StringName($"eq_party_command_{equipmentSerial++:000}");
@@ -107,20 +106,6 @@ public partial class run_game_runtime_party_command_handler_regression : Lifecyc
         }
 
         return runtime;
-    }
-
-    private static GDictionary ProjectItemDefs(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
-    {
-        GDictionary result = new();
-        if (itemDefs == null)
-            return result;
-        foreach ((StringName itemId, ItemDef itemDef) in itemDefs)
-        {
-            if (itemId == "" || itemDef == null)
-                continue;
-            result[itemId] = itemDef;
-        }
-        return result;
     }
 
     private static PartyState BuildPartyState()

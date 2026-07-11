@@ -245,7 +245,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
     private readonly Dictionary<StringName, SkillDefinition> _skillDefinitionIndex = new();
     private readonly Dictionary<StringName, EnemyTemplateDef> _enemyTemplateIndex = new();
     private readonly Dictionary<StringName, EnemyAiBrainDef> _enemyAiBrainIndex = new();
-    private readonly Dictionary<StringName, ItemDef> _itemDefIndex = new();
+    private readonly Dictionary<StringName, ItemDefinition> _itemDefIndex = new();
     private readonly Dictionary<StringName, TraitDefinition> _traitDefIndex = new();
     private readonly Dictionary<StringName, BarrierProfileDefinition> _barrierProfileIndex = new();
     private readonly Dictionary<StringName, EquipmentAbilityBindingDefinition> _equipmentAbilityBindingIndex = new();
@@ -373,7 +373,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemy_ai_brains = null,
         EncounterRosterBuilder encounter_builder = null,
         EquipmentDropService equipment_drop_service = null,
-        IReadOnlyDictionary<StringName, ItemDef> item_defs = null,
+        IReadOnlyDictionary<StringName, ItemDefinition> item_defs = null,
         BattleTerrainGenerator terrain_generator = null,
         Func<StringName> equipment_instance_id_allocator = null,
         GDictionary battle_special_profile_registry_snapshot = null,
@@ -397,15 +397,15 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _special_profile_view = battle_special_profile_view ?? BattleSpecialProfileRuntimeView.Empty;
         BindDamageResolver();
 
-        IReadOnlyDictionary<StringName, ItemDef> resolvedItemDefs = item_defs;
+        IReadOnlyDictionary<StringName, ItemDefinition> resolvedItemDefinitions = item_defs;
         if (
-            (resolvedItemDefs == null || resolvedItemDefs.Count == 0)
+            (resolvedItemDefinitions == null || resolvedItemDefinitions.Count == 0)
             && _characterGateway != null
         )
         {
-            resolvedItemDefs = _characterGateway.GetItemDefsTyped();
+            resolvedItemDefinitions = _characterGateway.GetItemDefsTyped();
         }
-        ApplyItemDefsTyped(resolvedItemDefs);
+        ApplyItemDefinitionsTyped(resolvedItemDefinitions);
         ApplyTraitDefsTyped(trait_defs);
         ApplyEquipmentAbilityBindingsTyped(equipment_ability_bindings);
         ApplyBarrierProfileDefinitionsTyped(barrier_profile_definitions);

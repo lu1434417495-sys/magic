@@ -244,7 +244,7 @@ public partial class run_battle_validation_result_projection_regression : Lifecy
             new Dictionary<StringName, EnemyAiBrainDef>(),
             null,
             null,
-            new Dictionary<StringName, ItemDef>(),
+            new Dictionary<StringName, ItemDefinition>(),
             null
         );
         BattleTestFixture.ConfigureDamageResolverForTests(runtime, new DeterministicBattleDamageResolver());

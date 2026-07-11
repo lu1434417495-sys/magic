@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Godot;
 
 public static class SkillBookItemFactory
@@ -9,14 +11,14 @@ public static class SkillBookItemFactory
     public static StringName BuildItemIdForSkill(StringName skillId) =>
         ProgressionDataUtils.to_string_name($"skill_book_{skillId}");
 
-    public static Dictionary<StringName, ItemDef> BuildGeneratedItemDefs(
+    internal static IReadOnlyDictionary<StringName, ItemDefinition> BuildGeneratedItemDefinitions(
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefs,
-        IReadOnlyDictionary<StringName, ItemDef> existingItemDefs = null
+        IReadOnlyDictionary<StringName, ItemDefinition> existingItemDefs = null
     )
     {
-        var generatedDefs = new Dictionary<StringName, ItemDef>();
+        var generatedDefs = new Dictionary<StringName, ItemDefinition>();
         if (skillDefs == null)
-            return generatedDefs;
+            return new ReadOnlyDictionary<StringName, ItemDefinition>(generatedDefs);
 
         foreach (SkillDefinition skillDef in skillDefs.Values)
         {
@@ -34,26 +36,37 @@ public static class SkillBookItemFactory
             if (existingItemDefs != null && existingItemDefs.ContainsKey(itemId))
                 continue;
 
-            var itemDef = new ItemDef
-            {
-                item_id = itemId,
-                display_name = _build_display_name(skillDef),
-                description = _build_description(skillDef),
-                icon = DEFAULT_ICON_PATH,
-                is_stackable = true,
-                max_stack = DEFAULT_MAX_STACK,
-                CategoryKind = ItemCategoryKind.SkillBook,
-                granted_skill_id = skillDef.SkillId,
-            };
-            GodotContentOwnership.RegisterDerivedContent(
-                itemDef,
-                $"skill_book_item:{itemId}",
-                "SkillBookItemFactory.BuildGeneratedItemDefs"
+            var itemDef = new ItemDefinition(
+                itemId,
+                "",
+                _build_display_name(skillDef),
+                _build_description(skillDef),
+                DEFAULT_ICON_PATH,
+                true,
+                0,
+                0,
+                0,
+                true,
+                DEFAULT_MAX_STACK,
+                ItemDefinition.ToStringName(ItemCategoryKind.SkillBook),
+                Array.Empty<StringName>(),
+                Array.Empty<StringName>(),
+                Array.Empty<StringName>(),
+                Array.Empty<StringName>(),
+                Array.Empty<TraitRollGroupDefinition>(),
+                Array.Empty<string>(),
+                Array.Empty<AttributeModifierDefinition>(),
+                skillDef.SkillId,
+                Array.Empty<string>(),
+                null,
+                "",
+                null,
+                -1
             );
             generatedDefs[itemId] = itemDef;
         }
 
-        return generatedDefs;
+        return new ReadOnlyDictionary<StringName, ItemDefinition>(generatedDefs);
     }
 
     private static string _build_display_name(SkillDefinition skillDef) =>

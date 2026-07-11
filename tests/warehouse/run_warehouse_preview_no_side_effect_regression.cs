@@ -23,7 +23,7 @@ public partial class run_warehouse_preview_no_side_effect_regression : Lifecycle
         try
         {
             PartyState party = BuildPartyState(1);
-            ItemDef item = BuildItemDef();
+            ItemDefinition item = BuildItemDef().ToDefinition();
             var traitDefs = new Dictionary<StringName, TraitDefinition>
             {
                 ["sharp_edge"] = BuildTraitDefinition(),
@@ -47,7 +47,7 @@ public partial class run_warehouse_preview_no_side_effect_regression : Lifecycle
             service = new PartyWarehouseService();
             service.Setup(
                 party,
-                new Dictionary<StringName, ItemDef> { [item.item_id] = item },
+                new Dictionary<StringName, ItemDefinition> { [item.ItemId] = item },
                 default,
                 rollService
             );

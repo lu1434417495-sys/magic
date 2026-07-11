@@ -185,7 +185,9 @@ public partial class run_game_root_content_catalog_regression : LifecycleTestSce
             int itemCountBefore = catalog.GetItemDefsTyped().Count;
 
             _test.Eq(
-                gameSession.InstallTestContentDef("item", CatalogProbeItemId, BuildProbeItemDef(CatalogProbeItemId)),
+                gameSession.InstallItemDefinitionForTests(
+                    BuildProbeItemDef(CatalogProbeItemId).ToDefinition()
+                ),
                 (int)Error.Ok,
                 "应能注册 content catalog 回归用探针物品。"
             );
@@ -308,16 +310,17 @@ public partial class run_game_root_content_catalog_regression : LifecycleTestSce
                 "GameSession quest definition snapshot 应拒绝写入。"
             );
 
-            IReadOnlyDictionary<StringName, ItemDef> itemView = catalog.GetItemDefsTyped();
+            IReadOnlyDictionary<StringName, ItemDefinition> itemView =
+                catalog.GetItemDefsTyped();
             _test.True(
-                itemView as Dictionary<StringName, ItemDef> == null,
+                itemView as Dictionary<StringName, ItemDefinition> == null,
                 "typed item getter 不应可被 downcast 成内部可变 Dictionary。"
             );
             int itemCountBefore = catalog.GetItemDefsTyped().Count;
             bool itemMutationBlocked = false;
             try
             {
-                ((IDictionary<StringName, ItemDef>)itemView).Clear();
+                ((IDictionary<StringName, ItemDefinition>)itemView).Clear();
             }
             catch (NotSupportedException)
             {
@@ -409,10 +412,8 @@ public partial class run_game_root_content_catalog_regression : LifecycleTestSce
                 return;
 
             _test.Eq(
-                gameSession.InstallTestContentDef(
-                    "item",
-                    DisposeProbeItemId,
-                    BuildProbeItemDef(DisposeProbeItemId)
+                gameSession.InstallItemDefinitionForTests(
+                    BuildProbeItemDef(DisposeProbeItemId).ToDefinition()
                 ),
                 (int)Error.Ok,
                 "应能注册 dispose 回归用探针物品。"
@@ -517,10 +518,8 @@ public partial class run_game_root_content_catalog_regression : LifecycleTestSce
 
             long revisionBefore = catalog.GetRevision();
             _test.Eq(
-                gameSession.InstallTestContentDef(
-                    "item",
-                    FacadeProbeItemId,
-                    BuildProbeItemDef(FacadeProbeItemId)
+                gameSession.InstallItemDefinitionForTests(
+                    BuildProbeItemDef(FacadeProbeItemId).ToDefinition()
                 ),
                 (int)Error.Ok,
                 "应能以 StringName key 注册 facade content catalog 回归用探针物品。"
@@ -561,10 +560,8 @@ public partial class run_game_root_content_catalog_regression : LifecycleTestSce
             GameContentCatalog catalog = runtime.GetContentCatalogTyped();
             long revisionBefore = catalog.GetRevision();
             _test.Eq(
-                gameSession.InstallTestContentDef(
-                    "item",
-                    RollerProbeItemId,
-                    BuildProbeItemDef(RollerProbeItemId)
+                gameSession.InstallItemDefinitionForTests(
+                    BuildProbeItemDef(RollerProbeItemId).ToDefinition()
                 ),
                 (int)Error.Ok,
                 "test content install should advance the content catalog revision."

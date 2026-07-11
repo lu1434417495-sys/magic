@@ -499,12 +499,13 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
     private static BattleRuntimeScope BuildRuntimeWithMemberItems(params ItemDef[] itemDefs)
     {
         PartyState partyState = BuildPartyState("hero");
-        var typedItemDefs = new Dictionary<StringName, ItemDef>();
+        var typedItemDefs = new Dictionary<StringName, ItemDefinition>();
         foreach (ItemDef itemDef in itemDefs)
         {
             if (itemDef != null)
             {
-                typedItemDefs[itemDef.item_id] = itemDef;
+                ItemDefinition itemDefinition = itemDef.ToDefinition();
+                typedItemDefs[itemDefinition.ItemId] = itemDefinition;
             }
         }
 
@@ -561,7 +562,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
             progressionRegistry.GetSkillDefinitionsTyped(),
             progressionRegistry.GetProfessionDefsTyped(),
             new Dictionary<StringName, AchievementDefinition>(),
-            new Dictionary<StringName, ItemDef>(),
+            new Dictionary<StringName, ItemDefinition>(),
             new Dictionary<StringName, QuestDefinition>(),
             traitDefs,
             null,
@@ -572,7 +573,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         runtime.setup(
             characterManagement,
             progressionRegistry.GetSkillDefinitionsTyped(),
-            item_defs: new Dictionary<StringName, ItemDef>()
+            item_defs: new Dictionary<StringName, ItemDefinition>()
         );
         return new BattleRuntimeScope(runtime, partyState);
     }
@@ -581,9 +582,12 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
     {
         PartyState partyState = BuildPartyState("hero");
         var progressionRegistry = new ProgressionContentRegistry();
-        var itemDefs = new Dictionary<StringName, ItemDef>();
+        var itemDefs = new Dictionary<StringName, ItemDefinition>();
         if (itemDef != null)
-            itemDefs[itemDef.item_id] = itemDef;
+        {
+            ItemDefinition itemDefinition = itemDef.ToDefinition();
+            itemDefs[itemDefinition.ItemId] = itemDefinition;
+        }
         var traitDefs = new Dictionary<StringName, TraitDefinition>
         {
             ["lucky_blade_trait"] = BuildTraitDefinition(
@@ -625,9 +629,12 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
     {
         PartyState partyState = BuildPartyState("hero");
         var progressionRegistry = new ProgressionContentRegistry();
-        var itemDefs = new Dictionary<StringName, ItemDef>();
+        var itemDefs = new Dictionary<StringName, ItemDefinition>();
         if (itemDef != null)
-            itemDefs[itemDef.item_id] = itemDef;
+        {
+            ItemDefinition itemDefinition = itemDef.ToDefinition();
+            itemDefs[itemDefinition.ItemId] = itemDefinition;
+        }
         var traitDefs = new Dictionary<StringName, TraitDefinition>
         {
             ["trait.weapon.flame"] = BuildTraitDefinition(

@@ -151,14 +151,18 @@ public partial class run_game_session_random_start_skill_regression : LifecycleT
         IEnumerable<StringName> candidates
     )
     {
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions =
+            gameSession.GetItemDefsTyped();
         foreach (StringName itemId in candidates)
         {
             if (itemId == "")
                 continue;
-            if (!itemDefs.TryGetValue(itemId, out ItemDef itemDef) || itemDef == null)
+            if (
+                !itemDefinitions.TryGetValue(itemId, out ItemDefinition itemDefinition)
+                || itemDefinition == null
+            )
                 continue;
-            if (itemDef.IsWeapon())
+            if (itemDefinition.IsWeapon())
                 return itemId;
         }
         return new StringName();

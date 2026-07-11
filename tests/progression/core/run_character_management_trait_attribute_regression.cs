@@ -68,7 +68,7 @@ public partial class run_character_management_trait_attribute_regression : Lifec
                 new Dictionary<StringName, SkillDefinition>(),
                 new Dictionary<StringName, ProfessionDefinition>(),
                 new Dictionary<StringName, AchievementDefinition>(),
-                new Dictionary<StringName, ItemDef>(),
+                new Dictionary<StringName, ItemDefinition>(),
                 new Dictionary<StringName, QuestDefinition>(),
                 traitDefs,
                 null,

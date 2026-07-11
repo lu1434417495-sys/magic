@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.IO;
 using Godot;
 
 public class RecipeContentRegistry : IValidatableRegistry, System.IDisposable
@@ -7,11 +9,11 @@ public class RecipeContentRegistry : IValidatableRegistry, System.IDisposable
 
     private const int RECIPE_QUANTITY_MAX = 9999;
 
-    private readonly Dictionary<StringName, RecipeDef> _recipe_defs = new();
+    private readonly Dictionary<StringName, RecipeDefinition> _recipe_defs = new();
 
     private readonly List<string> _validation_errors = new();
 
-    private Dictionary<StringName, ItemDef> _item_defs = new();
+    private Dictionary<StringName, ItemDefinition> _item_defs = new();
     private bool _disposed;
 
     public void Dispose()
@@ -36,11 +38,11 @@ public class RecipeContentRegistry : IValidatableRegistry, System.IDisposable
         _item_defs.Clear();
     }
 
-    internal void Setup(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
+    internal void Setup(IReadOnlyDictionary<StringName, ItemDefinition> itemDefs)
     {
         _item_defs = itemDefs != null
-            ? new Dictionary<StringName, ItemDef>(itemDefs)
-            : new Dictionary<StringName, ItemDef>();
+            ? new Dictionary<StringName, ItemDefinition>(itemDefs)
+            : new Dictionary<StringName, ItemDefinition>();
         Rebuild();
     }
 
@@ -64,7 +66,8 @@ public class RecipeContentRegistry : IValidatableRegistry, System.IDisposable
         return c;
     }
 
-    internal IReadOnlyDictionary<StringName, RecipeDef> GetRecipeDefsTyped() => _recipe_defs;
+    internal IReadOnlyDictionary<StringName, RecipeDefinition> GetRecipeDefsTyped() =>
+        new ReadOnlyDictionary<StringName, RecipeDefinition>(_recipe_defs);
 
     public IReadOnlyList<string> ValidateTyped() => _validation_errors;
 
@@ -140,6 +143,14 @@ public class RecipeContentRegistry : IValidatableRegistry, System.IDisposable
         if (rd.input_item_ids.Count == 0)
         {
             _validation_errors.Add($"Recipe {rd.recipe_id} must declare at least one input item.");
+            return;
+        }
+
+        if (rd.input_item_quantities == null)
+        {
+            _validation_errors.Add(
+                $"Recipe {rd.recipe_id} input_item_quantities must not be null."
+            );
             return;
         }
 
@@ -255,7 +266,16 @@ public class RecipeContentRegistry : IValidatableRegistry, System.IDisposable
             return;
         }
 
-        _recipe_defs[rd.recipe_id] = rd;
+        try
+        {
+            _recipe_defs[rd.recipe_id] = RecipeDefinition.FromResource(rd);
+        }
+        catch (InvalidDataException exception)
+        {
+            _validation_errors.Add(
+                $"Recipe config {resourcePath} projection failed: {exception.Message}"
+            );
+        }
     }
 
 }

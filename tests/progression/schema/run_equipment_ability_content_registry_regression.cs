@@ -1711,7 +1711,7 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
         };
     }
 
-    private static ItemDef BuildSourceItem(
+    private static ItemDefinition BuildSourceItem(
         StringName itemId,
         StringName tag,
         StringName equipmentTypeId
@@ -1726,7 +1726,7 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
         };
         item.tags.Add(tag);
         item.equipment_slot_ids.Add("main_hand");
-        return item;
+        return item.ToDefinition();
     }
 
     private void AssertRuntimeTypeHasNoResourceOrGodotDictionaryMembers(Type type)

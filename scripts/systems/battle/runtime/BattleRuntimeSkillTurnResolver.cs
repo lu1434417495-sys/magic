@@ -763,20 +763,27 @@ internal sealed class BattleRuntimeSkillTurnResolver
 
     private bool UnitHasEquippedShield(BattleUnitState active_unit)
     {
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs =
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions =
             _runtime != null
                 ? _runtime.GetItemDefIndexTyped()
-                : new Dictionary<StringName, ItemDef>();
-        return BattleEquipmentRequirementRules.UnitHasEquippedShield(active_unit, itemDefs);
+                : new Dictionary<StringName, ItemDefinition>();
+        return BattleEquipmentRequirementRules.UnitHasEquippedShield(
+            active_unit,
+            itemDefinitions
+        );
     }
 
     private bool UnitHasEquippedShield(BattleUnitReadView active_unit)
     {
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs =
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions =
             _runtime != null
                 ? _runtime.GetItemDefIndexTyped()
-                : new Dictionary<StringName, ItemDef>();
-        if (!active_unit.IsValid || itemDefs == null || itemDefs.Count == 0)
+                : new Dictionary<StringName, ItemDefinition>();
+        if (
+            !active_unit.IsValid
+            || itemDefinitions == null
+            || itemDefinitions.Count == 0
+        )
         {
             return false;
         }
@@ -790,8 +797,11 @@ internal sealed class BattleRuntimeSkillTurnResolver
             equipmentView.GetEquippedItemId(offhand)
         );
         return itemId != ""
-            && itemDefs.TryGetValue(itemId, out ItemDef itemDef)
-            && BattleEquipmentRequirementRules.ItemHasTag(itemDef, new StringName("shield"));
+            && itemDefinitions.TryGetValue(itemId, out ItemDefinition itemDefinition)
+            && BattleEquipmentRequirementRules.ItemHasTag(
+                itemDefinition,
+                new StringName("shield")
+            );
     }
 
     internal bool _skill_requires_option(SkillDefinition skillDefinition)

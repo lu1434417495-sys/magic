@@ -148,7 +148,7 @@ public partial class run_character_info_identity_regression : LifecycleTestScene
             BuildSkillDefinitions(),
             new Dictionary<StringName, ProfessionDefinition>(),
             new Dictionary<StringName, AchievementDefinition>(),
-            new Dictionary<StringName, ItemDef>(),
+            new Dictionary<StringName, ItemDefinition>(),
             new Dictionary<StringName, QuestDefinition>(),
             null,
             BuildProgressionIdentityCatalog()

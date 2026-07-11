@@ -109,10 +109,17 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
     {
         using EncounterRosterBuilder builder = new();
         StringName grantedSkillId = "enemy_flame_equipment_skill";
-        ItemDef weapon = MakeWeapon("enemy_flame_blade");
+        ItemDef weapon = TestResourceOwnership.Own(
+            MakeWeapon("enemy_flame_blade"),
+            "EncounterRosterBuilderTypedBoundary.enemy_flame_blade"
+        );
         weapon.trait_ids = new GStringNameArray { "trait.weapon.flame" };
         weapon.tags = new GStringNameArray { "blade" };
-        var itemDefs = new Dictionary<StringName, ItemDef> { [weapon.item_id] = weapon };
+        ItemDefinition weaponDefinition = weapon.ToDefinition();
+        var itemDefinitions = new Dictionary<StringName, ItemDefinition>
+        {
+            [weaponDefinition.ItemId] = weaponDefinition,
+        };
         var traitDefs = new Dictionary<StringName, TraitDefinition>
         {
             ["trait.weapon.flame"] = new TraitDefinition(
@@ -171,7 +178,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
             new Dictionary<StringName, SkillDefinition>(),
             enemyTemplates,
             new Dictionary<StringName, EnemyAiBrainDef>(),
-            itemDefs,
+            itemDefinitions,
             traitDefs: traitDefs,
             equipmentAbilityBindings: bindings
         );
@@ -544,16 +551,6 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
             return result;
         foreach ((StringName brainId, EnemyAiBrainDef brain) in enemyAiBrains)
             result[brainId] = brain;
-        return result;
-    }
-
-    private static GDictionary ProjectItemDefs(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
-    {
-        GDictionary result = new();
-        if (itemDefs == null)
-            return result;
-        foreach ((StringName itemId, ItemDef itemDef) in itemDefs)
-            result[itemId] = itemDef;
         return result;
     }
 

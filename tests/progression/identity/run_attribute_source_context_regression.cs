@@ -403,6 +403,7 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
                 Modifier("strength", 3, sourceType: "equipment", sourceId: "runtime_armor"),
             },
         };
+        ItemDefinition armorDefinition = armor.ToDefinition();
         EquipmentState equipmentState = new();
         _test.True(
             equipmentState.SetEquippedEntry(
@@ -422,7 +423,10 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
         {
             service.Setup(
                 new PartyState(),
-                new Dictionary<StringName, ItemDef> { [armor.item_id] = armor }
+                new Dictionary<StringName, ItemDefinition>
+                {
+                    [armorDefinition.ItemId] = armorDefinition,
+                }
             );
             IReadOnlyList<AttributeModifierDefinition> definitions =
                 service.BuildAttributeModifiersTyped(equipmentState);
@@ -482,7 +486,7 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
             new Dictionary<StringName, SkillDefinition>(),
             new Dictionary<StringName, ProfessionDefinition>(),
             new Dictionary<StringName, AchievementDefinition>(),
-            new Dictionary<StringName, ItemDef>(),
+            new Dictionary<StringName, ItemDefinition>(),
             new Dictionary<StringName, QuestDefinition>(),
             null,
             MakeIdentityCatalog()

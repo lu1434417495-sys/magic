@@ -455,7 +455,9 @@ public partial class run_shieldbreaker_guard_breaker_regression : LifecycleTestS
         {
             ItemContentRegistry itemRegistry = new();
             ProgressionContentRegistry progressionRegistry = new();
-            Dictionary<StringName, ItemDef> itemDefs = new(itemRegistry.GetItemDefsTyped());
+            Dictionary<StringName, ItemDefinition> itemDefs = new(
+                itemRegistry.GetItemDefsTyped()
+            );
             itemDefs[CommonShieldId] = BuildShieldItem(CommonShieldId);
             itemDefs[UncommonShieldId] = BuildShieldItem(UncommonShieldId);
 
@@ -544,19 +546,23 @@ public partial class run_shieldbreaker_guard_breaker_regression : LifecycleTestS
             return partyState;
         }
 
-        private static ItemDef BuildShieldItem(StringName itemId)
+        private static ItemDefinition BuildShieldItem(StringName itemId)
         {
-            return new ItemDef
-            {
-                item_id = itemId,
-                display_name = itemId.ToString(),
-                item_category = "equipment",
-                equipment_type_id = "armor",
-                equipment_slot_ids = new Godot.Collections.Array<string> { "off_hand" },
-                is_stackable = false,
-                max_stack = 1,
-                tags = new GStringNameArray { "shield" },
-            };
+            ItemDef itemResource = TestResourceOwnership.Own(
+                new ItemDef
+                {
+                    item_id = itemId,
+                    display_name = itemId.ToString(),
+                    item_category = "equipment",
+                    equipment_type_id = "armor",
+                    equipment_slot_ids = new Godot.Collections.Array<string> { "off_hand" },
+                    is_stackable = false,
+                    max_stack = 1,
+                    tags = new GStringNameArray { "shield" },
+                },
+                $"ShieldbreakerGuardBreaker.BuildShieldItem.{itemId}"
+            );
+            return itemResource.ToDefinition();
         }
     }
 }

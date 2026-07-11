@@ -243,7 +243,7 @@ public partial class run_effective_mp_reservation_regression : LifecycleTestScen
             BuildSkillIndex(skillDefinitions),
             new Dictionary<StringName, ProfessionDefinition>(),
             new Dictionary<StringName, AchievementDefinition>(),
-            new Dictionary<StringName, ItemDef>(),
+            new Dictionary<StringName, ItemDefinition>(),
             new Dictionary<StringName, QuestDefinition>(),
             new Dictionary<StringName, TraitDefinition>(),
             null,

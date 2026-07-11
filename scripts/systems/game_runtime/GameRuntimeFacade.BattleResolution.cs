@@ -565,7 +565,7 @@ public sealed partial class GameRuntimeFacade
         var itemDefs =
             GetContentCatalogTyped() != null
                 ? GetContentCatalogTyped().GetItemDefsTyped()
-                : new Dictionary<StringName, ItemDef>();
+                : new Dictionary<StringName, ItemDefinition>();
         var unlockedIds = fateRuntime.HandleMisfortuneForgeResult(member_id, result, itemDefs);
         if (_character_management != null)
             _party_state = _character_management.GetPartyState();

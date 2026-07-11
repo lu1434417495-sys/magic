@@ -160,11 +160,11 @@ public partial class run_character_management_weapon_projection_regression : Lif
         params ItemDef[] itemDefs
     )
     {
-        Dictionary<StringName, ItemDef> indexedItemDefs = new();
+        Dictionary<StringName, ItemDefinition> indexedItemDefs = new();
         foreach (ItemDef itemDef in itemDefs)
         {
             if (itemDef != null)
-                indexedItemDefs[itemDef.item_id] = itemDef;
+                indexedItemDefs[itemDef.item_id] = itemDef.ToDefinition();
         }
 
         CharacterManagementModule manager = new();

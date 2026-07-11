@@ -34,16 +34,16 @@ public sealed class WeaponDice
         return FromValues(count, sides, bonus);
     }
 
-    internal static WeaponDice FromResource(WeaponDamageDiceDef diceResource)
+    internal static WeaponDice FromDefinition(WeaponDamageDiceDefinition diceDefinition)
     {
-        if (diceResource == null)
+        if (diceDefinition == null)
         {
             return new WeaponDice();
         }
         return FromValues(
-            diceResource.GetDiceCount(),
-            diceResource.GetDiceSides(),
-            diceResource.flat_bonus
+            diceDefinition.GetDiceCount(),
+            diceDefinition.GetDiceSides(),
+            diceDefinition.FlatBonus
         );
     }
 

@@ -50,7 +50,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     private Dictionary<StringName, SkillDefinition> _skill_definition_index = new();
     private Dictionary<StringName, ProfessionDefinition> _profession_def_index = new();
     private Dictionary<StringName, AchievementDefinition> _achievement_def_index = new();
-    private Dictionary<StringName, ItemDef> _item_def_index = new();
+    private Dictionary<StringName, ItemDefinition> _item_def_index = new();
     private Dictionary<StringName, TraitDefinition> _trait_def_index = new();
     private ProgressionIdentityCatalogData _progression_identity_catalog = new();
     private readonly Dictionary<StringName, StringName> _ai_brain_by_member_id = new();
@@ -139,7 +139,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         IReadOnlyDictionary<StringName, SkillDefinition> typed_skill_definitions,
         IReadOnlyDictionary<StringName, ProfessionDefinition> typed_profession_defs,
         IReadOnlyDictionary<StringName, AchievementDefinition> typed_achievement_defs,
-        IReadOnlyDictionary<StringName, ItemDef> typed_item_defs,
+        IReadOnlyDictionary<StringName, ItemDefinition> typed_item_defs,
         IReadOnlyDictionary<StringName, TraitDefinition> typed_trait_defs,
         ProgressionIdentityCatalogData progression_identity_catalog
     )
@@ -154,8 +154,8 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
             ? new Dictionary<StringName, AchievementDefinition>(typed_achievement_defs)
             : new Dictionary<StringName, AchievementDefinition>();
         _item_def_index = typed_item_defs != null
-            ? new Dictionary<StringName, ItemDef>(typed_item_defs)
-            : new Dictionary<StringName, ItemDef>();
+            ? new Dictionary<StringName, ItemDefinition>(typed_item_defs)
+            : new Dictionary<StringName, ItemDefinition>();
         _trait_def_index = typed_trait_defs != null
             ? new Dictionary<StringName, TraitDefinition>(typed_trait_defs)
             : new Dictionary<StringName, TraitDefinition>();
@@ -232,11 +232,12 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     public PartyMemberState GetMemberState(StringName member_id) =>
         party_state?.GetMemberState(member_id);
 
-    public IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped() => _item_def_index;
+    public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsTyped() =>
+        _item_def_index;
 
     public bool HasItemDefCatalog() => _item_def_index.Count > 0;
 
-    public ItemDef GetItemDef(StringName item_id) =>
+    public ItemDefinition GetItemDef(StringName item_id) =>
         character_management?.GetItemDef(item_id) ?? GetIndexedItemDef(item_id);
 
     public AttributeSnapshot GetMemberAttributeSnapshotForEquipmentView(
@@ -1424,8 +1425,10 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
             ? professionDef
             : null;
 
-    private ItemDef GetIndexedItemDef(StringName item_id) =>
-        _item_def_index.TryGetValue(item_id, out ItemDef itemDef) ? itemDef : null;
+    private ItemDefinition GetIndexedItemDef(StringName item_id) =>
+        _item_def_index.TryGetValue(item_id, out ItemDefinition itemDefinition)
+            ? itemDefinition
+            : null;
 
     private static int _d_int(Godot.Collections.Dictionary d, string key, int fallback) =>
         d != null && d.ContainsKey(key) ? d[key].AsInt32() : fallback;

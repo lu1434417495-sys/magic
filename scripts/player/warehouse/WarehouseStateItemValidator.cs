@@ -5,7 +5,7 @@ public static class WarehouseStateItemValidator
 {
     public static List<string> Validate(
         WarehouseState warehouseState,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         string contextPath = "warehouse_state"
     )
     {
@@ -26,7 +26,7 @@ public static class WarehouseStateItemValidator
 
     private static void _validate_stacks(
         WarehouseState warehouseState,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         string contextPath,
         List<string> errors
     )
@@ -54,7 +54,7 @@ public static class WarehouseStateItemValidator
                 continue;
             }
 
-            ItemDef itemDef = _get_item_def(itemDefs, itemId);
+            ItemDefinition itemDef = _get_item_def(itemDefs, itemId);
 
             if (itemDef == null)
             {
@@ -81,7 +81,7 @@ public static class WarehouseStateItemValidator
 
     private static void _validate_equipment_instances(
         WarehouseState warehouseState,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         string contextPath,
         List<string> errors
     )
@@ -108,7 +108,7 @@ public static class WarehouseStateItemValidator
                 continue;
             }
 
-            ItemDef itemDef = _get_item_def(itemDefs, itemId);
+            ItemDefinition itemDef = _get_item_def(itemDefs, itemId);
 
             if (itemDef == null)
             {
@@ -125,12 +125,12 @@ public static class WarehouseStateItemValidator
         }
     }
 
-    private static ItemDef _get_item_def(
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+    private static ItemDefinition _get_item_def(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         StringName itemId
     )
     {
-        return itemDefs != null && itemDefs.TryGetValue(itemId, out ItemDef itemDef)
+        return itemDefs != null && itemDefs.TryGetValue(itemId, out ItemDefinition itemDef)
             ? itemDef
             : null;
     }

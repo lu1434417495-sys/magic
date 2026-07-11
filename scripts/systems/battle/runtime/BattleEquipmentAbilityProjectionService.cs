@@ -8,7 +8,7 @@ internal static class BattleEquipmentAbilityProjectionService
         BattleUnitState unit,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindings,
         IReadOnlyDictionary<StringName, TraitDefinition> traitDefs,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
         List<BattleEquipmentAbilitySourceState> result = new();
@@ -47,7 +47,10 @@ internal static class BattleEquipmentAbilityProjectionService
             if (equipmentEntry == null || equipmentEntry.IsEmpty())
                 continue;
 
-            ItemDef sourceItem = ResolveItemDef(equipmentEntry.item_id, itemDefs);
+            ItemDefinition sourceItem = ResolveItemDefinition(
+                equipmentEntry.item_id,
+                itemDefinitions
+            );
             IReadOnlyList<EquipmentAbilityBindingDefinition> matchedBindings =
                 EquipmentAbilityBindingMatcher.FindBindings(
                     bindings.Values,
@@ -84,7 +87,7 @@ internal static class BattleEquipmentAbilityProjectionService
         EnemyTemplateDef template,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindings,
         IReadOnlyDictionary<StringName, TraitDefinition> traitDefs,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
         List<BattleEquipmentAbilitySourceState> result = new();
@@ -99,7 +102,10 @@ internal static class BattleEquipmentAbilityProjectionService
         if (attackEquipmentItemId == "")
             return result;
 
-        ItemDef sourceItem = ResolveItemDef(attackEquipmentItemId, itemDefs);
+        ItemDefinition sourceItem = ResolveItemDefinition(
+            attackEquipmentItemId,
+            itemDefinitions
+        );
         if (sourceItem == null)
             return result;
 
@@ -176,15 +182,20 @@ internal static class BattleEquipmentAbilityProjectionService
         return null;
     }
 
-    private static ItemDef ResolveItemDef(
+    private static ItemDefinition ResolveItemDefinition(
         StringName itemId,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
         StringName normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
-        if (normalizedItemId == "" || itemDefs == null)
+        if (normalizedItemId == "" || itemDefinitions == null)
             return null;
-        return itemDefs.TryGetValue(normalizedItemId, out ItemDef itemDef) ? itemDef : null;
+        return itemDefinitions.TryGetValue(
+            normalizedItemId,
+            out ItemDefinition itemDefinition
+        )
+            ? itemDefinition
+            : null;
     }
 
     private static IReadOnlySet<StringName> GetTraitCategories(

@@ -152,7 +152,7 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         StringName traitId,
         TraitSourceKind sourceKind,
         IReadOnlySet<StringName> traitCategories,
-        ItemDef sourceItem
+        ItemDefinition sourceItem
     )
     {
         if (traitId == "" || sourceKind == TraitSourceKind.Unknown)

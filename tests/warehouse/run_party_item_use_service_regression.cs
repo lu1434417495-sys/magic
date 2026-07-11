@@ -25,7 +25,7 @@ public partial class run_party_item_use_service_regression : LifecycleTestSceneT
         var fixture = BuildFixture();
         fixture.Service.Setup(
             fixture.PartyState,
-            fixture.ItemDefIndex,
+            fixture.ItemDefinitions,
             fixture.SkillDefinitionIndex,
             fixture.WarehouseService,
             fixture.CharacterManagement
@@ -65,7 +65,7 @@ public partial class run_party_item_use_service_regression : LifecycleTestSceneT
         var fixture = BuildFixture();
         fixture.Service.Setup(
             fixture.PartyState,
-            fixture.ItemDefIndex,
+            fixture.ItemDefinitions,
             fixture.SkillDefinitionIndex,
             fixture.WarehouseService,
             fixture.CharacterManagement
@@ -97,13 +97,16 @@ public partial class run_party_item_use_service_regression : LifecycleTestSceneT
     private static Fixture BuildFixture()
     {
         PartyState partyState = BuildPartyState();
-        GDictionary itemDefs = BuildItemDefs();
+        Dictionary<StringName, ItemDefinition> itemDefinitions = BuildItemDefinitions();
         Dictionary<StringName, SkillDefinition> skillDefinitions = BuildSkillDefinitions();
-        PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
+        PartyWarehouseService warehouseService = BuildWarehouseService(
+            partyState,
+            itemDefinitions
+        );
         CharacterManagementModule characterManagement = BuildCharacterManagement(
             partyState,
             skillDefinitions,
-            itemDefs
+            itemDefinitions
         );
 
         return new Fixture(
@@ -111,11 +114,7 @@ public partial class run_party_item_use_service_regression : LifecycleTestSceneT
             warehouseService,
             characterManagement,
             new PartyItemUseService(),
-            new Dictionary<StringName, ItemDef>
-            {
-                ["skill_book_focus"] = (ItemDef)
-                    itemDefs[new StringName("skill_book_focus")].AsGodotObject(),
-            },
+            itemDefinitions,
             skillDefinitions
         );
     }
@@ -144,13 +143,9 @@ public partial class run_party_item_use_service_regression : LifecycleTestSceneT
         return partyState;
     }
 
-    private static GDictionary BuildItemDefs()
+    private static Dictionary<StringName, ItemDefinition> BuildItemDefinitions()
     {
-        GDictionary result = TestResourceOwnership.OwnWrapper(
-            new GDictionary(),
-            "party_item_use_service.item_defs"
-        );
-        result[new StringName("skill_book_focus")] = TestResourceOwnership.Own(
+        ItemDef authored = TestResourceOwnership.Own(
             new ItemDef
             {
                 item_id = "skill_book_focus",
@@ -162,7 +157,10 @@ public partial class run_party_item_use_service_regression : LifecycleTestSceneT
             },
             "party_item_use_service.skill_book_focus"
         );
-        return result;
+        return new Dictionary<StringName, ItemDefinition>
+        {
+            ["skill_book_focus"] = authored.ToDefinition(),
+        };
     }
 
     private static Dictionary<StringName, SkillDefinition> BuildSkillDefinitions()
@@ -206,36 +204,18 @@ public partial class run_party_item_use_service_regression : LifecycleTestSceneT
 
     private static PartyWarehouseService BuildWarehouseService(
         PartyState partyState,
-        GDictionary itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
         PartyWarehouseService service = new();
-        service.Setup(partyState, BuildItemDefIndex(itemDefs));
+        service.Setup(partyState, itemDefinitions);
         return service;
-    }
-
-    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
-    {
-        Dictionary<StringName, ItemDef> result = new();
-        if (itemDefs == null)
-            return result;
-        foreach (Variant rawKey in itemDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            StringName itemId = rawKey.AsStringName();
-            if (itemId == "")
-                continue;
-            if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
-                result[itemId] = itemDef;
-        }
-        return result;
     }
 
     private static CharacterManagementModule BuildCharacterManagement(
         PartyState partyState,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
-        GDictionary itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
         CharacterManagementModule module = new();
@@ -244,7 +224,7 @@ public partial class run_party_item_use_service_regression : LifecycleTestSceneT
             skillDefinitions,
             new Dictionary<StringName, ProfessionDefinition>(),
             new Dictionary<StringName, AchievementDefinition>(),
-            BuildItemDefIndex(itemDefs)
+            itemDefinitions
         );
         return module;
     }
@@ -257,7 +237,7 @@ public partial class run_party_item_use_service_regression : LifecycleTestSceneT
         public PartyWarehouseService WarehouseService { get; }
         public CharacterManagementModule CharacterManagement { get; }
         public PartyItemUseService Service { get; }
-        public Dictionary<StringName, ItemDef> ItemDefIndex { get; }
+        public IReadOnlyDictionary<StringName, ItemDefinition> ItemDefinitions { get; }
         public IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitionIndex { get; }
 
         public Fixture(
@@ -265,7 +245,7 @@ public partial class run_party_item_use_service_regression : LifecycleTestSceneT
             PartyWarehouseService warehouseService,
             CharacterManagementModule characterManagement,
             PartyItemUseService service,
-            Dictionary<StringName, ItemDef> itemDefIndex,
+            IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
             IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitionIndex
         )
         {
@@ -273,7 +253,7 @@ public partial class run_party_item_use_service_regression : LifecycleTestSceneT
             WarehouseService = warehouseService;
             CharacterManagement = characterManagement;
             Service = service;
-            ItemDefIndex = itemDefIndex;
+            ItemDefinitions = itemDefinitions;
             SkillDefinitionIndex = skillDefinitionIndex;
         }
     }

@@ -34,8 +34,8 @@ public sealed class GameContentCatalog
     private IReadOnlyDictionary<StringName, EquipmentAbilityContentPackDefinition> _equipmentAbilityPacks;
     private IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> _equipmentAbilityBindings;
     private IReadOnlyDictionary<StringName, BarrierProfileDefinition> _barrierProfileDefinitions;
-    private IReadOnlyDictionary<StringName, ItemDef> _itemDefs;
-    private IReadOnlyDictionary<StringName, RecipeDef> _recipeDefs;
+    private IReadOnlyDictionary<StringName, ItemDefinition> _itemDefinitions;
+    private IReadOnlyDictionary<StringName, RecipeDefinition> _recipeDefinitions;
     private IReadOnlyDictionary<StringName, EnemyTemplateDef> _enemyTemplates;
     private IReadOnlyDictionary<StringName, EnemyAiBrainDef> _enemyAiBrains;
     private IReadOnlyDictionary<StringName, WildEncounterRosterDef> _wildEncounterRosters;
@@ -97,8 +97,8 @@ public sealed class GameContentCatalog
         _barrierProfileDefinitions = SnapshotTyped(
             session.GetBarrierProfileDefinitionsTyped()
         );
-        _itemDefs = SnapshotTyped(session.GetItemDefsTyped());
-        _recipeDefs = SnapshotTyped(session.GetRecipeDefsTyped());
+        _itemDefinitions = SnapshotTyped(session.GetItemDefsTyped());
+        _recipeDefinitions = SnapshotTyped(session.GetRecipeDefsTyped());
         _enemyTemplates = SnapshotTyped(session.GetEnemyTemplatesTyped());
         _enemyAiBrains = SnapshotTyped(session.GetEnemyAiBrainsTyped());
         _wildEncounterRosters = SnapshotTyped(session.GetWildEncounterRostersTyped());
@@ -128,8 +128,8 @@ public sealed class GameContentCatalog
         _equipmentAbilityPacks = EmptyTyped<EquipmentAbilityContentPackDefinition>();
         _equipmentAbilityBindings = EmptyTyped<EquipmentAbilityBindingDefinition>();
         _barrierProfileDefinitions = EmptyTyped<BarrierProfileDefinition>();
-        _itemDefs = EmptyTyped<ItemDef>();
-        _recipeDefs = EmptyTyped<RecipeDef>();
+        _itemDefinitions = EmptyTyped<ItemDefinition>();
+        _recipeDefinitions = EmptyTyped<RecipeDefinition>();
         _enemyTemplates = EmptyTyped<EnemyTemplateDef>();
         _enemyAiBrains = EmptyTyped<EnemyAiBrainDef>();
         _wildEncounterRosters = EmptyTyped<WildEncounterRosterDef>();
@@ -207,9 +207,11 @@ public sealed class GameContentCatalog
         return _questDefs.TryGetValue(questId, out QuestDefinition questDef) ? questDef : null;
     }
 
-    public IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped() => _itemDefs;
+    public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsTyped() =>
+        _itemDefinitions;
 
-    public IReadOnlyDictionary<StringName, RecipeDef> GetRecipeDefsTyped() => _recipeDefs;
+    public IReadOnlyDictionary<StringName, RecipeDefinition> GetRecipeDefsTyped() =>
+        _recipeDefinitions;
 
     public IReadOnlyDictionary<StringName, EnemyTemplateDef> GetEnemyTemplatesTyped() =>
         _enemyTemplates;

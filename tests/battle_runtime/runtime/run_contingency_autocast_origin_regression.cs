@@ -979,12 +979,12 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
 
         public PartyState GetPartyState() => _partyState;
 
-        public IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped() =>
-            new Dictionary<StringName, ItemDef>();
+        public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsTyped() =>
+            new Dictionary<StringName, ItemDefinition>();
 
         public bool HasItemDefCatalog() => false;
 
-        public ItemDef GetItemDef(StringName item_id) => null;
+        public ItemDefinition GetItemDef(StringName item_id) => null;
 
         public PartyMemberState GetMemberState(StringName member_id) =>
             _partyState?.GetMemberState(member_id);

@@ -309,7 +309,7 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
 
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             gameSession.GetSkillDefinitionsTyped();
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = gameSession.GetItemDefsTyped();
         var sortedSkillIds = new List<StringName>(skillDefinitions.Keys);
         sortedSkillIds.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
         foreach (StringName skillId in sortedSkillIds)
@@ -359,11 +359,7 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
         runtime._party_warehouse_service.Setup(partyState, BuildTypedItemDefs(itemDefs));
         runtime._party_item_use_service.Setup(
             partyState,
-            new Dictionary<StringName, ItemDef>
-            {
-                ["skill_book_focus"] = (ItemDef)
-                    itemDefs[new StringName("skill_book_focus")].AsGodotObject(),
-            },
+            BuildTypedItemDefs(itemDefs),
             skillDefinitions,
             runtime._party_warehouse_service,
             runtime._character_management
@@ -402,9 +398,9 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
         return result;
     }
 
-    private static Dictionary<StringName, ItemDef> BuildTypedItemDefs(GDictionary itemDefs)
+    private static Dictionary<StringName, ItemDefinition> BuildTypedItemDefs(GDictionary itemDefs)
     {
-        Dictionary<StringName, ItemDef> result = new();
+        Dictionary<StringName, ItemDefinition> result = new();
         foreach (Variant rawKey in itemDefs.Keys)
         {
             if (rawKey.VariantType != Variant.Type.StringName)
@@ -413,7 +409,7 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
             if (itemId == "")
                 continue;
             if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
-                result[itemId] = itemDef;
+                result[itemId] = itemDef.ToDefinition();
         }
         return result;
     }

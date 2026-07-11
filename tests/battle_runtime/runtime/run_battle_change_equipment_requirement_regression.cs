@@ -1,9 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_battle_change_equipment_requirement_regression : LifecycleTestSceneTree
@@ -29,13 +26,13 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
 
     private void TestBattleChangeEquipmentEnforcesItemRequirement()
     {
-        var itemDefs = new GDictionary
+        var itemDefs = new Dictionary<StringName, ItemDefinition>
         {
             [RestrictedHelmId] = BuildRestrictedHelmItem(RestrictedHelmId),
         };
         PartyState party = BuildParty("requirement_hero", 2);
         PartyMemberState member = party.GetMemberState("requirement_hero");
-        var runtime = BuildRuntime(party, itemDefs);
+        var runtime = BuildRuntime(party, itemDefs, out CharacterManagementModule gateway);
         BattleState state = BuildState("change_equipment_requirement_regression");
         BattleUnitState unit = BuildUnit("requirement_hero", Vector2I.Zero, 2);
         unit.source_member_id = "requirement_hero";
@@ -108,14 +105,19 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
             Array.Empty<string>(),
             "需求满足后应从 battle-local 背包移除实例。"
         );
+        runtime.Dispose();
+        gateway.Dispose();
     }
 
     private void TestDuplicateSameItemBattleEquipAndUnequipPreservesInstance()
     {
-        var itemDefs = new GDictionary { [DuplicateHelmId] = BuildPlainHelmItem(DuplicateHelmId) };
+        var itemDefs = new Dictionary<StringName, ItemDefinition>
+        {
+            [DuplicateHelmId] = BuildPlainHelmItem(DuplicateHelmId),
+        };
         PartyState party = BuildParty("duplicate_hero", 2);
         PartyMemberState member = party.GetMemberState("duplicate_hero");
-        var runtime = BuildRuntime(party, itemDefs);
+        var runtime = BuildRuntime(party, itemDefs, out CharacterManagementModule gateway);
         BattleState state = BuildState("change_equipment_duplicate_regression");
         BattleUnitState unit = BuildUnit("duplicate_hero", Vector2I.Zero, 4);
         unit.source_member_id = "duplicate_hero";
@@ -223,13 +225,18 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
             );
             _test.Eq(returnedInstance.current_durability, 29, "卸回背包的 rare 实例应保留耐久。");
         }
+        runtime.Dispose();
+        gateway.Dispose();
     }
 
     private void TestChangeEquipmentRejectsInactiveCommandUnitWithTypedReport()
     {
-        var itemDefs = new GDictionary { [DuplicateHelmId] = BuildPlainHelmItem(DuplicateHelmId) };
+        var itemDefs = new Dictionary<StringName, ItemDefinition>
+        {
+            [DuplicateHelmId] = BuildPlainHelmItem(DuplicateHelmId),
+        };
         PartyState party = BuildParty("active_hero", 2);
-        var runtime = BuildRuntime(party, itemDefs);
+        var runtime = BuildRuntime(party, itemDefs, out CharacterManagementModule gateway);
         BattleState state = BuildState("change_equipment_inactive_command_unit");
         BattleUnitState activeUnit = BuildUnit("active_hero", Vector2I.Zero, 4);
         BattleUnitState otherUnit = BuildUnit("other_hero", new Vector2I(1, 0), 4);
@@ -259,39 +266,21 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
             otherUnit.unit_id.ToString(),
             "非当前行动单位 report 应记录命令目标单位。"
         );
+        runtime.Dispose();
+        gateway.Dispose();
     }
 
-    private static BattleRuntimeModule BuildRuntime(PartyState party, GDictionary itemDefs)
+    private static BattleRuntimeModule BuildRuntime(
+        PartyState party,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
+        out CharacterManagementModule gateway
+    )
     {
-        var gateway = new CharacterManagementModule();
-        gateway.setup(party, item_defs: BuildItemDefIndex(itemDefs));
+        gateway = new CharacterManagementModule();
+        gateway.setup(party, item_defs: itemDefinitions);
         var runtime = new BattleRuntimeModule();
-        runtime.setup(
-            gateway,
-            item_defs: BuildItemDefIndex(itemDefs)
-        );
+        runtime.setup(gateway, item_defs: itemDefinitions);
         return runtime;
-    }
-
-    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
-    {
-        var result = new Dictionary<StringName, ItemDef>();
-        if (itemDefs == null)
-        {
-            return result;
-        }
-        foreach (Variant key in itemDefs.Keys)
-        {
-            if (key.VariantType == Variant.Type.StringName)
-            {
-                ItemDef itemDef = itemDefs[key].As<ItemDef>();
-                if (itemDef != null)
-                {
-                    result[key.AsStringName()] = itemDef;
-                }
-            }
-        }
-        return result;
     }
 
     private void InstallUnits(
@@ -323,31 +312,56 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
         _test.True(runtime._grid_service.PlaceUnit(state, enemy, enemy.coord, true), "测试敌方应能放入战场。");
     }
 
-    private static ItemDef BuildRestrictedHelmItem(StringName itemId)
+    private static ItemDefinition BuildRestrictedHelmItem(StringName itemId)
     {
-        var itemDef = BuildPlainHelmItem(itemId);
-        var requirement = new EquipmentRequirement
-        {
-            required_profession_ids = new GStringArray { "helmet_training" },
-            min_body_size = 3,
-        };
-        itemDef.display_name = "Requirement Test Helm";
-        itemDef.equip_requirement = requirement;
-        return itemDef;
+        return BuildHelmItem(
+            itemId,
+            "Requirement Test Helm",
+            new EquipmentRequirementDefinition(
+                new[] { "helmet_training" },
+                3,
+                0,
+                Array.Empty<EquipmentAttributeRequirementDefinition>()
+            )
+        );
     }
 
-    private static ItemDef BuildPlainHelmItem(StringName itemId)
+    private static ItemDefinition BuildPlainHelmItem(StringName itemId) =>
+        BuildHelmItem(itemId, "Duplicate Test Helm", null);
+
+    private static ItemDefinition BuildHelmItem(
+        StringName itemId,
+        string displayName,
+        EquipmentRequirementDefinition requirement
+    )
     {
-        return new ItemDef
-        {
-            item_id = itemId,
-            display_name = "Duplicate Test Helm",
-            item_category = "equipment",
-            equipment_type_id = "armor",
-            equipment_slot_ids = new GStringArray { "head" },
-            is_stackable = false,
-            max_stack = 1,
-        };
+        return new ItemDefinition(
+            itemId,
+            "",
+            displayName,
+            "",
+            "",
+            false,
+            0,
+            0,
+            0,
+            true,
+            1,
+            ItemDefinition.ToStringName(ItemCategoryKind.Equipment),
+            Array.Empty<StringName>(),
+            Array.Empty<StringName>(),
+            Array.Empty<StringName>(),
+            Array.Empty<StringName>(),
+            Array.Empty<TraitRollGroupDefinition>(),
+            new[] { "head" },
+            Array.Empty<AttributeModifierDefinition>(),
+            "",
+            Array.Empty<string>(),
+            requirement,
+            ItemDefinition.ToStringName(ItemEquipmentTypeKind.Armor),
+            null,
+            -1
+        );
     }
 
     private static PartyState BuildParty(StringName memberId, int bodySize)

@@ -79,7 +79,7 @@ public partial class run_settlement_action_request_boundary_regression : Lifecyc
             }
         );
         ConfigureSessionForRuntimeTest(gameSession, worldData, partyState, BuildQuestDefs());
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = gameSession.GetItemDefsTyped();
 
         var runtime = new GameRuntimeFacade
         {

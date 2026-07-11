@@ -4,7 +4,7 @@ using Godot;
 public class PartyItemUseService
 {
     private PartyState _party_state = new();
-    private Dictionary<StringName, ItemDef> _item_defs = new();
+    private Dictionary<StringName, ItemDefinition> _itemDefinitions = new();
     private Dictionary<StringName, SkillDefinition> _skill_definitions = new();
     private PartyWarehouseService _warehouse_service;
     private CharacterManagementModule _character_management;
@@ -79,16 +79,16 @@ public class PartyItemUseService
 
     public void Setup(
         PartyState partyState,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         PartyWarehouseService warehouseService,
         CharacterManagementModule characterManagement
     )
     {
         _party_state = partyState ?? new PartyState();
-        _item_defs = itemDefs != null
-            ? new Dictionary<StringName, ItemDef>(itemDefs)
-            : new Dictionary<StringName, ItemDef>();
+        _itemDefinitions = itemDefinitions != null
+            ? new Dictionary<StringName, ItemDefinition>(itemDefinitions)
+            : new Dictionary<StringName, ItemDefinition>();
         _skill_definitions = skillDefinitions != null
             ? new Dictionary<StringName, SkillDefinition>(skillDefinitions)
             : new Dictionary<StringName, SkillDefinition>();
@@ -99,7 +99,7 @@ public class PartyItemUseService
     public void Dispose()
     {
         _party_state = null;
-        _item_defs.Clear();
+        _itemDefinitions.Clear();
         _skill_definitions.Clear();
         _warehouse_service = null;
         _character_management = null;
@@ -131,7 +131,7 @@ public class PartyItemUseService
         if (_warehouse_service.CountItem(normalizedItemId) <= 0)
             return result.WithReason("missing_inventory");
 
-        var skillId = itemDef.granted_skill_id;
+        var skillId = itemDef.GrantedSkillId;
         result.WithSkill(skillId);
         if (!TryGetSkillDefinition(skillId, out _))
             return result.WithReason("missing_skill_def");
@@ -153,12 +153,12 @@ public class PartyItemUseService
         return result.WithSuccess(removeResult.RemovedQuantity);
     }
 
-    private bool TryGetItemDef(StringName itemId, out ItemDef itemDef)
+    private bool TryGetItemDef(StringName itemId, out ItemDefinition itemDefinition)
     {
         var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
         if (normalizedItemId != "")
-            return _item_defs.TryGetValue(normalizedItemId, out itemDef);
-        itemDef = null;
+            return _itemDefinitions.TryGetValue(normalizedItemId, out itemDefinition);
+        itemDefinition = null;
         return false;
     }
 

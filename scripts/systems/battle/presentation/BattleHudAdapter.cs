@@ -692,7 +692,7 @@ public sealed class BattleHudAdapter : IDisposable
             GetSkillCatalog(),
             GetSkillDefinitions(),
             GetEquipmentAbilityBindings(),
-            GetItemDefs()
+            GetItemDefinitions()
         );
         return service.BuildView(
             new BattleSkillAvailabilityQuery
@@ -813,7 +813,7 @@ public sealed class BattleHudAdapter : IDisposable
     )
     {
         var entries = new List<BattleHudEquipmentSlotSnapshot>();
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = GetItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = GetItemDefinitions();
         EquipmentState equipmentView = activeUnit?.GetEquipmentView() as EquipmentState;
         foreach (StringName slotId in EquipmentRules.GetAllSlotIdsTyped())
         {
@@ -836,7 +836,7 @@ public sealed class BattleHudAdapter : IDisposable
                     isEntrySlot,
                     isFilled ? entrySlotId.ToString() : "",
                     isFilled ? itemId.ToString() : "",
-                    isFilled ? GetItemDisplayName(itemDefs, itemId) : "空",
+                    isFilled ? GetItemDisplayName(itemDefinitions, itemId) : "空",
                     isFilled
                         ? ProgressionDataUtils
                             .to_string_name(equipmentView.GetEquippedInstanceId(slotId))
@@ -861,7 +861,7 @@ public sealed class BattleHudAdapter : IDisposable
     )
     {
         var entries = new List<BattleHudBackpackEntrySnapshot>();
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = GetItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = GetItemDefinitions();
         WarehouseState backpackView = battleState?.GetPartyBackpackView();
         if (backpackView == null)
             return entries;
@@ -887,26 +887,28 @@ public sealed class BattleHudAdapter : IDisposable
                 continue;
             StringName itemId = ProgressionDataUtils.to_string_name(instance.item_id);
             StringName instanceId = ProgressionDataUtils.to_string_name(instance.instance_id);
-            ItemDef itemDef = GetItemDef(itemDefs, itemId);
+            ItemDefinition itemDefinition = GetItemDefinition(itemDefinitions, itemId);
             var allowedSlotIds = new List<StringName>();
             string entryDisabledReason = disabledReason;
-            if (itemDef == null)
+            if (itemDefinition == null)
             {
                 if (string.IsNullOrEmpty(entryDisabledReason))
                     entryDisabledReason = $"找不到装备定义：{itemId}。";
             }
-            else if (!itemDef.IsEquipment())
+            else if (!itemDefinition.IsEquipment())
             {
                 if (string.IsNullOrEmpty(entryDisabledReason))
                     entryDisabledReason =
-                        $"{GetItemDisplayName(itemDefs, itemId)} 不是可装备物品。";
+                        $"{GetItemDisplayName(itemDefinitions, itemId)} 不是可装备物品。";
             }
             else
             {
-                allowedSlotIds = ToStringNameArray(itemDef.GetEquipmentSlotIdsTyped());
+                allowedSlotIds = ToStringNameArray(
+                    itemDefinition.GetEquipmentSlotIdsTyped()
+                );
                 if (allowedSlotIds.Count == 0 && string.IsNullOrEmpty(entryDisabledReason))
                     entryDisabledReason =
-                        $"{GetItemDisplayName(itemDefs, itemId)} 当前没有可用装备槽。";
+                        $"{GetItemDisplayName(itemDefinitions, itemId)} 当前没有可用装备槽。";
             }
 
             StringName defaultSlot =
@@ -938,13 +940,15 @@ public sealed class BattleHudAdapter : IDisposable
                 new BattleHudBackpackEntrySnapshot(
                     instanceId.ToString(),
                     itemId.ToString(),
-                    GetItemDisplayName(itemDefs, itemId),
-                    GetItemDescription(itemDef),
-                    GetItemIcon(itemDef),
+                    GetItemDisplayName(itemDefinitions, itemId),
+                    GetItemDescription(itemDefinition),
+                    GetItemIcon(itemDefinition),
                     StringifyStringNameArray(allowedSlotIds),
                     BuildSlotLabels(allowedSlotIds),
                     defaultSlot.ToString(),
-                    StringifyStringNameArray(GetFinalOccupiedSlotIds(itemDef, defaultSlot)),
+                    StringifyStringNameArray(
+                        GetFinalOccupiedSlotIds(itemDefinition, defaultSlot)
+                    ),
                     string.IsNullOrEmpty(entryDisabledReason),
                     entryDisabledReason
                 )
@@ -1196,13 +1200,15 @@ public sealed class BattleHudAdapter : IDisposable
     }
 
     private static IReadOnlyList<StringName> GetFinalOccupiedSlotIds(
-        ItemDef itemDef,
+        ItemDefinition itemDefinition,
         StringName entrySlotId
     )
     {
-        if (itemDef == null || IsEmpty(entrySlotId))
+        if (itemDefinition == null || IsEmpty(entrySlotId))
             return Array.Empty<StringName>();
-        return ToStringNameArray(itemDef.GetFinalOccupiedSlotIdsTyped(entrySlotId));
+        return ToStringNameArray(
+            itemDefinition.GetFinalOccupiedSlotIdsTyped(entrySlotId)
+        );
     }
 
     private static List<StringName> ToStringNameArray(IEnumerable<StringName> values)
@@ -1215,36 +1221,36 @@ public sealed class BattleHudAdapter : IDisposable
         return result;
     }
 
-    private IReadOnlyDictionary<StringName, ItemDef> GetItemDefs()
+    private IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefinitions()
     {
         if (_runtime != null)
             return _runtime.GetItemDefsTyped();
         return _gameSession != null
             ? _gameSession.GetItemDefsTyped()
-            : new Dictionary<StringName, ItemDef>();
+            : new Dictionary<StringName, ItemDefinition>();
     }
 
     private static string GetItemDisplayName(
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
         StringName itemId
     )
     {
-        ItemDef itemDef = GetItemDef(itemDefs, itemId);
-        if (itemDef != null && !string.IsNullOrEmpty(itemDef.display_name))
-            return itemDef.display_name;
+        ItemDefinition itemDefinition = GetItemDefinition(itemDefinitions, itemId);
+        if (itemDefinition != null && !string.IsNullOrEmpty(itemDefinition.DisplayName))
+            return itemDefinition.DisplayName;
         return itemId.ToString();
     }
 
-    private static string GetItemDescription(ItemDef itemDef)
+    private static string GetItemDescription(ItemDefinition itemDefinition)
     {
-        if (itemDef != null && !string.IsNullOrEmpty(itemDef.description))
-            return itemDef.description;
+        if (itemDefinition != null && !string.IsNullOrEmpty(itemDefinition.Description))
+            return itemDefinition.Description;
         return "暂无说明。";
     }
 
-    private static string GetItemIcon(ItemDef itemDef)
+    private static string GetItemIcon(ItemDefinition itemDefinition)
     {
-        return itemDef != null ? itemDef.icon : "";
+        return itemDefinition != null ? itemDefinition.Icon : "";
     }
 
     private static IReadOnlyList<string> BuildSlotLabels(IEnumerable<StringName> slotIds)
@@ -2036,14 +2042,16 @@ public sealed class BattleHudAdapter : IDisposable
             : null;
     }
 
-    private static ItemDef GetItemDef(
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+    private static ItemDefinition GetItemDefinition(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
         StringName itemId
     )
     {
-        if (itemDefs == null || IsEmpty(itemId))
+        if (itemDefinitions == null || IsEmpty(itemId))
             return null;
-        return itemDefs.TryGetValue(itemId, out ItemDef itemDef) ? itemDef : null;
+        return itemDefinitions.TryGetValue(itemId, out ItemDefinition itemDefinition)
+            ? itemDefinition
+            : null;
     }
 
     private static List<Vector2I> CloneVector2IList(IEnumerable<Vector2I> source)

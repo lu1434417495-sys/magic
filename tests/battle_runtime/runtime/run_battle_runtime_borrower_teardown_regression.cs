@@ -60,7 +60,7 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
             _test.True(runtime.HasAiRuntimeBorrowers, "precondition: AI helper borrowers are bound");
 
             runtime.SyncContentCatalogsTyped(
-                new Dictionary<StringName, ItemDef>(),
+                new Dictionary<StringName, ItemDefinition>(),
                 new Dictionary<StringName, SkillDefinition>(),
                 new Dictionary<StringName, TraitDefinition>(),
                 new Dictionary<StringName, EquipmentAbilityBindingDefinition>(),
@@ -232,7 +232,10 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
             "res://data/configs/skills/mage_arcane_aegis.tres"
         );
         SkillDefinition skillDefinition = SkillDefinition.FromResource(skillResource);
-        ItemDef itemDef = RequireResource<ItemDef>("res://data/configs/items/whetstone.tres");
+        ItemDef itemResource = RequireResource<ItemDef>(
+            "res://data/configs/items/whetstone.tres"
+        );
+        ItemDefinition itemDefinition = itemResource.ToDefinition();
         TraitDef traitResource = RequireResource<TraitDef>(
             "res://data/configs/traits/brave.tres"
         );
@@ -254,7 +257,10 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
             {
                 [skillDefinition.SkillId] = skillDefinition,
             },
-            new Dictionary<StringName, ItemDef> { [itemDef.item_id] = itemDef },
+            new Dictionary<StringName, ItemDefinition>
+            {
+                [itemDefinition.ItemId] = itemDefinition,
+            },
             new Dictionary<StringName, TraitDefinition>
             {
                 [traitDefinition.TraitId] = traitDefinition,
@@ -322,7 +328,7 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
 
     private sealed record ContentFixture(
         IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions,
-        IReadOnlyDictionary<StringName, ItemDef> ItemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> ItemDefs,
         IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> EquipmentBindings,
         IReadOnlyDictionary<StringName, EnemyTemplateDef> EnemyTemplates,

@@ -92,15 +92,15 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         ItemContentRegistry registry = new();
         _test.Eq(registry.Validate().Count, 0, "Equipment seed item definitions should validate.");
 
-        GDictionary itemDefs = ProjectItemDefs(registry.GetItemDefsTyped());
-        ItemDef bronzeSword = GetItemDef(itemDefs, "bronze_sword");
-        ItemDef leatherCap = GetItemDef(itemDefs, "leather_cap");
-        ItemDef leatherJerkin = GetItemDef(itemDefs, "leather_jerkin");
-        ItemDef ironScaleMail = GetItemDef(itemDefs, "iron_scale_mail");
-        ItemDef scoutCharm = GetItemDef(itemDefs, "scout_charm");
-        ItemDef ironGreatsword = GetItemDef(itemDefs, "iron_greatsword");
-        ItemDef militiaAxe = GetItemDef(itemDefs, "militia_axe");
-        ItemDef watchmanMace = GetItemDef(itemDefs, "watchman_mace");
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = registry.GetItemDefsTyped();
+        ItemDefinition bronzeSword = GetItemDef(itemDefs, "bronze_sword");
+        ItemDefinition leatherCap = GetItemDef(itemDefs, "leather_cap");
+        ItemDefinition leatherJerkin = GetItemDef(itemDefs, "leather_jerkin");
+        ItemDefinition ironScaleMail = GetItemDef(itemDefs, "iron_scale_mail");
+        ItemDefinition scoutCharm = GetItemDef(itemDefs, "scout_charm");
+        ItemDefinition ironGreatsword = GetItemDef(itemDefs, "iron_greatsword");
+        ItemDefinition militiaAxe = GetItemDef(itemDefs, "militia_axe");
+        ItemDefinition watchmanMace = GetItemDef(itemDefs, "watchman_mace");
 
         _test.True(bronzeSword != null && bronzeSword.IsEquipment(), "bronze_sword should be equipment.");
         _test.True(leatherCap != null && leatherCap.IsEquipment(), "leather_cap should be equipment.");
@@ -159,9 +159,8 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
 
         var oneHandedWeaponClasses = new HashSet<StringName>();
         var coveredEquipmentSlots = new HashSet<StringName>();
-        foreach (Variant itemDefValue in itemDefs.Values)
+        foreach (ItemDefinition itemDef in itemDefs.Values)
         {
-            ItemDef itemDef = itemDefValue.AsGodotObject() as ItemDef;
             if (itemDef == null)
                 continue;
             if (itemDef.IsEquipment())
@@ -185,11 +184,11 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
 
     private void TestAllBg3WeaponTypesAreRegisteredAsWeaponEquipment()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         _test.Eq(Bg3WeaponSeedItems.Count, 31, "BG3 weapon seed count should remain 31.");
         foreach ((StringName weaponTypeId, StringName itemId) in Bg3WeaponSeedItems)
         {
-            ItemDef itemDef = GetItemDef(itemDefs, itemId);
+            ItemDefinition itemDef = GetItemDef(itemDefs, itemId);
             _test.True(itemDef != null, $"{itemId} should exist for weapon type {weaponTypeId}.");
             if (itemDef == null)
                 continue;
@@ -198,20 +197,20 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
             AssertStringNameSeqEq(itemDef.GetEquipmentSlotIdsTyped(), Names("main_hand"), $"{itemId} should equip in main hand.");
             _test.True(itemDef.GetWeaponAttackRange() >= 1, $"{itemId} should project weapon range.");
             _test.True(
-                ItemDef.ToWeaponPhysicalDamageTagKind(itemDef.GetWeaponPhysicalDamageTag())
+                ItemDefinition.ToWeaponPhysicalDamageTagKind(itemDef.GetWeaponPhysicalDamageTag())
                     != WeaponPhysicalDamageTagKind.Unknown,
                 $"{itemId} should project a valid damage tag."
             );
-            WeaponProfileDef profile = itemDef.weapon_profile as WeaponProfileDef;
-            _test.True(profile != null, $"{itemId} should have a WeaponProfileDef.");
+            WeaponProfileDefinition profile = itemDef.WeaponProfile;
+            _test.True(profile != null, $"{itemId} should have a WeaponProfileDefinition.");
             if (profile != null)
-                AssertStringNameEq(profile.weapon_type_id, weaponTypeId.ToString(), $"{itemId} should map to BG3 weapon type.");
+                AssertStringNameEq(profile.WeaponTypeId, weaponTypeId.ToString(), $"{itemId} should map to BG3 weapon type.");
         }
     }
 
     private void TestMeleeWeaponsDeclareExactlyOnePhysicalDamageTag()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         var expectedWeaponTags = new Dictionary<StringName, StringName>
         {
             ["bronze_sword"] = "physical_pierce",
@@ -247,34 +246,33 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         };
 
         int coveredMeleeWeaponCount = 0;
-        foreach (Variant itemDefValue in itemDefs.Values)
+        foreach (ItemDefinition itemDef in itemDefs.Values)
         {
-            ItemDef itemDef = itemDefValue.AsGodotObject() as ItemDef;
             if (itemDef == null || !itemDef.IsWeapon() || !itemDef.GetTagsTyped().Contains(new StringName("melee")))
                 continue;
             coveredMeleeWeaponCount++;
             _test.True(
-                ItemDef.ToWeaponPhysicalDamageTagKind(itemDef.GetWeaponPhysicalDamageTag())
+                ItemDefinition.ToWeaponPhysicalDamageTagKind(itemDef.GetWeaponPhysicalDamageTag())
                     != WeaponPhysicalDamageTagKind.Unknown,
-                $"Melee weapon {itemDef.item_id} should declare one valid physical damage tag."
+                $"Melee weapon {itemDef.ItemId} should declare one valid physical damage tag."
             );
         }
 
         foreach ((StringName itemId, StringName expectedTag) in expectedWeaponTags)
         {
-            ItemDef itemDef = GetItemDef(itemDefs, itemId);
+            ItemDefinition itemDef = GetItemDef(itemDefs, itemId);
             _test.True(itemDef != null, $"{itemId} should exist.");
             if (itemDef == null)
                 continue;
             AssertStringNameEq(itemDef.GetWeaponPhysicalDamageTag(), expectedTag.ToString(), $"{itemId} damage tag.");
-            WeaponProfileDef profile = itemDef.weapon_profile as WeaponProfileDef;
-            _test.True(profile != null, $"{itemId} should have a WeaponProfileDef.");
+            WeaponProfileDefinition profile = itemDef.WeaponProfile;
+            _test.True(profile != null, $"{itemId} should have a WeaponProfileDefinition.");
             if (profile == null)
                 continue;
             WeaponProfileExpectation expectation = expectedProfiles[itemId];
-            AssertStringNameEq(profile.weapon_type_id, expectation.WeaponTypeId.ToString(), $"{itemId} profile type.");
-            AssertIntSeqEq(DiceToList(profile.one_handed_dice), expectation.OneHandedDice, $"{itemId} one-handed dice.");
-            AssertIntSeqEq(DiceToList(profile.two_handed_dice), expectation.TwoHandedDice, $"{itemId} two-handed dice.");
+            AssertStringNameEq(profile.WeaponTypeId, expectation.WeaponTypeId.ToString(), $"{itemId} profile type.");
+            AssertIntSeqEq(DiceToList(profile.OneHandedDice), expectation.OneHandedDice, $"{itemId} one-handed dice.");
+            AssertIntSeqEq(DiceToList(profile.TwoHandedDice), expectation.TwoHandedDice, $"{itemId} two-handed dice.");
             AssertStringNameSeqEq(profile.GetPropertiesTyped(), expectation.Properties, $"{itemId} weapon properties.");
         }
 
@@ -283,7 +281,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
 
     private void TestEquipmentServiceMovesItemsBetweenWarehouseAndSlots()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         PartyEquipmentService equipmentService = BuildEquipmentService(partyState, itemDefs, warehouseService);
@@ -324,7 +322,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
 
     private void TestEquipmentModifiersChangeAttributeSnapshotAndRoundTrip()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         ProgressionContentRegistry progressionRegistry = new();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
 
@@ -334,7 +332,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
             progressionRegistry.GetSkillDefinitionsTyped(),
             progressionRegistry.GetProfessionDefsTyped(),
             progressionRegistry.GetAchievementDefsTyped(),
-            BuildItemDefIndex(itemDefs)
+            itemDefs
         );
         AttributeSnapshot beforeSnapshot = baselineManager.GetMemberAttributeSnapshot("hero");
 
@@ -353,7 +351,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
             progressionRegistry.GetSkillDefinitionsTyped(),
             progressionRegistry.GetProfessionDefsTyped(),
             progressionRegistry.GetAchievementDefsTyped(),
-            BuildItemDefIndex(itemDefs)
+            itemDefs
         );
         AttributeSnapshot afterSnapshot = manager.GetMemberAttributeSnapshot("hero");
 
@@ -450,7 +448,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
 
     private void TestTwoHandedWeaponOccupiesBothSlots()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         PartyEquipmentService equipmentService = BuildEquipmentService(partyState, itemDefs, warehouseService);
@@ -475,7 +473,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
 
     private void TestTwoHandedWeaponDisplacesExistingMainAndOffHand()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         PartyEquipmentService equipmentService = BuildEquipmentService(partyState, itemDefs, warehouseService);
@@ -499,7 +497,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
 
     private void TestTwoHandedWeaponAttributeNotDoubleCounted()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         ProgressionContentRegistry progressionRegistry = new();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
@@ -513,7 +511,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
             progressionRegistry.GetSkillDefinitionsTyped(),
             progressionRegistry.GetProfessionDefsTyped(),
             new Dictionary<StringName, AchievementDefinition>(),
-            BuildItemDefIndex(itemDefs)
+            itemDefs
         );
         AttributeSnapshot snapshot = manager.GetMemberAttributeSnapshot("hero");
 
@@ -524,7 +522,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
             progressionRegistry.GetSkillDefinitionsTyped(),
             progressionRegistry.GetProfessionDefsTyped(),
             new Dictionary<StringName, AchievementDefinition>(),
-            BuildItemDefIndex(itemDefs)
+            itemDefs
         );
         AttributeSnapshot emptySnapshot = emptyManager.GetMemberAttributeSnapshot("blank");
 
@@ -537,7 +535,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
 
     private void TestAtomicRollbackWhenWarehouseFull()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 1);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         warehouseService.AddItemTyped("iron_greatsword", 1);
@@ -557,7 +555,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
 
     private void TestPreviewEquipReturnsDisplacedEntries()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         PartyEquipmentService equipmentService = BuildEquipmentService(partyState, itemDefs, warehouseService);
@@ -583,7 +581,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
 
     private void TestArmorMaxDexBonusCapsPositiveAgilityAc()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         ProgressionContentRegistry progressionRegistry = new();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         partyState.GetMemberState("hero").progression.unit_base_attributes.SetAttributeValue("agility", 18);
@@ -594,7 +592,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
             progressionRegistry.GetSkillDefinitionsTyped(),
             progressionRegistry.GetProfessionDefsTyped(),
             progressionRegistry.GetAchievementDefsTyped(),
-            BuildItemDefIndex(itemDefs)
+            itemDefs
         );
         AttributeSnapshot baselineSnapshot = baselineManager.GetMemberAttributeSnapshot("hero");
         _test.Eq(baselineSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass)), 12, "Agility 18 without armor should produce AC 12.");
@@ -613,7 +611,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
             progressionRegistry.GetSkillDefinitionsTyped(),
             progressionRegistry.GetProfessionDefsTyped(),
             progressionRegistry.GetAchievementDefsTyped(),
-            BuildItemDefIndex(itemDefs)
+            itemDefs
         );
         AttributeSnapshot leatherSnapshot = leatherManager.GetMemberAttributeSnapshot("hero");
         _test.Eq(leatherSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorMaxDexBonus)), 6, "leather_jerkin max dex.");
@@ -627,7 +625,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
             progressionRegistry.GetSkillDefinitionsTyped(),
             progressionRegistry.GetProfessionDefsTyped(),
             progressionRegistry.GetAchievementDefsTyped(),
-            BuildItemDefIndex(itemDefs)
+            itemDefs
         );
         AttributeSnapshot scaleSnapshot = scaleManager.GetMemberAttributeSnapshot("hero");
         _test.Eq(scaleSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorMaxDexBonus)), 3, "iron_scale_mail max dex.");
@@ -636,17 +634,22 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
 
     private void TestRequirementProfessionCheck()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
 
-        ItemDef swordDef = GetItemDef(itemDefs, "bronze_sword")?.Duplicate() as ItemDef;
-        EquipmentRequirement requirement = new()
-        {
-            required_profession_ids = new GStringArray { "warrior" },
-        };
-        swordDef.equip_requirement = requirement;
+        ItemDefinition swordDef = WithEquipRequirement(
+            GetItemDef(itemDefs, "bronze_sword"),
+            new EquipmentRequirementDefinition(
+                new[] { "warrior" },
+                0,
+                0,
+                System.Array.Empty<EquipmentAttributeRequirementDefinition>()
+            )
+        );
 
-        GDictionary patchedDefs = itemDefs.Duplicate();
+        Dictionary<StringName, ItemDefinition> patchedDefs = new();
+        foreach ((StringName itemId, ItemDefinition itemDef) in itemDefs)
+            patchedDefs[itemId] = itemDef;
         patchedDefs["bronze_sword"] = swordDef;
         PartyWarehouseService patchedWarehouse = BuildWarehouseService(partyState, patchedDefs);
         PartyEquipmentService patchedEquipmentService = BuildEquipmentService(partyState, patchedDefs, patchedWarehouse);
@@ -668,7 +671,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
 
     private void TestEquipCreatesInstanceIdInSlot()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         PartyEquipmentService equipmentService = BuildEquipmentService(partyState, itemDefs, warehouseService);
@@ -687,7 +690,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
 
     private void TestInstanceIdPreservedThroughUnequipAndReequip()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         PartyEquipmentService equipmentService = BuildEquipmentService(partyState, itemDefs, warehouseService);
@@ -708,7 +711,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
 
     private void TestTwoItemsOfSameTypeGetDifferentInstanceIds()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         PartyEquipmentService equipmentService = BuildEquipmentService(partyState, itemDefs, warehouseService);
@@ -724,12 +727,12 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
 
     private void TestWeaponProfileEquipmentEntryRoundTrip()
     {
-        GDictionary itemDefs = ItemDefs();
-        ItemDef bronzeSword = GetItemDef(itemDefs, "bronze_sword");
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
+        ItemDefinition bronzeSword = GetItemDef(itemDefs, "bronze_sword");
         _test.True(bronzeSword != null, "bronze_sword should load.");
         if (bronzeSword == null)
             return;
-        _test.True(bronzeSword.weapon_profile is WeaponProfileDef, "bronze_sword should have weapon_profile.");
+        _test.True(bronzeSword.WeaponProfile != null, "bronze_sword should have weapon_profile.");
         _test.Eq(bronzeSword.GetWeaponAttackRange(), 1, "weapon_profile should provide attack range.");
         AssertStringNameEq(bronzeSword.GetWeaponPhysicalDamageTag(), "physical_pierce", "weapon_profile should provide damage tag.");
 
@@ -782,7 +785,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
 
     private void TestEquippedInstanceFieldsSurviveRoundTripAndUnequip()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         PartyEquipmentService equipmentService = BuildEquipmentService(partyState, itemDefs, warehouseService);
@@ -1022,7 +1025,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
 
     private void TestDuplicateSameItemInstanceIdSelection()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         PartyEquipmentService equipmentService = BuildEquipmentService(partyState, itemDefs, warehouseService);
@@ -1224,11 +1227,11 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         return 56;
     }
 
-    private static int[] DiceToList(WeaponDamageDiceDef diceResource)
+    private static int[] DiceToList(WeaponDamageDiceDefinition diceResource)
     {
         if (diceResource == null)
             return System.Array.Empty<int>();
-        return new[] { diceResource.dice_count, diceResource.dice_sides, diceResource.flat_bonus };
+        return new[] { diceResource.DiceCount, diceResource.DiceSides, diceResource.FlatBonus };
     }
 
     private static List<string> GetInstanceIdsForItem(PartyState partyState, StringName itemId)
@@ -1276,63 +1279,73 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         _test.True(!string.IsNullOrEmpty(validationError), message);
     }
 
-    private static GDictionary ItemDefs() => ProjectItemDefs(new ItemContentRegistry().GetItemDefsTyped());
+    private static IReadOnlyDictionary<StringName, ItemDefinition> ItemDefinitions() =>
+        new ItemContentRegistry().GetItemDefsTyped();
 
-    private static GDictionary ProjectItemDefs(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
+    private static ItemDefinition GetItemDef(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
+        StringName itemId
+    )
     {
-        GDictionary result = new();
-        if (itemDefs == null)
-            return result;
-        foreach ((StringName itemId, ItemDef itemDef) in itemDefs)
-        {
-            if (itemId == "" || itemDef == null)
-                continue;
-            result[itemId] = itemDef;
-        }
-        return result;
+        return itemDefs != null && itemDefs.TryGetValue(itemId, out ItemDefinition itemDef)
+            ? itemDef
+            : null;
     }
 
-    private static ItemDef GetItemDef(GDictionary itemDefs, StringName itemId)
-    {
-        if (itemDefs == null || !itemDefs.ContainsKey(itemId))
-            return null;
-        return itemDefs[itemId].AsGodotObject() as ItemDef;
-    }
-
-    private static PartyWarehouseService BuildWarehouseService(PartyState partyState, GDictionary itemDefs)
+    private static PartyWarehouseService BuildWarehouseService(
+        PartyState partyState,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs
+    )
     {
         PartyWarehouseService warehouseService = new();
-        warehouseService.Setup(partyState, BuildItemDefIndex(itemDefs));
+        warehouseService.Setup(partyState, itemDefs);
         return warehouseService;
     }
 
     private static PartyEquipmentService BuildEquipmentService(
         PartyState partyState,
-        GDictionary itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         PartyWarehouseService warehouseService
     )
     {
         PartyEquipmentService equipmentService = new();
-        equipmentService.Setup(partyState, BuildItemDefIndex(itemDefs), warehouseService);
+        equipmentService.Setup(partyState, itemDefs, warehouseService);
         return equipmentService;
     }
 
-    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
+    private static ItemDefinition WithEquipRequirement(
+        ItemDefinition source,
+        EquipmentRequirementDefinition equipRequirement
+    )
     {
-        Dictionary<StringName, ItemDef> result = new();
-        if (itemDefs == null)
-            return result;
-        foreach (Variant rawKey in itemDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            StringName itemId = rawKey.AsStringName();
-            if (itemId == "")
-                continue;
-            if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
-                result[itemId] = itemDef;
-        }
-        return result;
+        System.ArgumentNullException.ThrowIfNull(source);
+        return new ItemDefinition(
+            source.ItemId,
+            source.BaseItemId,
+            source.DisplayName,
+            source.Description,
+            source.Icon,
+            source.IsStackable,
+            source.BasePrice,
+            source.BuyPrice,
+            source.SellPrice,
+            source.Sellable,
+            source.MaxStack,
+            source.ItemCategory,
+            source.Tags,
+            source.CraftingGroups,
+            source.QuestGroups,
+            source.TraitIds,
+            source.TraitRollGroups,
+            source.EquipmentSlotIds,
+            source.AttributeModifiers,
+            source.GrantedSkillId,
+            source.OccupiedSlotIds,
+            equipRequirement,
+            source.EquipmentTypeId,
+            source.WeaponProfile,
+            source.MaxDexBonus
+        );
     }
 
     private static GStringNameArray Names(params string[] values)

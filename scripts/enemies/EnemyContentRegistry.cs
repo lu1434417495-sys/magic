@@ -460,10 +460,10 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
         return e;
     }
 
-    private static IReadOnlyDictionary<StringName, ItemDef> _get_item_defs_for_validation_typed()
+    private static IReadOnlyDictionary<StringName, ItemDefinition> _get_item_defs_for_validation_typed()
     {
         using var ir = new ItemContentRegistry();
-        return EnemyTemplateDef.CloneItemDefIndex(ir.GetItemDefsTyped());
+        return new Dictionary<StringName, ItemDefinition>(ir.GetItemDefsTyped());
     }
 
     private static IReadOnlyDictionary<StringName, SkillDefinition> _get_skill_definitions_for_validation_typed()

@@ -43,15 +43,19 @@ public partial class GameSession
         if (_item_content_registry == null)
             return;
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = GetSkillDefinitionsTyped();
-        Dictionary<StringName, ItemDef> itemDefs = new(_item_content_registry.GetItemDefsTyped());
+        Dictionary<StringName, ItemDefinition> itemDefinitions = new(
+            _item_content_registry.GetItemDefsTyped()
+        );
         foreach (
-            var entry in SkillBookItemFactory.BuildGeneratedItemDefs(skillDefinitions, itemDefs)
+            var entry in SkillBookItemFactory.BuildGeneratedItemDefinitions(
+                skillDefinitions,
+                itemDefinitions
+            )
         )
         {
-            itemDefs[entry.Key] = entry.Value;
+            itemDefinitions[entry.Key] = entry.Value;
         }
-        _itemDefIndex = new Dictionary<StringName, ItemDef>(itemDefs);
-        _item_defs = ProjectResourceDictionary(itemDefs);
+        _itemDefinitionIndex = new Dictionary<StringName, ItemDefinition>(itemDefinitions);
     }
 
     private void RefreshRecipeContent()
@@ -59,10 +63,9 @@ public partial class GameSession
         if (_recipe_content_registry == null)
             return;
         _recipe_content_registry.Setup(GetItemDefsTyped());
-        _recipeDefIndex = new Dictionary<StringName, RecipeDef>(
+        _recipeDefinitionIndex = new Dictionary<StringName, RecipeDefinition>(
             _recipe_content_registry.GetRecipeDefsTyped()
         );
-        _recipe_defs = ProjectResourceDictionary(_recipeDefIndex);
     }
 
     private void RefreshEnemyContent()
@@ -148,17 +151,18 @@ public partial class GameSession
     {
         var errors = new List<string>();
         AppendErrors(errors, _item_content_registry?.ValidateTyped());
-        if (
-            _item_defs != null
-            && _skillDefinitionIndex != null
-            && _item_defs.Count > 0
-            && _skillDefinitionIndex.Count > 0
-        )
+        AppendErrors(errors, _itemValidationErrorsForTests);
+        if (_itemDefinitionIndex.Count > 0 && _skillDefinitionIndex.Count > 0)
         {
-            Dictionary<StringName, ItemDef> itemDefs = BuildItemDefIndex(_item_defs);
             IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
                 GetSkillDefinitionsTyped();
-            AppendErrors(errors, SkillBookItemContentValidator.Validate(itemDefs, skillDefinitions));
+            AppendErrors(
+                errors,
+                SkillBookItemContentValidator.Validate(
+                    _itemDefinitionIndex,
+                    skillDefinitions
+                )
+            );
         }
         return BuildContentValidationDomainSnapshotFromErrors(errors);
     }
@@ -173,7 +177,6 @@ public partial class GameSession
                 _progression_content_registry.GetQuestRegistrationErrorsTyped()
             );
         }
-        Dictionary<StringName, ItemDef> itemDefs = BuildItemDefIndex(_item_defs);
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             GetSkillDefinitionsTyped();
         Dictionary<StringName, EnemyTemplateDef> enemyTemplates = BuildEnemyTemplateIndex(
@@ -182,46 +185,12 @@ public partial class GameSession
         return BuildContentValidationDomainSnapshotFromErrors(
             QuestContentValidator.ValidateTyped(
                 _questDefIndex,
-                itemDefs,
+                _itemDefinitionIndex,
                 skillDefinitions,
                 enemyTemplates,
                 registrationErrors
             )
         );
-    }
-
-    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
-    {
-        var result = new Dictionary<StringName, ItemDef>();
-        if (itemDefs == null)
-            return result;
-        foreach (Variant key in itemDefs.Keys)
-        {
-            if (key.VariantType != Variant.Type.StringName)
-                continue;
-            ItemDef itemDef = itemDefs[key].AsGodotObject() as ItemDef;
-            if (itemDef == null || itemDef.item_id == "")
-                continue;
-            result[key.AsStringName()] = itemDef;
-        }
-        return result;
-    }
-
-    private static Dictionary<StringName, RecipeDef> BuildRecipeDefIndex(GDictionary recipeDefs)
-    {
-        var result = new Dictionary<StringName, RecipeDef>();
-        if (recipeDefs == null)
-            return result;
-        foreach (Variant key in recipeDefs.Keys)
-        {
-            if (key.VariantType != Variant.Type.StringName)
-                continue;
-            RecipeDef recipeDef = recipeDefs[key].AsGodotObject() as RecipeDef;
-            if (recipeDef == null || recipeDef.recipe_id == "")
-                continue;
-            result[key.AsStringName()] = recipeDef;
-        }
-        return result;
     }
 
     private static Dictionary<StringName, EnemyTemplateDef> BuildEnemyTemplateIndex(

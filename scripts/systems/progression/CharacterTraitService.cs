@@ -13,7 +13,7 @@ internal sealed class CharacterTraitService
         AscensionStageDefinition GetAscensionStageDefForTraitAggregation(StringName memberId);
         PartyMemberState GetMemberStateForTraitAggregation(StringName memberId);
         EquipmentState GetEquipmentStateForTraitAggregation(StringName memberId);
-        ItemDef GetItemDefForTraitAggregation(StringName itemId);
+        ItemDefinition GetItemDefForTraitAggregation(StringName itemId);
     }
 
     private readonly List<TraitDefinition> _traitDefinitions;
@@ -158,13 +158,13 @@ internal sealed class CharacterTraitService
         EquipmentEntryState entry
     )
     {
-        ItemDef itemDef = _gateway.GetItemDefForTraitAggregation(entry.item_id);
-        if (itemDef == null)
+        ItemDefinition itemDefinition = _gateway.GetItemDefForTraitAggregation(entry.item_id);
+        if (itemDefinition == null)
             return;
 
         AppendDefinitionTraits(
             raw,
-            itemDef.GetTraitIdsTyped(),
+            itemDefinition.GetTraitIdsTyped(),
             TraitSourceKind.EquipmentFixed,
             entry.instance_id
         );

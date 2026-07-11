@@ -363,7 +363,7 @@ public sealed class GameRuntimeWarehouseHandler
             var itemDefs =
                 gameSession != null
                     ? gameSession.GetItemDefsTyped()
-                    : new System.Collections.Generic.Dictionary<StringName, ItemDef>();
+                    : new System.Collections.Generic.Dictionary<StringName, ItemDefinition>();
             Func<StringName> equipmentInstanceIdAllocator =
                 gameSession != null ? gameSession.AllocateEquipmentInstanceId : null;
             partyWarehouseService.Setup(GetPartyState(), itemDefs, equipmentInstanceIdAllocator);
@@ -598,7 +598,7 @@ public sealed class GameRuntimeWarehouseHandler
                 );
                 entryData["description"] = ItemTraitDetailText.Compose(
                     inventoryEntryData.Description,
-                    inventoryEntryData.ItemDef,
+                    inventoryEntryData.ItemDefinition,
                     traitDefs
                 );
                 inventoryEntries.Add(entryData);
@@ -713,7 +713,7 @@ public sealed class GameRuntimeWarehouseHandler
             ["display_name"] = entry.DisplayName,
             ["description"] = ItemTraitDetailText.Compose(
                 entry.Description,
-                entry.ItemDef,
+                entry.ItemDefinition,
                 traitDefs
             ),
             ["icon"] = entry.Icon,
@@ -744,7 +744,7 @@ public sealed class GameRuntimeWarehouseHandler
     )
     {
         var normalizedInstanceId = ProgressionDataUtils.to_string_name(instanceId);
-        ItemDef itemDef = partyWarehouseService?.GetItemDef(itemId);
+        ItemDefinition itemDef = partyWarehouseService?.GetItemDef(itemId);
         if (itemDef != null && itemDef.IsEquipment())
             return partyWarehouseService.RemoveEquipmentInstanceTyped(itemId, normalizedInstanceId);
         return partyWarehouseService.RemoveItemTyped(itemId, quantity);
