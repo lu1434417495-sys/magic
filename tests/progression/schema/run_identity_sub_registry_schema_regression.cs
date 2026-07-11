@@ -1,13 +1,13 @@
 using Godot;
 
-public partial class run_identity_sub_registry_schema_regression : SceneTree
+public partial class run_identity_sub_registry_schema_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
         TestIdentityCatalogLoadsTypedContent();
-        Quit(_test.Finish("Identity sub registry schema regression"));
+        RequestTestExit(_test.Finish("Identity sub registry schema regression"));
     }
 
     private void TestIdentityCatalogLoadsTypedContent()

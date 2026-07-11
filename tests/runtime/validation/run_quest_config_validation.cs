@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_quest_config_validation : SceneTree
+public partial class run_quest_config_validation : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -45,6 +45,6 @@ public partial class run_quest_config_validation : SceneTree
             _test.Fail(string.Join("\n", validatorErrors));
         }
 
-        Quit(_test.Finish("Quest config validation"));
+        RequestTestExit(_test.Finish("Quest config validation"));
     }
 }

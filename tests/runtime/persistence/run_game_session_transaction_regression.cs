@@ -4,7 +4,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_game_session_transaction_regression : SceneTree
+public partial class run_game_session_transaction_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -22,7 +22,7 @@ public partial class run_game_session_transaction_regression : SceneTree
         TestCommitFailureKeepsDirtyAndLastError();
         TestUnloadCommitsPendingRuntimeState();
 
-        Quit(_test.Finish("GameSession transaction regression"));
+        RequestTestExit(_test.Finish("GameSession transaction regression"));
     }
 
     private void TestSettersStageRuntimeWithoutDiskWrite()

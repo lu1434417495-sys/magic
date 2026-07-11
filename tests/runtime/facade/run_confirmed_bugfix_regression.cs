@@ -4,7 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_confirmed_bugfix_regression : SceneTree
+public partial class run_confirmed_bugfix_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -19,7 +19,7 @@ public partial class run_confirmed_bugfix_regression : SceneTree
         TestWorldFootprintReRegisterClearsOldCells();
         TestMissingItemDefDoesNotTrapEquippedInstance();
 
-        Quit(_test.Finish("Confirmed bugfix regression"));
+        RequestTestExit(_test.Finish("Confirmed bugfix regression"));
     }
 
     private void TestAttackDispositionRespectsNaturalRollFlags()

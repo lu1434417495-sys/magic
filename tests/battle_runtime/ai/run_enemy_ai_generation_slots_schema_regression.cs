@@ -5,7 +5,7 @@ using GGenerationSlotArray = Godot.Collections.Array<EnemyAiGenerationSlotDef>;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_enemy_ai_generation_slots_schema_regression : SceneTree
+public partial class run_enemy_ai_generation_slots_schema_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -17,7 +17,7 @@ public partial class run_enemy_ai_generation_slots_schema_regression : SceneTree
         TestInvalidFamilyAndTemplateAreRejected();
         TestSelectorDistanceContractsAreRejected();
 
-        Quit(_test.Finish("Enemy AI generation slots schema regression"));
+        RequestTestExit(_test.Finish("Enemy AI generation slots schema regression"));
     }
 
     private void TestTargetSelectorRulesBehavior()

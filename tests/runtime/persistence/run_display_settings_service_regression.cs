@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_display_settings_service_regression : SceneTree
+public partial class run_display_settings_service_regression : LifecycleTestSceneTree
 {
     private const string TEMP_SETTINGS_PATH = "user://display_settings_service_regression.cfg";
 
@@ -9,11 +9,11 @@ public partial class run_display_settings_service_regression : SceneTree
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        Quit(exitCode);
+        TestResult exitCode = Run();
+        RequestTestExit(exitCode);
     }
 
-    private int Run()
+    private TestResult Run()
     {
         TestSettingsRoundTrip();
         TestSettingsNormalizeToKnownResolution();

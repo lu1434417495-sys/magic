@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_lumberjack_axe_weapon_ability_regression : SceneTree
+public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName ItemId = "weapon_unique_battleaxe_lumberjack_383";
     private static readonly StringName ChoppingRhythmTraitId =
@@ -35,12 +35,12 @@ public partial class run_lumberjack_axe_weapon_ability_regression : SceneTree
             TestFirstHitKillDoesNotMarkOrRefundAp();
             TestRealMarkedKillCommandRefundsApButNotStamina();
             TestMarkedKillsRestoreApWithoutPerTurnLimitAndRespectCap();
-            Quit(_test.Finish("Lumberjack axe weapon ability regression"));
+            RequestTestExit(_test.Finish("Lumberjack axe weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Lumberjack axe weapon ability regression"));
+            RequestTestExit(_test.Finish("Lumberjack axe weapon ability regression"));
         }
     }
 

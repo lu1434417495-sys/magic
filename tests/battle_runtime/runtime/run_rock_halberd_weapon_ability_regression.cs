@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_rock_halberd_weapon_ability_regression : SceneTree
+public partial class run_rock_halberd_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName RockHalberdItemId =
         "weapon_unique_polearm_rock_halberd_148";
@@ -36,12 +36,12 @@ public partial class run_rock_halberd_weapon_ability_regression : SceneTree
             TestStoneTouchAppliesSlowOnlyOnFailedConSave();
             TestThirdHitOnSameTargetAppliesParalyzedOnlyOnFailedConSave();
             TestPetrificationCountDoesNotShareAcrossTargets();
-            Quit(_test.Finish("Rock Halberd weapon ability regression"));
+            RequestTestExit(_test.Finish("Rock Halberd weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Rock Halberd weapon ability regression"));
+            RequestTestExit(_test.Finish("Rock Halberd weapon ability regression"));
         }
     }
 

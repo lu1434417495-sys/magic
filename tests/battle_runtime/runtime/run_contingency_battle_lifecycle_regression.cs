@@ -6,7 +6,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_contingency_battle_lifecycle_regression : SceneTree
+public partial class run_contingency_battle_lifecycle_regression : LifecycleTestSceneTree
 {
     private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
     private readonly TestHarness _test = new();
@@ -36,7 +36,7 @@ public partial class run_contingency_battle_lifecycle_regression : SceneTree
             _test.Fail($"Unhandled exception: {ex.GetType().Name}: {ex.Message}");
         }
 
-        Quit(_test.Finish("Contingency battle lifecycle regression"));
+        RequestTestExit(_test.Finish("Contingency battle lifecycle regression"));
     }
 
     private void TestEndBattleClearsConsumedSetupBeforeResourceClamp()

@@ -3,7 +3,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_progression_content_registry_typed_regression : SceneTree
+public partial class run_progression_content_registry_typed_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -20,7 +20,7 @@ public partial class run_progression_content_registry_typed_regression : SceneTr
         TestTraitDefinitionBucketsSyncIntoTypedIndexes();
         TestIdentityCatalogTypedBoundaryMatchesPublicBuckets();
 
-        Quit(_test.Finish("Progression content registry typed regression"));
+        RequestTestExit(_test.Finish("Progression content registry typed regression"));
     }
 
     private void TestOfficialProgressionRegistryTypedBoundaryMatchesPublicBoundary()

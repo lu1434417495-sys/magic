@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_dragon_breath_regression : SceneTree
+public partial class run_dragon_breath_regression : LifecycleTestSceneTree
 {
     private static readonly StringName DragonBreathFireCone = "dragon_breath_fire_cone";
     private readonly TestHarness _test = new();
@@ -20,7 +20,7 @@ public partial class run_dragon_breath_regression : SceneTree
         TestRacialSkillConsumesPerBattleAndPerTurnChargesTogether();
         TestRacialSkillPerTurnChargeRefreshesFromIdentityProjection();
 
-        Quit(_test.Finish("Dragon breath regression"));
+        RequestTestExit(_test.Finish("Dragon breath regression"));
     }
 
     private void TestOfficialDragonBreathSkillResourcesAreSchemaStable()

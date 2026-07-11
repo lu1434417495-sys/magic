@@ -2,7 +2,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battle_map_panel_schema_regression : SceneTree
+public partial class run_battle_map_panel_schema_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
     private static readonly PackedScene BattleMapPanelScene = GD.Load<PackedScene>(
@@ -13,7 +13,7 @@ public partial class run_battle_map_panel_schema_regression : SceneTree
     {
         await TestBattleMapPanelAppliesFormalSnapshot();
         await TestBattleMapPanelAppliesCommandDock();
-        Quit(_test.Finish("Battle map panel schema regression"));
+        RequestTestExit(_test.Finish("Battle map panel schema regression"));
     }
 
     private async System.Threading.Tasks.Task TestBattleMapPanelAppliesCommandDock()

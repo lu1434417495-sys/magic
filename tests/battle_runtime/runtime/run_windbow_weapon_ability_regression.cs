@@ -6,7 +6,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_windbow_weapon_ability_regression : SceneTree
+public partial class run_windbow_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName WindbowItemId = "weapon_unique_bow_windbow_151";
     private static readonly StringName WindArrowRangeTraitId =
@@ -36,12 +36,12 @@ public partial class run_windbow_weapon_ability_regression : SceneTree
             TestWindbowContentProjectsTraitsModifierAndEquipmentSkill();
             TestWindGuidedShotAddsFullPerceptionModifierToBasicWeaponAttack();
             TestGalePushSkillConfigAndForcedMoveSaveGate();
-            Quit(_test.Finish("Windbow weapon ability regression"));
+            RequestTestExit(_test.Finish("Windbow weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Windbow weapon ability regression"));
+            RequestTestExit(_test.Finish("Windbow weapon ability regression"));
         }
     }
 

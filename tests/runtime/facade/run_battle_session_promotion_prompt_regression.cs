@@ -4,7 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_battle_session_promotion_prompt_regression : SceneTree
+public partial class run_battle_session_promotion_prompt_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -20,7 +20,7 @@ public partial class run_battle_session_promotion_prompt_regression : SceneTree
         TestPromotionPromptFiltersInvalidCandidates();
         TestPromotionPromptCapturesBatchProjection();
 
-        Quit(_test.Finish("Battle session promotion prompt regression"));
+        RequestTestExit(_test.Finish("Battle session promotion prompt regression"));
     }
 
     private void TestPromotionPromptFiltersInvalidCandidates()

@@ -4,7 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_wild_encounter_roster_typed_regression : SceneTree
+public partial class run_wild_encounter_roster_typed_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -18,7 +18,7 @@ public partial class run_wild_encounter_roster_typed_regression : SceneTree
         TestTypedStageSelectionUsesNearestDeclaredStage();
         TestSchemaValidationUsesTypedTemplateIdBoundary();
         TestEncounterRosterBuilderBuildsMixedMistHollowUnits();
-        Quit(_test.Finish("Wild encounter roster typed regression"));
+        RequestTestExit(_test.Finish("Wild encounter roster typed regression"));
     }
 
     private void TestTypedStageSelectionUsesNearestDeclaredStage()

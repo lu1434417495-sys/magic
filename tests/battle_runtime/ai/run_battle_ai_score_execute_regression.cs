@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battle_ai_score_execute_regression : SceneTree
+public partial class run_battle_ai_score_execute_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -22,7 +22,7 @@ public partial class run_battle_ai_score_execute_regression : SceneTree
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        Quit(_test.Finish("Battle AI score execute regression"));
+        RequestTestExit(_test.Finish("Battle AI score execute regression"));
     }
 
     private void TestInvalidHighHpExecuteProducesNoSaveEstimateOrValue()

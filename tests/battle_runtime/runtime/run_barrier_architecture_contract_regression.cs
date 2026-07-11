@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_barrier_architecture_contract_regression : SceneTree
+public partial class run_barrier_architecture_contract_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -11,12 +11,12 @@ public partial class run_barrier_architecture_contract_regression : SceneTree
         try
         {
             TestRequiredRuntimeBarrierFilesExist();
-            Quit(_test.Finish("Barrier architecture contract regression"));
+            RequestTestExit(_test.Finish("Barrier architecture contract regression"));
         }
         catch (Exception ex)
         {
             GD.PushError($"Barrier architecture contract regression crashed: {ex}");
-            Quit(1);
+            RequestTestExit(_test.Finish("Barrier architecture contract regression", 1));
         }
     }
 

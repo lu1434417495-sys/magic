@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_enemy_template_attribute_projection_regression : SceneTree
+public partial class run_enemy_template_attribute_projection_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -15,7 +15,7 @@ public partial class run_enemy_template_attribute_projection_regression : SceneT
     private void Run()
     {
         TestEnemyTemplateTypedOverridesProjectIntoEncounterRosterBuilder();
-        Quit(_test.Finish("Enemy template attribute projection regression"));
+        RequestTestExit(_test.Finish("Enemy template attribute projection regression"));
     }
 
     private void TestEnemyTemplateTypedOverridesProjectIntoEncounterRosterBuilder()

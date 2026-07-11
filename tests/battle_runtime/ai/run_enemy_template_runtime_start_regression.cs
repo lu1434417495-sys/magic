@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_enemy_template_runtime_start_regression : SceneTree
+public partial class run_enemy_template_runtime_start_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -31,7 +31,7 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        Quit(_test.Finish("Enemy template runtime start regression"));
+        RequestTestExit(_test.Finish("Enemy template runtime start regression"));
     }
 
     private void TestFormalTemplatesResolveStableIds()

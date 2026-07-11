@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_fate_attack_formula_regression : SceneTree
+public partial class run_fate_attack_formula_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -19,7 +19,7 @@ public partial class run_fate_attack_formula_regression : SceneTree
         TestRollDieUsesInjectedRngWithoutDisadvantage();
         TestRollDieUsesInjectedRngWithDisadvantage();
 
-        Quit(_test.Finish("Fate attack formula regression"));
+        RequestTestExit(_test.Finish("Fate attack formula regression"));
     }
 
     private void TestCritGateDieSizeCases()

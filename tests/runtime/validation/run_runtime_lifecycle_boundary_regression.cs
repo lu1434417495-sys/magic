@@ -1,19 +1,19 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
 using Godot;
 
-public partial class run_runtime_lifecycle_boundary_regression : SceneTree
+public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSceneTree
 {
-    private static readonly Regex LocalFinalizerDrainCallPattern =
+    private static readonly Regex TestLocalFinalizerControlPattern =
         new(
-            @"(?m)^[\t ]*(?:GodotSharpCleanup|GodotObjectLifecycle)"
-                + @"\.CollectPendingFinalizers\(\);",
+            @"\b(?:TryStartNo" + @"GCRegion|CollectPending" + @"Finalizers)\s*\(",
             RegexOptions.Compiled
         );
-    private static readonly Regex DirectSuccessfulQuitPattern =
-        new(@"(?m)^[\t ]*Quit\(0\);", RegexOptions.Compiled);
+    private static readonly Regex DirectTestQuitPattern =
+        new(@"\bQ" + @"uit\s*\(", RegexOptions.Compiled);
+    private static readonly Regex DirectSceneTreeBasePattern =
+        new(@":\s*S" + @"ceneTree\b", RegexOptions.Compiled);
 
     private readonly TestHarness _test = new();
 
@@ -42,9 +42,10 @@ public partial class run_runtime_lifecycle_boundary_regression : SceneTree
         AssertPlainRuntimeService<GameTextCommandRunner>();
         AssertPlainRuntimeService<GameTextCommandResult>();
 
-        AssertFinalizerDrainOnlyUsesCentralizedExitPath();
-        AssertSuccessfulQuitUsesCentralizedExitPath();
-        Quit(_test.Finish("Runtime lifecycle boundary regression"));
+        AssertNoTestLocalFinalizerControl();
+        AssertNoDirectTestQuit();
+        AssertConcreteRunnersUseLifecycleBase();
+        RequestTestExit(_test.Finish("Runtime lifecycle boundary regression"));
     }
 
     private void AssertPlainRuntimeService<T>()
@@ -60,32 +61,24 @@ public partial class run_runtime_lifecycle_boundary_regression : SceneTree
         );
     }
 
-    private void AssertFinalizerDrainOnlyUsesCentralizedExitPath()
+    private void AssertNoTestLocalFinalizerControl()
     {
         string testsRoot = ProjectSettings.GlobalizePath("res://tests");
-        var allowedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            Path.GetFullPath(Path.Combine(testsRoot, "shared", "GodotSharpCleanup.cs")),
-            Path.GetFullPath(Path.Combine(testsRoot, "shared", "TestHarness.cs")),
-        };
 
         foreach (string filePath in Directory.GetFiles(testsRoot, "*.cs", SearchOption.AllDirectories))
         {
             string fullPath = Path.GetFullPath(filePath);
-            if (allowedFiles.Contains(fullPath))
-                continue;
-
             string source = File.ReadAllText(fullPath);
-            if (LocalFinalizerDrainCallPattern.IsMatch(source))
+            if (TestLocalFinalizerControlPattern.IsMatch(source))
             {
                 _test.Fail(
-                    $"Finalizer drain must stay centralized in TestHarness.Finish, but {Path.GetRelativePath(testsRoot, fullPath)} calls CollectPendingFinalizers()."
+                    $"Tests must delegate finalizer control to the application shutdown coordinator, but {Path.GetRelativePath(testsRoot, fullPath)} contains a test-local control call."
                 );
             }
         }
     }
 
-    private void AssertSuccessfulQuitUsesCentralizedExitPath()
+    private void AssertNoDirectTestQuit()
     {
         string testsRoot = ProjectSettings.GlobalizePath("res://tests");
 
@@ -93,11 +86,34 @@ public partial class run_runtime_lifecycle_boundary_regression : SceneTree
         {
             string fullPath = Path.GetFullPath(filePath);
             string source = File.ReadAllText(fullPath);
-            if (!DirectSuccessfulQuitPattern.IsMatch(source))
+            if (!DirectTestQuitPattern.IsMatch(source))
                 continue;
 
             _test.Fail(
-                $"Successful regression exit must go through TestHarness.Finish, but {Path.GetRelativePath(testsRoot, fullPath)} calls Quit(0)."
+                $"Regression exits must go through the lifecycle coordinator, but {Path.GetRelativePath(testsRoot, fullPath)} calls the tree exit API directly."
+            );
+        }
+    }
+
+    private void AssertConcreteRunnersUseLifecycleBase()
+    {
+        string testsRoot = ProjectSettings.GlobalizePath("res://tests");
+        string sharedBasePath = Path.GetFullPath(
+            Path.Combine(testsRoot, "shared", "LifecycleTestSceneTree.cs")
+        );
+
+        foreach (string filePath in Directory.GetFiles(testsRoot, "*.cs", SearchOption.AllDirectories))
+        {
+            string fullPath = Path.GetFullPath(filePath);
+            if (string.Equals(fullPath, sharedBasePath, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            string source = File.ReadAllText(fullPath);
+            if (!DirectSceneTreeBasePattern.IsMatch(source))
+                continue;
+
+            _test.Fail(
+                $"Concrete C# runners must derive through LifecycleTestSceneTree, but {Path.GetRelativePath(testsRoot, fullPath)} derives from the engine tree directly."
             );
         }
     }

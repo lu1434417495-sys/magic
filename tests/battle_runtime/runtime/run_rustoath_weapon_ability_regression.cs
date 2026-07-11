@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_rustoath_weapon_ability_regression : SceneTree
+public partial class run_rustoath_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName RustoathItemId = "weapon_unique_sword_rustoath_006";
     private static readonly StringName RustCorrosionTraitId =
@@ -44,12 +44,12 @@ public partial class run_rustoath_weapon_ability_regression : SceneTree
             TestArmorCorrosionConsumesMetalArmorDurabilityOnceAtFiveStacks();
             TestRottenBladeAddsAcidDiceOnlyAfterArmorCracked();
             TestRustPowderStormRequiresConsumesFiveRustStacks();
-            Quit(_test.Finish("Rustoath weapon ability regression"));
+            RequestTestExit(_test.Finish("Rustoath weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Rustoath weapon ability regression"));
+            RequestTestExit(_test.Finish("Rustoath weapon ability regression"));
         }
     }
 

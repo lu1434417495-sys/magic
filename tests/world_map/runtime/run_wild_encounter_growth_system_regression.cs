@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using Godot;
-public partial class run_wild_encounter_growth_system_regression : SceneTree
+public partial class run_wild_encounter_growth_system_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -15,7 +15,7 @@ public partial class run_wild_encounter_growth_system_regression : SceneTree
         TestBattleVictoryUsesTypedRosterFields();
         TestMissingRosterIsRejected();
 
-        Quit(_test.Finish("Wild encounter growth system regression"));
+        RequestTestExit(_test.Finish("Wild encounter growth system regression"));
     }
 
     private void TestStepAdvanceUsesTypedRosterFields()

@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_world_runtime_data_typed_regression : SceneTree
+public partial class run_world_runtime_data_typed_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -14,7 +14,7 @@ public partial class run_world_runtime_data_typed_regression : SceneTree
         TestResourceNodesRoundTripThroughTypedWorldData();
         TestContextAndRuntimeTransactionUseTypedWorldData();
         TestSaveWorldStateAcceptsTypedWorldData();
-        Quit(_test.Finish("World runtime data typed regression"));
+        RequestTestExit(_test.Finish("World runtime data typed regression"));
     }
 
     private void TestMalformedSettlementStateIsRejected()

@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_settlement_shop_window_schema_regression : SceneTree
+public partial class run_settlement_shop_window_schema_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
     private static readonly PackedScene SettlementWindowScene = GD.Load<PackedScene>(
@@ -26,7 +26,7 @@ public partial class run_settlement_shop_window_schema_regression : SceneTree
         await TestShopWindowRejectsStringNameEntryFields();
         await TestShopWindowRejectsStringNameMemberOptionFields();
         await TestShopWindowConfirmationFlow();
-        Quit(_test.Finish("Settlement/shop window schema regression"));
+        RequestTestExit(_test.Finish("Settlement/shop window schema regression"));
     }
 
     private async Task<SettlementWindow> CreateSettlementWindow()

@@ -2,18 +2,18 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_low_luck_event_service_regression : SceneTree
+public partial class run_low_luck_event_service_regression : LifecycleTestSceneTree
 {
     private static readonly StringName HeroId = "hero";
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        Quit(exitCode);
+        TestResult exitCode = Run();
+        RequestTestExit(exitCode);
     }
 
-    private int Run()
+    private TestResult Run()
     {
         TestBrokenBridgeSurvivalTriggersOncePerRun();
         TestLampWithoutWitnessTriggersOncePerRun();

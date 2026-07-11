@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_skill_book_item_helpers_regression : SceneTree
+public partial class run_skill_book_item_helpers_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -15,7 +15,7 @@ public partial class run_skill_book_item_helpers_regression : SceneTree
         TestSkillBookFactoryGeneratesTypedItemDefs();
         TestSkillBookValidatorReportsCrossTableErrors();
 
-        Quit(_test.Finish("Skill book item helpers regression"));
+        RequestTestExit(_test.Finish("Skill book item helpers regression"));
     }
 
     private void TestSkillBookFactoryGeneratesTypedItemDefs()

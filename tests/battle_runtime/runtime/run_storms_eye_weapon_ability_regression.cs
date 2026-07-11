@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_storms_eye_weapon_ability_regression : SceneTree
+public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName StormsEyeItemId =
         "weapon_unique_axe_storms_eye_091";
@@ -35,12 +35,12 @@ public partial class run_storms_eye_weapon_ability_regression : SceneTree
             TestStormsEyeProjectsContentAndGrantsCloudsplitter();
             TestStormsEyeAddsLightningOnHitAndThunderOnCritical();
             TestCloudsplitterDealsExtraThunderWhenTargetIsNotPushed();
-            Quit(_test.Finish("Storm's Eye weapon ability regression"));
+            RequestTestExit(_test.Finish("Storm's Eye weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Storm's Eye weapon ability regression"));
+            RequestTestExit(_test.Finish("Storm's Eye weapon ability regression"));
         }
     }
 

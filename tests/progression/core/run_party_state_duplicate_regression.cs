@@ -3,7 +3,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_party_state_duplicate_regression : SceneTree
+public partial class run_party_state_duplicate_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -16,7 +16,7 @@ public partial class run_party_state_duplicate_regression : SceneTree
     {
         TestDuplicateStateDeepCopiesBattleWritebackState();
 
-        Quit(_test.Finish("Party state duplicate regression"));
+        RequestTestExit(_test.Finish("Party state duplicate regression"));
     }
 
     private void TestDuplicateStateDeepCopiesBattleWritebackState()

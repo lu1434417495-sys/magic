@@ -3,7 +3,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_power_word_kill_execute_schema_regression : SceneTree
+public partial class run_power_word_kill_execute_schema_regression : LifecycleTestSceneTree
 {
     private const string TempSkillDirectory = "user://power_word_kill_execute_schema_regression";
     private readonly TestHarness _test = new();
@@ -23,7 +23,7 @@ public partial class run_power_word_kill_execute_schema_regression : SceneTree
         TestExecuteRejectsOldFieldsAndHiddenSiblings();
         TestFormalResourceLoadsAndValidates();
 
-        Quit(_test.Finish("Power Word Kill execute schema regression"));
+        RequestTestExit(_test.Finish("Power Word Kill execute schema regression"));
     }
 
     private void TestFormalPwkShapePasses()

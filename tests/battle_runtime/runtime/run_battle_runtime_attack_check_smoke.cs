@@ -1,7 +1,7 @@
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battle_runtime_attack_check_smoke : SceneTree
+public partial class run_battle_runtime_attack_check_smoke : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -9,7 +9,7 @@ public partial class run_battle_runtime_attack_check_smoke : SceneTree
     {
         TestHitResolverBoundaryNaturalRulesAreExplicit();
         TestArmorBreakLowersTargetAcWithoutDamageVulnerability();
-        Quit(_test.Finish("Battle runtime attack check smoke"));
+        RequestTestExit(_test.Finish("Battle runtime attack check smoke"));
     }
 
     private void TestHitResolverBoundaryNaturalRulesAreExplicit()

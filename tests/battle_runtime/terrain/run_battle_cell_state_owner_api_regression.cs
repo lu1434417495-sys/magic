@@ -1,6 +1,6 @@
 using Godot;
 
-public partial class run_battle_cell_state_owner_api_regression : SceneTree
+public partial class run_battle_cell_state_owner_api_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -9,7 +9,7 @@ public partial class run_battle_cell_state_owner_api_regression : SceneTree
         TestCoordAndOccupantApiOwnCellIdentity();
         TestPassableAndMoveCostApiNormalizeRuntimeValues();
 
-        Quit(_test.Finish("Battle cell state owner API regression"));
+        RequestTestExit(_test.Finish("Battle cell state owner API regression"));
     }
 
     private void TestCoordAndOccupantApiOwnCellIdentity()

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_battle_ai_wait_behavior_regression : SceneTree
+public partial class run_battle_ai_wait_behavior_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -20,7 +20,7 @@ public partial class run_battle_ai_wait_behavior_regression : SceneTree
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        Quit(_test.Finish("Battle AI wait behavior regression"));
+        RequestTestExit(_test.Finish("Battle AI wait behavior regression"));
     }
 
     private void TestWaitActionMarksActiveRestWhenStaminaStarved()

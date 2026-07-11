@@ -2,7 +2,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GDictionaryArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
 
-public partial class run_save_index_resilience_regression : SceneTree
+public partial class run_save_index_resilience_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
     private const string SaveDirectory = "user://saves";
@@ -16,7 +16,7 @@ public partial class run_save_index_resilience_regression : SceneTree
     {
         TestCorruptSaveIndexRecoversCleanly();
         TestSaveIndexSchemaRejectsOldEntryShapes();
-        Quit(_test.Finish("Save index resilience regression"));
+        RequestTestExit(_test.Finish("Save index resilience regression"));
     }
 
     private void TestCorruptSaveIndexRecoversCleanly()

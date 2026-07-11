@@ -3,16 +3,18 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_mixed_2s1a_mirror_analysis : SceneTree
+public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
 {
     private const int MaxIdleLoops = 25;
     private const string ScenarioPath =
         "res://data/configs/battle_sim/scenarios/mixed_2sword_1arch_mirror_simulation.tres";
 
+    private readonly TestHarness _test = new();
+
     public override void _Initialize()
     {
         int exitCode = Run();
-        Quit(exitCode);
+        RequestTestExit(_test.Finish("Mixed 2s1a mirror analysis", exitCode));
     }
 
     private int Run()

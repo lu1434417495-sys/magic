@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_text_command_warehouse_use_regression : SceneTree
+public partial class run_text_command_warehouse_use_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -22,7 +22,7 @@ public partial class run_text_command_warehouse_use_regression : SceneTree
         TestWarehouseUseCommandSupportsTypedOptionsPath();
         TestNewGameRandomBookSkillGrantUsesTypedSkillLookup();
 
-        Quit(_test.Finish("Text command warehouse use regression"));
+        RequestTestExit(_test.Finish("Text command warehouse use regression"));
     }
 
     private void TestWarehouseUseCommandSupportsTypedOptionsPath()

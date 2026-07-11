@@ -1,7 +1,7 @@
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_text_command_parse_regression : SceneTree
+public partial class run_text_command_parse_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -14,7 +14,7 @@ public partial class run_text_command_parse_regression : SceneTree
         AssertInvalidScalarInputsFailWithoutStateDrift(runner);
 
         runner.Dispose(true);
-        Quit(_test.Finish("Text command parse regression"));
+        RequestTestExit(_test.Finish("Text command parse regression"));
     }
 
     private void AssertInvalidScalarInputsFailWithoutStateDrift(GameTextCommandRunner runner)

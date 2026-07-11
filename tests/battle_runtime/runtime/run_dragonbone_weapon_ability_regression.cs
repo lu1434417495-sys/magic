@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_dragonbone_weapon_ability_regression : SceneTree
+public partial class run_dragonbone_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName DragonboneItemId = "weapon_unique_axe_dragonbone_096";
     private static readonly StringName DragonFlameTraitId =
@@ -26,12 +26,12 @@ public partial class run_dragonbone_weapon_ability_regression : SceneTree
             TestDragonboneProjectsRealContentOntoBattleUnitAndClearsOnUnequip();
             TestDragonFlameTriggersOncePerHolderTurnAsFireDamage();
             TestDragonHateAppliesToEveryDragonHitAfterDragonFlameIsConsumed();
-            Quit(_test.Finish("Dragonbone weapon ability regression"));
+            RequestTestExit(_test.Finish("Dragonbone weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Dragonbone weapon ability regression"));
+            RequestTestExit(_test.Finish("Dragonbone weapon ability regression"));
         }
     }
 

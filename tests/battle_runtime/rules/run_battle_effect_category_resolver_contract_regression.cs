@@ -2,7 +2,7 @@ using System;
 using Godot;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_battle_effect_category_resolver_contract_regression : SceneTree
+public partial class run_battle_effect_category_resolver_contract_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -14,7 +14,7 @@ public partial class run_battle_effect_category_resolver_contract_regression : S
         TestResolverIgnoresLegacyParamsBarrierCategories();
         TestResolverDoesNotGuessFromSkillIdOrTags();
 
-        Quit(_test.Finish("Battle effect category resolver contract regression"));
+        RequestTestExit(_test.Finish("Battle effect category resolver contract regression"));
     }
 
     private void TestResolverTypeIsPlainStaticCSharp()

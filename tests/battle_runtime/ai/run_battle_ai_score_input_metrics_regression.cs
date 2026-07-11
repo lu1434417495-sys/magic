@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_ai_score_input_metrics_regression : SceneTree
+public partial class run_battle_ai_score_input_metrics_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -21,7 +21,7 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        Quit(_test.Finish("Battle AI score input metrics regression"));
+        RequestTestExit(_test.Finish("Battle AI score input metrics regression"));
     }
 
     private void TestGroundSkillEffectiveTargetsExcludeFriendlyFire()

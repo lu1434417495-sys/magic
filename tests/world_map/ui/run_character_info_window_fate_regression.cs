@@ -4,7 +4,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_character_info_window_fate_regression : SceneTree
+public partial class run_character_info_window_fate_regression : LifecycleTestSceneTree
 {
     private static readonly PackedScene CharacterInfoWindowScene = GD.Load<PackedScene>(
         "res://scenes/ui/character_info_window.tscn"
@@ -18,7 +18,7 @@ public partial class run_character_info_window_fate_regression : SceneTree
         await TestCharacterInfoWindowRejectsBadSectionSchema();
         await TestCharacterInfoWindowRejectsBadFatePayload();
         await TestCharacterInfoWindowRejectsStringNameStringFields();
-        Quit(_test.Finish("CharacterInfoWindow fate regression"));
+        RequestTestExit(_test.Finish("CharacterInfoWindow fate regression"));
     }
 
     private async Task<CharacterInfoWindow> CreateWindow()

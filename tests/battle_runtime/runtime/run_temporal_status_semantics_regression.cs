@@ -4,7 +4,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 // M2 temporal 状态族语义回归：time_stasis 冻结个人时间线、time_slow 余数累加、
 // time_reverberation 释放规则与 typed 状态构造边界。
-public partial class run_temporal_status_semantics_regression : SceneTree
+public partial class run_temporal_status_semantics_regression : LifecycleTestSceneTree
 {
     private static readonly StringName TemporalTag =
         BattleSaveContentRules.ToStringName(BattleSaveTagKind.Temporal);
@@ -25,7 +25,7 @@ public partial class run_temporal_status_semantics_regression : SceneTree
         TestStasisUnitSkipsReadyQueueActivation();
         TestStatusConstructionImportsTemporalTypedFields();
         TestReleaseReasonsControlReverberation();
-        Quit(_test.Finish("Temporal status semantics regression"));
+        RequestTestExit(_test.Finish("Temporal status semantics regression"));
     }
 
     private void TestStasisFreezesPersonalTimeline()

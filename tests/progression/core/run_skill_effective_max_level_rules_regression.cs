@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_skill_effective_max_level_rules_regression : SceneTree
+public partial class run_skill_effective_max_level_rules_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -19,7 +19,7 @@ public partial class run_skill_effective_max_level_rules_regression : SceneTree
         TestAuraSlashMaxLevelUsesTransformationCount();
         TestDynamicMaxLevelUsesProfessionRankIntegerDivisor();
 
-        Quit(_test.Finish("Skill effective max level rules regression"));
+        RequestTestExit(_test.Finish("Skill effective max level rules regression"));
     }
 
     private void TestRulesNoLongerRequireGodotRegistration()

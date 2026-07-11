@@ -2,14 +2,14 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_jump_arc_regression_typed : SceneTree
+public partial class run_jump_arc_regression_typed : LifecycleTestSceneTree
 {
     public override void _Initialize()
     {
-        Quit(RunForWrapper());
+        RequestTestExit(RunForWrapper());
     }
 
-    public static int RunForWrapper() => JumpArcRegressionRunner.RunAll();
+    internal static TestResult RunForWrapper() => JumpArcRegressionRunner.RunAll();
 }
 
 internal sealed class JumpArcRegressionRunner
@@ -17,13 +17,13 @@ internal sealed class JumpArcRegressionRunner
     private readonly TestHarness _test = new();
     private BattleGridService _gridService = null!;
 
-    public static int RunAll()
+    public static TestResult RunAll()
     {
         var runner = new JumpArcRegressionRunner();
         return runner.Run();
     }
 
-    private int Run()
+    private TestResult Run()
     {
         _gridService = new BattleGridService();
 

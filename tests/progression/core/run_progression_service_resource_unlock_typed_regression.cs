@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_progression_service_resource_unlock_typed_regression : SceneTree
+public partial class run_progression_service_resource_unlock_typed_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -15,7 +15,7 @@ public partial class run_progression_service_resource_unlock_typed_regression : 
     {
         TestLearnedSkillsUnlockCombatResources();
 
-        Quit(_test.Finish("Progression service resource unlock typed regression"));
+        RequestTestExit(_test.Finish("Progression service resource unlock typed regression"));
     }
 
     private void TestLearnedSkillsUnlockCombatResources()

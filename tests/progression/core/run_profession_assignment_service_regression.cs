@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 
-public partial class run_profession_assignment_service_regression : SceneTree
+public partial class run_profession_assignment_service_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -16,7 +16,7 @@ public partial class run_profession_assignment_service_regression : SceneTree
         TestAssignLearnedCoreSkillToProfession();
         TestPromoteMatchingLearnedSkillToCore();
 
-        Quit(_test.Finish("Profession assignment service regression"));
+        RequestTestExit(_test.Finish("Profession assignment service regression"));
     }
 
     private void TestAssignLearnedCoreSkillToProfession()

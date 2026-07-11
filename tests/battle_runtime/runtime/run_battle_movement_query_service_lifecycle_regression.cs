@@ -1,13 +1,13 @@
 using Godot;
 
-public partial class run_battle_movement_query_service_lifecycle_regression : SceneTree
+public partial class run_battle_movement_query_service_lifecycle_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
         TestDisposeRuntimeClearsBindingsAndAllowsRebind();
-        Quit(_test.Finish("Battle movement query service lifecycle regression"));
+        RequestTestExit(_test.Finish("Battle movement query service lifecycle regression"));
     }
 
     private void TestDisposeRuntimeClearsBindingsAndAllowsRebind()

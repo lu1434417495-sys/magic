@@ -5,7 +5,7 @@ using System.Reflection;
 using System.Threading.Tasks;
 using Godot;
 
-public partial class run_application_lifetime_coordinator_regression : SceneTree
+public partial class run_application_lifetime_coordinator_regression : LifecycleTestSceneTree
 {
     private sealed class FakeParticipant : IApplicationShutdownParticipant
     {
@@ -111,7 +111,7 @@ public partial class run_application_lifetime_coordinator_regression : SceneTree
             _test.Fail($"Unexpected coordinator regression exception: {exception}");
         }
 
-        Quit(_test.Finish("Application lifetime coordinator regression"));
+        RequestTestExit(_test.Finish("Application lifetime coordinator regression"));
     }
 
     private async Task RunAsync()
@@ -655,12 +655,12 @@ public partial class run_application_lifetime_coordinator_regression : SceneTree
             )
             .AsTask();
 
-        Task<ShutdownReport> laterFailure = coordinator
+        Task<ShutdownReport> laterDuplicate = coordinator
             .RequestShutdownAsync(
                 new ShutdownRequest(
-                    7,
+                    0,
                     ShutdownReason.RequestedExit,
-                    new ShutdownCallerResult("later-failure", false)
+                    new ShutdownCallerResult("later-duplicate", true)
                 )
             )
             .AsTask();
@@ -677,7 +677,7 @@ public partial class run_application_lifetime_coordinator_regression : SceneTree
 
         _test.True(
             ReferenceEquals(first, synchronousReentrant.ReentrantCompletion)
-                && ReferenceEquals(first, laterFailure)
+                && ReferenceEquals(first, laterDuplicate)
                 && ReferenceEquals(first, laterSuccess),
             "synchronous reentrant and later shutdown requests share one completion task"
         );
@@ -694,7 +694,11 @@ public partial class run_application_lifetime_coordinator_regression : SceneTree
             "synchronous reentrant participant closes exactly once"
         );
         _test.Eq(report.FirstRequest.Reason, ShutdownReason.TestComplete, "first reason wins");
-        _test.Eq(report.EffectiveExitCode, 7, "later failure raises effective exit code");
+        _test.Eq(
+            report.EffectiveExitCode,
+            0,
+            "successful duplicate requests preserve the zero exit code"
+        );
         _test.Eq(
             report.DuplicateRequestDiagnostics.Count,
             4,

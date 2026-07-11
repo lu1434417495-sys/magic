@@ -4,7 +4,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GDictionaryArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_character_info_identity_regression : SceneTree
+public partial class run_character_info_identity_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -20,7 +20,7 @@ public partial class run_character_info_identity_regression : SceneTree
         TestBattleCharacterInfoIncludesIdentitySection();
         TestWorldCharacterInfoRequiresFormalStringValues();
 
-        Quit(_test.Finish("Character info identity regression"));
+        RequestTestExit(_test.Finish("Character info identity regression"));
     }
 
     private void TestBuilderUsesPlainCSharpHelperShape()

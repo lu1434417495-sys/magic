@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_meteor_swarm_ai_regression : SceneTree
+public partial class run_meteor_swarm_ai_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -16,7 +16,7 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
         TestMeteorSwarmUseCasesAndHighPriorityTrace();
         TestMeteorSwarmFriendlyFireSoftAndProtectedPaths();
 
-        Quit(_test.Finish("Meteor swarm AI regression"));
+        RequestTestExit(_test.Finish("Meteor swarm AI regression"));
     }
 
     private void TestMeteorSwarmAiUsesSpecialScoreFields()

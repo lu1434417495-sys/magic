@@ -3,7 +3,7 @@ using Godot;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 [GlobalClass]
-public partial class run_character_management_weapon_projection_regression : SceneTree
+public partial class run_character_management_weapon_projection_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -18,7 +18,7 @@ public partial class run_character_management_weapon_projection_regression : Sce
         TestWeaponPhysicalDamageTagRejectsBadMainHandStates();
         TestWeaponProjectionForEquipmentViewUsesTypedDto();
 
-        Quit(_test.Finish("Character management weapon projection regression"));
+        RequestTestExit(_test.Finish("Character management weapon projection regression"));
     }
 
     private void TestWeaponPhysicalDamageTagUsesTypedEquipmentState()

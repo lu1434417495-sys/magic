@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_damage_preview_range_contract_regression : SceneTree
+public partial class run_battle_damage_preview_range_contract_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -15,7 +15,7 @@ public partial class run_battle_damage_preview_range_contract_regression : Scene
         TestTwoHandedWeaponDiceIgnoresAliasSkillDiceFields();
         TestDiceBonusWithoutDiceIsIgnored();
 
-        Quit(_test.Finish("Battle damage preview range contract regression"));
+        RequestTestExit(_test.Finish("Battle damage preview range contract regression"));
     }
 
     private void TestEmptyPreviewContract()

@@ -2,7 +2,7 @@ using System;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_promotion_selection_typed_regression : SceneTree
+public partial class run_promotion_selection_typed_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -17,7 +17,7 @@ public partial class run_promotion_selection_typed_regression : SceneTree
         TestProgressionServiceDoesNotExposeDictionarySelectionOverload();
         TestProfessionPromotionConsumesTypedSelection();
 
-        Quit(_test.Finish("Promotion selection typed regression"));
+        RequestTestExit(_test.Finish("Promotion selection typed regression"));
     }
 
     private void TestSelectionDataNormalizesEquivalentValues()

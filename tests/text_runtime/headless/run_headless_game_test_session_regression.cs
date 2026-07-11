@@ -1,40 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-internal static class HeadlessGameTestSessionRegressionGcGuard
-{
-    private const long StartupNoGcRegionSizeBytes = 512L * 1024L * 1024L;
-
-    // This runner loads enough C# script-backed resources before _Initialize that
-    // Mono finalizers can run during Godot script loading and touch released handles.
-#pragma warning disable CA2255
-    [ModuleInitializer]
-#pragma warning restore CA2255
-    internal static void Start()
-    {
-        foreach (string arg in System.Environment.GetCommandLineArgs())
-        {
-            if (
-                !string.IsNullOrEmpty(arg)
-                && arg.Contains(
-                    "run_headless_game_test_session_regression",
-                    StringComparison.OrdinalIgnoreCase
-                )
-            )
-            {
-                GC.TryStartNoGCRegion(StartupNoGcRegionSizeBytes);
-                return;
-            }
-        }
-    }
-}
-
-public partial class run_headless_game_test_session_regression : SceneTree
+public partial class run_headless_game_test_session_regression : LifecycleTestSceneTree
 {
     private const string SaveIndexPath = "user://saves/index.dat";
 
@@ -54,7 +25,7 @@ public partial class run_headless_game_test_session_regression : SceneTree
         TestTypedEnemyCatalogRejectsStringKeyOnlyEntries();
         await TestFacadeBattleSetupUsesTypedEnemyCatalogs();
 
-        Quit(_test.Finish("Headless game test session regression"));
+        RequestTestExit(_test.Finish("Headless game test session regression"));
     }
 
     private async Task TestCoordinatorlessHostCreatesNoncanonicalOwnedGameSession()

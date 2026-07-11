@@ -7,7 +7,7 @@ using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-public partial class run_battle_ai_mutation_guard_regression : SceneTree
+public partial class run_battle_ai_mutation_guard_regression : LifecycleTestSceneTree
 {
     private const string AbortProcessSetting = "battle_ai/fail_loud_abort_process";
     private const string FailureModeSetting = "battle_ai/failure_policy_mode";
@@ -46,7 +46,7 @@ public partial class run_battle_ai_mutation_guard_regression : SceneTree
             ProjectSettings.SetSetting(FailureModeSetting, previousFailureMode);
         }
 
-        Quit(_test.Finish("Battle AI mutation guard regression"));
+        RequestTestExit(_test.Finish("Battle AI mutation guard regression"));
     }
 
     private static void ConfigureRuntimeFaultMode()

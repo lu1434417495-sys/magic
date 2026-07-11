@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_game_root_content_catalog_regression : SceneTree
+public partial class run_game_root_content_catalog_regression : LifecycleTestSceneTree
 {
     private static readonly StringName CatalogProbeItemId = "catalog_regression_probe_item";
     private static readonly StringName FacadeProbeItemId = "facade_catalog_regression_probe_item";
@@ -30,7 +30,7 @@ public partial class run_game_root_content_catalog_regression : SceneTree
         TestRuntimeFacadeDiscardsStaleContentCatalog();
         TestRuntimeFacadeDiscardsCatalogBoundToOtherSession();
 
-        Quit(_test.Finish("Game root content catalog regression"));
+        RequestTestExit(_test.Finish("Game root content catalog regression"));
     }
 
     private void TestGameSessionOwnsUnifiedRootAndContentCatalog()

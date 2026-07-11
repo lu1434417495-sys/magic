@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
+public partial class run_battle_ai_random_chain_behavior_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -17,7 +17,7 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        Quit(_test.Finish("Battle AI random-chain behavior regression"));
+        RequestTestExit(_test.Finish("Battle AI random-chain behavior regression"));
     }
 
     private void TestRandomChainActionUsesCandidatePoolNotTargetIds()

@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using Variant = Godot.Variant;
 
-public partial class run_giants_heel_weapon_ability_regression : SceneTree
+public partial class run_giants_heel_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName GiantsHeelItemId =
         "weapon_unique_greatsword_giants_heel_024";
@@ -41,12 +41,12 @@ public partial class run_giants_heel_weapon_ability_regression : SceneTree
             TestPrimordialWeightAttackPenaltyUsesBodySizeAndStrengthFacts();
             TestGiantSlayerDamageDiceAndGiantAdvantage();
             TestAnkleChopRequiresRealDamageAndAppliesFailedSaveStatusesOnce();
-            Quit(_test.Finish("Giant's Heel weapon ability regression"));
+            RequestTestExit(_test.Finish("Giant's Heel weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Giant's Heel weapon ability regression"));
+            RequestTestExit(_test.Finish("Giant's Heel weapon ability regression"));
         }
     }
 

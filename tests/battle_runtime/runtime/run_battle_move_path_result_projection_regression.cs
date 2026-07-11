@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_move_path_result_projection_regression : SceneTree
+public partial class run_battle_move_path_result_projection_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -12,7 +12,7 @@ public partial class run_battle_move_path_result_projection_regression : SceneTr
         TestMovePathTreeProjectsTypedMaps();
         TestValidatedMoveExecutionResultProjectsTypedPath();
         TestMovementServiceUsesTypedPathAndExecutesMove();
-        Quit(_test.Finish("Battle move path result projection regression"));
+        RequestTestExit(_test.Finish("Battle move path result projection regression"));
     }
 
     private void TestMovePathResultProjectsTypedPath()

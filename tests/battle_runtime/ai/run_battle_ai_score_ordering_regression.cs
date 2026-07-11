@@ -2,7 +2,7 @@ using System;
 using Godot;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_battle_ai_score_ordering_regression : SceneTree
+public partial class run_battle_ai_score_ordering_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -15,7 +15,7 @@ public partial class run_battle_ai_score_ordering_regression : SceneTree
         TestDecisionEngineOrderingMigratedFromGdRunner();
         TestGroundControlMinimumPolicyMigratedFromGdRunner();
 
-        Quit(_test.Finish("Battle AI score ordering regression"));
+        RequestTestExit(_test.Finish("Battle AI score ordering regression"));
     }
 
     private void TestNullCandidateRules()

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_ai_score_context_adapter_regression : SceneTree
+public partial class run_battle_ai_score_context_adapter_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -18,7 +18,7 @@ public partial class run_battle_ai_score_context_adapter_regression : SceneTree
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        Quit(_test.Finish("Battle AI score context adapter regression"));
+        RequestTestExit(_test.Finish("Battle AI score context adapter regression"));
     }
 
     private void TestSkillScoreInputUsesTypedIndexAndStripsSkillResource()

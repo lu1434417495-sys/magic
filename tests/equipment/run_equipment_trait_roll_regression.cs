@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_equipment_trait_roll_regression : SceneTree
+public partial class run_equipment_trait_roll_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -19,7 +19,7 @@ public partial class run_equipment_trait_roll_regression : SceneTree
         TestWarehouseAddItemMintsAfterStableInstanceId();
         TestWarehouseDepositingExistingInstanceDoesNotReroll();
 
-        Quit(_test.Finish("Equipment trait roll regression"));
+        RequestTestExit(_test.Finish("Equipment trait roll regression"));
     }
 
     private void TestMintRequiresStableInstanceId()

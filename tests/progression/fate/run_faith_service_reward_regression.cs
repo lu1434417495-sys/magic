@@ -2,7 +2,7 @@ using Godot;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_faith_service_reward_regression : SceneTree
+public partial class run_faith_service_reward_regression : LifecycleTestSceneTree
 {
     private static readonly StringName FortunaDeityId = "fortuna";
     private static readonly StringName FortuneMarkedStatId = "fortune_marked";
@@ -12,11 +12,11 @@ public partial class run_faith_service_reward_regression : SceneTree
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        Quit(exitCode);
+        TestResult exitCode = Run();
+        RequestTestExit(exitCode);
     }
 
-    private int Run()
+    private TestResult Run()
     {
         TestFortunaRankRewardUsesTypedRewardEntryFields();
 

@@ -3,17 +3,17 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_warrior_repeat_attack_mastery_bonus_regression : SceneTree
+public partial class run_warrior_repeat_attack_mastery_bonus_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        Quit(exitCode);
+        TestResult exitCode = Run();
+        RequestTestExit(exitCode);
     }
 
-    private int Run()
+    private TestResult Run()
     {
         TestRepeatAttackResolverUsesTypedResourceCosts();
         TestRepeatAttackMasteryBonusStartsOnFifthStageEntry();

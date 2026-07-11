@@ -4,7 +4,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_contingency_target_resolver_regression : SceneTree
+public partial class run_contingency_target_resolver_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
     private readonly ContingencyTargetResolverService _resolver = new();
@@ -36,7 +36,7 @@ public partial class run_contingency_target_resolver_regression : SceneTree
             _test.Fail($"Unhandled exception: {ex.GetType().Name}: {ex.Message}");
         }
 
-        Quit(_test.Finish("Contingency target resolver regression"));
+        RequestTestExit(_test.Finish("Contingency target resolver regression"));
     }
 
     private void TestSelfResolverRequiresLiveOwner()

@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_titanbow_weapon_ability_regression : SceneTree
+public partial class run_titanbow_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName TitanbowItemId = "weapon_unique_bow_titanbow_173";
     private static readonly StringName LongbowItemId = "ash_longbow";
@@ -33,12 +33,12 @@ public partial class run_titanbow_weapon_ability_regression : SceneTree
             TestTitanbowAddsDamageDiceAgainstLargeOrLargerTargetsOnly();
             TestTitanbowStrengthRequirementAppliesAttackCheckPenaltyFromAbilityConfig();
             TestTitanbowScalePiercerIgnoresOnlyNaturalArmorForThisAttackCheck();
-            Quit(_test.Finish("Titanbow weapon ability regression"));
+            RequestTestExit(_test.Finish("Titanbow weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Titanbow weapon ability regression"));
+            RequestTestExit(_test.Finish("Titanbow weapon ability regression"));
         }
     }
 

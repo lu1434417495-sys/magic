@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_memoryeater_vine_weapon_ability_regression : SceneTree
+public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName ItemId = "weapon_unique_rapier_memoryeater_vine";
     private static readonly StringName LifebloodLedgerTraitId =
@@ -43,12 +43,12 @@ public partial class run_memoryeater_vine_weapon_ability_regression : SceneTree
             TestLifebloodCounterIncrementsOnlyForThisWeaponAttackAgainstLivingKinds();
             TestLifebloodTierScalesDamageFromPersistentEquipmentConfig();
             TestImmediateWeaponAttackKillAlsoAddsLifeblood();
-            Quit(_test.Finish("Memoryeater Vine weapon ability regression"));
+            RequestTestExit(_test.Finish("Memoryeater Vine weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Memoryeater Vine weapon ability regression"));
+            RequestTestExit(_test.Finish("Memoryeater Vine weapon ability regression"));
         }
     }
 

@@ -1,7 +1,7 @@
 using Godot;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_battle_death_resolution_rules_regression : SceneTree
+public partial class run_battle_death_resolution_rules_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -11,7 +11,7 @@ public partial class run_battle_death_resolution_rules_regression : SceneTree
         TestNormalFatalContextIsNotPowerWordKill();
         TestDeathProtectionPriorityComparison();
 
-        Quit(_test.Finish("Battle death resolution rules regression"));
+        RequestTestExit(_test.Finish("Battle death resolution rules regression"));
     }
 
     private void TestPowerWordKillContextIsTyped()

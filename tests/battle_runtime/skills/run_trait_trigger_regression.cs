@@ -3,7 +3,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_trait_trigger_regression : SceneTree
+public partial class run_trait_trigger_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
     private static StringName HalflingLuck =>
@@ -15,11 +15,11 @@ public partial class run_trait_trigger_regression : SceneTree
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        Quit(exitCode);
+        TestResult exitCode = Run();
+        RequestTestExit(exitCode);
     }
 
-    private int Run()
+    private TestResult Run()
     {
         TestHalflingLuckRerollsNaturalOneAttack();
         TestSavageAttacksAddsOneWeaponDieOnMeleeCrit();

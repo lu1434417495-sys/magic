@@ -2,7 +2,7 @@ using System.Threading.Tasks;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_world_map_runtime_log_dock_regression : SceneTree
+public partial class run_world_map_runtime_log_dock_regression : LifecycleTestSceneTree
 {
     private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
     private static readonly PackedScene WorldMapScene = GD.Load<PackedScene>(
@@ -18,7 +18,7 @@ public partial class run_world_map_runtime_log_dock_regression : SceneTree
         await ResetSession();
         await TestRuntimeLogDockReusesSameWindowForWorldAndBattle();
         await Cleanup();
-        Quit(_test.Finish("World map runtime log dock regression"));
+        RequestTestExit(_test.Finish("World map runtime log dock regression"));
     }
 
     private async Task TestRuntimeLogDockReusesSameWindowForWorldAndBattle()

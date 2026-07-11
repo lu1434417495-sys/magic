@@ -3,7 +3,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_party_warehouse_batch_swap_regression : SceneTree
+public partial class run_party_warehouse_batch_swap_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -19,7 +19,7 @@ public partial class run_party_warehouse_batch_swap_regression : SceneTree
         TestBatchSwapEntriesAcceptsEquipmentInstanceDictionaryPayload();
         TestRemoveEquipmentInstanceTypedContracts();
 
-        Quit(_test.Finish("Party warehouse batch swap regression"));
+        RequestTestExit(_test.Finish("Party warehouse batch swap regression"));
     }
 
     private void TestCommitBatchSwapRollsBackOnCapacityFailure()

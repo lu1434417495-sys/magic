@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-public partial class capture_canyon_battle_board : SceneTree
+public partial class capture_canyon_battle_board : LifecycleTestSceneTree
 {
     private static readonly PackedScene BattleBoardScene = GD.Load<PackedScene>(
         "res://scenes/ui/battle_board_2d.tscn"
@@ -22,11 +22,12 @@ public partial class capture_canyon_battle_board : SceneTree
         "res://battle_board_canyon_capture.signature.txt";
 
     private readonly BattleGridService _gridService = new();
+    private readonly TestHarness _test = new();
 
     public override async void _Initialize()
     {
         int exitCode = await Run();
-        Quit(exitCode);
+        RequestTestExit(_test.Finish("Canyon battle board capture", exitCode));
     }
 
     private async Task<int> Run()

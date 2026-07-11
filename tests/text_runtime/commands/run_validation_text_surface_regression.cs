@@ -2,7 +2,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_validation_text_surface_regression : SceneTree
+public partial class run_validation_text_surface_regression : LifecycleTestSceneTree
 {
     private const string InvalidItemDirectory =
         "res://tests/fixtures/resource_validation/item_registry_invalid";
@@ -20,7 +20,7 @@ public partial class run_validation_text_surface_regression : SceneTree
         AssertInvalidWorldValidationSurface(runner);
 
         runner.Dispose(true);
-        Quit(_test.Finish("Validation text surface regression"));
+        RequestTestExit(_test.Finish("Validation text surface regression"));
     }
 
     private void AssertOfficialValidationSurface(GameTextCommandRunner runner)

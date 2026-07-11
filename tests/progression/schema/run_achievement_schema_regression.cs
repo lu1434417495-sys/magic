@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_achievement_schema_regression : SceneTree
+public partial class run_achievement_schema_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -19,7 +19,7 @@ public partial class run_achievement_schema_regression : SceneTree
         TestAchievementRewardDefRejectsSchemaDefaults();
         TestAchievementDefAcceptsEmptyRewardsArray();
 
-        Quit(_test.Finish("Achievement schema regression"));
+        RequestTestExit(_test.Finish("Achievement schema regression"));
     }
 
     private void TestValidRoundTrips()

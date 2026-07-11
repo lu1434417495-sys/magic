@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_void_axe_weapon_ability_regression : SceneTree
+public partial class run_void_axe_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName ItemId = "weapon_unique_greataxe_void";
     private static readonly StringName BoundaryCutTraitId = "weapon.axe.void.boundary_cut";
@@ -24,12 +24,12 @@ public partial class run_void_axe_weapon_ability_regression : SceneTree
             TestVoidAxeProjectsRealContentOntoBattleUnitAndClearsOnUnequip();
             TestBoundaryCutCreatesBlockingRiftOnRealWeaponHitAndExpiresAfter80Tu();
             TestBoundaryCutKeepsOnlyThreeActiveRifts();
-            Quit(_test.Finish("Void axe weapon ability regression"));
+            RequestTestExit(_test.Finish("Void axe weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Void axe weapon ability regression"));
+            RequestTestExit(_test.Finish("Void axe weapon ability regression"));
         }
     }
 

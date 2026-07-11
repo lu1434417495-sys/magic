@@ -1,6 +1,6 @@
 using Godot;
 
-public partial class run_battle_ai_action_intent_safety_gate_regression : SceneTree
+public partial class run_battle_ai_action_intent_safety_gate_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -8,7 +8,7 @@ public partial class run_battle_ai_action_intent_safety_gate_regression : SceneT
     {
         TestIntentValidationAndSlotRoleDefaults();
         TestSafetyGateRejectionReasons();
-        Quit(_test.Finish("Battle AI action intent safety gate regression"));
+        RequestTestExit(_test.Finish("Battle AI action intent safety gate regression"));
     }
 
     private void TestIntentValidationAndSlotRoleDefaults()

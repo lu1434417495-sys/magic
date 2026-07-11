@@ -1,7 +1,7 @@
 using Godot;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_battle_target_team_rules_regression : SceneTree
+public partial class run_battle_target_team_rules_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -12,7 +12,7 @@ public partial class run_battle_target_team_rules_regression : SceneTree
         TestEffectFilterEmptyInheritsSkillFilter();
         TestMadnessVariantOnlyRelaxesCanonicalTeamFilters();
 
-        Quit(_test.Finish("Battle target team rules regression"));
+        RequestTestExit(_test.Finish("Battle target team rules regression"));
     }
 
     private void TestCanonicalFiltersMatchRelativeToSource()

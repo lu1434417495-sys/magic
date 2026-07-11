@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_racial_skill_grant_service_regression : SceneTree
+public partial class run_racial_skill_grant_service_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -14,7 +14,7 @@ public partial class run_racial_skill_grant_service_regression : SceneTree
     {
         TestBackfillAndRevokeRaceGrantedSkill();
 
-        Quit(_test.Finish("Racial skill grant service regression"));
+        RequestTestExit(_test.Finish("Racial skill grant service regression"));
     }
 
     private void TestBackfillAndRevokeRaceGrantedSkill()

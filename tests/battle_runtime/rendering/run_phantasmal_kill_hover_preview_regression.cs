@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_phantasmal_kill_hover_preview_regression : SceneTree
+public partial class run_phantasmal_kill_hover_preview_regression : LifecycleTestSceneTree
 {
     private static readonly StringName SkillId = "test_phantasmal_kill_hover";
     private readonly TestHarness _test = new();
@@ -13,12 +13,12 @@ public partial class run_phantasmal_kill_hover_preview_regression : SceneTree
         try
         {
             TestGroundHoverPreviewReportsFriendlyExecuteAndImmuneRisk();
-            Quit(_test.Finish("Phantasmal Kill hover preview regression"));
+            RequestTestExit(_test.Finish("Phantasmal Kill hover preview regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Phantasmal Kill hover preview regression"));
+            RequestTestExit(_test.Finish("Phantasmal Kill hover preview regression"));
         }
     }
 

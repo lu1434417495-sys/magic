@@ -4,7 +4,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_battle_unit_factory_weapon_projection_regression : SceneTree
+public partial class run_battle_unit_factory_weapon_projection_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -18,12 +18,12 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Scen
             TestBattleUnitFactoryRefreshesEffectiveTraitsFromBattleLocalEquipment();
             TestBattleUnitFactoryProjectsPlayerEquipmentAbilitySources();
             TestBattleUnitFactoryRefreshUsesBattleLocalEquipmentView();
-            Quit(_test.Finish("Battle unit factory weapon projection regression"));
+            RequestTestExit(_test.Finish("Battle unit factory weapon projection regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Battle unit factory weapon projection regression"));
+            RequestTestExit(_test.Finish("Battle unit factory weapon projection regression"));
         }
     }
 

@@ -2,7 +2,7 @@ using Godot;
 using System;
 using System.Collections.Generic;
 
-public partial class run_enemy_multi_unit_skill_command_regression : SceneTree
+public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
     private readonly GodotTransientResourceScope _runtimeScope =
@@ -100,7 +100,7 @@ public partial class run_enemy_multi_unit_skill_command_regression : SceneTree
             _runtimeScope.Close();
         }
 
-        Quit(_test.Finish("enemy multi-unit command target ids persist"));
+        RequestTestExit(_test.Finish("enemy multi-unit command target ids persist"));
     }
 
     private static BattleUnitState BuildUnit(StringName unitId, StringName factionId, Vector2I coord)

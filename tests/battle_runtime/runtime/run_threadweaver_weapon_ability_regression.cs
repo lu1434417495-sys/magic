@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_threadweaver_weapon_ability_regression : SceneTree
+public partial class run_threadweaver_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName ThreadweaverItemId =
         "weapon_unique_sword_threadweaver_019";
@@ -47,12 +47,12 @@ public partial class run_threadweaver_weapon_ability_regression : SceneTree
             TestCutFateThreadExecutesFailedSaveConsumesThreadsAndUsesPerBattleCharge();
             TestCutFateThreadAfterSkillDamageAndCleanupAreGenericEquipmentActions();
             TestThreadMendingHealsFallenAllyAndCostsSourceHp();
-            Quit(_test.Finish("Threadweaver weapon ability regression"));
+            RequestTestExit(_test.Finish("Threadweaver weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Threadweaver weapon ability regression"));
+            RequestTestExit(_test.Finish("Threadweaver weapon ability regression"));
         }
     }
 

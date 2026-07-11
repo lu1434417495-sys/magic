@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_world_submap_regression : SceneTree
+public partial class run_world_submap_regression : LifecycleTestSceneTree
 {
     private const string AshenWorldConfig = "res://data/configs/world_map/ashen_intersection_world_map_config.tres";
 
@@ -21,7 +21,7 @@ public partial class run_world_submap_regression : SceneTree
         TestSubmapReturnBlocksWhileModalOpen();
         TestSubmapEntryReturnAndReload();
 
-        Quit(_test.Finish("World submap regression"));
+        RequestTestExit(_test.Finish("World submap regression"));
     }
 
     private void TestSubmapReturnBlocksWhileBattleActive()

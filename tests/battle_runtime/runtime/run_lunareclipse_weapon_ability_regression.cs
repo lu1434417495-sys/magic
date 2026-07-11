@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_lunareclipse_weapon_ability_regression : SceneTree
+public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName ItemId = "weapon_unique_battleaxe_lunareclipse";
     private static readonly StringName MoonPhaseCycleTraitId =
@@ -37,12 +37,12 @@ public partial class run_lunareclipse_weapon_ability_regression : SceneTree
             TestLunareclipseProjectsContentAndSkillEntry();
             TestMoonPhaseCycleTriggersFullMoonJudgmentAndRefreshesOneStack();
             TestEclipseShadowstepBlinksThroughBlockedPathAndHeavyArmorBlocksEntry();
-            Quit(_test.Finish("Lunareclipse weapon ability regression"));
+            RequestTestExit(_test.Finish("Lunareclipse weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Lunareclipse weapon ability regression"));
+            RequestTestExit(_test.Finish("Lunareclipse weapon ability regression"));
         }
     }
 

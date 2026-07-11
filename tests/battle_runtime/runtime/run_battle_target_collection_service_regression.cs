@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_target_collection_service_regression : SceneTree
+public partial class run_battle_target_collection_service_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -12,12 +12,12 @@ public partial class run_battle_target_collection_service_regression : SceneTree
         {
             TestGroundAreaCollectionUsesTypedInputs();
             TestSelfAndUnitTargetCollectionUseTypedUnits();
-            Quit(_test.Finish("Battle target collection service regression"));
+            RequestTestExit(_test.Finish("Battle target collection service regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(1);
+            RequestTestExit(_test.Finish("Battle target collection service regression", 1));
         }
     }
 

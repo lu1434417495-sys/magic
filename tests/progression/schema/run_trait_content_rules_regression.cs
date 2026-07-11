@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_trait_content_rules_regression : SceneTree
+public partial class run_trait_content_rules_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -65,7 +65,7 @@ public partial class run_trait_content_rules_regression : SceneTree
         TestSourceKindAllowedUsesTraitDefDeclaration();
         TestRollSchemaValidation();
 
-        Quit(_test.Finish("Trait content rules regression"));
+        RequestTestExit(_test.Finish("Trait content rules regression"));
     }
 
     private void TestEffectMappingCoversCurrentRaceTraitEffects()

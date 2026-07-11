@@ -1,7 +1,7 @@
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battle_sim_unit_spec_defaults_regression : SceneTree
+public partial class run_battle_sim_unit_spec_defaults_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -12,7 +12,7 @@ public partial class run_battle_sim_unit_spec_defaults_regression : SceneTree
         TestAttributeOverridesCanReplaceAttackBonusWithoutFinalAc();
         TestFormalBaseAttributesUseAcComponents();
         TestBaseAttributeOverridesUseFormalActionThreshold();
-        Quit(_test.Finish("Battle sim unit spec defaults regression"));
+        RequestTestExit(_test.Finish("Battle sim unit spec defaults regression"));
     }
 
     private void TestDefaultAttackBonusAndAcAreInitialized()

@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_game_runtime_reward_flow_handler_regression : SceneTree
+public partial class run_game_runtime_reward_flow_handler_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -18,7 +18,7 @@ public partial class run_game_runtime_reward_flow_handler_regression : SceneTree
         TestRewardHandlerRoutesModalCloseAndRewardPresentation();
         TestRewardHandlerRejectsStringNamePromotionPromptValues();
 
-        Quit(_test.Finish("Game runtime reward flow handler regression"));
+        RequestTestExit(_test.Finish("Game runtime reward flow handler regression"));
     }
 
     private void TestFacadeUsesRewardFlowHandlerSurface()

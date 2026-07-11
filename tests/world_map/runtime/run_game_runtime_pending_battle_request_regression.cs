@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_game_runtime_pending_battle_request_regression : SceneTree
+public partial class run_game_runtime_pending_battle_request_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -16,7 +16,7 @@ public partial class run_game_runtime_pending_battle_request_regression : SceneT
     {
         TestPendingBattleGenerationRequestUsesTypedState();
 
-        Quit(_test.Finish("Game runtime pending battle request regression"));
+        RequestTestExit(_test.Finish("Game runtime pending battle request regression"));
     }
 
     private void TestPendingBattleGenerationRequestUsesTypedState()

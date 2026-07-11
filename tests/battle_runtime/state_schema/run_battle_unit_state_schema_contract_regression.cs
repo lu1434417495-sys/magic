@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_battle_unit_state_schema_contract_regression : SceneTree
+public partial class run_battle_unit_state_schema_contract_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -32,7 +32,7 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
         TestRejectsBadWeaponDicePayloads();
         TestBodySizeRulesWrapperIsRemoved();
 
-        Quit(_test.Finish("Battle unit state schema regression"));
+        RequestTestExit(_test.Finish("Battle unit state schema regression"));
     }
 
     private void TestValidRoundtripPreservesCurrentPayload()

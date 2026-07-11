@@ -2,7 +2,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_save_serializer_quest_round_trip_regression : SceneTree
+public partial class run_save_serializer_quest_round_trip_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -19,7 +19,7 @@ public partial class run_save_serializer_quest_round_trip_regression : SceneTree
         TestDecodePayloadRejectsMissingPartySchemaFields();
         TestRootVersion10PartyVersion6OldEquipmentPayloadIsRejectedByVersionGate();
         TestExtractSaveMetaRejectsMissingSlotFields();
-        Quit(_test.Finish("Save serializer quest round trip regression"));
+        RequestTestExit(_test.Finish("Save serializer quest round trip regression"));
     }
 
     private void TestSaveSerializerRoundTripPreservesPartyQuestSchema()

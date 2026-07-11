@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-public partial class run_battle_panel_full_refresh_benchmark : SceneTree
+public partial class run_battle_panel_full_refresh_benchmark : LifecycleTestSceneTree
 {
     private static readonly PackedScene BattlePanelScene = GD.Load<PackedScene>(
         "res://scenes/ui/battle_map_panel.tscn"
@@ -28,7 +28,7 @@ public partial class run_battle_panel_full_refresh_benchmark : SceneTree
         if (panel == null)
         {
             GD.PushError("BattlePanelRefreshBenchmark could not instantiate BattleMapPanel.");
-            Quit(1);
+            RequestTestExit(_test.Finish("Battle panel full refresh benchmark", 1));
             return;
         }
 
@@ -84,14 +84,14 @@ public partial class run_battle_panel_full_refresh_benchmark : SceneTree
 
         if (_test.Failures.Count > 0)
         {
-            Quit(_test.Finish("Battle panel full refresh benchmark"));
+            RequestTestExit(_test.Finish("Battle panel full refresh benchmark"));
             return;
         }
 
         GD.Print(FormatResult(fullRefresh));
         GD.Print(FormatResult(overlayOnly));
         GD.Print(FormatComparison(fullRefresh, overlayOnly));
-        Quit(_test.Finish("Battle panel full refresh benchmark"));
+        RequestTestExit(_test.Finish("Battle panel full refresh benchmark"));
     }
 
     private async Task<GDictionary> RunPanelPass(

@@ -1,13 +1,13 @@
 using Godot;
 
-public partial class run_battle_board_render_profile_schema_regression : SceneTree
+public partial class run_battle_board_render_profile_schema_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
         TestRenderProfileReadsFormalSourceSpecs();
-        Quit(_test.Finish("Battle board render profile schema regression"));
+        RequestTestExit(_test.Finish("Battle board render profile schema regression"));
     }
 
     private void TestRenderProfileReadsFormalSourceSpecs()

@@ -3,7 +3,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_world_map_content_validator_typed_regression : SceneTree
+public partial class run_world_map_content_validator_typed_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -20,7 +20,7 @@ public partial class run_world_map_content_validator_typed_regression : SceneTre
         TestPublicGenerationConfigRejectsStringKeyCatalogIds();
         TestSiblingMountedSubmapsMayReuseConfigPath();
 
-        Quit(_test.Finish("World map content validator typed regression"));
+        RequestTestExit(_test.Finish("World map content validator typed regression"));
     }
 
     private void TestOfficialWorldPresetsTypedBoundaryMatchesPublicBoundary()

@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 // M2 time_stasis 技能链回归：elite/boss 降级、temporal release / dispel 余波、
 // 静滞目标过滤、读条冻结与 temporal-only 内容校验。
-public partial class run_time_stasis_regression : SceneTree
+public partial class run_time_stasis_regression : LifecycleTestSceneTree
 {
     private static readonly StringName TemporalTag =
         BattleSaveContentRules.ToStringName(BattleSaveTagKind.Temporal);
@@ -28,7 +28,7 @@ public partial class run_time_stasis_regression : SceneTree
         TestTimeSlowHalvesPendingCastProgress();
         TestTemporalContentValidationRules();
 
-        Quit(_test.Finish("Time stasis regression"));
+        RequestTestExit(_test.Finish("Time stasis regression"));
     }
 
     private void TestStasisApplicationDowngradesForEliteBoss()

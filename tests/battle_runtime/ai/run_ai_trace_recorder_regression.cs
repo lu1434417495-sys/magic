@@ -1,7 +1,7 @@
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_ai_trace_recorder_regression : SceneTree
+public partial class run_ai_trace_recorder_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -17,7 +17,7 @@ public partial class run_ai_trace_recorder_regression : SceneTree
             AiTraceRecorder.SetInstance(null);
         }
 
-        Quit(_test.Finish("AI trace recorder regression"));
+        RequestTestExit(_test.Finish("AI trace recorder regression"));
     }
 
     private void TestRecorderCapturesBalancedNestedSpans()

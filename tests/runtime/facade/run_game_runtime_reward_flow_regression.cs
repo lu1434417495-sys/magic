@@ -4,7 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_game_runtime_reward_flow_regression : SceneTree
+public partial class run_game_runtime_reward_flow_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -19,7 +19,7 @@ public partial class run_game_runtime_reward_flow_regression : SceneTree
         TestTypedResearchRewardQueueAndPresentation();
         TestCloseActiveModalStillPresentsPendingReward();
 
-        Quit(_test.Finish("Game runtime reward flow regression"));
+        RequestTestExit(_test.Finish("Game runtime reward flow regression"));
     }
 
     private void TestRewardQueueConfirmationShowsNextReward()

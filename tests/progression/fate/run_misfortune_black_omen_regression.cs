@@ -4,7 +4,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_misfortune_black_omen_regression : SceneTree
+public partial class run_misfortune_black_omen_regression : LifecycleTestSceneTree
 {
     private static readonly StringName HeroId = "hero";
     private readonly TestHarness _test = new();
@@ -25,7 +25,7 @@ public partial class run_misfortune_black_omen_regression : SceneTree
         TestDeadRoadLanternBlackOmenPathHookGrantsDoomMark();
         TestAlreadyMarkedMemberIsNotGrantedAgain();
 
-        Quit(_test.Finish("Misfortune black omen regression"));
+        RequestTestExit(_test.Finish("Misfortune black omen regression"));
     }
 
     private void TestCursedRelicEliteOrBossVictoryHookGrantsDoomMark()

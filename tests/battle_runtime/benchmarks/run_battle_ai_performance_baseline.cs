@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_battle_ai_performance_baseline : SceneTree
+public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
 {
     private const int ActionThreshold = 120;
     private const int TimelineTicksPerStep = 1;
@@ -31,7 +31,7 @@ public partial class run_battle_ai_performance_baseline : SceneTree
     public override void _Initialize()
     {
         int exitCode = Run();
-        Quit(exitCode);
+        RequestTestExit(_test.Finish("AI performance baseline", exitCode));
     }
 
     private int Run()
@@ -119,7 +119,7 @@ public partial class run_battle_ai_performance_baseline : SceneTree
         }
 
         if (_test.Failures.Count > 0)
-            return _test.Finish("AI performance baseline");
+            return 0;
 
         GDictionary currentDoc = AiBaselineDiff.BuildBaselineDoc(
             scenariosDoc,

@@ -1,7 +1,7 @@
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_invalid_save_graceful_regression : SceneTree
+public partial class run_invalid_save_graceful_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
     private const string InvalidGenerationConfigPath = "user://invalid_generation_config_resource.tres";
@@ -16,7 +16,7 @@ public partial class run_invalid_save_graceful_regression : SceneTree
         TestCreateNewSaveRejectsBadCreationIdentityWithoutCreatingSlot();
         TestCreateNewSaveAcceptsValidCreationIdentityPayload();
         TestSaveIndexVersionRequiresExactInt();
-        Quit(_test.Finish("Invalid save graceful regression"));
+        RequestTestExit(_test.Finish("Invalid save graceful regression"));
     }
 
     private void TestCreateNewSaveRejectsInvalidGenerationConfigWithoutQuit()

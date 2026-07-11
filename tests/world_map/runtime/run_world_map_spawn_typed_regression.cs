@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_world_map_spawn_typed_regression : SceneTree
+public partial class run_world_map_spawn_typed_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -19,7 +19,7 @@ public partial class run_world_map_spawn_typed_regression : SceneTree
         TestTypedWorldBuildProjectsSettlementsAndAnchors();
         TestTypedWorldBuildGeneratesResourceNodes();
 
-        Quit(_test.Finish("World map spawn typed regression"));
+        RequestTestExit(_test.Finish("World map spawn typed regression"));
     }
 
     private void TestTypedWorldBuildProjectsSettlementsAndAnchors()

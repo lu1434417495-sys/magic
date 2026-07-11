@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_plague_tongue_weapon_ability_regression : SceneTree
+public partial class run_plague_tongue_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName PlagueTongueItemId =
         "weapon_unique_axe_plague_tongue_099";
@@ -38,12 +38,12 @@ public partial class run_plague_tongue_weapon_ability_regression : SceneTree
             TestAxeFeverDealsOneD4TimelineDamageEverySixtyTu();
             TestPlagueSpreadCreatesBattleLifetimeCloudSixtyTuAfterHolderKill();
             TestPlagueCloudContactAppliesAxeFeverAndHonorsCarrierImmunity();
-            Quit(_test.Finish("Plague Tongue weapon ability regression"));
+            RequestTestExit(_test.Finish("Plague Tongue weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Plague Tongue weapon ability regression"));
+            RequestTestExit(_test.Finish("Plague Tongue weapon ability regression"));
         }
     }
 

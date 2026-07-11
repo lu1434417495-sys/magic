@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_viper_morningstar_weapon_ability_regression : SceneTree
+public partial class run_viper_morningstar_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName ViperItemId = "weapon_unique_morningstar_viper_206";
     private static readonly StringName VenomStrikeTraitId =
@@ -34,12 +34,12 @@ public partial class run_viper_morningstar_weapon_ability_regression : SceneTree
             TestVenomStrikeAddsPoisonAndParalyzesOnFailedPoisonSave();
             TestPoisonSaveImmunityBlocksParalysis();
             TestVenomInjectionUsageAndPrimedDamageLifecycle();
-            Quit(_test.Finish("Viper Morningstar weapon ability regression"));
+            RequestTestExit(_test.Finish("Viper Morningstar weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Viper Morningstar weapon ability regression"));
+            RequestTestExit(_test.Finish("Viper Morningstar weapon ability regression"));
         }
     }
 

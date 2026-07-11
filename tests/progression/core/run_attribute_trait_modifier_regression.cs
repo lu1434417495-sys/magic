@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using Godot;
 
-public partial class run_attribute_trait_modifier_regression : SceneTree
+public partial class run_attribute_trait_modifier_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -15,7 +15,7 @@ public partial class run_attribute_trait_modifier_regression : SceneTree
     private void Run()
     {
         TestTraitAttributeModifiersApplyAndPreserveSource();
-        Quit(_test.Finish("Attribute trait modifier regression"));
+        RequestTestExit(_test.Finish("Attribute trait modifier regression"));
     }
 
     private void TestTraitAttributeModifiersApplyAndPreserveSource()

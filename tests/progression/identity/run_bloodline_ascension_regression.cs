@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_bloodline_ascension_regression : SceneTree
+public partial class run_bloodline_ascension_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -23,7 +23,7 @@ public partial class run_bloodline_ascension_regression : SceneTree
         TestStageAdvancementRefreshesEffectiveStage();
         TestIdentitySummaryIncludesIdentityProjection();
 
-        Quit(_test.Finish("Bloodline ascension regression"));
+        RequestTestExit(_test.Finish("Bloodline ascension regression"));
     }
 
     private void TestApplyServicesNoLongerRequireGodotRegistration()

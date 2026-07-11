@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_on_kill_gain_resources_regression : SceneTree
+public partial class run_battle_on_kill_gain_resources_regression : LifecycleTestSceneTree
 {
     private static readonly StringName SkillId = "mage_death_reap";
     private readonly TestHarness _test = new();
@@ -9,7 +9,7 @@ public partial class run_battle_on_kill_gain_resources_regression : SceneTree
     public override void _Initialize()
     {
         TestDeathReapTypedDefinitionRestoresResourcesOnKill();
-        Quit(_test.Finish("Battle on-kill gain resources regression"));
+        RequestTestExit(_test.Finish("Battle on-kill gain resources regression"));
     }
 
     private void TestDeathReapTypedDefinitionRestoresResourcesOnKill()

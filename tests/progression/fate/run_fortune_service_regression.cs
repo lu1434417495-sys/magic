@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_fortune_service_regression : SceneTree
+public partial class run_fortune_service_regression : LifecycleTestSceneTree
 {
     private static readonly StringName HeroId = "hero";
 
@@ -13,11 +13,11 @@ public partial class run_fortune_service_regression : SceneTree
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        Quit(exitCode);
+        TestResult exitCode = Run();
+        RequestTestExit(exitCode);
     }
 
-    private int Run()
+    private TestResult Run()
     {
         TestGrantsFortuneMarkAfterConfirmationSuccess();
         TestFailedConfirmationDoesNotGrantMark();

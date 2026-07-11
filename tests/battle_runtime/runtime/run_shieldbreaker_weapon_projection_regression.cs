@@ -4,7 +4,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_shieldbreaker_weapon_projection_regression : SceneTree
+public partial class run_shieldbreaker_weapon_projection_regression : LifecycleTestSceneTree
 {
     private static readonly StringName ShieldbreakerItemId =
         "weapon_unique_axe_shieldbreaker_098";
@@ -28,12 +28,12 @@ public partial class run_shieldbreaker_weapon_projection_regression : SceneTree
         try
         {
             TestShieldbreakerProjectsRealContentOntoBattleUnit();
-            Quit(_test.Finish("Shieldbreaker weapon projection regression"));
+            RequestTestExit(_test.Finish("Shieldbreaker weapon projection regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Shieldbreaker weapon projection regression"));
+            RequestTestExit(_test.Finish("Shieldbreaker weapon projection regression"));
         }
     }
 

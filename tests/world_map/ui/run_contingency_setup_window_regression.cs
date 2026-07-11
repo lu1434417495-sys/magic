@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_contingency_setup_window_regression : SceneTree
+public partial class run_contingency_setup_window_regression : LifecycleTestSceneTree
 {
     private static readonly PackedScene PartyManagementWindowScene = GD.Load<PackedScene>(
         "res://scenes/ui/party_management_window.tscn"
@@ -23,7 +23,7 @@ public partial class run_contingency_setup_window_regression : SceneTree
         await TestUnchargedTemplateSelectionEmitsSelectedPayload();
         await TestChargedSetupDisablesSaveAndShowsClearWarning();
         await TestActionButtonsEmitSignalsWithoutMutatingMember();
-        Quit(_test.Finish("Contingency setup window regression"));
+        RequestTestExit(_test.Finish("Contingency setup window regression"));
     }
 
     private async Task TestPartyManagementExposesContingencyEntrySignal()

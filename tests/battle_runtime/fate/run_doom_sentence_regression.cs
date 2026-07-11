@@ -4,7 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_doom_sentence_regression : SceneTree
+public partial class run_doom_sentence_regression : LifecycleTestSceneTree
 {
     private static readonly StringName DOOM_SENTENCE_SKILL_ID = "doom_sentence";
     private static readonly StringName STATUS_DOOM_SENTENCE_VERDICT = "doom_sentence_verdict";
@@ -22,7 +22,7 @@ public partial class run_doom_sentence_regression : SceneTree
         TestDoomSentenceIsLimitedToOncePerBattle();
         TestDoomSentenceIsBlockedWhenCalamityCapCannotPayCost();
 
-        Quit(_test.Finish("Doom sentence regression"));
+        RequestTestExit(_test.Finish("Doom sentence regression"));
     }
 
     private void TestDoomSentenceAppliesVerdictAndTeamwideDamageAmp()

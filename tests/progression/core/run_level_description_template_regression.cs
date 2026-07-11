@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_level_description_template_regression : SceneTree
+public partial class run_level_description_template_regression : LifecycleTestSceneTree
 {
     private const string BattleRecoverySkillPath =
         "res://data/configs/skills/warrior_battle_recovery.tres";
@@ -30,7 +30,7 @@ public partial class run_level_description_template_regression : SceneTree
         TestLevelDescriptionDerivesTypedEffectFields();
         TestLevelDescriptionIgnoresLockedCastVariantEffects();
 
-        Quit(_test.Finish("Level description template regression"));
+        RequestTestExit(_test.Finish("Level description template regression"));
     }
 
     private void TestBasicSubstitution()

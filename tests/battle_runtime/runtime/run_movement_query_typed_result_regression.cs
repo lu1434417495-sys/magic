@@ -2,7 +2,7 @@ using System;
 using System.Reflection;
 using Godot;
 
-public partial class run_movement_query_typed_result_regression : SceneTree
+public partial class run_movement_query_typed_result_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -10,7 +10,7 @@ public partial class run_movement_query_typed_result_regression : SceneTree
     {
         TestMovementQueryEntryPointsReturnTypedResults();
         TestMovementQueryResultsExposeTypedCollections();
-        Quit(_test.Finish("Movement query typed result regression"));
+        RequestTestExit(_test.Finish("Movement query typed result regression"));
     }
 
     private void TestMovementQueryEntryPointsReturnTypedResults()

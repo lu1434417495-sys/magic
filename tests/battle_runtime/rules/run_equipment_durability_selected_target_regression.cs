@@ -3,7 +3,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_equipment_durability_selected_target_regression : SceneTree
+public partial class run_equipment_durability_selected_target_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -21,7 +21,7 @@ public partial class run_equipment_durability_selected_target_regression : Scene
         TestOccupiedSlotSelectionReportsMatchedSlot();
         TestTypedCombatEffectSlotWeightsBuildSelectorQueryDespiteLegacyParams();
 
-        Quit(_test.Finish("Equipment durability selected target regression"));
+        RequestTestExit(_test.Finish("Equipment durability selected target regression"));
     }
 
     private void TestSelectedCommitOnlyMutatesRequestedInstance()

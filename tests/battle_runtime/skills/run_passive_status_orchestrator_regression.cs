@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_passive_status_orchestrator_regression : SceneTree
+public partial class run_passive_status_orchestrator_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -20,7 +20,7 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
         TestOrchestratorSuppressesOriginalRacePassivesForAscension();
         TestOrchestratorProjectsShootingSpecializationBowOnlyRangeBonus();
 
-        Quit(_test.Finish("Passive status orchestrator regression"));
+        RequestTestExit(_test.Finish("Passive status orchestrator regression"));
     }
 
     private void TestPassiveContextAndResolversNoLongerRequireGodotRegistration()

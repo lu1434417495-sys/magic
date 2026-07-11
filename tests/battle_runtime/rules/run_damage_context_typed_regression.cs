@@ -2,7 +2,7 @@ using System;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_damage_context_typed_regression : SceneTree
+public partial class run_damage_context_typed_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -17,7 +17,7 @@ public partial class run_damage_context_typed_regression : SceneTree
         TestTypedContextDrivesCriticalDamageAndVirtualDice();
         TestFixedMitigationSourcesRemainStructured();
 
-        Quit(_test.Finish("Damage context typed regression"));
+        RequestTestExit(_test.Finish("Damage context typed regression"));
     }
 
     private void TestPartialDictionaryContextIsRejectedAtBoundary()

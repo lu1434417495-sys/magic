@@ -5,7 +5,7 @@ using System.Reflection;
 using Godot;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : SceneTree
+public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -25,7 +25,7 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : S
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        Quit(_test.Finish("Battle AI unit skill candidate evaluator regression"));
+        RequestTestExit(_test.Finish("Battle AI unit skill candidate evaluator regression"));
     }
 
     private void TestEvaluatorIsPlainCSharpHelper()

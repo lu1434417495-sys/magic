@@ -4,7 +4,7 @@ using Godot;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_battle_equipment_requirement_rules_regression : SceneTree
+public partial class run_battle_equipment_requirement_rules_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -14,7 +14,7 @@ public partial class run_battle_equipment_requirement_rules_regression : SceneTr
         TestShieldRequirementRejectsMissingOrNonShieldItems();
         TestItemTagRuleRejectsInvalidSlot();
 
-        Quit(_test.Finish("Battle equipment requirement rules regression"));
+        RequestTestExit(_test.Finish("Battle equipment requirement rules regression"));
     }
 
     private void TestShieldRequirementReadsTypedItemIndex()

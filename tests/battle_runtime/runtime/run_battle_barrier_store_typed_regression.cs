@@ -1,14 +1,14 @@
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battle_barrier_store_typed_regression : SceneTree
+public partial class run_battle_barrier_store_typed_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
         TestMalformedBarrierPayloadDoesNotReplaceLiveStore();
-        Quit(_test.Finish("Battle barrier store typed regression"));
+        RequestTestExit(_test.Finish("Battle barrier store typed regression"));
     }
 
     private void TestMalformedBarrierPayloadDoesNotReplaceLiveStore()

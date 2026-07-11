@@ -4,7 +4,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_identity_payload_validator_regression : SceneTree
+public partial class run_identity_payload_validator_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -31,7 +31,7 @@ public partial class run_identity_payload_validator_regression : SceneTree
         TestRejectsAscensionDisallowedBloodline();
         TestBodySizeCacheMismatchIsNotIdentityError();
 
-        Quit(_test.Finish("Identity payload validator regression"));
+        RequestTestExit(_test.Finish("Identity payload validator regression"));
     }
 
     private void TestValidatorNoLongerRequiresGodotRegistration()

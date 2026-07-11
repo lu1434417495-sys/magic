@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_smiths_regret_weapon_ability_regression : SceneTree
+public partial class run_smiths_regret_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName ItemId = "weapon_unique_longsword_smiths_regret";
     private static readonly StringName FlawedBeautyTraitId =
@@ -35,12 +35,12 @@ public partial class run_smiths_regret_weapon_ability_regression : SceneTree
             TestFlawedBeautyOutcomeTableControlsFireFlaw();
             TestElementalOverloadRequiresDifferentRecentFlaw();
             TestMoradinGraceAppliesToNextWeaponAttackAndConsumesOnMiss();
-            Quit(_test.Finish("Smith's Regret weapon ability regression"));
+            RequestTestExit(_test.Finish("Smith's Regret weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Smith's Regret weapon ability regression"));
+            RequestTestExit(_test.Finish("Smith's Regret weapon ability regression"));
         }
     }
 

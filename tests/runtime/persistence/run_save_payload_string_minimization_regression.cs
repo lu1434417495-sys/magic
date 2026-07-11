@@ -4,7 +4,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_save_payload_string_minimization_regression : SceneTree
+public partial class run_save_payload_string_minimization_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
     private const string SaveDirectory = "user://saves";
@@ -20,7 +20,7 @@ public partial class run_save_payload_string_minimization_regression : SceneTree
     {
         TestSavePayloadMinimizesIdentityStrings();
 
-        Quit(_test.Finish("Save payload string minimization regression"));
+        RequestTestExit(_test.Finish("Save payload string minimization regression"));
     }
 
     private void TestSavePayloadMinimizesIdentityStrings()

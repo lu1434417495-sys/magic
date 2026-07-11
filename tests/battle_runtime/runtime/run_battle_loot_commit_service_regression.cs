@@ -3,7 +3,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_battle_loot_commit_service_regression : SceneTree
+public partial class run_battle_loot_commit_service_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
     private readonly TestHarness _test = new();
@@ -40,7 +40,7 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
             TestBattleOverflowFeedbackSurfacesInMessageAndSnapshot
         );
 
-        Quit(_test.Finish("Battle loot commit service regression"));
+        RequestTestExit(_test.Finish("Battle loot commit service regression"));
     }
 
     private void RunTest(string name, System.Action test)

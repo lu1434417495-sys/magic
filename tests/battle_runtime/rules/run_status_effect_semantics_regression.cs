@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_status_effect_semantics_regression : SceneTree
+public partial class run_status_effect_semantics_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
     private readonly List<BattleRuntimeModule> _ownedRuntimes = new();
@@ -22,7 +22,7 @@ public partial class run_status_effect_semantics_regression : SceneTree
             DisposeOwnedRuntimes();
         }
 
-        Quit(_test.Finish("Status effect semantics regression"));
+        RequestTestExit(_test.Finish("Status effect semantics regression"));
     }
 
     private void RunTests()

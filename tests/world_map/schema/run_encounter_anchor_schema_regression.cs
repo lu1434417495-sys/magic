@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_encounter_anchor_schema_regression : SceneTree
+public partial class run_encounter_anchor_schema_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -21,7 +21,7 @@ public partial class run_encounter_anchor_schema_regression : SceneTree
         TestEmptyRequiredIdentityFieldsAreRejected();
         TestInvalidEncounterKindIsRejected();
 
-        Quit(_test.Finish("Encounter anchor schema regression"));
+        RequestTestExit(_test.Finish("Encounter anchor schema regression"));
     }
 
     private void TestValidRoundtripPreservesCurrentSchema()

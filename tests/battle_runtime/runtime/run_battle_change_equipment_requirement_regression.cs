@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_battle_change_equipment_requirement_regression : SceneTree
+public partial class run_battle_change_equipment_requirement_regression : LifecycleTestSceneTree
 {
     private static readonly StringName RestrictedHelmId = "requirement_test_restricted_helm";
     private static readonly StringName RestrictedHelmInstanceId =
@@ -24,7 +24,7 @@ public partial class run_battle_change_equipment_requirement_regression : SceneT
         TestBattleChangeEquipmentEnforcesItemRequirement();
         TestDuplicateSameItemBattleEquipAndUnequipPreservesInstance();
         TestChangeEquipmentRejectsInactiveCommandUnitWithTypedReport();
-        Quit(_test.Finish("Battle change equipment requirement regression"));
+        RequestTestExit(_test.Finish("Battle change equipment requirement regression"));
     }
 
     private void TestBattleChangeEquipmentEnforcesItemRequirement()

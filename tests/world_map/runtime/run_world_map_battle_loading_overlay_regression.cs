@@ -2,7 +2,7 @@ using System.Threading.Tasks;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_world_map_battle_loading_overlay_regression : SceneTree
+public partial class run_world_map_battle_loading_overlay_regression : LifecycleTestSceneTree
 {
     private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
     private static readonly PackedScene WorldMapScene = GD.Load<PackedScene>(
@@ -27,7 +27,7 @@ public partial class run_world_map_battle_loading_overlay_regression : SceneTree
             _test.Fail($"未捕获异常：{ex}");
         }
         await Cleanup();
-        Quit(_test.Finish("World map battle loading overlay regression"));
+        RequestTestExit(_test.Finish("World map battle loading overlay regression"));
     }
 
     private async Task TestWorldMapLoadingOverlayTracksBattlePanelState()

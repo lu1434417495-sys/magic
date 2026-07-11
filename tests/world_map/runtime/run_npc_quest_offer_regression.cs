@@ -6,7 +6,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_npc_quest_offer_regression : SceneTree
+public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 {
     private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -38,7 +38,7 @@ public partial class run_npc_quest_offer_regression : SceneTree
         await TestNpcQuestOfferRefreshesEntriesAfterAccept();
         await TestNpcQuestOfferRejectsConfirmBypass();
 
-        Quit(_test.Finish("NPC quest offer regression"));
+        RequestTestExit(_test.Finish("NPC quest offer regression"));
     }
 
     private async Task TestNpcQuestOfferOpensForMatchingInteraction()

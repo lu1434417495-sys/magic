@@ -1,24 +1,22 @@
-using System;
 using System.Collections.Generic;
-using System.Threading;
 using Godot;
 
 internal sealed class TestHarness
 {
     public readonly List<string> Failures = new();
-    private int _finished;
-    private int _exitCode;
+    private readonly object _sync = new();
+    private TestResult _result;
 
     public void True(bool condition, string message)
     {
         if (!condition)
-            Failures.Add(message);
+            Fail(message);
     }
 
     public void False(bool condition, string message)
     {
         if (condition)
-            Failures.Add(message);
+            Fail(message);
     }
 
     public void Eq<T>(T actual, T expected, string message)
@@ -34,7 +32,7 @@ internal sealed class TestHarness
         }
 
         if (!equal)
-            Failures.Add($"{message} | actual={actual} expected={expected}");
+            Fail($"{message} | actual={actual} expected={expected}");
     }
 
     public void Eq(object actual, object expected, string message)
@@ -42,55 +40,38 @@ internal sealed class TestHarness
         if (actual is StringName || expected is StringName)
         {
             if (actual?.ToString() != expected?.ToString())
-                Failures.Add($"{message} | actual={actual} expected={expected}");
+                Fail($"{message} | actual={actual} expected={expected}");
             return;
         }
 
         if (!Equals(actual, expected))
-            Failures.Add($"{message} | actual={actual} expected={expected}");
+            Fail($"{message} | actual={actual} expected={expected}");
     }
 
     public void Ne<T>(T actual, T unexpected, string message)
     {
         if (Equals(actual, unexpected))
-            Failures.Add($"{message} | unexpected={unexpected}");
+            Fail($"{message} | unexpected={unexpected}");
     }
 
-    public void Fail(string message) => Failures.Add(message);
-
-    public int Finish(string label, int exitCode = 0)
+    public void Fail(string message)
     {
-        if (Interlocked.Exchange(ref _finished, 1) != 0)
-            return _exitCode;
+        lock (_sync)
+            Failures.Add(message);
+    }
 
-        bool passed = Failures.Count == 0 && exitCode == 0;
-        _exitCode = passed ? 0 : 1;
+    public TestResult Finish(string label, int exitCode = 0)
+    {
+        lock (_sync)
+        {
+            if (_result != null)
+                return _result;
 
-        if (passed)
-        {
-            GD.Print($"{label}: PASS");
+            IReadOnlyList<string> failures = new List<string>(Failures).AsReadOnly();
+            bool passed = failures.Count == 0 && exitCode == 0;
+            _result = new TestResult(label, passed, passed ? 0 : 1, failures);
+            return _result;
         }
-        else
-        {
-            foreach (string failure in Failures)
-                GD.PushError(failure);
-            GD.Print($"{label}: FAIL ({Failures.Count})");
-        }
-
-        try
-        {
-            TestResourceOwnership.Drain();
-            GodotSharpCleanup.CollectPendingFinalizers();
-        }
-        catch (Exception exception)
-        {
-            GD.PushError(
-                $"TestHarness finalizer drain failed before Quit. label={label}, error={exception}"
-            );
-            _exitCode = 1;
-        }
-
-        return _exitCode;
     }
 }
 
@@ -109,10 +90,5 @@ internal static class TestResourceOwnership
         where T : class
     {
         return Scope.OwnWrapper(wrapper, reason);
-    }
-
-    internal static void Drain()
-    {
-        Scope.Drain();
     }
 }

@@ -4,17 +4,17 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_world_map_low_level_defensive_regression : SceneTree
+public partial class run_world_map_low_level_defensive_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        Quit(exitCode);
+        TestResult exitCode = Run();
+        RequestTestExit(exitCode);
     }
 
-    private int Run()
+    private TestResult Run()
     {
         TestRuntimeCommandHandlersNoLongerRequireGodotRegistration();
         TestWorldPresetHelpersNoLongerRequireGodotRegistration();

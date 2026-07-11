@@ -4,7 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_battle_rule_status_param_schema_regression : SceneTree
+public partial class run_battle_rule_status_param_schema_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -21,7 +21,7 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
         TestSecondaryHitUsesTypedControlSaveBonus();
         TestOutgoingDamageMultiplierAcceptsStringNameParamKey();
 
-        Quit(_test.Finish("Battle rule status param schema regression"));
+        RequestTestExit(_test.Finish("Battle rule status param schema regression"));
     }
 
 

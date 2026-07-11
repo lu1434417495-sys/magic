@@ -6,7 +6,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_umbrella_sword_weapon_ability_regression : SceneTree
+public partial class run_umbrella_sword_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName UmbrellaItemId = "weapon_unique_exotic_umbrella_232";
     private static readonly StringName RainScreenTraitId =
@@ -30,12 +30,12 @@ public partial class run_umbrella_sword_weapon_ability_regression : SceneTree
             TestUmbrellaContentLoadsAndProjectsWeaponTraitsAndRangeType();
             TestRainScreenReducesFireColdDamageThroughRealDamageResolver();
             TestRainAdvantageAndGuardUseEnvironmentAndRangedWeaponConfig();
-            Quit(_test.Finish("Umbrella Sword weapon ability regression"));
+            RequestTestExit(_test.Finish("Umbrella Sword weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Umbrella Sword weapon ability regression"));
+            RequestTestExit(_test.Finish("Umbrella Sword weapon ability regression"));
         }
     }
 

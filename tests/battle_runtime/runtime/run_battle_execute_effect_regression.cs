@@ -2,7 +2,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battle_execute_effect_regression : SceneTree
+public partial class run_battle_execute_effect_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -14,7 +14,7 @@ public partial class run_battle_execute_effect_regression : SceneTree
         TestExecuteBypassesShieldWithoutMutation();
         TestExecuteAppliesSoulFractureOnSuccessfulSave();
         TestExecuteMinHpNeverHeals();
-        Quit(_test.Finish("Battle execute effect regression"));
+        RequestTestExit(_test.Finish("Battle execute effect regression"));
     }
 
     private void TestExecuteFinishesLowHpTarget()

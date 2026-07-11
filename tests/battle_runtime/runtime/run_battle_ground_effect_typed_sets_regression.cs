@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 
-public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
+public partial class run_battle_ground_effect_typed_sets_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -15,7 +15,7 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
         TestGroundApplicationResultsProjectInternalBoundary();
         TestBuildGroundEffectCoordsUsesTypedHelperBoundary();
         TestDedupeEffectDefsUsesTypedHelperBoundary();
-        Quit(_test.Finish("Battle ground effect typed sets regression"));
+        RequestTestExit(_test.Finish("Battle ground effect typed sets regression"));
     }
 
     private void TestGroundEffectServiceUsesPlainTypedHelperBoundary()

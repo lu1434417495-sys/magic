@@ -4,7 +4,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battle_sim_typed_report_regression : SceneTree
+public partial class run_battle_sim_typed_report_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -13,7 +13,7 @@ public partial class run_battle_sim_typed_report_regression : SceneTree
         TestStringNameSkillLevelKeysAreHonored();
         TestMalformedScenarioUnitEntryIsRejectedBeforeSpawnProjection();
         TestTypedMetricsSnapshotFeedsProfileSummary();
-        Quit(_test.Finish("Battle sim typed report regression"));
+        RequestTestExit(_test.Finish("Battle sim typed report regression"));
     }
 
     private void TestStringNameSkillLevelKeysAreHonored()

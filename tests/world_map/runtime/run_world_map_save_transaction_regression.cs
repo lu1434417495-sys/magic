@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_world_map_save_transaction_regression : SceneTree
+public partial class run_world_map_save_transaction_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -17,7 +17,7 @@ public partial class run_world_map_save_transaction_regression : SceneTree
     {
         TestPlainWorldMoveStagesWithoutDiskWrite();
 
-        Quit(_test.Finish("World map save transaction regression"));
+        RequestTestExit(_test.Finish("World map save transaction regression"));
     }
 
     private void TestPlainWorldMoveStagesWithoutDiskWrite()

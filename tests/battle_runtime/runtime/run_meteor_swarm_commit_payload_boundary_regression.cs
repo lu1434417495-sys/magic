@@ -4,7 +4,7 @@ using System.Linq;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_meteor_swarm_commit_payload_boundary_regression : SceneTree
+public partial class run_meteor_swarm_commit_payload_boundary_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -14,12 +14,12 @@ public partial class run_meteor_swarm_commit_payload_boundary_regression : Scene
         {
             TestCommitterCommitsTypedMeteorResultAndCopiesReports();
             TestMeteorDtosPreserveTypedMutationContracts();
-            Quit(_test.Finish("Meteor swarm commit payload boundary regression"));
+            RequestTestExit(_test.Finish("Meteor swarm commit payload boundary regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(1);
+            RequestTestExit(_test.Finish("Meteor swarm commit payload boundary regression", 1));
         }
     }
 

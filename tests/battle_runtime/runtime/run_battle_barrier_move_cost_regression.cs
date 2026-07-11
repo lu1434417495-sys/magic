@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battle_barrier_move_cost_regression : SceneTree
+public partial class run_battle_barrier_move_cost_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -13,12 +13,12 @@ public partial class run_battle_barrier_move_cost_regression : SceneTree
         {
             TestFirstBoundaryInterruptionDoesNotExecuteMovement();
             TestBarrierInterruptedMoveCostUsesReachedAnchors();
-            Quit(_test.Finish("Battle barrier move cost regression"));
+            RequestTestExit(_test.Finish("Battle barrier move cost regression"));
         }
         catch (Exception ex)
         {
             GD.PushError($"Battle barrier move cost regression crashed: {ex}");
-            Quit(1);
+            RequestTestExit(_test.Finish("Battle barrier move cost regression", 1));
         }
     }
 

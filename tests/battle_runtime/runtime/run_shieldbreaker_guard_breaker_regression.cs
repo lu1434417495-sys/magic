@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_shieldbreaker_guard_breaker_regression : SceneTree
+public partial class run_shieldbreaker_guard_breaker_regression : LifecycleTestSceneTree
 {
     private static readonly StringName ShieldbreakerItemId =
         "weapon_unique_axe_shieldbreaker_098";
@@ -27,12 +27,12 @@ public partial class run_shieldbreaker_guard_breaker_regression : SceneTree
             TestGuardBreakerDestroysCommonShieldOnlyOnHitAndSuccessfulRollGate();
             TestGuardBreakerDoesNotDestroyMagicalShield();
             TestSiegeAxeAddsDamageDiceAgainstConstructs();
-            Quit(_test.Finish("Shieldbreaker guard breaker regression"));
+            RequestTestExit(_test.Finish("Shieldbreaker guard breaker regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Shieldbreaker guard breaker regression"));
+            RequestTestExit(_test.Finish("Shieldbreaker guard breaker regression"));
         }
     }
 

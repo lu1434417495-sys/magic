@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_warehouse_state_item_validator_regression : SceneTree
+public partial class run_warehouse_state_item_validator_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -16,7 +16,7 @@ public partial class run_warehouse_state_item_validator_regression : SceneTree
         TestRejectsInvalidWarehouseStateItems();
         TestWarehouseStatePayloadRequiresStringIds();
 
-        Quit(_test.Finish("Warehouse state item validator regression"));
+        RequestTestExit(_test.Finish("Warehouse state item validator regression"));
     }
 
     private void TestAcceptsValidStackAndEquipmentInstance()

@@ -4,7 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_encounter_roster_builder_typed_boundary_regression : SceneTree
+public partial class run_encounter_roster_builder_typed_boundary_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -19,7 +19,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
         TestEncounterBuilderUnlocksCasterMpResources();
         TestEnemyAttackEquipmentProjectsAbilitySourceAndCreatureTags();
         TestTypedLootPreviewMatchesPublicBoundary();
-        Quit(_test.Finish("Encounter roster builder typed boundary regression"));
+        RequestTestExit(_test.Finish("Encounter roster builder typed boundary regression"));
     }
 
     private void TestTypedEnemyUnitBuildMatchesPublicBoundary()

@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_game_runtime_snapshot_builder_regression : SceneTree
+public partial class run_game_runtime_snapshot_builder_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -13,11 +13,11 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        Quit(exitCode);
+        TestResult exitCode = Run();
+        RequestTestExit(exitCode);
     }
 
-    private int Run()
+    private TestResult Run()
     {
         TestSnapshotBuilderMatchesFacadeOutputs();
         TestTextSnapshotRedactsHostLogPaths();

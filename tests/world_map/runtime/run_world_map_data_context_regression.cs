@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_world_map_data_context_regression : SceneTree
+public partial class run_world_map_data_context_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
     private readonly TestHarness _test = new();
@@ -27,7 +27,7 @@ public partial class run_world_map_data_context_regression : SceneTree
         TestWorldEventTypedQueries();
         TestStaleSubmapIdFallsBackToRootWorld();
 
-        Quit(_test.Finish("World map data context regression"));
+        RequestTestExit(_test.Finish("World map data context regression"));
     }
 
     private void TestWorldEventTypedQueries()

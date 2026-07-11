@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_world_map_settlement_entry_regression : SceneTree
+public partial class run_world_map_settlement_entry_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -18,7 +18,7 @@ public partial class run_world_map_settlement_entry_regression : SceneTree
     {
         TestEnteringSettlementHidesPlayerUntilClose();
 
-        Quit(_test.Finish("World map settlement entry regression"));
+        RequestTestExit(_test.Finish("World map settlement entry regression"));
     }
 
     private void TestEnteringSettlementHidesPlayerUntilClose()

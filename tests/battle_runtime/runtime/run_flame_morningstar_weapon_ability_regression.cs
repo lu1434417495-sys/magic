@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_flame_morningstar_weapon_ability_regression : SceneTree
+public partial class run_flame_morningstar_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName FlameItemId = "weapon_unique_morningstar_flame_208";
     private static readonly StringName FlameStrikeTraitId =
@@ -24,12 +24,12 @@ public partial class run_flame_morningstar_weapon_ability_regression : SceneTree
             TestFlameContentLoadsAndProjectsWeaponProfileAndFireImmunity();
             TestFlameStrikeAddsFireDamageOnRealWeaponHit();
             TestFlameStrikeRollGateControlsBurning();
-            Quit(_test.Finish("Flame Morningstar weapon ability regression"));
+            RequestTestExit(_test.Finish("Flame Morningstar weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Flame Morningstar weapon ability regression"));
+            RequestTestExit(_test.Finish("Flame Morningstar weapon ability regression"));
         }
     }
 

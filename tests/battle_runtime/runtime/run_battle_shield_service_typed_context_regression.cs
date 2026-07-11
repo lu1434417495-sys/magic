@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using Godot;
 
-public partial class run_battle_shield_service_typed_context_regression : SceneTree
+public partial class run_battle_shield_service_typed_context_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -14,7 +14,7 @@ public partial class run_battle_shield_service_typed_context_regression : SceneT
         TestTypedApplyPathUsesSharedContext();
         TestApplyResultPublicApiStaysTyped();
         TestApplyResultProjectsInternalBoundary();
-        Quit(_test.Finish("Battle shield service typed context regression"));
+        RequestTestExit(_test.Finish("Battle shield service typed context regression"));
     }
 
     private void TestTypedRollContextCachesShieldHp()

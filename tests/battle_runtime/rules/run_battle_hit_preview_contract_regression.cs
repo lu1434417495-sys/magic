@@ -7,7 +7,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GIntArray = Godot.Collections.Array<int>;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_battle_hit_preview_contract_regression : SceneTree
+public partial class run_battle_hit_preview_contract_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -27,7 +27,7 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
     {
         _TestForceHitSkillRuntimePreviewIsGuaranteed();
         await _TestSingleHitSkillHudSurfacesRuntimePreview();
-        Quit(_test.Finish("Battle hit preview contract regression"));
+        RequestTestExit(_test.Finish("Battle hit preview contract regression"));
     }
 
     private void _TestForceHitSkillRuntimePreviewIsGuaranteed()

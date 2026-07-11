@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_hunter_axe_weapon_ability_regression : SceneTree
+public partial class run_hunter_axe_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName HunterAxeItemId = "weapon_unique_battleaxe_hunter_382";
     private static readonly StringName BeastSlayerTraitId = "weapon.axe.hunter.beast_slayer";
@@ -25,12 +25,12 @@ public partial class run_hunter_axe_weapon_ability_regression : SceneTree
             TestHunterAxeProjectsFixedLevelHunterMark();
             TestUnlearnedEquipmentGrantedHunterMarkDoesNotGrantMastery();
             TestLearnedHunterMarkUsesHigherLevelAndGrantsMasteryOnMarkedWeaponDamage();
-            Quit(_test.Finish("Hunter Axe weapon ability regression"));
+            RequestTestExit(_test.Finish("Hunter Axe weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Hunter Axe weapon ability regression"));
+            RequestTestExit(_test.Finish("Hunter Axe weapon ability regression"));
         }
     }
 

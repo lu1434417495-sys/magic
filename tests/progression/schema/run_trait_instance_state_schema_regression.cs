@@ -1,7 +1,7 @@
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_trait_instance_state_schema_regression : SceneTree
+public partial class run_trait_instance_state_schema_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -18,7 +18,7 @@ public partial class run_trait_instance_state_schema_regression : SceneTree
         TestRejectsWrongSourceForCollection();
         TestValidateAgainstDefRequiresExactRollSchema();
         TestDuplicateDeepCopiesRollValues();
-        Quit(_test.Finish("Trait instance state schema regression"));
+        RequestTestExit(_test.Finish("Trait instance state schema regression"));
     }
 
     private void TestStrictPayloadRoundTripAndTypedReaders()

@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_last_lesson_weapon_ability_regression : SceneTree
+public partial class run_last_lesson_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName LastLessonItemId = "weapon_unique_sword_last_lesson_020";
     private static readonly StringName OldChenLegacyTraitId =
@@ -50,12 +50,12 @@ public partial class run_last_lesson_weapon_ability_regression : SceneTree
             TestOldChenLegacyGainsTeachingsOnlyWhenTurnEndsWithoutDamage();
             TestGrantedSkillsConsumeTeachingsAndAffectNextAttackOrCurrentTurnDamage();
             TestClassroomAuraUsesNearbyEnemyCountWithoutMutatingBaseArmorClass();
-            Quit(_test.Finish("Last Lesson weapon ability regression"));
+            RequestTestExit(_test.Finish("Last Lesson weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Last Lesson weapon ability regression"));
+            RequestTestExit(_test.Finish("Last Lesson weapon ability regression"));
         }
     }
 

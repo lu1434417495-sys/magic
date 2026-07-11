@@ -6,7 +6,7 @@ using Godot;
 /// 薄读层——每个 effective getter 都应与直接调用 <c>skillDef.combat_profile.GetEffective*</c> 对拍一致，
 /// 命中 / 未命中语义正确，并且不依赖任何旧 string-key fallback。
 /// </summary>
-public partial class run_skill_catalog_query_regression : SceneTree
+public partial class run_skill_catalog_query_regression : LifecycleTestSceneTree
 {
     private static readonly StringName[] SampleSkillIds =
     {
@@ -54,7 +54,7 @@ public partial class run_skill_catalog_query_regression : SceneTree
             gameSession.Dispose();
         }
 
-        Quit(_test.Finish("Skill catalog query regression"));
+        RequestTestExit(_test.Finish("Skill catalog query regression"));
     }
 
     private void TestSkillCatalogIsStableFacade(

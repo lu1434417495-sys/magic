@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_resource_validation_regression : SceneTree
+public partial class run_resource_validation_regression : LifecycleTestSceneTree
 {
     private const string OFFICIAL_SKILL_DIRECTORY = "res://data/configs/skills";
     private const string OFFICIAL_PROFESSION_DIRECTORY = "res://data/configs/professions";
@@ -423,7 +423,7 @@ public partial class run_resource_validation_regression : SceneTree
         foreach (string reportText in _reports)
             GD.Print(reportText);
 
-        Quit(_test.Finish("Resource validation regression"));
+        RequestTestExit(_test.Finish("Resource validation regression"));
     }
 
     private static List<QuestValidationEntry> BuildQuestEntriesFromTyped(

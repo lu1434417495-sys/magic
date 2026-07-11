@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GIntArray = Godot.Collections.Array<int>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
+public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTestSceneTree
 {
     private static readonly StringName HERO_ID = "hero";
     private static readonly StringName MISSTEP_TO_SCHEME_SKILL_ID = "misstep_to_scheme";
@@ -32,7 +32,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
 
     public override void _Initialize()
     {
-        int exitCode = 1;
+        TestResult exitCode = null;
         try
         {
             TestMisstepToSchemeGrantsBonusCalamityWithoutDuplicateCriticalFailEvents();
@@ -45,7 +45,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         finally
         {
             DisposeContentRegistry();
-            Quit(exitCode);
+            RequestTestExit(exitCode ?? _test.Finish("FATE_25 regression", 1));
         }
     }
 

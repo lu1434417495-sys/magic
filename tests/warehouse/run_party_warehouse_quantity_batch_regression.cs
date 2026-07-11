@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_party_warehouse_quantity_batch_regression : SceneTree
+public partial class run_party_warehouse_quantity_batch_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -22,7 +22,7 @@ public partial class run_party_warehouse_quantity_batch_regression : SceneTree
         TestInvalidQuantityEntriesDoNotMutate();
         TestEquipmentQuantityEntryIsBlocked();
 
-        Quit(_test.Finish("Party warehouse quantity batch regression"));
+        RequestTestExit(_test.Finish("Party warehouse quantity batch regression"));
     }
 
     private void TestPreviewWithdrawsQuantityWithoutMutation()

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_execute_ground_protocol_regression : SceneTree
+public partial class run_battle_execute_ground_protocol_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -10,7 +10,7 @@ public partial class run_battle_execute_ground_protocol_regression : SceneTree
         TestGroundExecutePreviewDenied();
         TestGroundExecuteIssueDeniedBeforeCost();
         TestGroundExecuteDoesNotMutateDamageOrStatus();
-        Quit(_test.Finish("Battle execute ground protocol regression"));
+        RequestTestExit(_test.Finish("Battle execute ground protocol regression"));
     }
 
     private void TestGroundExecutePreviewDenied()

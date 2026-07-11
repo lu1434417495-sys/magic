@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 
-public partial class run_battle_ai_score_save_probability_regression : SceneTree
+public partial class run_battle_ai_score_save_probability_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -18,7 +18,7 @@ public partial class run_battle_ai_score_save_probability_regression : SceneTree
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        Quit(_test.Finish("Battle AI score save probability regression"));
+        RequestTestExit(_test.Finish("Battle AI score save probability regression"));
     }
 
     private void TestAiDamageEstimateWeightsPartialSaveProbability()

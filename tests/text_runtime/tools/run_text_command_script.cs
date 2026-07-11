@@ -2,7 +2,7 @@ using Godot;
 
 // Development script runner for text-runtime scenarios.
 // It is intentionally skipped by tests/run_regression_suite.py because it lives under /tools/.
-public partial class run_text_command_script : SceneTree
+public partial class run_text_command_script : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -25,7 +25,7 @@ public partial class run_text_command_script : SceneTree
         {
             _test.Fail($"Failed to read scenario: {scenarioPath}");
             runner.Dispose();
-            Quit(_test.Finish("Text command script"));
+            RequestTestExit(_test.Finish("Text command script"));
             return;
         }
 
@@ -41,14 +41,14 @@ public partial class run_text_command_script : SceneTree
             {
                 _test.Fail($"Scenario failed at line {lineIndex + 1}: {lines[lineIndex]}");
                 runner.Dispose();
-                Quit(_test.Finish("Text command script"));
+                RequestTestExit(_test.Finish("Text command script"));
                 return;
             }
         }
 
         GD.Print($"Executed {executedCount} command(s)");
         runner.Dispose();
-        Quit(_test.Finish("Text command script"));
+        RequestTestExit(_test.Finish("Text command script"));
     }
 
     private static Error ReadScenarioLines(string scenarioPath, out string[] lines)

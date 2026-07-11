@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
+public partial class run_battle_ai_action_assembler_plan_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -15,12 +15,12 @@ public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
             TestAssemblerEnablesCandidateForRuntimeMovePlanMetadata();
             TestGenerationIsSlotFamilyScopedNotGlobalSkillSuppressed();
             TestGeneratedMetadataContainsStableRuntimeIdentity();
-            Quit(_test.Finish("Battle AI action assembler plan regression"));
+            RequestTestExit(_test.Finish("Battle AI action assembler plan regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(1);
+            RequestTestExit(_test.Finish("Battle AI action assembler plan regression", 1));
         }
     }
 

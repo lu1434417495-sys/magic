@@ -5,18 +5,19 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using VT = Godot.Variant.Type;
 
-public partial class RunMixed6v12MirrorAnalysis : SceneTree
+public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
 {
     private const int MaxIdleLoops = 25;
     private const int DefaultSimulationTimeoutSeconds = 30 * 60;
     private const string ScenarioPath = "res://data/configs/battle_sim/scenarios/mixed_6v12_mirror_simulation.tres";
 
+    private readonly TestHarness _test = new();
     private bool _progressEnabled = true;
 
     public override void _Initialize()
     {
         int exitCode = Run();
-        Quit(exitCode);
+        RequestTestExit(_test.Finish("Mixed 6v12 mirror analysis", exitCode));
     }
 
     private int Run()

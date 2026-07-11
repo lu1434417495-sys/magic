@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_control_status_contract_regression : SceneTree
+public partial class run_control_status_contract_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -17,7 +17,7 @@ public partial class run_control_status_contract_regression : SceneTree
         TestPetrifiedSelfSaveSuccessRemovesStatusAndAllowsAction();
         TestMadnessSelfSaveFailureReturnsAiOverridePolicy();
         TestMadnessSelfSaveSuccessRemovesStatusAndAllowsAction();
-        Quit(_test.Finish("Control status contract regression"));
+        RequestTestExit(_test.Finish("Control status contract regression"));
     }
 
     private void TestPetrifiedSelfSaveFailureSkipsTurn()

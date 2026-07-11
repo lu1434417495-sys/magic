@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_party_warehouse_window_schema_regression : SceneTree
+public partial class run_party_warehouse_window_schema_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
     private static readonly PackedScene WindowScene = GD.Load<PackedScene>(
@@ -16,7 +16,7 @@ public partial class run_party_warehouse_window_schema_regression : SceneTree
         await TestPartyWarehouseWindowRejectsStringNameTopLevelFields();
         await TestPartyWarehouseWindowRejectsStringNameEntryFields();
         await TestPartyWarehouseWindowRejectsStringNameTargetMemberFields();
-        Quit(_test.Finish("Party warehouse window schema regression"));
+        RequestTestExit(_test.Finish("Party warehouse window schema regression"));
     }
 
     private async Task<PartyWarehouseWindow> CreateWindow()

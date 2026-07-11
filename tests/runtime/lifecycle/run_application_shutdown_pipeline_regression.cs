@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Godot;
 
-public partial class run_application_shutdown_pipeline_regression : SceneTree
+public partial class run_application_shutdown_pipeline_regression : LifecycleTestSceneTree
 {
     private enum FailurePoint
     {
@@ -101,7 +101,7 @@ public partial class run_application_shutdown_pipeline_regression : SceneTree
             _test.Fail($"Unexpected shutdown pipeline regression exception: {exception}");
         }
 
-        Quit(_test.Finish("Application shutdown pipeline regression"));
+        RequestTestExit(_test.Finish("Application shutdown pipeline regression"));
     }
 
     private async Task RunAsync()

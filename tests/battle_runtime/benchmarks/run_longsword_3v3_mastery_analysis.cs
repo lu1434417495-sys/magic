@@ -5,16 +5,18 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_longsword_3v3_mastery_analysis : SceneTree
+public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
 {
     private const int MaxIdleLoops = 25;
     private const string ScenarioPath =
         "res://data/configs/battle_sim/scenarios/longsword_3v3_mirror_simulation.tres";
 
+    private readonly TestHarness _test = new();
+
     public override void _Initialize()
     {
         int exitCode = Run();
-        Quit(exitCode);
+        RequestTestExit(_test.Finish("Longsword 3v3 mastery analysis", exitCode));
     }
 
     private int Run()

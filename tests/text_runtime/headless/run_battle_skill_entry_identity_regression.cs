@@ -2,7 +2,7 @@ using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battle_skill_entry_identity_regression : SceneTree
+public partial class run_battle_skill_entry_identity_regression : LifecycleTestSceneTree
 {
     private const string SkillId = "archer_long_draw";
     private const string ExpectedEntryId = "known_skill:archer_long_draw";
@@ -21,7 +21,7 @@ public partial class run_battle_skill_entry_identity_regression : SceneTree
     {
         TestKnownSkillSelectionCarriesStableEntryIdentity();
 
-        Quit(_test.Finish("Battle skill entry identity regression"));
+        RequestTestExit(_test.Finish("Battle skill entry identity regression"));
     }
 
     private void TestKnownSkillSelectionCarriesStableEntryIdentity()

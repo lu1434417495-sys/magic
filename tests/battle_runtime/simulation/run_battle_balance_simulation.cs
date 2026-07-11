@@ -1,11 +1,13 @@
 using System.Collections.Generic;
 using Godot;
-public partial class run_battle_balance_simulation : SceneTree
+public partial class run_battle_balance_simulation : LifecycleTestSceneTree
 {
+    private readonly TestHarness _test = new();
+
     public override void _Initialize()
     {
         int exitCode = Run();
-        Quit(exitCode);
+        RequestTestExit(_test.Finish("Battle balance simulation", exitCode));
     }
 
     private int Run()

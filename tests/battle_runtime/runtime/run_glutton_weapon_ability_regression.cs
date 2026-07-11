@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_glutton_weapon_ability_regression : SceneTree
+public partial class run_glutton_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName GluttonItemId = "weapon_unique_axe_glutton_090";
     private static readonly StringName SatedTraitId = "weapon.axe.glutton.sated";
@@ -28,12 +28,12 @@ public partial class run_glutton_weapon_ability_regression : SceneTree
             TestGluttonProjectsRealContentOntoBattleUnitAndClearsOnUnequip();
             TestUnsatisfiedAddsHungerAndDevouringChopConsumesItForDamage();
             TestSatedHealsForHalfActualHpDamageOnWeaponKill();
-            Quit(_test.Finish("Glutton weapon ability regression"));
+            RequestTestExit(_test.Finish("Glutton weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Glutton weapon ability regression"));
+            RequestTestExit(_test.Finish("Glutton weapon ability regression"));
         }
     }
 

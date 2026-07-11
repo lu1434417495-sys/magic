@@ -5,7 +5,7 @@ using GActionArray = Godot.Collections.Array<EnemyAiAction>;
 using GStringArray = Godot.Collections.Array<string>;
 using GStateArray = Godot.Collections.Array<EnemyAiStateDef>;
 
-public partial class run_move_to_range_progress_regression : SceneTree
+public partial class run_move_to_range_progress_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -18,7 +18,7 @@ public partial class run_move_to_range_progress_regression : SceneTree
         TestScreeningMoveToRangeUsesPathProgressBeforeLocalGreedyMove();
         TestHighGroundPositionRequiresProgressWhenBeyondBand();
 
-        Quit(_test.Finish("Move-to-range progress regression"));
+        RequestTestExit(_test.Finish("Move-to-range progress regression"));
     }
 
     private void TestCandidateRequestTypedValidation()

@@ -4,7 +4,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battle_ai_trace_summary_regression : SceneTree
+public partial class run_battle_ai_trace_summary_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -21,7 +21,7 @@ public partial class run_battle_ai_trace_summary_regression : SceneTree
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        Quit(_test.Finish("Battle AI trace summary regression"));
+        RequestTestExit(_test.Finish("Battle AI trace summary regression"));
     }
 
     private void TestCommandSummaryCopiesBattleCommandAndProjectsToDictionary()

@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_game_runtime_settlement_command_handler_regression : SceneTree
+public partial class run_game_runtime_settlement_command_handler_regression : LifecycleTestSceneTree
 {
     private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -27,7 +27,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         await TestSettlementHandlerRejectsInvalidOrSpoofedActions();
         await TestWorldGenerationExposesResearchService();
 
-        Quit(_test.Finish("Game runtime settlement command handler regression"));
+        RequestTestExit(_test.Finish("Game runtime settlement command handler regression"));
     }
 
     private async Task TestFacadeUsesSettlementHandlerSurface()

@@ -4,7 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_contingency_text_commands_regression : SceneTree
+public partial class run_contingency_text_commands_regression : LifecycleTestSceneTree
 {
     private static readonly StringName GemId = "special_contingency_gem";
     private readonly TestHarness _test = new();
@@ -85,7 +85,7 @@ public partial class run_contingency_text_commands_regression : SceneTree
 
         TestHeadlessBattleContingencySnapshot();
         TestHeadlessBattleContingencyReportEntries();
-        Quit(_test.Finish("Contingency text commands regression"));
+        RequestTestExit(_test.Finish("Contingency text commands regression"));
     }
 
     private static string CommandPrefix(string memberId) => "party contingency";

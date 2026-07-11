@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_text_command_quest_progress_regression : SceneTree
+public partial class run_text_command_quest_progress_regression : LifecycleTestSceneTree
 {
     private const string QuestId = "contract_manual_drill";
     private readonly TestHarness _test = new();
@@ -18,7 +18,7 @@ public partial class run_text_command_quest_progress_regression : SceneTree
         TestQuestProgressPayloadAndProgressionFactsUseFormalStringKeys();
         TestTextCommandQuestProgressUsesTypedPayloadBoundary();
 
-        Quit(_test.Finish("Text command quest progress regression"));
+        RequestTestExit(_test.Finish("Text command quest progress regression"));
     }
 
     private void TestTextCommandQuestProgressUsesTypedPayloadBoundary()

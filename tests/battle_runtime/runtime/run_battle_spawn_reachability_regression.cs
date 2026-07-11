@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_spawn_reachability_regression : SceneTree
+public partial class run_battle_spawn_reachability_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -16,7 +16,7 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
         TestWeaponRequiredSkillWithoutWeaponIsNotReachable();
         TestResultProjectionBoundary();
         TestStartFailureSnapshotProjectionBoundary();
-        Quit(_test.Finish("Battle spawn reachability regression"));
+        RequestTestExit(_test.Finish("Battle spawn reachability regression"));
     }
 
     private void TestDeepWaterSplitMarksEnemySpawnInvalid()

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_ai_skill_affordance_classifier_regression : SceneTree
+public partial class run_battle_ai_skill_affordance_classifier_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -16,7 +16,7 @@ public partial class run_battle_ai_skill_affordance_classifier_regression : Scen
         TestChargePathVariantEmitsChargePathFamily();
         TestPassiveSkillIsNotGeneratable();
 
-        Quit(_test.Finish("Battle AI skill affordance classifier regression"));
+        RequestTestExit(_test.Finish("Battle AI skill affordance classifier regression"));
     }
 
     private void TestUnitDamageSkillMapsToHostileUnitAffordance()

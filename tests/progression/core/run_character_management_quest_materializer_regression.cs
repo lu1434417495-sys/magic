@@ -4,7 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
-public partial class run_character_management_quest_materializer_regression : SceneTree
+public partial class run_character_management_quest_materializer_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -28,7 +28,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
         TestSkillMasteryRewardAggregatesTypedEntries();
         TestStringKeyOnlyQuestRewardDefIsRejected();
 
-        Quit(_test.Finish("Character management quest materializer regression"));
+        RequestTestExit(_test.Finish("Character management quest materializer regression"));
     }
 
     private void TestLevelGrowthEvaluationServiceSetupUsesExactSkillDefKeys()

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_profession_rule_service_regression : SceneTree
+public partial class run_profession_rule_service_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -17,7 +17,7 @@ public partial class run_profession_rule_service_regression : SceneTree
         TestEligibleSkillIdsUseTypedSetupAndPreviewAssignments();
         TestRefreshAllProfessionStatesUsesTypedDefIndex();
 
-        Quit(_test.Finish("Profession rule service regression"));
+        RequestTestExit(_test.Finish("Profession rule service regression"));
     }
 
     private void TestServiceNoLongerRequiresGodotRegistration()

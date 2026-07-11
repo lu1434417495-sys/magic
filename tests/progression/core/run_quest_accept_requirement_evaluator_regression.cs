@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_quest_accept_requirement_evaluator_regression : SceneTree
+public partial class run_quest_accept_requirement_evaluator_regression : LifecycleTestSceneTree
 {
 	private readonly TestHarness _test = new();
 
@@ -23,7 +23,7 @@ public partial class run_quest_accept_requirement_evaluator_regression : SceneTr
 		TestDisplayNameResolution();
 		TestResultFields();
 
-		Quit(_test.Finish("Quest accept requirement evaluator regression"));
+		RequestTestExit(_test.Finish("Quest accept requirement evaluator regression"));
 	}
 
 	private void TestNoRequirementsAccepts()

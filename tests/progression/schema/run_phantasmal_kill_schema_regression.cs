@@ -2,7 +2,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_phantasmal_kill_schema_regression : SceneTree
+public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneTree
 {
     private const string TempSkillDirectory = "user://phantasmal_kill_schema_regression";
     private readonly TestHarness _test = new();
@@ -26,7 +26,7 @@ public partial class run_phantasmal_kill_schema_regression : SceneTree
             TestPhantasmalKillRequiresNineLevelDescriptionCoverage();
         }
 
-        Quit(_test.Finish("Phantasmal Kill schema regression"));
+        RequestTestExit(_test.Finish("Phantasmal Kill schema regression"));
     }
 
     private void TestFormalPhantasmalKillShapePasses()

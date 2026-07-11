@@ -1,6 +1,6 @@
 using Godot;
 
-public partial class run_battle_runtime_terrain_generator_ownership_regression : SceneTree
+public partial class run_battle_runtime_terrain_generator_ownership_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -9,7 +9,7 @@ public partial class run_battle_runtime_terrain_generator_ownership_regression :
         TestRuntimeDisposesDefaultTerrainGenerator();
         TestInjectedTerrainGeneratorRemainsCallerOwned();
         TestReplacingDefaultTerrainGeneratorDisposesOwnedPreviousInstance();
-        Quit(_test.Finish("Battle runtime terrain generator ownership regression"));
+        RequestTestExit(_test.Finish("Battle runtime terrain generator ownership regression"));
     }
 
     private void TestRuntimeDisposesDefaultTerrainGenerator()

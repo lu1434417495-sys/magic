@@ -2,7 +2,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_combat_effect_equipment_durability_schema_regression : SceneTree
+public partial class run_combat_effect_equipment_durability_schema_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -17,7 +17,7 @@ public partial class run_combat_effect_equipment_durability_schema_regression : 
         TestLegacyParamsSlotWeightMapIsNotProjected();
         TestSkillContentValidationUsesTypedSlotWeights();
 
-        Quit(_test.Finish("Combat effect equipment durability schema regression"));
+        RequestTestExit(_test.Finish("Combat effect equipment durability schema regression"));
     }
 
     private void TestProjectsTypedEquipmentDurabilitySlotWeights()

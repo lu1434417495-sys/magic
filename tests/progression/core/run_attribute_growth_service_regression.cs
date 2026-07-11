@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_attribute_growth_service_regression : SceneTree
+public partial class run_attribute_growth_service_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -15,7 +15,7 @@ public partial class run_attribute_growth_service_regression : SceneTree
         TestProgressConvertsBelowTwentyAndAccumulatesAfterCap();
         TestInvalidAttributeDoesNotApply();
 
-        Quit(_test.Finish("Attribute growth service regression"));
+        RequestTestExit(_test.Finish("Attribute growth service regression"));
     }
 
     private void TestProgressConvertsBelowTwentyAndAccumulatesAfterCap()

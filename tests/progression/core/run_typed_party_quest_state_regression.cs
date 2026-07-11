@@ -2,7 +2,7 @@ using System;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_typed_party_quest_state_regression : SceneTree
+public partial class run_typed_party_quest_state_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -21,7 +21,7 @@ public partial class run_typed_party_quest_state_regression : SceneTree
         TestValidTypedPayloadsRoundTrip();
         TestPartyStateUsesCurrentSaveVersion();
 
-        Quit(_test.Finish("Typed party quest state regression"));
+        RequestTestExit(_test.Finish("Typed party quest state regression"));
     }
 
     private void TestPartyMembersRejectNonMemberValues()

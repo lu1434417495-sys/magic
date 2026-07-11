@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_party_equipment_regression : SceneTree
+public partial class run_party_equipment_regression : LifecycleTestSceneTree
 {
     private sealed class WeaponProfileExpectation
     {
@@ -84,7 +84,7 @@ public partial class run_party_equipment_regression : SceneTree
         TestDuplicateSameItemInstanceIdSelection();
         TestPartyStateRejectsDuplicateEquipmentInstanceIds();
 
-        Quit(_test.Finish("Party equipment regression"));
+        RequestTestExit(_test.Finish("Party equipment regression"));
     }
 
     private void TestItemRegistryAcceptsEquipmentSeedData()

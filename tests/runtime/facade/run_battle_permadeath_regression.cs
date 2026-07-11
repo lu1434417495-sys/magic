@@ -3,7 +3,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_battle_permadeath_regression : SceneTree
+public partial class run_battle_permadeath_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -19,7 +19,7 @@ public partial class run_battle_permadeath_regression : SceneTree
         TestNonMainCharacterBattleDeathPersistsAsRealDeath();
         TestMainCharacterBattleDeathTriggersGameOver();
 
-        Quit(_test.Finish("Battle permadeath regression"));
+        RequestTestExit(_test.Finish("Battle permadeath regression"));
     }
 
     private void TestNonMainCharacterBattleDeathPersistsAsRealDeath()

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_barrier_profile_schema_contract_regression : SceneTree
+public partial class run_barrier_profile_schema_contract_regression : LifecycleTestSceneTree
 {
     private const string ProfilePath = "res://data/configs/barriers/prismatic_sphere.tres";
 
@@ -65,7 +65,7 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
         TestPrismaticSphereProfileIsDataOwned();
         TestPrismaticSphereProfileDeclares2eContract();
 
-        Quit(_test.Finish("Barrier profile schema contract regression"));
+        RequestTestExit(_test.Finish("Barrier profile schema contract regression"));
     }
 
     private void TestBarrierProfileScriptsExist()

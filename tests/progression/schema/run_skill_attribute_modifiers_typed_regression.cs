@@ -3,7 +3,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GResourceArray = Godot.Collections.Array<Godot.Resource>;
 
-public partial class run_skill_attribute_modifiers_typed_regression : SceneTree
+public partial class run_skill_attribute_modifiers_typed_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -17,7 +17,7 @@ public partial class run_skill_attribute_modifiers_typed_regression : SceneTree
         TestOfficialSkillResourcesExposeTypedAttributeModifiers();
         TestAttributeServiceAppliesTypedSkillModifiers();
 
-        Quit(_test.Finish("Skill attribute modifiers typed regression"));
+        RequestTestExit(_test.Finish("Skill attribute modifiers typed regression"));
     }
 
     private void TestOfficialSkillResourcesExposeTypedAttributeModifiers()

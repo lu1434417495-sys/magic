@@ -4,7 +4,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_game_runtime_world_encounter_regression : SceneTree
+public partial class run_game_runtime_world_encounter_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -18,7 +18,7 @@ public partial class run_game_runtime_world_encounter_regression : SceneTree
         TestNearbyEncounterEntriesUseTypedContextData();
         TestWorldStepSurvivesEncounterGrowthPayloadSync();
 
-        Quit(_test.Finish("Game runtime world encounter regression"));
+        RequestTestExit(_test.Finish("Game runtime world encounter regression"));
     }
 
     private void TestNearbyEncounterEntriesUseTypedContextData()

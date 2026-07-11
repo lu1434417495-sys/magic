@@ -2,7 +2,7 @@ using System;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battle_status_effect_typed_state_regression : SceneTree
+public partial class run_battle_status_effect_typed_state_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -17,7 +17,7 @@ public partial class run_battle_status_effect_typed_state_regression : SceneTree
         TestCollectionRoundTripsValidStatus();
         TestBattleUnitStatusProjectionIsNotLiveOwner();
 
-        Quit(_test.Finish("Battle status effect typed state regression"));
+        RequestTestExit(_test.Finish("Battle status effect typed state regression"));
     }
 
     private void TestCollectionRejectsMalformedPayloads()

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_trait_content_registry_regression : SceneTree
+public partial class run_trait_content_registry_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -16,7 +16,7 @@ public partial class run_trait_content_registry_regression : SceneTree
         TestOfficialTraitRegistryUsesGenericIdentityDefs();
         TestInvalidTraitFixturesAreRejected();
 
-        Quit(_test.Finish("Trait content registry regression"));
+        RequestTestExit(_test.Finish("Trait content registry regression"));
     }
 
     private void TestOfficialTraitRegistryValidatesWithoutErrors()

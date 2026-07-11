@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_battle_validation_result_projection_regression : SceneTree
+public partial class run_battle_validation_result_projection_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -16,7 +16,7 @@ public partial class run_battle_validation_result_projection_regression : SceneT
         TestRuntimeUnitSkillEffectTypedProjectionPreservesCritLock();
         TestRuntimeChainDamageInternalHelperStillExecutesTypedChainEffects();
         TestTargetCollectionSortsAndProjectsCoords();
-        Quit(_test.Finish("Battle validation result projection regression"));
+        RequestTestExit(_test.Finish("Battle validation result projection regression"));
     }
 
     private void TestSkillExecutionOrchestratorUsesTypedSkillLevelAccessor()

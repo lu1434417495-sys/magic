@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GResourceArray = Godot.Collections.Array<Godot.Resource>;
 
-public partial class run_attribute_source_context_regression : SceneTree
+public partial class run_attribute_source_context_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -24,7 +24,7 @@ public partial class run_attribute_source_context_regression : SceneTree
         TestAttributeServiceSetupContextUsesExactDefinitionKeys();
         TestCharacterManagementBuildsAttributeSourceContext();
 
-        Quit(_test.Finish("Attribute source context regression"));
+        RequestTestExit(_test.Finish("Attribute source context regression"));
     }
 
     private void TestAttributeSourceContextNoLongerRequiresGodotRegistration()

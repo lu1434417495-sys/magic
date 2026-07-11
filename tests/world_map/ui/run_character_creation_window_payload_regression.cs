@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_character_creation_window_payload_regression : SceneTree
+public partial class run_character_creation_window_payload_regression : LifecycleTestSceneTree
 {
     private static readonly PackedScene CharacterCreationScene = GD.Load<PackedScene>(
         "res://scenes/ui/character_creation_window.tscn"
@@ -22,7 +22,7 @@ public partial class run_character_creation_window_payload_regression : SceneTre
             _test.Fail(ex.ToString());
         }
 
-        Quit(_test.Finish("Character creation window payload regression"));
+        RequestTestExit(_test.Finish("Character creation window payload regression"));
     }
 
     private async Task TestConfirmationPayloadIncludesRolledAttributesAndIdentity()

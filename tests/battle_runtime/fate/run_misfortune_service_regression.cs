@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_misfortune_service_regression : SceneTree
+public partial class run_misfortune_service_regression : LifecycleTestSceneTree
 {
     private static readonly StringName ReverseFortuneStatusId = "reverse_fortune";
 
@@ -15,7 +15,7 @@ public partial class run_misfortune_service_regression : SceneTree
         TestRuntimeTracksAllCalamityReasonsAndSnapshot();
         TestFirstCriticalFailGrantsReverseFortuneAndCapClamps();
 
-        Quit(_test.Finish("MisfortuneService regression"));
+        RequestTestExit(_test.Finish("MisfortuneService regression"));
     }
 
     private void TestSkillGatesUseTypedRules()

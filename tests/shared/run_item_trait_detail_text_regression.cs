@@ -4,7 +4,7 @@ using Godot;
 // Verifies the shared item-trait detail composer surfaces equipment-trait mechanics
 // (display_name + description) for item-inspection surfaces, and folds them below the
 // item's flavor description without dropping the flavor text.
-public partial class run_item_trait_detail_text_regression : SceneTree
+public partial class run_item_trait_detail_text_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -15,12 +15,12 @@ public partial class run_item_trait_detail_text_regression : SceneTree
             TestComposeFoldsTraitMechanicsBelowFlavor();
             TestComposeReturnsFlavorWhenNoTraits();
             TestBuildLinesSkipsUnknownAndNamelessTraits();
-            Quit(_test.Finish("Item trait detail text regression"));
+            RequestTestExit(_test.Finish("Item trait detail text regression"));
         }
         catch (System.Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Item trait detail text regression"));
+            RequestTestExit(_test.Finish("Item trait detail text regression"));
         }
     }
 

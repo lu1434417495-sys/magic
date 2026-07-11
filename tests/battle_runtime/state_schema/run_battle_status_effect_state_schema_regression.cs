@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battle_status_effect_state_schema_regression : SceneTree
+public partial class run_battle_status_effect_state_schema_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -40,7 +40,7 @@ public partial class run_battle_status_effect_state_schema_regression : SceneTre
         TestStatusRangeBonusRoundTripThroughParamsBoundary();
         TestTemporalTagFieldsRoundTripThroughParamsBoundary();
 
-        Quit(_test.Finish("Battle status effect state schema regression"));
+        RequestTestExit(_test.Finish("Battle status effect state schema regression"));
     }
 
     private void TestValidRoundtripWithoutDuration()

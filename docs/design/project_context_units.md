@@ -483,7 +483,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `tools/*.py`
   - `tools/*.gd`
 - 负责：headless 回归、contract 验证、fixture、截图/签名辅助。
-- 边界：`TestHarness.Finish(...)` 当前集中汇总结果并执行 test-local drain，但不能替代 SceneTree/autoload owner teardown；GodotSharp 生命周期或退出顺序改动必须同时读取 lifecycle architecture spec。功能测试读取正式 `SkillDef` `.tres` 经 `TestSkillDefinitionProjection.LoadSkillDefinition(...)` 在加载边界投影为 `SkillDefinition`，不把 `SkillDef` 传入服务。
+- 边界：`TestHarness.Finish(...)` 只冻结断言并生成 `TestResult`；C# runner 统一经 `LifecycleTestSceneTree` / `TestExitCoordinator` 把结果提交给 `ApplicationLifetimeCoordinator`，owner teardown、finalizer barrier 与最终退出均由 production shutdown pipeline 负责。GodotSharp 生命周期或退出顺序改动必须同时读取 lifecycle architecture spec。功能测试读取正式 `SkillDef` `.tres` 经 `TestSkillDefinitionProjection.LoadSkillDefinition(...)` 在加载边界投影为 `SkillDefinition`，不把 `SkillDef` 传入服务。
 - 适合：补回归、跑局部验证、定位改动影响面。
 - 邻接单元：按业务域补 CU-10、CU-12、CU-15、CU-17、CU-18、CU-21。
 
@@ -515,7 +515,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `tests/text_runtime/tools/run_*.cs`
   - `tests/text_runtime/README.md`
 - 负责：无 UI session、文本命令、expect 断言、文本/结构化快照。
-- 边界：`HeadlessGameTestSession` 持有 typed `GameSession` / plain C# `GameRuntimeFacade`，owned session teardown 走 `GameSession.Dispose()`。`GameTextCommandRunner` 的核心命令直接走 typed `GameRuntimeFacade` gateway；battle snapshot 的 contingency surface 包括 `battle.contingency` sidecar snapshot、unit overlay 的 contingency 字段与 `battle.report_entries` 结构化条目。
+- 边界：`HeadlessGameTestSession` 持有 typed `GameSession` / plain C# `GameRuntimeFacade`，owned session teardown 走 `GameSession.Dispose()`；headless C# runner 与其他回归一样通过共享 lifecycle exit adapter 委托 application shutdown pipeline。`GameTextCommandRunner` 的核心命令直接走 typed `GameRuntimeFacade` gateway；battle snapshot 的 contingency surface 包括 `battle.contingency` sidecar snapshot、unit overlay 的 contingency 字段与 `battle.report_entries` 结构化条目。
 - 适合：headless 指令域、snapshot schema、REPL/脚本回归、agent 自动化入口。
 - 邻接单元：CU-02、CU-06、CU-10、CU-15、CU-16、CU-19、CU-20。
 

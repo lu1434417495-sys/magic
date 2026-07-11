@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_fortuna_guidance_regression : SceneTree
+public partial class run_fortuna_guidance_regression : LifecycleTestSceneTree
 {
     private static readonly StringName HeroId = "hero";
     private static readonly StringName FortunaDeityId = "fortuna";
@@ -21,11 +21,11 @@ public partial class run_fortuna_guidance_regression : SceneTree
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        Quit(exitCode);
+        TestResult exitCode = Run();
+        RequestTestExit(exitCode);
     }
 
-    private int Run()
+    private TestResult Run()
     {
         TestFortunaGuidanceUnlockChainFeedsRank2To5();
         TestRuntimeChapterAdapterUsesFormalPermanentDeathField();

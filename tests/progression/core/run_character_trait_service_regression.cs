@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_character_trait_service_regression : SceneTree
+public partial class run_character_trait_service_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -15,7 +15,7 @@ public partial class run_character_trait_service_regression : SceneTree
         TestAggregatesIdentityCharacterAndEquipmentSources();
         TestStackPoliciesCollapseOrPreserveKeys();
         TestTraitAttributeModifiersUseEffectiveSourceKeys();
-        Quit(_test.Finish("Character trait service regression"));
+        RequestTestExit(_test.Finish("Character trait service regression"));
     }
 
     private void TestAggregatesIdentityCharacterAndEquipmentSources()

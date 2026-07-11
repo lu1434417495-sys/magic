@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battlesim_formal_fixture_regression : SceneTree
+public partial class run_battlesim_formal_fixture_regression : LifecycleTestSceneTree
 {
     private static readonly StringName[] AttributeIds =
     {
@@ -46,7 +46,7 @@ public partial class run_battlesim_formal_fixture_regression : SceneTree
             DisposeFixtures();
         }
 
-        Quit(_test.Finish("BattleSimFormalCombatFixture regression"));
+        RequestTestExit(_test.Finish("BattleSimFormalCombatFixture regression"));
     }
 
     private void TestFixtureNoLongerRegistersGlobalClass()

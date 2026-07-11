@@ -2,7 +2,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_damage_resistance_regression : SceneTree
+public partial class run_damage_resistance_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -13,7 +13,7 @@ public partial class run_damage_resistance_regression : SceneTree
         TestDamageResistanceImmuneKeepsHighestPriority();
         TestMissingDamageTagFailsClosedWithoutPhysicalSlashFallback();
         TestMissingWeaponDamageProjectionFailsClosed();
-        Quit(_test.Finish("Damage resistance regression"));
+        RequestTestExit(_test.Finish("Damage resistance regression"));
     }
 
     private void TestDamageResistanceHalvesMatchingDamageTag()

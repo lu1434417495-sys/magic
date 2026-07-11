@@ -1,6 +1,6 @@
 using Godot;
 
-public partial class run_game_session_close_lifecycle_regression : SceneTree
+public partial class run_game_session_close_lifecycle_regression : LifecycleTestSceneTree
 {
     private static readonly StringName KnownSkillId = "basic_attack";
     private static readonly StringName KnownItemId = "healing_herb";
@@ -16,7 +16,7 @@ public partial class run_game_session_close_lifecycle_regression : SceneTree
     {
         await TestNormalCloseKeepsProcessContentAvailableForNextSession();
         TestExitTreeCloseStillAllowsExplicitNativeDispose();
-        Quit(_test.Finish("GameSession normal-close lifecycle regression"));
+        RequestTestExit(_test.Finish("GameSession normal-close lifecycle regression"));
     }
 
     private async System.Threading.Tasks.Task TestNormalCloseKeepsProcessContentAvailableForNextSession()

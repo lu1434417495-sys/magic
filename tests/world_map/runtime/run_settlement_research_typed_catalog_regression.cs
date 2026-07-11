@@ -3,14 +3,14 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_settlement_research_typed_catalog_regression : SceneTree
+public partial class run_settlement_research_typed_catalog_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
         TestUnknownRewardKindFailsCatalogValidation();
-        Quit(_test.Finish("Settlement research typed catalog regression"));
+        RequestTestExit(_test.Finish("Settlement research typed catalog regression"));
     }
 
     private void TestUnknownRewardKindFailsCatalogValidation()

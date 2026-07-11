@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using Godot;
 
-public partial class run_contingency_autocast_no_known_spoof_regression : SceneTree
+public partial class run_contingency_autocast_no_known_spoof_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -35,7 +35,7 @@ public partial class run_contingency_autocast_no_known_spoof_regression : SceneT
         }
 
         GC.SuppressFinalize(this);
-        Quit(_test.Finish("Contingency auto-cast known-skill spoof guard"));
+        RequestTestExit(_test.Finish("Contingency auto-cast known-skill spoof guard"));
     }
 
     private static IEnumerable<string> ForbiddenKnownSkillSpoofCalls()

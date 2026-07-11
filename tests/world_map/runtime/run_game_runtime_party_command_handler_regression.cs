@@ -4,7 +4,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_game_runtime_party_command_handler_regression : SceneTree
+public partial class run_game_runtime_party_command_handler_regression : LifecycleTestSceneTree
 {
     private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -19,7 +19,7 @@ public partial class run_game_runtime_party_command_handler_regression : SceneTr
     {
         TestFacadeUsesPartyHandlerSurface();
 
-        Quit(_test.Finish("Game runtime party command handler regression"));
+        RequestTestExit(_test.Finish("Game runtime party command handler regression"));
     }
 
     private void TestFacadeUsesPartyHandlerSurface()

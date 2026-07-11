@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_starfragment_weapon_ability_regression : SceneTree
+public partial class run_starfragment_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName StarfragmentItemId =
         "weapon_unique_axe_starfragment_100";
@@ -36,12 +36,12 @@ public partial class run_starfragment_weapon_ability_regression : SceneTree
             TestStarfragmentProjectsRealContentOntoBattleUnitAndClearsOnUnequip();
             TestStarburstIsProjectedAsEquipmentGrantedSkillWithRealCombatConfig();
             TestStardustTouchAddsForceDamageOnlyAtNight();
-            Quit(_test.Finish("Starfragment weapon ability regression"));
+            RequestTestExit(_test.Finish("Starfragment weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Starfragment weapon ability regression"));
+            RequestTestExit(_test.Finish("Starfragment weapon ability regression"));
         }
     }
 

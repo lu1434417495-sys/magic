@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_gorgon_crossbow_weapon_ability_regression : SceneTree
+public partial class run_gorgon_crossbow_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName GorgonCrossbowItemId =
         "weapon_unique_crossbow_gorgon_329";
@@ -38,12 +38,12 @@ public partial class run_gorgon_crossbow_weapon_ability_regression : SceneTree
             TestStatueShatterAddsBludgeonDamageAgainstSlowedOrParalyzedTargets();
             TestStatueShatterKillSpreadAppliesShortSlowToAdjacentEnemiesOnly();
             TestStatueShatterKillSpreadHonorsConSaveSuccess();
-            Quit(_test.Finish("Gorgon Crossbow weapon ability regression"));
+            RequestTestExit(_test.Finish("Gorgon Crossbow weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Gorgon Crossbow weapon ability regression"));
+            RequestTestExit(_test.Finish("Gorgon Crossbow weapon ability regression"));
         }
     }
 

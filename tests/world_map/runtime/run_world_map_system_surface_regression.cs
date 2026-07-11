@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_world_map_system_surface_regression : SceneTree
+public partial class run_world_map_system_surface_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -31,7 +31,7 @@ public partial class run_world_map_system_surface_regression : SceneTree
             _test.Fail($"未捕获异常：{ex}");
         }
 
-        Quit(_test.Finish("World map system surface regression"));
+        RequestTestExit(_test.Finish("World map system surface regression"));
     }
 
     private void TestStagecoachModalAcceptsOnlyFormalTargetPayload()

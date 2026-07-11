@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_contingency_trigger_contract_regression : SceneTree
+public partial class run_contingency_trigger_contract_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
     private readonly List<BattleRuntimeModule> _runtimeFixtures = new();
@@ -30,7 +30,7 @@ public partial class run_contingency_trigger_contract_regression : SceneTree
         }
 
         CleanupFixtures();
-        Quit(_test.Finish("Contingency trigger contract regression"));
+        RequestTestExit(_test.Finish("Contingency trigger contract regression"));
     }
 
     private void TestBattleLocalSidecarAndReleaseOverlay()

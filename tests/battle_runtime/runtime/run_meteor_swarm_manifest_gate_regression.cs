@@ -2,17 +2,17 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_meteor_swarm_manifest_gate_regression : SceneTree
+public partial class run_meteor_swarm_manifest_gate_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        Quit(exitCode);
+        TestResult exitCode = Run();
+        RequestTestExit(exitCode);
     }
 
-    private int Run()
+    private TestResult Run()
     {
 
         using var progressionRegistry = new ProgressionContentRegistry();
@@ -266,7 +266,7 @@ public partial class run_meteor_swarm_manifest_gate_regression : SceneTree
         );
     }
 
-    private int Finish() => _test.Finish("Meteor swarm manifest gate regression");
+    private TestResult Finish() => _test.Finish("Meteor swarm manifest gate regression");
 
     private static SkillDefinition GetSkillDefinition(
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_equipment_drop_service_regression : SceneTree
+public partial class run_equipment_drop_service_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -18,7 +18,7 @@ public partial class run_equipment_drop_service_regression : SceneTree
         TestRollItemInstancesReturnsTypedList();
         TestEquipmentDropServiceIsPlainService();
 
-        Quit(_test.Finish("Equipment drop service regression"));
+        RequestTestExit(_test.Finish("Equipment drop service regression"));
     }
 
     private void TestRollDropRarityHitsAllThresholdTiers()

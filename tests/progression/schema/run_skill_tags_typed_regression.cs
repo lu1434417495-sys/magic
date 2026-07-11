@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_skill_tags_typed_regression : SceneTree
+public partial class run_skill_tags_typed_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -15,7 +15,7 @@ public partial class run_skill_tags_typed_regression : SceneTree
     {
         TestOfficialSkillResourcesExposeTypedTags();
 
-        Quit(_test.Finish("Skill tags typed regression"));
+        RequestTestExit(_test.Finish("Skill tags typed regression"));
     }
 
     private void TestOfficialSkillResourcesExposeTypedTags()

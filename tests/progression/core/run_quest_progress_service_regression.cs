@@ -4,7 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
-public partial class run_quest_progress_service_regression : SceneTree
+public partial class run_quest_progress_service_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -19,7 +19,7 @@ public partial class run_quest_progress_service_regression : SceneTree
         TestStringKeyOnlyQuestDefsAreRejected();
         TestMissingObjectiveTargetValueDoesNotDefaultToOne();
 
-        Quit(_test.Finish("Quest progress service regression"));
+        RequestTestExit(_test.Finish("Quest progress service regression"));
     }
 
     private void TestFormalProgressEventSchema()

@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_oathscar_weapon_ability_regression : SceneTree
+public partial class run_oathscar_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName OathscarItemId = "weapon_unique_sword_oathscar_003";
     private static readonly StringName OathBindTraitId = "weapon.sword.oathscar.oath_bind";
@@ -51,12 +51,12 @@ public partial class run_oathscar_weapon_ability_regression : SceneTree
             TestGeneratedDealDamageEffectCanDamageSource();
             TestOathBacklashDirectAfterHitDealsDamage();
             TestOathBacklashPunishesWeaponHitAgainstNonOathTarget();
-            Quit(_test.Finish("Oathscar weapon ability regression"));
+            RequestTestExit(_test.Finish("Oathscar weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Oathscar weapon ability regression"));
+            RequestTestExit(_test.Finish("Oathscar weapon ability regression"));
         }
     }
 

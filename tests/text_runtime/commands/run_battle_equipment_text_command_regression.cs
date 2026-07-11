@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_battle_equipment_text_command_regression : SceneTree
+public partial class run_battle_equipment_text_command_regression : LifecycleTestSceneTree
 {
     private static readonly StringName VersatileTestWeaponId = "wpndice_versatile_longsword";
     private static readonly StringName OffhandTestItemId = "wpndice_offhand_focus";
@@ -150,7 +150,7 @@ public partial class run_battle_equipment_text_command_regression : SceneTree
         AssertPartyEquipmentWrittenBackAfterBattle(finishResult.snapshot, activeMemberId);
 
         runner.Dispose(true);
-        Quit(_test.Finish("Battle equipment text command regression"));
+        RequestTestExit(_test.Finish("Battle equipment text command regression"));
     }
 
     private void AdvanceToManualBattleTurn(GameTextCommandRunner runner, int maxTicks = 64)

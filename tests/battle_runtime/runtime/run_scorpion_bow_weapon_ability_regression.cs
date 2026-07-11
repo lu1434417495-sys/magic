@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_scorpion_bow_weapon_ability_regression : SceneTree
+public partial class run_scorpion_bow_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName ScorpionItemId = "weapon_unique_bow_scorpion_339";
     private static readonly StringName ScorpionArrowTraitId =
@@ -30,12 +30,12 @@ public partial class run_scorpion_bow_weapon_ability_regression : SceneTree
             TestScorpionArrowAddsPoisonDamageOnRealWeaponHit();
             TestScorpionArrowParalyzesOnFailedConSaveAndSkipsOnSuccess();
             TestPoisonBloodPoisonsAdjacentAttackerOnFailedSave();
-            Quit(_test.Finish("Scorpion Bow weapon ability regression"));
+            RequestTestExit(_test.Finish("Scorpion Bow weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Scorpion Bow weapon ability regression"));
+            RequestTestExit(_test.Finish("Scorpion Bow weapon ability regression"));
         }
     }
 

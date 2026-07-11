@@ -4,7 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_black_star_brand_regression : SceneTree
+public partial class run_black_star_brand_regression : LifecycleTestSceneTree
 {
     private static readonly StringName BLACK_STAR_BRAND_SKILL_ID = "black_star_brand";
     private static readonly StringName WARRIOR_GUARD_SKILL_ID = "warrior_guard";
@@ -24,7 +24,7 @@ public partial class run_black_star_brand_regression : SceneTree
         TestBlackStarBrandNormalTargetBlocksGuardAndCounterattack();
         TestBlackStarBrandEliteTargetUsesEliteOnlyDebuffs();
 
-        Quit(_test.Finish("Black star brand regression"));
+        RequestTestExit(_test.Finish("Black star brand regression"));
     }
 
     private void TestBlackStarBrandFirstCastFreeThenCostsCalamity()

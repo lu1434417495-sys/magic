@@ -4,7 +4,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_battle_ai_score_selection_regression : SceneTree
+public partial class run_battle_ai_score_selection_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -24,7 +24,7 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        Quit(_test.Finish("Battle AI score selection regression"));
+        RequestTestExit(_test.Finish("Battle AI score selection regression"));
     }
 
     private void TestBrainScoreProfileFeedsDecisionScopeAndFactionOverrideWins()

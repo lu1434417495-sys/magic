@@ -1,7 +1,7 @@
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battle_edge_feature_state_schema_regression : SceneTree
+public partial class run_battle_edge_feature_state_schema_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -22,7 +22,7 @@ public partial class run_battle_edge_feature_state_schema_regression : SceneTree
         TestNegativeRenderLayersIsRejected();
         TestDuplicateFeatureStillUsesCurrentSchema();
 
-        Quit(_test.Finish("Battle edge feature state schema regression"));
+        RequestTestExit(_test.Finish("Battle edge feature state schema regression"));
     }
 
     private void TestMakeWallRoundtrip()

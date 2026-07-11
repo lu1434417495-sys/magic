@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_ai_unit_snapshot_regression : SceneTree
+public partial class run_battle_ai_unit_snapshot_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -11,7 +11,7 @@ public partial class run_battle_ai_unit_snapshot_regression : SceneTree
         TestPayloadGuardIsPlainStaticBoundaryHelper();
         TestSnapshotCopiesUnitStateIntoTypedCollections();
         TestSnapshotPayloadProjectionIsBoundaryOnly();
-        Quit(_test.Finish("Battle AI unit snapshot regression"));
+        RequestTestExit(_test.Finish("Battle AI unit snapshot regression"));
     }
 
     private void TestPayloadGuardIsPlainStaticBoundaryHelper()

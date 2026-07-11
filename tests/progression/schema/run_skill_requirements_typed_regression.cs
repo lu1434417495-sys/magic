@@ -3,7 +3,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_skill_requirements_typed_regression : SceneTree
+public partial class run_skill_requirements_typed_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -17,7 +17,7 @@ public partial class run_skill_requirements_typed_regression : SceneTree
         TestRequirementSchemaValidation();
         TestOfficialSkillResourcesExposeTypedRequirementsAndSources();
 
-        Quit(_test.Finish("Skill requirement typed regression"));
+        RequestTestExit(_test.Finish("Skill requirement typed regression"));
     }
 
     private void TestRequirementSchemaValidation()

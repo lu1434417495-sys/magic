@@ -4,7 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
-public partial class run_character_management_achievement_summary_regression : SceneTree
+public partial class run_character_management_achievement_summary_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -18,7 +18,7 @@ public partial class run_character_management_achievement_summary_regression : S
         TestAchievementSummarySortsActiveProgressWithTypedEntries();
         TestAchievementPendingRewardSummaryTextUsesStringMetaOrDescription();
 
-        Quit(_test.Finish("Character management achievement summary regression"));
+        RequestTestExit(_test.Finish("Character management achievement summary regression"));
     }
 
     private void TestAchievementSummarySortsActiveProgressWithTypedEntries()

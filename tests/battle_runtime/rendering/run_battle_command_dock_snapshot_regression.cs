@@ -9,7 +9,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 // recent_battle_log_lines contract that BattleHudAdapter.BuildSnapshot now
 // exposes for the rebuilt battle command dock. These derive purely from
 // battle_state + selection inputs, so the fixture needs no content catalog.
-public partial class run_battle_command_dock_snapshot_regression : SceneTree
+public partial class run_battle_command_dock_snapshot_regression : LifecycleTestSceneTree
 {
     private static readonly StringName SkillId = "test_command_dock_skill";
     private readonly TestHarness _test = new();
@@ -28,7 +28,7 @@ public partial class run_battle_command_dock_snapshot_regression : SceneTree
         {
             _test.Fail($"Unhandled exception: {exception}");
         }
-        Quit(_test.Finish("Battle command dock snapshot regression"));
+        RequestTestExit(_test.Finish("Battle command dock snapshot regression"));
     }
 
     private void TestManualUnitActingDockAndHint()

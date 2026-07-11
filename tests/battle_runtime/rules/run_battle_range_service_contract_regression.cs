@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_battle_range_service_contract_regression : SceneTree
+public partial class run_battle_range_service_contract_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -17,12 +17,12 @@ public partial class run_battle_range_service_contract_regression : SceneTree
             TestRangeUsesWeaponProjectionAndStatusLayer();
             TestGroundAreaThreatRangeIncludesOuterEdge();
 
-            Quit(_test.Finish("Battle range service contract regression"));
+            RequestTestExit(_test.Finish("Battle range service contract regression"));
         }
         catch (Exception exception)
         {
             GD.PushError($"Battle range service contract regression crashed: {exception}");
-            Quit(1);
+            RequestTestExit(_test.Finish("Battle range service contract regression", 1));
         }
     }
 

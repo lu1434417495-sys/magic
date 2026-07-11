@@ -8,7 +8,7 @@ using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-public partial class run_meteor_swarm_preview_surface_contract_regression : SceneTree
+public partial class run_meteor_swarm_preview_surface_contract_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
     private GDictionary _skillDefsProviderPayload = new();
@@ -17,7 +17,7 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
     {
         TestMeteorNumericSummaryRoundTripsFormalSaveSourcePayload();
         TestPreviewHudAndAiShareTypedFacts();
-        Quit(_test.Finish("Meteor swarm preview surface contract regression"));
+        RequestTestExit(_test.Finish("Meteor swarm preview surface contract regression"));
     }
 
     private void TestMeteorNumericSummaryRoundTripsFormalSaveSourcePayload()

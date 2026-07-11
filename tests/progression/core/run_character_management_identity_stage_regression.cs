@@ -3,7 +3,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
-public partial class run_character_management_identity_stage_regression : SceneTree
+public partial class run_character_management_identity_stage_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -18,7 +18,7 @@ public partial class run_character_management_identity_stage_regression : SceneT
         TestStageAdvancementRefreshesEffectiveAgeStage();
         TestAscensionReplacesEffectiveAgeStage();
 
-        Quit(_test.Finish("Character management identity stage regression"));
+        RequestTestExit(_test.Finish("Character management identity stage regression"));
     }
 
     private void TestAgeStageResolverNoLongerRequiresGodotRegistration()

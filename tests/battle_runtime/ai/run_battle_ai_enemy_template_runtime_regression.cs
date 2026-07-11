@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
+public partial class run_battle_ai_enemy_template_runtime_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -19,12 +19,12 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             TestFormalEnemyTemplatesHaveRealPressureSkillAction();
             TestDepletedRangedTemplatesCloseForBasicAttackFallback();
             TestEnemyTemplateUsesCanonicalTemplateId();
-            Quit(_test.Finish("Battle AI enemy template runtime regression"));
+            RequestTestExit(_test.Finish("Battle AI enemy template runtime regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(1);
+            RequestTestExit(_test.Finish("Battle AI enemy template runtime regression", 1));
         }
     }
 

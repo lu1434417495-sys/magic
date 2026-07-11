@@ -2,7 +2,7 @@ using System;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_damage_application_projection_regression : SceneTree
+public partial class run_damage_application_projection_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -24,7 +24,7 @@ public partial class run_damage_application_projection_regression : SceneTree
             _test.Fail($"Damage application projection regression crashed: {ex}");
         }
 
-        Quit(_test.Finish("Damage application projection regression"));
+        RequestTestExit(_test.Finish("Damage application projection regression"));
     }
 
     private void TestNullHookPreservesLegacyShieldAndHpApplication()

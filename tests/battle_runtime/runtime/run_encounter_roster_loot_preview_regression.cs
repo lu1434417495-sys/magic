@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_encounter_roster_loot_preview_regression : SceneTree
+public partial class run_encounter_roster_loot_preview_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -17,7 +17,7 @@ public partial class run_encounter_roster_loot_preview_regression : SceneTree
         TestTemplateLootSchemaUsesFormalBoundary();
         TestTemplateLootSchemaRejectsMissingDropSourceLabel();
         TestRosterLootPreviewAggregatesEntriesByItemId();
-        Quit(_test.Finish("Encounter roster loot preview regression"));
+        RequestTestExit(_test.Finish("Encounter roster loot preview regression"));
     }
 
     private void TestTemplateLootSchemaUsesFormalBoundary()

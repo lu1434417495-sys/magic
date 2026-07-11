@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_phantasmal_kill_ai_regression : SceneTree
+public partial class run_phantasmal_kill_ai_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -22,7 +22,7 @@ public partial class run_phantasmal_kill_ai_regression : SceneTree
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        Quit(_test.Finish("Phantasmal Kill AI regression"));
+        RequestTestExit(_test.Finish("Phantasmal Kill AI regression"));
     }
 
     private void TestLowHpEnemyExecuteScoresAboveHighHpEnemy()

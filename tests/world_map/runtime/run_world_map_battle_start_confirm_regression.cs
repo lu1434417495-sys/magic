@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_world_map_battle_start_confirm_regression : SceneTree
+public partial class run_world_map_battle_start_confirm_regression : LifecycleTestSceneTree
 {
     private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
     private static readonly PackedScene WorldMapScene = GD.Load<PackedScene>(
@@ -19,7 +19,7 @@ public partial class run_world_map_battle_start_confirm_regression : SceneTree
         await ResetSession();
         await TestBattleStartConfirmStaysNonCancellableOnWorldMapScene();
         await Cleanup();
-        Quit(_test.Finish("World map battle start confirm regression"));
+        RequestTestExit(_test.Finish("World map battle start confirm regression"));
     }
 
     private async Task TestBattleStartConfirmStaysNonCancellableOnWorldMapScene()

@@ -2,7 +2,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_shared_test_fixture_regression : SceneTree
+public partial class run_shared_test_fixture_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -12,7 +12,7 @@ public partial class run_shared_test_fixture_regression : SceneTree
         TestStubRngRollsAreClampedAndCounted();
         TestLocalBattleFixtureBuildsStateAndUnits();
         TestFixedResolversUseInjectedRolls();
-        Quit(_test.Finish("Shared test fixture regression"));
+        RequestTestExit(_test.Finish("Shared test fixture regression"));
     }
 
     private void TestHarnessRecordsFailures()

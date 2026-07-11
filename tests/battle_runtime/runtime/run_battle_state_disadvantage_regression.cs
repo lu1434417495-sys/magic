@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_state_disadvantage_regression : SceneTree
+public partial class run_battle_state_disadvantage_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -17,7 +17,7 @@ public partial class run_battle_state_disadvantage_regression : SceneTree
         TestAttackDisadvantageDoesNotTriggerOnBadTacticalChoice();
         TestAttackDisadvantageDoesNotTriggerOnEconomicDelay();
         TestAttackDisadvantageDoesNotTriggerOnSoftDebuff();
-        Quit(_test.Finish("Battle state disadvantage regression"));
+        RequestTestExit(_test.Finish("Battle state disadvantage regression"));
     }
 
     private void TestAttackDisadvantageTriggersOnTwoAdjacentEnemies()

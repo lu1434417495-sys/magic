@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_spawn_side_regression : SceneTree
+public partial class run_battle_spawn_side_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -11,7 +11,7 @@ public partial class run_battle_spawn_side_regression : SceneTree
         TestTallMapUsesLeftAndRightLongEdges();
         TestSpawnPlacementDoesNotClearExistingOccupantsFromStaleCoords();
         TestFailedSpawnPlacementRollsBackPartialUnits();
-        Quit(_test.Finish("Battle spawn side regression"));
+        RequestTestExit(_test.Finish("Battle spawn side regression"));
     }
 
     private void TestWideMapUsesTopAndBottomLongEdges()

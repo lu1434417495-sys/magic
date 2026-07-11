@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_wyrmbreak_weapon_ability_regression : SceneTree
+public partial class run_wyrmbreak_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName WyrmbreakItemId = "weapon_unique_sword_wyrmbreak_007";
     private static readonly StringName DragonSlayerTraitId =
@@ -45,12 +45,12 @@ public partial class run_wyrmbreak_weapon_ability_regression : SceneTree
             TestBoneStealingFuryChargesOnlyOnNonDragonWeaponHits();
             TestDragonSoulExtensionConsumesThreeFuryAsRangeTwoWeaponAttack();
             TestDragonSoulBurstConsumesFiveFuryAndResolvesRealGroundLineDamage();
-            Quit(_test.Finish("Wyrmbreak weapon ability regression"));
+            RequestTestExit(_test.Finish("Wyrmbreak weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Wyrmbreak weapon ability regression"));
+            RequestTestExit(_test.Finish("Wyrmbreak weapon ability regression"));
         }
     }
 

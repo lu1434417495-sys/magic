@@ -7,7 +7,7 @@ using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-public partial class run_crown_break_regression : SceneTree
+public partial class run_crown_break_regression : LifecycleTestSceneTree
 {
     private static readonly StringName CROWN_BREAK_SKILL_ID = "crown_break";
     private static readonly StringName SAINT_BLADE_COMBO_SKILL_ID = "saint_blade_combo";
@@ -32,7 +32,7 @@ public partial class run_crown_break_regression : SceneTree
         TestCrownBreakBlindedEyeBlocksEvasion();
         TestCrownBreakRejectsIllegalTargetsInSelectionPreviewAndIssue();
 
-        Quit(_test.Finish("Crown break regression"));
+        RequestTestExit(_test.Finish("Crown break regression"));
     }
 
     private void TestCrownBreakBrokenFangBlocksCrit()

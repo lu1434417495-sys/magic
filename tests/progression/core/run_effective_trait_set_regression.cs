@@ -1,6 +1,6 @@
 using Godot;
 
-public partial class run_effective_trait_set_regression : SceneTree
+public partial class run_effective_trait_set_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -12,7 +12,7 @@ public partial class run_effective_trait_set_regression : SceneTree
     private void Run()
     {
         TestTraitSetLookupsAndSortedBattleProjection();
-        Quit(_test.Finish("Effective trait set regression"));
+        RequestTestExit(_test.Finish("Effective trait set regression"));
     }
 
     private void TestTraitSetLookupsAndSortedBattleProjection()

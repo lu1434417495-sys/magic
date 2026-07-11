@@ -4,7 +4,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_phantasmal_kill_regression : SceneTree
+public partial class run_phantasmal_kill_regression : LifecycleTestSceneTree
 {
     private static readonly StringName SkillId = "test_phantasmal_kill";
     private static readonly StringName PhantasmalKillDeathSource = "phantasmal_kill_execute";
@@ -26,12 +26,12 @@ public partial class run_phantasmal_kill_regression : SceneTree
             TestPsychicResistanceAndImmunityAffectOnlyNonExecuteDamage();
             TestGroundSkillAffectsAnyTeamInSevenBySevenOnly();
 
-            Quit(_test.Finish("Phantasmal Kill regression"));
+            RequestTestExit(_test.Finish("Phantasmal Kill regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Phantasmal Kill regression"));
+            RequestTestExit(_test.Finish("Phantasmal Kill regression"));
         }
     }
 

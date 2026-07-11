@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_settlement_action_request_boundary_regression : SceneTree
+public partial class run_settlement_action_request_boundary_regression : LifecycleTestSceneTree
 {
     private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -19,7 +19,7 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
     private async void RunAsync()
     {
         await TestClientPayloadCannotInjectSettlementRewardsOrSuppressQuestProgress();
-        Quit(_test.Finish("Settlement action request boundary regression"));
+        RequestTestExit(_test.Finish("Settlement action request boundary regression"));
     }
 
     private async Task TestClientPayloadCannotInjectSettlementRewardsOrSuppressQuestProgress()

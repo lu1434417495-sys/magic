@@ -6,7 +6,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_contingency_charge_transaction_regression : SceneTree
+public partial class run_contingency_charge_transaction_regression : LifecycleTestSceneTree
 {
     private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
     private static readonly StringName GemId = "special_contingency_gem";
@@ -40,7 +40,7 @@ public partial class run_contingency_charge_transaction_regression : SceneTree
         }
         finally
         {
-            Quit(_test.Finish("Contingency charge transaction regression"));
+            RequestTestExit(_test.Finish("Contingency charge transaction regression"));
 		}
 	}
 

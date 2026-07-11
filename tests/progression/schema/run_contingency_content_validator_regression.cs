@@ -4,7 +4,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_contingency_content_validator_regression : SceneTree
+public partial class run_contingency_content_validator_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig =
         "res://data/configs/world_map/test_world_map_config.tres";
@@ -32,7 +32,7 @@ public partial class run_contingency_content_validator_regression : SceneTree
         TestUnsupportedParameterBindingKeyIsRejected();
         TestLoadSaveFailsWhenPersistedSetupReferencesInvalidStoredSkill();
 
-        Quit(_test.Finish("Contingency content validator regression"));
+        RequestTestExit(_test.Finish("Contingency content validator regression"));
     }
 
     private void TestCatalogContainsRealChainContingencySkill()

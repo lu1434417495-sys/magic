@@ -3,14 +3,14 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_text_save_load_regression : SceneTree
+public partial class run_text_save_load_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
     private GameTextCommandRunner _runner;
 
     public override void _Initialize()
     {
-        int exitCode = 1;
+        TestResult exitCode = null;
         try
         {
             _runner = new GameTextCommandRunner();
@@ -30,7 +30,7 @@ public partial class run_text_save_load_regression : SceneTree
                 _runner.Dispose(true);
                 _runner = null;
             }
-            Quit(exitCode);
+            RequestTestExit(exitCode ?? _test.Finish("Text save/load regression", 1));
         }
     }
 

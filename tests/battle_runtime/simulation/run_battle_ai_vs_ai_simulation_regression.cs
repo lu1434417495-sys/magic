@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battle_ai_vs_ai_simulation_regression : SceneTree
+public partial class run_battle_ai_vs_ai_simulation_regression : LifecycleTestSceneTree
 {
     private const string AiVsAiScenarioPath =
         "res://data/configs/battle_sim/scenarios/ai_vs_ai_duel_example.tres";
@@ -14,11 +14,11 @@ public partial class run_battle_ai_vs_ai_simulation_regression : SceneTree
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        Quit(exitCode);
+        TestResult exitCode = Run();
+        RequestTestExit(exitCode);
     }
 
-    private int Run()
+    private TestResult Run()
     {
         BattleSimScenarioDef scenario = ResourceLoader.Load<BattleSimScenarioDef>(AiVsAiScenarioPath);
         BattleSimProfileDef baselineProfile = ResourceLoader.Load<BattleSimProfileDef>(

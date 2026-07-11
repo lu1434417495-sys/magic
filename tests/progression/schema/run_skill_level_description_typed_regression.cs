@@ -3,7 +3,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_skill_level_description_typed_regression : SceneTree
+public partial class run_skill_level_description_typed_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -18,7 +18,7 @@ public partial class run_skill_level_description_typed_regression : SceneTree
         TestLevelDescriptionFormatterUsesTypedConfigs();
         TestLevelDescriptionFormatterUsesTypedEffectParameters();
 
-        Quit(_test.Finish("Skill level description typed regression"));
+        RequestTestExit(_test.Finish("Skill level description typed regression"));
     }
 
     private void TestLevelDescriptionSchemaValidationUsesTypedEntries()

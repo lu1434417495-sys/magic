@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_mountainbreaker_weapon_ability_regression : SceneTree
+public partial class run_mountainbreaker_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName ItemId = "weapon_unique_greataxe_mountainbreaker";
     private static readonly StringName BladeTrait = "weapon.axe.mountainbreaker.mountain_splitting_blade";
@@ -28,12 +28,12 @@ public partial class run_mountainbreaker_weapon_ability_regression : SceneTree
             TestContentProjectionAndStrengthRequirement();
             TestCollapseFollowupAndLeylineAnchor();
             TestLeylineAnchorTriggersFromRealWeaponDamage();
-            Quit(_test.Finish("Mountainbreaker weapon ability regression"));
+            RequestTestExit(_test.Finish("Mountainbreaker weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Mountainbreaker weapon ability regression"));
+            RequestTestExit(_test.Finish("Mountainbreaker weapon ability regression"));
         }
     }
 

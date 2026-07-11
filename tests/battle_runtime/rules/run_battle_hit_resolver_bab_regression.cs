@@ -2,7 +2,7 @@ using System;
 using Godot;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_battle_hit_resolver_bab_regression : SceneTree
+public partial class run_battle_hit_resolver_bab_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -15,7 +15,7 @@ public partial class run_battle_hit_resolver_bab_regression : SceneTree
         TestLockedSkillHitBonusReducesRequiredRoll();
         TestLockedSkillHitBonusAppliesToSpellControlRoll();
 
-        Quit(_test.Finish("Battle hit resolver BAB regression"));
+        RequestTestExit(_test.Finish("Battle hit resolver BAB regression"));
     }
 
     private void TestAttackCheckReadsAttackerBaseAttackBonus()

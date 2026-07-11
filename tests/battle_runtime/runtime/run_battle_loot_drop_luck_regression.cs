@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 
-public partial class run_battle_loot_drop_luck_regression : SceneTree
+public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig =
         "res://data/configs/world_map/test_world_map_config.tres";
@@ -21,7 +21,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         TestPerKillRandomEquipmentOverflowIsLostInSettlementCommit();
         TestPerKillAttackEquipmentIsNotImplicitLoot();
 
-        Quit(_test.Finish("Battle loot drop luck regression"));
+        RequestTestExit(_test.Finish("Battle loot drop luck regression"));
     }
 
     private void TestPerKillLootUsesKillerLuckAndCommitsFixedItem()

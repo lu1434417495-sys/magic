@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_effective_mp_reservation_regression : SceneTree
+public partial class run_effective_mp_reservation_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -19,7 +19,7 @@ public partial class run_effective_mp_reservation_regression : SceneTree
         TestDailyPracticeGrowthClampsToEffectiveMp();
         TestBattleUnitFactoryUsesEffectiveMp();
         TestBattleWritebackUsesCurrentEffectiveMpAfterSetupStateChanges();
-        Quit(_test.Finish("Effective MP reservation regression"));
+        RequestTestExit(_test.Finish("Effective MP reservation regression"));
     }
 
     private void TestAttributeSnapshotProjectsReservedMp()

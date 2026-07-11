@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-public partial class run_battle_board_regression : SceneTree
+public partial class run_battle_board_regression : LifecycleTestSceneTree
 {
     private static readonly PackedScene BattleBoardScene = GD.Load<PackedScene>(
         "res://scenes/ui/battle_board_2d.tscn"
@@ -27,7 +27,7 @@ public partial class run_battle_board_regression : SceneTree
         TestCanyonGenerationUsesTypedColumnsAndSupportedProps();
         TestRenderProfileFormalSourceSpecs();
         await TestBoardSceneRendersGeneratedCanyon();
-        Quit(_test.Finish("Battle board regression"));
+        RequestTestExit(_test.Finish("Battle board regression"));
     }
 
     private void TestCanyonGenerationUsesTypedColumnsAndSupportedProps()

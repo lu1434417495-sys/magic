@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_thunderfang_weapon_ability_regression : SceneTree
+public partial class run_thunderfang_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName ThunderfangItemId =
         "weapon_unique_axe_thunderfang_086";
@@ -35,12 +35,12 @@ public partial class run_thunderfang_weapon_ability_regression : SceneTree
             TestCriticalSuccessfulConSaveDoesNotStun();
             TestThorsHammeringUsesStormEnvironmentForAttackBonusAndMaximumDamage();
             TestStormConductorReflectsLightningOnlyInStormAgainstMeleeHit();
-            Quit(_test.Finish("Thunderfang weapon ability regression"));
+            RequestTestExit(_test.Finish("Thunderfang weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Thunderfang weapon ability regression"));
+            RequestTestExit(_test.Finish("Thunderfang weapon ability regression"));
         }
     }
 

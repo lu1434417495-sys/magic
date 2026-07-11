@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_heartbane_weapon_ability_regression : SceneTree
+public partial class run_heartbane_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName HeartbaneItemId = "weapon_unique_sword_heartbane_004";
     private static readonly StringName HeartbreakStingTraitId =
@@ -42,12 +42,12 @@ public partial class run_heartbane_weapon_ability_regression : SceneTree
             TestHeartCravingAddsAttackRollBonusAtThirtyPercentHp();
             TestEmotionalRendIsVisibleTuBuffAndSourceBoundPenalty();
             TestHeartbreakBurstRequiresConsumesRendAndUsesPerBattleCharge();
-            Quit(_test.Finish("Heartbane weapon ability regression"));
+            RequestTestExit(_test.Finish("Heartbane weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Heartbane weapon ability regression"));
+            RequestTestExit(_test.Finish("Heartbane weapon ability regression"));
         }
     }
 

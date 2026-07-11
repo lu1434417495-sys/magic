@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_enemy_content_registry_typed_regression : SceneTree
+public partial class run_enemy_content_registry_typed_regression : LifecycleTestSceneTree
 {
     private const string OfficialSeedPath = "res://data/configs/enemies/enemy_content_seed.tres";
     private const string InvalidReferenceSeedPath =
@@ -19,7 +19,7 @@ public partial class run_enemy_content_registry_typed_regression : SceneTree
     {
         TestRebuildClearsOfficialCatalogBeforeLoadingInvalidSeed();
 
-        Quit(_test.Finish("Enemy content registry typed regression"));
+        RequestTestExit(_test.Finish("Enemy content registry typed regression"));
     }
 
     private void TestRebuildClearsOfficialCatalogBeforeLoadingInvalidSeed()

@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_text_command_party_battle_surface_regression : SceneTree
+public partial class run_text_command_party_battle_surface_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -16,7 +16,7 @@ public partial class run_text_command_party_battle_surface_regression : SceneTre
     {
         TestPartyEquipAndBattleCommandsUseTypedRuntimeBoundary();
 
-        Quit(_test.Finish("Text command party/battle surface regression"));
+        RequestTestExit(_test.Finish("Text command party/battle surface regression"));
     }
 
     private void TestPartyEquipAndBattleCommandsUseTypedRuntimeBoundary()

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_save_resolver_regression : SceneTree
+public partial class run_battle_save_resolver_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -24,12 +24,12 @@ public partial class run_battle_save_resolver_regression : SceneTree
             TestLockedSkillBonusIncreasesCasterSpellSaveDc();
             TestDamageSaveSuccessHalvesPartialDamage();
             TestStatusSaveSuccessBlocksAndFailureAppliesStatus();
-            Quit(_test.Finish("Battle save resolver regression"));
+            RequestTestExit(_test.Finish("Battle save resolver regression"));
         }
         catch (Exception ex)
         {
             GD.PushError($"Battle save resolver regression crashed: {ex}");
-            Quit(1);
+            RequestTestExit(_test.Finish("Battle save resolver regression", 1));
         }
     }
 

@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_party_management_window_regression : SceneTree
+public partial class run_party_management_window_regression : LifecycleTestSceneTree
 {
     private static readonly PackedScene PartyManagementWindowScene = GD.Load<PackedScene>(
         "res://scenes/ui/party_management_window.tscn"
@@ -20,7 +20,7 @@ public partial class run_party_management_window_regression : SceneTree
         await TestMemberDetailsTolerateMissingSkillAndOccupiedSlots();
         await TestMemberDetailsUseSkillDefinitionSnapshot();
         await TestMemberDetailsUseInjectedCharacterManagementSnapshot();
-        Quit(_test.Finish("Party management window regression"));
+        RequestTestExit(_test.Finish("Party management window regression"));
     }
 
     private async Task TestWindowUsesHalfViewportWithMinimumSize()

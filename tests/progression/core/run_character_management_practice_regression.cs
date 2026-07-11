@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
-public partial class run_character_management_practice_regression : SceneTree
+public partial class run_character_management_practice_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -23,7 +23,7 @@ public partial class run_character_management_practice_regression : SceneTree
         TestPracticeTrackTagsFailClosedAtRuntime();
         TestPracticeReplacementServiceRequiresVerifiedLearning();
 
-        Quit(_test.Finish("Character management practice regression"));
+        RequestTestExit(_test.Finish("Character management practice regression"));
     }
 
     private void TestPracticeReplacementRequiresConfirmation()

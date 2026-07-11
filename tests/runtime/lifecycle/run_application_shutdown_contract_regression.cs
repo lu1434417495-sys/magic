@@ -1,17 +1,17 @@
 using System;
 using Godot;
 
-public partial class run_application_shutdown_contract_regression : SceneTree
+public partial class run_application_shutdown_contract_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        Quit(exitCode);
+        TestResult exitCode = Run();
+        RequestTestExit(exitCode);
     }
 
-    private int Run()
+    private TestResult Run()
     {
         TestShutdownStateMachineContracts();
         TestShutdownReportContracts();

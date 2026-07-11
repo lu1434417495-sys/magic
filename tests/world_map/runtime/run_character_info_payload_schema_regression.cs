@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_character_info_payload_schema_regression : SceneTree
+public partial class run_character_info_payload_schema_regression : LifecycleTestSceneTree
 {
     private static readonly PackedScene CharacterInfoWindowScene = GD.Load<PackedScene>(
         "res://scenes/ui/character_info_window.tscn"
@@ -15,7 +15,7 @@ public partial class run_character_info_payload_schema_regression : SceneTree
     {
         await TestRuntimeCharacterInfoPayloadAllowsRuntimeIdentityKeys();
         await TestEquipmentTooltipEntryRendersAsHoverTooltip();
-        Quit(_test.Finish("Character info payload schema regression"));
+        RequestTestExit(_test.Finish("Character info payload schema regression"));
     }
 
     private async Task TestRuntimeCharacterInfoPayloadAllowsRuntimeIdentityKeys()

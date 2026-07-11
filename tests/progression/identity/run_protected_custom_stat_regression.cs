@@ -2,7 +2,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_protected_custom_stat_regression : SceneTree
+public partial class run_protected_custom_stat_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -13,7 +13,7 @@ public partial class run_protected_custom_stat_regression : SceneTree
         TestPendingRewardFlowRejectsProtectedHiddenLuckWrites();
         TestCharacterCreationAndExplicitStoryScriptsCanWriteHiddenLuckAtBirth();
         TestUnprotectedCustomStatsRemainWritable();
-        Quit(_test.Finish("Protected custom stat regression"));
+        RequestTestExit(_test.Finish("Protected custom stat regression"));
     }
 
     private void TestAttributeServiceUsesTypedPermanentChangeSource()

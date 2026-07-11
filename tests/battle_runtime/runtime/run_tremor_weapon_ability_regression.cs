@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_tremor_weapon_ability_regression : SceneTree
+public partial class run_tremor_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName TremorItemId = "weapon_unique_hammer_tremor_102";
     private static readonly StringName ShockwaveTraitId = "weapon.hammer.tremor.shockwave";
@@ -27,12 +27,12 @@ public partial class run_tremor_weapon_ability_regression : SceneTree
             TestTremorProjectsRealContentAndClearsOnUnequip();
             TestShockwaveIsProjectedAsEquipmentGrantedSkill();
             TestShockwaveUsesSingleDamageSaveForHalfDamageAndProne();
-            Quit(_test.Finish("Tremor weapon ability regression"));
+            RequestTestExit(_test.Finish("Tremor weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Tremor weapon ability regression"));
+            RequestTestExit(_test.Finish("Tremor weapon ability regression"));
         }
     }
 

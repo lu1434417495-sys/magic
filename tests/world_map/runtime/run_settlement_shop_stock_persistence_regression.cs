@@ -3,7 +3,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GArray = Godot.Collections.Array;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_settlement_shop_stock_persistence_regression : SceneTree
+public partial class run_settlement_shop_stock_persistence_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
     private readonly GodotTransientResourceScope _runtimeScope =
@@ -134,6 +134,6 @@ public partial class run_settlement_shop_stock_persistence_regression : SceneTre
             _runtimeScope.Close();
         }
 
-        Quit(_test.Finish("shop stock mutation persists in settlement state"));
+        RequestTestExit(_test.Finish("shop stock mutation persists in settlement state"));
     }
 }

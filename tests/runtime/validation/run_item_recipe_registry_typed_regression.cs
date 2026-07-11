@@ -3,7 +3,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_item_recipe_registry_typed_regression : SceneTree
+public partial class run_item_recipe_registry_typed_regression : LifecycleTestSceneTree
 {
     private const string InvalidRecipeDirectory =
         "res://tests/fixtures/resource_validation/recipe_registry_invalid";
@@ -23,7 +23,7 @@ public partial class run_item_recipe_registry_typed_regression : SceneTree
         TestItemTraitValidationAcceptsSourceScopedReferences();
         TestItemTraitValidationRejectsWrongSourceAndUnsatisfiableRollGroups();
 
-        Quit(_test.Finish("Item/recipe registry typed regression"));
+        RequestTestExit(_test.Finish("Item/recipe registry typed regression"));
     }
 
     private void TestOfficialItemRegistryTypedBoundaryMatchesPublicBoundary()

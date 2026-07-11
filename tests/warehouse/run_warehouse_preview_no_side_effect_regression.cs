@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using Godot;
 
-public partial class run_warehouse_preview_no_side_effect_regression : SceneTree
+public partial class run_warehouse_preview_no_side_effect_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
     private readonly GodotTransientResourceScope _runtimeScope =
@@ -99,7 +99,7 @@ public partial class run_warehouse_preview_no_side_effect_regression : SceneTree
             _runtimeScope.Close();
         }
 
-        Quit(_test.Finish("warehouse preview has no allocator or inventory side effects"));
+        RequestTestExit(_test.Finish("warehouse preview has no allocator or inventory side effects"));
     }
 
     private ItemDef BuildItemDef()

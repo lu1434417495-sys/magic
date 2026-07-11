@@ -2,14 +2,15 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_grid_service_pathfinding_invariants_typed : SceneTree
+public partial class run_battle_grid_service_pathfinding_invariants_typed : LifecycleTestSceneTree
 {
     public override void _Initialize()
     {
-        Quit(RunForWrapper());
+        RequestTestExit(RunForWrapper());
     }
 
-    public static int RunForWrapper() => BattleGridServicePathfindingInvariantsRunner.RunAll();
+    internal static TestResult RunForWrapper() =>
+        BattleGridServicePathfindingInvariantsRunner.RunAll();
 }
 
 internal sealed class BattleGridServicePathfindingInvariantsRunner
@@ -31,13 +32,13 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
         new("battle_grid_service_pathfinding_invariants", quarantineOnDrain: true);
     private BattleGridService _grid = null!;
 
-    public static int RunAll()
+    public static TestResult RunAll()
     {
         var runner = new BattleGridServicePathfindingInvariantsRunner();
         return runner.Run();
     }
 
-    private int Run()
+    private TestResult Run()
     {
         _grid = _runtimeScope.OwnValueGraph(new BattleGridService(), "grid");
         try

@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battle_execute_lethal_regression : SceneTree
+public partial class run_battle_execute_lethal_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -12,7 +12,7 @@ public partial class run_battle_execute_lethal_regression : SceneTree
         TestPwkAllowsHighPriorityDeathWard();
         TestPwkBypassesShieldWithoutMutatingShieldFields();
 
-        Quit(_test.Finish("Battle execute lethal regression"));
+        RequestTestExit(_test.Finish("Battle execute lethal regression"));
     }
 
     private void TestPwkSkipsLowPriorityDeathWard()

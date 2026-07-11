@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_settlement_forge_service_regression : SceneTree
+public partial class run_settlement_forge_service_regression : LifecycleTestSceneTree
 {
     private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
     private const string AshenIntersectionConfigPath = "res://data/configs/world_map/ashen_intersection_world_map_config.tres";
@@ -26,7 +26,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
         await TestNewWorldGenerationExposesMasterReforgeService();
         await TestAshenIntersectionGenerationExposesGenericForgeService();
 
-        Quit(_test.Finish("Settlement forge service regression"));
+        RequestTestExit(_test.Finish("Settlement forge service regression"));
     }
 
     private void TestMasterReforgeServiceSuccess()

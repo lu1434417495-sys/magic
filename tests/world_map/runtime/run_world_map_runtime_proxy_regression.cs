@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using RuntimeCommandResult = GameRuntimeFacade.RuntimeCommandResult;
 
-public partial class run_world_map_runtime_proxy_regression : SceneTree
+public partial class run_world_map_runtime_proxy_regression : LifecycleTestSceneTree
 {
     private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -43,7 +43,7 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         TestWarehouseUseTypedOptionsDelegateToRuntime();
         TestMissingRuntimeReturnsError();
 
-        Quit(_test.Finish("World map runtime proxy regression"));
+        RequestTestExit(_test.Finish("World map runtime proxy regression"));
     }
 
     private void TestGettersForwardToRuntime()

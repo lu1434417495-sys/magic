@@ -4,7 +4,7 @@ using System.Reflection;
 using Godot;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_equipment_ability_content_registry_regression : SceneTree
+public partial class run_equipment_ability_content_registry_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -24,7 +24,7 @@ public partial class run_equipment_ability_content_registry_regression : SceneTr
         TestFailedRebuildKeepsLastSuccessfulSnapshot();
         TestInvalidContentFailsFastWithStableCodesAndPaths();
 
-        Quit(_test.Finish("Equipment ability content registry regression"));
+        RequestTestExit(_test.Finish("Equipment ability content registry regression"));
     }
 
     private void TestAuthoringAbiAttributesAndRuntimeDtoBoundary()

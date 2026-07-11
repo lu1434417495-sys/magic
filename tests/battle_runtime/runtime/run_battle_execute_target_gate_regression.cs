@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_execute_target_gate_regression : SceneTree
+public partial class run_battle_execute_target_gate_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -12,7 +12,7 @@ public partial class run_battle_execute_target_gate_regression : SceneTree
         TestHighHpCommandDoesNotConsumeApMpCooldown();
         TestLowHpTargetPreviewAllowed();
         TestBossAndNormalUseSameThresholdGate();
-        Quit(_test.Finish("Battle execute target gate regression"));
+        RequestTestExit(_test.Finish("Battle execute target gate regression"));
     }
 
     private void TestHighHpTargetPreviewDeniedWithoutSaveDamageOrStatus()

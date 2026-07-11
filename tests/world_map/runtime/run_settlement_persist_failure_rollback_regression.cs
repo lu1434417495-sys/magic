@@ -7,7 +7,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_settlement_persist_failure_rollback_regression : SceneTree
+public partial class run_settlement_persist_failure_rollback_regression : LifecycleTestSceneTree
 {
     private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -28,7 +28,7 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
         await TestWarehouseSettlementServiceRollbackOnPersistFailure();
         TestRuntimeTransactionRollbackStateUsesTypedSessionSnapshot();
 
-        Quit(_test.Finish("Settlement persist failure rollback regression"));
+        RequestTestExit(_test.Finish("Settlement persist failure rollback regression"));
     }
 
     private async Task TestStagecoachTravelRollbackOnPersistFailure()

@@ -4,7 +4,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_character_creation_service_regression : SceneTree
+public partial class run_character_creation_service_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -32,7 +32,7 @@ public partial class run_character_creation_service_regression : SceneTree
         TestCreationPayloadCanOptIntoRerollLuckForMainCharacter();
         TestCreationPayloadRejectsNonIntegerRerollLuckWhenOptedIn();
 
-        Quit(_test.Finish("CharacterCreationService regression"));
+        RequestTestExit(_test.Finish("CharacterCreationService regression"));
     }
 
     private void TestServiceNoLongerRegistersGlobalClass()

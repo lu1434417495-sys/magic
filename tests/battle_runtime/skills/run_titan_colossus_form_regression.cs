@@ -3,7 +3,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_titan_colossus_form_regression : SceneTree
+public partial class run_titan_colossus_form_regression : LifecycleTestSceneTree
 {
     private static readonly StringName TitanColossusForm = "titan_colossus_form";
     private static readonly StringName TitanGiantFormStatus = "titan_giant_form";
@@ -22,7 +22,7 @@ public partial class run_titan_colossus_form_regression : SceneTree
         TestBodySizeRestoreWaitsWhenPreviousFootprintIsBlocked();
 
 
-        Quit(_test.Finish("Titan colossus form regression"));
+        RequestTestExit(_test.Finish("Titan colossus form regression"));
     }
 
     private void TestTitanColossusFormChangesAndRestoresBodySize()

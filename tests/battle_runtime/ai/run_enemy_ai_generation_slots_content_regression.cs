@@ -5,7 +5,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_enemy_ai_generation_slots_content_regression : SceneTree
+public partial class run_enemy_ai_generation_slots_content_regression : LifecycleTestSceneTree
 {
     private static readonly string[] BrainPaths =
     {
@@ -26,7 +26,7 @@ public partial class run_enemy_ai_generation_slots_content_regression : SceneTre
         TestFormalBrainsDeclareGenerationSlots();
         TestFormalBrainsDeclareTransitionRules();
 
-        Quit(_test.Finish("Enemy AI generation slots content regression"));
+        RequestTestExit(_test.Finish("Enemy AI generation slots content regression"));
     }
 
     private void TestEnemyContentRegistryAcceptsGenerationSlots()

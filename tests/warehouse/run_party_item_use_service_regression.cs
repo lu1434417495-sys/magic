@@ -3,7 +3,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_party_item_use_service_regression : SceneTree
+public partial class run_party_item_use_service_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -17,7 +17,7 @@ public partial class run_party_item_use_service_regression : SceneTree
         TestTypedUseConsumesSkillBook();
         TestDuplicateLearnDoesNotConsumeInventory();
 
-        Quit(_test.Finish("Party item use service regression"));
+        RequestTestExit(_test.Finish("Party item use service regression"));
     }
 
     private void TestTypedUseConsumesSkillBook()

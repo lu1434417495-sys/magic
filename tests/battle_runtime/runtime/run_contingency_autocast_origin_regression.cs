@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_contingency_autocast_origin_regression : SceneTree
+public partial class run_contingency_autocast_origin_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
     private readonly List<BattleRuntimeModule> _runtimeFixtures = new();
@@ -28,7 +28,7 @@ public partial class run_contingency_autocast_origin_regression : SceneTree
         }
 
         CleanupFixtures();
-        Quit(_test.Finish("Contingency auto-cast origin regression"));
+        RequestTestExit(_test.Finish("Contingency auto-cast origin regression"));
     }
 
     private void TestBurstAutoCastBypassesTurnAndCostsButCommitsEffects()

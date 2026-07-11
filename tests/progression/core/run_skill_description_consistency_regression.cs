@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_skill_description_consistency_regression : SceneTree
+public partial class run_skill_description_consistency_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -15,7 +15,7 @@ public partial class run_skill_description_consistency_regression : SceneTree
     {
         TestChainLightningDescriptionInputsMatchSaveEnabledEffects();
 
-        Quit(_test.Finish("Skill description consistency regression"));
+        RequestTestExit(_test.Finish("Skill description consistency regression"));
     }
 
     private void TestChainLightningDescriptionInputsMatchSaveEnabledEffects()

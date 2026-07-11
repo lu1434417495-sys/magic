@@ -1,6 +1,6 @@
 using Godot;
 
-public partial class run_battle_edge_face_service_regression : SceneTree
+public partial class run_battle_edge_face_service_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -14,7 +14,7 @@ public partial class run_battle_edge_face_service_regression : SceneTree
         TestBuildsDropAndFeatureFacesFromCells();
         TestDirtyRuntimeEdgesRebuildAfterCellMutation();
 
-        Quit(_test.Finish("Battle edge face service regression"));
+        RequestTestExit(_test.Finish("Battle edge face service regression"));
     }
 
     private void TestBuildsDropAndFeatureFacesFromCells()

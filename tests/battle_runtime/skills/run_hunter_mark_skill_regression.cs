@@ -1,7 +1,7 @@
 using System;
 using Godot;
 
-public partial class run_hunter_mark_skill_regression : SceneTree
+public partial class run_hunter_mark_skill_regression : LifecycleTestSceneTree
 {
     private static readonly StringName SkillId = "archer_hunter_mark";
     private static readonly StringName HunterMarkedStatusId = "hunter_marked";
@@ -14,12 +14,12 @@ public partial class run_hunter_mark_skill_regression : SceneTree
             TestHunterMarkLevelScaling();
             TestHunterMarkResourceAndStatusApplication();
             TestHunterMarkAddsSourceBoundWeaponDamage();
-            Quit(_test.Finish("Hunter Mark skill regression"));
+            RequestTestExit(_test.Finish("Hunter Mark skill regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Hunter Mark skill regression"));
+            RequestTestExit(_test.Finish("Hunter Mark skill regression"));
         }
     }
 

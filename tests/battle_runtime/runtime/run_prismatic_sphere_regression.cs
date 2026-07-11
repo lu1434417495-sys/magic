@@ -5,13 +5,13 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_prismatic_sphere_regression : SceneTree
+public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        int exitCode = 1;
+        TestResult exitCode = null;
         try
         {
             TestPrismaticSphereCreatesOrderedLayers();
@@ -27,7 +27,7 @@ public partial class run_prismatic_sphere_regression : SceneTree
         }
         finally
         {
-            Quit(exitCode);
+            RequestTestExit(exitCode ?? _test.Finish("Prismatic sphere regression", 1));
         }
     }
 

@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_executioner_axe_weapon_ability_regression : SceneTree
+public partial class run_executioner_axe_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName ItemId = "weapon_unique_greataxe_executioner_384";
     private static readonly StringName ExecutionTraitId = "weapon.axe.executioner.execution";
@@ -41,7 +41,7 @@ public partial class run_executioner_axe_weapon_ability_regression : SceneTree
             if (!RequiredContentExists())
             {
                 _test.Fail("处刑者之斧正式内容尚未落地。测试应先以缺少内容失败。 ");
-                Quit(_test.Finish("Executioner Axe weapon ability regression"));
+                RequestTestExit(_test.Finish("Executioner Axe weapon ability regression"));
                 return;
             }
 
@@ -62,12 +62,12 @@ public partial class run_executioner_axe_weapon_ability_regression : SceneTree
             TestConcurrentSourceMarksExpireIndependently();
             TestConsumingLatestSourceRestoresRemainingMirror();
             TestUnmarkedKillDoesNotTriggerExecutionFear();
-            Quit(_test.Finish("Executioner Axe weapon ability regression"));
+            RequestTestExit(_test.Finish("Executioner Axe weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Executioner Axe weapon ability regression"));
+            RequestTestExit(_test.Finish("Executioner Axe weapon ability regression"));
         }
     }
 

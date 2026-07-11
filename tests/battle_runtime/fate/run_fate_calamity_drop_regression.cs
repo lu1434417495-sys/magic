@@ -1,6 +1,6 @@
 using Godot;
 
-public partial class run_fate_calamity_drop_regression : SceneTree
+public partial class run_fate_calamity_drop_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -19,7 +19,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
         TestBossTargetWithoutFortuneMarkCountsAsEliteOrBoss();
         TestDoomSentenceBossDefeatReturnsCalamityAndCore();
 
-        Quit(_test.Finish("Fate calamity drop regression"));
+        RequestTestExit(_test.Finish("Fate calamity drop regression"));
     }
 
     private void TestOrdinaryBattleCalamityConversionRespectsChapterCap()

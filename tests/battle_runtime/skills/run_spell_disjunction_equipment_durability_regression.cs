@@ -4,7 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_spell_disjunction_equipment_durability_regression : SceneTree
+public partial class run_spell_disjunction_equipment_durability_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -20,7 +20,7 @@ public partial class run_spell_disjunction_equipment_durability_regression : Sce
         TestDisjunctionSuccessLeavesDurabilityUnchanged();
         TestDisjunctionRarityBonusCanPassSave();
 
-        Quit(_test.Finish("Spell disjunction equipment durability regression"));
+        RequestTestExit(_test.Finish("Spell disjunction equipment durability regression"));
     }
 
     private void TestDisjunctionFailureDestroysCommonEquipmentAfterTwoHits()

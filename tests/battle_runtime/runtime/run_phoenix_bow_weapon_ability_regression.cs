@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_phoenix_bow_weapon_ability_regression : SceneTree
+public partial class run_phoenix_bow_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName PhoenixItemId = "weapon_unique_bow_phoenix_330";
     private static readonly StringName FireArrowTraitId = "weapon.bow.phoenix.fire_arrow";
@@ -21,12 +21,12 @@ public partial class run_phoenix_bow_weapon_ability_regression : SceneTree
             TestPhoenixBowContentLoadsAndProjects();
             TestPhoenixFireArrowAddsFireDamageOnRealWeaponHit();
             TestPhoenixFireArrowRollGateControlsBurning();
-            Quit(_test.Finish("Phoenix Bow weapon ability regression"));
+            RequestTestExit(_test.Finish("Phoenix Bow weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Phoenix Bow weapon ability regression"));
+            RequestTestExit(_test.Finish("Phoenix Bow weapon ability regression"));
         }
     }
 

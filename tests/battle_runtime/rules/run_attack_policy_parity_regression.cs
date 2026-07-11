@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_attack_policy_parity_regression : SceneTree
+public partial class run_attack_policy_parity_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -159,7 +159,7 @@ public partial class run_attack_policy_parity_regression : SceneTree
             "policy repeat stage fate-aware check 应与 BattleHitResolver 零漂移。"
         );
 
-        Quit(_test.Finish("Attack policy parity regression"));
+        RequestTestExit(_test.Finish("Attack policy parity regression"));
     }
 
     private static SkillDefinition BuildParitySkill()

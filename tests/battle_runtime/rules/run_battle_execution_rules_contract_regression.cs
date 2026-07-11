@@ -1,7 +1,7 @@
 using System;
 using Godot;
 
-public partial class run_battle_execution_rules_contract_regression : SceneTree
+public partial class run_battle_execution_rules_contract_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -12,7 +12,7 @@ public partial class run_battle_execution_rules_contract_regression : SceneTree
         TestThresholdUsesSkillLevelButNotAbility();
         TestZeroOrDeadTargetCannotExecute();
 
-        Quit(_test.Finish("Battle execution rules contract regression"));
+        RequestTestExit(_test.Finish("Battle execution rules contract regression"));
     }
 
     private void TestExecuteFieldsAreProjectedAtResourceBoundary()

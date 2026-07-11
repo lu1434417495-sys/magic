@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_double_edged_weapon_ability_regression : SceneTree
+public partial class run_double_edged_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName DoubleEdgedItemId =
         "weapon_unique_sword_double_edged_263";
@@ -46,12 +46,12 @@ public partial class run_double_edged_weapon_ability_regression : SceneTree
             TestTwinAttackHitsTwoTargetsPaysFixedRecoilAndHealsOnDoubleKill();
             TestSingleEdgeAttackUsesWeaponDamagePlusTwoD6WithoutRecoil();
             TestEquipmentGrantedWeaponSkillsAreOnceEachPerActionTurn();
-            Quit(_test.Finish("Double-Edged weapon ability regression"));
+            RequestTestExit(_test.Finish("Double-Edged weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Double-Edged weapon ability regression"));
+            RequestTestExit(_test.Finish("Double-Edged weapon ability regression"));
         }
     }
 

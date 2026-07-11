@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_thunderbow_weapon_ability_regression : SceneTree
+public partial class run_thunderbow_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName ThunderbowItemId =
         "weapon_unique_bow_thunderbow_156";
@@ -34,12 +34,12 @@ public partial class run_thunderbow_weapon_ability_regression : SceneTree
             TestThunderArrowAddsThunderDamageOnRealWeaponHit();
             TestThunderArrowStunsOnFailedConSaveAndSkipsOnSuccess();
             TestStoredThunderShotExecutesWeaponAttackAndUsesLongCooldown();
-            Quit(_test.Finish("Thunderbow weapon ability regression"));
+            RequestTestExit(_test.Finish("Thunderbow weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Thunderbow weapon ability regression"));
+            RequestTestExit(_test.Finish("Thunderbow weapon ability regression"));
         }
     }
 

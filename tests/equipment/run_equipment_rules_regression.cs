@@ -3,7 +3,7 @@ using Godot;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_equipment_rules_regression : SceneTree
+public partial class run_equipment_rules_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -18,7 +18,7 @@ public partial class run_equipment_rules_regression : SceneTree
         TestNormalizeSlotIdsDeduplicatesWithStringSet();
         TestTypedSlotHelpersAvoidGodotCollections();
 
-        Quit(_test.Finish("Equipment rules regression"));
+        RequestTestExit(_test.Finish("Equipment rules regression"));
     }
 
     private void TestSlotOrderProjectionIsStableCopy()

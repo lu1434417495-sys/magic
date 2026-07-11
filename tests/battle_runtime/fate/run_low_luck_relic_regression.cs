@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_low_luck_relic_regression : SceneTree
+public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
 {
     private static readonly StringName HeroId = "hero";
     private static readonly StringName AllyId = "ally";
@@ -24,7 +24,7 @@ public partial class run_low_luck_relic_regression : SceneTree
         TestBloodDebtShawlLowHpReductionAllyDownApAndRecoveryPenalty();
         TestDeadRoadLanternRevealsHiddenPaths();
 
-        Quit(_test.Finish("Low luck relic regression"));
+        RequestTestExit(_test.Finish("Low luck relic regression"));
     }
 
     private void TestItemResourcesSurfaceEquipmentFlags()

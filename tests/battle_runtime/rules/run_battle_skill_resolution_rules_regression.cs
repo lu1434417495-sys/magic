@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_skill_resolution_rules_regression : SceneTree
+public partial class run_battle_skill_resolution_rules_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -14,12 +14,12 @@ public partial class run_battle_skill_resolution_rules_regression : SceneTree
             TestGroundSkillGetsImplicitGroundVariant();
             TestAmbiguousVariantBlocksWithoutCollectingEffects();
 
-            Quit(_test.Finish("Battle skill resolution rules regression"));
+            RequestTestExit(_test.Finish("Battle skill resolution rules regression"));
         }
         catch (Exception ex)
         {
             GD.PushError($"Battle skill resolution rules regression crashed: {ex}");
-            Quit(1);
+            RequestTestExit(_test.Finish("Battle skill resolution rules regression", 1));
         }
     }
 

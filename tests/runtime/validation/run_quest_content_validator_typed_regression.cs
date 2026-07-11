@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_quest_content_validator_typed_regression : SceneTree
+public partial class run_quest_content_validator_typed_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -20,7 +20,7 @@ public partial class run_quest_content_validator_typed_regression : SceneTree
         TestListingChannelValidationNegativeBoundary();
         TestAcceptRequirementValidation();
 
-        Quit(_test.Finish("Quest content validator typed regression"));
+        RequestTestExit(_test.Finish("Quest content validator typed regression"));
     }
 
     private void TestOfficialQuestValidationTypedBoundary()

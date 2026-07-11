@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 
-public partial class run_skill_merge_service_regression : SceneTree
+public partial class run_skill_merge_service_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -18,7 +18,7 @@ public partial class run_skill_merge_service_regression : SceneTree
         TestCompositeUpgradeRetainsSourcesAndMovesCore();
         TestCompositeUpgradeWithoutProfessionAssignmentStillUnlocksResult();
 
-        Quit(_test.Finish("Skill merge service regression"));
+        RequestTestExit(_test.Finish("Skill merge service regression"));
     }
 
     private void TestMergeClearsLevelTriggerStateWhenRemovingSources()

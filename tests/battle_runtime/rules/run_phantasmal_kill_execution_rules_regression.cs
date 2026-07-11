@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_phantasmal_kill_execution_rules_regression : SceneTree
+public partial class run_phantasmal_kill_execution_rules_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -18,7 +18,7 @@ public partial class run_phantasmal_kill_execution_rules_regression : SceneTree
         TestGradeDistributionImmuneIsAllImmune();
         TestRollOverridesProduceDeterministicDistribution();
 
-        Quit(_test.Finish("Battle graded save execution rules regression"));
+        RequestTestExit(_test.Finish("Battle graded save execution rules regression"));
     }
 
     private void TestImmuneSaveBecomesImmuneGrade()

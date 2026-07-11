@@ -4,7 +4,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_status_effect_typed_fields_regression : SceneTree
+public partial class run_status_effect_typed_fields_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -22,7 +22,7 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
         TestRuntimeBodySizeOverrideWrapperForwardsTypedFields();
         TestRuntimeSourceWrapperForwardsCoreFields();
 
-        Quit(_test.Finish("Status effect typed fields regression"));
+        RequestTestExit(_test.Finish("Status effect typed fields regression"));
     }
 
 

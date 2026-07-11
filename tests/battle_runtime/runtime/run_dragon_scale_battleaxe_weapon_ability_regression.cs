@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_dragon_scale_battleaxe_weapon_ability_regression : SceneTree
+public partial class run_dragon_scale_battleaxe_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName ItemId = "weapon_unique_battleaxe_dragon_scale";
     private static readonly StringName FivefoldScalesTraitId =
@@ -39,12 +39,12 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Scen
             TestScaleGuardReducesOnlyMeleePhysicalDamage();
             TestScaleRiftAppliesOnActualDamageWithConstitutionSaveAndSourceBoundAttackBonus();
             TestEquipmentBonusDiceDoNotTriggerForNonWeaponDamageEffects();
-            Quit(_test.Finish("Dragon Scale Battleaxe weapon ability regression"));
+            RequestTestExit(_test.Finish("Dragon Scale Battleaxe weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Dragon Scale Battleaxe weapon ability regression"));
+            RequestTestExit(_test.Finish("Dragon Scale Battleaxe weapon ability regression"));
         }
     }
 

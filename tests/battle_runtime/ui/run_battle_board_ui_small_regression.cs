@@ -1,7 +1,7 @@
 using System;
 using Godot;
 
-public partial class run_battle_board_ui_small_regression : SceneTree
+public partial class run_battle_board_ui_small_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -23,6 +23,6 @@ public partial class run_battle_board_ui_small_regression : SceneTree
             _test.Fail(ex.ToString());
         }
 
-        Quit(_test.Finish("Battle board UI small regression"));
+        RequestTestExit(_test.Finish("Battle board UI small regression"));
     }
 }

@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_party_state_fate_regression : SceneTree
+public partial class run_party_state_fate_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -18,7 +18,7 @@ public partial class run_party_state_fate_regression : SceneTree
         TestPartyStateFromDictMissingFateFieldsIsRejected();
         TestPartyStateFromDictRejectsBadFateFlagSchema();
 
-        Quit(_test.Finish("PartyState fate regression"));
+        RequestTestExit(_test.Finish("PartyState fate regression"));
     }
 
     private void TestPartyStateFateFieldsRoundTrip()

@@ -3,7 +3,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_battle_save_skill_schema_regression : SceneTree
+public partial class run_battle_save_skill_schema_regression : LifecycleTestSceneTree
 {
     private const string TempSkillDirectory = "user://skill_level_override_schema_regression";
     private const string TempSkillPath =
@@ -24,7 +24,7 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
         TestSkillSchemaRejectsInvalidSaveFields();
         TestLevelOverridesRejectNonIntFields();
 
-        Quit(_test.Finish("Battle save skill schema regression"));
+        RequestTestExit(_test.Finish("Battle save skill schema regression"));
     }
 
     private void TestSkillSchemaAcceptsValidSaveFields()

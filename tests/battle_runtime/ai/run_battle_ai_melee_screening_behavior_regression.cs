@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_ai_melee_screening_behavior_regression : SceneTree
+public partial class run_battle_ai_melee_screening_behavior_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -20,7 +20,7 @@ public partial class run_battle_ai_melee_screening_behavior_regression : SceneTr
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        Quit(_test.Finish("Battle AI melee screening behavior regression"));
+        RequestTestExit(_test.Finish("Battle AI melee screening behavior regression"));
     }
 
     private void TestMeleeCloseInPrefersScreeningRangedAllyWhenHealthy()

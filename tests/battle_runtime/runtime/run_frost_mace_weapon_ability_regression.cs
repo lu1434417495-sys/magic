@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_frost_mace_weapon_ability_regression : SceneTree
+public partial class run_frost_mace_weapon_ability_regression : LifecycleTestSceneTree
 {
     private static readonly StringName FrostMaceItemId = "weapon_unique_mace_frost_207";
     private static readonly StringName FrozenStrikeTraitId = "weapon.mace.frost.frozen_strike";
@@ -33,12 +33,12 @@ public partial class run_frost_mace_weapon_ability_regression : SceneTree
             TestFrozenStrikeAddsColdDamageOnNormalTarget();
             TestSealPowerAddsExtraColdDamageAgainstUndeadAndFiend();
             TestThirdHitOnSameTargetAppliesSlowWithoutSharingCounterToOtherTarget();
-            Quit(_test.Finish("Frost Mace weapon ability regression"));
+            RequestTestExit(_test.Finish("Frost Mace weapon ability regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Frost Mace weapon ability regression"));
+            RequestTestExit(_test.Finish("Frost Mace weapon ability regression"));
         }
     }
 

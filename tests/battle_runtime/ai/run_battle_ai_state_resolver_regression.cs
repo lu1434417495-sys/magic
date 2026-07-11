@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_ai_state_resolver_regression : SceneTree
+public partial class run_battle_ai_state_resolver_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -14,7 +14,7 @@ public partial class run_battle_ai_state_resolver_regression : SceneTree
         TestSkillAffordanceUsesPlanCacheAndContextLazyCache();
         TestContextLazySkillAffordanceRequiresTypedSkillDefs();
 
-        Quit(_test.Finish("Battle AI state resolver regression"));
+        RequestTestExit(_test.Finish("Battle AI state resolver regression"));
     }
 
     private void TestResolvesCustomStateNamesWithoutMutatingUnitState()

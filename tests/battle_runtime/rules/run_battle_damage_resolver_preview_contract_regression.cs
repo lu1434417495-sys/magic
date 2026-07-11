@@ -4,7 +4,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battle_damage_resolver_preview_contract_regression : SceneTree
+public partial class run_battle_damage_resolver_preview_contract_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -23,7 +23,7 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Sc
             _test.Fail($"Battle damage resolver preview contract regression crashed: {ex}");
         }
 
-        Quit(_test.Finish("Battle damage resolver preview contract regression"));
+        RequestTestExit(_test.Finish("Battle damage resolver preview contract regression"));
     }
 
     private void TestPreviewDamageEffectUsesSharedDamageMathWithoutMutatingUnits()

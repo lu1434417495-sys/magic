@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_contingency_setup_schema_regression : SceneTree
+public partial class run_contingency_setup_schema_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -27,7 +27,7 @@ public partial class run_contingency_setup_schema_regression : SceneTree
         TestParameterBindingsAcceptOnlyFlatSupportedValues();
         TestParameterBindingArraysRoundTripAsStringNames();
 
-        Quit(_test.Finish("Contingency setup schema regression"));
+        RequestTestExit(_test.Finish("Contingency setup schema regression"));
     }
 
     private void TestCurrentPartyPayloadAcceptsOneUnchargedSetup()

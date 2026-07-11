@@ -1,6 +1,6 @@
 using Godot;
 
-public partial class run_trait_dictionary_boundary_regression : SceneTree
+public partial class run_trait_dictionary_boundary_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -14,7 +14,7 @@ public partial class run_trait_dictionary_boundary_regression : SceneTree
         TestTraitFormalSourcesDoNotUseDictionaryBackedRuntimeData();
         TestTraitConfigsDoNotUseDictionaryParams();
 
-        Quit(_test.Finish("Trait dictionary boundary regression"));
+        RequestTestExit(_test.Finish("Trait dictionary boundary regression"));
     }
 
     private void TestTraitFormalSourcesDoNotUseDictionaryBackedRuntimeData()
