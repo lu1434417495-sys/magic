@@ -33,7 +33,7 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
         );
     private static readonly Regex DirectQuarantineRetainPattern =
         new(
-            @"\bGodotTestRuntimeQuarantine\s*\.\s*Retain\s*\(",
+            @"\bGodotTestRuntimeQuarantine\s*\.\s*R" + @"etain\s*\(",
             RegexOptions.Compiled
         );
     private static readonly Regex ProductionSceneTreeQuitPattern =
@@ -227,14 +227,23 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
             "production cannot invoke the test quarantine factory"
         );
 
-        string ownershipSource = File.ReadAllText(
-            Path.Combine(scriptsRoot, "utils", "GodotObjectOwnership.cs")
+        List<string> directRetainSites = FindSourceMatches(
+            scriptsRoot,
+            DirectQuarantineRetainPattern
         );
         _test.Eq(
-            DirectQuarantineRetainPattern.Matches(ownershipSource).Count,
+            directRetainSites.Count,
             1,
-            "the ownership bridge contains the only direct quarantine retain call"
+            "production contains exactly one direct quarantine retain call"
         );
+        if (directRetainSites.Count == 1)
+        {
+            _test.Eq(
+                directRetainSites[0],
+                "utils/GodotObjectOwnership.cs",
+                "the ownership bridge contains the only direct quarantine retain call"
+            );
+        }
     }
 
     private void AssertQuarantineFactorySurface()
