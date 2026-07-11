@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Godot;
 
 public class IdentityContentRegistryBase : System.IDisposable
@@ -162,13 +163,6 @@ public class IdentityContentRegistryBase : System.IDisposable
     }
 
     protected System.Collections.Generic.List<string> _sorted_registry_keys(
-        Godot.Collections.Dictionary registry
-    )
-    {
-        return ProgressionDataUtils.sorted_string_keys(registry);
-    }
-
-    protected System.Collections.Generic.List<string> _sorted_registry_keys(
         System.Collections.Generic.IEnumerable<StringName> keys
     )
     {
@@ -179,7 +173,19 @@ public class IdentityContentRegistryBase : System.IDisposable
         return sorted;
     }
 
-    protected void _append_string_name_field_error(
+    protected static IReadOnlyDictionary<StringName, T> _snapshot_definitions<T>(
+        IReadOnlyDictionary<StringName, T> source
+    )
+        where T : class
+    {
+        return new ReadOnlyDictionary<StringName, T>(
+            source == null
+                ? new Dictionary<StringName, T>()
+                : new Dictionary<StringName, T>(source)
+        );
+    }
+
+    protected static void _append_string_name_field_error(
         System.Collections.Generic.ICollection<string> errors,
         string ownerLabel,
         string fieldLabel,
@@ -221,23 +227,20 @@ public class IdentityContentRegistryBase : System.IDisposable
     protected void _append_string_name_array_errors(
         System.Collections.Generic.ICollection<string> errors,
         string ownerLabel,
-        Godot.Collections.Array values,
+        IReadOnlyList<StringName> values,
         string fieldLabel,
         bool allowEmptyValues = false
     )
     {
+        if (values == null)
+        {
+            errors.Add($"{ownerLabel}.{fieldLabel} must be a non-null list.");
+            return;
+        }
+
         for (int index = 0; index < values.Count; index++)
         {
-            var value = values[index];
-
-            if (!TryAsStrictStringName(value, out StringName parsedValue))
-            {
-                errors.Add($"{ownerLabel}.{fieldLabel}[{index}] must be a StringName.");
-
-                continue;
-            }
-
-            if (!allowEmptyValues && parsedValue == "")
+            if (!allowEmptyValues && values[index] == "")
                 errors.Add($"{ownerLabel}.{fieldLabel}[{index}] must be a non-empty StringName.");
         }
     }
@@ -245,13 +248,19 @@ public class IdentityContentRegistryBase : System.IDisposable
     protected void _append_string_array_errors(
         System.Collections.Generic.ICollection<string> errors,
         string ownerLabel,
-        Godot.Collections.Array values,
+        IReadOnlyList<string> values,
         string fieldLabel
     )
     {
+        if (values == null)
+        {
+            errors.Add($"{ownerLabel}.{fieldLabel} must be a non-null list.");
+            return;
+        }
+
         for (int index = 0; index < values.Count; index++)
         {
-            if (!TryAsStrictString(values[index], out _))
+            if (values[index] == null)
                 errors.Add($"{ownerLabel}.{fieldLabel}[{index}] must be a String.");
         }
     }
@@ -259,23 +268,24 @@ public class IdentityContentRegistryBase : System.IDisposable
     protected void _append_string_name_to_string_name_dictionary_errors(
         System.Collections.Generic.ICollection<string> errors,
         string ownerLabel,
-        Godot.Collections.Dictionary values,
+        IReadOnlyDictionary<StringName, StringName> values,
         string fieldLabel
     )
     {
-        foreach (var key in values.Keys)
+        if (values == null)
         {
-            if (key.VariantType != Variant.Type.StringName || key.AsStringName() == "")
+            errors.Add($"{ownerLabel}.{fieldLabel} must be a non-null map.");
+            return;
+        }
+
+        foreach ((StringName key, StringName value) in values)
+        {
+            if (key == "")
                 errors.Add(
                     $"{ownerLabel}.{fieldLabel} key {key} must be a non-empty StringName."
                 );
 
-            var dictValue = values[key];
-
-            if (
-                dictValue.VariantType != Variant.Type.StringName
-                || dictValue.AsStringName() == ""
-            )
+            if (value == "")
                 errors.Add(
                     $"{ownerLabel}.{fieldLabel}[{key}] must be a non-empty StringName."
                 );
@@ -285,67 +295,64 @@ public class IdentityContentRegistryBase : System.IDisposable
     protected void _append_string_name_to_int_dictionary_errors(
         System.Collections.Generic.ICollection<string> errors,
         string ownerLabel,
-        Godot.Collections.Dictionary values,
+        IReadOnlyDictionary<StringName, int> values,
         string fieldLabel,
         bool requireNonNegative = false
     )
     {
-        foreach (var key in values.Keys)
+        if (values == null)
         {
-            if (!TryAsStringLike(key, out string keyText) || keyText.StripEdges() == "")
+            errors.Add($"{ownerLabel}.{fieldLabel} must be a non-null map.");
+            return;
+        }
+
+        foreach ((StringName key, int value) in values)
+        {
+            if (key == "")
                 errors.Add(
                     $"{ownerLabel}.{fieldLabel} key {key} must be a non-empty String or StringName."
                 );
 
-            var dictValue = values[key];
-
-            if (!TryAsStrictInt(dictValue, out int dictIntValue))
-            {
-                errors.Add($"{ownerLabel}.{fieldLabel}[{key}] must be an int.");
-
-                continue;
-            }
-
-            if (requireNonNegative && dictIntValue < 0)
+            if (requireNonNegative && value < 0)
                 errors.Add($"{ownerLabel}.{fieldLabel}[{key}] must be >= 0.");
         }
     }
 
-    protected void _append_attribute_modifier_array_errors(
+    protected static void _append_attribute_modifier_array_errors(
         System.Collections.Generic.ICollection<string> errors,
         string ownerLabel,
-        Godot.Collections.Array modifiers,
+        IReadOnlyList<AttributeModifierDefinition> modifiers,
         string fieldLabel
     )
     {
+        if (modifiers == null)
+        {
+            errors.Add($"{ownerLabel}.{fieldLabel} must be a non-null list.");
+            return;
+        }
+
         for (int index = 0; index < modifiers.Count; index++)
         {
-            TryAsObject(modifiers[index], out AttributeModifier modifier);
-
+            AttributeModifierDefinition modifier = modifiers[index];
             var modifierLabel = $"{ownerLabel}.{fieldLabel}[{index}]";
-
             if (modifier == null)
             {
                 errors.Add($"{modifierLabel} must be an AttributeModifier.");
-
                 continue;
             }
 
-            StringName attrId = modifier.attribute_id;
+            StringName attrId = modifier.AttributeId;
             if (attrId == "")
                 errors.Add($"{modifierLabel}.attribute_id must be a non-empty StringName.");
 
-            if (
-                attrId != ""
-                && !_allowed_attribute_id_set().Contains(attrId)
-            )
+            if (attrId != "" && !_allowed_attribute_id_set().Contains(attrId))
             {
                 errors.Add(
                     $"{modifierLabel}.attribute_id {attrId} is not a recognized base/resource/combat/derived attribute id."
                 );
             }
 
-            StringName mode = modifier.mode;
+            StringName mode = modifier.Mode;
             if (mode == "")
                 errors.Add($"{modifierLabel}.mode must be a non-empty StringName.");
 
@@ -357,149 +364,54 @@ public class IdentityContentRegistryBase : System.IDisposable
     protected void _append_racial_granted_skill_array_errors(
         System.Collections.Generic.ICollection<string> errors,
         string ownerLabel,
-        Godot.Collections.Array grantedSkills,
+        IReadOnlyList<RacialGrantedSkillDefinition> grantedSkills,
         string fieldLabel
     )
     {
+        if (grantedSkills == null)
+        {
+            errors.Add($"{ownerLabel}.{fieldLabel} must be a non-null list.");
+            return;
+        }
+
         for (int index = 0; index < grantedSkills.Count; index++)
         {
-            TryAsObject(grantedSkills[index], out RacialGrantedSkill grantedSkill);
-
+            RacialGrantedSkillDefinition grantedSkill = grantedSkills[index];
             var skillLabel = $"{ownerLabel}.{fieldLabel}[{index}]";
-
             if (grantedSkill == null)
             {
                 errors.Add($"{skillLabel} must be a RacialGrantedSkill.");
-
                 continue;
             }
 
-            StringName skillId = grantedSkill.skill_id;
+            StringName skillId = grantedSkill.SkillId;
             if (skillId == "")
                 errors.Add($"{skillLabel}.skill_id must be a non-empty StringName.");
 
-            int minLevel = grantedSkill.minimum_skill_level;
+            int minLevel = grantedSkill.MinimumSkillLevel;
             if (minLevel < 0)
                 errors.Add($"{skillLabel}.minimum_skill_level must be >= 0.");
 
-            RacialSkillChargeKind chargeKind = grantedSkill.ChargeKind;
+            RacialSkillChargeKind chargeKind = grantedSkill.ChargeKindKind;
             if (chargeKind == RacialSkillChargeKind.Unknown)
                 errors.Add($"{skillLabel}.charge_kind must be a non-empty StringName.");
 
             if (chargeKind == RacialSkillChargeKind.Unknown)
                 errors.Add(
-                    $"{skillLabel}.charge_kind uses unsupported value {grantedSkill.charge_kind}."
+                    $"{skillLabel}.charge_kind uses unsupported value {grantedSkill.ChargeKind}."
                 );
 
-            int charges = grantedSkill.charges;
+            int charges = grantedSkill.Charges;
             if (
-                (
-                    chargeKind
+                chargeKind
                     is RacialSkillChargeKind.PerBattle
                         or RacialSkillChargeKind.PerTurn
-                )
                 && charges <= 0
             )
                 errors.Add(
-                    $"{skillLabel}.charges must be > 0 for charge_kind {grantedSkill.charge_kind}."
+                    $"{skillLabel}.charges must be > 0 for charge_kind {grantedSkill.ChargeKind}."
                 );
         }
-    }
-
-    private static bool TryAsStrictStringName(object rawValue, out StringName value)
-    {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.StringName)
-        {
-            value = variant.AsStringName();
-            return true;
-        }
-        if (rawValue is StringName stringNameValue)
-        {
-            value = stringNameValue;
-            return true;
-        }
-        value = "";
-        return false;
-    }
-
-    private static bool TryAsStrictString(object rawValue, out string value)
-    {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.String)
-        {
-            value = variant.AsString();
-            return true;
-        }
-        if (rawValue is string stringValue)
-        {
-            value = stringValue;
-            return true;
-        }
-        value = "";
-        return false;
-    }
-
-    private static bool TryAsStringLike(object rawValue, out string value)
-    {
-        if (rawValue is Variant variant)
-        {
-            if (variant.VariantType == Variant.Type.String)
-            {
-                value = variant.AsString();
-                return true;
-            }
-            if (variant.VariantType == Variant.Type.StringName)
-            {
-                value = variant.AsStringName().ToString();
-                return true;
-            }
-            value = "";
-            return false;
-        }
-        if (rawValue is string stringValue)
-        {
-            value = stringValue;
-            return true;
-        }
-        if (rawValue is StringName stringNameValue)
-        {
-            value = stringNameValue.ToString();
-            return true;
-        }
-        value = "";
-        return false;
-    }
-
-    private static bool TryAsStrictInt(object rawValue, out int value)
-    {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Int)
-        {
-            value = variant.AsInt32();
-            return true;
-        }
-        if (rawValue is int intValue)
-        {
-            value = intValue;
-            return true;
-        }
-        value = 0;
-        return false;
-    }
-
-    private static bool TryAsObject<T>(object rawValue, out T value)
-        where T : Resource
-    {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Object)
-        {
-            value = variant.AsGodotObject() as T;
-            return value != null;
-        }
-        if (rawValue is T typedValue)
-        {
-            value = typedValue;
-            return true;
-        }
-        value = null;
-        return false;
     }
 
 }

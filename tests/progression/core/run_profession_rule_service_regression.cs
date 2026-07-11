@@ -14,6 +14,7 @@ public partial class run_profession_rule_service_regression : LifecycleTestScene
     private void Run()
     {
         TestServiceNoLongerRequiresGodotRegistration();
+        TestEmptyGateCheckModeProjectsAndInheritsDependencyVisibility();
         TestEligibleSkillIdsUseTypedSetupAndPreviewAssignments();
         TestRefreshAllProfessionStatesUsesTypedDefIndex();
 
@@ -23,6 +24,68 @@ public partial class run_profession_rule_service_regression : LifecycleTestScene
     private void TestServiceNoLongerRequiresGodotRegistration()
     {
         Type serviceType = typeof(ProfessionRuleService);
+    }
+
+    private void TestEmptyGateCheckModeProjectsAndInheritsDependencyVisibility()
+    {
+        UnitProgress progress = MakeProgress("hero");
+        progress.SetProfessionProgress(
+            new UnitProfessionProgress
+            {
+                profession_id = "hidden_dependency",
+                rank = 1,
+                is_active = false,
+                is_hidden = true,
+            }
+        );
+
+        ProfessionDef hiddenDependency = MakeProfession("hidden_dependency");
+        hiddenDependency.dependency_visibility_mode = "ignore_when_hidden";
+        ProfessionDef targetProfession = MakeProfession("target_profession");
+        targetProfession.unlock_requirement = TestResourceOwnership.Own(
+            new ProfessionPromotionRequirement(),
+            "profession-rule-empty-gate-requirement"
+        );
+        ProfessionRankGate authoredGate = TestResourceOwnership.Own(
+            new ProfessionRankGate
+            {
+                profession_id = "hidden_dependency",
+                min_rank = 1,
+                check_mode = "",
+            },
+            "profession-rule-empty-gate"
+        );
+        targetProfession.unlock_requirement.required_profession_ranks.Add(authoredGate);
+
+        ProfessionDefinition projectedTarget =
+            TestProgressionDefinitionProjection.Profession(targetProfession);
+        ProfessionRankGateDefinition projectedGate =
+            projectedTarget.UnlockRequirement.RequiredProfessionRanks[0];
+        _test.Eq(
+            projectedGate.CheckMode,
+            new StringName(""),
+            "空 check_mode 投影后必须保留为空，交给职业可见性策略继承。"
+        );
+
+        ProfessionRuleService service = MakeService(
+            progress,
+            Array.Empty<SkillDefinition>(),
+            new[] { hiddenDependency, targetProfession }
+        );
+        _test.False(
+            service.CanSatisfyProfessionGates(
+                projectedTarget.UnlockRequirement.RequiredProfessionRanks
+            ),
+            "空 check_mode 应继承依赖职业 ignore_when_hidden，并按 active_only 拒绝隐藏职业。"
+        );
+
+        authoredGate.check_mode = "unsupported_mode";
+        _test.True(
+            Throws<System.IO.InvalidDataException>(
+                () => TestProgressionDefinitionProjection.Profession(targetProfession)
+            ),
+            "非空且未知的 check_mode 仍必须在投影边界被拒绝。"
+        );
     }
 
     private void TestEligibleSkillIdsUseTypedSetupAndPreviewAssignments()
@@ -47,9 +110,11 @@ public partial class run_profession_rule_service_regression : LifecycleTestScene
         );
 
         TagRequirement martialCoreMax = new() { tag = "martial" };
+        TagRequirementDefinition martialCoreMaxDefinition =
+            TestProgressionDefinitionProjection.TagRequirement(martialCoreMax);
         IReadOnlyList<StringName> eligibleSkillIds = service.GetEligibleSkillIds(
             "warrior",
-            new[] { martialCoreMax },
+            new[] { martialCoreMaxDefinition },
             allowUnassigned: true
         );
 
@@ -74,7 +139,7 @@ public partial class run_profession_rule_service_regression : LifecycleTestScene
             service.SkillMatchesTagRequirement(
                 "heavy_strike",
                 "warrior",
-                martialCoreMax,
+                martialCoreMaxDefinition,
                 allowUnassigned: false,
                 previewAssignedSkillIds: new[] { new StringName("heavy_strike") }
             ),
@@ -151,7 +216,11 @@ public partial class run_profession_rule_service_regression : LifecycleTestScene
             indexedProfessionDefs[professionDef.profession_id] = professionDef;
 
         ProfessionRuleService service = new();
-        service.Setup(progress, indexedSkillDefinitions, indexedProfessionDefs);
+        service.Setup(
+            progress,
+            indexedSkillDefinitions,
+            TestProgressionDefinitionProjection.Professions(indexedProfessionDefs)
+        );
         return service;
     }
 
@@ -199,5 +268,18 @@ public partial class run_profession_rule_service_regression : LifecycleTestScene
         return false;
     }
 
+    private static bool Throws<TException>(Action action)
+        where TException : Exception
+    {
+        try
+        {
+            action();
+            return false;
+        }
+        catch (TException)
+        {
+            return true;
+        }
+    }
 
 }

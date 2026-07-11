@@ -113,17 +113,29 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
         weapon.trait_ids = new GStringNameArray { "trait.weapon.flame" };
         weapon.tags = new GStringNameArray { "blade" };
         var itemDefs = new Dictionary<StringName, ItemDef> { [weapon.item_id] = weapon };
-        var traitDefs = new Dictionary<StringName, TraitDef>
+        var traitDefs = new Dictionary<StringName, TraitDefinition>
         {
-            ["trait.weapon.flame"] = new TraitDef
-            {
-                trait_id = "trait.weapon.flame",
-                categories = new GStringNameArray { "weapon_feat" },
-                allowed_source_kinds = new GStringNameArray { "equipment_fixed" },
-                effect_type = "halfling_luck",
-                trigger_type = "on_natural_one",
-                stack_policy = "stack_by_instance",
-            },
+            ["trait.weapon.flame"] = new TraitDefinition(
+                "trait.weapon.flame",
+                "Flame Weapon",
+                "Fixture trait.",
+                [new StringName("weapon_feat")],
+                [new StringName("equipment_fixed")],
+                "halfling_luck",
+                "on_natural_one",
+                "stack_by_instance",
+                "none",
+                "none",
+                "",
+                0,
+                0,
+                System.Array.Empty<AttributeModifierDefinition>(),
+                System.Array.Empty<StringName>(),
+                System.Array.Empty<TraitDamageResistanceEntryDefinition>(),
+                System.Array.Empty<TraitSaveBonusEntryDefinition>(),
+                System.Array.Empty<TraitPassiveStatusEffectDefinition>(),
+                System.Array.Empty<TraitRollValueSchemaEntryDefinition>()
+            ),
         };
         var bindings = new Dictionary<StringName, EquipmentAbilityBindingDefinition>
         {

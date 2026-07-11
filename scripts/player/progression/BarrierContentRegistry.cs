@@ -1,11 +1,13 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.IO;
 using Godot;
 
 public class BarrierContentRegistry : System.IDisposable
 {
     private const string BARRIER_CONFIG_DIRECTORY = "res://data/configs/barriers";
 
-    private System.Collections.Generic.Dictionary<StringName, BarrierProfileDef> _profile_defs = new();
+    private readonly Dictionary<StringName, BarrierProfileDefinition> _profile_defs = new();
 
     private readonly List<string> _validation_errors = new();
 
@@ -44,16 +46,24 @@ public class BarrierContentRegistry : System.IDisposable
         _scan_directory(BARRIER_CONFIG_DIRECTORY);
     }
 
-    public BarrierProfileDef GetProfileDef(StringName profileId) =>
+    public BarrierProfileDefinition GetProfileDef(StringName profileId) =>
         profileId != "" && _profile_defs.TryGetValue(profileId, out var def) ? def : null;
+
+    public IReadOnlyDictionary<StringName, BarrierProfileDefinition> GetProfileDefsTyped() =>
+        new ReadOnlyDictionary<StringName, BarrierProfileDefinition>(
+            new Dictionary<StringName, BarrierProfileDefinition>(_profile_defs)
+        );
 
     public Godot.Collections.Array<string> Validate()
     {
         var c = new Godot.Collections.Array<string>();
-        foreach (string e in _validation_errors)
+        foreach (string e in ValidateTyped())
             c.Add(e);
         return c;
     }
+
+    public IReadOnlyList<string> ValidateTyped() =>
+        new ReadOnlyCollection<string>(new List<string>(_validation_errors));
 
     private void _scan_directory(string directoryPath)
     {
@@ -129,32 +139,44 @@ public class BarrierContentRegistry : System.IDisposable
             return;
         }
 
-        _profile_defs[profile.profile_id] = profile;
-
-        _append_profile_validation_errors(profile);
+        try
+        {
+            BarrierProfileDefinition definition = BarrierProfileDefinition.FromResource(
+                profile,
+                resourcePath
+            );
+            _profile_defs.Add(definition.ProfileId, definition);
+            _append_profile_validation_errors(definition);
+        }
+        catch (InvalidDataException exception)
+        {
+            _validation_errors.Add(
+                $"Barrier profile {resourcePath} projection failed: {exception.Message}"
+            );
+        }
     }
 
-    private void _append_profile_validation_errors(BarrierProfileDef profile)
+    private void _append_profile_validation_errors(BarrierProfileDefinition profile)
     {
-        var ownerLabel = $"Barrier profile {profile.profile_id}";
+        var ownerLabel = $"Barrier profile {profile.ProfileId}";
 
         if (profile.AnchorModeKind == BarrierAnchorMode.Unknown)
             _validation_errors.Add(
-                $"{ownerLabel} declares unsupported anchor_mode {profile.anchor_mode}."
+                $"{ownerLabel} declares unsupported anchor_mode {profile.AnchorMode}."
             );
 
         if (!IsSupportedBarrierAreaPattern(profile.AreaPatternKind))
             _validation_errors.Add(
-                $"{ownerLabel} declares unsupported area_pattern {profile.area_pattern}."
+                $"{ownerLabel} declares unsupported area_pattern {profile.AreaPattern}."
             );
 
-        if (profile.radius_cells < 0)
+        if (profile.RadiusCells < 0)
             _validation_errors.Add($"{ownerLabel}.radius_cells must be >= 0.");
 
-        if (profile.duration_tu < 0)
+        if (profile.DurationTu < 0)
             _validation_errors.Add($"{ownerLabel}.duration_tu must be >= 0.");
 
-        if (profile.layers.Count == 0)
+        if (profile.Layers.Count == 0)
         {
             _validation_errors.Add($"{ownerLabel} must declare at least one layer.");
             return;
@@ -164,9 +186,9 @@ public class BarrierContentRegistry : System.IDisposable
 
         var seenOrders = new HashSet<int>();
 
-        for (int i = 0; i < profile.layers.Count; i++)
+        for (int i = 0; i < profile.Layers.Count; i++)
         {
-            var layer = profile.layers[i];
+            BarrierLayerDefinition layer = profile.Layers[i];
 
             var layerLabel = $"{ownerLabel}.layers[{i}]";
 
@@ -176,25 +198,25 @@ public class BarrierContentRegistry : System.IDisposable
                 continue;
             }
 
-            if (layer.layer_id == "")
+            if (layer.LayerId == "")
                 _validation_errors.Add($"{layerLabel}.layer_id must be non-empty.");
-            else if (seenLayerIds.Contains(layer.layer_id))
+            else if (seenLayerIds.Contains(layer.LayerId))
                 _validation_errors.Add(
-                    $"{ownerLabel} declares duplicate layer_id {layer.layer_id}."
+                    $"{ownerLabel} declares duplicate layer_id {layer.LayerId}."
                 );
             else
-                seenLayerIds.Add(layer.layer_id);
+                seenLayerIds.Add(layer.LayerId);
 
-            if (seenOrders.Contains(layer.order))
+            if (seenOrders.Contains(layer.Order))
                 _validation_errors.Add(
-                    $"{ownerLabel} declares duplicate layer order {layer.order}."
+                    $"{ownerLabel} declares duplicate layer order {layer.Order}."
                 );
             else
-                seenOrders.Add(layer.order);
+                seenOrders.Add(layer.Order);
 
-            for (int j = 0; j < layer.passage_outcomes.Count; j++)
+            for (int j = 0; j < layer.PassageOutcomes.Count; j++)
             {
-                var outcome = layer.passage_outcomes[j];
+                BarrierOutcomeDefinition outcome = layer.PassageOutcomes[j];
 
                 var outcomeLabel = $"{layerLabel}.passage_outcomes[{j}]";
 
@@ -206,7 +228,7 @@ public class BarrierContentRegistry : System.IDisposable
 
                 if (outcome.OutcomeKind == BarrierOutcomeKind.Unknown)
                     _validation_errors.Add(
-                        $"{outcomeLabel} declares unsupported outcome_type {outcome.outcome_type}."
+                        $"{outcomeLabel} declares unsupported outcome_type {outcome.OutcomeType}."
                     );
             }
         }

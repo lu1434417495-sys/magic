@@ -24,9 +24,9 @@ public partial class run_warehouse_preview_no_side_effect_regression : Lifecycle
         {
             PartyState party = BuildPartyState(1);
             ItemDef item = BuildItemDef();
-            var traitDefs = new Dictionary<StringName, TraitDef>
+            var traitDefs = new Dictionary<StringName, TraitDefinition>
             {
-                ["sharp_edge"] = BuildTraitDef(),
+                ["sharp_edge"] = BuildTraitDefinition(),
             };
             rollService = new EquipmentTraitRollService(traitDefs.Values);
             int rangeCalls = 0;
@@ -136,30 +136,37 @@ public partial class run_warehouse_preview_no_side_effect_regression : Lifecycle
         );
     }
 
-    private TraitDef BuildTraitDef()
-    {
-        return _runtimeScope.OwnWrapper(
-            new TraitDef
+    private static TraitDefinition BuildTraitDefinition() =>
+        new(
+            "sharp_edge",
+            "",
+            "",
+            System.Array.Empty<StringName>(),
+            new StringName[] { "equipment_roll" },
+            "",
+            "passive",
+            "unique_by_trait",
+            "none",
+            "none",
+            "",
+            0,
+            0,
+            System.Array.Empty<AttributeModifierDefinition>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<TraitDamageResistanceEntryDefinition>(),
+            System.Array.Empty<TraitSaveBonusEntryDefinition>(),
+            System.Array.Empty<TraitPassiveStatusEffectDefinition>(),
+            new TraitRollValueSchemaEntryDefinition[]
             {
-                trait_id = "sharp_edge",
-                allowed_source_kinds = new Godot.Collections.Array<StringName>
-                {
-                    "equipment_roll",
-                },
-                roll_value_schema = new Godot.Collections.Array<TraitRollValueSchemaEntry>
-                {
-                    new()
-                    {
-                        key = "amount",
-                        value_type = "int",
-                        min_value = 1,
-                        max_value = 6,
-                    },
-                },
-            },
-            "trait"
+                new(
+                    "amount",
+                    "int",
+                    1,
+                    6,
+                    System.Array.Empty<StringName>()
+                ),
+            }
         );
-    }
 
     private static void SetLocalSerial(PartyWarehouseService service, int value)
     {

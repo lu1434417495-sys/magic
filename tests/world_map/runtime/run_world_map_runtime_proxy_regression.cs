@@ -352,8 +352,8 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
         runtime._character_management.setup(
             partyState,
             skillDefinitions,
-            new Dictionary<StringName, ProfessionDef>(),
-            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
             BuildTypedItemDefs(itemDefs)
         );
         runtime._party_warehouse_service.Setup(partyState, BuildTypedItemDefs(itemDefs));

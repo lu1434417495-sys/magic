@@ -8,12 +8,14 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
+    private IReadOnlyDictionary<StringName, BarrierProfileDefinition> _barrierProfileDefinitions;
 
     public override void _Initialize()
     {
         TestResult exitCode = null;
         try
         {
+            _barrierProfileDefinitions = BarrierDefinitionTestContent.LoadValidated();
             TestPrismaticSphereCreatesOrderedLayers();
             TestPrismaticSphereBlocksDeeperBreakersUntilOuterLayerBreaks();
             TestProjectedEffectBarrierGeometryRespectsBoundary();
@@ -408,10 +410,10 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         );
     }
 
-    private static Fixture BuildRuntimeWithSphere()
+    private Fixture BuildRuntimeWithSphere()
     {
         var runtime = new BattleRuntimeModule();
-        runtime.setup();
+        runtime.setup(barrier_profile_definitions: _barrierProfileDefinitions);
         BattleState state = BuildState(new Vector2I(7, 5));
         runtime.SetupStateForTests(state);
         BattleUnitState caster = BuildUnit("caster", "施法者", "player", new Vector2I(2, 2));

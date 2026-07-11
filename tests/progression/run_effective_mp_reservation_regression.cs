@@ -241,11 +241,11 @@ public partial class run_effective_mp_reservation_regression : LifecycleTestScen
         manager.setup(
             partyState,
             BuildSkillIndex(skillDefinitions),
-            new Dictionary<StringName, ProfessionDef>(),
-            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
             new Dictionary<StringName, ItemDef>(),
-            new Dictionary<StringName, QuestDef>(),
-            new Dictionary<StringName, TraitDef>(),
+            new Dictionary<StringName, QuestDefinition>(),
+            new Dictionary<StringName, TraitDefinition>(),
             null,
             new ProgressionIdentityCatalogData()
         );

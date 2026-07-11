@@ -20,18 +20,15 @@ public partial class GameSession
         _skillDefinitionIndex = new Dictionary<StringName, SkillDefinition>(
             _progression_content_registry.GetSkillDefinitionsTyped()
         );
-        _professionDefIndex = new Dictionary<StringName, ProfessionDef>(
+        _professionDefIndex = new Dictionary<StringName, ProfessionDefinition>(
             _progression_content_registry.GetProfessionDefsTyped()
         );
-        _profession_defs = ProjectResourceDictionary(_professionDefIndex);
-        _achievementDefIndex = new Dictionary<StringName, AchievementDef>(
+        _achievementDefIndex = new Dictionary<StringName, AchievementDefinition>(
             _progression_content_registry.GetAchievementDefsTyped()
         );
-        _achievement_defs = ProjectAchievementDefPayloadDictionary(_achievementDefIndex);
-        _questDefIndex = new Dictionary<StringName, QuestDef>(
+        _questDefIndex = new Dictionary<StringName, QuestDefinition>(
             _progression_content_registry.GetQuestDefsTyped()
         );
-        _quest_defs = ProjectResourceDictionary(_questDefIndex);
     }
 
     private void RefreshBattleSpecialProfiles()
@@ -104,9 +101,7 @@ public partial class GameSession
     {
         RefreshBattleSpecialProfiles();
         var snapshot = new ContentValidationSnapshotData();
-        snapshot.Domains["progression"] = BuildContentValidationDomainSnapshot(
-            _progression_content_registry
-        );
+        snapshot.Domains["progression"] = BuildProgressionContentValidationDomainSnapshot();
         snapshot.Domains["battle_special_profile"] = BuildContentValidationDomainSnapshotFromErrors(
             _battle_special_profile_registry?.ValidateTyped()
         );
@@ -130,6 +125,14 @@ public partial class GameSession
     )
     {
         return BuildContentValidationDomainSnapshotFromErrors(registry?.ValidateTyped());
+    }
+
+    private ContentValidationDomainSnapshotData BuildProgressionContentValidationDomainSnapshot()
+    {
+        var errors = new List<string>();
+        AppendErrors(errors, _progression_content_registry?.ValidateTyped());
+        AppendErrors(errors, _barrier_content_registry?.ValidateTyped());
+        return BuildContentValidationDomainSnapshotFromErrors(errors);
     }
 
     private ContentValidationDomainSnapshotData BuildWorldContentValidationDomainSnapshot()
@@ -170,7 +173,6 @@ public partial class GameSession
                 _progression_content_registry.GetQuestRegistrationErrorsTyped()
             );
         }
-        Dictionary<StringName, QuestDef> questDefs = BuildQuestDefIndex(_quest_defs);
         Dictionary<StringName, ItemDef> itemDefs = BuildItemDefIndex(_item_defs);
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             GetSkillDefinitionsTyped();
@@ -179,30 +181,13 @@ public partial class GameSession
         );
         return BuildContentValidationDomainSnapshotFromErrors(
             QuestContentValidator.ValidateTyped(
-                questDefs,
+                _questDefIndex,
                 itemDefs,
                 skillDefinitions,
                 enemyTemplates,
                 registrationErrors
             )
         );
-    }
-
-    private static Dictionary<StringName, QuestDef> BuildQuestDefIndex(GDictionary questDefs)
-    {
-        var result = new Dictionary<StringName, QuestDef>();
-        if (questDefs == null)
-            return result;
-        foreach (var key in questDefs.Keys)
-        {
-            if (key.VariantType != Variant.Type.StringName)
-                continue;
-            QuestDef questDef = questDefs[key].AsGodotObject() as QuestDef;
-            if (questDef == null || questDef.quest_id == "")
-                continue;
-            result[key.AsStringName()] = questDef;
-        }
-        return result;
     }
 
     private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
@@ -315,69 +300,6 @@ public partial class GameSession
         return RegisterContentProjectionWrapper(
             result,
             $"GameSession.ProjectResourceDictionary:{typeof(T).Name}"
-        );
-    }
-
-    private static Dictionary<StringName, ProfessionDef> BuildProfessionDefIndex(
-        GDictionary professionDefs
-    )
-    {
-        var result = new Dictionary<StringName, ProfessionDef>();
-        if (professionDefs == null)
-            return result;
-        foreach (Variant key in professionDefs.Keys)
-        {
-            if (key.VariantType != Variant.Type.StringName)
-                continue;
-            ProfessionDef professionDef = professionDefs[key].AsGodotObject() as ProfessionDef;
-            if (professionDef == null || professionDef.profession_id == "")
-                continue;
-            result[key.AsStringName()] = professionDef;
-        }
-        return result;
-    }
-
-    private static Dictionary<StringName, AchievementDef> BuildAchievementDefIndex(
-        GDictionary achievementDefs
-    )
-    {
-        var result = new Dictionary<StringName, AchievementDef>();
-        if (achievementDefs == null)
-            return result;
-        foreach (Variant key in achievementDefs.Keys)
-        {
-            if (key.VariantType != Variant.Type.StringName)
-                continue;
-            Variant value = achievementDefs[key];
-            if (value.VariantType != Variant.Type.Dictionary)
-                continue;
-            AchievementDef achievementDef = AchievementDef.FromDictionary(value.AsGodotDictionary());
-            if (achievementDef == null || achievementDef.achievement_id == "")
-                continue;
-            result[key.AsStringName()] = achievementDef;
-        }
-        return result;
-    }
-
-    private static GDictionary ProjectAchievementDefPayloadDictionary(
-        IReadOnlyDictionary<StringName, AchievementDef> values
-    )
-    {
-        var result = new GDictionary();
-        if (values == null)
-            return RegisterContentProjectionWrapper(
-                result,
-                "GameSession.ProjectAchievementDefPayloadDictionary:empty"
-            );
-        foreach ((StringName id, AchievementDef value) in values)
-        {
-            if (id == "" || value == null)
-                continue;
-            result[id] = value.ToDictionary();
-        }
-        return RegisterContentProjectionWrapper(
-            result,
-            "GameSession.ProjectAchievementDefPayloadDictionary"
         );
     }
 

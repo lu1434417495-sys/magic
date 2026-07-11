@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
@@ -67,21 +66,4 @@ public sealed partial class CharacterManagementModule
         return true;
     }
 
-    private static GArray ToUntyped(IEnumerable<StageAdvancementModifier> values)
-    {
-        var result = new GArray();
-        if (values == null)
-            return result;
-        foreach (var value in values)
-            result.Add(value);
-        return result;
-    }
-
-    private static GArray ToUntyped(Godot.Collections.Array<GDictionary> values)
-    {
-        var result = new GArray();
-        foreach (var value in values)
-            result.Add(value);
-        return result;
-    }
 }

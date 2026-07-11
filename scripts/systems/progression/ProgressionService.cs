@@ -15,7 +15,7 @@ public sealed class ProgressionService
     private static readonly GStringNameArray PracticeTracks = new() { PracticeTrackMeditation, PracticeTrackCultivation };
     private UnitProgress _unit_progress;
     private readonly Dictionary<StringName, SkillDefinition> _skill_definitions = new();
-    private readonly Dictionary<StringName, ProfessionDef> _profession_defs = new();
+    private readonly Dictionary<StringName, ProfessionDefinition> _profession_defs = new();
     private ProfessionRuleService _rule_service;
     private ProfessionAssignmentService _assignment_service;
     private SkillMergeService _skill_merge_service;
@@ -23,7 +23,7 @@ public sealed class ProgressionService
     public void SetupDefinitions(
         UnitProgress unitProgress,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
-        IReadOnlyDictionary<StringName, ProfessionDef> professionDefs
+        IReadOnlyDictionary<StringName, ProfessionDefinition> professionDefs
     )
     {
         SetupDefinitions(unitProgress, skillDefinitions, professionDefs, null, null, null);
@@ -32,7 +32,7 @@ public sealed class ProgressionService
     public void SetupDefinitions(
         UnitProgress unitProgress,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
-        IReadOnlyDictionary<StringName, ProfessionDef> professionDefs,
+        IReadOnlyDictionary<StringName, ProfessionDefinition> professionDefs,
         ProfessionRuleService ruleService,
         ProfessionAssignmentService assignmentService,
         SkillMergeService skillMergeService
@@ -51,7 +51,7 @@ public sealed class ProgressionService
     private void SetupInternal(
         UnitProgress unitProgress,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
-        IReadOnlyDictionary<StringName, ProfessionDef> professionDefs,
+        IReadOnlyDictionary<StringName, ProfessionDefinition> professionDefs,
         ProfessionRuleService ruleService,
         ProfessionAssignmentService assignmentService,
         SkillMergeService skillMergeService)
@@ -148,7 +148,7 @@ public sealed class ProgressionService
     }
 
     public bool GrantRacialSkill(
-        RacialGrantedSkill grant,
+        RacialGrantedSkillDefinition grant,
         StringName sourceType,
         StringName sourceId
     )
@@ -158,24 +158,24 @@ public sealed class ProgressionService
         SkillLearnSourceKind sourceKind = SkillDefinition.ToLearnSource(sourceType);
         if (!IsRacialGrantSourceType(sourceKind))
             return false;
-        if (sourceId == "" || grant.skill_id == "")
+        if (sourceId == "" || grant.SkillId == "")
             return false;
 
-        int minimumSkillLevel = grant.minimum_skill_level;
+        int minimumSkillLevel = grant.MinimumSkillLevel;
         if (minimumSkillLevel < 0)
             return false;
 
-        SkillDefinition skillDefinition = GetSkillDefinition(grant.skill_id);
+        SkillDefinition skillDefinition = GetSkillDefinition(grant.SkillId);
         if (skillDefinition == null || skillDefinition.LearnSourceKind != sourceKind)
             return false;
         if (minimumSkillLevel > skillDefinition.MaxLevel)
             return false;
 
-        UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(grant.skill_id);
+        UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(grant.SkillId);
         if (skillProgress != null && skillProgress.is_learned)
             return false;
         if (skillProgress == null)
-            skillProgress = new UnitSkillProgress { skill_id = grant.skill_id };
+            skillProgress = new UnitSkillProgress { skill_id = grant.SkillId };
 
         skillProgress.is_learned = true;
         skillProgress.skill_level = minimumSkillLevel;
@@ -315,7 +315,7 @@ public sealed class ProgressionService
         if (triggerSkillId == "")
             return false;
 
-        ProfessionDef professionDef = GetProfessionDef(professionId);
+        ProfessionDefinition professionDef = GetProfessionDef(professionId);
         if (professionDef == null)
             return false;
 
@@ -457,12 +457,12 @@ public sealed class ProgressionService
         return true;
     }
 
-    private void ApplyProfessionHitPointGain(ProfessionDef professionDef)
+    private void ApplyProfessionHitPointGain(ProfessionDefinition professionDef)
     {
         if (_unit_progress?.unit_base_attributes == null || professionDef == null)
             return;
 
-        int hitDieSides = Mathf.Max(professionDef.hit_die_sides, 1);
+        int hitDieSides = Mathf.Max(professionDef.HitDieSides, 1);
         int hitDieRoll = RollProfessionHitDie(hitDieSides);
         int constitutionValue = _unit_progress.unit_base_attributes.GetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution));
         int hpGain = CalculateProfessionHitPointGain(hitDieRoll, constitutionValue);
@@ -537,9 +537,9 @@ public sealed class ProgressionService
             : null;
     }
 
-    private ProfessionDef GetProfessionDef(StringName professionId)
+    private ProfessionDefinition GetProfessionDef(StringName professionId)
     {
-        return _profession_defs.TryGetValue(professionId, out ProfessionDef professionDef)
+        return _profession_defs.TryGetValue(professionId, out ProfessionDefinition professionDef)
             ? professionDef
             : null;
     }
@@ -689,13 +689,13 @@ public sealed class ProgressionService
     )
     {
         selection ??= PromotionSelectionData.Empty;
-        ProfessionDef professionDef = GetProfessionDef(professionId);
+        ProfessionDefinition professionDef = GetProfessionDef(professionId);
         if (professionDef == null)
             return null;
 
-        Godot.Collections.Array<TagRequirement> tagRules = GetTagRulesForTarget(professionDef, targetRank, isUnlock);
-        Godot.Collections.Array<TagRequirement> qualifierRules = GetTagRulesForRole(tagRules, TagRequirementSelectionRole.Qualifier);
-        Godot.Collections.Array<TagRequirement> assignedCoreRules = GetTagRulesForRole(tagRules, TagRequirementSelectionRole.AssignedCore);
+        IReadOnlyList<TagRequirementDefinition> tagRules = GetTagRulesForTarget(professionDef, targetRank, isUnlock);
+        IReadOnlyList<TagRequirementDefinition> qualifierRules = GetTagRulesForRole(tagRules, TagRequirementSelectionRole.Qualifier);
+        IReadOnlyList<TagRequirementDefinition> assignedCoreRules = GetTagRulesForRole(tagRules, TagRequirementSelectionRole.AssignedCore);
         bool allowUnassigned = isUnlock;
         GStringNameArray requiredSkillIds = GetRequiredSkillIdsForTarget(professionDef, isUnlock);
         GStringNameArray previewAssignedSkillIds = GetPreviewAssignedCoreSkillIdsForSelection(professionId, isUnlock, requiredTriggerSkillId);
@@ -813,7 +813,7 @@ public sealed class ProgressionService
     private bool ValidateExplicitSelection(
         GStringNameArray selectedSkillIds,
         StringName professionId,
-        Godot.Collections.Array<TagRequirement> tagRules,
+        IReadOnlyList<TagRequirementDefinition> tagRules,
         bool allowUnassigned,
         GStringNameArray requiredSkillIds,
         GStringNameArray previewAssignedSkillIds)
@@ -878,7 +878,7 @@ public sealed class ProgressionService
 
     private GStringNameArray SelectSkillIdsForTagRules(
         StringName professionId,
-        Godot.Collections.Array<TagRequirement> tagRules,
+        IReadOnlyList<TagRequirementDefinition> tagRules,
         bool allowUnassigned,
         GStringNameArray lockedSkillIds,
         GStringNameArray previewAssignedSkillIds)
@@ -927,7 +927,7 @@ public sealed class ProgressionService
 
     private GStringNameArray GetRoleCandidateSkillIds(
         StringName professionId,
-        Godot.Collections.Array<TagRequirement> tagRules,
+        IReadOnlyList<TagRequirementDefinition> tagRules,
         bool allowUnassigned,
         GStringNameArray previewAssignedSkillIds)
     {
@@ -959,7 +959,7 @@ public sealed class ProgressionService
     private bool CanIncludeSkillInSelection(
         StringName skillId,
         StringName professionId,
-        Godot.Collections.Array<TagRequirement> tagRules,
+        IReadOnlyList<TagRequirementDefinition> tagRules,
         bool allowUnassigned,
         GStringNameArray previewAssignedSkillIds)
     {
@@ -971,15 +971,15 @@ public sealed class ProgressionService
     private GDictionary CalculateTagRuleDeficits(
         GStringNameArray selectedSkillIds,
         StringName professionId,
-        Godot.Collections.Array<TagRequirement> tagRules,
+        IReadOnlyList<TagRequirementDefinition> tagRules,
         bool allowUnassigned,
         GStringNameArray previewAssignedSkillIds)
     {
         GDictionary deficits = new();
         for (int index = 0; index < tagRules.Count; index++)
         {
-            TagRequirement tagRule = tagRules[index];
-            if (tagRule == null || tagRule.tag == "")
+            TagRequirementDefinition tagRule = tagRules[index];
+            if (tagRule == null || tagRule.Tag == "")
                 continue;
 
             int matchedCount = 0;
@@ -997,7 +997,7 @@ public sealed class ProgressionService
                 }
             }
 
-            int remaining = tagRule.count - matchedCount;
+            int remaining = tagRule.Count - matchedCount;
             if (remaining > 0)
                 deficits[index] = remaining;
         }
@@ -1007,7 +1007,7 @@ public sealed class ProgressionService
     private int ScoreSkillAgainstDeficits(
         StringName skillId,
         StringName professionId,
-        Godot.Collections.Array<TagRequirement> tagRules,
+        IReadOnlyList<TagRequirementDefinition> tagRules,
         bool allowUnassigned,
         GDictionary deficits,
         GStringNameArray previewAssignedSkillIds)
@@ -1018,7 +1018,7 @@ public sealed class ProgressionService
         int score = 0;
         foreach (var rawIndex in deficits.Keys)
         {
-            TagRequirement tagRule = tagRules[rawIndex.AsInt32()];
+            TagRequirementDefinition tagRule = tagRules[rawIndex.AsInt32()];
             if (tagRule == null)
                 continue;
             if (
@@ -1038,7 +1038,7 @@ public sealed class ProgressionService
     private GStringNameArray PruneSelection(
         GStringNameArray selectedSkillIds,
         StringName professionId,
-        Godot.Collections.Array<TagRequirement> tagRules,
+        IReadOnlyList<TagRequirementDefinition> tagRules,
         bool allowUnassigned,
         GStringNameArray lockedSkillIds,
         GStringNameArray previewAssignedSkillIds)
@@ -1063,7 +1063,7 @@ public sealed class ProgressionService
     private bool AreTagRulesSatisfied(
         GStringNameArray selectedSkillIds,
         StringName professionId,
-        Godot.Collections.Array<TagRequirement> tagRules,
+        IReadOnlyList<TagRequirementDefinition> tagRules,
         bool allowUnassigned,
         GStringNameArray previewAssignedSkillIds)
     {
@@ -1073,14 +1073,14 @@ public sealed class ProgressionService
     private bool MatchesAnyTagRule(
         StringName skillId,
         StringName professionId,
-        Godot.Collections.Array<TagRequirement> tagRules,
+        IReadOnlyList<TagRequirementDefinition> tagRules,
         bool allowUnassigned,
         GStringNameArray previewAssignedSkillIds)
     {
         if (_rule_service == null)
             return false;
 
-        foreach (TagRequirement tagRule in tagRules)
+        foreach (TagRequirementDefinition tagRule in tagRules)
         {
             if (
                 _rule_service.SkillMatchesTagRequirement(
@@ -1129,39 +1129,39 @@ public sealed class ProgressionService
         return normalizedSkillIds;
     }
 
-    private static Godot.Collections.Array<TagRequirement> GetTagRulesForTarget(ProfessionDef professionDef, int targetRank, bool isUnlock)
+    private static IReadOnlyList<TagRequirementDefinition> GetTagRulesForTarget(ProfessionDefinition professionDef, int targetRank, bool isUnlock)
     {
-        Godot.Collections.Array<TagRequirement> emptyRules = new();
+        IReadOnlyList<TagRequirementDefinition> emptyRules = System.Array.Empty<TagRequirementDefinition>();
         if (professionDef == null)
             return emptyRules;
         if (isUnlock)
-            return professionDef.unlock_requirement != null ? professionDef.unlock_requirement.required_tag_rules : emptyRules;
+            return professionDef.UnlockRequirement != null ? professionDef.UnlockRequirement.RequiredTagRules : emptyRules;
 
-        ProfessionRankRequirement rankRequirement = professionDef.GetRankRequirement(targetRank);
-        return rankRequirement != null ? rankRequirement.required_tag_rules : emptyRules;
+        ProfessionRankRequirementDefinition rankRequirement = professionDef.GetRankRequirement(targetRank);
+        return rankRequirement != null ? rankRequirement.RequiredTagRules : emptyRules;
     }
 
-    private static GStringNameArray GetRequiredSkillIdsForTarget(ProfessionDef professionDef, bool isUnlock)
+    private static GStringNameArray GetRequiredSkillIdsForTarget(ProfessionDefinition professionDef, bool isUnlock)
     {
-        if (!isUnlock || professionDef == null || professionDef.unlock_requirement == null)
+        if (!isUnlock || professionDef == null || professionDef.UnlockRequirement == null)
             return new GStringNameArray();
-        return new GStringNameArray(professionDef.unlock_requirement.required_skill_ids);
+        return new GStringNameArray(professionDef.UnlockRequirement.RequiredSkillIds);
     }
 
-    private static bool AssignedCoreMustBeSubsetOfQualifiers(ProfessionDef professionDef, bool isUnlock)
+    private static bool AssignedCoreMustBeSubsetOfQualifiers(ProfessionDefinition professionDef, bool isUnlock)
     {
         return isUnlock
             && professionDef != null
-            && professionDef.unlock_requirement != null
-            && professionDef.unlock_requirement.assigned_core_must_be_subset_of_qualifiers;
+            && professionDef.UnlockRequirement != null
+            && professionDef.UnlockRequirement.AssignedCoreMustBeSubsetOfQualifiers;
     }
 
-    private static Godot.Collections.Array<TagRequirement> GetTagRulesForRole(
-        Godot.Collections.Array<TagRequirement> tagRules,
+    private static IReadOnlyList<TagRequirementDefinition> GetTagRulesForRole(
+        IReadOnlyList<TagRequirementDefinition> tagRules,
         TagRequirementSelectionRole selectionRole)
     {
-        Godot.Collections.Array<TagRequirement> roleRules = new();
-        foreach (TagRequirement tagRule in tagRules)
+        List<TagRequirementDefinition> roleRules = new();
+        foreach (TagRequirementDefinition tagRule in tagRules)
         {
             if (tagRule == null)
                 continue;
@@ -1293,13 +1293,13 @@ public sealed class ProgressionService
         bool isUnlock,
         StringName triggerSkillId)
     {
-        ProfessionDef professionDef = GetProfessionDef(professionId);
+        ProfessionDefinition professionDef = GetProfessionDef(professionId);
         if (professionDef == null)
             return null;
 
-        Godot.Collections.Array<TagRequirement> tagRules = GetTagRulesForTarget(professionDef, targetRank, isUnlock);
-        Godot.Collections.Array<TagRequirement> qualifierRules = GetTagRulesForRole(tagRules, TagRequirementSelectionRole.Qualifier);
-        Godot.Collections.Array<TagRequirement> assignedCoreRules = GetTagRulesForRole(tagRules, TagRequirementSelectionRole.AssignedCore);
+        IReadOnlyList<TagRequirementDefinition> tagRules = GetTagRulesForTarget(professionDef, targetRank, isUnlock);
+        IReadOnlyList<TagRequirementDefinition> qualifierRules = GetTagRulesForRole(tagRules, TagRequirementSelectionRole.Qualifier);
+        IReadOnlyList<TagRequirementDefinition> assignedCoreRules = GetTagRulesForRole(tagRules, TagRequirementSelectionRole.AssignedCore);
         bool allowUnassigned = isUnlock;
         GStringNameArray previewAssignedSkillIds = GetPreviewAssignedCoreSkillIdsForSelection(professionId, isUnlock, triggerSkillId);
 
@@ -1454,31 +1454,31 @@ public sealed class ProgressionService
             _unit_progress.SetPendingProfessionChoices(BuildPendingProfessionChoices());
     }
 
-    private void GrantProfessionSkills(ProfessionDef professionDef, UnitProfessionProgress professionProgress, int targetRank)
+    private void GrantProfessionSkills(ProfessionDefinition professionDef, UnitProfessionProgress professionProgress, int targetRank)
     {
         if (professionDef == null || professionProgress == null)
             return;
 
-        foreach (ProfessionGrantedSkill grantedSkill in professionDef.GetGrantedSkillsForRank(targetRank))
+        foreach (ProfessionGrantedSkillDefinition grantedSkill in professionDef.GetGrantedSkillsForRank(targetRank))
         {
-            if (grantedSkill == null || grantedSkill.skill_id == "")
+            if (grantedSkill == null || grantedSkill.SkillId == "")
                 continue;
 
-            professionProgress.AddGrantedSkill(grantedSkill.skill_id);
-            UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(grantedSkill.skill_id);
+            professionProgress.AddGrantedSkill(grantedSkill.SkillId);
+            UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(grantedSkill.SkillId);
             bool wasAlreadyLearned = skillProgress != null && skillProgress.is_learned;
             if (skillProgress == null)
-                skillProgress = new UnitSkillProgress { skill_id = grantedSkill.skill_id };
+                skillProgress = new UnitSkillProgress { skill_id = grantedSkill.SkillId };
 
             skillProgress.is_learned = true;
             if (skillProgress.profession_granted_by == "")
-                skillProgress.profession_granted_by = professionDef.profession_id;
+                skillProgress.profession_granted_by = professionDef.ProfessionId;
             if (!wasAlreadyLearned)
             {
                 skillProgress.granted_source_type = UnitSkillProgress.ToStringName(
                     UnitSkillGrantSourceType.Profession
                 );
-                skillProgress.granted_source_id = professionDef.profession_id;
+                skillProgress.granted_source_id = professionDef.ProfessionId;
             }
 
             _unit_progress.SetSkillProgress(skillProgress);

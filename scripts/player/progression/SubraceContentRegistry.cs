@@ -1,10 +1,12 @@
+using System.Collections.Generic;
+using System.IO;
 using Godot;
 
 public class SubraceContentRegistry : IdentityContentRegistryBase
 {
     private const string SUBRACE_CONFIG_DIRECTORY = "res://data/configs/subraces";
 
-    private System.Collections.Generic.Dictionary<StringName, SubraceDef> _subrace_defs = new();
+    private readonly Dictionary<StringName, SubraceDefinition> _subrace_defs = new();
 
     public SubraceContentRegistry()
     {
@@ -31,10 +33,8 @@ public class SubraceContentRegistry : IdentityContentRegistryBase
             _validation_errors.Add(e);
     }
 
-    public System.Collections.Generic.IReadOnlyDictionary<StringName, SubraceDef> GetSubraceDefsTyped()
-    {
-        return new System.Collections.Generic.Dictionary<StringName, SubraceDef>(_subrace_defs);
-    }
+    public IReadOnlyDictionary<StringName, SubraceDefinition> GetSubraceDefsTyped() =>
+        _snapshot_definitions(_subrace_defs);
 
     protected override void ClearRegistryData()
     {
@@ -68,98 +68,111 @@ public class SubraceContentRegistry : IdentityContentRegistryBase
             return;
         }
 
-        _subrace_defs[subraceDef.subrace_id] = subraceDef;
+        try
+        {
+            SubraceDefinition definition = SubraceDefinition.FromResource(
+                subraceDef,
+                $"subrace.{subraceDef.subrace_id}"
+            );
+            _subrace_defs.Add(definition.SubraceId, definition);
+        }
+        catch (InvalidDataException exception)
+        {
+            _validation_errors.Add(
+                $"Subrace config {resourcePath} projection failed: {exception.Message}"
+            );
+        }
     }
 
-    private Godot.Collections.Array<string> _collect_validation_errors()
+    private List<string> _collect_validation_errors()
     {
-        var errors = new Godot.Collections.Array<string>();
+        var errors = new List<string>();
 
         foreach (var subraceKey in _sorted_registry_keys(_subrace_defs.Keys))
         {
             var subraceId = new StringName(subraceKey);
-            var subraceDef = _subrace_defs[subraceId];
+            SubraceDefinition subraceDef = _subrace_defs[subraceId];
 
             var label = $"Subrace {subraceId}";
 
-            _append_string_name_field_error(errors, label, "subrace_id", subraceDef.subrace_id);
+            _append_string_name_field_error(errors, label, "subrace_id", subraceDef.SubraceId);
 
             _append_string_name_field_error(
                 errors,
                 label,
                 "parent_race_id",
-                subraceDef.parent_race_id
+                subraceDef.ParentRaceId
             );
 
-            _append_string_field_error(errors, label, "display_name", subraceDef.display_name);
+            _append_string_field_error(errors, label, "display_name", subraceDef.DisplayName);
 
-            _append_string_field_error(errors, label, "description", subraceDef.description);
+            _append_string_field_error(errors, label, "description", subraceDef.Description);
 
             _append_string_name_field_error(
                 errors,
                 label,
                 "body_size_category_override",
-                subraceDef.body_size_category_override,
+                subraceDef.BodySizeCategoryOverride,
                 true
             );
 
-            _append_int_field_error(errors, label, "speed_bonus", subraceDef.speed_bonus);
+            _append_int_field_error(errors, label, "speed_bonus", subraceDef.SpeedBonus);
 
             _append_attribute_modifier_array_errors(
                 errors,
                 label,
-                V(subraceDef.attribute_modifiers),
+                subraceDef.AttributeModifiers,
                 "attribute_modifiers"
             );
 
-            _append_string_name_array_errors(errors, label, V(subraceDef.trait_ids), "trait_ids");
+            _append_string_name_array_errors(errors, label, subraceDef.TraitIds, "trait_ids");
 
             _append_racial_granted_skill_array_errors(
                 errors,
                 label,
-                V(subraceDef.racial_granted_skills),
+                subraceDef.RacialGrantedSkills,
                 "racial_granted_skills"
             );
 
             _append_string_name_array_errors(
                 errors,
                 label,
-                V(subraceDef.proficiency_tags),
+                subraceDef.ProficiencyTags,
                 "proficiency_tags"
             );
 
             _append_string_name_array_errors(
                 errors,
                 label,
-                V(subraceDef.vision_tags),
+                subraceDef.VisionTags,
                 "vision_tags"
             );
 
             _append_string_name_array_errors(
                 errors,
                 label,
-                V(subraceDef.save_advantage_tags),
+                subraceDef.SaveAdvantageTags,
                 "save_advantage_tags"
             );
 
             _append_string_name_to_string_name_dictionary_errors(
                 errors,
                 label,
-                subraceDef.damage_resistances,
+                subraceDef.DamageResistances,
                 "damage_resistances"
             );
 
             _append_string_name_array_errors(
                 errors,
                 label,
-                V(subraceDef.dialogue_tags),
+                subraceDef.DialogueTags,
                 "dialogue_tags"
             );
 
             _append_string_array_errors(
                 errors,
                 label,
-                V(subraceDef.racial_trait_summary),
+                subraceDef.RacialTraitSummary,
                 "racial_trait_summary"
             );
         }
@@ -167,13 +180,4 @@ public class SubraceContentRegistry : IdentityContentRegistryBase
         return errors;
     }
 
-    private static Godot.Collections.Array V<[MustBeVariant] T>(Godot.Collections.Array<T> values)
-    {
-        var result = new Godot.Collections.Array();
-        if (values == null)
-            return result;
-        foreach (T value in values)
-            result.Add(Variant.From(value));
-        return result;
-    }
 }

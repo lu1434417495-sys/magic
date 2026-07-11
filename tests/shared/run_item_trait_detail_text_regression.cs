@@ -27,7 +27,7 @@ public partial class run_item_trait_detail_text_regression : LifecycleTestSceneT
     private void TestComposeFoldsTraitMechanicsBelowFlavor()
     {
         ItemDef item = BuildItem("一柄会撕开心绪的细剑。", "weapon.sword.demo.sting", "weapon.sword.demo.rend");
-        var traitDefs = new Dictionary<StringName, TraitDef>
+        var traitDefs = new Dictionary<StringName, TraitDefinition>
         {
             ["weapon.sword.demo.sting"] = BuildTrait("噬心之刺", "暴击时额外造成2D6 psychic伤害。"),
             ["weapon.sword.demo.rend"] = BuildTrait("情感撕裂", "命中叠加60TU情感撕裂，最多3层。"),
@@ -52,7 +52,7 @@ public partial class run_item_trait_detail_text_regression : LifecycleTestSceneT
         string text = ItemTraitDetailText.Compose(
             item.description,
             item,
-            new Dictionary<StringName, TraitDef>()
+            new Dictionary<StringName, TraitDefinition>()
         );
         _test.Eq(text, "普通铁剑。", "无 trait 时应原样返回 flavor 描述。");
     }
@@ -60,7 +60,7 @@ public partial class run_item_trait_detail_text_regression : LifecycleTestSceneT
     private void TestBuildLinesSkipsUnknownAndNamelessTraits()
     {
         ItemDef item = BuildItem("测试。", "weapon.known", "weapon.unknown", "weapon.nameless");
-        var traitDefs = new Dictionary<StringName, TraitDef>
+        var traitDefs = new Dictionary<StringName, TraitDefinition>
         {
             ["weapon.known"] = BuildTrait("已知", "有效机制。"),
             ["weapon.nameless"] = BuildTrait("", "无名 trait 不应显示。"),
@@ -81,8 +81,26 @@ public partial class run_item_trait_detail_text_regression : LifecycleTestSceneT
         return item;
     }
 
-    private static TraitDef BuildTrait(string displayName, string description)
-    {
-        return new TraitDef { display_name = displayName, description = description };
-    }
+    private static TraitDefinition BuildTrait(string displayName, string description) =>
+        new(
+            "",
+            displayName,
+            description,
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            "",
+            "passive",
+            "unique_by_trait",
+            "none",
+            "none",
+            "",
+            0,
+            0,
+            System.Array.Empty<AttributeModifierDefinition>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<TraitDamageResistanceEntryDefinition>(),
+            System.Array.Empty<TraitSaveBonusEntryDefinition>(),
+            System.Array.Empty<TraitPassiveStatusEffectDefinition>(),
+            System.Array.Empty<TraitRollValueSchemaEntryDefinition>()
+        );
 }

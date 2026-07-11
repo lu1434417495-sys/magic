@@ -439,8 +439,74 @@ public partial class run_identity_payload_validator_regression : LifecycleTestSc
     private static ProgressionContentRegistry MakeRegistry(GDictionary bundle)
     {
         ProgressionContentRegistry registry = new();
-        registry.ReplaceDefinitionBuckets(bundle);
+        registry.ReplaceDefinitionsForValidation(
+            new ProgressionDefinitionSources
+            {
+                SkillDefinitions = new Dictionary<StringName, SkillDefinition>(),
+                ProfessionDefinitions = new Dictionary<StringName, ProfessionDefinition>(),
+                AchievementDefinitions = new Dictionary<StringName, AchievementDefinition>(),
+                QuestDefinitions = new Dictionary<StringName, QuestDefinition>(),
+                ContingencyDefinitions =
+                    new Dictionary<StringName, ContingencySetupTemplateDefinition>(),
+                RaceDefinitions = TestProgressionDefinitionProjection.Races(
+                    ReadTypedMap<RaceDef>(bundle, "race_defs")
+                ),
+                SubraceDefinitions = TestProgressionDefinitionProjection.Subraces(
+                    ReadTypedMap<SubraceDef>(bundle, "subrace_defs")
+                ),
+                TraitDefinitions = new Dictionary<StringName, TraitDefinition>(),
+                AgeProfileDefinitions = TestProgressionDefinitionProjection.AgeProfiles(
+                    ReadTypedMap<AgeProfileDef>(bundle, "age_profile_defs")
+                ),
+                BloodlineDefinitions = TestProgressionDefinitionProjection.Bloodlines(
+                    ReadTypedMap<BloodlineDef>(bundle, "bloodline_defs")
+                ),
+                BloodlineStageDefinitions =
+                    TestProgressionDefinitionProjection.BloodlineStages(
+                        ReadTypedMap<BloodlineStageDef>(bundle, "bloodline_stage_defs")
+                    ),
+                AscensionDefinitions = TestProgressionDefinitionProjection.Ascensions(
+                    ReadTypedMap<AscensionDef>(bundle, "ascension_defs")
+                ),
+                AscensionStageDefinitions =
+                    TestProgressionDefinitionProjection.AscensionStages(
+                        ReadTypedMap<AscensionStageDef>(bundle, "ascension_stage_defs")
+                    ),
+                StageAdvancementDefinitions =
+                    TestProgressionDefinitionProjection.StageAdvancements(
+                        ReadTypedMap<StageAdvancementModifier>(
+                            bundle,
+                            "stage_advancement_defs"
+                        )
+                    ),
+            }
+        );
         return registry;
+    }
+
+    private static Dictionary<StringName, T> ReadTypedMap<T>(
+        GDictionary source,
+        string key
+    )
+        where T : class
+    {
+        var result = new Dictionary<StringName, T>();
+        GDictionary values = ReadDictionary(source, key);
+        foreach (Variant rawKey in values.Keys)
+        {
+            StringName id = rawKey.VariantType switch
+            {
+                Variant.Type.StringName => rawKey.AsStringName(),
+                Variant.Type.String => new StringName(rawKey.AsString()),
+                _ => new StringName(""),
+            };
+            if (id == "")
+                continue;
+            Variant rawValue = values[rawKey];
+            if (rawValue.VariantType == Variant.Type.Object && rawValue.AsGodotObject() is T typed)
+                result[id] = typed;
+        }
+        return result;
     }
 
     private static GDictionary ReadDictionary(GDictionary source, string key)

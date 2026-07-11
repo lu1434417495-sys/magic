@@ -72,10 +72,10 @@ public partial class run_game_runtime_party_command_handler_regression : Lifecyc
         runtime._character_management.setup(
             partyState,
             new Dictionary<StringName, SkillDefinition>(),
-            new Dictionary<StringName, ProfessionDef>(),
-            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
             typedItemDefs,
-            new Dictionary<StringName, QuestDef>(),
+            new Dictionary<StringName, QuestDefinition>(),
             equipmentInstanceIdAllocator,
             new ProgressionIdentityCatalogData()
         );

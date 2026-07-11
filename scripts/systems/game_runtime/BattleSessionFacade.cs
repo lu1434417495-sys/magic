@@ -750,7 +750,7 @@ public sealed class BattleSessionFacade : IDisposable
         if (delta == null || delta.PendingProfessionChoicesTyped.Count == 0)
             return new Dictionary();
         PartyState partyState = _runtime?.GetPartyState();
-        var gameSession = GetGameSession();
+        GameContentCatalog contentCatalog = _runtime?.GetContentCatalogTyped();
         var memberId = delta.member_id;
         var memberState =
             partyState != null
@@ -758,10 +758,10 @@ public sealed class BattleSessionFacade : IDisposable
                 : null;
         var memberName =
             memberState != null ? memberState.display_name : memberId.ToString();
-        IReadOnlyDictionary<StringName, ProfessionDef> professionDefs =
-            gameSession != null
-                ? gameSession.GetProfessionDefsTyped()
-                : new System.Collections.Generic.Dictionary<StringName, ProfessionDef>();
+        IReadOnlyDictionary<StringName, ProfessionDefinition> professionDefs =
+            contentCatalog != null
+                ? contentCatalog.GetProfessionDefsTyped()
+                : new System.Collections.Generic.Dictionary<StringName, ProfessionDefinition>();
         var choiceEntries = new Godot.Collections.Array();
         foreach (PendingProfessionChoice choiceObj in delta.PendingProfessionChoicesTyped)
         {
@@ -777,26 +777,26 @@ public sealed class BattleSessionFacade : IDisposable
                     continue;
                 if (targetRank <= 0)
                     continue;
-                if (!professionDefs.TryGetValue(pid, out ProfessionDef professionDef))
+                if (!professionDefs.TryGetValue(pid, out ProfessionDefinition professionDef))
                     continue;
                 var grantedSkillIds = new Godot.Collections.Array();
                 var grantedSkills = professionDef.GetGrantedSkillsForRank(targetRank);
-                foreach (ProfessionGrantedSkill skillObj in grantedSkills)
+                foreach (ProfessionGrantedSkillDefinition skillObj in grantedSkills)
                 {
-                    if (skillObj != null && skillObj.skill_id != "")
-                        grantedSkillIds.Add(skillObj.skill_id.ToString());
+                    if (skillObj != null && skillObj.SkillId != "")
+                        grantedSkillIds.Add(skillObj.SkillId.ToString());
                 }
                 choiceEntries.Add(
                     new Dictionary
                     {
                         ["profession_id"] = pid.ToString(),
                         ["display_name"] = !string.IsNullOrEmpty(
-                            professionDef.display_name
+                            professionDef.DisplayName
                         )
-                            ? professionDef.display_name
+                            ? professionDef.DisplayName
                             : pid.ToString(),
                         ["summary"] = string.Format("Rank {0}", targetRank),
-                        ["description"] = professionDef.description,
+                        ["description"] = professionDef.Description,
                         ["granted_skill_ids"] = grantedSkillIds,
                         ["selection_hint"] = selectionHint,
                         ["selection"] = new Dictionary(),

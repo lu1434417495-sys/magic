@@ -92,7 +92,10 @@ public partial class run_character_trait_service_regression : LifecycleTestScene
     private static CharacterTraitService BuildService()
     {
         var gateway = new FakeGateway();
-        return new CharacterTraitService(BuildTraitDefs().Values, gateway);
+        return new CharacterTraitService(
+            TestProgressionDefinitionProjection.Traits(BuildTraitDefs()).Values,
+            gateway
+        );
     }
 
     private static Dictionary<StringName, TraitDef> BuildTraitDefs() =>
@@ -181,6 +184,7 @@ public partial class run_character_trait_service_regression : LifecycleTestScene
         private readonly PartyMemberState _member;
         private readonly EquipmentState _equipment;
         private readonly Dictionary<StringName, ItemDef> _items = new();
+        private readonly RaceDefinition _raceDefinition;
 
         public FakeGateway()
         {
@@ -189,6 +193,15 @@ public partial class run_character_trait_service_regression : LifecycleTestScene
                 member_id = "hero",
                 display_name = "Hero",
             };
+            RaceDef raceResource = new()
+            {
+                race_id = "human",
+                trait_ids = new Godot.Collections.Array<StringName> { "identity_watch" },
+            };
+            _raceDefinition = RaceDefinition.FromResource(
+                raceResource,
+                "test.character_trait.race"
+            );
             _member.trait_instances.Add(
                 TraitInstanceState.Create(
                     "hero_trait_001",
@@ -259,22 +272,18 @@ public partial class run_character_trait_service_regression : LifecycleTestScene
             );
         }
 
-        public RaceDef GetRaceDefForTraitAggregation(StringName memberId) =>
-            new()
-            {
-                race_id = "human",
-                trait_ids = new Godot.Collections.Array<StringName> { "identity_watch" },
-            };
+        public RaceDefinition GetRaceDefForTraitAggregation(StringName memberId) =>
+            _raceDefinition;
 
-        public SubraceDef GetSubraceDefForTraitAggregation(StringName memberId) => null;
+        public SubraceDefinition GetSubraceDefForTraitAggregation(StringName memberId) => null;
 
-        public BloodlineDef GetBloodlineDefForTraitAggregation(StringName memberId) => null;
+        public BloodlineDefinition GetBloodlineDefForTraitAggregation(StringName memberId) => null;
 
-        public BloodlineStageDef GetBloodlineStageDefForTraitAggregation(StringName memberId) => null;
+        public BloodlineStageDefinition GetBloodlineStageDefForTraitAggregation(StringName memberId) => null;
 
-        public AscensionDef GetAscensionDefForTraitAggregation(StringName memberId) => null;
+        public AscensionDefinition GetAscensionDefForTraitAggregation(StringName memberId) => null;
 
-        public AscensionStageDef GetAscensionStageDefForTraitAggregation(StringName memberId) => null;
+        public AscensionStageDefinition GetAscensionStageDefForTraitAggregation(StringName memberId) => null;
 
         public PartyMemberState GetMemberStateForTraitAggregation(StringName memberId) =>
             memberId == _member.member_id ? _member : null;

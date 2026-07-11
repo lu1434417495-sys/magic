@@ -43,7 +43,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
     private async Task TestNpcQuestOfferOpensForMatchingInteraction()
     {
-        GDictionary questDefs = BuildNpcQuestDefs();
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildNpcQuestDefs();
         RuntimeFixture fixture = await BuildRuntimeFixture(
             "npc_offer",
             BuildPartyState(12, 100),
@@ -157,7 +157,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
     private async Task TestNpcQuestOfferSkipsNonNpcProvider()
     {
-        GDictionary questDefs = BuildNpcQuestDefs();
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildNpcQuestDefs();
         RuntimeFixture fixture = await BuildRuntimeFixture(
             "npc_skip_service",
             BuildPartyState(12, 100),
@@ -216,7 +216,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
     private async Task TestNpcQuestOfferRequiresNpcOfferChannel()
     {
-        GDictionary questDefs = BuildNpcQuestDefs();
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildNpcQuestDefs();
         RuntimeFixture fixture = await BuildRuntimeFixture(
             "npc_channel",
             BuildPartyState(12, 100),
@@ -269,7 +269,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
     private async Task TestNpcQuestOfferRespectsAcceptRequirements()
     {
-        GDictionary questDefs = BuildNpcQuestDefs();
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildNpcQuestDefs();
         RuntimeFixture fixture = await BuildRuntimeFixture(
             "npc_locked",
             BuildPartyState(12, 100),
@@ -336,7 +336,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
     private async Task TestNpcQuestOfferAcceptsQuest()
     {
-        GDictionary questDefs = BuildNpcQuestDefs();
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildNpcQuestDefs();
         RuntimeFixture fixture = await BuildRuntimeFixture(
             "npc_accept",
             BuildPartyState(12, 100),
@@ -429,7 +429,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
     private async Task TestNpcQuestOfferConfirmationFlow()
     {
-        GDictionary questDefs = BuildNpcQuestDefs();
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildNpcQuestDefs();
         RuntimeFixture fixture = await BuildRuntimeFixture(
             "npc_confirm",
             BuildPartyState(12, 100),
@@ -551,7 +551,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
     private async Task TestNpcQuestOfferRejectsLockedQuest()
     {
-        GDictionary questDefs = BuildNpcQuestDefs();
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildNpcQuestDefs();
         RuntimeFixture fixture = await BuildRuntimeFixture(
             "npc_reject_locked",
             BuildPartyState(12, 100),
@@ -625,7 +625,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
     private async Task TestNpcQuestOfferRejectsSubmissionWithoutModal()
     {
-        GDictionary questDefs = BuildNpcQuestDefs();
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildNpcQuestDefs();
         RuntimeFixture fixture = await BuildRuntimeFixture(
             "npc_no_modal",
             BuildPartyState(12, 100),
@@ -677,7 +677,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
     private async Task TestNpcQuestOfferRejectsWrongSettlement()
     {
-        GDictionary questDefs = BuildNpcQuestDefs();
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildNpcQuestDefs();
         RuntimeFixture fixture = await BuildRuntimeFixture(
             "npc_wrong_settlement",
             BuildPartyState(12, 100),
@@ -741,7 +741,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
     private async Task TestNpcQuestOfferFallsBackWhenNoMatchingQuests()
     {
-        GDictionary questDefs = BuildNpcQuestDefs();
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildNpcQuestDefs();
         RuntimeFixture fixture = await BuildRuntimeFixture(
             "npc_no_match",
             BuildPartyState(12, 100),
@@ -799,7 +799,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
     private async Task TestNpcQuestOfferMultipleQuests()
     {
-        GDictionary questDefs = BuildNpcQuestDefs();
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildNpcQuestDefs();
         RuntimeFixture fixture = await BuildRuntimeFixture(
             "npc_multi",
             BuildPartyState(12, 100),
@@ -871,7 +871,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
     private async Task TestNpcQuestOfferRejectsMissingQuestId()
     {
-        GDictionary questDefs = BuildNpcQuestDefs();
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildNpcQuestDefs();
         RuntimeFixture fixture = await BuildRuntimeFixture(
             "npc_missing_id",
             BuildPartyState(12, 100),
@@ -932,7 +932,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
     private async Task TestNpcQuestOfferRejectsWrongNpcQuest()
     {
-        GDictionary questDefs = BuildNpcQuestDefs();
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildNpcQuestDefs();
         RuntimeFixture fixture = await BuildRuntimeFixture(
             "npc_wrong_npc",
             BuildPartyState(12, 100),
@@ -994,7 +994,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
     private async Task TestNpcQuestOfferRejectsWrongListingChannel()
     {
-        GDictionary questDefs = BuildNpcQuestDefs();
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildNpcQuestDefs();
         RuntimeFixture fixture = await BuildRuntimeFixture(
             "npc_wrong_channel",
             BuildPartyState(12, 100),
@@ -1056,7 +1056,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
     private async Task TestNpcQuestOfferRejectsNonNpcProviderKind()
     {
-        GDictionary questDefs = BuildNpcQuestDefs();
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildNpcQuestDefs();
         RuntimeFixture fixture = await BuildRuntimeFixture(
             "npc_wrong_kind",
             BuildPartyState(12, 100),
@@ -1118,7 +1118,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
     private async Task TestNpcQuestOfferCloseModalLifecycle()
     {
-        GDictionary questDefs = BuildNpcQuestDefs();
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildNpcQuestDefs();
         RuntimeFixture fixture = await BuildRuntimeFixture(
             "npc_close",
             BuildPartyState(12, 100),
@@ -1192,7 +1192,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
     private async Task TestNpcQuestOfferRefreshesEntriesAfterAccept()
     {
-        GDictionary questDefs = BuildNpcQuestDefs();
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildNpcQuestDefs();
         RuntimeFixture fixture = await BuildRuntimeFixture(
             "npc_refresh",
             BuildPartyState(12, 100),
@@ -1264,7 +1264,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
     private async Task TestNpcQuestOfferRejectsConfirmBypass()
     {
-        GDictionary questDefs = BuildNpcQuestDefs();
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildNpcQuestDefs();
         RuntimeFixture fixture = await BuildRuntimeFixture(
             "npc_confirm_bypass",
             BuildPartyState(12, 100),
@@ -1329,12 +1329,18 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
         string suffix,
         PartyState partyState,
         IReadOnlyList<GDictionary> settlements,
-        GDictionary questDefs
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs
     )
     {
         GameSession gameSession = await InstallGameSession($"NpcQuestOfferGameSession_{suffix}");
         GDictionary worldData = BuildWorldData(settlements);
-        ConfigureSessionForRuntimeTest(gameSession, $"npc_quest_offer_{suffix}", worldData, partyState, questDefs ?? new GDictionary());
+        ConfigureSessionForRuntimeTest(
+            gameSession,
+            $"npc_quest_offer_{suffix}",
+            worldData,
+            partyState,
+            questDefs ?? new Dictionary<StringName, QuestDefinition>()
+        );
         IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
 
         var runtime = new GameRuntimeFacade
@@ -1384,14 +1390,20 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
         return new RuntimeFixture(runtime, gameSession, runtime._settlement_command_handler, runtime._party_warehouse_service);
     }
 
-    private static void ConfigureSessionForRuntimeTest(GameSession gameSession, string saveId, GDictionary worldData, PartyState partyState, GDictionary questDefs)
+    private static void ConfigureSessionForRuntimeTest(
+        GameSession gameSession,
+        string saveId,
+        GDictionary worldData,
+        PartyState partyState,
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs
+    )
     {
         gameSession.ConfigureRuntimeWorldForTests(
             saveId,
             TestConfigPath,
             worldData,
             partyState,
-            questDefs ?? new GDictionary(),
+            questDefs ?? new Dictionary<StringName, QuestDefinition>(),
             "npc_quest_offer_test",
             "NPC Quest Offer Test",
             new Vector2I(8, 8)
@@ -1529,105 +1541,144 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
         };
     }
 
-    private static GDictionary BuildNpcQuestDefs()
+    private static IReadOnlyDictionary<StringName, QuestDefinition> BuildNpcQuestDefs()
     {
-        var questDefs = new GDictionary();
+        var questDefinitions = new Dictionary<StringName, QuestDefinition>();
 
-        QuestDef normalQuest = BuildQuestDef(
+        QuestDefinition normalQuest = BuildQuestDefinition(
             "npc_blacksmith_hrothgar_cave_beasts",
             "洞穴野兽",
             "峡谷北面的野兽又在骚扰商队。",
             "npc_blacksmith_hrothgar",
-            new GArray { BuildObjective("defeat_cave_beasts", "defeat_enemy", "wolf_pack", 1) },
-            new GArray { BuildGoldReward(80) },
+            new QuestObjectiveDefinition[]
+            {
+                BuildObjective("defeat_cave_beasts", "defeat_enemy", "wolf_pack", 1),
+            },
+            new QuestRewardDefinition[] { BuildGoldReward(80) },
+            "npc",
+            new StringName[] { "npc_offer" },
+            System.Array.Empty<QuestAcceptRequirementDefinition>(),
             false,
             "帮我清理峡谷北面的野兽。",
             "接受委托：洞穴野兽。",
             "",
             "接受霍斯加尔的委托？"
         );
-        normalQuest.provider_kind = "npc";
-        normalQuest.listing_channels = new GStringNameArray { "npc_offer" };
-        questDefs[normalQuest.quest_id] = normalQuest;
+        questDefinitions[normalQuest.QuestId] = normalQuest;
 
-        QuestDef noOfferQuest = BuildQuestDef(
+        QuestDefinition noOfferQuest = BuildQuestDefinition(
             "npc_merchant_no_offer_quest",
             "旅行商人的烦恼",
             "没有挂在 npc_offer 频道的任务。",
             "npc_merchant_no_offer",
-            new GArray { BuildObjective("deliver_goods", "settlement_action", "service:warehouse", 1) },
-            new GArray { BuildGoldReward(10) }
+            new QuestObjectiveDefinition[]
+            {
+                BuildObjective(
+                    "deliver_goods",
+                    "settlement_action",
+                    "service:warehouse",
+                    1
+                ),
+            },
+            new QuestRewardDefinition[] { BuildGoldReward(10) },
+            "npc",
+            new StringName[] { "contract_board" },
+            System.Array.Empty<QuestAcceptRequirementDefinition>()
         );
-        noOfferQuest.provider_kind = "npc";
-        noOfferQuest.listing_channels = new GStringNameArray { "contract_board" };
-        questDefs[noOfferQuest.quest_id] = noOfferQuest;
+        questDefinitions[noOfferQuest.QuestId] = noOfferQuest;
 
-        QuestDef lockedQuest = BuildQuestDef(
+        QuestDefinition lockedQuest = BuildQuestDefinition(
             "npc_elder_secret",
             "长老的秘密",
             "需要先完成洞穴野兽委托。",
             "npc_elder_locked",
-            new GArray { BuildObjective("elder_secret", "defeat_enemy", "shadow_cultist", 1) },
-            new GArray { BuildGoldReward(120) }
-        );
-        lockedQuest.provider_kind = "npc";
-        lockedQuest.listing_channels = new GStringNameArray { "npc_offer" };
-        lockedQuest.accept_requirements.Add(
-            new GDictionary
+            new QuestObjectiveDefinition[]
             {
-                ["requirement_type"] = "quest_completed",
-                ["quest_id"] = "npc_blacksmith_hrothgar_cave_beasts",
-            }
+                BuildObjective("elder_secret", "defeat_enemy", "shadow_cultist", 1),
+            },
+            new QuestRewardDefinition[] { BuildGoldReward(120) },
+            "npc",
+            new StringName[] { "npc_offer" },
+            new QuestAcceptRequirementDefinition[]
+            {
+                new(
+                    "quest_completed",
+                    "npc_blacksmith_hrothgar_cave_beasts"
+                ),
+            },
+            false,
+            "",
+            "",
+            "你还没有获得长老的信任。"
         );
-        lockedQuest.accept_feedback_failure = "你还没有获得长老的信任。";
-        questDefs[lockedQuest.quest_id] = lockedQuest;
+        questDefinitions[lockedQuest.QuestId] = lockedQuest;
 
-        QuestDef secondQuest = BuildQuestDef(
+        QuestDefinition secondQuest = BuildQuestDefinition(
             "npc_blacksmith_hrothgar_iron_delivery",
             "铁料运送",
             "把一批铁料送到村口哨塔。",
             "npc_blacksmith_hrothgar",
-            new GArray { BuildObjective("deliver_iron", "settlement_action", "service:warehouse", 1) },
-            new GArray { BuildGoldReward(50) }
+            new QuestObjectiveDefinition[]
+            {
+                BuildObjective(
+                    "deliver_iron",
+                    "settlement_action",
+                    "service:warehouse",
+                    1
+                ),
+            },
+            new QuestRewardDefinition[] { BuildGoldReward(50) },
+            "npc",
+            new StringName[] { "npc_offer" },
+            System.Array.Empty<QuestAcceptRequirementDefinition>()
         );
-        secondQuest.provider_kind = "npc";
-        secondQuest.listing_channels = new GStringNameArray { "npc_offer" };
-        questDefs[secondQuest.quest_id] = secondQuest;
+        questDefinitions[secondQuest.QuestId] = secondQuest;
 
-        QuestDef contractOnlyQuest = BuildQuestDef(
+        QuestDefinition contractOnlyQuest = BuildQuestDefinition(
             "npc_blacksmith_hrothgar_contract_only",
             "铁匠的契约",
             "这是一个只挂在契约板的任务，用于测试错误渠道拒绝。",
             "npc_blacksmith_hrothgar",
-            new GArray { BuildObjective("contract_obj", "defeat_enemy", "wolf_pack", 1) },
-            new GArray { BuildGoldReward(30) }
+            new QuestObjectiveDefinition[]
+            {
+                BuildObjective("contract_obj", "defeat_enemy", "wolf_pack", 1),
+            },
+            new QuestRewardDefinition[] { BuildGoldReward(30) },
+            "npc",
+            new StringName[] { "contract_board" },
+            System.Array.Empty<QuestAcceptRequirementDefinition>()
         );
-        contractOnlyQuest.provider_kind = "npc";
-        contractOnlyQuest.listing_channels = new GStringNameArray { "contract_board" };
-        questDefs[contractOnlyQuest.quest_id] = contractOnlyQuest;
+        questDefinitions[contractOnlyQuest.QuestId] = contractOnlyQuest;
 
-        QuestDef serviceKindQuest = BuildQuestDef(
+        QuestDefinition serviceKindQuest = BuildQuestDefinition(
             "npc_blacksmith_hrothgar_service_kind",
             "铁匠的服务任务",
             "provider_kind 不是 npc，用于测试 provider_kind 拒绝。",
             "npc_blacksmith_hrothgar",
-            new GArray { BuildObjective("service_obj", "defeat_enemy", "wolf_pack", 1) },
-            new GArray { BuildGoldReward(30) }
+            new QuestObjectiveDefinition[]
+            {
+                BuildObjective("service_obj", "defeat_enemy", "wolf_pack", 1),
+            },
+            new QuestRewardDefinition[] { BuildGoldReward(30) },
+            "service_contract_board",
+            new StringName[] { "npc_offer" },
+            System.Array.Empty<QuestAcceptRequirementDefinition>()
         );
-        serviceKindQuest.provider_kind = "service_contract_board";
-        serviceKindQuest.listing_channels = new GStringNameArray { "npc_offer" };
-        questDefs[serviceKindQuest.quest_id] = serviceKindQuest;
+        questDefinitions[serviceKindQuest.QuestId] = serviceKindQuest;
 
-        return questDefs;
+        return questDefinitions;
     }
 
-    private static QuestDef BuildQuestDef(
+    private static QuestDefinition BuildQuestDefinition(
         string questId,
         string displayName,
         string description,
         string providerInteractionId,
-        GArray objectiveDefs,
-        GArray rewardEntries,
+        IReadOnlyList<QuestObjectiveDefinition> objectives,
+        IReadOnlyList<QuestRewardDefinition> rewards,
+        StringName providerKind,
+        IReadOnlyList<StringName> listingChannels,
+        IReadOnlyList<QuestAcceptRequirementDefinition> acceptRequirements,
         bool isRepeatable = false,
         string acceptDialogueText = "",
         string acceptFeedbackSuccess = "",
@@ -1635,46 +1686,41 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
         string acceptConfirmationText = ""
     )
     {
-        var quest = new QuestDef
-        {
-            quest_id = questId,
-            display_name = displayName,
-            description = description,
-            provider_kind = providerInteractionId,
-            provider_interaction_id = providerInteractionId,
-            listing_channels = new GStringNameArray(),
-            is_repeatable = isRepeatable,
-            accept_dialogue_text = acceptDialogueText,
-            accept_feedback_success = acceptFeedbackSuccess,
-            accept_feedback_failure = acceptFeedbackFailure,
-            accept_confirmation_text = acceptConfirmationText,
-        };
-        foreach (GDictionary objective in Dictionaries(objectiveDefs))
-        {
-            quest.objective_defs.Add((GDictionary)objective.Duplicate(true));
-        }
-        foreach (GDictionary reward in Dictionaries(rewardEntries))
-        {
-            quest.reward_entries.Add((GDictionary)reward.Duplicate(true));
-        }
-        return quest;
+        return new QuestDefinition(
+            questId,
+            displayName,
+            description,
+            providerInteractionId,
+            System.Array.Empty<StringName>(),
+            acceptRequirements,
+            objectives,
+            rewards,
+            isRepeatable,
+            providerKind,
+            listingChannels,
+            acceptDialogueText,
+            acceptFeedbackSuccess,
+            acceptFeedbackFailure,
+            acceptConfirmationText
+        );
     }
 
-    private static GDictionary BuildObjective(string objectiveId, string objectiveType, string targetId, int targetValue)
-    {
-        return new GDictionary
-        {
-            ["objective_id"] = objectiveId,
-            ["objective_type"] = objectiveType,
-            ["target_id"] = targetId,
-            ["target_value"] = targetValue,
-        };
-    }
+    private static QuestObjectiveDefinition BuildObjective(
+        string objectiveId,
+        string objectiveType,
+        string targetId,
+        int targetValue
+    ) => new(objectiveId, objectiveType, targetId, targetValue);
 
-    private static GDictionary BuildGoldReward(int amount)
-    {
-        return new GDictionary { ["reward_type"] = "gold", ["amount"] = amount };
-    }
+    private static QuestRewardDefinition BuildGoldReward(int amount) =>
+        new(
+            "gold",
+            amount,
+            "",
+            0,
+            "",
+            System.Array.Empty<QuestPendingRewardEntryDefinition>()
+        );
 
     private static PartyState BuildPartyState(int storageSpace, int gold)
     {

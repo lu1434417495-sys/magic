@@ -19,7 +19,7 @@ internal sealed class ValidationRunReport
         Array.Empty<ValidationDomainResult>();
 }
 
-internal sealed record QuestValidationEntry(string Source, QuestDef QuestDef);
+internal sealed record QuestValidationEntry(string Source, QuestDefinition QuestDefinition);
 
 internal static class ContentValidationRunner
 {
@@ -89,11 +89,14 @@ internal static class ContentValidationRunner
             using ProgressionContentRegistry progressionRegistry = new();
             try
             {
-                progressionRegistry.ReplaceValidationSources(
-                    new GDictionary
+                progressionRegistry.ReplaceDefinitionsForValidation(
+                    new ProgressionDefinitionSources
                     {
-                        ["skill_defs"] = registry.DuplicateSkillResourceBucketForProgressionRegistry(),
+                        SkillDefinitions = registry.GetSkillDefinitionsTyped(),
                     }
+                );
+                progressionRegistry.ReplaceSkillAuthoringResourcesForValidation(
+                    registry.DuplicateSkillResourceBucketForProgressionRegistry()
                 );
                 AppendUniqueErrors(errors, progressionRegistry.CollectValidationErrors());
             }
@@ -194,7 +197,7 @@ internal static class ContentValidationRunner
             "official_items",
             ["res://data/configs/items"],
             ["res://data/configs/items_templates"],
-            traitDefs: ProjectTraitDefs(traitRegistry.GetTraitDefsTyped())
+            traitDefinitions: traitRegistry.GetTraitDefsTyped()
         );
     }
 
@@ -203,7 +206,7 @@ internal static class ContentValidationRunner
         string[] itemDirectories,
         string[] templateDirectories = null,
         GDictionary skillDefs = null,
-        GDictionary traitDefs = null
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefinitions = null
     )
     {
         using ItemContentRegistry registry = new();
@@ -217,13 +220,13 @@ internal static class ContentValidationRunner
                 combinedErrors,
                 ValidateSkillBookItems(ProjectItemDefs(registry.GetItemDefsTyped()), skillDefs)
             );
-        if (traitDefs != null && traitDefs.Count > 0)
+        if (traitDefinitions != null && traitDefinitions.Count > 0)
         {
             AppendUniqueErrors(
                 combinedErrors,
                 ItemTraitContentValidator.Validate(
                     registry.GetItemDefsTyped(),
-                    BuildTraitDefIndex(traitDefs),
+                    traitDefinitions,
                     label
                 )
             );
@@ -320,30 +323,30 @@ internal static class ContentValidationRunner
     )
     {
         List<string> errors = new();
-        Dictionary<StringName, QuestDef> questDefs = new();
+        Dictionary<StringName, QuestDefinition> questDefs = new();
         HashSet<StringName> seenQuestIds = new();
         if (questEntries != null)
         {
             foreach (QuestValidationEntry entry in questEntries)
             {
                 string sourceLabel = string.IsNullOrEmpty(entry.Source) ? label : entry.Source;
-                QuestDef questDef = entry.QuestDef;
+                QuestDefinition questDef = entry.QuestDefinition;
                 if (questDef == null)
                 {
-                    errors.Add($"Quest entry {sourceLabel} failed to cast to QuestDef.");
+                    errors.Add($"Quest entry {sourceLabel} failed to cast to QuestDefinition.");
                     continue;
                 }
-                if (questDef.quest_id == "")
+                if (questDef.QuestId == "")
                 {
                     errors.Add($"Quest entry {sourceLabel} is missing quest_id.");
                     continue;
                 }
-                if (!seenQuestIds.Add(questDef.quest_id))
+                if (!seenQuestIds.Add(questDef.QuestId))
                 {
-                    errors.Add($"Duplicate quest_id registered: {questDef.quest_id}");
+                    errors.Add($"Duplicate quest_id registered: {questDef.QuestId}");
                     continue;
                 }
-                questDefs[questDef.quest_id] = questDef;
+                questDefs[questDef.QuestId] = questDef;
             }
         }
 
@@ -422,56 +425,22 @@ internal static class ContentValidationRunner
         StageAdvancementContentRegistry stageAdvancementRegistry
     )
     {
-            progressionRegistry.ReplaceValidationSources(
-            new GDictionary
+        progressionRegistry.ReplaceDefinitionsForValidation(
+            new ProgressionDefinitionSources
             {
-                ["skill_defs"] = skillDefs?.Duplicate() ?? new GDictionary(),
-                ["race_defs"] = ProjectDefs(raceRegistry.GetRaceDefsTyped()),
-                ["subrace_defs"] = ProjectDefs(subraceRegistry.GetSubraceDefsTyped()),
-                ["trait_defs"] = ProjectTraitDefs(traitRegistry.GetTraitDefsTyped()),
-                ["age_profile_defs"] = ProjectDefs(ageRegistry.GetAgeProfileDefsTyped()),
-                ["bloodline_defs"] = ProjectDefs(bloodlineRegistry.GetBloodlineDefsTyped()),
-                ["bloodline_stage_defs"] = ProjectDefs(
-                    bloodlineRegistry.GetBloodlineStageDefsTyped()
-                ),
-                ["ascension_defs"] = ProjectDefs(ascensionRegistry.GetAscensionDefsTyped()),
-                ["ascension_stage_defs"] = ProjectDefs(
-                    ascensionRegistry.GetAscensionStageDefsTyped()
-                ),
-                ["stage_advancement_defs"] = ProjectDefs(
-                    stageAdvancementRegistry.GetStageAdvancementDefsTyped()
-                ),
+                SkillDefinitions = ProjectSkillDefinitions(skillDefs),
+                RaceDefinitions = raceRegistry.GetRaceDefsTyped(),
+                SubraceDefinitions = subraceRegistry.GetSubraceDefsTyped(),
+                TraitDefinitions = traitRegistry.GetTraitDefsTyped(),
+                AgeProfileDefinitions = ageRegistry.GetAgeProfileDefsTyped(),
+                BloodlineDefinitions = bloodlineRegistry.GetBloodlineDefsTyped(),
+                BloodlineStageDefinitions = bloodlineRegistry.GetBloodlineStageDefsTyped(),
+                AscensionDefinitions = ascensionRegistry.GetAscensionDefsTyped(),
+                AscensionStageDefinitions = ascensionRegistry.GetAscensionStageDefsTyped(),
+                StageAdvancementDefinitions =
+                    stageAdvancementRegistry.GetStageAdvancementDefsTyped(),
             }
         );
-    }
-
-    private static GDictionary ProjectDefs<T>(IReadOnlyDictionary<StringName, T> defs)
-        where T : GodotObject
-    {
-        GDictionary result = new();
-        if (defs == null)
-            return result;
-        foreach ((StringName id, T def) in defs)
-        {
-            if (id == "" || def == null)
-                continue;
-            result[id] = def;
-        }
-        return result;
-    }
-
-    private static GDictionary ProjectTraitDefs(IReadOnlyList<TraitDef> defs)
-    {
-        GDictionary result = new();
-        if (defs == null)
-            return result;
-        foreach (TraitDef def in defs)
-        {
-            if (def == null || def.trait_id == "")
-                continue;
-            result[def.trait_id] = def;
-        }
-        return result;
     }
 
     private static List<string> ValidateSkillBookItems(GDictionary itemDefs, GDictionary skillDefs)
@@ -597,24 +566,6 @@ internal static class ContentValidationRunner
                 continue;
             if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
                 result[itemId] = itemDef;
-        }
-        return result;
-    }
-
-    private static Dictionary<StringName, TraitDef> BuildTraitDefIndex(GDictionary traitDefs)
-    {
-        Dictionary<StringName, TraitDef> result = new();
-        if (traitDefs == null)
-            return result;
-        foreach (Variant rawKey in traitDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            StringName traitId = rawKey.AsStringName();
-            if (traitId == "")
-                continue;
-            if (traitDefs[rawKey].AsGodotObject() is TraitDef traitDef)
-                result[traitId] = traitDef;
         }
         return result;
     }

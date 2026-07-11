@@ -1,11 +1,45 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
+
+internal sealed class ProgressionDefinitionSources
+{
+    public IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions { get; init; }
+    public IReadOnlyDictionary<StringName, ProfessionDefinition> ProfessionDefinitions { get; init; }
+    public IReadOnlyDictionary<StringName, AchievementDefinition> AchievementDefinitions { get; init; }
+    public IReadOnlyDictionary<StringName, QuestDefinition> QuestDefinitions { get; init; }
+    public IReadOnlyDictionary<StringName, ContingencySetupTemplateDefinition> ContingencyDefinitions
+    {
+        get;
+        init;
+    }
+    public IReadOnlyDictionary<StringName, RaceDefinition> RaceDefinitions { get; init; }
+    public IReadOnlyDictionary<StringName, SubraceDefinition> SubraceDefinitions { get; init; }
+    public IReadOnlyDictionary<StringName, TraitDefinition> TraitDefinitions { get; init; }
+    public IReadOnlyDictionary<StringName, AgeProfileDefinition> AgeProfileDefinitions { get; init; }
+    public IReadOnlyDictionary<StringName, BloodlineDefinition> BloodlineDefinitions { get; init; }
+    public IReadOnlyDictionary<StringName, BloodlineStageDefinition> BloodlineStageDefinitions
+    {
+        get;
+        init;
+    }
+    public IReadOnlyDictionary<StringName, AscensionDefinition> AscensionDefinitions { get; init; }
+    public IReadOnlyDictionary<StringName, AscensionStageDefinition> AscensionStageDefinitions
+    {
+        get;
+        init;
+    }
+    public IReadOnlyDictionary<StringName, StageAdvancementDefinition> StageAdvancementDefinitions
+    {
+        get;
+        init;
+    }
+}
 
 public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposable
 {
@@ -21,31 +55,21 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         PracticeCultivation,
     };
     private GDictionary _skillDefs = new();
-    private GDictionary _professionDefs = new();
-    private GDictionary _achievementDefs = new();
-    private GDictionary _questDefs = new();
-    private GDictionary _raceDefs = new();
-    private GDictionary _subraceDefs = new();
-    private GDictionary _traitDefs = new();
-    private GDictionary _ageProfileDefs = new();
-    private GDictionary _bloodlineDefs = new();
-    private GDictionary _bloodlineStageDefs = new();
-    private GDictionary _ascensionDefs = new();
-    private GDictionary _ascensionStageDefs = new();
-    private GDictionary _stageAdvancementDefs = new();
     private readonly Dictionary<StringName, SkillDefinition> _skillDefinitionIndex = new();
-    private readonly Dictionary<StringName, ProfessionDef> _professionDefIndex = new();
-    private readonly Dictionary<StringName, AchievementDef> _achievementDefIndex = new();
-    private readonly Dictionary<StringName, QuestDef> _questDefIndex = new();
-    private readonly Dictionary<StringName, RaceDef> _raceDefIndex = new();
-    private readonly Dictionary<StringName, SubraceDef> _subraceDefIndex = new();
-    private readonly Dictionary<StringName, TraitDef> _traitDefIndex = new();
-    private readonly Dictionary<StringName, AgeProfileDef> _ageProfileDefIndex = new();
-    private readonly Dictionary<StringName, BloodlineDef> _bloodlineDefIndex = new();
-    private readonly Dictionary<StringName, BloodlineStageDef> _bloodlineStageDefIndex = new();
-    private readonly Dictionary<StringName, AscensionDef> _ascensionDefIndex = new();
-    private readonly Dictionary<StringName, AscensionStageDef> _ascensionStageDefIndex = new();
-    private readonly Dictionary<StringName, StageAdvancementModifier> _stageAdvancementDefIndex =
+    private readonly Dictionary<StringName, ProfessionDefinition> _professionDefIndex = new();
+    private readonly Dictionary<StringName, AchievementDefinition> _achievementDefIndex = new();
+    private readonly Dictionary<StringName, QuestDefinition> _questDefIndex = new();
+    private readonly Dictionary<StringName, ContingencySetupTemplateDefinition> _contingencyDefIndex =
+        new();
+    private readonly Dictionary<StringName, RaceDefinition> _raceDefIndex = new();
+    private readonly Dictionary<StringName, SubraceDefinition> _subraceDefIndex = new();
+    private readonly Dictionary<StringName, TraitDefinition> _traitDefIndex = new();
+    private readonly Dictionary<StringName, AgeProfileDefinition> _ageProfileDefIndex = new();
+    private readonly Dictionary<StringName, BloodlineDefinition> _bloodlineDefIndex = new();
+    private readonly Dictionary<StringName, BloodlineStageDefinition> _bloodlineStageDefIndex = new();
+    private readonly Dictionary<StringName, AscensionDefinition> _ascensionDefIndex = new();
+    private readonly Dictionary<StringName, AscensionStageDefinition> _ascensionStageDefIndex = new();
+    private readonly Dictionary<StringName, StageAdvancementDefinition> _stageAdvancementDefIndex =
         new();
 
     private readonly SkillContentRegistry _skillContentRegistry = new();
@@ -63,137 +87,8 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
 
     private GStringArray _validationErrors = new();
     private readonly List<string> _questRegistrationErrors = new();
+    private bool _usesReplacementDefinitionsForValidation;
     private bool _disposed;
-    private bool _typedIndexesDirty = true;
-
-    public GDictionary _skill_defs
-    {
-        get => _skillDefs;
-        set
-        {
-            _skillDefs = RegisterDefinitionBucket(value, "_skill_defs.set");
-            _typedIndexesDirty = true;
-        }
-    }
-    public GDictionary _profession_defs
-    {
-        get => _professionDefs;
-        set
-        {
-            _professionDefs = RegisterDefinitionBucket(value, "_profession_defs.set");
-            _typedIndexesDirty = true;
-        }
-    }
-    public GDictionary _achievement_defs
-    {
-        get => _achievementDefs;
-        set
-        {
-            _achievementDefs = RegisterDefinitionBucket(value, "_achievement_defs.set");
-            _typedIndexesDirty = true;
-            SyncTypedDefinitionIndexes();
-        }
-    }
-    public GDictionary _quest_defs
-    {
-        get => _questDefs;
-        set
-        {
-            _questDefs = RegisterDefinitionBucket(value, "_quest_defs.set");
-            _typedIndexesDirty = true;
-            SyncTypedDefinitionIndexes();
-        }
-    }
-    public GDictionary _race_defs
-    {
-        get => _raceDefs;
-        set
-        {
-            _raceDefs = RegisterDefinitionBucket(value, "_race_defs.set");
-            _typedIndexesDirty = true;
-            SyncTypedDefinitionIndexes();
-        }
-    }
-    public GDictionary _subrace_defs
-    {
-        get => _subraceDefs;
-        set
-        {
-            _subraceDefs = RegisterDefinitionBucket(value, "_subrace_defs.set");
-            _typedIndexesDirty = true;
-            SyncTypedDefinitionIndexes();
-        }
-    }
-    public GDictionary _trait_defs
-    {
-        get => _traitDefs;
-        set
-        {
-            _traitDefs = RegisterDefinitionBucket(value, "_trait_defs.set");
-            _typedIndexesDirty = true;
-            SyncTypedDefinitionIndexes();
-        }
-    }
-    public GDictionary _age_profile_defs
-    {
-        get => _ageProfileDefs;
-        set
-        {
-            _ageProfileDefs = RegisterDefinitionBucket(value, "_age_profile_defs.set");
-            _typedIndexesDirty = true;
-            SyncTypedDefinitionIndexes();
-        }
-    }
-    public GDictionary _bloodline_defs
-    {
-        get => _bloodlineDefs;
-        set
-        {
-            _bloodlineDefs = RegisterDefinitionBucket(value, "_bloodline_defs.set");
-            _typedIndexesDirty = true;
-            SyncTypedDefinitionIndexes();
-        }
-    }
-    public GDictionary _bloodline_stage_defs
-    {
-        get => _bloodlineStageDefs;
-        set
-        {
-            _bloodlineStageDefs = RegisterDefinitionBucket(value, "_bloodline_stage_defs.set");
-            _typedIndexesDirty = true;
-            SyncTypedDefinitionIndexes();
-        }
-    }
-    public GDictionary _ascension_defs
-    {
-        get => _ascensionDefs;
-        set
-        {
-            _ascensionDefs = RegisterDefinitionBucket(value, "_ascension_defs.set");
-            _typedIndexesDirty = true;
-            SyncTypedDefinitionIndexes();
-        }
-    }
-    public GDictionary _ascension_stage_defs
-    {
-        get => _ascensionStageDefs;
-        set
-        {
-            _ascensionStageDefs = RegisterDefinitionBucket(value, "_ascension_stage_defs.set");
-            _typedIndexesDirty = true;
-            SyncTypedDefinitionIndexes();
-        }
-    }
-    public GDictionary _stage_advancement_defs
-    {
-        get => _stageAdvancementDefs;
-        set
-        {
-            _stageAdvancementDefs = RegisterDefinitionBucket(value, "_stage_advancement_defs.set");
-            _typedIndexesDirty = true;
-            SyncTypedDefinitionIndexes();
-        }
-    }
     public GStringArray _validation_errors
     {
         get => _validationErrors;
@@ -256,44 +151,63 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             _skillContentRegistry.DuplicateSkillResourceBucketForProgressionRegistry(),
             "SkillContentRegistry.skill_defs"
         );
+        ReplaceDefinitionIndex(
+            _skillDefinitionIndex,
+            _skillContentRegistry.GetSkillDefinitionsTyped()
+        );
         AppendArray(_validationErrors, _skillContentRegistry.Validate());
 
         _professionContentRegistry.Setup(_skillContentRegistry.GetSkillDefinitionsTyped());
-        _professionDefs = ProjectTypedDictionary(_professionContentRegistry.GetProfessionDefsTyped());
+        ReplaceDefinitionIndex(
+            _professionDefIndex,
+            _professionContentRegistry.GetProfessionDefsTyped()
+        );
 
         _raceContentRegistry.Rebuild();
-        _raceDefs = ProjectTypedDictionary(_raceContentRegistry.GetRaceDefsTyped());
+        ReplaceDefinitionIndex(_raceDefIndex, _raceContentRegistry.GetRaceDefsTyped());
         _subraceContentRegistry.Rebuild();
-        _subraceDefs = ProjectTypedDictionary(_subraceContentRegistry.GetSubraceDefsTyped());
+        ReplaceDefinitionIndex(_subraceDefIndex, _subraceContentRegistry.GetSubraceDefsTyped());
         _traitContentRegistry.Rebuild();
-        _traitDefs = ProjectTraitDefs(_traitContentRegistry.GetTraitDefsTyped());
+        ReplaceDefinitionIndex(_traitDefIndex, _traitContentRegistry.GetTraitDefsTyped());
         _ageContentRegistry.Rebuild();
-        _ageProfileDefs = ProjectTypedDictionary(_ageContentRegistry.GetAgeProfileDefsTyped());
+        ReplaceDefinitionIndex(_ageProfileDefIndex, _ageContentRegistry.GetAgeProfileDefsTyped());
         _bloodlineContentRegistry.Rebuild();
-        _bloodlineDefs = ProjectTypedDictionary(_bloodlineContentRegistry.GetBloodlineDefsTyped());
-        _bloodlineStageDefs = ProjectTypedDictionary(
+        ReplaceDefinitionIndex(
+            _bloodlineDefIndex,
+            _bloodlineContentRegistry.GetBloodlineDefsTyped()
+        );
+        ReplaceDefinitionIndex(
+            _bloodlineStageDefIndex,
             _bloodlineContentRegistry.GetBloodlineStageDefsTyped()
         );
         _ascensionContentRegistry.Rebuild();
-        _ascensionDefs = ProjectTypedDictionary(_ascensionContentRegistry.GetAscensionDefsTyped());
-        _ascensionStageDefs = ProjectTypedDictionary(
+        ReplaceDefinitionIndex(
+            _ascensionDefIndex,
+            _ascensionContentRegistry.GetAscensionDefsTyped()
+        );
+        ReplaceDefinitionIndex(
+            _ascensionStageDefIndex,
             _ascensionContentRegistry.GetAscensionStageDefsTyped()
         );
         _stageAdvancementContentRegistry.Rebuild();
-        _stageAdvancementDefs = ProjectTypedDictionary(
+        ReplaceDefinitionIndex(
+            _stageAdvancementDefIndex,
             _stageAdvancementContentRegistry.GetStageAdvancementDefsTyped()
         );
 
         _questContentRegistry.Rebuild();
         foreach (string error in _questContentRegistry.GetValidationErrors())
             _validationErrors.Add(error);
-        foreach (QuestDef questDef in _questContentRegistry.GetQuestDefsTyped().Values)
+        foreach (QuestDefinition questDef in _questContentRegistry.GetQuestDefsTyped().Values)
             _register_quest(questDef);
         _contingencyTemplateContentRegistry.Rebuild();
         foreach (string error in _contingencyTemplateContentRegistry.GetValidationErrors())
             _validationErrors.Add(error);
+        ReplaceDefinitionIndex(
+            _contingencyDefIndex,
+            _contingencyTemplateContentRegistry.GetTemplateDefsTyped()
+        );
         _register_seed_achievements();
-        SyncTypedDefinitionIndexes();
 
         EquipmentAbilityRegistryBuildResult equipmentAbilityResult =
             _equipmentAbilityContentRegistry.Rebuild(
@@ -316,19 +230,16 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
 
     public IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionsTyped()
     {
-        SyncTypedDefinitionIndexes();
         return CloneTypedDictionary(_skillDefinitionIndex);
     }
 
     internal GDictionary DuplicateSkillResourceBucketForValidation()
     {
-        SyncTypedDefinitionIndexes();
         return DuplicateDictionary(_skillDefs, "skill_defs.validation_snapshot");
     }
 
     internal IReadOnlyList<Resource> GetLoadedSkillResourcesForFinalizerDrain()
     {
-        SyncTypedDefinitionIndexes();
         var result = new List<Resource>();
         foreach (Variant rawKey in _skillDefs.Keys)
         {
@@ -351,21 +262,18 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         return result;
     }
 
-    public IReadOnlyDictionary<StringName, ProfessionDef> GetProfessionDefsTyped()
+    public IReadOnlyDictionary<StringName, ProfessionDefinition> GetProfessionDefsTyped()
     {
-        SyncTypedDefinitionIndexes();
         return CloneTypedDictionary(_professionDefIndex);
     }
 
-    public IReadOnlyDictionary<StringName, AchievementDef> GetAchievementDefsTyped()
+    public IReadOnlyDictionary<StringName, AchievementDefinition> GetAchievementDefsTyped()
     {
-        SyncTypedDefinitionIndexes();
         return CloneTypedDictionary(_achievementDefIndex);
     }
 
-    public IReadOnlyDictionary<StringName, QuestDef> GetQuestDefsTyped()
+    public IReadOnlyDictionary<StringName, QuestDefinition> GetQuestDefsTyped()
     {
-        SyncTypedDefinitionIndexes();
         return CloneTypedDictionary(_questDefIndex);
     }
 
@@ -374,28 +282,26 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         return new List<string>(_questRegistrationErrors);
     }
 
-    public IReadOnlyDictionary<StringName, ContingencySetupTemplateDef> GetContingencySetupTemplatesTyped()
+    public IReadOnlyDictionary<
+        StringName,
+        ContingencySetupTemplateDefinition
+    > GetContingencySetupTemplatesTyped()
     {
-        return new Dictionary<StringName, ContingencySetupTemplateDef>(
-            _contingencyTemplateContentRegistry.GetTemplateDefsTyped()
-        );
+        return CloneTypedDictionary(_contingencyDefIndex);
     }
 
-    public IReadOnlyDictionary<StringName, RaceDef> GetRaceDefsTyped()
+    public IReadOnlyDictionary<StringName, RaceDefinition> GetRaceDefsTyped()
     {
-        SyncTypedDefinitionIndexes();
         return CloneTypedDictionary(_raceDefIndex);
     }
 
-    public IReadOnlyDictionary<StringName, SubraceDef> GetSubraceDefsTyped()
+    public IReadOnlyDictionary<StringName, SubraceDefinition> GetSubraceDefsTyped()
     {
-        SyncTypedDefinitionIndexes();
         return CloneTypedDictionary(_subraceDefIndex);
     }
 
-    public IReadOnlyDictionary<StringName, TraitDef> GetTraitDefsTyped()
+    public IReadOnlyDictionary<StringName, TraitDefinition> GetTraitDefsTyped()
     {
-        SyncTypedDefinitionIndexes();
         return CloneTypedDictionary(_traitDefIndex);
     }
 
@@ -414,45 +320,41 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     internal EquipmentAbilityContentRegistry GetEquipmentAbilityContentRegistryTyped() =>
         _equipmentAbilityContentRegistry;
 
-    public IReadOnlyDictionary<StringName, AgeProfileDef> GetAgeProfileDefsTyped()
+    public IReadOnlyDictionary<StringName, AgeProfileDefinition> GetAgeProfileDefsTyped()
     {
-        SyncTypedDefinitionIndexes();
         return CloneTypedDictionary(_ageProfileDefIndex);
     }
 
-    public IReadOnlyDictionary<StringName, BloodlineDef> GetBloodlineDefsTyped()
+    public IReadOnlyDictionary<StringName, BloodlineDefinition> GetBloodlineDefsTyped()
     {
-        SyncTypedDefinitionIndexes();
         return CloneTypedDictionary(_bloodlineDefIndex);
     }
 
-    public IReadOnlyDictionary<StringName, BloodlineStageDef> GetBloodlineStageDefsTyped()
+    public IReadOnlyDictionary<StringName, BloodlineStageDefinition> GetBloodlineStageDefsTyped()
     {
-        SyncTypedDefinitionIndexes();
         return CloneTypedDictionary(_bloodlineStageDefIndex);
     }
 
-    public IReadOnlyDictionary<StringName, AscensionDef> GetAscensionDefsTyped()
+    public IReadOnlyDictionary<StringName, AscensionDefinition> GetAscensionDefsTyped()
     {
-        SyncTypedDefinitionIndexes();
         return CloneTypedDictionary(_ascensionDefIndex);
     }
 
-    public IReadOnlyDictionary<StringName, AscensionStageDef> GetAscensionStageDefsTyped()
+    public IReadOnlyDictionary<StringName, AscensionStageDefinition> GetAscensionStageDefsTyped()
     {
-        SyncTypedDefinitionIndexes();
         return CloneTypedDictionary(_ascensionStageDefIndex);
     }
 
-    public IReadOnlyDictionary<StringName, StageAdvancementModifier> GetStageAdvancementDefsTyped()
+    public IReadOnlyDictionary<
+        StringName,
+        StageAdvancementDefinition
+    > GetStageAdvancementDefsTyped()
     {
-        SyncTypedDefinitionIndexes();
         return CloneTypedDictionary(_stageAdvancementDefIndex);
     }
 
     public ProgressionIdentityCatalogData GetIdentityCatalogTyped()
     {
-        SyncTypedDefinitionIndexes();
         return new ProgressionIdentityCatalogData(
             _raceDefIndex,
             _subraceDefIndex,
@@ -472,65 +374,60 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
 
     public IReadOnlyList<string> ValidateTyped()
     {
-        SyncTypedDefinitionIndexes();
         var errors = new List<string>();
         AppendUniqueErrors(errors, _validationErrors);
-        AppendUniqueErrors(errors, _skillContentRegistry.Validate());
-        AppendUniqueErrors(errors, _professionContentRegistry.Validate());
-        AppendUniqueErrors(errors, _raceContentRegistry.Validate());
-        AppendUniqueErrors(errors, _subraceContentRegistry.Validate());
-        AppendUniqueErrors(errors, _traitContentRegistry.Validate());
-        AppendUniqueErrors(errors, _ageContentRegistry.Validate());
-        AppendUniqueErrors(errors, _bloodlineContentRegistry.Validate());
-        AppendUniqueErrors(errors, _ascensionContentRegistry.Validate());
-        AppendUniqueErrors(errors, _stageAdvancementContentRegistry.Validate());
         AppendUniqueErrors(errors, CollectValidationErrorsTyped());
         return errors;
     }
 
-    public void ReplaceValidationSources(GDictionary sources)
+    internal void ReplaceDefinitionsForValidation(ProgressionDefinitionSources sources)
     {
+        System.ArgumentNullException.ThrowIfNull(sources);
         _validationErrors.Clear();
-        ReplaceDefinitionBuckets(sources);
+        _questRegistrationErrors.Clear();
+        _skillDefs.Clear();
+        _usesReplacementDefinitionsForValidation = true;
+        ReplaceDefinitionIndex(_skillDefinitionIndex, sources.SkillDefinitions);
+        ReplaceDefinitionIndex(_professionDefIndex, sources.ProfessionDefinitions);
+        ReplaceDefinitionIndex(_achievementDefIndex, sources.AchievementDefinitions);
+        ReplaceDefinitionIndex(_questDefIndex, sources.QuestDefinitions);
+        ReplaceDefinitionIndex(_contingencyDefIndex, sources.ContingencyDefinitions);
+        ReplaceDefinitionIndex(_raceDefIndex, sources.RaceDefinitions);
+        ReplaceDefinitionIndex(_subraceDefIndex, sources.SubraceDefinitions);
+        ReplaceDefinitionIndex(_traitDefIndex, sources.TraitDefinitions);
+        ReplaceDefinitionIndex(_ageProfileDefIndex, sources.AgeProfileDefinitions);
+        ReplaceDefinitionIndex(_bloodlineDefIndex, sources.BloodlineDefinitions);
+        ReplaceDefinitionIndex(
+            _bloodlineStageDefIndex,
+            sources.BloodlineStageDefinitions
+        );
+        ReplaceDefinitionIndex(_ascensionDefIndex, sources.AscensionDefinitions);
+        ReplaceDefinitionIndex(
+            _ascensionStageDefIndex,
+            sources.AscensionStageDefinitions
+        );
+        ReplaceDefinitionIndex(
+            _stageAdvancementDefIndex,
+            sources.StageAdvancementDefinitions
+        );
     }
 
-    public void ReplaceDefinitionBuckets(GDictionary sources)
+    internal void ReplaceSkillAuthoringResourcesForValidation(GDictionary skillResources)
     {
-        _skillDefs = DuplicateDictionary(GetDictionary(sources, "skill_defs"), "skill_defs");
-        _professionDefs = DuplicateDictionary(GetDictionary(sources, "profession_defs"), "profession_defs");
-        _achievementDefs = DuplicateDictionary(GetDictionary(sources, "achievement_defs"), "achievement_defs");
-        _questDefs = DuplicateDictionary(GetDictionary(sources, "quest_defs"), "quest_defs");
-        _raceDefs = DuplicateDictionary(GetDictionary(sources, "race_defs"), "race_defs");
-        _subraceDefs = DuplicateDictionary(GetDictionary(sources, "subrace_defs"), "subrace_defs");
-        _traitDefs = DuplicateDictionary(GetDictionary(sources, "trait_defs"), "trait_defs");
-        _ageProfileDefs = DuplicateDictionary(GetDictionary(sources, "age_profile_defs"), "age_profile_defs");
-        _bloodlineDefs = DuplicateDictionary(GetDictionary(sources, "bloodline_defs"), "bloodline_defs");
-        _bloodlineStageDefs = DuplicateDictionary(
-            GetDictionary(sources, "bloodline_stage_defs"),
-            "bloodline_stage_defs"
+        _skillDefs = DuplicateDictionary(skillResources, "skill_defs.validation_input");
+        ReplaceDefinitionIndex(
+            _skillDefinitionIndex,
+            SkillDefinition.ProjectIndex(BuildSkillDefIndex())
         );
-        _ascensionDefs = DuplicateDictionary(GetDictionary(sources, "ascension_defs"), "ascension_defs");
-        _ascensionStageDefs = DuplicateDictionary(
-            GetDictionary(sources, "ascension_stage_defs"),
-            "ascension_stage_defs"
-        );
-        _stageAdvancementDefs = DuplicateDictionary(
-            GetDictionary(sources, "stage_advancement_defs"),
-            "stage_advancement_defs"
-        );
-        _typedIndexesDirty = true;
-        SyncTypedDefinitionIndexes();
     }
 
     public GStringArray CollectValidationErrors()
     {
-        SyncTypedDefinitionIndexes();
         return ToGodotStringArray(CollectValidationErrorsTyped());
     }
 
     public void AppendIdentityPhase2ValidationErrors(GStringArray errors)
     {
-        SyncTypedDefinitionIndexes();
         if (errors == null)
         {
             return;
@@ -574,10 +471,27 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             AppendUniqueErrors(errors, skillErrors);
         }
 
-        foreach (string achievementKey in ProgressionDataUtils.sorted_string_keys(_achievementDefs))
+        if (_usesReplacementDefinitionsForValidation)
         {
-            var achievementId = new StringName(achievementKey);
-            _achievementDefIndex.TryGetValue(achievementId, out AchievementDef achievementDef);
+            AppendUniqueErrors(
+                errors,
+                ProfessionContentRegistry.ValidateDefinitions(
+                    _professionDefIndex,
+                    _skillDefinitionIndex
+                )
+            );
+            AppendUniqueErrors(
+                errors,
+                TraitContentRegistry.ValidateDefinitions(_traitDefIndex)
+            );
+        }
+
+        foreach (StringName achievementId in SortedKeys(_achievementDefIndex))
+        {
+            _achievementDefIndex.TryGetValue(
+                achievementId,
+                out AchievementDefinition achievementDef
+            );
             _append_invalid_achievement_errors(
                 errors,
                 achievementId,
@@ -596,12 +510,12 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
 
         foreach (StringName raceId in SortedKeys(_raceDefIndex))
         {
-            _raceDefIndex.TryGetValue(raceId, out RaceDef raceDef);
+            _raceDefIndex.TryGetValue(raceId, out RaceDefinition raceDef);
             _append_race_phase2_errors(errors, raceId, raceDef);
         }
         foreach (StringName subraceId in SortedKeys(_subraceDefIndex))
         {
-            _subraceDefIndex.TryGetValue(subraceId, out SubraceDef subraceDef);
+            _subraceDefIndex.TryGetValue(subraceId, out SubraceDefinition subraceDef);
             _append_subrace_phase2_errors(
                 errors,
                 subraceId,
@@ -610,7 +524,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         }
         foreach (StringName profileId in SortedKeys(_ageProfileDefIndex))
         {
-            _ageProfileDefIndex.TryGetValue(profileId, out AgeProfileDef profileDef);
+            _ageProfileDefIndex.TryGetValue(profileId, out AgeProfileDefinition profileDef);
             _append_age_profile_phase2_errors(
                 errors,
                 profileId,
@@ -619,7 +533,10 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         }
         foreach (StringName bloodlineId in SortedKeys(_bloodlineDefIndex))
         {
-            _bloodlineDefIndex.TryGetValue(bloodlineId, out BloodlineDef bloodlineDef);
+            _bloodlineDefIndex.TryGetValue(
+                bloodlineId,
+                out BloodlineDefinition bloodlineDef
+            );
             _append_bloodline_phase2_errors(
                 errors,
                 bloodlineId,
@@ -628,7 +545,10 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         }
         foreach (StringName stageId in SortedKeys(_bloodlineStageDefIndex))
         {
-            _bloodlineStageDefIndex.TryGetValue(stageId, out BloodlineStageDef stageDef);
+            _bloodlineStageDefIndex.TryGetValue(
+                stageId,
+                out BloodlineStageDefinition stageDef
+            );
             _append_bloodline_stage_phase2_errors(
                 errors,
                 stageId,
@@ -637,7 +557,10 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         }
         foreach (StringName ascensionId in SortedKeys(_ascensionDefIndex))
         {
-            _ascensionDefIndex.TryGetValue(ascensionId, out AscensionDef ascensionDef);
+            _ascensionDefIndex.TryGetValue(
+                ascensionId,
+                out AscensionDefinition ascensionDef
+            );
             _append_ascension_phase2_errors(
                 errors,
                 ascensionId,
@@ -646,7 +569,10 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         }
         foreach (StringName stageId in SortedKeys(_ascensionStageDefIndex))
         {
-            _ascensionStageDefIndex.TryGetValue(stageId, out AscensionStageDef stageDef);
+            _ascensionStageDefIndex.TryGetValue(
+                stageId,
+                out AscensionStageDefinition stageDef
+            );
             _append_ascension_stage_phase2_errors(
                 errors,
                 stageId,
@@ -657,7 +583,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         {
             _stageAdvancementDefIndex.TryGetValue(
                 modifierId,
-                out StageAdvancementModifier modifier
+                out StageAdvancementDefinition modifier
             );
             _append_stage_advancement_phase2_errors(
                 errors,
@@ -671,23 +597,12 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private void ClearRuntimeCaches()
     {
         _skillDefs.Clear();
-        _professionDefs.Clear();
-        _achievementDefs.Clear();
-        _questDefs.Clear();
         _questRegistrationErrors.Clear();
-        _raceDefs.Clear();
-        _subraceDefs.Clear();
-        _traitDefs.Clear();
-        _ageProfileDefs.Clear();
-        _bloodlineDefs.Clear();
-        _bloodlineStageDefs.Clear();
-        _ascensionDefs.Clear();
-        _ascensionStageDefs.Clear();
-        _stageAdvancementDefs.Clear();
         _skillDefinitionIndex.Clear();
         _professionDefIndex.Clear();
         _achievementDefIndex.Clear();
         _questDefIndex.Clear();
+        _contingencyDefIndex.Clear();
         _raceDefIndex.Clear();
         _subraceDefIndex.Clear();
         _traitDefIndex.Clear();
@@ -698,7 +613,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         _ascensionStageDefIndex.Clear();
         _stageAdvancementDefIndex.Clear();
         _validationErrors.Clear();
-        _typedIndexesDirty = true;
+        _usesReplacementDefinitionsForValidation = false;
     }
 
     private static IReadOnlyList<EquipmentAbilityContentPackDef> LoadEquipmentAbilityContentPacks()
@@ -757,7 +672,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
 
     private EquipmentAbilityContentValidationContext BuildEquipmentAbilityValidationContext()
     {
-        SyncTypedDefinitionIndexes();
         return new EquipmentAbilityContentValidationContext
         {
             KnownTraitIds = ReadOnlyKeySet(_traitDefIndex),
@@ -1011,81 +925,28 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     
     }
 
-    private AchievementDef _build_achievement(
+    private AchievementDefinition _build_achievement(
         StringName achievementId,
         string displayName,
         string description,
         StringName eventType,
         StringName subjectId,
         int threshold,
-        params AchievementRewardDef[] rewards
+        params AchievementRewardDefinition[] rewards
     )
     {
-        var achievement = new AchievementDef
-        {
-            achievement_id = achievementId,
-            display_name = displayName,
-            description = description,
-            event_type = eventType,
-            subject_id = subjectId,
-            threshold = threshold,
-        };
-        if (rewards == null)
-        {
-            return achievement;
-        }
-        foreach (AchievementRewardDef reward in rewards)
-        {
-            if (reward != null)
-                achievement.rewards.Add(reward);
-        }
-        return achievement;
+        return new AchievementDefinition(
+            achievementId,
+            displayName,
+            description,
+            eventType,
+            subjectId,
+            threshold,
+            rewards ?? System.Array.Empty<AchievementRewardDefinition>()
+        );
     }
 
-    private QuestDef _build_quest(
-        StringName questId,
-        string displayName,
-        string description,
-        StringName providerInteractionId,
-        GArray objectiveDefs,
-        GArray rewardEntries,
-        GStringNameArray tags = null,
-        StringName providerKind = null,
-        GStringNameArray listingChannels = null,
-        string acceptDialogueText = "",
-        string acceptFeedbackSuccess = "",
-        string acceptFeedbackFailure = "",
-        string acceptConfirmationText = ""
-    )
-    {
-        var questDef = new QuestDef
-        {
-            quest_id = questId,
-            display_name = displayName,
-            description = description,
-            provider_interaction_id = providerInteractionId,
-            tags = tags != null ? DuplicateStringNameArray(tags) : new GStringNameArray(),
-            provider_kind = providerKind ?? new StringName(""),
-            listing_channels = listingChannels != null
-                ? DuplicateStringNameArray(listingChannels)
-                : new GStringNameArray(),
-            accept_dialogue_text = acceptDialogueText,
-            accept_feedback_success = acceptFeedbackSuccess,
-            accept_feedback_failure = acceptFeedbackFailure,
-            accept_confirmation_text = acceptConfirmationText,
-        };
-        foreach (GDictionary objectiveValue in ReadDictionaryItems(objectiveDefs))
-        {
-            questDef.objective_defs.Add(objectiveValue.Duplicate(true));
-        }
-        foreach (GDictionary rewardValue in ReadDictionaryItems(rewardEntries))
-        {
-            questDef.reward_entries.Add(rewardValue.Duplicate(true));
-        }
-        return questDef;
-    }
-
-    private AchievementRewardDef _build_achievement_reward(
+    private AchievementRewardDefinition _build_achievement_reward(
         StringName rewardType,
         StringName targetId,
         string targetLabel,
@@ -1093,56 +954,55 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         string reasonText = ""
     )
     {
-        return new AchievementRewardDef
-        {
-            reward_type = rewardType,
-            target_id = targetId,
-            target_label = targetLabel,
-            amount = amount,
-            reason_text = reasonText,
-        };
+        return new AchievementRewardDefinition(
+            rewardType,
+            targetId,
+            targetLabel,
+            amount,
+            reasonText
+        );
     }
 
-    private void _register_achievement(AchievementDef achievementDef)
+    private void _register_achievement(AchievementDefinition achievementDef)
     {
-        if (achievementDef == null || achievementDef.achievement_id == "")
+        if (achievementDef == null || achievementDef.AchievementId == "")
         {
             _validationErrors.Add(
                 "Encountered an achievement definition without an achievement_id."
             );
             return;
         }
-        if (_achievementDefs.ContainsKey(achievementDef.achievement_id))
+        if (_achievementDefIndex.ContainsKey(achievementDef.AchievementId))
         {
             _validationErrors.Add(
-                $"Duplicate achievement_id registered: {achievementDef.achievement_id}"
+                $"Duplicate achievement_id registered: {achievementDef.AchievementId}"
             );
             return;
         }
-        _achievementDefs[achievementDef.achievement_id] = achievementDef.ToDictionary();
-        _achievementDefIndex[achievementDef.achievement_id] = achievementDef;
-        _typedIndexesDirty = true;
+        _achievementDefIndex[achievementDef.AchievementId] = achievementDef;
     }
 
-    private void _register_quest(QuestDef questDef)
+    private void _register_quest(QuestDefinition questDef)
     {
-        if (questDef == null || questDef.quest_id == "")
+        if (questDef == null || questDef.QuestId == "")
         {
             _questRegistrationErrors.Add("Encountered a quest definition without a quest_id.");
             return;
         }
-        if (_questDefs.ContainsKey(questDef.quest_id))
+        if (_questDefIndex.ContainsKey(questDef.QuestId))
         {
-            _questRegistrationErrors.Add($"Duplicate quest_id registered: {questDef.quest_id}");
+            _questRegistrationErrors.Add($"Duplicate quest_id registered: {questDef.QuestId}");
             return;
         }
 
-        _questDefs[questDef.quest_id] = questDef;
-        _questDefIndex[questDef.quest_id] = questDef;
-        _typedIndexesDirty = true;
+        _questDefIndex[questDef.QuestId] = questDef;
     }
 
-    private void _append_race_phase2_errors(List<string> errors, StringName raceId, RaceDef raceDef)
+    private void _append_race_phase2_errors(
+        List<string> errors,
+        StringName raceId,
+        RaceDefinition raceDef
+    )
     {
         if (raceDef == null)
         {
@@ -1153,57 +1013,57 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             errors,
             ownerLabel,
             "body_size_category",
-            raceDef.body_size_category,
+            raceDef.BodySizeCategory,
             false
         );
-        _append_damage_resistance_errors(errors, ownerLabel, raceDef.damage_resistances);
-        _append_trait_reference_errors(errors, ownerLabel, raceDef.trait_ids, "trait_ids");
+        _append_damage_resistance_errors(errors, ownerLabel, raceDef.DamageResistances);
+        _append_trait_reference_errors(errors, ownerLabel, raceDef.TraitIds, "trait_ids");
         _append_racial_granted_skill_reference_errors(
             errors,
             ownerLabel,
-            raceDef.racial_granted_skills,
+            raceDef.RacialGrantedSkills,
             "race"
         );
 
         if (
-            raceDef.age_profile_id != ""
-            && !_ageProfileDefIndex.ContainsKey(raceDef.age_profile_id)
+            raceDef.AgeProfileId != ""
+            && !_ageProfileDefIndex.ContainsKey(raceDef.AgeProfileId)
         )
         {
-            errors.Add($"{ownerLabel} references missing age_profile {raceDef.age_profile_id}.");
+            errors.Add($"{ownerLabel} references missing age_profile {raceDef.AgeProfileId}.");
         }
 
-        if (raceDef.default_subrace_id != "")
+        if (raceDef.DefaultSubraceId != "")
         {
-            if (!_subraceDefIndex.ContainsKey(raceDef.default_subrace_id))
+            if (!_subraceDefIndex.ContainsKey(raceDef.DefaultSubraceId))
             {
                 errors.Add(
-                    $"{ownerLabel} references missing default_subrace {raceDef.default_subrace_id}."
+                    $"{ownerLabel} references missing default_subrace {raceDef.DefaultSubraceId}."
                 );
             }
-            else if (!raceDef.subrace_ids.Contains(raceDef.default_subrace_id))
+            else if (!raceDef.SubraceIds.Contains(raceDef.DefaultSubraceId))
             {
                 errors.Add(
-                    $"{ownerLabel} default_subrace {raceDef.default_subrace_id} must be listed in subrace_ids."
+                    $"{ownerLabel} default_subrace {raceDef.DefaultSubraceId} must be listed in subrace_ids."
                 );
             }
         }
 
-        foreach (StringName subraceId in raceDef.subrace_ids)
+        foreach (StringName subraceId in raceDef.SubraceIds)
         {
             if (subraceId == "")
             {
                 continue;
             }
-            if (!_subraceDefIndex.TryGetValue(subraceId, out SubraceDef subraceDef))
+            if (!_subraceDefIndex.TryGetValue(subraceId, out SubraceDefinition subraceDef))
             {
                 errors.Add($"{ownerLabel} references missing subrace {subraceId}.");
                 continue;
             }
-            if (subraceDef.parent_race_id != raceId)
+            if (subraceDef.ParentRaceId != raceId)
             {
                 errors.Add(
-                    $"{ownerLabel} subrace {subraceId} parent_race_id must be {raceId}, got {subraceDef.parent_race_id}."
+                    $"{ownerLabel} subrace {subraceId} parent_race_id must be {raceId}, got {subraceDef.ParentRaceId}."
                 );
             }
         }
@@ -1212,7 +1072,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private void _append_subrace_phase2_errors(
         List<string> errors,
         StringName subraceId,
-        SubraceDef subraceDef
+        SubraceDefinition subraceDef
     )
     {
         if (subraceDef == null)
@@ -1224,31 +1084,31 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             errors,
             ownerLabel,
             "body_size_category_override",
-            subraceDef.body_size_category_override,
+            subraceDef.BodySizeCategoryOverride,
             true
         );
-        _append_damage_resistance_errors(errors, ownerLabel, subraceDef.damage_resistances);
-        _append_trait_reference_errors(errors, ownerLabel, subraceDef.trait_ids, "trait_ids");
+        _append_damage_resistance_errors(errors, ownerLabel, subraceDef.DamageResistances);
+        _append_trait_reference_errors(errors, ownerLabel, subraceDef.TraitIds, "trait_ids");
         _append_racial_granted_skill_reference_errors(
             errors,
             ownerLabel,
-            subraceDef.racial_granted_skills,
+            subraceDef.RacialGrantedSkills,
             "subrace"
         );
 
-        if (subraceDef.parent_race_id == "")
+        if (subraceDef.ParentRaceId == "")
         {
             return;
         }
-        if (!_raceDefIndex.TryGetValue(subraceDef.parent_race_id, out RaceDef parentRace))
+        if (!_raceDefIndex.TryGetValue(subraceDef.ParentRaceId, out RaceDefinition parentRace))
         {
-            errors.Add($"{ownerLabel} references missing parent_race {subraceDef.parent_race_id}.");
+            errors.Add($"{ownerLabel} references missing parent_race {subraceDef.ParentRaceId}.");
             return;
         }
-        if (!parentRace.subrace_ids.Contains(subraceId))
+        if (!parentRace.SubraceIds.Contains(subraceId))
         {
             errors.Add(
-                $"{ownerLabel} parent_race {subraceDef.parent_race_id} must list this subrace in subrace_ids."
+                $"{ownerLabel} parent_race {subraceDef.ParentRaceId} must list this subrace in subrace_ids."
             );
         }
     }
@@ -1256,7 +1116,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private void _append_age_profile_phase2_errors(
         List<string> errors,
         StringName profileId,
-        AgeProfileDef profileDef
+        AgeProfileDefinition profileDef
     )
     {
         if (profileDef == null)
@@ -1264,35 +1124,34 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             return;
         }
         string ownerLabel = $"AgeProfile {profileId}";
-        if (profileDef.race_id != "")
+        if (profileDef.RaceId != "")
         {
-            if (!_raceDefIndex.TryGetValue(profileDef.race_id, out RaceDef raceDef))
+            if (!_raceDefIndex.TryGetValue(profileDef.RaceId, out RaceDefinition raceDef))
             {
-                errors.Add($"{ownerLabel} references missing race {profileDef.race_id}.");
+                errors.Add($"{ownerLabel} references missing race {profileDef.RaceId}.");
             }
-            else if (raceDef.age_profile_id != profileId)
+            else if (raceDef.AgeProfileId != profileId)
             {
                 errors.Add(
-                    $"{ownerLabel} race {profileDef.race_id} must reference this profile as age_profile_id."
+                    $"{ownerLabel} race {profileDef.RaceId} must reference this profile as age_profile_id."
                 );
             }
         }
-        if (profileDef.stage_rules.Count == 0)
+        if (profileDef.StageRules.Count == 0)
         {
             errors.Add($"{ownerLabel} must declare at least one stage_rules entry.");
         }
 
         HashSet<StringName> stageIds = _collect_age_profile_stage_ids(profileDef);
-        foreach (StringName stageId in profileDef.creation_stage_ids)
+        foreach (StringName stageId in profileDef.CreationStageIds)
         {
             if (stageId != "" && !stageIds.Contains(stageId))
             {
                 errors.Add($"{ownerLabel} creation_stage_ids references missing stage {stageId}.");
             }
         }
-        foreach (var stageKeyValue in profileDef.default_age_by_stage.Keys)
+        foreach (StringName stageId in profileDef.DefaultAgeByStage.Keys)
         {
-            StringName stageId = _strict_to_string_name(stageKeyValue);
             if (stageId != "" && !stageIds.Contains(stageId))
             {
                 errors.Add(
@@ -1300,7 +1159,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 );
             }
         }
-        foreach (AgeStageRule stageRule in profileDef.stage_rules)
+        foreach (AgeStageRuleDefinition stageRule in profileDef.StageRules)
         {
             if (stageRule == null)
             {
@@ -1308,8 +1167,8 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             }
             _append_trait_reference_errors(
                 errors,
-                $"{ownerLabel} stage {stageRule.stage_id}",
-                stageRule.trait_ids,
+                $"{ownerLabel} stage {stageRule.StageId}",
+                stageRule.TraitIds,
                 "trait_ids"
             );
         }
@@ -1318,7 +1177,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private void _append_bloodline_phase2_errors(
         List<string> errors,
         StringName bloodlineId,
-        BloodlineDef bloodlineDef
+        BloodlineDefinition bloodlineDef
     )
     {
         if (bloodlineDef == null)
@@ -1326,28 +1185,33 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             return;
         }
         string ownerLabel = $"Bloodline {bloodlineId}";
-        _append_trait_reference_errors(errors, ownerLabel, bloodlineDef.trait_ids, "trait_ids");
+        _append_trait_reference_errors(errors, ownerLabel, bloodlineDef.TraitIds, "trait_ids");
         _append_racial_granted_skill_reference_errors(
             errors,
             ownerLabel,
-            bloodlineDef.racial_granted_skills,
+            bloodlineDef.RacialGrantedSkills,
             "bloodline"
         );
-        foreach (StringName stageId in bloodlineDef.stage_ids)
+        foreach (StringName stageId in bloodlineDef.StageIds)
         {
             if (stageId == "")
             {
                 continue;
             }
-            if (!_bloodlineStageDefIndex.TryGetValue(stageId, out BloodlineStageDef stageDef))
+            if (
+                !_bloodlineStageDefIndex.TryGetValue(
+                    stageId,
+                    out BloodlineStageDefinition stageDef
+                )
+            )
             {
                 errors.Add($"{ownerLabel} references missing bloodline_stage {stageId}.");
                 continue;
             }
-            if (stageDef.bloodline_id != bloodlineId)
+            if (stageDef.BloodlineId != bloodlineId)
             {
                 errors.Add(
-                    $"{ownerLabel} stage {stageId} bloodline_id must be {bloodlineId}, got {stageDef.bloodline_id}."
+                    $"{ownerLabel} stage {stageId} bloodline_id must be {bloodlineId}, got {stageDef.BloodlineId}."
                 );
             }
         }
@@ -1356,7 +1220,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private void _append_bloodline_stage_phase2_errors(
         List<string> errors,
         StringName stageId,
-        BloodlineStageDef stageDef
+        BloodlineStageDefinition stageDef
     )
     {
         if (stageDef == null)
@@ -1364,26 +1228,31 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             return;
         }
         string ownerLabel = $"BloodlineStage {stageId}";
-        _append_trait_reference_errors(errors, ownerLabel, stageDef.trait_ids, "trait_ids");
+        _append_trait_reference_errors(errors, ownerLabel, stageDef.TraitIds, "trait_ids");
         _append_racial_granted_skill_reference_errors(
             errors,
             ownerLabel,
-            stageDef.racial_granted_skills,
+            stageDef.RacialGrantedSkills,
             "bloodline"
         );
-        if (stageDef.bloodline_id == "")
+        if (stageDef.BloodlineId == "")
         {
             return;
         }
-        if (!_bloodlineDefIndex.TryGetValue(stageDef.bloodline_id, out BloodlineDef bloodlineDef))
+        if (
+            !_bloodlineDefIndex.TryGetValue(
+                stageDef.BloodlineId,
+                out BloodlineDefinition bloodlineDef
+            )
+        )
         {
-            errors.Add($"{ownerLabel} references missing bloodline {stageDef.bloodline_id}.");
+            errors.Add($"{ownerLabel} references missing bloodline {stageDef.BloodlineId}.");
             return;
         }
-        if (!bloodlineDef.stage_ids.Contains(stageId))
+        if (!bloodlineDef.StageIds.Contains(stageId))
         {
             errors.Add(
-                $"{ownerLabel} bloodline {stageDef.bloodline_id} must list this stage in stage_ids."
+                $"{ownerLabel} bloodline {stageDef.BloodlineId} must list this stage in stage_ids."
             );
         }
     }
@@ -1391,7 +1260,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private void _append_ascension_phase2_errors(
         List<string> errors,
         StringName ascensionId,
-        AscensionDef ascensionDef
+        AscensionDefinition ascensionDef
     )
     {
         if (ascensionDef == null)
@@ -1399,17 +1268,17 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             return;
         }
         string ownerLabel = $"Ascension {ascensionId}";
-        _append_trait_reference_errors(errors, ownerLabel, ascensionDef.trait_ids, "trait_ids");
+        _append_trait_reference_errors(errors, ownerLabel, ascensionDef.TraitIds, "trait_ids");
         _append_racial_granted_skill_reference_errors(
             errors,
             ownerLabel,
-            ascensionDef.racial_granted_skills,
+            ascensionDef.RacialGrantedSkills,
             "ascension"
         );
         _append_id_reference_errors(
             errors,
             ownerLabel,
-            ascensionDef.allowed_race_ids,
+            ascensionDef.AllowedRaceIds,
             "allowed_race_ids",
             _raceDefIndex,
             "race"
@@ -1417,7 +1286,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         _append_id_reference_errors(
             errors,
             ownerLabel,
-            ascensionDef.allowed_subrace_ids,
+            ascensionDef.AllowedSubraceIds,
             "allowed_subrace_ids",
             _subraceDefIndex,
             "subrace"
@@ -1425,27 +1294,32 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         _append_id_reference_errors(
             errors,
             ownerLabel,
-            ascensionDef.allowed_bloodline_ids,
+            ascensionDef.AllowedBloodlineIds,
             "allowed_bloodline_ids",
             _bloodlineDefIndex,
             "bloodline"
         );
 
-        foreach (StringName stageId in ascensionDef.stage_ids)
+        foreach (StringName stageId in ascensionDef.StageIds)
         {
             if (stageId == "")
             {
                 continue;
             }
-            if (!_ascensionStageDefIndex.TryGetValue(stageId, out AscensionStageDef stageDef))
+            if (
+                !_ascensionStageDefIndex.TryGetValue(
+                    stageId,
+                    out AscensionStageDefinition stageDef
+                )
+            )
             {
                 errors.Add($"{ownerLabel} references missing ascension_stage {stageId}.");
                 continue;
             }
-            if (stageDef.ascension_id != ascensionId)
+            if (stageDef.AscensionId != ascensionId)
             {
                 errors.Add(
-                    $"{ownerLabel} stage {stageId} ascension_id must be {ascensionId}, got {stageDef.ascension_id}."
+                    $"{ownerLabel} stage {stageId} ascension_id must be {ascensionId}, got {stageDef.AscensionId}."
                 );
             }
         }
@@ -1454,7 +1328,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private void _append_ascension_stage_phase2_errors(
         List<string> errors,
         StringName stageId,
-        AscensionStageDef stageDef
+        AscensionStageDefinition stageDef
     )
     {
         if (stageDef == null)
@@ -1466,29 +1340,34 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             errors,
             ownerLabel,
             "body_size_category_override",
-            stageDef.body_size_category_override,
+            stageDef.BodySizeCategoryOverride,
             true
         );
-        _append_trait_reference_errors(errors, ownerLabel, stageDef.trait_ids, "trait_ids");
+        _append_trait_reference_errors(errors, ownerLabel, stageDef.TraitIds, "trait_ids");
         _append_racial_granted_skill_reference_errors(
             errors,
             ownerLabel,
-            stageDef.racial_granted_skills,
+            stageDef.RacialGrantedSkills,
             "ascension"
         );
-        if (stageDef.ascension_id == "")
+        if (stageDef.AscensionId == "")
         {
             return;
         }
-        if (!_ascensionDefIndex.TryGetValue(stageDef.ascension_id, out AscensionDef ascensionDef))
+        if (
+            !_ascensionDefIndex.TryGetValue(
+                stageDef.AscensionId,
+                out AscensionDefinition ascensionDef
+            )
+        )
         {
-            errors.Add($"{ownerLabel} references missing ascension {stageDef.ascension_id}.");
+            errors.Add($"{ownerLabel} references missing ascension {stageDef.AscensionId}.");
             return;
         }
-        if (!ascensionDef.stage_ids.Contains(stageId))
+        if (!ascensionDef.StageIds.Contains(stageId))
         {
             errors.Add(
-                $"{ownerLabel} ascension {stageDef.ascension_id} must list this stage in stage_ids."
+                $"{ownerLabel} ascension {stageDef.AscensionId} must list this stage in stage_ids."
             );
         }
     }
@@ -1496,7 +1375,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private void _append_stage_advancement_phase2_errors(
         List<string> errors,
         StringName modifierId,
-        StageAdvancementModifier modifier
+        StageAdvancementDefinition modifier
     )
     {
         if (modifier == null)
@@ -1506,12 +1385,12 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         string ownerLabel = $"StageAdvancement {modifierId}";
         if (modifier.TargetAxisKind == StageAdvancementTargetAxis.Unknown)
         {
-            errors.Add($"{ownerLabel} uses unsupported target_axis {modifier.target_axis}.");
+            errors.Add($"{ownerLabel} uses unsupported target_axis {modifier.TargetAxis}.");
         }
         _append_id_reference_errors(
             errors,
             ownerLabel,
-            modifier.applies_to_race_ids,
+            modifier.AppliesToRaceIds,
             "applies_to_race_ids",
             _raceDefIndex,
             "race"
@@ -1519,7 +1398,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         _append_id_reference_errors(
             errors,
             ownerLabel,
-            modifier.applies_to_subrace_ids,
+            modifier.AppliesToSubraceIds,
             "applies_to_subrace_ids",
             _subraceDefIndex,
             "subrace"
@@ -1527,7 +1406,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         _append_id_reference_errors(
             errors,
             ownerLabel,
-            modifier.applies_to_bloodline_ids,
+            modifier.AppliesToBloodlineIds,
             "applies_to_bloodline_ids",
             _bloodlineDefIndex,
             "bloodline"
@@ -1535,7 +1414,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         _append_id_reference_errors(
             errors,
             ownerLabel,
-            modifier.applies_to_ascension_ids,
+            modifier.AppliesToAscensionIds,
             "applies_to_ascension_ids",
             _ascensionDefIndex,
             "ascension"
@@ -1546,38 +1425,38 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private void _append_stage_advancement_max_stage_error(
         List<string> errors,
         string ownerLabel,
-        StageAdvancementModifier modifier
+        StageAdvancementDefinition modifier
     )
     {
-        if (modifier.max_stage_id == "")
+        if (modifier.MaxStageId == "")
         {
             return;
         }
         if (modifier.TargetAxisKind == StageAdvancementTargetAxis.Bloodline)
         {
-            if (!_bloodlineStageDefIndex.ContainsKey(modifier.max_stage_id))
+            if (!_bloodlineStageDefIndex.ContainsKey(modifier.MaxStageId))
             {
                 errors.Add(
-                    $"{ownerLabel} max_stage_id references missing bloodline_stage {modifier.max_stage_id}."
+                    $"{ownerLabel} max_stage_id references missing bloodline_stage {modifier.MaxStageId}."
                 );
             }
         }
         else if (modifier.TargetAxisKind == StageAdvancementTargetAxis.Divine)
         {
-            if (!_ascensionStageDefIndex.ContainsKey(modifier.max_stage_id))
+            if (!_ascensionStageDefIndex.ContainsKey(modifier.MaxStageId))
             {
                 errors.Add(
-                    $"{ownerLabel} max_stage_id references missing ascension_stage {modifier.max_stage_id}."
+                    $"{ownerLabel} max_stage_id references missing ascension_stage {modifier.MaxStageId}."
                 );
             }
         }
         else
         {
             HashSet<StringName> knownStageIds = _collect_known_identity_stage_ids();
-            if (!knownStageIds.Contains(modifier.max_stage_id))
+            if (!knownStageIds.Contains(modifier.MaxStageId))
             {
                 errors.Add(
-                    $"{ownerLabel} max_stage_id references missing stage {modifier.max_stage_id}."
+                    $"{ownerLabel} max_stage_id references missing stage {modifier.MaxStageId}."
                 );
             }
         }
@@ -1620,7 +1499,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private void _append_trait_reference_errors(
         List<string> errors,
         string ownerLabel,
-        GStringNameArray traitIds,
+        IReadOnlyList<StringName> traitIds,
         string fieldLabel
     )
     {
@@ -1630,12 +1509,12 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             {
                 continue;
             }
-            if (!_traitDefIndex.TryGetValue(traitId, out TraitDef traitDef))
+            if (!_traitDefIndex.TryGetValue(traitId, out TraitDefinition traitDef))
             {
                 errors.Add($"{ownerLabel} {fieldLabel} references missing trait {traitId}.");
                 continue;
             }
-            if (!TraitContentRules.IsSourceKindAllowed(traitDef, TraitSourceKind.Identity))
+            if (!traitDef.IsSourceKindAllowed(TraitSourceKind.Identity))
             {
                 errors.Add(
                     $"{ownerLabel} {fieldLabel} references trait {traitId} that does not allow identity source."
@@ -1647,29 +1526,28 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private void _append_racial_granted_skill_reference_errors(
         List<string> errors,
         string ownerLabel,
-        System.Collections.IEnumerable grantedSkills,
+        IReadOnlyList<RacialGrantedSkillDefinition> grantedSkills,
         StringName expectedLearnSource
     )
     {
         int index = 0;
-        foreach (Resource grantedSkillValue in grantedSkills)
+        foreach (RacialGrantedSkillDefinition grantedSkill in grantedSkills)
         {
-            var grantedSkill = grantedSkillValue as RacialGrantedSkill;
-            if (grantedSkill == null || grantedSkill.skill_id == "")
+            if (grantedSkill == null || grantedSkill.SkillId == "")
             {
                 index++;
                 continue;
             }
             if (
                 !_skillDefinitionIndex.TryGetValue(
-                    grantedSkill.skill_id,
+                    grantedSkill.SkillId,
                     out SkillDefinition skillDefinition
                 )
                 || skillDefinition == null
             )
             {
                 errors.Add(
-                    $"{ownerLabel} racial_granted_skills[{index}] references missing skill {grantedSkill.skill_id}."
+                    $"{ownerLabel} racial_granted_skills[{index}] references missing skill {grantedSkill.SkillId}."
                 );
                 index++;
                 continue;
@@ -1677,13 +1555,13 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             if (skillDefinition.LearnSourceKind != SkillDefinition.ToLearnSource(expectedLearnSource))
             {
                 errors.Add(
-                    $"{ownerLabel} racial_granted_skills[{index}] skill {grantedSkill.skill_id} learn_source must be {expectedLearnSource}, got {skillDefinition.LearnSource}."
+                    $"{ownerLabel} racial_granted_skills[{index}] skill {grantedSkill.SkillId} learn_source must be {expectedLearnSource}, got {skillDefinition.LearnSource}."
                 );
             }
-            if (grantedSkill.minimum_skill_level > skillDefinition.MaxLevel)
+            if (grantedSkill.MinimumSkillLevel > skillDefinition.MaxLevel)
             {
                 errors.Add(
-                    $"{ownerLabel} racial_granted_skills[{index}] skill {grantedSkill.skill_id} minimum_skill_level must be <= max_level {skillDefinition.MaxLevel}."
+                    $"{ownerLabel} racial_granted_skills[{index}] skill {grantedSkill.SkillId} minimum_skill_level must be <= max_level {skillDefinition.MaxLevel}."
                 );
             }
             index++;
@@ -1693,7 +1571,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private static void _append_id_reference_errors<T>(
         List<string> errors,
         string ownerLabel,
-        GStringNameArray values,
+        IReadOnlyList<StringName> values,
         string fieldLabel,
         IReadOnlyDictionary<StringName, T> targetDefs,
         string targetLabel
@@ -1718,23 +1596,15 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private static void _append_damage_resistance_errors(
         List<string> errors,
         string ownerLabel,
-        GDictionary damageResistances
+        IReadOnlyDictionary<StringName, StringName> damageResistances
     )
     {
-        foreach (var keyValue in damageResistances.Keys)
+        foreach ((StringName damageTag, StringName mitigationTier) in damageResistances)
         {
-            if (keyValue.VariantType != Variant.Type.StringName)
-            {
-                errors.Add(
-                    $"{ownerLabel} damage_resistances key {keyValue} must be a non-empty StringName."
-                );
-                continue;
-            }
-            StringName damageTag = keyValue.AsStringName();
             if (damageTag == "")
             {
                 errors.Add(
-                    $"{ownerLabel} damage_resistances key {keyValue} must be a non-empty StringName."
+                    $"{ownerLabel} damage_resistances key {damageTag} must be a non-empty StringName."
                 );
                 continue;
             }
@@ -1744,15 +1614,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                     $"{ownerLabel} damage_resistances references unsupported damage tag {damageTag}."
                 );
             }
-            Variant rawTier = damageResistances[keyValue];
-            if (rawTier.VariantType != Variant.Type.StringName)
-            {
-                errors.Add(
-                    $"{ownerLabel} damage_resistances[{damageTag}] must be a non-empty StringName."
-                );
-                continue;
-            }
-            StringName mitigationTier = rawTier.AsStringName();
             if (mitigationTier == "")
             {
                 errors.Add(
@@ -1796,18 +1657,20 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         }
     }
 
-    private static HashSet<StringName> _collect_age_profile_stage_ids(AgeProfileDef profileDef)
+    private static HashSet<StringName> _collect_age_profile_stage_ids(
+        AgeProfileDefinition profileDef
+    )
     {
         var stageIds = new HashSet<StringName>();
         if (profileDef == null)
         {
             return stageIds;
         }
-        foreach (AgeStageRule stageRule in profileDef.stage_rules)
+        foreach (AgeStageRuleDefinition stageRule in profileDef.StageRules)
         {
-            if (stageRule != null && stageRule.stage_id != "")
+            if (stageRule != null && stageRule.StageId != "")
             {
-                stageIds.Add(stageRule.stage_id);
+                stageIds.Add(stageRule.StageId);
             }
         }
         return stageIds;
@@ -1816,7 +1679,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private HashSet<StringName> _collect_known_identity_stage_ids()
     {
         var stageIds = new HashSet<StringName>();
-        foreach (AgeProfileDef profileDef in _ageProfileDefIndex.Values)
+        foreach (AgeProfileDefinition profileDef in _ageProfileDefIndex.Values)
         {
             foreach (StringName stageId in _collect_age_profile_stage_ids(profileDef))
             {
@@ -1832,19 +1695,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             stageIds.Add(stageId);
         }
         return stageIds;
-    }
-
-    private static StringName _strict_to_string_name(object rawValue)
-    {
-        StringName normalized = ProgressionDataUtils.to_string_name(rawValue);
-        string normalizedText = normalized.ToString().StripEdges();
-        return string.IsNullOrEmpty(normalizedText) ? new StringName("") : new StringName(normalizedText);
-    }
-
-    private static bool HasDictionary(GDictionary source, string key)
-    {
-        return TryGetValue(source, key, out Variant value)
-            && value.VariantType == Variant.Type.Dictionary;
     }
 
     private void _append_invalid_skill_errors(
@@ -2183,46 +2033,46 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private void _append_invalid_achievement_errors(
         List<string> errors,
         StringName achievementId,
-        AchievementDef achievementDef
+        AchievementDefinition achievementDef
     )
     {
         if (achievementDef == null)
         {
             return;
         }
-        if (achievementDef.event_type == "")
+        if (achievementDef.EventType == "")
         {
             errors.Add($"Achievement {achievementId} is missing event_type.");
         }
-        if (achievementDef.threshold <= 0)
+        if (achievementDef.Threshold <= 0)
         {
             errors.Add($"Achievement {achievementId} must have a positive threshold.");
         }
-        foreach (AchievementRewardDef reward in achievementDef.rewards)
+        foreach (AchievementRewardDefinition reward in achievementDef.Rewards)
         {
             if (reward == null)
                 continue;
-            if (reward.reward_type == "")
+            if (reward.RewardType == "")
             {
                 errors.Add($"Achievement {achievementId} has a reward without reward_type.");
             }
-            if (reward.target_id == "")
+            if (reward.TargetId == "")
             {
                 errors.Add($"Achievement {achievementId} has a reward without target_id.");
             }
-            if (reward.amount == 0)
+            if (reward.Amount == 0)
             {
                 errors.Add(
-                    $"Achievement {achievementId} has a zero-amount reward for {reward.target_id}."
+                    $"Achievement {achievementId} has a zero-amount reward for {reward.TargetId}."
                 );
             }
             if (
-                reward.reward_type != ""
-                && !PendingCharacterRewardContentRules.IsSupportedEntryType(reward.reward_type)
+                reward.RewardType != ""
+                && !PendingCharacterRewardContentRules.IsSupportedEntryType(reward.RewardType)
             )
             {
                 errors.Add(
-                    $"Achievement {achievementId} uses unsupported reward_type {reward.reward_type}."
+                    $"Achievement {achievementId} uses unsupported reward_type {reward.RewardType}."
                 );
                 continue;
             }
@@ -2231,23 +2081,23 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 || reward.RewardKind == PendingCharacterRewardEntryKind.SkillMastery
             )
             {
-                if (!_skillDefs.ContainsKey(reward.target_id))
+                if (!_skillDefinitionIndex.ContainsKey(reward.TargetId))
                 {
                     errors.Add(
-                        $"Achievement {achievementId} references missing skill {reward.target_id}."
+                        $"Achievement {achievementId} references missing skill {reward.TargetId}."
                     );
                 }
             }
-            else if (reward.reward_type == "attribute_progress")
+            else if (reward.RewardType == "attribute_progress")
             {
                 if (
                     !PendingCharacterRewardContentRules.IsValidAttributeProgressTarget(
-                        reward.target_id
+                        reward.TargetId
                     )
                 )
                 {
                     errors.Add(
-                        $"Achievement {achievementId} attribute_progress reward references unsupported attribute {reward.target_id}."
+                        $"Achievement {achievementId} attribute_progress reward references unsupported attribute {reward.TargetId}."
                     );
                 }
             }
@@ -2260,36 +2110,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             source != null ? source.Duplicate() : new GDictionary(),
             $"DuplicateDictionary:{reason}"
         );
-    }
-
-    private void SyncTypedDefinitionIndexes()
-    {
-        if (!_typedIndexesDirty)
-        {
-            return;
-        }
-        _typedIndexesDirty = false;
-        _skillDefinitionIndex.Clear();
-        foreach (
-            (StringName skillId, SkillDefinition skillDefinition) in SkillDefinition.ProjectIndex(
-                BuildSkillDefIndex()
-            )
-        )
-        {
-            _skillDefinitionIndex[skillId] = skillDefinition;
-        }
-        ReplaceTypedIndex(_professionDefIndex, _professionDefs);
-        ReplaceAchievementTypedIndex(_achievementDefIndex, _achievementDefs);
-        ReplaceTypedIndex(_questDefIndex, _questDefs);
-        ReplaceTypedIndex(_raceDefIndex, _raceDefs);
-        ReplaceTypedIndex(_subraceDefIndex, _subraceDefs);
-        ReplaceTypedIndex(_traitDefIndex, _traitDefs);
-        ReplaceTypedIndex(_ageProfileDefIndex, _ageProfileDefs);
-        ReplaceTypedIndex(_bloodlineDefIndex, _bloodlineDefs);
-        ReplaceTypedIndex(_bloodlineStageDefIndex, _bloodlineStageDefs);
-        ReplaceTypedIndex(_ascensionDefIndex, _ascensionDefs);
-        ReplaceTypedIndex(_ascensionStageDefIndex, _ascensionStageDefs);
-        ReplaceTypedIndex(_stageAdvancementDefIndex, _stageAdvancementDefs);
     }
 
     private Dictionary<StringName, SkillDef> BuildSkillDefIndex()
@@ -2328,12 +2148,16 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         return skillDef != null;
     }
 
-    private static Dictionary<StringName, T> CloneTypedDictionary<T>(
+    private static IReadOnlyDictionary<StringName, T> CloneTypedDictionary<T>(
         IReadOnlyDictionary<StringName, T> source
     )
         where T : class
     {
-        return new Dictionary<StringName, T>(source);
+        return new ReadOnlyDictionary<StringName, T>(
+            source != null
+                ? new Dictionary<StringName, T>(source)
+                : new Dictionary<StringName, T>()
+        );
     }
 
     private static IReadOnlySet<StringName> ReadOnlyKeySet<T>(
@@ -2343,42 +2167,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         if (source == null || source.Count == 0)
             return EquipmentAbilityReadOnlySet<StringName>.Empty;
         return EquipmentAbilityReadOnlySet<StringName>.From(source.Keys);
-    }
-
-    private static GDictionary ProjectTypedDictionary<T>(IReadOnlyDictionary<StringName, T> source)
-        where T : Resource
-    {
-        var result = new GDictionary();
-        if (source == null)
-        {
-            return RegisterDefinitionBucket(
-                result,
-                $"ProjectTypedDictionary:{typeof(T).Name}:empty"
-            );
-        }
-        foreach ((StringName key, T value) in source)
-        {
-            if (key == "" || value == null)
-            {
-                continue;
-            }
-            result[key] = value;
-        }
-        return RegisterDefinitionBucket(result, $"ProjectTypedDictionary:{typeof(T).Name}");
-    }
-
-    private static GDictionary ProjectTraitDefs(IReadOnlyList<TraitDef> source)
-    {
-        var result = new GDictionary();
-        if (source == null)
-            return RegisterDefinitionBucket(result, "ProjectTraitDefs:empty");
-        foreach (TraitDef traitDef in source)
-        {
-            if (traitDef == null || traitDef.trait_id == "")
-                continue;
-            result[traitDef.trait_id] = traitDef;
-        }
-        return RegisterDefinitionBucket(result, "ProjectTraitDefs");
     }
 
     private static GDictionary RegisterDefinitionBucket(GDictionary bucket, string reason)
@@ -2392,65 +2180,30 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         return bucket;
     }
 
-    private static void ReplaceTypedIndex<T>(Dictionary<StringName, T> target, GDictionary source)
+    private static void ReplaceDefinitionIndex<T>(
+        Dictionary<StringName, T> target,
+        IReadOnlyDictionary<StringName, T> source
+    )
         where T : class
     {
         target.Clear();
         if (source == null)
-        {
             return;
-        }
-        foreach (Variant rawKey in source.Keys)
+        foreach ((StringName key, T definition) in source)
         {
-            if (rawKey.VariantType != Variant.Type.StringName)
-            {
-                continue;
-            }
-            StringName key = rawKey.AsStringName();
             if (key == "")
             {
-                continue;
+                throw new InvalidDataException(
+                    $"Progression definition index {typeof(T).Name} contains an empty key."
+                );
             }
-            Variant value = source[rawKey];
-            if (value.VariantType == Variant.Type.Object && value.AsGodotObject() is T typedValue)
+            if (definition == null)
             {
-                target[key] = typedValue;
+                throw new InvalidDataException(
+                    $"Progression definition index {typeof(T).Name}[{key}] contains a null definition."
+                );
             }
-        }
-    }
-
-    private static void ReplaceAchievementTypedIndex(
-        Dictionary<StringName, AchievementDef> target,
-        GDictionary source
-    )
-    {
-        target.Clear();
-        if (source == null)
-        {
-            return;
-        }
-        foreach (Variant rawKey in source.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-            {
-                continue;
-            }
-            StringName key = rawKey.AsStringName();
-            if (key == "")
-            {
-                continue;
-            }
-            Variant value = source[rawKey];
-            if (value.VariantType != Variant.Type.Dictionary)
-            {
-                continue;
-            }
-            AchievementDef achievementDef = AchievementDef.FromDictionary(value.AsGodotDictionary());
-            if (achievementDef == null || achievementDef.achievement_id == "")
-            {
-                continue;
-            }
-            target[key] = achievementDef;
+            target.Add(key, definition);
         }
     }
 
@@ -2462,34 +2215,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             result.Add(key);
         }
         result.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
-        return result;
-    }
-
-    private static GStringArray DuplicateStringArray(GStringArray source)
-    {
-        var result = new GStringArray();
-        if (source == null)
-        {
-            return result;
-        }
-        foreach (string value in source)
-        {
-            result.Add(value);
-        }
-        return result;
-    }
-
-    private static GStringNameArray DuplicateStringNameArray(GStringNameArray source)
-    {
-        var result = new GStringNameArray();
-        if (source == null)
-        {
-            return result;
-        }
-        foreach (StringName value in source)
-        {
-            result.Add(value);
-        }
         return result;
     }
 
@@ -2549,93 +2274,4 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         return result;
     }
 
-    private static GDictionary GetDictionary(GDictionary source, string key)
-    {
-        if (
-            !TryGetValue(source, key, out Variant value)
-            || value.VariantType != Variant.Type.Dictionary
-        )
-        {
-            return new GDictionary();
-        }
-        return value.AsGodotDictionary();
-    }
-
-    private static T GetObject<T>(GDictionary source, StringName key)
-        where T : class
-    {
-        if (
-            !TryGetValue(source, key, out Variant value)
-            || value.VariantType != Variant.Type.Object
-        )
-        {
-            return null;
-        }
-        return value.AsGodotObject() as T;
-    }
-
-    private static IEnumerable<T> ReadObjectItems<T>(GArray values)
-        where T : class
-    {
-        if (values == null)
-        {
-            yield break;
-        }
-        foreach (Variant value in values)
-        {
-            if (value.VariantType == Variant.Type.Object && value.AsGodotObject() is T typedValue)
-            {
-                yield return typedValue;
-            }
-        }
-    }
-
-    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
-    {
-        if (values == null)
-        {
-            yield break;
-        }
-        foreach (Variant value in values)
-        {
-            if (value.VariantType == Variant.Type.Dictionary)
-            {
-                yield return value.AsGodotDictionary();
-            }
-        }
-    }
-
-    private static bool TryGetValue(GDictionary source, object key, out Variant value)
-    {
-        if (source == null)
-        {
-            value = default;
-            return false;
-        }
-        Variant variantKey = ToVariantKey(key);
-        if (source.ContainsKey(variantKey))
-        {
-            value = source[variantKey];
-            return true;
-        }
-        value = default;
-        return false;
-    }
-
-    private static Variant ToVariantKey(object key)
-    {
-        return key switch
-        {
-            Variant variant => variant,
-            StringName stringName => Variant.From(stringName),
-            string text => Variant.From(text),
-            int intValue => Variant.From(intValue),
-            long longValue => Variant.From(longValue),
-            float floatValue => Variant.From(floatValue),
-            double doubleValue => Variant.From(doubleValue),
-            bool boolValue => Variant.From(boolValue),
-            Vector2I coord => Variant.From(coord),
-            _ => Variant.From(key?.ToString() ?? ""),
-        };
-    }
 }

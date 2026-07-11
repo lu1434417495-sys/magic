@@ -345,7 +345,7 @@ public partial class run_thunder_halberd_weapon_ability_regression : LifecycleTe
 
         internal BattleRuntimeModule Runtime { get; }
         internal IReadOnlyDictionary<StringName, ItemDef> ItemDefs { get; }
-        internal IReadOnlyDictionary<StringName, TraitDef> TraitDefs { get; }
+        internal IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs { get; }
         internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> Bindings { get; }
 
         internal static ThunderHalberdFixture Build(GArray damageRolls)

@@ -123,15 +123,17 @@ public partial class run_character_management_achievement_summary_regression : L
             if (achievementDef != null)
                 indexedAchievementDefs[achievementDef.achievement_id] = achievementDef;
         }
+        Dictionary<StringName, AchievementDefinition> projectedAchievementDefs =
+            TestProgressionDefinitionProjection.Achievements(indexedAchievementDefs);
 
         CharacterManagementModule manager = new();
         manager.setup(
             party,
             new Dictionary<StringName, SkillDefinition>(),
-            new Dictionary<StringName, ProfessionDef>(),
-            indexedAchievementDefs,
+            new Dictionary<StringName, ProfessionDefinition>(),
+            projectedAchievementDefs,
             new Dictionary<StringName, ItemDef>(),
-            new Dictionary<StringName, QuestDef>(),
+            new Dictionary<StringName, QuestDefinition>(),
             null,
             new ProgressionIdentityCatalogData()
         );

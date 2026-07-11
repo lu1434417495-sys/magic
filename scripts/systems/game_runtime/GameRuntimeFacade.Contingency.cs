@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
@@ -246,7 +245,8 @@ public sealed partial class GameRuntimeFacade
     )
     {
         errorCode = "";
-        ContingencySetupTemplateDef template = ResolveContingencySetupTemplateDef(payloadName);
+        ContingencySetupTemplateDefinition template =
+            ResolveContingencySetupTemplateDefinition(payloadName);
         if (template == null)
         {
             errorCode = "unknown_setup_payload";
@@ -255,7 +255,7 @@ public sealed partial class GameRuntimeFacade
 
         PartyMemberState member = _party_state?.GetMemberState(memberId);
         UnitProgress progress = member?.progression;
-        if (!TryGetLearnedSkillLevel(progress, template.source_skill_id, out int sourceLevel))
+        if (!TryGetLearnedSkillLevel(progress, template.SourceSkillId, out int sourceLevel))
         {
             errorCode = "missing_required_skill";
             return null;
@@ -278,34 +278,34 @@ public sealed partial class GameRuntimeFacade
             );
         }
 
-        GDictionary payload = ContingencyContentRules.BuildSetupPayloadFromTemplate(
+        ContingencyMatrixSetupState setup = ContingencyContentRules.BuildSetupStateFromTemplate(
             template,
             Mathf.Max(sourceLevel, 1),
             castLevelsByStoredSkillId
         );
-        ContingencyMatrixSetupState setup = payload != null
-            ? ContingencyMatrixSetupState.FromDictionary(payload)
-            : null;
         if (setup == null)
             errorCode = "invalid_setup";
         return setup;
     }
 
-    private ContingencySetupTemplateDef ResolveContingencySetupTemplateDef(StringName payloadName)
+    private ContingencySetupTemplateDefinition ResolveContingencySetupTemplateDefinition(
+        StringName payloadName
+    )
     {
         StringName normalized = ProgressionDataUtils.to_string_name(payloadName);
         if (normalized == "")
             return null;
-        IReadOnlyDictionary<StringName, ContingencySetupTemplateDef> templates =
+        IReadOnlyDictionary<StringName, ContingencySetupTemplateDefinition> templates =
             _game_session?.GetContingencySetupTemplatesTyped();
         return templates != null
-            && templates.TryGetValue(normalized, out ContingencySetupTemplateDef template)
+            && templates.TryGetValue(normalized, out ContingencySetupTemplateDefinition template)
             ? template
             : null;
     }
 
     private StringName ResolveContingencyTemplateSetupId(StringName payloadName) =>
-        ResolveContingencySetupTemplateDef(payloadName)?.template_id ?? new StringName("");
+        ResolveContingencySetupTemplateDefinition(payloadName)?.TemplateId
+        ?? new StringName("");
 
     private static bool TryGetLearnedSkillLevel(
         UnitProgress progress,

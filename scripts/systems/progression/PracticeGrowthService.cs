@@ -49,7 +49,7 @@ public sealed class PracticeGrowthService
 
     public void Setup(
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
-        IReadOnlyDictionary<StringName, ProfessionDef> _professionDefs
+        IReadOnlyDictionary<StringName, ProfessionDefinition> _professionDefs
     )
     {
         _skillDefinitions.Clear();

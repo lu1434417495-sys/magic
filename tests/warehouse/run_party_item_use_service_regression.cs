@@ -242,8 +242,8 @@ public partial class run_party_item_use_service_regression : LifecycleTestSceneT
         module.setup(
             partyState,
             skillDefinitions,
-            new Dictionary<StringName, ProfessionDef>(),
-            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
             BuildItemDefIndex(itemDefs)
         );
         return module;

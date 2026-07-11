@@ -159,10 +159,10 @@ public partial class run_character_management_identity_stage_regression : Lifecy
         manager.setup(
             party,
             new Dictionary<StringName, SkillDefinition>(),
-            new Dictionary<StringName, ProfessionDef>(),
-            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
             new Dictionary<StringName, ItemDef>(),
-            new Dictionary<StringName, QuestDef>(),
+            new Dictionary<StringName, QuestDefinition>(),
             null,
             identityCatalog
         );
@@ -177,14 +177,22 @@ public partial class run_character_management_identity_stage_regression : Lifecy
     )
     {
         return new ProgressionIdentityCatalogData(
-            new Dictionary<StringName, RaceDef>(),
-            new Dictionary<StringName, SubraceDef>(),
-            ageProfileDefs,
-            new Dictionary<StringName, BloodlineDef>(),
-            new Dictionary<StringName, BloodlineStageDef>(),
-            ascensionDefs,
-            ascensionStageDefs,
-            stageAdvancementDefs
+            new Dictionary<StringName, RaceDefinition>(),
+            new Dictionary<StringName, SubraceDefinition>(),
+            ageProfileDefs != null
+                ? TestProgressionDefinitionProjection.AgeProfiles(ageProfileDefs)
+                : new Dictionary<StringName, AgeProfileDefinition>(),
+            new Dictionary<StringName, BloodlineDefinition>(),
+            new Dictionary<StringName, BloodlineStageDefinition>(),
+            ascensionDefs != null
+                ? TestProgressionDefinitionProjection.Ascensions(ascensionDefs)
+                : new Dictionary<StringName, AscensionDefinition>(),
+            ascensionStageDefs != null
+                ? TestProgressionDefinitionProjection.AscensionStages(ascensionStageDefs)
+                : new Dictionary<StringName, AscensionStageDefinition>(),
+            stageAdvancementDefs != null
+                ? TestProgressionDefinitionProjection.StageAdvancements(stageAdvancementDefs)
+                : new Dictionary<StringName, StageAdvancementDefinition>()
         );
     }
 

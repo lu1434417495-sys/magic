@@ -7,7 +7,7 @@ internal static class BattleEquipmentAbilityProjectionService
     internal static List<BattleEquipmentAbilitySourceState> ProjectPlayerPersistentSources(
         BattleUnitState unit,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindings,
-        IReadOnlyDictionary<StringName, TraitDef> traitDefs,
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefs,
         IReadOnlyDictionary<StringName, ItemDef> itemDefs
     )
     {
@@ -83,7 +83,7 @@ internal static class BattleEquipmentAbilityProjectionService
         BattleUnitState unit,
         EnemyTemplateDef template,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindings,
-        IReadOnlyDictionary<StringName, TraitDef> traitDefs,
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefs,
         IReadOnlyDictionary<StringName, ItemDef> itemDefs
     )
     {
@@ -189,22 +189,22 @@ internal static class BattleEquipmentAbilityProjectionService
 
     private static IReadOnlySet<StringName> GetTraitCategories(
         StringName traitId,
-        IReadOnlyDictionary<StringName, TraitDef> traitDefs
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefs
     )
     {
         StringName normalizedTraitId = ProgressionDataUtils.to_string_name(traitId);
         if (
             normalizedTraitId == ""
             || traitDefs == null
-            || !traitDefs.TryGetValue(normalizedTraitId, out TraitDef traitDef)
-            || traitDef?.categories == null
+            || !traitDefs.TryGetValue(normalizedTraitId, out TraitDefinition traitDef)
+            || traitDef == null
         )
         {
             return EquipmentAbilityReadOnlySet<StringName>.Empty;
         }
 
         HashSet<StringName> result = new();
-        foreach (StringName category in traitDef.categories)
+        foreach (StringName category in traitDef.Categories)
         {
             StringName normalized = ProgressionDataUtils.to_string_name(category);
             if (normalized != "")

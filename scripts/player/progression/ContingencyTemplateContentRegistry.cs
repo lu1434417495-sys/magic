@@ -1,12 +1,14 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.IO;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 internal sealed class ContingencyTemplateContentRegistry
 {
     private const string TemplateConfigDirectory = "res://data/configs/contingency_templates";
 
-    private readonly Dictionary<StringName, ContingencySetupTemplateDef> _templateDefs = new();
+    private readonly Dictionary<StringName, ContingencySetupTemplateDefinition> _templateDefs =
+        new();
     private readonly List<string> _validationErrors = new();
 
     public void Rebuild()
@@ -93,25 +95,37 @@ internal sealed class ContingencyTemplateContentRegistry
             return;
         }
 
-        string smokeError = GetTemplateSmokeValidationError(templateDef);
-        if (smokeError.Length > 0)
+        try
+        {
+            ContingencySetupTemplateDefinition definition =
+                ContingencySetupTemplateDefinition.FromResource(templateDef, resourcePath);
+            string smokeError = GetTemplateSmokeValidationError(definition);
+            if (smokeError.Length > 0)
+            {
+                _validationErrors.Add(
+                    $"ContingencyTemplateContentRegistry: {resourcePath} failed validation: {smokeError}"
+                );
+                return;
+            }
+            _templateDefs.Add(definition.TemplateId, definition);
+        }
+        catch (InvalidDataException exception)
         {
             _validationErrors.Add(
-                $"ContingencyTemplateContentRegistry: {resourcePath} failed validation: {smokeError}"
+                $"ContingencyTemplateContentRegistry: {resourcePath} projection failed: {exception.Message}"
             );
-            return;
         }
-
-        _templateDefs[templateId] = templateDef;
     }
 
     // Stamp the template with level-1 dynamic fields and run it through the schema
     // authority, so authoring mistakes surface at content load instead of at the
     // first player click.
-    private static string GetTemplateSmokeValidationError(ContingencySetupTemplateDef templateDef)
+    private static string GetTemplateSmokeValidationError(
+        ContingencySetupTemplateDefinition templateDefinition
+    )
     {
         IReadOnlyList<ContingencyTemplateStoredSpellInfo> storedSpells =
-            ContingencyContentRules.GetTemplateStoredSpellsTyped(templateDef);
+            ContingencyContentRules.GetTemplateStoredSpellsTyped(templateDefinition);
         if (storedSpells.Count == 0)
             return "stored_spells must contain at least one entry with a stored_skill_id.";
 
@@ -119,20 +133,23 @@ internal sealed class ContingencyTemplateContentRegistry
         foreach (ContingencyTemplateStoredSpellInfo spell in storedSpells)
             smokeCastLevels[spell.StoredSkillId] = 1;
 
-        GDictionary payload = ContingencyContentRules.BuildSetupPayloadFromTemplate(
-            templateDef,
+        ContingencyMatrixSetupState setup = ContingencyContentRules.BuildSetupStateFromTemplate(
+            templateDefinition,
             1,
             smokeCastLevels
         );
-        if (payload == null)
-            return "template payload could not be built.";
-        if (ContingencyMatrixSetupState.FromDictionary(payload) == null)
+        if (setup == null)
             return "stamped payload was rejected by ContingencyMatrixSetupState schema.";
         return "";
     }
 
-    internal IReadOnlyDictionary<StringName, ContingencySetupTemplateDef> GetTemplateDefsTyped() =>
-        _templateDefs;
+    internal IReadOnlyDictionary<
+        StringName,
+        ContingencySetupTemplateDefinition
+    > GetTemplateDefsTyped() =>
+        new ReadOnlyDictionary<StringName, ContingencySetupTemplateDefinition>(
+            new Dictionary<StringName, ContingencySetupTemplateDefinition>(_templateDefs)
+        );
 
     internal IReadOnlyList<string> GetValidationErrors() => _validationErrors;
 }

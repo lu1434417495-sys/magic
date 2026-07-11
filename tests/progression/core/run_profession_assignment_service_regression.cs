@@ -115,7 +115,11 @@ public partial class run_profession_assignment_service_regression : LifecycleTes
         }
 
         ProfessionAssignmentService service = new();
-        service.Setup(progress, indexedSkillDefinitions, indexedProfessionDefs);
+        service.Setup(
+            progress,
+            indexedSkillDefinitions,
+            TestProgressionDefinitionProjection.Professions(indexedProfessionDefs)
+        );
         return service;
     }
 

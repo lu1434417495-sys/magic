@@ -5,7 +5,7 @@ public static class ItemTraitContentValidator
 {
     public static List<string> Validate(
         IReadOnlyDictionary<StringName, ItemDef> itemDefs,
-        IReadOnlyDictionary<StringName, TraitDef> traitDefs,
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefinitions,
         string contextPath = "item_defs"
     )
     {
@@ -23,7 +23,7 @@ public static class ItemTraitContentValidator
             }
             ValidateItem(
                 itemDef,
-                traitDefs ?? new Dictionary<StringName, TraitDef>(),
+                traitDefinitions ?? new Dictionary<StringName, TraitDefinition>(),
                 $"{contextPath}.{itemDef.item_id}",
                 errors
             );
@@ -33,7 +33,7 @@ public static class ItemTraitContentValidator
 
     private static void ValidateItem(
         ItemDef itemDef,
-        IReadOnlyDictionary<StringName, TraitDef> traitDefs,
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefinitions,
         string itemLabel,
         List<string> errors
     )
@@ -49,13 +49,13 @@ public static class ItemTraitContentValidator
             return;
         }
 
-        ValidateFixedTraits(fixedTraitIds, traitDefs, itemLabel, errors);
-        ValidateRollGroups(rollGroups, traitDefs, itemLabel, errors);
+        ValidateFixedTraits(fixedTraitIds, traitDefinitions, itemLabel, errors);
+        ValidateRollGroups(rollGroups, traitDefinitions, itemLabel, errors);
     }
 
     private static void ValidateFixedTraits(
         IReadOnlyList<StringName> fixedTraitIds,
-        IReadOnlyDictionary<StringName, TraitDef> traitDefs,
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefinitions,
         string itemLabel,
         List<string> errors
     )
@@ -69,12 +69,23 @@ public static class ItemTraitContentValidator
                 errors.Add($"{traitLabel} must be non-empty.");
                 continue;
             }
-            if (!traitDefs.TryGetValue(traitId, out TraitDef traitDef) || traitDef == null)
+            if (
+                !traitDefinitions.TryGetValue(
+                    traitId,
+                    out TraitDefinition traitDefinition
+                )
+                || traitDefinition == null
+            )
             {
                 errors.Add($"{traitLabel} references missing trait {traitId}.");
                 continue;
             }
-            if (!TraitContentRules.IsSourceKindAllowed(traitDef, TraitSourceKind.EquipmentFixed))
+            if (
+                !TraitContentRules.IsSourceKindAllowed(
+                    traitDefinition,
+                    TraitSourceKind.EquipmentFixed
+                )
+            )
             {
                 errors.Add(
                     $"{traitLabel} trait {traitId} must allow equipment_fixed source."
@@ -85,7 +96,7 @@ public static class ItemTraitContentValidator
 
     private static void ValidateRollGroups(
         IReadOnlyList<TraitRollGroupDef> rollGroups,
-        IReadOnlyDictionary<StringName, TraitDef> traitDefs,
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefinitions,
         string itemLabel,
         List<string> errors
     )
@@ -128,18 +139,29 @@ public static class ItemTraitContentValidator
                 }
                 if (entry.weight <= 0)
                     errors.Add($"{entryLabel}.weight must be > 0.");
-                if (!traitDefs.TryGetValue(entry.trait_id, out TraitDef traitDef) || traitDef == null)
+                if (
+                    !traitDefinitions.TryGetValue(
+                        entry.trait_id,
+                        out TraitDefinition traitDefinition
+                    )
+                    || traitDefinition == null
+                )
                 {
                     errors.Add($"{entryLabel} references missing trait {entry.trait_id}.");
                     continue;
                 }
-                if (!TraitContentRules.IsSourceKindAllowed(traitDef, TraitSourceKind.EquipmentRoll))
+                if (
+                    !TraitContentRules.IsSourceKindAllowed(
+                        traitDefinition,
+                        TraitSourceKind.EquipmentRoll
+                    )
+                )
                 {
                     errors.Add(
                         $"{entryLabel} trait {entry.trait_id} must allow equipment_roll source."
                     );
                 }
-                AppendRollSchemaErrors(traitDef, entryLabel, errors);
+                AppendRollSchemaErrors(traitDefinition, entryLabel, errors);
             }
         }
     }
@@ -164,18 +186,23 @@ public static class ItemTraitContentValidator
     }
 
     private static void AppendRollSchemaErrors(
-        TraitDef traitDef,
+        TraitDefinition traitDefinition,
         string entryLabel,
         List<string> errors
     )
     {
-        for (int schemaIndex = 0; schemaIndex < traitDef.roll_value_schema.Count; schemaIndex++)
+        for (
+            int schemaIndex = 0;
+            schemaIndex < traitDefinition.RollValueSchema.Count;
+            schemaIndex++
+        )
         {
-            TraitRollValueSchemaEntry schemaEntry = traitDef.roll_value_schema[schemaIndex];
+            TraitRollValueSchemaEntryDefinition schemaEntry =
+                traitDefinition.RollValueSchema[schemaIndex];
             string schemaLabel = $"{entryLabel}.roll_value_schema[{schemaIndex}]";
             if (schemaEntry == null)
             {
-                errors.Add($"{schemaLabel} must be a TraitRollValueSchemaEntry.");
+                errors.Add($"{schemaLabel} must be a TraitRollValueSchemaEntryDefinition.");
                 continue;
             }
             schemaEntry.AppendSchemaErrors(errors, schemaLabel);

@@ -4,7 +4,7 @@ using Godot;
 public static class QuestContentValidator
 {
     public static List<string> ValidateTyped(
-        IReadOnlyDictionary<StringName, QuestDef> questDefs,
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs,
         IReadOnlyDictionary<StringName, ItemDef> itemDefs,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
@@ -26,27 +26,26 @@ public static class QuestContentValidator
         var supportedProviderIds = ResolveProviderIdsTyped();
         foreach (StringName questId in SortKeys(questDefs))
         {
-            QuestDef questDef = GetContentObject(questDefs, questId);
+            QuestDefinition questDef = GetContentObject(questDefs, questId);
             if (questDef == null)
             {
-                errors.Add($"Quest entry {label}::{questId} failed to cast to QuestDef.");
+                errors.Add($"Quest entry {label}::{questId} is missing a QuestDefinition.");
                 continue;
             }
 
-            if (questDef.quest_id == "")
+            if (questDef.QuestId == "")
             {
                 errors.Add($"Quest entry {label}::{questId} is missing quest_id.");
                 continue;
             }
 
-            if (!seenQuestIds.Add(questDef.quest_id))
+            if (!seenQuestIds.Add(questDef.QuestId))
             {
-                errors.Add($"Duplicate quest_id registered: {questDef.quest_id}");
+                errors.Add($"Duplicate quest_id registered: {questDef.QuestId}");
                 continue;
             }
 
-            foreach (string schemaError in questDef.ValidateSchema())
-                errors.Add($"Quest {questDef.quest_id}: {schemaError}");
+            AppendSchemaErrors(errors, questDef);
 
             AppendProviderReferenceErrors(errors, questDef, supportedProviderIds);
             AppendProviderKindErrors(errors, questDef);
@@ -61,13 +60,13 @@ public static class QuestContentValidator
 
     private static void AppendProviderReferenceErrors(
         ICollection<string> errors,
-        QuestDef questDef,
+        QuestDefinition questDef,
         ISet<StringName> supportedProviderIds
     )
     {
-        if (questDef.provider_interaction_id == "")
+        if (questDef.ProviderInteractionId == "")
         {
-            errors.Add($"Quest {questDef.quest_id} is missing provider_interaction_id.");
+            errors.Add($"Quest {questDef.QuestId} is missing provider_interaction_id.");
             return;
         }
 
@@ -75,21 +74,21 @@ public static class QuestContentValidator
         if (QuestProviderContentRules.ToProviderKind(questDef) == QuestProviderKind.Npc)
             return;
 
-        if (!supportedProviderIds.Contains(questDef.provider_interaction_id))
+        if (!supportedProviderIds.Contains(questDef.ProviderInteractionId))
             errors.Add(
-                $"Quest {questDef.quest_id} references missing provider_interaction_id {questDef.provider_interaction_id}."
+                $"Quest {questDef.QuestId} references missing provider_interaction_id {questDef.ProviderInteractionId}."
             );
     }
 
     public static void AppendProviderKindErrors(
         List<string> errors,
-        QuestDef questDef
+        QuestDefinition questDef
     )
     {
         QuestProviderKind kind = QuestProviderContentRules.ToProviderKind(questDef);
         if (kind == QuestProviderKind.Unknown)
         {
-            errors.Add($"Quest {questDef.quest_id}: 未知 provider_kind '{questDef.provider_kind}'。");
+            errors.Add($"Quest {questDef.QuestId}: 未知 provider_kind '{questDef.ProviderKind}'。");
             return;
         }
 
@@ -97,52 +96,52 @@ public static class QuestContentValidator
         {
             QuestProviderKind.ServiceContractBoard => "service_contract_board",
             QuestProviderKind.ServiceBountyRegistry => "service_bounty_registry",
-            QuestProviderKind.Npc => questDef.provider_interaction_id,
+            QuestProviderKind.Npc => questDef.ProviderInteractionId,
             _ => "",
         };
 
         if (kind == QuestProviderKind.ServiceContractBoard || kind == QuestProviderKind.ServiceBountyRegistry)
         {
-            if (questDef.provider_interaction_id != expectedInteractionId)
-                errors.Add($"Quest {questDef.quest_id}: provider_kind '{questDef.provider_kind}' 要求 provider_interaction_id 为 '{expectedInteractionId}'。");
+            if (questDef.ProviderInteractionId != expectedInteractionId)
+                errors.Add($"Quest {questDef.QuestId}: provider_kind '{questDef.ProviderKind}' 要求 provider_interaction_id 为 '{expectedInteractionId}'。");
         }
         else if (kind == QuestProviderKind.Npc)
         {
-            if (questDef.provider_interaction_id == "")
-                errors.Add($"Quest {questDef.quest_id}: provider_kind 'npc' 需要非空的 provider_interaction_id。");
+            if (questDef.ProviderInteractionId == "")
+                errors.Add($"Quest {questDef.QuestId}: provider_kind 'npc' 需要非空的 provider_interaction_id。");
         }
     }
 
     public static void AppendListingChannelErrors(
         List<string> errors,
-        QuestDef questDef
+        QuestDefinition questDef
     )
     {
-        if (questDef.listing_channels == null || questDef.listing_channels.Count == 0)
+        if (questDef.ListingChannels.Count == 0)
         {
-            errors.Add($"Quest {questDef.quest_id}: listing_channels 不能为空。");
+            errors.Add($"Quest {questDef.QuestId}: listing_channels 不能为空。");
             return;
         }
 
         foreach (QuestListingChannel channel in QuestProviderContentRules.ToListingChannels(questDef))
         {
             if (channel == QuestListingChannel.Unknown)
-                errors.Add($"Quest {questDef.quest_id}: listing_channels 包含未知渠道。");
+                errors.Add($"Quest {questDef.QuestId}: listing_channels 包含未知渠道。");
         }
     }
 
     public static void AppendAcceptRequirementErrors(
         List<string> errors,
-        QuestDef questDef,
-        IReadOnlyDictionary<StringName, QuestDef> questDefs
+        QuestDefinition questDef,
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs
     )
     {
-        if (questDef.accept_requirements == null || questDef.accept_requirements.Count == 0)
+        if (questDef.AcceptRequirements.Count == 0)
             return;
 
-        foreach (Godot.Collections.Dictionary requirement in questDef.accept_requirements)
+        foreach (QuestAcceptRequirementDefinition requirement in questDef.AcceptRequirements)
         {
-            StringName requirementType = ReadRequirementStringName(requirement, "requirement_type");
+            StringName requirementType = requirement.RequirementType;
             if (
                 requirementType != "quest_completed"
                 && requirementType != "quest_active"
@@ -150,16 +149,16 @@ public static class QuestContentValidator
             )
             {
                 errors.Add(
-                    $"Quest {questDef.quest_id}: accept_requirements 包含不支持的 requirement_type '{requirementType}'。"
+                    $"Quest {questDef.QuestId}: accept_requirements 包含不支持的 requirement_type '{requirementType}'。"
                 );
                 continue;
             }
 
-            StringName requiredQuestId = ReadRequirementStringName(requirement, "quest_id");
+            StringName requiredQuestId = requirement.QuestId;
             if (requiredQuestId == "")
             {
                 errors.Add(
-                    $"Quest {questDef.quest_id}: accept_requirements 中 '{requirementType}' 缺少 quest_id。"
+                    $"Quest {questDef.QuestId}: accept_requirements 中 '{requirementType}' 缺少 quest_id。"
                 );
                 continue;
             }
@@ -167,49 +166,33 @@ public static class QuestContentValidator
             if (questDefs == null || !questDefs.ContainsKey(requiredQuestId))
             {
                 errors.Add(
-                    $"Quest {questDef.quest_id}: accept_requirements 引用了不存在的 quest_id '{requiredQuestId}'。"
+                    $"Quest {questDef.QuestId}: accept_requirements 引用了不存在的 quest_id '{requiredQuestId}'。"
                 );
             }
         }
     }
 
-    private static StringName ReadRequirementStringName(
-        Godot.Collections.Dictionary requirement,
-        string key
-    )
-    {
-        if (requirement == null || !requirement.ContainsKey(key))
-            return "";
-        Variant value = requirement[key];
-        return value.VariantType switch
-        {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => new StringName(""),
-        };
-    }
-
     private static void AppendObjectiveReferenceErrors(
         ICollection<string> errors,
-        QuestDef questDef,
+        QuestDefinition questDef,
         IReadOnlyDictionary<StringName, ItemDef> itemDefs,
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates
     )
     {
-        foreach (QuestDef.ObjectiveEntryData objective in questDef.GetObjectiveEntriesTyped())
+        foreach (QuestObjectiveDefinition objective in questDef.Objectives)
         {
             var objectiveId = objective.ObjectiveId;
             var objectiveType = objective.ObjectiveType;
             var targetId = objective.TargetId;
 
-            if (QuestDef.ToObjectiveKind(objectiveType) == QuestObjectiveKind.SubmitItem)
+            if (objective.ObjectiveKind == QuestObjectiveKind.SubmitItem)
             {
                 if (targetId != "" && itemDefs.Count > 0 && !itemDefs.ContainsKey(targetId))
                     errors.Add(
-                        $"Quest {questDef.quest_id} submit_item objective {objectiveId} references missing item {targetId}."
+                        $"Quest {questDef.QuestId} submit_item objective {objectiveId} references missing item {targetId}."
                     );
             }
-            else if (QuestDef.ToObjectiveKind(objectiveType) == QuestObjectiveKind.DefeatEnemy)
+            else if (objective.ObjectiveKind == QuestObjectiveKind.DefeatEnemy)
             {
                 if (
                     targetId != ""
@@ -217,7 +200,7 @@ public static class QuestContentValidator
                     && !enemyTemplates.ContainsKey(targetId)
                 )
                     errors.Add(
-                        $"Quest {questDef.quest_id} defeat_enemy objective {objectiveId} references missing enemy {targetId}."
+                        $"Quest {questDef.QuestId} defeat_enemy objective {objectiveId} references missing enemy {targetId}."
                     );
             }
         }
@@ -225,23 +208,23 @@ public static class QuestContentValidator
 
     private static void AppendRewardReferenceErrors(
         ICollection<string> errors,
-        QuestDef questDef,
+        QuestDefinition questDef,
         IReadOnlyDictionary<StringName, ItemDef> itemDefs,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
-        foreach (QuestDef.RewardEntryData reward in questDef.GetRewardEntriesTyped())
+        foreach (QuestRewardDefinition reward in questDef.Rewards)
         {
             var rewardType = reward.RewardType;
-            if (QuestDef.ToRewardKind(rewardType) == QuestRewardKind.Item)
+            if (reward.RewardKind == QuestRewardKind.Item)
             {
                 var rewardItemId = reward.ItemId;
                 if (rewardItemId != "" && itemDefs.Count > 0 && !itemDefs.ContainsKey(rewardItemId))
                     errors.Add(
-                        $"Quest {questDef.quest_id} reward references missing item {rewardItemId}."
+                        $"Quest {questDef.QuestId} reward references missing item {rewardItemId}."
                     );
             }
-            else if (QuestDef.ToRewardKind(rewardType) == QuestRewardKind.PendingCharacterReward)
+            else if (reward.RewardKind == QuestRewardKind.PendingCharacterReward)
             {
                 AppendPendingCharacterRewardReferenceErrors(
                     errors,
@@ -255,15 +238,13 @@ public static class QuestContentValidator
 
     private static void AppendPendingCharacterRewardReferenceErrors(
         ICollection<string> errors,
-        QuestDef questDef,
-        QuestDef.RewardEntryData reward,
+        QuestDefinition questDef,
+        QuestRewardDefinition reward,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
-        foreach (QuestDef.PendingRewardEntryData entry in reward.PendingRewardEntries)
+        foreach (QuestPendingRewardEntryDefinition entry in reward.PendingRewardEntries)
         {
-            if (!entry.IsDictionaryEntry)
-                continue;
             var entryType = entry.EntryType;
             var targetId = entry.TargetId;
 
@@ -282,7 +263,7 @@ public static class QuestContentValidator
                     && !skillDefinitions.ContainsKey(targetId)
                 )
                     errors.Add(
-                        $"Quest {questDef.quest_id} pending_character_reward references missing skill {targetId}."
+                        $"Quest {questDef.QuestId} pending_character_reward references missing skill {targetId}."
                     );
             }
 
@@ -293,7 +274,7 @@ public static class QuestContentValidator
             )
             {
                 errors.Add(
-                    $"Quest {questDef.quest_id} pending_character_reward attribute_progress references unsupported attribute {targetId}."
+                    $"Quest {questDef.QuestId} pending_character_reward attribute_progress references unsupported attribute {targetId}."
                 );
             }
 
@@ -305,8 +286,128 @@ public static class QuestContentValidator
             )
             {
                 errors.Add(
-                    $"Quest {questDef.quest_id} pending_character_reward attribute_delta references unsupported attribute {targetId}."
+                    $"Quest {questDef.QuestId} pending_character_reward attribute_delta references unsupported attribute {targetId}."
                 );
+            }
+        }
+    }
+
+    private static void AppendSchemaErrors(
+        ICollection<string> errors,
+        QuestDefinition questDef
+    )
+    {
+        if (questDef == null)
+            return;
+        string prefix = $"Quest {questDef.QuestId}: ";
+        if (questDef.QuestId == "")
+            errors.Add(prefix + "QuestDef 缺少 quest_id。");
+        if (string.IsNullOrWhiteSpace(questDef.DisplayName))
+            errors.Add(prefix + $"QuestDef {questDef.QuestId} 缺少 display_name。");
+        if (questDef.ProviderKind == "")
+            errors.Add(prefix + $"QuestDef {questDef.QuestId} 的 provider_kind 不能为空。");
+        if (questDef.ListingChannels.Count == 0)
+            errors.Add(prefix + $"QuestDef {questDef.QuestId} 的 listing_channels 不能为空数组。");
+        foreach (StringName channel in questDef.ListingChannels)
+        {
+            if (channel == "")
+                errors.Add(prefix + $"QuestDef {questDef.QuestId} 的 listing_channels 包含空值。");
+        }
+
+        if (questDef.Objectives.Count == 0)
+            errors.Add(prefix + $"QuestDef {questDef.QuestId} 至少需要一个 objective_def。");
+        var seenObjectiveIds = new HashSet<StringName>();
+        foreach (QuestObjectiveDefinition objective in questDef.Objectives)
+        {
+            if (objective == null || objective.ObjectiveId == "")
+            {
+                errors.Add(prefix + $"QuestDef {questDef.QuestId} 存在空 objective_id。");
+                continue;
+            }
+            if (!seenObjectiveIds.Add(objective.ObjectiveId))
+            {
+                errors.Add(
+                    prefix
+                    + $"QuestDef {questDef.QuestId} 存在重复 objective_id {objective.ObjectiveId}。"
+                );
+                continue;
+            }
+            if (objective.ObjectiveKind == QuestObjectiveKind.Unknown)
+            {
+                errors.Add(
+                    prefix
+                    + $"QuestDef {questDef.QuestId} 的 objective {objective.ObjectiveId} 使用了不支持的 objective_type {objective.ObjectiveType}。"
+                );
+            }
+            if (objective.TargetValue <= 0)
+            {
+                errors.Add(
+                    prefix
+                    + $"QuestDef {questDef.QuestId} 的 objective {objective.ObjectiveId} 必须有正 target_value。"
+                );
+            }
+            if (
+                objective.ObjectiveKind
+                    is QuestObjectiveKind.SubmitItem or QuestObjectiveKind.SettlementAction
+                && objective.TargetId == ""
+            )
+            {
+                errors.Add(
+                    prefix
+                    + $"QuestDef {questDef.QuestId} 的 {objective.ObjectiveType} objective {objective.ObjectiveId} 缺少 target_id。"
+                );
+            }
+        }
+
+        foreach (QuestRewardDefinition reward in questDef.Rewards)
+        {
+            if (reward == null || reward.RewardKind == QuestRewardKind.Unknown)
+            {
+                errors.Add(
+                    prefix
+                    + $"QuestDef {questDef.QuestId} 使用了不支持的 reward_type {reward?.RewardType}。"
+                );
+                continue;
+            }
+            if (reward.RewardKind == QuestRewardKind.Gold && reward.GoldAmount <= 0)
+                errors.Add(prefix + $"QuestDef {questDef.QuestId} 的 gold reward 必须有正 amount。");
+            else if (reward.RewardKind == QuestRewardKind.Item)
+            {
+                if (reward.ItemId == "")
+                    errors.Add(prefix + $"QuestDef {questDef.QuestId} 的 item reward 缺少 item_id。");
+                if (reward.ItemQuantity <= 0)
+                    errors.Add(prefix + $"QuestDef {questDef.QuestId} 的 item reward 必须有正 quantity。");
+            }
+            else if (reward.RewardKind == QuestRewardKind.PendingCharacterReward)
+            {
+                if (reward.PendingRewardMemberId == "")
+                    errors.Add(
+                        prefix
+                        + $"QuestDef {questDef.QuestId} 的 pending_character_reward 缺少 member_id。"
+                    );
+                if (reward.PendingRewardEntries.Count == 0)
+                    errors.Add(
+                        prefix
+                        + $"QuestDef {questDef.QuestId} 的 pending_character_reward 至少需要一条 entries。"
+                    );
+                foreach (QuestPendingRewardEntryDefinition entry in reward.PendingRewardEntries)
+                {
+                    if (entry.EntryKind == PendingCharacterRewardEntryKind.Unknown)
+                        errors.Add(
+                            prefix
+                            + $"QuestDef {questDef.QuestId} has unsupported pending_character_reward entry_type {entry.EntryType}."
+                        );
+                    if (entry.TargetId == "")
+                        errors.Add(
+                            prefix
+                            + $"QuestDef {questDef.QuestId} 的 pending_character_reward entry 缺少 target_id。"
+                        );
+                    if (entry.Amount == 0)
+                        errors.Add(
+                            prefix
+                            + $"QuestDef {questDef.QuestId} 的 pending_character_reward entry amount 不能为 0。"
+                        );
+                }
             }
         }
     }

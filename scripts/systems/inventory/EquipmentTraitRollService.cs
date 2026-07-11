@@ -4,17 +4,17 @@ using Godot;
 
 public class EquipmentTraitRollService : IDisposable
 {
-    private readonly List<TraitDef> _traitDefs;
+    private readonly List<TraitDefinition> _traitDefs;
     private RuntimeRandom _runtimeRng;
     private Func<int, int, int> _rollRange;
     private Func<float> _rollUnit;
 
-    public EquipmentTraitRollService(IEnumerable<TraitDef> traitDefs)
+    public EquipmentTraitRollService(IEnumerable<TraitDefinition> traitDefs)
     {
-        _traitDefs = new List<TraitDef>();
+        _traitDefs = new List<TraitDefinition>();
         if (traitDefs != null)
         {
-            foreach (TraitDef traitDef in traitDefs)
+            foreach (TraitDefinition traitDef in traitDefs)
                 if (traitDef != null)
                     _traitDefs.Add(traitDef);
         }
@@ -57,7 +57,7 @@ public class EquipmentTraitRollService : IDisposable
         {
             foreach (TraitRollGroupEntryDef entry in RollGroup(group))
             {
-                TraitDef traitDef = FindTraitDef(entry.trait_id);
+                TraitDefinition traitDef = FindTraitDef(entry.trait_id);
                 if (traitDef == null)
                     continue;
                 nextTraits.Add(
@@ -83,7 +83,7 @@ public class EquipmentTraitRollService : IDisposable
         {
             if (trait == null || trait.SourceKind != TraitSourceKind.EquipmentRoll)
                 return false;
-            TraitDef traitDef = FindTraitDef(trait.trait_id);
+            TraitDefinition traitDef = FindTraitDef(trait.trait_id);
             if (traitDef == null)
                 return false;
             if (trait.ValidateAgainstDef(traitDef).Length > 0)
@@ -128,7 +128,7 @@ public class EquipmentTraitRollService : IDisposable
         {
             if (entry == null || entry.trait_id == "" || entry.weight <= 0)
                 continue;
-            TraitDef traitDef = FindTraitDef(entry.trait_id);
+            TraitDefinition traitDef = FindTraitDef(entry.trait_id);
             if (traitDef == null)
                 continue;
             if (!TraitContentRules.IsSourceKindAllowed(traitDef, TraitSourceKind.EquipmentRoll))
@@ -173,37 +173,37 @@ public class EquipmentTraitRollService : IDisposable
         candidates.RemoveAll(entry => entry.exclusive_group == picked.exclusive_group);
     }
 
-    private List<TraitRollValueState> RollValuesFor(TraitDef traitDef)
+    private List<TraitRollValueState> RollValuesFor(TraitDefinition traitDef)
     {
         List<TraitRollValueState> values = new();
-        foreach (TraitRollValueSchemaEntry schemaEntry in traitDef.roll_value_schema)
+        foreach (TraitRollValueSchemaEntryDefinition schemaEntry in traitDef.RollValueSchema)
         {
-            if (schemaEntry == null || schemaEntry.key == "")
+            if (schemaEntry == null || schemaEntry.Key == "")
                 continue;
             switch (schemaEntry.ValueTypeKind)
             {
                 case TraitRollValueType.Int:
                     values.Add(
                         TraitRollValueState.CreateInt(
-                            schemaEntry.key,
-                            _rollRange(schemaEntry.min_value, schemaEntry.max_value)
+                            schemaEntry.Key,
+                            _rollRange(schemaEntry.MinValue, schemaEntry.MaxValue)
                         )
                     );
                     break;
                 case TraitRollValueType.StringName:
-                    if (schemaEntry.allowed_values.Count == 0)
+                    if (schemaEntry.AllowedValues.Count == 0)
                         break;
-                    int index = _rollRange(0, schemaEntry.allowed_values.Count - 1);
+                    int index = _rollRange(0, schemaEntry.AllowedValues.Count - 1);
                     values.Add(
                         TraitRollValueState.CreateStringName(
-                            schemaEntry.key,
-                            schemaEntry.allowed_values[index]
+                            schemaEntry.Key,
+                            schemaEntry.AllowedValues[index]
                         )
                     );
                     break;
                 case TraitRollValueType.Bool:
                     values.Add(
-                        TraitRollValueState.CreateBool(schemaEntry.key, _rollRange(0, 1) != 0)
+                        TraitRollValueState.CreateBool(schemaEntry.Key, _rollRange(0, 1) != 0)
                     );
                     break;
             }
@@ -233,11 +233,11 @@ public class EquipmentTraitRollService : IDisposable
     private static StringName BuildTraitInstanceId(StringName equipmentInstanceId, int ordinal) =>
         $"{equipmentInstanceId}_t{Mathf.Max(ordinal, 1):D2}";
 
-    private TraitDef FindTraitDef(StringName traitId)
+    private TraitDefinition FindTraitDef(StringName traitId)
     {
         StringName normalizedTraitId = ProgressionDataUtils.to_string_name(traitId);
-        foreach (TraitDef traitDef in _traitDefs)
-            if (traitDef != null && traitDef.trait_id == normalizedTraitId)
+        foreach (TraitDefinition traitDef in _traitDefs)
+            if (traitDef != null && traitDef.TraitId == normalizedTraitId)
                 return traitDef;
         return null;
     }

@@ -512,7 +512,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
             partyState,
             progressionRegistry.GetSkillDefinitionsTyped(),
             progressionRegistry.GetProfessionDefsTyped(),
-            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, AchievementDefinition>(),
             BuildItemDefIndex(itemDefs)
         );
         AttributeSnapshot snapshot = manager.GetMemberAttributeSnapshot("hero");
@@ -523,7 +523,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
             emptyParty,
             progressionRegistry.GetSkillDefinitionsTyped(),
             progressionRegistry.GetProfessionDefsTyped(),
-            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, AchievementDefinition>(),
             BuildItemDefIndex(itemDefs)
         );
         AttributeSnapshot emptySnapshot = emptyManager.GetMemberAttributeSnapshot("blank");

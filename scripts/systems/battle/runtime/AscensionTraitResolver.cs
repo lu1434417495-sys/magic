@@ -18,71 +18,71 @@ public static class AscensionTraitResolver
 
     private static void _apply_identity_def_projection(
         BattleUnitState unitState,
-        BloodlineDef identityDef
+        BloodlineDefinition identityDef
     )
     {
         if (identityDef == null)
             return;
 
-        _initialize_racial_skill_charges(unitState, identityDef.racial_granted_skills);
+        _initialize_racial_skill_charges(unitState, identityDef.RacialGrantedSkills);
     }
 
     private static void _apply_identity_def_projection(
         BattleUnitState unitState,
-        BloodlineStageDef identityDef
+        BloodlineStageDefinition identityDef
     )
     {
         if (identityDef == null)
             return;
 
-        _initialize_racial_skill_charges(unitState, identityDef.racial_granted_skills);
+        _initialize_racial_skill_charges(unitState, identityDef.RacialGrantedSkills);
     }
 
     private static void _apply_identity_def_projection(
         BattleUnitState unitState,
-        AscensionDef identityDef
+        AscensionDefinition identityDef
     )
     {
         if (identityDef == null)
             return;
 
-        _initialize_racial_skill_charges(unitState, identityDef.racial_granted_skills);
+        _initialize_racial_skill_charges(unitState, identityDef.RacialGrantedSkills);
     }
 
     private static void _apply_identity_def_projection(
         BattleUnitState unitState,
-        AscensionStageDef identityDef
+        AscensionStageDefinition identityDef
     )
     {
         if (identityDef == null)
             return;
 
-        _initialize_racial_skill_charges(unitState, identityDef.racial_granted_skills);
+        _initialize_racial_skill_charges(unitState, identityDef.RacialGrantedSkills);
     }
 
     private static void _initialize_racial_skill_charges(
         BattleUnitState unitState,
-        Godot.Collections.Array<RacialGrantedSkill> grants
+        System.Collections.Generic.IReadOnlyList<RacialGrantedSkillDefinition> grants
     )
     {
         if (grants == null)
             return;
 
-        foreach (RacialGrantedSkill grant in grants)
+        foreach (RacialGrantedSkillDefinition grant in grants)
         {
-            if (grant == null || grant.skill_id == "")
+            if (grant == null || grant.SkillId == "")
                 continue;
 
-            var chargeKey = new StringName($"racial_skill_{(string)grant.skill_id}");
+            var chargeKey = new StringName($"racial_skill_{(string)grant.SkillId}");
 
-            if (grant.ChargeKind == RacialSkillChargeKind.PerBattle)
+            if (grant.ChargeKindKind == RacialSkillChargeKind.PerBattle)
             {
                 if (!unitState.HasPerBattleChargeTyped(chargeKey))
-                    unitState.SetPerBattleChargeTyped(chargeKey, Mathf.Max(grant.charges, 1));
+                    unitState.SetPerBattleChargeTyped(chargeKey, Mathf.Max(grant.Charges, 1));
             }
-            else if (grant.ChargeKind == RacialSkillChargeKind.PerTurn)
+            else if (grant.ChargeKindKind == RacialSkillChargeKind.PerTurn)
             {
-                int chargeCount = Mathf.Max(grant.charges, 1);
+                int chargeCount = Mathf.Max(grant.Charges, 1);
 
                 unitState.SetPerTurnChargeLimitTyped(chargeKey, chargeCount);
 

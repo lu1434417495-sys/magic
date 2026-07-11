@@ -11,6 +11,8 @@ public sealed class AchievementDef
     public int threshold;
     public List<AchievementRewardDef> rewards = new();
 
+    internal IReadOnlyList<AchievementRewardDef> RewardsBorrowed => rewards;
+
     public bool MatchesEvent(StringName target_event_type, StringName target_subject_id = default)
     {
         if ((string)achievement_id == "" || (string)event_type == "" || threshold <= 0)

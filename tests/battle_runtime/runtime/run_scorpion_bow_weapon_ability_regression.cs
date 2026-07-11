@@ -449,7 +449,7 @@ public partial class run_scorpion_bow_weapon_ability_regression : LifecycleTestS
 
         internal BattleRuntimeModule Runtime { get; }
         internal IReadOnlyDictionary<StringName, ItemDef> ItemDefs { get; }
-        internal IReadOnlyDictionary<StringName, TraitDef> TraitDefs { get; }
+        internal IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs { get; }
         internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> Bindings { get; }
 
         internal static ScorpionFixture Build(GArray damageRolls)

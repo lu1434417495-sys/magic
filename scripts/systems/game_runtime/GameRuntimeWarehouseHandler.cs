@@ -584,11 +584,11 @@ public sealed class GameRuntimeWarehouseHandler
             freeSlots = partyWarehouseService.GetFreeSlots();
             isOverCapacity = partyWarehouseService.IsOverCapacity();
 
-            GameSession gameSession = GetGameSession();
-            System.Collections.Generic.IReadOnlyDictionary<StringName, TraitDef> traitDefs =
-                gameSession != null
-                    ? gameSession.GetTraitDefsTyped()
-                    : new System.Collections.Generic.Dictionary<StringName, TraitDef>();
+            GameContentCatalog contentCatalog = _runtime?.GetContentCatalogTyped();
+            System.Collections.Generic.IReadOnlyDictionary<StringName, TraitDefinition> traitDefs =
+                contentCatalog != null
+                    ? contentCatalog.GetTraitDefsTyped()
+                    : new System.Collections.Generic.Dictionary<StringName, TraitDefinition>();
 
             foreach (var inventoryEntryData in partyWarehouseService.GetInventoryEntriesTyped())
             {
@@ -651,11 +651,11 @@ public sealed class GameRuntimeWarehouseHandler
             freeSlots = partyWarehouseService.GetFreeSlots();
             isOverCapacity = partyWarehouseService.IsOverCapacity();
 
-            GameSession gameSession = GetGameSession();
-            System.Collections.Generic.IReadOnlyDictionary<StringName, TraitDef> traitDefs =
-                gameSession != null
-                    ? gameSession.GetTraitDefsTyped()
-                    : new System.Collections.Generic.Dictionary<StringName, TraitDef>();
+            GameContentCatalog contentCatalog = _runtime?.GetContentCatalogTyped();
+            System.Collections.Generic.IReadOnlyDictionary<StringName, TraitDefinition> traitDefs =
+                contentCatalog != null
+                    ? contentCatalog.GetTraitDefsTyped()
+                    : new System.Collections.Generic.Dictionary<StringName, TraitDefinition>();
 
             foreach (
                 WarehouseInventoryEntry inventoryEntry in
@@ -701,7 +701,7 @@ public sealed class GameRuntimeWarehouseHandler
 
     private System.Collections.Generic.IReadOnlyDictionary<string, object> BuildWarehouseInventoryEntrySnapshotPlain(
         WarehouseInventoryEntry entry,
-        System.Collections.Generic.IReadOnlyDictionary<StringName, TraitDef> traitDefs
+        System.Collections.Generic.IReadOnlyDictionary<StringName, TraitDefinition> traitDefs
     )
     {
         if (entry == null)

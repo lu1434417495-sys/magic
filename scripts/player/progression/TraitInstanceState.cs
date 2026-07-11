@@ -201,51 +201,48 @@ public class TraitInstanceState
         };
     }
 
-    public string ValidateAgainstDef(TraitDef def)
+    public string ValidateAgainstDef(TraitDefinition definition)
     {
-        if (def == null)
-            return $"Trait instance {trait_instance_id}: missing TraitDef for {trait_id}.";
+        if (definition == null)
+            return $"Trait instance {trait_instance_id}: missing trait definition for {trait_id}.";
 
         var normalized = NormalizeRollValues(roll_values);
         var expectedKeys = new List<StringName>();
-        foreach (TraitRollValueSchemaEntry schema in def.roll_value_schema)
+        foreach (TraitRollValueSchemaEntryDefinition schema in definition.RollValueSchema)
         {
-            if (schema == null || schema.key == "")
+            if (schema == null || schema.Key == "")
                 continue;
 
-            expectedKeys.Add(schema.key);
-            if (!TryFindRoll(normalized, schema.key, out TraitRollValueState value))
-                return $"Trait instance {trait_instance_id}: missing roll key {schema.key}.";
+            expectedKeys.Add(schema.Key);
+            if (!TryFindRoll(normalized, schema.Key, out TraitRollValueState value))
+                return $"Trait instance {trait_instance_id}: missing roll key {schema.Key}.";
 
             switch (schema.ValueTypeKind)
             {
                 case TraitRollValueType.Int:
                     if (value.ValueTypeKind != TraitRollValueType.Int)
-                        return $"Trait instance {trait_instance_id}: roll {schema.key} must be int.";
-                    if (value.int_value < schema.min_value || value.int_value > schema.max_value)
-                        return $"Trait instance {trait_instance_id}: roll {schema.key} out of range.";
+                        return $"Trait instance {trait_instance_id}: roll {schema.Key} must be int.";
+                    if (value.int_value < schema.MinValue || value.int_value > schema.MaxValue)
+                        return $"Trait instance {trait_instance_id}: roll {schema.Key} out of range.";
                     break;
                 case TraitRollValueType.StringName:
                     bool allowed = false;
-                    foreach (StringName allowedValue in schema.allowed_values)
+                    foreach (StringName allowedValue in schema.AllowedValues)
                     {
-                        if (
-                            ProgressionDataUtils.to_string_name(allowedValue)
-                            != value.string_name_value
-                        )
+                        if (allowedValue != value.string_name_value)
                             continue;
                         allowed = true;
                         break;
                     }
                     if (value.ValueTypeKind != TraitRollValueType.StringName || !allowed)
-                        return $"Trait instance {trait_instance_id}: roll {schema.key} value {value.string_name_value} is not allowed.";
+                        return $"Trait instance {trait_instance_id}: roll {schema.Key} value {value.string_name_value} is not allowed.";
                     break;
                 case TraitRollValueType.Bool:
                     if (value.ValueTypeKind != TraitRollValueType.Bool)
-                        return $"Trait instance {trait_instance_id}: roll {schema.key} must be bool.";
+                        return $"Trait instance {trait_instance_id}: roll {schema.Key} must be bool.";
                     break;
                 default:
-                    return $"Trait instance {trait_instance_id}: unsupported schema type for {schema.key}.";
+                    return $"Trait instance {trait_instance_id}: unsupported schema type for {schema.Key}.";
             }
         }
 

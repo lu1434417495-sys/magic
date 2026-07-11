@@ -977,11 +977,13 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
             return;
         }
 
+        GameContentCatalog contentCatalog = _gameSession.GetContentCatalogTyped();
         battleRuntime.SyncContentCatalogsTyped(
-            _gameSession.GetItemDefsTyped(),
-            _gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
-            _gameSession.GetTraitDefsTyped(),
-            _gameSession.GetEquipmentAbilityBindingDefinitionsTyped()
+            contentCatalog.GetItemDefsTyped(),
+            contentCatalog.GetSkillDefinitionsTyped(),
+            contentCatalog.GetTraitDefsTyped(),
+            contentCatalog.GetEquipmentAbilityBindingDefinitionsTyped(),
+            contentCatalog.GetBarrierProfileDefinitionsTyped()
         );
     }
 

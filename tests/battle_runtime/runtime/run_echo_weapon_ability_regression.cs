@@ -531,7 +531,7 @@ public partial class run_echo_weapon_ability_regression : LifecycleTestSceneTree
         internal BattleRuntimeModule Runtime { get; }
         internal IReadOnlyDictionary<StringName, ItemDef> ItemDefs { get; }
         internal IReadOnlyDictionary<StringName, SkillDefinition> SkillDefs { get; }
-        internal IReadOnlyDictionary<StringName, TraitDef> TraitDefs { get; }
+        internal IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs { get; }
         internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> Bindings { get; }
 
         internal static EchoFixture Build(GArray damageRolls)

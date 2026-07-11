@@ -32,18 +32,20 @@ public partial class run_racial_skill_grant_service_regression : LifecycleTestSc
         };
         SkillDefinition skillDefinition = BuildSkillDefinition(skillId, "Stone Skin", 3, "race");
         ProgressionIdentityCatalogData identityCatalog = new(
-            new Dictionary<StringName, RaceDef> { [race.race_id] = race },
-            new Dictionary<StringName, SubraceDef>(),
-            new Dictionary<StringName, AgeProfileDef>(),
-            new Dictionary<StringName, BloodlineDef>(),
-            new Dictionary<StringName, BloodlineStageDef>(),
-            new Dictionary<StringName, AscensionDef>(),
-            new Dictionary<StringName, AscensionStageDef>(),
-            new Dictionary<StringName, StageAdvancementModifier>()
+            TestProgressionDefinitionProjection.Races(
+                new Dictionary<StringName, RaceDef> { [race.race_id] = race }
+            ),
+            new Dictionary<StringName, SubraceDefinition>(),
+            new Dictionary<StringName, AgeProfileDefinition>(),
+            new Dictionary<StringName, BloodlineDefinition>(),
+            new Dictionary<StringName, BloodlineStageDefinition>(),
+            new Dictionary<StringName, AscensionDefinition>(),
+            new Dictionary<StringName, AscensionStageDefinition>(),
+            new Dictionary<StringName, StageAdvancementDefinition>()
         );
         Dictionary<StringName, SkillDefinition> skillDefinitions =
             new() { [skillDefinition.SkillId] = skillDefinition };
-        Dictionary<StringName, ProfessionDef> professionDefs = new();
+        Dictionary<StringName, ProfessionDefinition> professionDefs = new();
         PartyMemberState member = MakeMember("hero", race.race_id);
 
         _test.True(
@@ -80,6 +82,18 @@ public partial class run_racial_skill_grant_service_regression : LifecycleTestSc
         );
 
         race.racial_granted_skills.Clear();
+        identityCatalog = new ProgressionIdentityCatalogData(
+            TestProgressionDefinitionProjection.Races(
+                new Dictionary<StringName, RaceDef> { [race.race_id] = race }
+            ),
+            new Dictionary<StringName, SubraceDefinition>(),
+            new Dictionary<StringName, AgeProfileDefinition>(),
+            new Dictionary<StringName, BloodlineDefinition>(),
+            new Dictionary<StringName, BloodlineStageDefinition>(),
+            new Dictionary<StringName, AscensionDefinition>(),
+            new Dictionary<StringName, AscensionStageDefinition>(),
+            new Dictionary<StringName, StageAdvancementDefinition>()
+        );
         _test.True(
             RacialSkillGrantService.RevokeOrphanMember(
                 member,

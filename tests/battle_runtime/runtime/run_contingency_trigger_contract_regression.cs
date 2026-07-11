@@ -780,11 +780,11 @@ public partial class run_contingency_trigger_contract_regression : LifecycleTest
         manager.setup(
             partyState,
             new Dictionary<StringName, SkillDefinition>(),
-            new Dictionary<StringName, ProfessionDef>(),
-            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
             new Dictionary<StringName, ItemDef>(),
-            new Dictionary<StringName, QuestDef>(),
-            new Dictionary<StringName, TraitDef>(),
+            new Dictionary<StringName, QuestDefinition>(),
+            new Dictionary<StringName, TraitDefinition>(),
             null,
             new ProgressionIdentityCatalogData()
         );

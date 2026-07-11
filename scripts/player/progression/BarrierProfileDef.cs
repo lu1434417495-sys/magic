@@ -45,6 +45,8 @@ public partial class BarrierProfileDef : Resource
     [Export]
     public Godot.Collections.Array<BarrierLayerDef> layers = new();
 
+    internal Godot.Collections.Array<BarrierLayerDef> LayersProjectionBorrowed => layers;
+
     public Godot.Collections.Array<BarrierLayerDef> GetOrderedLayers()
     {
         var list = new System.Collections.Generic.List<BarrierLayerDef>();

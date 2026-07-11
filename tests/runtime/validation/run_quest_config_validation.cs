@@ -21,7 +21,8 @@ public partial class run_quest_config_validation : LifecycleTestSceneTree
             _test.Fail(string.Join("\n", registryErrors));
         }
 
-        IReadOnlyDictionary<StringName, QuestDef> questDefs = registry.GetQuestDefsTyped();
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs =
+            registry.GetQuestDefsTyped();
 
         using ItemContentRegistry itemRegistry = new();
         using SkillContentRegistry skillRegistry = new();

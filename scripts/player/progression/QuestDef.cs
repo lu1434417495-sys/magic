@@ -138,6 +138,35 @@ public partial class QuestDef : Resource
     [Export(PropertyHint.MultilineText)]
     public string accept_confirmation_text { get; set; } = "";
 
+    internal Godot.Collections.Array<StringName> TagsBorrowed => tags;
+    internal Godot.Collections.Array<Godot.Collections.Dictionary> AcceptRequirementsBorrowed =>
+        accept_requirements;
+    internal Godot.Collections.Array<Godot.Collections.Dictionary> ObjectiveDefsBorrowed =>
+        objective_defs;
+    internal Godot.Collections.Array<Godot.Collections.Dictionary> RewardEntriesBorrowed =>
+        reward_entries;
+    internal Godot.Collections.Array<StringName> ListingChannelsBorrowed => listing_channels;
+
+    internal sealed class AcceptRequirementEntryData
+    {
+        public readonly StringName RequirementType;
+        public readonly StringName QuestId;
+
+        private AcceptRequirementEntryData(StringName requirementType, StringName questId)
+        {
+            RequirementType = requirementType;
+            QuestId = questId;
+        }
+
+        public static AcceptRequirementEntryData FromDictionary(
+            Godot.Collections.Dictionary requirementData
+        ) =>
+            new(
+                DictStringName(requirementData, "requirement_type"),
+                DictStringName(requirementData, "quest_id")
+            );
+    }
+
     internal sealed class ObjectiveEntryData
     {
         public readonly StringName ObjectiveId;
@@ -399,6 +428,14 @@ public partial class QuestDef : Resource
         var result = new System.Collections.Generic.List<ObjectiveEntryData>();
         foreach (var objectiveData in objective_defs)
             result.Add(ObjectiveEntryData.FromDictionary(objectiveData));
+        return result;
+    }
+
+    internal IReadOnlyList<AcceptRequirementEntryData> GetAcceptRequirementEntriesTyped()
+    {
+        var result = new System.Collections.Generic.List<AcceptRequirementEntryData>();
+        foreach (var requirementData in accept_requirements)
+            result.Add(AcceptRequirementEntryData.FromDictionary(requirementData));
         return result;
     }
 

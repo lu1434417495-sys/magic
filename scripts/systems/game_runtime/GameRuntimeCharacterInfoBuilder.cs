@@ -344,7 +344,7 @@ internal sealed class GameRuntimeCharacterInfoBuilder
     private void AppendEquipmentItemEntries(
         Godot.Collections.Array<Dictionary> entries,
         System.Collections.Generic.IReadOnlyDictionary<StringName, ItemDef> itemDefs,
-        System.Collections.Generic.IReadOnlyDictionary<StringName, TraitDef> traitDefs,
+        System.Collections.Generic.IReadOnlyDictionary<StringName, TraitDefinition> traitDefs,
         StringName itemId,
         string slotLabel,
         System.Collections.Generic.HashSet<StringName> renderedItemIds

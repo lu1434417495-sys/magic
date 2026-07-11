@@ -106,9 +106,10 @@ public partial class run_promotion_selection_typed_regression : LifecycleTestSce
             {
                 [triggerSkill.SkillId] = triggerSkill,
             },
-            new System.Collections.Generic.Dictionary<StringName, ProfessionDef>
+            new System.Collections.Generic.Dictionary<StringName, ProfessionDefinition>
             {
-                [profession.profession_id] = profession,
+                [profession.profession_id] =
+                    TestProgressionDefinitionProjection.Profession(profession),
             }
         );
 

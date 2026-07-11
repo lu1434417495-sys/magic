@@ -16,11 +16,17 @@ public partial class BarrierLayerDef : Resource
     [Export]
     public Array<StringName> blocked_categories = new();
 
+    internal Array<StringName> BlockedCategoriesProjectionBorrowed => blocked_categories;
+
     [Export]
     public Array<StringName> breaker_skill_ids = new();
 
+    internal Array<StringName> BreakerSkillIdsProjectionBorrowed => breaker_skill_ids;
+
     [Export]
     public Array<BarrierOutcomeDef> passage_outcomes = new();
+
+    internal Array<BarrierOutcomeDef> PassageOutcomesProjectionBorrowed => passage_outcomes;
 
     public Dictionary ToRuntimeDict(int defaultSaveDc = 0)
     {

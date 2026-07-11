@@ -454,7 +454,7 @@ public partial class run_titanbow_weapon_ability_regression : LifecycleTestScene
 
         internal BattleRuntimeModule Runtime { get; }
         internal IReadOnlyDictionary<StringName, ItemDef> ItemDefs { get; }
-        internal IReadOnlyDictionary<StringName, TraitDef> TraitDefs { get; }
+        internal IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs { get; }
         internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> Bindings { get; }
 
         internal static TitanbowFixture Build(GArray damageRolls = null)

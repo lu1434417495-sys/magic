@@ -5,12 +5,12 @@ public sealed class ProfessionRuleService
 {
     private UnitProgress _unit_progress;
     private readonly Dictionary<StringName, SkillDefinition> _skillDefinitions = new();
-    private readonly Dictionary<StringName, ProfessionDef> _professionDefs = new();
+    private readonly Dictionary<StringName, ProfessionDefinition> _professionDefs = new();
 
     public void Setup(
         UnitProgress unitProgress,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
-        IReadOnlyDictionary<StringName, ProfessionDef> professionDefs
+        IReadOnlyDictionary<StringName, ProfessionDefinition> professionDefs
     )
     {
         _unit_progress = unitProgress;
@@ -28,7 +28,7 @@ public sealed class ProfessionRuleService
 
         if (professionDefs != null)
         {
-            foreach (KeyValuePair<StringName, ProfessionDef> pair in professionDefs)
+            foreach (KeyValuePair<StringName, ProfessionDefinition> pair in professionDefs)
             {
                 if (pair.Key != "" && pair.Value != null)
                     _professionDefs[pair.Key] = pair.Value;
@@ -38,18 +38,18 @@ public sealed class ProfessionRuleService
 
     public bool IsProfessionKnowledgeUnlocked(StringName professionId)
     {
-        ProfessionDef professionDef = GetProfessionDef(professionId);
+        ProfessionDefinition professionDef = GetProfessionDef(professionId);
         if (professionDef == null)
             return false;
         if (!professionDef.RequiresKnowledgeUnlock())
             return true;
         return _unit_progress != null
-            && _unit_progress.HasKnowledge(professionDef.unlock_knowledge_id);
+            && _unit_progress.HasKnowledge(professionDef.UnlockKnowledgeId);
     }
 
     public bool CanUnlockProfession(StringName professionId)
     {
-        ProfessionDef professionDef = GetProfessionDef(professionId);
+        ProfessionDefinition professionDef = GetProfessionDef(professionId);
         if (professionDef == null || !IsProfessionKnowledgeUnlocked(professionId))
             return false;
 
@@ -57,21 +57,21 @@ public sealed class ProfessionRuleService
         if (professionProgress != null && professionProgress.rank > 0)
             return false;
 
-        ProfessionPromotionRequirement unlockRequirement = professionDef.unlock_requirement;
+        ProfessionPromotionRequirementDefinition unlockRequirement = professionDef.UnlockRequirement;
         if (unlockRequirement == null)
             return true;
 
         if (
-            !CanSatisfyRequiredSkillIdsForUnlock(professionId, unlockRequirement.required_skill_ids)
+            !CanSatisfyRequiredSkillIdsForUnlock(professionId, unlockRequirement.RequiredSkillIds)
         )
             return false;
-        if (!CanSatisfyTagRulesForUnlock(professionId, unlockRequirement.required_tag_rules))
+        if (!CanSatisfyTagRulesForUnlock(professionId, unlockRequirement.RequiredTagRules))
             return false;
-        if (!CanSatisfyProfessionGates(unlockRequirement.required_profession_ranks))
+        if (!CanSatisfyProfessionGates(unlockRequirement.RequiredProfessionRanks))
             return false;
-        if (!CanSatisfyAttributeRules(unlockRequirement.required_attribute_rules))
+        if (!CanSatisfyAttributeRules(unlockRequirement.RequiredAttributeRules))
             return false;
-        if (!CanSatisfyReputationRules(unlockRequirement.required_reputation_rules))
+        if (!CanSatisfyReputationRules(unlockRequirement.RequiredReputationRules))
             return false;
 
         return true;
@@ -79,18 +79,18 @@ public sealed class ProfessionRuleService
 
     public bool CanRankUpProfession(StringName professionId)
     {
-        ProfessionDef professionDef = GetProfessionDef(professionId);
+        ProfessionDefinition professionDef = GetProfessionDef(professionId);
         if (professionDef == null || !IsProfessionKnowledgeUnlocked(professionId))
             return false;
 
         UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
         if (professionProgress == null || professionProgress.rank <= 0)
             return false;
-        if (professionProgress.rank >= professionDef.max_rank)
+        if (professionProgress.rank >= professionDef.MaxRank)
             return false;
 
         int targetRank = professionProgress.rank + 1;
-        ProfessionRankRequirement rankRequirement = professionDef.GetRankRequirement(targetRank);
+        ProfessionRankRequirementDefinition rankRequirement = professionDef.GetRankRequirement(targetRank);
         if (rankRequirement == null)
             return false;
 
@@ -101,7 +101,7 @@ public sealed class ProfessionRuleService
             !CanSatisfyTagRulesWithSkillIds(
                 GetRankUpCandidateSkillIds(professionId, previewAssignedSkillIds),
                 professionId,
-                rankRequirement.required_tag_rules,
+                rankRequirement.RequiredTagRules,
                 false,
                 previewAssignedSkillIds
             )
@@ -110,11 +110,11 @@ public sealed class ProfessionRuleService
             return false;
         }
 
-        if (!CanSatisfyProfessionGates(rankRequirement.required_profession_ranks))
+        if (!CanSatisfyProfessionGates(rankRequirement.RequiredProfessionRanks))
             return false;
-        if (!CanSatisfyAttributeRules(rankRequirement.required_attribute_rules))
+        if (!CanSatisfyAttributeRules(rankRequirement.RequiredAttributeRules))
             return false;
-        if (!CanSatisfyReputationRules(rankRequirement.required_reputation_rules))
+        if (!CanSatisfyReputationRules(rankRequirement.RequiredReputationRules))
             return false;
 
         return true;
@@ -122,7 +122,7 @@ public sealed class ProfessionRuleService
 
     public bool CanSatisfyTagRules(
         StringName professionId,
-        IEnumerable<TagRequirement> tagRules
+        IEnumerable<TagRequirementDefinition> tagRules
     )
     {
         return CanSatisfyTagRulesWithSkillIds(
@@ -133,18 +133,18 @@ public sealed class ProfessionRuleService
         );
     }
 
-    public bool CanSatisfyProfessionGates(IEnumerable<ProfessionRankGate> gates)
+    public bool CanSatisfyProfessionGates(IEnumerable<ProfessionRankGateDefinition> gates)
     {
         if (gates == null)
             return true;
 
-        foreach (ProfessionRankGate gate in gates)
+        foreach (ProfessionRankGateDefinition gate in gates)
         {
             if (gate == null)
                 continue;
 
-            UnitProfessionProgress professionProgress = GetProfessionProgress(gate.profession_id);
-            if (professionProgress == null || professionProgress.rank < gate.min_rank)
+            UnitProfessionProgress professionProgress = GetProfessionProgress(gate.ProfessionId);
+            if (professionProgress == null || professionProgress.rank < gate.MinRank)
                 return false;
 
             ProfessionGateCheckMode checkMode = ResolveGateCheckMode(gate);
@@ -157,37 +157,37 @@ public sealed class ProfessionRuleService
         return true;
     }
 
-    public bool CanSatisfyAttributeRules(IEnumerable<AttributeRequirement> rules)
+    public bool CanSatisfyAttributeRules(IEnumerable<AttributeRequirementDefinition> rules)
     {
         UnitBaseAttributes unitBaseAttributes = _unit_progress?.unit_base_attributes;
         if (rules == null)
             return true;
 
-        foreach (AttributeRequirement rule in rules)
+        foreach (AttributeRequirementDefinition rule in rules)
         {
             if (rule == null)
                 continue;
             if (unitBaseAttributes == null)
                 return false;
-            if (!rule.MatchesValue(unitBaseAttributes.GetAttributeValue(rule.attribute_id)))
+            if (!rule.MatchesValue(unitBaseAttributes.GetAttributeValue(rule.AttributeId)))
                 return false;
         }
         return true;
     }
 
-    public bool CanSatisfyReputationRules(IEnumerable<ReputationRequirement> rules)
+    public bool CanSatisfyReputationRules(IEnumerable<ReputationRequirementDefinition> rules)
     {
         UnitReputationState reputationState = _unit_progress?.reputation_state;
         if (rules == null)
             return true;
 
-        foreach (ReputationRequirement rule in rules)
+        foreach (ReputationRequirementDefinition rule in rules)
         {
             if (rule == null)
                 continue;
             if (reputationState == null)
                 return false;
-            if (!rule.MatchesValue(reputationState.GetReputationValue(rule.state_id)))
+            if (!rule.MatchesValue(reputationState.GetReputationValue(rule.StateId)))
                 return false;
         }
         return true;
@@ -195,11 +195,11 @@ public sealed class ProfessionRuleService
 
     public IReadOnlyList<StringName> GetEligibleSkillIds(
         StringName professionId,
-        IEnumerable<TagRequirement> tagRules,
+        IEnumerable<TagRequirementDefinition> tagRules,
         bool allowUnassigned
     )
     {
-        List<TagRequirement> normalizedTagRules = NormalizeTagRules(tagRules);
+        List<TagRequirementDefinition> normalizedTagRules = NormalizeTagRules(tagRules);
         List<StringName> eligibleSkillIds = new();
         if (_unit_progress == null || normalizedTagRules.Count == 0)
             return eligibleSkillIds;
@@ -215,7 +215,7 @@ public sealed class ProfessionRuleService
     public bool SkillMatchesTagRequirement(
         StringName skillId,
         StringName professionId,
-        TagRequirement tagRule,
+        TagRequirementDefinition tagRule,
         bool allowUnassigned,
         IEnumerable<StringName> previewAssignedSkillIds = null
     )
@@ -231,7 +231,7 @@ public sealed class ProfessionRuleService
 
     public bool EvaluateProfessionActiveState(StringName professionId)
     {
-        ProfessionDef professionDef = GetProfessionDef(professionId);
+        ProfessionDefinition professionDef = GetProfessionDef(professionId);
         UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
         if (professionDef == null || professionProgress == null)
             return false;
@@ -248,7 +248,7 @@ public sealed class ProfessionRuleService
         foreach (StringName professionId in _unit_progress.GetSortedProfessionIdsTyped())
         {
             UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
-            ProfessionDef professionDef = GetProfessionDef(professionId);
+            ProfessionDefinition professionDef = GetProfessionDef(professionId);
             if (professionProgress == null || professionDef == null)
                 continue;
 
@@ -309,7 +309,7 @@ public sealed class ProfessionRuleService
 
     private bool CanSatisfyTagRulesForUnlock(
         StringName professionId,
-        IEnumerable<TagRequirement> tagRules
+        IEnumerable<TagRequirementDefinition> tagRules
     )
     {
         return CanSatisfyTagRulesWithSkillIds(
@@ -323,17 +323,17 @@ public sealed class ProfessionRuleService
     private bool CanSatisfyTagRulesWithSkillIds(
         IEnumerable<StringName> candidateSkillIds,
         StringName professionId,
-        IEnumerable<TagRequirement> tagRules,
+        IEnumerable<TagRequirementDefinition> tagRules,
         bool allowUnassigned,
         IEnumerable<StringName> previewAssignedSkillIds = null
     )
     {
-        List<TagRequirement> normalizedTagRules = NormalizeTagRules(tagRules);
+        List<TagRequirementDefinition> normalizedTagRules = NormalizeTagRules(tagRules);
         if (normalizedTagRules.Count == 0)
             return true;
 
         List<StringName> normalizedCandidateSkillIds = NormalizeSkillIds(candidateSkillIds);
-        foreach (TagRequirement tagRule in normalizedTagRules)
+        foreach (TagRequirementDefinition tagRule in normalizedTagRules)
         {
             int matchedCount = 0;
             foreach (StringName skillId in normalizedCandidateSkillIds)
@@ -349,7 +349,7 @@ public sealed class ProfessionRuleService
                 )
                     matchedCount += 1;
             }
-            if (matchedCount < tagRule.count)
+            if (matchedCount < tagRule.Count)
                 return false;
         }
         return true;
@@ -440,11 +440,11 @@ public sealed class ProfessionRuleService
     private bool MatchesAnyTagRule(
         StringName skillId,
         StringName professionId,
-        IEnumerable<TagRequirement> tagRules,
+        IEnumerable<TagRequirementDefinition> tagRules,
         bool allowUnassigned
     )
     {
-        foreach (TagRequirement tagRule in NormalizeTagRules(tagRules))
+        foreach (TagRequirementDefinition tagRule in NormalizeTagRules(tagRules))
         {
             if (MatchesTagRequirement(skillId, professionId, tagRule, allowUnassigned))
                 return true;
@@ -455,12 +455,12 @@ public sealed class ProfessionRuleService
     private bool MatchesTagRequirement(
         StringName skillId,
         StringName professionId,
-        TagRequirement tagRule,
+        TagRequirementDefinition tagRule,
         bool allowUnassigned,
         IEnumerable<StringName> previewAssignedSkillIds = null
     )
     {
-        if (tagRule == null || tagRule.tag == "" || _unit_progress == null)
+        if (tagRule == null || tagRule.Tag == "" || _unit_progress == null)
             return false;
 
         UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillId);
@@ -468,7 +468,7 @@ public sealed class ProfessionRuleService
             return false;
 
         SkillDefinition skillDefinition = GetSkillDefinition(skillId);
-        if (skillDefinition == null || !skillDefinition.HasTag(tagRule.tag))
+        if (skillDefinition == null || !skillDefinition.HasTag(tagRule.Tag))
             return false;
         if (!MatchesSkillState(skillProgress, skillDefinition, tagRule))
             return false;
@@ -485,7 +485,7 @@ public sealed class ProfessionRuleService
     private bool MatchesSkillState(
         UnitSkillProgress skillProgress,
         SkillDefinition skillDefinition,
-        TagRequirement tagRule
+        TagRequirementDefinition tagRule
     )
     {
         return tagRule.SkillStateKind switch
@@ -503,7 +503,7 @@ public sealed class ProfessionRuleService
         };
     }
 
-    private static bool MatchesOriginFilter(UnitSkillProgress skillProgress, TagRequirement tagRule)
+    private static bool MatchesOriginFilter(UnitSkillProgress skillProgress, TagRequirementDefinition tagRule)
     {
         return tagRule.OriginFilterKind switch
         {
@@ -575,12 +575,12 @@ public sealed class ProfessionRuleService
         return learnedSkillIds;
     }
 
-    private ProfessionGateCheckMode ResolveGateCheckMode(ProfessionRankGate gate)
+    private ProfessionGateCheckMode ResolveGateCheckMode(ProfessionRankGateDefinition gate)
     {
-        if (gate.check_mode != "")
+        if (gate.CheckMode != "")
             return gate.CheckModeKind;
 
-        ProfessionDef sourceProfessionDef = GetProfessionDef(gate.profession_id);
+        ProfessionDefinition sourceProfessionDef = GetProfessionDef(gate.ProfessionId);
         if (sourceProfessionDef == null)
             return ProfessionGateCheckMode.Historical;
         if (
@@ -591,15 +591,15 @@ public sealed class ProfessionRuleService
         return ProfessionGateCheckMode.Historical;
     }
 
-    private bool AreActiveConditionsSatisfied(ProfessionDef professionDef)
+    private bool AreActiveConditionsSatisfied(ProfessionDefinition professionDef)
     {
-        if (professionDef.active_conditions.Count == 0)
+        if (professionDef.ActiveConditions.Count == 0)
             return true;
 
         UnitBaseAttributes unitBaseAttributes = _unit_progress?.unit_base_attributes;
         UnitReputationState reputationState = _unit_progress?.reputation_state;
 
-        foreach (ProfessionActiveCondition activeCondition in professionDef.active_conditions)
+        foreach (ProfessionActiveConditionDefinition activeCondition in professionDef.ActiveConditions)
         {
             if (activeCondition == null)
                 continue;
@@ -613,7 +613,7 @@ public sealed class ProfessionRuleService
                     return false;
                 if (
                     !activeCondition.MatchesValue(
-                        unitBaseAttributes.GetAttributeValue(activeCondition.attribute_id)
+                        unitBaseAttributes.GetAttributeValue(activeCondition.AttributeId)
                     )
                 )
                     return false;
@@ -627,7 +627,7 @@ public sealed class ProfessionRuleService
                     return false;
                 if (
                     !activeCondition.MatchesValue(
-                        reputationState.GetReputationValue(activeCondition.state_id)
+                        reputationState.GetReputationValue(activeCondition.StateId)
                     )
                 )
                     return false;
@@ -635,7 +635,7 @@ public sealed class ProfessionRuleService
             else
             {
                 GameLog.Warning(
-                    $"Unsupported profession active condition type: {activeCondition.condition_type}.",
+                    $"Unsupported profession active condition type: {activeCondition.ConditionType}.",
                     "progression.profession.unsupported_condition",
                     "progression"
                 );
@@ -652,9 +652,9 @@ public sealed class ProfessionRuleService
             : null;
     }
 
-    private ProfessionDef GetProfessionDef(StringName professionId)
+    private ProfessionDefinition GetProfessionDef(StringName professionId)
     {
-        return _professionDefs.TryGetValue(professionId, out ProfessionDef professionDef)
+        return _professionDefs.TryGetValue(professionId, out ProfessionDefinition professionDef)
             ? professionDef
             : null;
     }
@@ -665,15 +665,15 @@ public sealed class ProfessionRuleService
     }
 
 
-    private static List<TagRequirement> NormalizeTagRules(IEnumerable<TagRequirement> tagRules)
+    private static List<TagRequirementDefinition> NormalizeTagRules(IEnumerable<TagRequirementDefinition> tagRules)
     {
-        List<TagRequirement> normalizedRules = new();
+        List<TagRequirementDefinition> normalizedRules = new();
         if (tagRules == null)
             return normalizedRules;
 
-        foreach (TagRequirement tagRule in tagRules)
+        foreach (TagRequirementDefinition tagRule in tagRules)
         {
-            if (tagRule == null || tagRule.tag == "")
+            if (tagRule == null || tagRule.Tag == "")
                 continue;
             normalizedRules.Add(tagRule);
         }

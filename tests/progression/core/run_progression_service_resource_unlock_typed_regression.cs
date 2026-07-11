@@ -32,7 +32,7 @@ public partial class run_progression_service_resource_unlock_typed_regression : 
                 [mpSkill.SkillId] = mpSkill,
                 [auraSkill.SkillId] = auraSkill,
             },
-            new Dictionary<StringName, ProfessionDef>()
+            new Dictionary<StringName, ProfessionDefinition>()
         );
 
         _test.True(

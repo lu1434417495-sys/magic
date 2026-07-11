@@ -143,24 +143,7 @@ public partial class run_skill_requirements_typed_regression : LifecycleTestScen
         }
 
         using ProgressionContentRegistry registry = new();
-        registry.ReplaceValidationSources(
-            new GDictionary
-            {
-                ["skill_defs"] = indexedSkillDefs,
-                ["profession_defs"] = new GDictionary(),
-                ["achievement_defs"] = new GDictionary(),
-                ["quest_defs"] = new GDictionary(),
-                ["race_defs"] = new GDictionary(),
-                ["subrace_defs"] = new GDictionary(),
-                ["trait_defs"] = new GDictionary(),
-                ["age_profile_defs"] = new GDictionary(),
-                ["bloodline_defs"] = new GDictionary(),
-                ["bloodline_stage_defs"] = new GDictionary(),
-                ["ascension_defs"] = new GDictionary(),
-                ["ascension_stage_defs"] = new GDictionary(),
-                ["stage_advancement_defs"] = new GDictionary(),
-            }
-        );
+        registry.ReplaceSkillAuthoringResourcesForValidation(indexedSkillDefs);
         return registry.CollectValidationErrors();
     }
 

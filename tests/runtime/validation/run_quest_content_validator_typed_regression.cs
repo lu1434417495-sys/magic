@@ -1,6 +1,6 @@
+using System;
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_quest_content_validator_typed_regression : LifecycleTestSceneTree
 {
@@ -29,7 +29,7 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
         using ItemContentRegistry itemRegistry = new();
         using EnemyContentRegistry enemyRegistry = new();
 
-        IReadOnlyDictionary<StringName, QuestDef> questDefs =
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs =
             progressionRegistry.GetQuestDefsTyped();
         Dictionary<StringName, ItemDef> itemDefs = new(itemRegistry.GetItemDefsTyped());
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
@@ -58,9 +58,12 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
         using ItemContentRegistry itemRegistry = new();
         using SkillContentRegistry skillRegistry = new();
         using EnemyContentRegistry enemyRegistry = new();
-        using QuestDef invalidQuest = BuildInvalidQuestDef();
+        QuestDefinition invalidQuest = BuildInvalidQuestDefinition();
 
-        Dictionary<StringName, QuestDef> typedQuestDefs = new() { [invalidQuest.quest_id] = invalidQuest };
+        Dictionary<StringName, QuestDefinition> typedQuestDefs = new()
+        {
+            [invalidQuest.QuestId] = invalidQuest,
+        };
         Dictionary<StringName, ItemDef> itemDefs = new(itemRegistry.GetItemDefsTyped());
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             skillRegistry.GetSkillDefinitionsTyped();
@@ -86,12 +89,17 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
         using ItemContentRegistry itemRegistry = new();
         using SkillContentRegistry skillRegistry = new();
         using EnemyContentRegistry enemyRegistry = new();
-        using QuestDef npcQuest = BuildValidQuestDef("npc_regression_quest");
-        npcQuest.provider_kind = "npc";
-        npcQuest.provider_interaction_id = "npc_blacksmith_hrothgar";
-        npcQuest.listing_channels = new Godot.Collections.Array<StringName> { "npc_offer" };
+        QuestDefinition npcQuest = BuildQuestDefinition(
+            "npc_regression_quest",
+            providerKind: "npc",
+            providerInteractionId: "npc_blacksmith_hrothgar",
+            listingChannels: [new StringName("npc_offer")]
+        );
 
-        Dictionary<StringName, QuestDef> typedQuestDefs = new() { [npcQuest.quest_id] = npcQuest };
+        Dictionary<StringName, QuestDefinition> typedQuestDefs = new()
+        {
+            [npcQuest.QuestId] = npcQuest,
+        };
         Dictionary<StringName, ItemDef> itemDefs = new(itemRegistry.GetItemDefsTyped());
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             skillRegistry.GetSkillDefinitionsTyped();
@@ -114,10 +122,10 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
     private void TestProviderKindValidationNegativeBoundary()
     {
         // Unknown provider_kind.
-        using QuestDef unknownKindQuest = BuildMinimalQuestDef(
+        QuestDefinition unknownKindQuest = BuildQuestDefinition(
             "unknown_provider_kind_quest",
-            "unknown_kind",
-            "service_contract_board"
+            providerKind: "unknown_kind",
+            providerInteractionId: "service_contract_board"
         );
         List<string> unknownKindErrors = new();
         QuestContentValidator.AppendProviderKindErrors(unknownKindErrors, unknownKindQuest);
@@ -132,10 +140,10 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
         );
 
         // Service provider_kind with mismatched provider_interaction_id.
-        using QuestDef mismatchedServiceQuest = BuildMinimalQuestDef(
+        QuestDefinition mismatchedServiceQuest = BuildQuestDefinition(
             "mismatched_service_quest",
-            "service_contract_board",
-            "service_bounty_registry"
+            providerKind: "service_contract_board",
+            providerInteractionId: "service_bounty_registry"
         );
         List<string> mismatchedErrors = new();
         QuestContentValidator.AppendProviderKindErrors(mismatchedErrors, mismatchedServiceQuest);
@@ -150,10 +158,10 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
         );
 
         // NPC provider_kind with empty provider_interaction_id.
-        using QuestDef npcEmptyInteractionQuest = BuildMinimalQuestDef(
+        QuestDefinition npcEmptyInteractionQuest = BuildQuestDefinition(
             "npc_empty_interaction_quest",
-            "npc",
-            ""
+            providerKind: "npc",
+            providerInteractionId: ""
         );
         List<string> npcEmptyErrors = new();
         QuestContentValidator.AppendProviderKindErrors(npcEmptyErrors, npcEmptyInteractionQuest);
@@ -171,12 +179,12 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
     private void TestListingChannelValidationNegativeBoundary()
     {
         // Empty listing_channels.
-        using QuestDef emptyChannelsQuest = BuildMinimalQuestDef(
+        QuestDefinition emptyChannelsQuest = BuildQuestDefinition(
             "empty_channels_quest",
-            "npc",
-            "npc_blacksmith_hrothgar"
+            providerKind: "npc",
+            providerInteractionId: "npc_blacksmith_hrothgar",
+            listingChannels: Array.Empty<StringName>()
         );
-        emptyChannelsQuest.listing_channels = new Godot.Collections.Array<StringName>();
         List<string> emptyChannelErrors = new();
         QuestContentValidator.AppendListingChannelErrors(emptyChannelErrors, emptyChannelsQuest);
         _test.Eq(
@@ -190,12 +198,12 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
         );
 
         // Unknown listing_channels.
-        using QuestDef unknownChannelQuest = BuildMinimalQuestDef(
+        QuestDefinition unknownChannelQuest = BuildQuestDefinition(
             "unknown_channel_quest",
-            "npc",
-            "npc_blacksmith_hrothgar"
+            providerKind: "npc",
+            providerInteractionId: "npc_blacksmith_hrothgar",
+            listingChannels: [new StringName("tavern_board")]
         );
-        unknownChannelQuest.listing_channels = new Godot.Collections.Array<StringName> { "tavern_board" };
         List<string> unknownChannelErrors = new();
         QuestContentValidator.AppendListingChannelErrors(unknownChannelErrors, unknownChannelQuest);
         _test.Eq(
@@ -211,32 +219,33 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
 
     private void TestAcceptRequirementValidation()
     {
-        using QuestDef validTargetQuest = BuildValidQuestDef("accept_req_target");
-        validTargetQuest.accept_requirements = new Godot.Collections.Array<GDictionary>
-        {
-            new GDictionary
-            {
-                ["requirement_type"] = "quest_completed",
-                ["quest_id"] = "accept_req_prereq",
-            },
-        };
-        using QuestDef validPrereqQuest = BuildValidQuestDef("accept_req_prereq");
+        QuestDefinition validTargetQuest = BuildQuestDefinition(
+            "accept_req_target",
+            acceptRequirements:
+            [
+                new QuestAcceptRequirementDefinition(
+                    "quest_completed",
+                    "accept_req_prereq"
+                ),
+            ]
+        );
+        QuestDefinition validPrereqQuest = BuildQuestDefinition("accept_req_prereq");
 
-        var questDefs = new Dictionary<StringName, QuestDef>
+        var questDefs = new Dictionary<StringName, QuestDefinition>
         {
-            [validTargetQuest.quest_id] = validTargetQuest,
-            [validPrereqQuest.quest_id] = validPrereqQuest,
+            [validTargetQuest.QuestId] = validTargetQuest,
+            [validPrereqQuest.QuestId] = validPrereqQuest,
         };
 
         List<string> validErrors = new();
         QuestContentValidator.AppendAcceptRequirementErrors(validErrors, validTargetQuest, questDefs);
         _test.Eq(validErrors.Count, 0, "有效的 accept_requirements 引用不应报错。");
 
-        using QuestDef unknownTypeQuest = BuildValidQuestDef("unknown_req_type");
-        unknownTypeQuest.accept_requirements = new Godot.Collections.Array<GDictionary>
-        {
-            new GDictionary { ["requirement_type"] = "gold_min", ["quest_id"] = "accept_req_prereq" },
-        };
+        QuestDefinition unknownTypeQuest = BuildQuestDefinition(
+            "unknown_req_type",
+            acceptRequirements:
+            [new QuestAcceptRequirementDefinition("gold_min", "accept_req_prereq")]
+        );
         List<string> unknownTypeErrors = new();
         QuestContentValidator.AppendAcceptRequirementErrors(unknownTypeErrors, unknownTypeQuest, questDefs);
         _test.Eq(unknownTypeErrors.Count, 1, "不支持的 requirement_type 应产生一条错误。");
@@ -245,11 +254,11 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
             $"错误消息应提示不支持的类型。 actual={unknownTypeErrors[0]}"
         );
 
-        using QuestDef missingIdQuest = BuildValidQuestDef("missing_req_id");
-        missingIdQuest.accept_requirements = new Godot.Collections.Array<GDictionary>
-        {
-            new GDictionary { ["requirement_type"] = "quest_completed" },
-        };
+        QuestDefinition missingIdQuest = BuildQuestDefinition(
+            "missing_req_id",
+            acceptRequirements:
+            [new QuestAcceptRequirementDefinition("quest_completed", "")]
+        );
         List<string> missingIdErrors = new();
         QuestContentValidator.AppendAcceptRequirementErrors(missingIdErrors, missingIdQuest, questDefs);
         _test.Eq(missingIdErrors.Count, 1, "缺少 quest_id 的 requirement 应产生一条错误。");
@@ -258,11 +267,16 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
             $"错误消息应提示缺少 quest_id。 actual={missingIdErrors[0]}"
         );
 
-        using QuestDef danglingRefQuest = BuildValidQuestDef("dangling_req_ref");
-        danglingRefQuest.accept_requirements = new Godot.Collections.Array<GDictionary>
-        {
-            new GDictionary { ["requirement_type"] = "quest_completed", ["quest_id"] = "non_existent_quest" },
-        };
+        QuestDefinition danglingRefQuest = BuildQuestDefinition(
+            "dangling_req_ref",
+            acceptRequirements:
+            [
+                new QuestAcceptRequirementDefinition(
+                    "quest_completed",
+                    "non_existent_quest"
+                ),
+            ]
+        );
         List<string> danglingErrors = new();
         QuestContentValidator.AppendAcceptRequirementErrors(danglingErrors, danglingRefQuest, questDefs);
         _test.Eq(danglingErrors.Count, 1, "引用不存在 quest_id 的 requirement 应产生一条错误。");
@@ -272,108 +286,95 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
         );
     }
 
-    private static QuestDef BuildValidQuestDef(StringName questId)
-    {
-        return new QuestDef
-        {
-            quest_id = questId,
-            display_name = "Valid Quest",
-            description = "A valid quest.",
-            provider_kind = "service_contract_board",
-            provider_interaction_id = "service_contract_board",
-            listing_channels = new Godot.Collections.Array<StringName> { "contract_board" },
-            tags = new Godot.Collections.Array<StringName>(),
-            accept_requirements = new Godot.Collections.Array<Godot.Collections.Dictionary>(),
-            objective_defs = new Godot.Collections.Array<GDictionary>
-            {
-                new GDictionary
-                {
-                    ["objective_id"] = "complete_once",
-                    ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
-                    ["target_id"] = "service:training",
-                    ["target_value"] = 1,
-                },
-            },
-            reward_entries = new Godot.Collections.Array<GDictionary>
-            {
-                new GDictionary
-                {
-                    ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold),
-                    ["amount"] = 10,
-                },
-            },
-            is_repeatable = false,
-        };
-    }
-
-    private static QuestDef BuildMinimalQuestDef(
+    private static QuestDefinition BuildQuestDefinition(
         StringName questId,
-        StringName providerKind,
-        StringName providerInteractionId
+        string providerKind = null,
+        string providerInteractionId = null,
+        IReadOnlyList<StringName> listingChannels = null,
+        IReadOnlyList<QuestAcceptRequirementDefinition> acceptRequirements = null,
+        IReadOnlyList<QuestObjectiveDefinition> objectives = null,
+        IReadOnlyList<QuestRewardDefinition> rewards = null
     )
     {
-        return new QuestDef
-        {
-            quest_id = questId,
-            display_name = "Minimal Quest",
-            description = "A minimal quest for negative boundary tests.",
-            provider_kind = providerKind,
-            provider_interaction_id = providerInteractionId,
-            listing_channels = new Godot.Collections.Array<StringName> { "contract_board" },
-            tags = new Godot.Collections.Array<StringName>(),
-            accept_requirements = new Godot.Collections.Array<Godot.Collections.Dictionary>(),
-            objective_defs = new Godot.Collections.Array<GDictionary>(),
-            reward_entries = new Godot.Collections.Array<GDictionary>(),
-            is_repeatable = false,
-        };
+        IReadOnlyList<QuestObjectiveDefinition> resolvedObjectives = objectives
+            ??
+            [
+                new QuestObjectiveDefinition(
+                    "complete_once",
+                    "settlement_action",
+                    "service:training",
+                    1
+                ),
+            ];
+        IReadOnlyList<QuestRewardDefinition> resolvedRewards = rewards
+            ??
+            [
+                new QuestRewardDefinition(
+                    "gold",
+                    10,
+                    "",
+                    0,
+                    "",
+                    Array.Empty<QuestPendingRewardEntryDefinition>()
+                ),
+            ];
+        return new QuestDefinition(
+            questId,
+            "Valid Quest",
+            "A valid quest.",
+            new StringName(providerInteractionId ?? "service_contract_board"),
+            Array.Empty<StringName>(),
+            acceptRequirements ?? Array.Empty<QuestAcceptRequirementDefinition>(),
+            resolvedObjectives,
+            resolvedRewards,
+            false,
+            new StringName(providerKind ?? "service_contract_board"),
+            listingChannels ?? [new StringName("contract_board")],
+            "",
+            "",
+            "",
+            ""
+        );
     }
 
-    private static QuestDef BuildInvalidQuestDef()
-    {
-        return new QuestDef
-        {
-            quest_id = "typed_missing_reference_quest",
-            display_name = "Typed Missing Reference Quest",
-            description = "Regression quest for typed quest validation boundary.",
-            provider_kind = "service_contract_board",
-            provider_interaction_id = "service_contract_board",
-            listing_channels = new Godot.Collections.Array<StringName> { "contract_board" },
-            objective_defs = new Godot.Collections.Array<GDictionary>
-            {
-                new GDictionary
-                {
-                    ["objective_id"] = "deliver_missing_relic",
-                    ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.SubmitItem),
-                    ["target_id"] = "missing_relic",
-                    ["target_value"] = 1,
-                },
-                new GDictionary
-                {
-                    ["objective_id"] = "defeat_missing_enemy",
-                    ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.DefeatEnemy),
-                    ["target_id"] = "missing_enemy_template",
-                    ["target_value"] = 1,
-                },
-            },
-            reward_entries = new Godot.Collections.Array<GDictionary>
-            {
-                new GDictionary
-                {
-                    ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.PendingCharacterReward),
-                    ["member_id"] = "hero",
-                    ["entries"] = new Godot.Collections.Array
-                    {
-                        new GDictionary
-                        {
-                            ["entry_type"] = PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.SkillUnlock),
-                            ["target_id"] = "missing_skill_reward",
-                            ["amount"] = 1,
-                        },
-                    },
-                },
-            },
-        };
-    }
+    private static QuestDefinition BuildInvalidQuestDefinition() =>
+        BuildQuestDefinition(
+            "typed_missing_reference_quest",
+            objectives:
+            [
+                new QuestObjectiveDefinition(
+                    "deliver_missing_relic",
+                    "submit_item",
+                    "missing_relic",
+                    1
+                ),
+                new QuestObjectiveDefinition(
+                    "defeat_missing_enemy",
+                    "defeat_enemy",
+                    "missing_enemy_template",
+                    1
+                ),
+            ],
+            rewards:
+            [
+                new QuestRewardDefinition(
+                    "pending_character_reward",
+                    0,
+                    "",
+                    0,
+                    "hero",
+                    [
+                        new QuestPendingRewardEntryDefinition(
+                            PendingCharacterRewardContentRules.ToStringName(
+                                PendingCharacterRewardEntryKind.SkillUnlock
+                            ),
+                            "missing_skill_reward",
+                            1
+                        ),
+                    ]
+                ),
+            ]
+        );
 
     private static string FormatErrors(IEnumerable<string> errors)
     {

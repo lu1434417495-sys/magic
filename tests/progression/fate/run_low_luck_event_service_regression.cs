@@ -166,8 +166,8 @@ public partial class run_low_luck_event_service_regression : LifecycleTestSceneT
         manager.setup(
             resolvedPartyState,
             new Dictionary<StringName, SkillDefinition>(),
-            new Dictionary<StringName, ProfessionDef>(),
-            new Dictionary<StringName, AchievementDef>()
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>()
         );
         LowLuckEventService service = new();
         service.Setup(manager);

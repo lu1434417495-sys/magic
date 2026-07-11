@@ -391,10 +391,10 @@ public partial class run_bloodline_ascension_regression : LifecycleTestSceneTree
         manager.setup(
             partyState,
             skillDefinitions,
-            new Dictionary<StringName, ProfessionDef>(),
-            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
             new Dictionary<StringName, ItemDef>(),
-            new Dictionary<StringName, QuestDef>(),
+            new Dictionary<StringName, QuestDefinition>(),
             null,
             MakeIdentityCatalog(bundle)
         );
@@ -513,14 +513,30 @@ public partial class run_bloodline_ascension_regression : LifecycleTestSceneTree
     private static ProgressionIdentityCatalogData MakeIdentityCatalog(GDictionary bundle)
     {
         return new ProgressionIdentityCatalogData(
-            ReadTypedMap<RaceDef>(bundle, "race_defs"),
-            ReadTypedMap<SubraceDef>(bundle, "subrace_defs"),
-            ReadTypedMap<AgeProfileDef>(bundle, "age_profile_defs"),
-            ReadTypedMap<BloodlineDef>(bundle, "bloodline_defs"),
-            ReadTypedMap<BloodlineStageDef>(bundle, "bloodline_stage_defs"),
-            ReadTypedMap<AscensionDef>(bundle, "ascension_defs"),
-            ReadTypedMap<AscensionStageDef>(bundle, "ascension_stage_defs"),
-            ReadTypedMap<StageAdvancementModifier>(bundle, "stage_advancement_defs")
+            TestProgressionDefinitionProjection.Races(
+                ReadTypedMap<RaceDef>(bundle, "race_defs")
+            ),
+            TestProgressionDefinitionProjection.Subraces(
+                ReadTypedMap<SubraceDef>(bundle, "subrace_defs")
+            ),
+            TestProgressionDefinitionProjection.AgeProfiles(
+                ReadTypedMap<AgeProfileDef>(bundle, "age_profile_defs")
+            ),
+            TestProgressionDefinitionProjection.Bloodlines(
+                ReadTypedMap<BloodlineDef>(bundle, "bloodline_defs")
+            ),
+            TestProgressionDefinitionProjection.BloodlineStages(
+                ReadTypedMap<BloodlineStageDef>(bundle, "bloodline_stage_defs")
+            ),
+            TestProgressionDefinitionProjection.Ascensions(
+                ReadTypedMap<AscensionDef>(bundle, "ascension_defs")
+            ),
+            TestProgressionDefinitionProjection.AscensionStages(
+                ReadTypedMap<AscensionStageDef>(bundle, "ascension_stage_defs")
+            ),
+            TestProgressionDefinitionProjection.StageAdvancements(
+                ReadTypedMap<StageAdvancementModifier>(bundle, "stage_advancement_defs")
+            )
         );
     }
 

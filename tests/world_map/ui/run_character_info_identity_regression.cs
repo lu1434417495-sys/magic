@@ -146,10 +146,10 @@ public partial class run_character_info_identity_regression : LifecycleTestScene
         runtime._character_management.setup(
             BuildPartyState(),
             BuildSkillDefinitions(),
-            new Dictionary<StringName, ProfessionDef>(),
-            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
             new Dictionary<StringName, ItemDef>(),
-            new Dictionary<StringName, QuestDef>(),
+            new Dictionary<StringName, QuestDefinition>(),
             null,
             BuildProgressionIdentityCatalog()
         );
@@ -233,84 +233,137 @@ public partial class run_character_info_identity_regression : LifecycleTestScene
 
     private static ProgressionIdentityCatalogData BuildProgressionIdentityCatalog()
     {
-        RaceDef race = new()
-        {
-            race_id = "human",
-            display_name = "Human",
-            racial_trait_summary = new Godot.Collections.Array<string>
+        RaceDefinition race = new(
+            "human",
+            "Human",
+            "",
+            "",
+            "",
+            System.Array.Empty<StringName>(),
+            "medium",
+            6,
+            System.Array.Empty<AttributeModifierDefinition>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<RacialGrantedSkillDefinition>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            new StringName[] { "charm" },
+            new Dictionary<StringName, StringName> { ["fire"] = "half" },
+            System.Array.Empty<StringName>(),
+            new string[] { "Human ambition" }
+        );
+        SubraceDefinition subrace = new(
+            "high_human",
+            "human",
+            "High Human",
+            "",
+            "",
+            0,
+            System.Array.Empty<AttributeModifierDefinition>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<RacialGrantedSkillDefinition>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            new Dictionary<StringName, StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<string>()
+        );
+        AgeProfileDefinition ageProfile = new(
+            "human_age_profile",
+            "",
+            0,
+            12,
+            16,
+            18,
+            35,
+            53,
+            70,
+            90,
+            new AgeStageRuleDefinition[]
             {
-                "Human ambition",
+                new(
+                    "adult",
+                    "Adult",
+                    "",
+                    System.Array.Empty<AttributeModifierDefinition>(),
+                    System.Array.Empty<StringName>(),
+                    System.Array.Empty<string>(),
+                    false,
+                    false
+                ),
+                new(
+                    "dragon_awakened",
+                    "Dragon Awakened",
+                    "",
+                    System.Array.Empty<AttributeModifierDefinition>(),
+                    System.Array.Empty<StringName>(),
+                    new string[] { "Dragon stage" },
+                    false,
+                    false
+                ),
             },
-            damage_resistances = new GDictionary
+            System.Array.Empty<StringName>(),
+            new Dictionary<StringName, int>()
+        );
+        BloodlineDefinition bloodline = new(
+            "titan",
+            "Titan",
+            "",
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<RacialGrantedSkillDefinition>(),
+            System.Array.Empty<AttributeModifierDefinition>(),
+            System.Array.Empty<string>()
+        );
+        BloodlineStageDefinition bloodlineStage = new(
+            "titan_awakened",
+            "titan",
+            "Awakened",
+            "",
+            System.Array.Empty<AttributeModifierDefinition>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<RacialGrantedSkillDefinition>(),
+            System.Array.Empty<string>()
+        );
+        AscensionDefinition ascension = new(
+            "dragon",
+            "Dragon",
+            "",
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            new RacialGrantedSkillDefinition[]
             {
-                [new StringName("fire")] = new StringName("half"),
+                new("dragon_breath", 1, "per_battle", 1),
             },
-            save_advantage_tags = new GStringNameArray { "charm" },
-        };
-        SubraceDef subrace = new()
-        {
-            subrace_id = "high_human",
-            parent_race_id = "human",
-            display_name = "High Human",
-        };
-        AgeProfileDef ageProfile = new()
-        {
-            profile_id = "human_age_profile",
-            stage_rules = new Godot.Collections.Array<AgeStageRule>
-            {
-                new() { stage_id = "adult", display_name = "Adult" },
-                new()
-                {
-                    stage_id = "dragon_awakened",
-                    display_name = "Dragon Awakened",
-                    trait_summary = new Godot.Collections.Array<string>
-                    {
-                        "Dragon stage",
-                    },
-                },
-            },
-        };
-        BloodlineDef bloodline = new()
-        {
-            bloodline_id = "titan",
-            display_name = "Titan",
-        };
-        BloodlineStageDef bloodlineStage = new()
-        {
-            stage_id = "titan_awakened",
-            bloodline_id = "titan",
-            display_name = "Awakened",
-        };
-        AscensionDef ascension = new()
-        {
-            ascension_id = "dragon",
-            display_name = "Dragon",
-            racial_granted_skills = new Godot.Collections.Array<RacialGrantedSkill>
-            {
-                new()
-                {
-                    skill_id = "dragon_breath",
-                    ChargeKind = RacialSkillChargeKind.PerBattle,
-                    charges = 1,
-                },
-            },
-        };
-        AscensionStageDef ascensionStage = new()
-        {
-            stage_id = "dragon_awakened",
-            ascension_id = "dragon",
-            display_name = "Awakened",
-        };
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<string>(),
+            false,
+            false
+        );
+        AscensionStageDefinition ascensionStage = new(
+            "dragon_awakened",
+            "dragon",
+            "Awakened",
+            "",
+            System.Array.Empty<AttributeModifierDefinition>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<RacialGrantedSkillDefinition>(),
+            "",
+            System.Array.Empty<string>()
+        );
 
         return new ProgressionIdentityCatalogData(
-            new Dictionary<StringName, RaceDef> { [race.race_id] = race },
-            new Dictionary<StringName, SubraceDef> { [subrace.subrace_id] = subrace },
-            new Dictionary<StringName, AgeProfileDef> { [ageProfile.profile_id] = ageProfile },
-            new Dictionary<StringName, BloodlineDef> { [bloodline.bloodline_id] = bloodline },
-            new Dictionary<StringName, BloodlineStageDef> { [bloodlineStage.stage_id] = bloodlineStage },
-            new Dictionary<StringName, AscensionDef> { [ascension.ascension_id] = ascension },
-            new Dictionary<StringName, AscensionStageDef> { [ascensionStage.stage_id] = ascensionStage },
-            new Dictionary<StringName, StageAdvancementModifier>()
+            new Dictionary<StringName, RaceDefinition> { [race.RaceId] = race },
+            new Dictionary<StringName, SubraceDefinition> { [subrace.SubraceId] = subrace },
+            new Dictionary<StringName, AgeProfileDefinition> { [ageProfile.ProfileId] = ageProfile },
+            new Dictionary<StringName, BloodlineDefinition> { [bloodline.BloodlineId] = bloodline },
+            new Dictionary<StringName, BloodlineStageDefinition> { [bloodlineStage.StageId] = bloodlineStage },
+            new Dictionary<StringName, AscensionDefinition> { [ascension.AscensionId] = ascension },
+            new Dictionary<StringName, AscensionStageDefinition> { [ascensionStage.StageId] = ascensionStage },
+            new Dictionary<StringName, StageAdvancementDefinition>()
         );
     }
 

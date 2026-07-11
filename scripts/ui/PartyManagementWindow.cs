@@ -56,16 +56,16 @@ public partial class PartyManagementWindow : Control
     public Button close_button;
 
     public PartyState _party_state;
-    private IReadOnlyDictionary<StringName, AchievementDef> _achievement_defs =
-        new Dictionary<StringName, AchievementDef>();
+    private IReadOnlyDictionary<StringName, AchievementDefinition> _achievement_defs =
+        new Dictionary<StringName, AchievementDefinition>();
     private IReadOnlyDictionary<StringName, ItemDef> _item_defs =
         new Dictionary<StringName, ItemDef>();
     private IReadOnlyDictionary<StringName, SkillDefinition> _skill_definitions =
         new Dictionary<StringName, SkillDefinition>();
-    private IReadOnlyDictionary<StringName, ProfessionDef> _profession_defs =
-        new Dictionary<StringName, ProfessionDef>();
-    private IReadOnlyDictionary<StringName, TraitDef> _trait_defs =
-        new Dictionary<StringName, TraitDef>();
+    private IReadOnlyDictionary<StringName, ProfessionDefinition> _profession_defs =
+        new Dictionary<StringName, ProfessionDefinition>();
+    private IReadOnlyDictionary<StringName, TraitDefinition> _trait_defs =
+        new Dictionary<StringName, TraitDefinition>();
     public CharacterManagementModule _character_management;
     public StringName _leader_member_id = "";
     public StringName _main_character_member_id = "";
@@ -127,10 +127,11 @@ public partial class PartyManagementWindow : Control
     }
 
     public void SetAchievementDefs(
-        IReadOnlyDictionary<StringName, AchievementDef> achievement_defs
+        IReadOnlyDictionary<StringName, AchievementDefinition> achievement_defs
     )
     {
-        _achievement_defs = achievement_defs ?? new Dictionary<StringName, AchievementDef>();
+        _achievement_defs =
+            achievement_defs ?? new Dictionary<StringName, AchievementDefinition>();
         if (Visible)
             RefreshView();
     }
@@ -152,16 +153,18 @@ public partial class PartyManagementWindow : Control
             RefreshView();
     }
 
-    public void SetProfessionDefs(IReadOnlyDictionary<StringName, ProfessionDef> profession_defs)
+    public void SetProfessionDefs(
+        IReadOnlyDictionary<StringName, ProfessionDefinition> profession_defs
+    )
     {
-        _profession_defs = profession_defs ?? new Dictionary<StringName, ProfessionDef>();
+        _profession_defs = profession_defs ?? new Dictionary<StringName, ProfessionDefinition>();
         if (Visible)
             RefreshView();
     }
 
-    public void SetTraitDefs(IReadOnlyDictionary<StringName, TraitDef> trait_defs)
+    public void SetTraitDefs(IReadOnlyDictionary<StringName, TraitDefinition> trait_defs)
     {
-        _trait_defs = trait_defs ?? new Dictionary<StringName, TraitDef>();
+        _trait_defs = trait_defs ?? new Dictionary<StringName, TraitDefinition>();
         if (Visible)
             RefreshView();
     }
@@ -716,13 +719,13 @@ public partial class PartyManagementWindow : Control
 
         foreach (StringName traitId in itemDef.GetTraitIdsTyped())
         {
-            TraitDef traitDef = _get_trait_def(traitId);
-            if (traitDef == null || string.IsNullOrEmpty(traitDef.display_name))
+            TraitDefinition traitDef = _get_trait_def(traitId);
+            if (traitDef == null || string.IsNullOrEmpty(traitDef.DisplayName))
                 continue;
             lines.Add("");
-            lines.Add($"[b][color=#a9d4ff]{_escape_bbcode(traitDef.display_name)}[/color][/b]");
-            if (!string.IsNullOrEmpty(traitDef.description))
-                lines.Add(_escape_bbcode(traitDef.description));
+            lines.Add($"[b][color=#a9d4ff]{_escape_bbcode(traitDef.DisplayName)}[/color][/b]");
+            if (!string.IsNullOrEmpty(traitDef.Description))
+                lines.Add(_escape_bbcode(traitDef.Description));
         }
     }
 
@@ -923,7 +926,7 @@ public partial class PartyManagementWindow : Control
             if (professionProgress == null || professionProgress.is_hidden)
                 continue;
             professionCount += 1;
-            ProfessionDef professionDef = GetTypedObject(
+            ProfessionDefinition professionDef = GetTypedObject(
                 _profession_defs,
                 professionId
             );
@@ -932,10 +935,10 @@ public partial class PartyManagementWindow : Control
             );
             if (professionProgress.inactive_reason != (StringName)"")
                 lines.Add($"  原因：{professionProgress.inactive_reason}");
-            if (professionDef != null && !string.IsNullOrEmpty(professionDef.description))
-                lines.Add($"  说明：{professionDef.description}");
+            if (professionDef != null && !string.IsNullOrEmpty(professionDef.Description))
+                lines.Add($"  说明：{professionDef.Description}");
             List<string> modifierLines = _build_modifier_lines(
-                professionDef != null ? professionDef.attribute_modifiers : null,
+                professionDef != null ? professionDef.AttributeModifiers : null,
                 professionProgress.rank
             );
             if (modifierLines.Count > 0)
@@ -1008,7 +1011,7 @@ public partial class PartyManagementWindow : Control
             : itemId.ToString();
     }
 
-    private TraitDef _get_trait_def(StringName traitId)
+    private TraitDefinition _get_trait_def(StringName traitId)
     {
         return GetTypedObject(_trait_defs, traitId);
     }
@@ -1075,9 +1078,9 @@ public partial class PartyManagementWindow : Control
 
     private string _get_profession_display_name(StringName professionId)
     {
-        ProfessionDef professionDef = GetTypedObject(_profession_defs, professionId);
-        return professionDef != null && !string.IsNullOrEmpty(professionDef.display_name)
-            ? professionDef.display_name
+        ProfessionDefinition professionDef = GetTypedObject(_profession_defs, professionId);
+        return professionDef != null && !string.IsNullOrEmpty(professionDef.DisplayName)
+            ? professionDef.DisplayName
             : professionId.ToString();
     }
 
@@ -1094,16 +1097,19 @@ public partial class PartyManagementWindow : Control
         return string.Join("，", labels);
     }
 
-    private List<string> _build_modifier_lines(IEnumerable modifiers, int rank = 1)
+    private List<string> _build_modifier_lines(
+        IReadOnlyList<AttributeModifierDefinition> modifiers,
+        int rank = 1
+    )
     {
         var lines = new List<string>();
         if (modifiers == null)
             return lines;
-        foreach (object modifierValue in modifiers)
+        foreach (AttributeModifierDefinition modifier in modifiers)
         {
-            if (modifierValue is not AttributeModifier modifier)
+            if (modifier == null)
                 continue;
-            StringName attributeId = modifier.attribute_id;
+            StringName attributeId = modifier.AttributeId;
             int value = modifier.GetValueForRank(rank);
             if (attributeId == (StringName)"" || value == 0)
                 continue;
@@ -1197,7 +1203,10 @@ public partial class PartyManagementWindow : Control
 
         foreach (StringName achievementId in GetSortedKeys(_achievement_defs))
         {
-            AchievementDef achievementDef = GetTypedObject(_achievement_defs, achievementId);
+            AchievementDefinition achievementDef = GetTypedObject(
+                _achievement_defs,
+                achievementId
+            );
             if (achievementDef == null)
                 continue;
 
@@ -1211,7 +1220,7 @@ public partial class PartyManagementWindow : Control
                 if (unlockedAt >= recentUnlockedTime)
                 {
                     recentUnlockedTime = unlockedAt;
-                    recentUnlockedName = achievementDef.display_name;
+                    recentUnlockedName = achievementDef.DisplayName;
                 }
                 continue;
             }
@@ -1219,12 +1228,12 @@ public partial class PartyManagementWindow : Control
             int currentValue = progressState?.current_value ?? 0;
             if (currentValue <= 0)
                 continue;
-            int threshold = Mathf.Max(achievementDef.threshold, 1);
+            int threshold = Mathf.Max(achievementDef.Threshold, 1);
             inProgressEntries.Add(
                 new AchievementProgressPreview(
-                    achievementDef.display_name,
+                    achievementDef.DisplayName,
                     currentValue,
-                    achievementDef.threshold,
+                    achievementDef.Threshold,
                     currentValue / (float)threshold
                 )
             );

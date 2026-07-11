@@ -382,18 +382,12 @@ public static class TraitContentRules
         return ToSourceKind(value) != TraitSourceKind.Unknown;
     }
 
-    internal static bool IsSourceKindAllowed(TraitDef traitDef, TraitSourceKind sourceKind)
+    internal static bool IsSourceKindAllowed(
+        TraitDefinition traitDefinition,
+        TraitSourceKind sourceKind
+    )
     {
-        if (traitDef == null || sourceKind == TraitSourceKind.Unknown)
-            return false;
-
-        StringName expectedSource = ToStringName(sourceKind);
-        foreach (StringName allowedSource in traitDef.allowed_source_kinds)
-        {
-            if (allowedSource == expectedSource)
-                return true;
-        }
-        return false;
+        return traitDefinition?.IsSourceKindAllowed(sourceKind) == true;
     }
 
     internal static StringName ToAttributeSourceType(TraitSourceKind value)

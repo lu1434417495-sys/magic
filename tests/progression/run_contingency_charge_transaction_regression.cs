@@ -429,11 +429,11 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
         manager.setup(
             partyState,
             BuildSkillIndex(),
-            new Dictionary<StringName, ProfessionDef>(),
-            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
             BuildItemIndex(),
-            new Dictionary<StringName, QuestDef>(),
-            new Dictionary<StringName, TraitDef>(),
+            new Dictionary<StringName, QuestDefinition>(),
+            new Dictionary<StringName, TraitDefinition>(),
             null,
             new ProgressionIdentityCatalogData()
         );
@@ -456,7 +456,7 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
             TestConfigPath,
             BuildWorldData(),
             partyState,
-            new GDictionary(),
+            new Dictionary<StringName, QuestDefinition>(),
             "contingency_charge_transaction",
             "Contingency Charge Transaction",
             new Vector2I(8, 8)

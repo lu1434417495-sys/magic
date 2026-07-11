@@ -245,7 +245,7 @@ public sealed partial class GameRuntimeFacade
             : "任务进度未变化。";
     }
 
-    internal QuestDef GetQuestDef(StringName quest_id)
+    internal QuestDefinition GetQuestDef(StringName quest_id)
     {
         return GetContentCatalogTyped() != null && quest_id != ""
             ? GetContentCatalogTyped().GetQuestDefTyped(quest_id)

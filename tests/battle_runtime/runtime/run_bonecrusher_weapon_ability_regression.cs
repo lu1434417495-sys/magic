@@ -407,9 +407,12 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
         StringName traitId
     )
     {
-        if (fixture == null || !fixture.TraitDefs.TryGetValue(traitId, out TraitDef trait))
+        if (
+            fixture == null
+            || !fixture.TraitDefs.TryGetValue(traitId, out TraitDefinition trait)
+        )
             return;
-        if (TextContainsEnglishCreatureLabels(trait.description))
+        if (TextContainsEnglishCreatureLabels(trait.Description))
         {
             throw new InvalidOperationException(
                 $"{traitId} description exposes internal English creature labels."
@@ -530,7 +533,7 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
 
         internal BattleRuntimeModule Runtime { get; }
         internal IReadOnlyDictionary<StringName, ItemDef> ItemDefs { get; }
-        internal IReadOnlyDictionary<StringName, TraitDef> TraitDefs { get; }
+        internal IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs { get; }
         internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> Bindings { get; }
 
         internal static BonecrusherFixture Build(GArray damageRolls = null)

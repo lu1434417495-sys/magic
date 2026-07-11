@@ -15,7 +15,7 @@ public sealed partial class CharacterManagementModule
             ? skillDefinition
             : null;
 
-    private AchievementDef GetAchievementDef(StringName achievementId) =>
+    private AchievementDefinition GetAchievementDef(StringName achievementId) =>
         achievementId != ""
         && _achievement_def_index.TryGetValue(achievementId, out var achievementDef)
             ? achievementDef
@@ -24,65 +24,42 @@ public sealed partial class CharacterManagementModule
     public ItemDef GetItemDef(StringName itemId) =>
         itemId != "" && _item_def_index.TryGetValue(itemId, out var itemDef) ? itemDef : null;
 
-    private RaceDef GetRaceDef(StringName raceId) =>
+    private RaceDefinition GetRaceDef(StringName raceId) =>
         raceId != "" && _race_def_index.TryGetValue(raceId, out var raceDef) ? raceDef : null;
 
-    private SubraceDef GetSubraceDef(StringName subraceId) =>
+    private SubraceDefinition GetSubraceDef(StringName subraceId) =>
         subraceId != "" && _subrace_def_index.TryGetValue(subraceId, out var subraceDef)
             ? subraceDef
             : null;
 
-    private AgeProfileDef GetAgeProfileDef(StringName profileId) =>
+    private AgeProfileDefinition GetAgeProfileDef(StringName profileId) =>
         profileId != "" && _age_profile_def_index.TryGetValue(profileId, out var ageProfileDef)
             ? ageProfileDef
             : null;
 
-    private BloodlineDef GetBloodlineDef(StringName bloodlineId) =>
+    private BloodlineDefinition GetBloodlineDef(StringName bloodlineId) =>
         bloodlineId != ""
         && _bloodline_def_index.TryGetValue(bloodlineId, out var bloodlineDef)
             ? bloodlineDef
             : null;
 
-    private BloodlineStageDef GetBloodlineStageDef(StringName stageId) =>
+    private BloodlineStageDefinition GetBloodlineStageDef(StringName stageId) =>
         stageId != ""
         && _bloodline_stage_def_index.TryGetValue(stageId, out var bloodlineStageDef)
             ? bloodlineStageDef
             : null;
 
-    private AscensionDef GetAscensionDef(StringName ascensionId) =>
+    private AscensionDefinition GetAscensionDef(StringName ascensionId) =>
         ascensionId != ""
         && _ascension_def_index.TryGetValue(ascensionId, out var ascensionDef)
             ? ascensionDef
             : null;
 
-    private AscensionStageDef GetAscensionStageDef(StringName stageId) =>
+    private AscensionStageDefinition GetAscensionStageDef(StringName stageId) =>
         stageId != ""
         && _ascension_stage_def_index.TryGetValue(stageId, out var ascensionStageDef)
             ? ascensionStageDef
             : null;
-
-    private static Dictionary<StringName, T> IndexContentDefs<T>(
-        GDictionary source,
-        Func<T, StringName> idSelector
-    )
-        where T : class
-    {
-        var result = new Dictionary<StringName, T>();
-        if (source == null)
-            return result;
-        foreach (Variant rawKey in source.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            Variant rawValue = source[rawKey];
-            if (rawValue.VariantType != Variant.Type.Object || rawValue.AsGodotObject() is not T entry)
-                continue;
-            if (idSelector(entry) == "")
-                continue;
-            result[rawKey.AsStringName()] = entry;
-        }
-        return result;
-    }
 
     private static string _identity_def_label(object definition, StringName fallback_id)
     {
@@ -90,12 +67,12 @@ public sealed partial class CharacterManagementModule
         {
             string displayName = definition switch
             {
-                RaceDef raceDef => raceDef.display_name,
-                SubraceDef subraceDef => subraceDef.display_name,
-                BloodlineDef bloodlineDef => bloodlineDef.display_name,
-                BloodlineStageDef bloodlineStageDef => bloodlineStageDef.display_name,
-                AscensionDef ascensionDef => ascensionDef.display_name,
-                AscensionStageDef ascensionStageDef => ascensionStageDef.display_name,
+                RaceDefinition raceDef => raceDef.DisplayName,
+                SubraceDefinition subraceDef => subraceDef.DisplayName,
+                BloodlineDefinition bloodlineDef => bloodlineDef.DisplayName,
+                BloodlineStageDefinition bloodlineStageDef => bloodlineStageDef.DisplayName,
+                AscensionDefinition ascensionDef => ascensionDef.DisplayName,
+                AscensionStageDefinition ascensionStageDef => ascensionStageDef.DisplayName,
                 _ => "",
             };
             displayName = displayName.StripEdges();
@@ -112,12 +89,12 @@ public sealed partial class CharacterManagementModule
         var age_profile = GetAgeProfileDef(age_profile_id);
         if (age_profile != null)
         {
-            foreach (var stage_rule in age_profile.stage_rules)
+            foreach (AgeStageRuleDefinition stage_rule in age_profile.StageRules)
             {
-                if (stage_rule == null || stage_rule.stage_id != stage_id)
+                if (stage_rule == null || stage_rule.StageId != stage_id)
                     continue;
-                if (!string.IsNullOrEmpty(stage_rule.display_name))
-                    return stage_rule.display_name;
+                if (!string.IsNullOrEmpty(stage_rule.DisplayName))
+                    return stage_rule.DisplayName;
                 break;
             }
         }
@@ -125,36 +102,36 @@ public sealed partial class CharacterManagementModule
     }
 
     private GArray _build_identity_trait_summary_lines(
-        RaceDef race_def,
-        SubraceDef subrace_def,
-        AgeStageRule age_stage_rule,
-        BloodlineDef bloodline_def,
-        BloodlineStageDef bloodline_stage_def,
-        AscensionDef ascension_def,
-        AscensionStageDef ascension_stage_def
+        RaceDefinition race_def,
+        SubraceDefinition subrace_def,
+        AgeStageRuleDefinition age_stage_rule,
+        BloodlineDefinition bloodline_def,
+        BloodlineStageDefinition bloodline_stage_def,
+        AscensionDefinition ascension_def,
+        AscensionStageDefinition ascension_stage_def
     )
     {
         var lines = new GArray();
         if (race_def != null)
-            _append_identity_text_lines(lines, race_def.racial_trait_summary);
+            _append_identity_text_lines(lines, race_def.RacialTraitSummary);
         if (subrace_def != null)
-            _append_identity_text_lines(lines, subrace_def.racial_trait_summary);
+            _append_identity_text_lines(lines, subrace_def.RacialTraitSummary);
         if (age_stage_rule != null)
-            _append_identity_text_lines(lines, age_stage_rule.trait_summary);
+            _append_identity_text_lines(lines, age_stage_rule.TraitSummary);
         if (bloodline_def != null)
-            _append_identity_text_lines(lines, bloodline_def.trait_summary);
+            _append_identity_text_lines(lines, bloodline_def.TraitSummary);
         if (bloodline_stage_def != null)
-            _append_identity_text_lines(lines, bloodline_stage_def.trait_summary);
+            _append_identity_text_lines(lines, bloodline_stage_def.TraitSummary);
         if (ascension_def != null)
-            _append_identity_text_lines(lines, ascension_def.trait_summary);
+            _append_identity_text_lines(lines, ascension_def.TraitSummary);
         if (ascension_stage_def != null)
-            _append_identity_text_lines(lines, ascension_stage_def.trait_summary);
+            _append_identity_text_lines(lines, ascension_stage_def.TraitSummary);
         return lines;
     }
 
     private static void _append_identity_text_lines(
         GArray target,
-        Godot.Collections.Array<string> values
+        IReadOnlyList<string> values
     )
     {
         foreach (var value in values)
@@ -167,29 +144,25 @@ public sealed partial class CharacterManagementModule
     }
 
     private static GDictionary _collect_identity_damage_resistances(
-        RaceDef race_def,
-        SubraceDef subrace_def
+        RaceDefinition race_def,
+        SubraceDefinition subrace_def
     )
     {
         var result = new GDictionary();
         if (race_def != null)
-            _merge_identity_string_name_map(result, race_def.damage_resistances);
+            _merge_identity_string_name_map(result, race_def.DamageResistances);
         if (subrace_def != null)
-            _merge_identity_string_name_map(result, subrace_def.damage_resistances);
+            _merge_identity_string_name_map(result, subrace_def.DamageResistances);
         return result;
     }
 
-    private static void _merge_identity_string_name_map(GDictionary target, GDictionary source)
+    private static void _merge_identity_string_name_map(
+        GDictionary target,
+        IReadOnlyDictionary<StringName, StringName> source
+    )
     {
-        foreach (var raw_key in source.Keys)
+        foreach ((StringName key, StringName value) in source)
         {
-            if (raw_key.VariantType != Variant.Type.StringName)
-                continue;
-            Variant rawValue = source[raw_key];
-            if (rawValue.VariantType != Variant.Type.StringName)
-                continue;
-            var key = raw_key.AsStringName();
-            var value = rawValue.AsStringName();
             if (key == "" || value == "")
                 continue;
             target[key] = value;
@@ -197,112 +170,96 @@ public sealed partial class CharacterManagementModule
     }
 
     private static GStringNameArray _collect_identity_save_advantage_tags(
-        RaceDef race_def,
-        SubraceDef subrace_def
+        RaceDefinition race_def,
+        SubraceDefinition subrace_def
     )
     {
         var tags = new GStringNameArray();
         if (race_def != null)
-            _append_unique_string_names(tags, race_def.save_advantage_tags);
+            _append_unique_string_names(tags, race_def.SaveAdvantageTags);
         if (subrace_def != null)
-            _append_unique_string_names(tags, subrace_def.save_advantage_tags);
+            _append_unique_string_names(tags, subrace_def.SaveAdvantageTags);
         return tags;
     }
 
     private GArray _build_identity_granted_skill_lines(
-        RaceDef race_def,
-        SubraceDef subrace_def,
-        BloodlineDef bloodline_def,
-        BloodlineStageDef bloodline_stage_def,
-        AscensionDef ascension_def,
-        AscensionStageDef ascension_stage_def
+        RaceDefinition race_def,
+        SubraceDefinition subrace_def,
+        BloodlineDefinition bloodline_def,
+        BloodlineStageDefinition bloodline_stage_def,
+        AscensionDefinition ascension_def,
+        AscensionStageDefinition ascension_stage_def
     )
     {
         var lines = new GArray();
         if (race_def != null)
             _append_identity_granted_skill_lines(
                 lines,
-                race_def.racial_granted_skills,
-                _identity_def_label(race_def, race_def.race_id)
+                race_def.RacialGrantedSkills,
+                _identity_def_label(race_def, race_def.RaceId)
             );
         if (subrace_def != null)
             _append_identity_granted_skill_lines(
                 lines,
-                subrace_def.racial_granted_skills,
-                _identity_def_label(subrace_def, subrace_def.subrace_id)
+                subrace_def.RacialGrantedSkills,
+                _identity_def_label(subrace_def, subrace_def.SubraceId)
             );
         if (bloodline_def != null)
             _append_identity_granted_skill_lines(
                 lines,
-                bloodline_def.racial_granted_skills,
-                _identity_def_label(bloodline_def, bloodline_def.bloodline_id)
+                bloodline_def.RacialGrantedSkills,
+                _identity_def_label(bloodline_def, bloodline_def.BloodlineId)
             );
         if (bloodline_stage_def != null)
             _append_identity_granted_skill_lines(
                 lines,
-                bloodline_stage_def.racial_granted_skills,
-                _identity_def_label(bloodline_stage_def, bloodline_stage_def.stage_id)
+                bloodline_stage_def.RacialGrantedSkills,
+                _identity_def_label(bloodline_stage_def, bloodline_stage_def.StageId)
             );
         if (ascension_def != null)
             _append_identity_granted_skill_lines(
                 lines,
-                ascension_def.racial_granted_skills,
-                _identity_def_label(ascension_def, ascension_def.ascension_id)
+                ascension_def.RacialGrantedSkills,
+                _identity_def_label(ascension_def, ascension_def.AscensionId)
             );
         if (ascension_stage_def != null)
             _append_identity_granted_skill_lines(
                 lines,
-                ascension_stage_def.racial_granted_skills,
-                _identity_def_label(ascension_stage_def, ascension_stage_def.stage_id)
+                ascension_stage_def.RacialGrantedSkills,
+                _identity_def_label(ascension_stage_def, ascension_stage_def.StageId)
             );
         return lines;
     }
 
     private void _append_identity_granted_skill_lines(
         GArray target,
-        Godot.Collections.Array<Resource> grants,
+        IReadOnlyList<RacialGrantedSkillDefinition> grants,
         string source_label
     )
     {
-        foreach (var grant_option in grants)
+        foreach (RacialGrantedSkillDefinition grant in grants)
         {
-            var grant = grant_option as RacialGrantedSkill;
-            if (grant == null || grant.skill_id == "")
+            if (grant == null || grant.SkillId == "")
                 continue;
             var line =
-                $"{_resolve_skill_label(grant.skill_id)}（{source_label}，{_format_identity_grant_charges(grant)}）";
+                $"{_resolve_skill_label(grant.SkillId)}（{source_label}，{_format_identity_grant_charges(grant)}）";
             if (!target.Contains(line))
                 target.Add(line);
         }
     }
 
-    private void _append_identity_granted_skill_lines(
-        GArray target,
-        Godot.Collections.Array<RacialGrantedSkill> grants,
-        string source_label
+    private static string _format_identity_grant_charges(
+        RacialGrantedSkillDefinition grant
     )
-    {
-        foreach (var grant in grants)
-        {
-            if (grant == null || grant.skill_id == "")
-                continue;
-            var line =
-                $"{_resolve_skill_label(grant.skill_id)}（{source_label}，{_format_identity_grant_charges(grant)}）";
-            if (!target.Contains(line))
-                target.Add(line);
-        }
-    }
-
-    private static string _format_identity_grant_charges(RacialGrantedSkill grant)
     {
         if (grant == null)
             return "无次数";
-        return grant.ChargeKind switch
+        return grant.ChargeKindKind switch
         {
             RacialSkillChargeKind.AtWill => "随意",
-            RacialSkillChargeKind.PerTurn => $"每回合 {Mathf.Max(grant.charges, 0)} 次",
-            RacialSkillChargeKind.PerBattle => $"每场战斗 {Mathf.Max(grant.charges, 0)} 次",
-            _ => $"{(string)grant.charge_kind} {Mathf.Max(grant.charges, 0)}",
+            RacialSkillChargeKind.PerTurn => $"每回合 {Mathf.Max(grant.Charges, 0)} 次",
+            RacialSkillChargeKind.PerBattle => $"每场战斗 {Mathf.Max(grant.Charges, 0)} 次",
+            _ => $"{(string)grant.ChargeKind} {Mathf.Max(grant.Charges, 0)}",
         };
     }
 
@@ -506,10 +463,10 @@ public sealed partial class CharacterManagementModule
 
     private QuestRewardData _resolve_quest_reward_data(StringName quest_id)
     {
-        QuestDef questDef = GetQuestDef(quest_id);
-        if (questDef == null)
+        QuestDefinition questDefinition = GetQuestDef(quest_id);
+        if (questDefinition == null)
             return QuestRewardData.Missing();
-        return QuestRewardData.FromQuestDef(questDef);
+        return QuestRewardData.FromQuestDefinition(questDefinition);
     }
 
     private QuestSubmitItemPreviewData PreviewQuestSubmitItemObjective(
@@ -526,29 +483,27 @@ public sealed partial class CharacterManagementModule
         {
             return QuestSubmitItemPreviewData.Failed("quest_not_active");
         }
-        QuestDef questDef = GetQuestDef(quest_id);
-        if (questDef == null)
+        QuestDefinition questDefinition = GetQuestDef(quest_id);
+        if (questDefinition == null)
         {
             return QuestSubmitItemPreviewData.Failed("quest_def_missing");
         }
 
-        IReadOnlyList<QuestObjectiveDefData> objective_defs = ReadQuestObjectiveDefs(questDef);
-
         var requested_objective_id = ProgressionDataUtils.to_string_name(objective_id);
         var found_completed_submit_item_objective = false;
         var completed_preview = QuestSubmitItemPreviewData.Failed("objective_already_complete");
-        foreach (var objective_data in objective_defs)
+        foreach (QuestObjectiveDefinition objectiveDefinition in questDefinition.Objectives)
         {
             if (
-                !objective_data.Exists
-                || QuestDef.ToObjectiveKind(objective_data.ObjectiveType) != QuestObjectiveKind.SubmitItem
+                objectiveDefinition == null
+                || objectiveDefinition.ObjectiveKind != QuestObjectiveKind.SubmitItem
             )
                 continue;
-            var current_objective_id = objective_data.ObjectiveId;
+            var current_objective_id = objectiveDefinition.ObjectiveId;
             if (requested_objective_id != "" && current_objective_id != requested_objective_id)
                 continue;
-            var item_id = objective_data.TargetId;
-            var target_value = objective_data.TargetValue;
+            var item_id = objectiveDefinition.TargetId;
+            var target_value = objectiveDefinition.TargetValue;
             var required_quantity = Mathf.Max(
                 target_value - quest_state.GetObjectiveProgress(current_objective_id),
                 0
@@ -609,14 +564,14 @@ public sealed partial class CharacterManagementModule
             var reward_type = reward_data.RewardType;
             if (reward_type == "")
                 return QuestRewardPreviewData.Failed("invalid_reward_entry");
-            if (QuestDef.ToRewardKind(reward_type) == QuestRewardKind.Gold)
+            if (reward_data.RewardKind == QuestRewardKind.Gold)
             {
                 var amount = reward_data.Amount;
                 if (amount <= 0)
                     return QuestRewardPreviewData.Failed("invalid_gold_amount");
                 gold_delta += amount;
             }
-            else if (QuestDef.ToRewardKind(reward_type) == QuestRewardKind.Item)
+            else if (reward_data.RewardKind == QuestRewardKind.Item)
             {
                 var item_reward_result = _preview_quest_item_reward_entry(reward_data);
                 if (!item_reward_result.Ok)
@@ -627,7 +582,7 @@ public sealed partial class CharacterManagementModule
                 foreach (var item_id in item_reward_result.CloneWarehouseDepositItemIds())
                     reward_item_ids.Add(item_id);
             }
-            else if (QuestDef.ToRewardKind(reward_type) == QuestRewardKind.PendingCharacterReward)
+            else if (reward_data.RewardKind == QuestRewardKind.PendingCharacterReward)
             {
                 var pending_reward_result = _preview_quest_pending_character_reward_entry(
                     quest_id,
@@ -730,47 +685,15 @@ public sealed partial class CharacterManagementModule
             : QuestPendingCharacterRewardPreviewData.Success(pending_reward);
     }
 
-    private QuestDef GetQuestDef(StringName questId)
+    private QuestDefinition GetQuestDef(StringName questId)
     {
-        return questId != "" && _quest_def_index.TryGetValue(questId, out QuestDef questDef)
-            ? questDef
+        return questId != ""
+            && _quest_def_index.TryGetValue(
+                questId,
+                out QuestDefinition questDefinition
+            )
+            ? questDefinition
             : null;
-    }
-
-    private static Dictionary<StringName, QuestDef> BuildQuestDefIndex(GDictionary questDefs)
-    {
-        Dictionary<StringName, QuestDef> questDefIndex = new();
-        if (questDefs == null)
-            return questDefIndex;
-
-        foreach (Variant rawKey in questDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            if (questDefs[rawKey].AsGodotObject() is not QuestDef questDef)
-                continue;
-            if (questDef.quest_id == "")
-                continue;
-            questDefIndex[rawKey.AsStringName()] = questDef;
-        }
-        return questDefIndex;
-    }
-
-    private static Dictionary<StringName, QuestDef> CloneQuestDefIndex(
-        IReadOnlyDictionary<StringName, QuestDef> questDefs
-    )
-    {
-        Dictionary<StringName, QuestDef> questDefIndex = new();
-        if (questDefs == null)
-            return questDefIndex;
-
-        foreach ((StringName questId, QuestDef questDef) in questDefs)
-        {
-            if (questId == "" || questDef == null || questDef.quest_id == "")
-                continue;
-            questDefIndex[questId] = questDef;
-        }
-        return questDefIndex;
     }
 
     private static Dictionary<StringName, T> CloneContentDefIndex<T>(
@@ -789,20 +712,6 @@ public sealed partial class CharacterManagementModule
         return result;
     }
 
-    private static GDictionary ProjectContentDefs<T>(IReadOnlyDictionary<StringName, T> source)
-        where T : class
-    {
-        GDictionary result = new();
-        if (source == null)
-            return result;
-        foreach (StringName key in SortedContentKeys(source))
-        {
-            if (source.TryGetValue(key, out T value) && value != null)
-                result[key] = Variant.From(value);
-        }
-        return result;
-    }
-
     private static List<StringName> SortedContentKeys<T>(IReadOnlyDictionary<StringName, T> source)
     {
         List<StringName> result = new();
@@ -812,20 +721,6 @@ public sealed partial class CharacterManagementModule
             result.Add(key);
         result.Sort((left, right) => string.CompareOrdinal((string)left, (string)right));
         return result;
-    }
-
-    private static IReadOnlyList<QuestObjectiveDefData> ReadQuestObjectiveDefs(QuestDef questDef)
-    {
-        List<QuestObjectiveDefData> objectiveDefs = new();
-        if (questDef == null)
-            return objectiveDefs;
-        foreach (QuestDef.ObjectiveEntryData objectiveData in questDef.GetObjectiveEntriesTyped())
-        {
-            var objectiveDef = QuestObjectiveDefData.FromQuestObjectiveEntry(objectiveData);
-            if (objectiveDef.Exists)
-                objectiveDefs.Add(objectiveDef);
-        }
-        return objectiveDefs;
     }
 
     private static List<StringName> _build_repeated_item_ids(StringName item_id, int quantity)

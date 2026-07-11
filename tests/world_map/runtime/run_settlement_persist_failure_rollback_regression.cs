@@ -531,7 +531,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
         string suffix,
         PartyState partyState,
         IReadOnlyList<GDictionary> settlements,
-        GDictionary questDefs = null
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = null
     )
     {
         GameSession gameSession = await InstallGameSession($"SettlementPersistFailure_{suffix}");
@@ -607,7 +607,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
         string saveId,
         GDictionary worldData,
         PartyState partyState,
-        GDictionary questDefs = null
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = null
     )
     {
         gameSession.ConfigureRuntimeWorldForTests(
@@ -615,7 +615,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
             TestConfigPath,
             worldData,
             partyState,
-            questDefs ?? new GDictionary(),
+            questDefs ?? new Dictionary<StringName, QuestDefinition>(),
             "settlement_persist_failure_test",
             "Settlement Persist Failure Test",
             new Vector2I(8, 8)
@@ -753,21 +753,29 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
         };
     }
 
-    private static GDictionary BuildWarehouseQuestDefs()
+    private static IReadOnlyDictionary<StringName, QuestDefinition> BuildWarehouseQuestDefs()
     {
-        var questDefs = new GDictionary();
-        AddQuestDef(
-            questDefs,
-            BuildQuestDef(
+        var questDefinitions = new Dictionary<StringName, QuestDefinition>();
+        AddQuestDefinition(
+            questDefinitions,
+            BuildQuestDefinition(
                 "contract_warehouse_visit",
                 "仓储访问追踪",
                 "据点仓储动作进度测试。",
                 "service_warehouse_hidden",
-                new GArray { BuildObjective("warehouse_visit", "settlement_action", "service:warehouse", 1) },
-                new GArray { BuildGoldReward(1) }
+                new QuestObjectiveDefinition[]
+                {
+                    BuildObjective(
+                        "warehouse_visit",
+                        "settlement_action",
+                        "service:warehouse",
+                        1
+                    ),
+                },
+                new QuestRewardDefinition[] { BuildGoldReward(1) }
             )
         );
-        return questDefs;
+        return questDefinitions;
     }
 
     private static PartyState BuildPartyState(int storageSpace, int gold)
@@ -919,56 +927,59 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
         return string.Join("|", entries);
     }
 
-    private static void AddQuestDef(GDictionary questDefs, QuestDef questDef)
+    private static void AddQuestDefinition(
+        Dictionary<StringName, QuestDefinition> questDefinitions,
+        QuestDefinition questDefinition
+    )
     {
-        questDefs[questDef.quest_id] = questDef;
+        questDefinitions[questDefinition.QuestId] = questDefinition;
     }
 
-    private static QuestDef BuildQuestDef(
+    private static QuestDefinition BuildQuestDefinition(
         string questId,
         string displayName,
         string description,
         string providerInteractionId,
-        GArray objectiveDefs,
-        GArray rewardEntries,
+        IReadOnlyList<QuestObjectiveDefinition> objectives,
+        IReadOnlyList<QuestRewardDefinition> rewards,
         bool isRepeatable = false
     )
     {
-        var quest = new QuestDef
-        {
-            quest_id = questId,
-            display_name = displayName,
-            description = description,
-            provider_interaction_id = providerInteractionId,
-            is_repeatable = isRepeatable,
-        };
-        foreach (GDictionary objective in objectiveDefs)
-            quest.objective_defs.Add((GDictionary)objective.Duplicate(true));
-        foreach (GDictionary reward in rewardEntries)
-            quest.reward_entries.Add((GDictionary)reward.Duplicate(true));
-        return quest;
+        return new QuestDefinition(
+            questId,
+            displayName,
+            description,
+            providerInteractionId,
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<QuestAcceptRequirementDefinition>(),
+            objectives,
+            rewards,
+            isRepeatable,
+            "",
+            System.Array.Empty<StringName>(),
+            "",
+            "",
+            "",
+            ""
+        );
     }
 
-    private static GDictionary BuildObjective(
+    private static QuestObjectiveDefinition BuildObjective(
         string objectiveId,
         string objectiveType,
         string targetId,
         int targetValue
-    )
-    {
-        return new GDictionary
-        {
-            ["objective_id"] = objectiveId,
-            ["objective_type"] = objectiveType,
-            ["target_id"] = targetId,
-            ["target_value"] = targetValue,
-        };
-    }
+    ) => new(objectiveId, objectiveType, targetId, targetValue);
 
-    private static GDictionary BuildGoldReward(int amount)
-    {
-        return new GDictionary { ["reward_type"] = "gold", ["amount"] = amount };
-    }
+    private static QuestRewardDefinition BuildGoldReward(int amount) =>
+        new(
+            "gold",
+            amount,
+            "",
+            0,
+            "",
+            System.Array.Empty<QuestPendingRewardEntryDefinition>()
+        );
 
     private sealed class RuntimeFixture
     {

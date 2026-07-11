@@ -41,4 +41,8 @@ public partial class AgeProfileDef : Resource
 
     [Export]
     public Godot.Collections.Dictionary default_age_by_stage = new();
+
+    internal Godot.Collections.Array<AgeStageRule> StageRulesBorrowed => stage_rules;
+    internal Godot.Collections.Array<StringName> CreationStageIdsBorrowed => creation_stage_ids;
+    internal Godot.Collections.Dictionary DefaultAgeByStageBorrowed => default_age_by_stage;
 }

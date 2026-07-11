@@ -5,16 +5,16 @@ public sealed class AttributeSourceContext
 {
     public UnitProgress unit_progress;
     public Dictionary<StringName, SkillDefinition> skill_definitions = new();
-    public Dictionary<StringName, ProfessionDef> profession_defs = new();
-    public RaceDef race_def;
-    public SubraceDef subrace_def;
-    public AgeStageRule age_stage_rule;
+    public Dictionary<StringName, ProfessionDefinition> profession_defs = new();
+    public RaceDefinition race_def;
+    public SubraceDefinition subrace_def;
+    public AgeStageRuleDefinition age_stage_rule;
     public StringName age_stage_source_type = "";
     public StringName age_stage_source_id = "";
-    public BloodlineDef bloodline_def;
-    public BloodlineStageDef bloodline_stage_def;
-    public AscensionDef ascension_def;
-    public AscensionStageDef ascension_stage_def;
+    public BloodlineDefinition bloodline_def;
+    public BloodlineStageDefinition bloodline_stage_def;
+    public AscensionDefinition ascension_def;
+    public AscensionStageDefinition ascension_stage_def;
     public StringName versatility_pick = "";
     public int reserved_mp_max;
     public IReadOnlyList<AttributeModifierDefinition> trait_attribute_modifiers =
@@ -25,10 +25,10 @@ public sealed class AttributeSourceContext
         System.Array.Empty<AttributeModifierDefinition>();
     public IReadOnlyList<AttributeModifierDefinition> temporary_effects =
         System.Array.Empty<AttributeModifierDefinition>();
-    public List<StageAdvancementModifier> stage_advancement_modifiers = new();
+    public List<StageAdvancementDefinition> stage_advancement_modifiers = new();
 
     public void SetEffectiveAgeStage(
-        AgeStageRule rule,
+        AgeStageRuleDefinition rule,
         StringName sourceType,
         StringName sourceId
     )

@@ -395,7 +395,7 @@ public partial class run_mountainbreaker_weapon_ability_regression : LifecycleTe
         private readonly PartyState _party;
         internal BattleRuntimeModule Runtime { get; }
         internal IReadOnlyDictionary<StringName, ItemDef> ItemDefs { get; }
-        internal IReadOnlyDictionary<StringName, TraitDef> TraitDefs { get; }
+        internal IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs { get; }
         internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> Bindings { get; }
 
         private Fixture(ItemContentRegistry items, ProgressionContentRegistry progression, PartyState party, BattleRuntimeModule runtime)

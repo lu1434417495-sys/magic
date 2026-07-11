@@ -183,7 +183,7 @@ public sealed class SettlementShopService : IDisposable
         IReadOnlyDictionary<StringName, ItemDef> itemDefs,
         PartyWarehouseService warehouse,
         int currentGold,
-        IReadOnlyDictionary<StringName, TraitDef> traitDefs = null)
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefs = null)
     {
         ShopDefinition shopDef = ResolveShopDef(interactionScriptId);
         if (shopDef == null)

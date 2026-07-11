@@ -113,11 +113,11 @@ public partial class run_last_lesson_weapon_ability_regression : LifecycleTestSc
         }
 
         // 机制文本落在 trait（老陈的遗训）里，物品说明只保留风味文字。
-        if (fixture.TraitDefs.TryGetValue(OldChenLegacyTraitId, out TraitDef legacyTrait)
+        if (fixture.TraitDefs.TryGetValue(OldChenLegacyTraitId, out TraitDefinition legacyTrait)
             && legacyTrait != null)
         {
             _test.True(
-                legacyTrait.description.Contains("教诲"),
+                legacyTrait.Description.Contains("教诲"),
                 "老陈的遗训 trait 文本应描述真实配置中的教诲层数。"
             );
         }
@@ -741,7 +741,7 @@ public partial class run_last_lesson_weapon_ability_regression : LifecycleTestSc
         internal BattleRuntimeModule Runtime { get; }
         internal IReadOnlyDictionary<StringName, ItemDef> ItemDefs { get; }
         internal IReadOnlyDictionary<StringName, SkillDefinition> SkillDefs { get; }
-        internal IReadOnlyDictionary<StringName, TraitDef> TraitDefs { get; }
+        internal IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs { get; }
         internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> Bindings { get; }
 
         internal static LastLessonFixture Build(GArray damageRolls)

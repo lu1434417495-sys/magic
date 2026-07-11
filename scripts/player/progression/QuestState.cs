@@ -125,26 +125,18 @@ public class QuestState
         return IsObjectiveComplete(objectiveId, 0);
     }
 
-    public bool HasCompletedAllObjectives(QuestDef questDef)
+    public bool HasCompletedAllObjectives(QuestDefinition questDef)
     {
         if (questDef == null)
             return false;
 
-        foreach (var objData in questDef.objective_defs)
+        foreach (QuestObjectiveDefinition objective in questDef.Objectives)
         {
-            var objId = ProgressionDataUtils.to_string_name(
-                objData.ContainsKey("objective_id") ? objData["objective_id"] : default
-            );
-
             if (
-                !objData.ContainsKey("target_value")
-                || objData["target_value"].VariantType != Variant.Type.Int
+                objective == null
+                || objective.ObjectiveId == ""
+                || !IsObjectiveComplete(objective.ObjectiveId, objective.TargetValue)
             )
-                return false;
-
-            int target = objData["target_value"].AsInt32();
-
-            if (objId == "" || !IsObjectiveComplete(objId, target))
                 return false;
         }
 

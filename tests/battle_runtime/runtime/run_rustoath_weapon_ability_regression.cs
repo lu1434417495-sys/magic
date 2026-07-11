@@ -97,15 +97,15 @@ public partial class run_rustoath_weapon_ability_regression : LifecycleTestScene
         }
 
         // 机制文本落在 trait（锈毒）里，物品说明只保留风味文字。
-        if (fixture.TraitDefs.TryGetValue(RustCorrosionTraitId, out TraitDef rustCorrosionTrait)
+        if (fixture.TraitDefs.TryGetValue(RustCorrosionTraitId, out TraitDefinition rustCorrosionTrait)
             && rustCorrosionTrait != null)
         {
             _test.True(
-                rustCorrosionTrait.description.Contains("5层"),
+                rustCorrosionTrait.Description.Contains("5层"),
                 "锈毒 trait 文本应描述当前 5 层阈值。"
             );
             _test.False(
-                rustCorrosionTrait.description.Contains("AC-3"),
+                rustCorrosionTrait.Description.Contains("AC-3"),
                 "锈毒 trait 文本不应保留已经废弃的 AC-3。"
             );
         }
@@ -732,7 +732,7 @@ public partial class run_rustoath_weapon_ability_regression : LifecycleTestScene
         internal BattleRuntimeModule Runtime { get; }
         internal IReadOnlyDictionary<StringName, ItemDef> ItemDefs { get; }
         internal IReadOnlyDictionary<StringName, SkillDefinition> SkillDefs { get; }
-        internal IReadOnlyDictionary<StringName, TraitDef> TraitDefs { get; }
+        internal IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs { get; }
         internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> Bindings { get; }
 
         internal static RustoathFixture Build(GArray damageRolls)

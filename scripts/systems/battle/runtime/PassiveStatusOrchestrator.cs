@@ -35,6 +35,6 @@ public static class PassiveStatusOrchestrator
     private static bool _suppresses_original_race_traits(PassiveSourceContext context)
     {
         return context?.ascension_def != null
-            && context.ascension_def.suppresses_original_race_traits;
+            && context.ascension_def.SuppressesOriginalRaceTraits;
     }
 }

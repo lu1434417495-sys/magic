@@ -4,7 +4,7 @@ using Godot;
 internal sealed class EffectiveTraitInstance
 {
     public StringName TraitId;
-    public TraitDef TraitDef;
+    public TraitDefinition Definition;
     public TraitInstanceState TraitInstance;
     public TraitSourceKind SourceKind;
     public StringName SourceId;
@@ -82,7 +82,7 @@ internal sealed class EffectiveTraitSet
         List<BattleEffectiveTraitInstanceState> result = new();
         foreach (EffectiveTraitInstance instance in sorted)
         {
-            if (instance == null || instance.TraitDef == null)
+            if (instance == null || instance.Definition == null)
                 continue;
 
             result.Add(
@@ -92,10 +92,10 @@ internal sealed class EffectiveTraitSet
                     effective_instance_key = instance.EffectiveInstanceKey,
                     source_type = TraitContentRules.ToStringName(instance.SourceKind),
                     source_id = instance.SourceId,
-                    effect_type = instance.TraitDef.effect_type,
-                    trigger_type = instance.TraitDef.trigger_type,
-                    charge_scope = instance.TraitDef.charge_scope,
-                    charge_reset_timing = instance.TraitDef.charge_reset_timing,
+                    effect_type = instance.Definition.EffectType,
+                    trigger_type = instance.Definition.TriggerType,
+                    charge_scope = instance.Definition.ChargeScope,
+                    charge_reset_timing = instance.Definition.ChargeResetTiming,
                     rank = Mathf.Max(instance.Rank, 1),
                     stacks = Mathf.Max(instance.Stacks, 1),
                     roll_values = TraitInstanceState.NormalizeRollValues(instance.RollValues),

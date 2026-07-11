@@ -146,10 +146,13 @@ public partial class run_trait_instance_state_schema_regression : LifecycleTestS
 
     private void TestValidateAgainstDefRequiresExactRollSchema()
     {
-        TraitDef def = new()
+        TraitDef authoredDef = new()
         {
             trait_id = "sharp_edge",
+            display_name = "Sharp Edge",
+            description = "Roll schema fixture.",
             allowed_source_kinds = new Godot.Collections.Array<StringName> { "equipment_roll" },
+            effect_type = "attribute_modifier",
             roll_value_schema = new Godot.Collections.Array<TraitRollValueSchemaEntry>
             {
                 new() { key = "amount", value_type = "int", min_value = 1, max_value = 6 },
@@ -166,6 +169,7 @@ public partial class run_trait_instance_state_schema_regression : LifecycleTestS
                 new() { key = "enabled", value_type = "bool" },
             },
         };
+        TraitDefinition def = TestProgressionDefinitionProjection.Trait(authoredDef);
 
         TraitInstanceState valid = TraitInstanceState.Create(
             "eq_000001_t01",

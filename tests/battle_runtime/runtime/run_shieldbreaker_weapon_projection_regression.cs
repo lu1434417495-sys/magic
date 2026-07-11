@@ -433,10 +433,10 @@ public partial class run_shieldbreaker_weapon_projection_regression : LifecycleT
 
         internal IReadOnlyDictionary<StringName, ItemDef> ItemDefs { get; }
         internal IReadOnlyDictionary<StringName, SkillDefinition> SkillDefs { get; }
-        internal IReadOnlyDictionary<StringName, ProfessionDef> ProfessionDefs { get; }
-        internal IReadOnlyDictionary<StringName, AchievementDef> AchievementDefs { get; }
-        internal IReadOnlyDictionary<StringName, QuestDef> QuestDefs { get; }
-        internal IReadOnlyDictionary<StringName, TraitDef> TraitDefs { get; }
+        internal IReadOnlyDictionary<StringName, ProfessionDefinition> ProfessionDefs { get; }
+        internal IReadOnlyDictionary<StringName, AchievementDefinition> AchievementDefs { get; }
+        internal IReadOnlyDictionary<StringName, QuestDefinition> QuestDefs { get; }
+        internal IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs { get; }
         internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> Bindings { get; }
 
         internal static ContentScope Load()

@@ -432,7 +432,7 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
     }
 
     private static List<QuestValidationEntry> BuildQuestEntriesFromTyped(
-        IReadOnlyDictionary<StringName, QuestDef> questDefs,
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs,
         string sourcePrefix
     )
     {
@@ -442,7 +442,9 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             entries.Add(
                 new QuestValidationEntry(
                     $"{sourcePrefix}::{questId}",
-                    questDefs.TryGetValue(questId, out QuestDef questDef) ? questDef : null
+                    questDefs.TryGetValue(questId, out QuestDefinition questDefinition)
+                        ? questDefinition
+                        : null
                 )
             );
         }
@@ -450,7 +452,7 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
     }
 
     private static List<StringName> SortedStringNameKeys(
-        IReadOnlyDictionary<StringName, QuestDef> source
+        IReadOnlyDictionary<StringName, QuestDefinition> source
     )
     {
         List<StringName> keys = new();
@@ -881,108 +883,71 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
 
     private static List<QuestValidationEntry> BuildInvalidQuestEntries()
     {
-        QuestDef missingIdQuest = new()
-        {
-            display_name = "Missing Quest Id",
-            provider_interaction_id = "service_contract_board",
-            objective_defs = new Godot.Collections.Array<GDictionary>
-            {
-                new()
-                {
-                    ["objective_id"] = "report_once",
-                    ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
-                    ["target_id"] = "service:training",
-                    ["target_value"] = 1,
-                },
-            },
-            reward_entries = new Godot.Collections.Array<GDictionary>
-            {
-                new() { ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold), ["amount"] = 10 },
-            },
-        };
-
-        QuestDef duplicateA = new()
-        {
-            quest_id = "duplicate_quest",
-            display_name = "Duplicate Quest A",
-            provider_interaction_id = "service_contract_board",
-            objective_defs = new Godot.Collections.Array<GDictionary>
-            {
-                new()
-                {
-                    ["objective_id"] = "report_once",
-                    ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
-                    ["target_id"] = "service:training",
-                    ["target_value"] = 1,
-                },
-            },
-            reward_entries = new Godot.Collections.Array<GDictionary>
-            {
-                new() { ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold), ["amount"] = 10 },
-            },
-        };
-
-        QuestDef duplicateB = new()
-        {
-            quest_id = "duplicate_quest",
-            display_name = "Duplicate Quest B",
-            provider_interaction_id = "service_contract_board",
-            objective_defs = DuplicateDictArray(duplicateA.objective_defs),
-            reward_entries = DuplicateDictArray(duplicateA.reward_entries),
-        };
-
-        QuestDef invalidReferenceQuest = new()
-        {
-            quest_id = "invalid_reference_quest",
-            display_name = "Invalid Reference Quest",
-            provider_interaction_id = "service_missing",
-            objective_defs = new Godot.Collections.Array<GDictionary>
-            {
-                new()
-                {
-                    ["objective_id"] = "submit_missing_item",
-                    ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.SubmitItem),
-                    ["target_id"] = "missing_item",
-                    ["target_value"] = 1,
-                },
-                new()
-                {
-                    ["objective_id"] = "defeat_missing_enemy",
-                    ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.DefeatEnemy),
-                    ["target_id"] = "missing_enemy",
-                    ["target_value"] = 1,
-                },
-            },
-            reward_entries = new Godot.Collections.Array<GDictionary>
-            {
-                new()
-                {
-                    ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Item),
-                    ["item_id"] = "missing_item",
-                    ["quantity"] = 1,
-                },
-                new()
-                {
-                    ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.PendingCharacterReward),
-                    ["member_id"] = "hero",
-                    ["entries"] = new GArray
-                    {
-                        new GDictionary
-                        {
-                            ["entry_type"] = "skill_unlock",
-                            ["target_id"] = "missing_skill",
-                            ["amount"] = 1,
-                        },
-                        new GDictionary
-                        {
-                            ["entry_type"] = "skill_level",
-                            ["target_id"] = "charge",
-                            ["amount"] = 1,
-                        },
-                    },
-                },
-            },
-        };
+        QuestDefinition missingIdQuest = BuildValidationQuest(
+            "",
+            "Missing Quest Id",
+            "service_contract_board"
+        );
+        QuestDefinition duplicateA = BuildValidationQuest(
+            "duplicate_quest",
+            "Duplicate Quest A",
+            "service_contract_board"
+        );
+        QuestDefinition duplicateB = BuildValidationQuest(
+            "duplicate_quest",
+            "Duplicate Quest B",
+            "service_contract_board"
+        );
+        QuestDefinition invalidReferenceQuest = BuildValidationQuest(
+            "invalid_reference_quest",
+            "Invalid Reference Quest",
+            "service_missing",
+            objectives:
+            [
+                new QuestObjectiveDefinition(
+                    "submit_missing_item",
+                    "submit_item",
+                    "missing_item",
+                    1
+                ),
+                new QuestObjectiveDefinition(
+                    "defeat_missing_enemy",
+                    "defeat_enemy",
+                    "missing_enemy",
+                    1
+                ),
+            ],
+            rewards:
+            [
+                new QuestRewardDefinition(
+                    "item",
+                    0,
+                    "missing_item",
+                    1,
+                    "",
+                    Array.Empty<QuestPendingRewardEntryDefinition>()
+                ),
+                new QuestRewardDefinition(
+                    "pending_character_reward",
+                    0,
+                    "",
+                    0,
+                    "hero",
+                    [
+                        new QuestPendingRewardEntryDefinition(
+                            "skill_unlock",
+                            "missing_skill",
+                            1
+                        ),
+                        new QuestPendingRewardEntryDefinition(
+                            "skill_level",
+                            "charge",
+                            1
+                        ),
+                    ]
+                ),
+            ]
+        );
 
         return
         [
@@ -992,6 +957,51 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             new QuestValidationEntry("fixture::invalid_reference_quest", invalidReferenceQuest),
         ];
     }
+
+    private static QuestDefinition BuildValidationQuest(
+        StringName questId,
+        string displayName,
+        StringName providerInteractionId,
+        IReadOnlyList<QuestObjectiveDefinition> objectives = null,
+        IReadOnlyList<QuestRewardDefinition> rewards = null
+    ) =>
+        new(
+            questId,
+            displayName,
+            "Validation fixture.",
+            providerInteractionId,
+            Array.Empty<StringName>(),
+            Array.Empty<QuestAcceptRequirementDefinition>(),
+            objectives
+                ??
+                [
+                    new QuestObjectiveDefinition(
+                        "report_once",
+                        "settlement_action",
+                        "service:training",
+                        1
+                    ),
+                ],
+            rewards
+                ??
+                [
+                    new QuestRewardDefinition(
+                        "gold",
+                        10,
+                        "",
+                        0,
+                        "",
+                        Array.Empty<QuestPendingRewardEntryDefinition>()
+                    ),
+                ],
+            false,
+            "service_contract_board",
+            [new StringName("contract_board")],
+            "",
+            "",
+            "",
+            ""
+        );
 
     private static WorldMapGenerationConfig BuildInvalidWorldGenerationConfig()
     {

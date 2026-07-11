@@ -171,8 +171,8 @@ public partial class run_character_management_weapon_projection_regression : Lif
         manager.setup(
             party,
             new Dictionary<StringName, SkillDefinition>(),
-            new Dictionary<StringName, ProfessionDef>(),
-            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
             indexedItemDefs
         );
         return manager;

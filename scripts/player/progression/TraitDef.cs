@@ -62,6 +62,22 @@ public partial class TraitDef : Resource
     public Godot.Collections.Array<TraitRollValueSchemaEntry> roll_value_schema { get; set; } =
         new();
 
+    internal Godot.Collections.Array<StringName> CategoriesProjectionBorrowed => categories;
+    internal Godot.Collections.Array<StringName> AllowedSourceKindsProjectionBorrowed =>
+        allowed_source_kinds;
+    internal Godot.Collections.Array<AttributeModifier> AttributeModifiersProjectionBorrowed =>
+        attribute_modifiers;
+    internal Godot.Collections.Array<StringName> SaveAdvantageTagsProjectionBorrowed =>
+        save_advantage_tags;
+    internal Godot.Collections.Array<TraitDamageResistanceEntryDef> DamageResistanceEntriesProjectionBorrowed =>
+        damage_resistance_entries;
+    internal Godot.Collections.Array<TraitSaveBonusEntryDef> SaveBonusEntriesProjectionBorrowed =>
+        save_bonus_entries;
+    internal Godot.Collections.Array<TraitPassiveStatusEffectDef> PassiveStatusEffectsProjectionBorrowed =>
+        passive_status_effects;
+    internal Godot.Collections.Array<TraitRollValueSchemaEntry> RollValueSchemaProjectionBorrowed =>
+        roll_value_schema;
+
     internal TraitEffectKind EffectKind => TraitContentRules.ToEffectKind(effect_type);
 
     internal TraitTriggerKind TriggerKind =>

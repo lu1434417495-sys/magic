@@ -3,12 +3,12 @@ using Godot;
 
 public sealed class StageAdvancementApplyService
 {
-    private Dictionary<StringName, StageAdvancementModifier> _stageAdvancementDefs = new();
+    private Dictionary<StringName, StageAdvancementDefinition> _stageAdvancementDefs = new();
 
     public void Setup(ProgressionIdentityCatalogData identityCatalog)
     {
         identityCatalog ??= new ProgressionIdentityCatalogData();
-        _stageAdvancementDefs = new Dictionary<StringName, StageAdvancementModifier>(
+        _stageAdvancementDefs = new Dictionary<StringName, StageAdvancementDefinition>(
             identityCatalog.StageAdvancementDefs
         );
     }
@@ -17,8 +17,8 @@ public sealed class StageAdvancementApplyService
     {
         if (memberState == null || modifierId == "")
             return false;
-        _stageAdvancementDefs.TryGetValue(modifierId, out StageAdvancementModifier modifier);
-        if (modifier == null || modifier.modifier_id != modifierId)
+        _stageAdvancementDefs.TryGetValue(modifierId, out StageAdvancementDefinition modifier);
+        if (modifier == null || modifier.ModifierId != modifierId)
             return false;
         if (!ModifierAppliesToMember(modifier, memberState))
             return false;
@@ -41,32 +41,40 @@ public sealed class StageAdvancementApplyService
     }
 
     private static bool ModifierAppliesToMember(
-        StageAdvancementModifier modifier,
+        StageAdvancementDefinition modifier,
         PartyMemberState memberState
     )
     {
         if (modifier == null || memberState == null)
             return false;
         if (
-            modifier.applies_to_race_ids.Count > 0
-            && !modifier.applies_to_race_ids.Contains(memberState.race_id)
+            modifier.AppliesToRaceIds.Count > 0
+            && !ContainsId(modifier.AppliesToRaceIds, memberState.race_id)
         )
             return false;
         if (
-            modifier.applies_to_subrace_ids.Count > 0
-            && !modifier.applies_to_subrace_ids.Contains(memberState.subrace_id)
+            modifier.AppliesToSubraceIds.Count > 0
+            && !ContainsId(modifier.AppliesToSubraceIds, memberState.subrace_id)
         )
             return false;
         if (
-            modifier.applies_to_bloodline_ids.Count > 0
-            && !modifier.applies_to_bloodline_ids.Contains(memberState.bloodline_id)
+            modifier.AppliesToBloodlineIds.Count > 0
+            && !ContainsId(modifier.AppliesToBloodlineIds, memberState.bloodline_id)
         )
             return false;
         if (
-            modifier.applies_to_ascension_ids.Count > 0
-            && !modifier.applies_to_ascension_ids.Contains(memberState.ascension_id)
+            modifier.AppliesToAscensionIds.Count > 0
+            && !ContainsId(modifier.AppliesToAscensionIds, memberState.ascension_id)
         )
             return false;
         return true;
+    }
+
+    private static bool ContainsId(IReadOnlyList<StringName> values, StringName expected)
+    {
+        foreach (StringName value in values)
+            if (value == expected)
+                return true;
+        return false;
     }
 }

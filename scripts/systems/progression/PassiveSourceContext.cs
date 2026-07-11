@@ -5,10 +5,10 @@ public sealed class PassiveSourceContext
     public PartyMemberState member_state;
     public UnitProgress unit_progress;
 
-    public RaceDef race_def;
-    public SubraceDef subrace_def;
-    public BloodlineDef bloodline_def;
-    public BloodlineStageDef bloodline_stage_def;
-    public AscensionDef ascension_def;
-    public AscensionStageDef ascension_stage_def;
+    public RaceDefinition race_def;
+    public SubraceDefinition subrace_def;
+    public BloodlineDefinition bloodline_def;
+    public BloodlineStageDefinition bloodline_stage_def;
+    public AscensionDefinition ascension_def;
+    public AscensionStageDefinition ascension_stage_def;
 }

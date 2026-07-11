@@ -174,30 +174,44 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
         AttributeSourceContext context = new()
         {
             unit_progress = progress,
-            race_def = MakeRace(Modifier("strength", 1)),
-            subrace_def = MakeSubrace(Modifier("strength", 2)),
-            age_stage_rule = MakeAgeStageRule("old", Modifier("constitution", 3)),
+            race_def = TestProgressionDefinitionProjection.Race(
+                MakeRace(Modifier("strength", 1))
+            ),
+            subrace_def = TestProgressionDefinitionProjection.Subrace(
+                MakeSubrace(Modifier("strength", 2))
+            ),
+            age_stage_rule = TestProgressionDefinitionProjection.AgeStageRule(
+                MakeAgeStageRule("old", Modifier("constitution", 3))
+            ),
             age_stage_source_type = "stage_advancement",
             age_stage_source_id = "growth_boon",
-            bloodline_def = MakeBloodline(
-                "titan",
-                new[] { new StringName("titan_awakened") },
-                Modifier("willpower", 1)
+            bloodline_def = TestProgressionDefinitionProjection.Bloodline(
+                MakeBloodline(
+                    "titan",
+                    new[] { new StringName("titan_awakened") },
+                    Modifier("willpower", 1)
+                )
             ),
-            bloodline_stage_def = MakeBloodlineStage(
-                "titan_awakened",
-                "titan",
-                Modifier("strength", 4)
+            bloodline_stage_def = TestProgressionDefinitionProjection.BloodlineStage(
+                MakeBloodlineStage(
+                    "titan_awakened",
+                    "titan",
+                    Modifier("strength", 4)
+                )
             ),
-            ascension_def = MakeAscension(
-                "dragon_ascension",
-                new[] { new StringName("dragon_awakened") }
+            ascension_def = TestProgressionDefinitionProjection.Ascension(
+                MakeAscension(
+                    "dragon_ascension",
+                    new[] { new StringName("dragon_awakened") }
+                )
             ),
-            ascension_stage_def = MakeAscensionStage(
-                "dragon_awakened",
-                "dragon_ascension",
-                Modifier("intelligence", 5),
-                Modifier("perception", 6)
+            ascension_stage_def = TestProgressionDefinitionProjection.AscensionStage(
+                MakeAscensionStage(
+                    "dragon_awakened",
+                    "dragon_ascension",
+                    Modifier("intelligence", 5),
+                    Modifier("perception", 6)
+                )
             ),
             versatility_pick = "agility",
         };
@@ -268,10 +282,12 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
                 {
                     [skill.SkillId] = skill,
                 },
-                profession_defs = new Dictionary<StringName, ProfessionDef>
-                {
-                    [profession.profession_id] = profession,
-                },
+                profession_defs = TestProgressionDefinitionProjection.Professions(
+                    new Dictionary<StringName, ProfessionDef>
+                    {
+                        [profession.profession_id] = profession,
+                    }
+                ),
                 equipment_state = new[] { equipmentHp },
                 passive_state = System.Array.Empty<AttributeModifierDefinition>(),
                 temporary_effects = new[] { temporaryHp },
@@ -346,10 +362,12 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
                 {
                     [new StringName("wrong_toughness_key")] = skill,
                 },
-                profession_defs = new Dictionary<StringName, ProfessionDef>
-                {
-                    [new StringName("wrong_profession_key")] = profession,
-                },
+                profession_defs = TestProgressionDefinitionProjection.Professions(
+                    new Dictionary<StringName, ProfessionDef>
+                    {
+                        [new StringName("wrong_profession_key")] = profession,
+                    }
+                ),
             }
         );
 
@@ -462,10 +480,10 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
         manager.setup(
             partyState,
             new Dictionary<StringName, SkillDefinition>(),
-            new Dictionary<StringName, ProfessionDef>(),
-            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
             new Dictionary<StringName, ItemDef>(),
-            new Dictionary<StringName, QuestDef>(),
+            new Dictionary<StringName, QuestDefinition>(),
             null,
             MakeIdentityCatalog()
         );
@@ -480,7 +498,7 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
 
         AttributeSourceContext context = manager.build_attribute_source_context("hero");
         _test.True(
-            context.age_stage_rule != null && context.age_stage_rule.stage_id == "old",
+            context.age_stage_rule != null && context.age_stage_rule.StageId == "old",
             "CMM context 应解析 effective age stage rule。"
         );
         _test.Eq(
@@ -545,17 +563,38 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
         };
 
         return new ProgressionIdentityCatalogData(
-            new Dictionary<StringName, RaceDef> { [race.race_id] = race },
-            new Dictionary<StringName, SubraceDef> { [subrace.subrace_id] = subrace },
-            new Dictionary<StringName, AgeProfileDef> { [ageProfile.profile_id] = ageProfile },
-            new Dictionary<StringName, BloodlineDef> { [bloodline.bloodline_id] = bloodline },
-            new Dictionary<StringName, BloodlineStageDef> { [bloodlineStage.stage_id] = bloodlineStage },
-            new Dictionary<StringName, AscensionDef>(),
-            new Dictionary<StringName, AscensionStageDef>(),
-            new Dictionary<StringName, StageAdvancementModifier>
-            {
-                [growthBoon.modifier_id] = growthBoon,
-            }
+            TestProgressionDefinitionProjection.Races(
+                new Dictionary<StringName, RaceDef> { [race.race_id] = race }
+            ),
+            TestProgressionDefinitionProjection.Subraces(
+                new Dictionary<StringName, SubraceDef> { [subrace.subrace_id] = subrace }
+            ),
+            TestProgressionDefinitionProjection.AgeProfiles(
+                new Dictionary<StringName, AgeProfileDef>
+                {
+                    [ageProfile.profile_id] = ageProfile,
+                }
+            ),
+            TestProgressionDefinitionProjection.Bloodlines(
+                new Dictionary<StringName, BloodlineDef>
+                {
+                    [bloodline.bloodline_id] = bloodline,
+                }
+            ),
+            TestProgressionDefinitionProjection.BloodlineStages(
+                new Dictionary<StringName, BloodlineStageDef>
+                {
+                    [bloodlineStage.stage_id] = bloodlineStage,
+                }
+            ),
+            new Dictionary<StringName, AscensionDefinition>(),
+            new Dictionary<StringName, AscensionStageDefinition>(),
+            TestProgressionDefinitionProjection.StageAdvancements(
+                new Dictionary<StringName, StageAdvancementModifier>
+                {
+                    [growthBoon.modifier_id] = growthBoon,
+                }
+            )
         );
     }
 

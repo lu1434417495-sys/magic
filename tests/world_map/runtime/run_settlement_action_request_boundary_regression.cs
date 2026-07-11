@@ -141,7 +141,7 @@ public partial class run_settlement_action_request_boundary_regression : Lifecyc
         GameSession gameSession,
         GDictionary worldData,
         PartyState partyState,
-        GDictionary questDefs
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs
     )
     {
         gameSession.ConfigureRuntimeWorldForTests(
@@ -265,26 +265,39 @@ public partial class run_settlement_action_request_boundary_regression : Lifecyc
         };
     }
 
-    private static GDictionary BuildQuestDefs()
+    private static IReadOnlyDictionary<StringName, QuestDefinition> BuildQuestDefs()
     {
-        QuestDef quest = new()
-        {
-            quest_id = "contract_training",
-            display_name = "训练追踪",
-            description = "据点训练进度测试。",
-            provider_interaction_id = "service_training_hidden",
-        };
-        quest.objective_defs.Add(
-            new GDictionary
+        QuestDefinition quest = new(
+            "contract_training",
+            "训练追踪",
+            "据点训练进度测试。",
+            "service_training_hidden",
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<QuestAcceptRequirementDefinition>(),
+            new QuestObjectiveDefinition[]
             {
-                ["objective_id"] = "train_once",
-                ["objective_type"] = "settlement_action",
-                ["target_id"] = "service:training",
-                ["target_value"] = 1,
-            }
+                new("train_once", "settlement_action", "service:training", 1),
+            },
+            new QuestRewardDefinition[]
+            {
+                new(
+                    "gold",
+                    1,
+                    "",
+                    0,
+                    "",
+                    System.Array.Empty<QuestPendingRewardEntryDefinition>()
+                ),
+            },
+            false,
+            "",
+            System.Array.Empty<StringName>(),
+            "",
+            "",
+            "",
+            ""
         );
-        quest.reward_entries.Add(new GDictionary { ["reward_type"] = "gold", ["amount"] = 1 });
-        return new GDictionary { [quest.quest_id] = quest };
+        return new Dictionary<StringName, QuestDefinition> { [quest.QuestId] = quest };
     }
 
     private static bool HasPendingRewardSource(PartyState partyState, StringName sourceId)

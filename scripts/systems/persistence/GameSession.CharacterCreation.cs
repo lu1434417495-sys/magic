@@ -215,41 +215,41 @@ public partial class GameSession
     {
         if (member_state == null || _progression_content_registry == null)
             return "";
-        IReadOnlyDictionary<StringName, AscensionStageDef> ascensionStageDefs =
+        IReadOnlyDictionary<StringName, AscensionStageDefinition> ascensionStageDefs =
             _progression_content_registry.GetAscensionStageDefsTyped();
         ascensionStageDefs.TryGetValue(
             member_state.ascension_stage_id,
-            out AscensionStageDef ascensionStageDef
+            out AscensionStageDefinition ascensionStageDef
         );
         if (
             ascensionStageDef != null
-            && ascensionStageDef.body_size_category_override != ""
+            && ascensionStageDef.BodySizeCategoryOverride != ""
             && BodySizeContentRules.IsValidBodySizeCategory(
-                ascensionStageDef.body_size_category_override
+                ascensionStageDef.BodySizeCategoryOverride
             )
         )
         {
-            return ascensionStageDef.body_size_category_override;
+            return ascensionStageDef.BodySizeCategoryOverride;
         }
-        IReadOnlyDictionary<StringName, SubraceDef> subraceDefs =
+        IReadOnlyDictionary<StringName, SubraceDefinition> subraceDefs =
             _progression_content_registry.GetSubraceDefsTyped();
-        subraceDefs.TryGetValue(member_state.subrace_id, out SubraceDef subraceDef);
+        subraceDefs.TryGetValue(member_state.subrace_id, out SubraceDefinition subraceDef);
         if (
             subraceDef != null
-            && subraceDef.body_size_category_override != ""
-            && BodySizeContentRules.IsValidBodySizeCategory(subraceDef.body_size_category_override)
+            && subraceDef.BodySizeCategoryOverride != ""
+            && BodySizeContentRules.IsValidBodySizeCategory(subraceDef.BodySizeCategoryOverride)
         )
         {
-            return subraceDef.body_size_category_override;
+            return subraceDef.BodySizeCategoryOverride;
         }
-        IReadOnlyDictionary<StringName, RaceDef> raceDefs =
+        IReadOnlyDictionary<StringName, RaceDefinition> raceDefs =
             _progression_content_registry.GetRaceDefsTyped();
-        raceDefs.TryGetValue(member_state.race_id, out RaceDef raceDef);
+        raceDefs.TryGetValue(member_state.race_id, out RaceDefinition raceDef);
         if (
             raceDef != null
-            && BodySizeContentRules.IsValidBodySizeCategory(raceDef.body_size_category)
+            && BodySizeContentRules.IsValidBodySizeCategory(raceDef.BodySizeCategory)
         )
-            return raceDef.body_size_category;
+            return raceDef.BodySizeCategory;
         return "";
     }
 
@@ -572,7 +572,7 @@ public partial class GameSession
         progressionService.SetupDefinitions(
             progression,
             GetRandomStartSkillDefinitions(),
-            BuildProfessionDefIndex(_profession_defs)
+            _professionDefIndex
         );
         progressionService.RefreshRuntimeState();
     }

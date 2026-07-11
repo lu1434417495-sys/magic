@@ -244,20 +244,34 @@ public partial class run_dragon_breath_regression : LifecycleTestSceneTree
     private void TestRacialSkillPerTurnChargeRefreshesFromIdentityProjection()
     {
         BattleUnitState unit = new();
-        RacialGrantedSkill grant = new()
-        {
-            skill_id = "dragon_breath_freeze_cone",
-            charge_kind = "per_turn",
-            charges = 2,
-        };
-        RaceDef race = new()
-        {
-            race_id = "dragon_fixture",
-            racial_granted_skills = new Godot.Collections.Array<RacialGrantedSkill> { grant },
-        };
+        RacialGrantedSkillDefinition grant = new(
+            "dragon_breath_freeze_cone",
+            1,
+            "per_turn",
+            2
+        );
+        RaceDefinition race = new(
+            "dragon_fixture",
+            "Dragon Fixture",
+            "",
+            "",
+            "",
+            System.Array.Empty<StringName>(),
+            "medium",
+            6,
+            System.Array.Empty<AttributeModifierDefinition>(),
+            System.Array.Empty<StringName>(),
+            [grant],
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            new Dictionary<StringName, StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<string>()
+        );
         PassiveSourceContext context = new() { race_def = race };
         RaceTraitResolver.ApplyToUnit(unit, context);
-        StringName chargeKey = RacialSkillChargeKey(grant.skill_id);
+        StringName chargeKey = RacialSkillChargeKey(grant.SkillId);
         _test.Eq(
             unit.GetPerTurnChargeTyped(chargeKey, -1),
             2,

@@ -44,7 +44,7 @@ public partial class run_skill_effective_max_level_rules_regression : LifecycleT
         service.SetupDefinitions(
             progress,
             new Dictionary<StringName, SkillDefinition> { [skillDefinition.SkillId] = skillDefinition },
-            new Dictionary<StringName, ProfessionDef>()
+            new Dictionary<StringName, ProfessionDefinition>()
         );
         _test.True(service.LearnSkill(skillDefinition.SkillId), "斗气斩测试技能应能学习。");
 

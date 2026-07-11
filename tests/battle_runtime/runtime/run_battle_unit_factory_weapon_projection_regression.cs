@@ -540,20 +540,19 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         );
 
         var progressionRegistry = new ProgressionContentRegistry();
-        var traitDefs = new Dictionary<StringName, TraitDef>
+        var traitDefs = new Dictionary<StringName, TraitDefinition>
         {
-            ["halfling_luck"] = new TraitDef
-            {
-                trait_id = "halfling_luck",
-                display_name = "Halfling Luck",
-                description = "Fixture trait.",
-                allowed_source_kinds = new GStringNameArray { "character" },
-                effect_type = "halfling_luck",
-                trigger_type = "on_natural_one",
-                stack_policy = "unique_by_trait",
-                charge_scope = "per_turn",
-                charge_reset_timing = "turn_start",
-            },
+            ["halfling_luck"] = BuildTraitDefinition(
+                "halfling_luck",
+                "Halfling Luck",
+                "Fixture trait.",
+                [new StringName("character")],
+                "halfling_luck",
+                "on_natural_one",
+                "unique_by_trait",
+                "per_turn",
+                "turn_start"
+            ),
         };
 
         var characterManagement = new CharacterManagementModule();
@@ -561,9 +560,9 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
             partyState,
             progressionRegistry.GetSkillDefinitionsTyped(),
             progressionRegistry.GetProfessionDefsTyped(),
-            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, AchievementDefinition>(),
             new Dictionary<StringName, ItemDef>(),
-            new Dictionary<StringName, QuestDef>(),
+            new Dictionary<StringName, QuestDefinition>(),
             traitDefs,
             null,
             new ProgressionIdentityCatalogData()
@@ -585,20 +584,19 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         var itemDefs = new Dictionary<StringName, ItemDef>();
         if (itemDef != null)
             itemDefs[itemDef.item_id] = itemDef;
-        var traitDefs = new Dictionary<StringName, TraitDef>
+        var traitDefs = new Dictionary<StringName, TraitDefinition>
         {
-            ["lucky_blade_trait"] = new TraitDef
-            {
-                trait_id = "lucky_blade_trait",
-                display_name = "Lucky Blade",
-                description = "Fixture equipment trait.",
-                allowed_source_kinds = new GStringNameArray { "equipment_fixed" },
-                effect_type = "halfling_luck",
-                trigger_type = "on_natural_one",
-                stack_policy = "unique_by_trait",
-                charge_scope = "per_turn",
-                charge_reset_timing = "turn_start",
-            },
+            ["lucky_blade_trait"] = BuildTraitDefinition(
+                "lucky_blade_trait",
+                "Lucky Blade",
+                "Fixture equipment trait.",
+                [new StringName("equipment_fixed")],
+                "halfling_luck",
+                "on_natural_one",
+                "unique_by_trait",
+                "per_turn",
+                "turn_start"
+            ),
         };
 
         var characterManagement = new CharacterManagementModule();
@@ -606,9 +604,9 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
             partyState,
             progressionRegistry.GetSkillDefinitionsTyped(),
             progressionRegistry.GetProfessionDefsTyped(),
-            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, AchievementDefinition>(),
             itemDefs,
-            new Dictionary<StringName, QuestDef>(),
+            new Dictionary<StringName, QuestDefinition>(),
             traitDefs,
             null,
             new ProgressionIdentityCatalogData()
@@ -630,21 +628,20 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         var itemDefs = new Dictionary<StringName, ItemDef>();
         if (itemDef != null)
             itemDefs[itemDef.item_id] = itemDef;
-        var traitDefs = new Dictionary<StringName, TraitDef>
+        var traitDefs = new Dictionary<StringName, TraitDefinition>
         {
-            ["trait.weapon.flame"] = new TraitDef
-            {
-                trait_id = "trait.weapon.flame",
-                display_name = "Flame Weapon",
-                description = "Fixture equipment ability trait.",
-                categories = new GStringNameArray { "weapon_feat" },
-                allowed_source_kinds = new GStringNameArray { "equipment_fixed" },
-                effect_type = "halfling_luck",
-                trigger_type = "on_natural_one",
-                stack_policy = "stack_by_instance",
-                charge_scope = "none",
-                charge_reset_timing = "none",
-            },
+            ["trait.weapon.flame"] = BuildTraitDefinition(
+                "trait.weapon.flame",
+                "Flame Weapon",
+                "Fixture equipment ability trait.",
+                [new StringName("equipment_fixed")],
+                "halfling_luck",
+                "on_natural_one",
+                "stack_by_instance",
+                "none",
+                "none",
+                [new StringName("weapon_feat")]
+            ),
         };
         var bindings = new Dictionary<StringName, EquipmentAbilityBindingDefinition>
         {
@@ -664,9 +661,9 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
             partyState,
             progressionRegistry.GetSkillDefinitionsTyped(),
             progressionRegistry.GetProfessionDefsTyped(),
-            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, AchievementDefinition>(),
             itemDefs,
-            new Dictionary<StringName, QuestDef>(),
+            new Dictionary<StringName, QuestDefinition>(),
             traitDefs,
             null,
             new ProgressionIdentityCatalogData()
@@ -697,21 +694,39 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         return units[0];
     }
 
-    private static GDictionary ProjectProfessionDefs(
-        IReadOnlyDictionary<StringName, ProfessionDef> professionDefs
-    )
-    {
-        GDictionary result = new();
-        if (professionDefs == null)
-            return result;
-        foreach ((StringName professionId, ProfessionDef professionDef) in professionDefs)
-        {
-            if (professionId == "" || professionDef == null)
-                continue;
-            result[professionId] = professionDef;
-        }
-        return result;
-    }
+    private static TraitDefinition BuildTraitDefinition(
+        StringName traitId,
+        string displayName,
+        string description,
+        IReadOnlyList<StringName> allowedSourceKinds,
+        StringName effectType,
+        StringName triggerType,
+        StringName stackPolicy,
+        StringName chargeScope,
+        StringName chargeResetTiming,
+        IReadOnlyList<StringName> categories = null
+    ) =>
+        new(
+            traitId,
+            displayName,
+            description,
+            categories ?? Array.Empty<StringName>(),
+            allowedSourceKinds,
+            effectType,
+            triggerType,
+            stackPolicy,
+            chargeScope,
+            chargeResetTiming,
+            "",
+            0,
+            0,
+            Array.Empty<AttributeModifierDefinition>(),
+            Array.Empty<StringName>(),
+            Array.Empty<TraitDamageResistanceEntryDefinition>(),
+            Array.Empty<TraitSaveBonusEntryDefinition>(),
+            Array.Empty<TraitPassiveStatusEffectDefinition>(),
+            Array.Empty<TraitRollValueSchemaEntryDefinition>()
+        );
 
     private static AttributeSnapshot BuildEnemyAttributeSnapshot(
         int hpMax,

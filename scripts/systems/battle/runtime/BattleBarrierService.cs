@@ -14,11 +14,23 @@ internal readonly record struct BattleBarrierPassageResult(bool Applied, bool St
 internal readonly record struct BattleLayeredBarrierApplyResult(
     bool Applied,
     StringName BarrierInstanceId,
-    IReadOnlyList<string> LogLines
+    IReadOnlyList<string> LogLines,
+    StringName ErrorCode
 )
 {
     internal static BattleLayeredBarrierApplyResult Empty() =>
-        new(false, "", System.Array.Empty<string>());
+        new(false, "", System.Array.Empty<string>(), "");
+
+    internal static BattleLayeredBarrierApplyResult Failure(
+        StringName errorCode,
+        string message
+    ) =>
+        new(
+            false,
+            "",
+            string.IsNullOrEmpty(message) ? System.Array.Empty<string>() : new[] { message },
+            errorCode
+        );
 }
 
 internal class BattleBarrierService
@@ -47,13 +59,18 @@ internal class BattleBarrierService
     }
 
     private WeakReference<BattleRuntimeModule> _runtimeRef;
-    private BarrierContentRegistry _contentRegistry = new();
+    private IReadOnlyDictionary<StringName, BarrierProfileDefinition> _profileDefinitions;
     private BattleBarrierOutcomeResolver _outcomeResolver = new();
     private bool _disposed;
 
-    internal void Setup(BattleRuntimeModule runtime)
+    internal void Setup(
+        BattleRuntimeModule runtime,
+        IReadOnlyDictionary<StringName, BarrierProfileDefinition> profileDefinitions
+    )
     {
+        ArgumentNullException.ThrowIfNull(profileDefinitions);
         _runtimeRef = runtime != null ? new WeakReference<BattleRuntimeModule>(runtime) : null;
+        _profileDefinitions = profileDefinitions;
         _outcomeResolver.Setup(runtime);
     }
 
@@ -64,9 +81,8 @@ internal class BattleBarrierService
             return;
         }
         _disposed = true;
-        _contentRegistry?.Dispose();
         _outcomeResolver?.Dispose();
-        _contentRegistry = null;
+        _profileDefinitions = null;
         _outcomeResolver = null;
         _runtimeRef = null;
     }
@@ -89,29 +105,44 @@ internal class BattleBarrierService
             return BattleLayeredBarrierApplyResult.Empty();
         BarrierApplyParams effectParams = BarrierApplyParams.FromEffect(effectDefinition);
         var profileId = effectParams.ProfileId;
-        var profile = _contentRegistry.GetProfileDef(profileId);
-        if (profile == null)
-            return BattleLayeredBarrierApplyResult.Empty();
+        if (
+            _profileDefinitions == null
+            || !_profileDefinitions.TryGetValue(
+                profileId,
+                out BarrierProfileDefinition profile
+            )
+        )
+        {
+            string profileLabel = profileId != "" ? profileId.ToString() : "<empty>";
+            string message =
+                $"Layered barrier profile '{profileLabel}' is unavailable; the effect cannot be applied.";
+            GameLog.Error(message, "battle.barrier.profile_missing", "battle");
+            _AppendLog(batch, message);
+            return BattleLayeredBarrierApplyResult.Failure(
+                "barrier_profile_missing",
+                message
+            );
+        }
 
         var anchorUnit = targetUnit != null ? targetUnit : sourceUnit;
         var radiusCells = Mathf.Max(
             effectParams.RadiusCellsOverride > 0
                 ? effectParams.RadiusCellsOverride
-                : profile.radius_cells,
+                : profile.RadiusCells,
             1
         );
         var areaPattern =
             effectParams.AreaPatternOverride != ""
                 ? effectParams.AreaPatternOverride
-                : profile.area_pattern;
+                : profile.AreaPattern;
         if (areaPattern == "")
-            areaPattern = profile.area_pattern;
+            areaPattern = profile.AreaPattern;
         var durationTu = effectDefinition.DurationTu;
         if (durationTu <= 0)
             durationTu = Mathf.Max(
                 effectParams.DurationTuOverride > 0
                     ? effectParams.DurationTuOverride
-                    : profile.duration_tu,
+                    : profile.DurationTu,
                 0
             );
         if (durationTu <= 0)
@@ -120,8 +151,8 @@ internal class BattleBarrierService
         var instanceId = _BuildBarrierInstanceId(sourceUnit, skillDefinition, profile);
         var instance = new BattleBarrierInstanceState();
         instance.BarrierInstanceId = instanceId;
-        instance.ProfileId = profile.profile_id;
-        instance.DisplayName = profile.display_name;
+        instance.ProfileId = profile.ProfileId;
+        instance.DisplayName = profile.DisplayName;
         instance.SourceUnitId = sourceUnit.unit_id;
         instance.SourceSkillId = skillDefinition != null ? skillDefinition.SkillId : "";
         instance.AnchorMode = profile.AnchorModeKind;
@@ -131,7 +162,7 @@ internal class BattleBarrierService
         instance.RemainingTu = durationTu;
         instance.CreatedTu = _GetCurrentTu();
         instance.SaveDc = saveDc;
-        instance.CatchAllProjectedEffects = profile.catch_all_projected_effects;
+        instance.CatchAllProjectedEffects = profile.CatchAllProjectedEffects;
         instance.SetLayers(_BuildLayers(profile, saveDc));
 
         _PutBarrier(instanceId, instance);
@@ -139,7 +170,7 @@ internal class BattleBarrierService
         var line =
             $"{sourceUnit.display_name} 创造{_GetBarrierLabel(instance)}，固定在 ({anchorUnit.coord.X}, {anchorUnit.coord.Y})，半径 {radiusCells} 格。";
         _AppendLog(batch, line);
-        return new BattleLayeredBarrierApplyResult(true, instanceId, new[] { line });
+        return new BattleLayeredBarrierApplyResult(true, instanceId, new[] { line }, "");
     }
 
     internal void AdvanceBarrierDurations(int elapsedTu, BattleEventBatch batch)
@@ -384,20 +415,23 @@ internal class BattleBarrierService
     private StringName _BuildBarrierInstanceId(
         BattleUnitState sourceUnit,
         SkillDefinition skillDefinition,
-        BarrierProfileDef profile
+        BarrierProfileDefinition profile
     )
     {
         var sourceId = sourceUnit != null ? sourceUnit.unit_id.ToString() : "unknown";
         var skillId =
             skillDefinition != null
                 ? skillDefinition.SkillId.ToString()
-                : profile.profile_id.ToString();
+                : profile.ProfileId.ToString();
         return new StringName(
             $"{skillId}:{sourceId}:{_GetCurrentTu()}:{_GetBarrierStoreCount() + 1}"
         );
     }
 
-    private List<BattleBarrierLayerState> _BuildLayers(BarrierProfileDef profile, int saveDc)
+    private List<BattleBarrierLayerState> _BuildLayers(
+        BarrierProfileDefinition profile,
+        int saveDc
+    )
     {
         var layers = new List<BattleBarrierLayerState>();
         foreach (var layerDef in profile.GetOrderedLayers())
@@ -409,46 +443,27 @@ internal class BattleBarrierService
         return layers;
     }
 
-    private static BattleBarrierLayerState _BuildLayerState(BarrierLayerDef layerDef, int saveDc)
+    private static BattleBarrierLayerState _BuildLayerState(
+        BarrierLayerDefinition layerDef,
+        int saveDc
+    )
     {
         var layer = new BattleBarrierLayerState
         {
-            LayerId = layerDef.layer_id,
-            DisplayName = layerDef.display_name,
-            Order = layerDef.order,
+            LayerId = layerDef.LayerId,
+            DisplayName = layerDef.DisplayName,
+            Order = layerDef.Order,
             Broken = false,
         };
-        layer.SetBlockedCategories(layerDef.blocked_categories);
-        layer.SetBreakerSkillIds(layerDef.breaker_skill_ids);
+        layer.SetBlockedCategories(layerDef.BlockedCategories);
+        layer.SetBreakerSkillIds(layerDef.BreakerSkillIds);
 
         var outcomes = new List<BattleBarrierOutcomeState>();
-        foreach (BarrierOutcomeDef outcomeDef in layerDef.passage_outcomes)
+        foreach (BarrierOutcomeDefinition outcomeDef in layerDef.PassageOutcomes)
         {
             if (outcomeDef == null)
-            {
                 continue;
-            }
-            int resolvedSaveDc = outcomeDef.save_dc;
-            if (resolvedSaveDc <= 0)
-            {
-                resolvedSaveDc = Mathf.Max(saveDc, 0);
-            }
-            outcomes.Add(
-                new BattleBarrierOutcomeState
-                {
-                    OutcomeKind = outcomeDef.OutcomeKind,
-                    Amount = outcomeDef.amount,
-                    DamageTag = outcomeDef.damage_tag,
-                    HalfOnSuccess = outcomeDef.half_on_success,
-                    SuccessAmount = outcomeDef.success_amount,
-                    SuccessDamageTag = outcomeDef.success_damage_tag,
-                    FatalDamage = Mathf.Max(outcomeDef.fatal_damage, 1),
-                    StatusId = outcomeDef.status_id,
-                    SaveAbility = outcomeDef.save_ability,
-                    SaveTag = outcomeDef.save_tag,
-                    SaveDc = resolvedSaveDc,
-                }
-            );
+            outcomes.Add(BattleBarrierOutcomeState.FromDefinition(outcomeDef, saveDc));
         }
         layer.SetPassageOutcomes(outcomes);
         return layer;

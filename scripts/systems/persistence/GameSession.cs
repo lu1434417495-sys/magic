@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Godot;
@@ -235,15 +236,13 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
     internal StringNameList _post_decode_save_reasons = new();
 
     public ProgressionContentRegistry _progression_content_registry = new();
+    private BarrierContentRegistry _barrier_content_registry = new();
     public ItemContentRegistry _item_content_registry = new();
     public RecipeContentRegistry _recipe_content_registry = new();
     public EnemyContentRegistry _enemy_content_registry = new();
     internal BattleSpecialProfileRegistry _battle_special_profile_registry = new();
     internal GameRoot _game_root = new();
 
-    public GDictionary _profession_defs = new();
-    public GDictionary _achievement_defs = new();
-    public GDictionary _quest_defs = new();
     public GDictionary _item_defs = new();
     public GDictionary _recipe_defs = new();
     public GDictionary _enemy_templates = new();
@@ -251,9 +250,9 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
     public GDictionary _wild_encounter_rosters = new();
     private ContentValidationSnapshotData _contentValidationSnapshotData = new();
     private Dictionary<StringName, SkillDefinition> _skillDefinitionIndex = new();
-    private Dictionary<StringName, ProfessionDef> _professionDefIndex = new();
-    private Dictionary<StringName, AchievementDef> _achievementDefIndex = new();
-    private Dictionary<StringName, QuestDef> _questDefIndex = new();
+    private Dictionary<StringName, ProfessionDefinition> _professionDefIndex = new();
+    private Dictionary<StringName, AchievementDefinition> _achievementDefIndex = new();
+    private Dictionary<StringName, QuestDefinition> _questDefIndex = new();
     private Dictionary<StringName, ItemDef> _itemDefIndex = new();
     private Dictionary<StringName, RecipeDef> _recipeDefIndex = new();
     private Dictionary<StringName, EnemyTemplateDef> _enemyTemplateIndex = new();
@@ -397,6 +396,8 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         ClearSessionGodotObjectReferences();
         _progression_content_registry?.Dispose();
         _progression_content_registry = null;
+        _barrier_content_registry?.Dispose();
+        _barrier_content_registry = null;
         _item_content_registry?.Dispose();
         _item_content_registry = null;
         _recipe_content_registry?.Dispose();
@@ -672,21 +673,25 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         return GetContentValidationSnapshot();
     }
 
-    internal GDictionary GetQuestDefsSnapshotForTests() =>
-        RegisterContentProjectionWrapper(
-            _quest_defs != null
-                ? (GDictionary)_quest_defs.Duplicate(true)
-                : new GDictionary(),
-            "GameSession.GetQuestDefsSnapshotForTests"
-        );
+    internal IReadOnlyDictionary<StringName, QuestDefinition> GetQuestDefsSnapshotForTests() =>
+        new Dictionary<StringName, QuestDefinition>(_questDefIndex);
 
-    internal void ReplaceQuestDefsForTests(GDictionary questDefs)
+    internal void ReplaceQuestDefsForTests(
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefinitions
+    )
     {
-        _quest_defs = RegisterContentProjectionWrapper(
-            questDefs != null ? (GDictionary)questDefs.Duplicate(true) : new GDictionary(),
-            "GameSession.ReplaceQuestDefsForTests"
-        );
-        _questDefIndex = BuildQuestDefIndex(_quest_defs);
+        _questDefIndex = questDefinitions != null
+            ? new Dictionary<StringName, QuestDefinition>(questDefinitions)
+            : new Dictionary<StringName, QuestDefinition>();
+        RefreshContentCatalog();
+    }
+
+    internal void InstallQuestDefinitionForTests(QuestDefinition questDefinition)
+    {
+        ArgumentNullException.ThrowIfNull(questDefinition);
+        if (questDefinition.QuestId == "")
+            throw new ArgumentException("Quest definition must have a non-empty id.", nameof(questDefinition));
+        _questDefIndex[questDefinition.QuestId] = questDefinition;
         RefreshContentCatalog();
     }
 
@@ -722,7 +727,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         string generationConfigPath,
         GDictionary worldData,
         PartyState partyState,
-        GDictionary questDefs = null,
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefinitions = null,
         string saveKind = "runtime_test",
         string displayName = "Runtime Test",
         Vector2I? mapSize = null
@@ -740,11 +745,8 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         PartyState previousPartyState = _party_state;
         _party_state = partyState ?? new PartyState();
         DisposePartyStateGraph(previousPartyState, _party_state);
-        if (questDefs != null)
-        {
-            _quest_defs = questDefs;
-            _questDefIndex = BuildQuestDefIndex(_quest_defs);
-        }
+        if (questDefinitions != null)
+            _questDefIndex = new Dictionary<StringName, QuestDefinition>(questDefinitions);
         _has_active_world = true;
         _battle_save_lock_enabled = false;
         ReplaceActiveSaveMetaPlain(BuildSaveMetaPlain(
@@ -1062,10 +1064,10 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         return _progression_content_registry.GetSkillDefinitionsTyped();
     }
 
-    public IReadOnlyDictionary<StringName, TraitDef> GetTraitDefsTyped()
+    public IReadOnlyDictionary<StringName, TraitDefinition> GetTraitDefsTyped()
     {
         return _progression_content_registry?.GetTraitDefsTyped()
-            ?? new Dictionary<StringName, TraitDef>();
+            ?? new Dictionary<StringName, TraitDefinition>();
     }
 
     public EquipmentAbilityRegistryBuildResult GetEquipmentAbilityLastBuildResultTyped()
@@ -1111,32 +1113,46 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
             ? _battle_special_profile_registry.BuildRuntimeProfileView()
             : BattleSpecialProfileRuntimeView.Empty;
 
-    public IReadOnlyDictionary<StringName, ProfessionDef> GetProfessionDefsTyped()
+    public IReadOnlyDictionary<StringName, ProfessionDefinition> GetProfessionDefsTyped()
     {
-        return new Dictionary<StringName, ProfessionDef>(_professionDefIndex);
+        return new ReadOnlyDictionary<StringName, ProfessionDefinition>(
+            new Dictionary<StringName, ProfessionDefinition>(_professionDefIndex)
+        );
     }
 
-    public IReadOnlyDictionary<StringName, AchievementDef> GetAchievementDefsTyped()
+    public IReadOnlyDictionary<StringName, AchievementDefinition> GetAchievementDefsTyped()
     {
-        return new Dictionary<StringName, AchievementDef>(_achievementDefIndex);
+        return new ReadOnlyDictionary<StringName, AchievementDefinition>(
+            new Dictionary<StringName, AchievementDefinition>(_achievementDefIndex)
+        );
     }
 
-    public QuestDef GetQuestDef(StringName quest_id)
+    public QuestDefinition GetQuestDef(StringName quest_id)
     {
         if (quest_id == "")
             return null;
-        return _questDefIndex.TryGetValue(quest_id, out QuestDef questDef) ? questDef : null;
+        return _questDefIndex.TryGetValue(quest_id, out QuestDefinition questDefinition)
+            ? questDefinition
+            : null;
     }
 
-    public IReadOnlyDictionary<StringName, QuestDef> GetQuestDefsTyped()
+    public IReadOnlyDictionary<StringName, QuestDefinition> GetQuestDefsTyped()
     {
-        return new Dictionary<StringName, QuestDef>(_questDefIndex);
+        return new ReadOnlyDictionary<StringName, QuestDefinition>(
+            new Dictionary<StringName, QuestDefinition>(_questDefIndex)
+        );
     }
 
-    public IReadOnlyDictionary<StringName, ContingencySetupTemplateDef> GetContingencySetupTemplatesTyped()
+    public IReadOnlyDictionary<StringName, ContingencySetupTemplateDefinition> GetContingencySetupTemplatesTyped()
     {
         return _progression_content_registry?.GetContingencySetupTemplatesTyped()
-            ?? new Dictionary<StringName, ContingencySetupTemplateDef>();
+            ?? new Dictionary<StringName, ContingencySetupTemplateDefinition>();
+    }
+
+    public IReadOnlyDictionary<StringName, BarrierProfileDefinition> GetBarrierProfileDefinitionsTyped()
+    {
+        return _barrier_content_registry?.GetProfileDefsTyped()
+            ?? new Dictionary<StringName, BarrierProfileDefinition>();
     }
 
     public IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped()
@@ -1220,15 +1236,6 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
             case "skill":
                 registry = new GDictionary();
                 return false;
-            case "profession":
-                registry = _profession_defs;
-                return true;
-            case "achievement":
-                registry = _achievement_defs;
-                return true;
-            case "quest":
-                registry = _quest_defs;
-                return true;
             case "item":
                 registry = _item_defs;
                 return true;
@@ -1254,15 +1261,6 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
     {
         switch (domain_id.ToString())
         {
-            case "profession":
-                _professionDefIndex = BuildProfessionDefIndex(_profession_defs);
-                break;
-            case "achievement":
-                _achievementDefIndex = BuildAchievementDefIndex(_achievement_defs);
-                break;
-            case "quest":
-                _questDefIndex = BuildQuestDefIndex(_quest_defs);
-                break;
             case "item":
                 _itemDefIndex = BuildItemDefIndex(_item_defs);
                 break;

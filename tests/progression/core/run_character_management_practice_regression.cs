@@ -296,8 +296,8 @@ public partial class run_character_management_practice_regression : LifecycleTes
         manager.setup(
             party,
             indexedSkillDefinitions,
-            new Dictionary<StringName, ProfessionDef>(),
-            new Dictionary<StringName, AchievementDef>()
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>()
         );
         return manager;
     }

@@ -109,7 +109,7 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
 
     private void TestItemTraitValidationAcceptsSourceScopedReferences()
     {
-        Dictionary<StringName, TraitDef> traits = BuildTraitDefs();
+        Dictionary<StringName, TraitDefinition> traits = BuildTraitDefinitions();
         Dictionary<StringName, ItemDef> items = new()
         {
             ["trait_sword"] = BuildEquipmentItem(
@@ -130,7 +130,7 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
 
     private void TestItemTraitValidationRejectsWrongSourceAndUnsatisfiableRollGroups()
     {
-        Dictionary<StringName, TraitDef> traits = BuildTraitDefs();
+        Dictionary<StringName, TraitDefinition> traits = BuildTraitDefinitions();
         Dictionary<StringName, ItemDef> items = new()
         {
             ["bad_fixed"] = BuildEquipmentItem(
@@ -212,51 +212,64 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
         return result;
     }
 
-    private static Dictionary<StringName, TraitDef> BuildTraitDefs()
+    private static Dictionary<StringName, TraitDefinition> BuildTraitDefinitions()
     {
-        return new Dictionary<StringName, TraitDef>
+        return new Dictionary<StringName, TraitDefinition>
         {
-            ["guarded_grip"] = new TraitDef
-            {
-                trait_id = "guarded_grip",
-                allowed_source_kinds = new Godot.Collections.Array<StringName>
-                {
-                    "equipment_fixed",
-                },
-            },
-            ["sharp_edge"] = new TraitDef
-            {
-                trait_id = "sharp_edge",
-                allowed_source_kinds = new Godot.Collections.Array<StringName>
-                {
-                    "equipment_roll",
-                },
-                roll_value_schema = new Godot.Collections.Array<TraitRollValueSchemaEntry>
-                {
-                    new()
-                    {
-                        key = "amount",
-                        value_type = "int",
-                        min_value = 1,
-                        max_value = 6,
-                    },
-                },
-            },
-            ["heavy_head"] = new TraitDef
-            {
-                trait_id = "heavy_head",
-                allowed_source_kinds = new Godot.Collections.Array<StringName>
-                {
-                    "equipment_roll",
-                },
-            },
-            ["identity_only"] = new TraitDef
-            {
-                trait_id = "identity_only",
-                allowed_source_kinds = new Godot.Collections.Array<StringName> { "identity" },
-            },
+            ["guarded_grip"] = BuildTraitDefinition(
+                "guarded_grip",
+                [new StringName("equipment_fixed")]
+            ),
+            ["sharp_edge"] = BuildTraitDefinition(
+                "sharp_edge",
+                [new StringName("equipment_roll")],
+                [
+                    new TraitRollValueSchemaEntryDefinition(
+                        "amount",
+                        "int",
+                        1,
+                        6,
+                        System.Array.Empty<StringName>()
+                    ),
+                ]
+            ),
+            ["heavy_head"] = BuildTraitDefinition(
+                "heavy_head",
+                [new StringName("equipment_roll")]
+            ),
+            ["identity_only"] = BuildTraitDefinition(
+                "identity_only",
+                [new StringName("identity")]
+            ),
         };
     }
+
+    private static TraitDefinition BuildTraitDefinition(
+        StringName traitId,
+        IReadOnlyList<StringName> allowedSourceKinds,
+        IReadOnlyList<TraitRollValueSchemaEntryDefinition> rollValueSchema = null
+    ) =>
+        new(
+            traitId,
+            traitId.ToString(),
+            "Validation fixture.",
+            System.Array.Empty<StringName>(),
+            allowedSourceKinds,
+            "attribute_modifier",
+            "passive",
+            "unique_by_trait",
+            "none",
+            "none",
+            "",
+            0,
+            0,
+            System.Array.Empty<AttributeModifierDefinition>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<TraitDamageResistanceEntryDefinition>(),
+            System.Array.Empty<TraitSaveBonusEntryDefinition>(),
+            System.Array.Empty<TraitPassiveStatusEffectDefinition>(),
+            rollValueSchema ?? System.Array.Empty<TraitRollValueSchemaEntryDefinition>()
+        );
 
     private static ItemDef BuildEquipmentItem(
         string itemId,

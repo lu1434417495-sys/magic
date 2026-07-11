@@ -214,7 +214,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         progressionService.SetupDefinitions(
             new UnitProgress(),
             fixture.SkillDefs,
-            new Dictionary<StringName, ProfessionDef>()
+            new Dictionary<StringName, ProfessionDefinition>()
         );
         foreach (
             StringName hiddenSkillId in new[]
@@ -1509,7 +1509,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         internal BattleRuntimeModule Runtime { get; }
         internal IReadOnlyDictionary<StringName, ItemDef> ItemDefs { get; }
         internal IReadOnlyDictionary<StringName, SkillDefinition> SkillDefs { get; }
-        internal IReadOnlyDictionary<StringName, TraitDef> TraitDefs { get; }
+        internal IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs { get; }
         internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> Bindings { get; }
 
         internal static ExecutionerFixture Build()

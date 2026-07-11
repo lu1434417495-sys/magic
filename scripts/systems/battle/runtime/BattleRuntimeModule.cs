@@ -246,7 +246,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
     private readonly Dictionary<StringName, EnemyTemplateDef> _enemyTemplateIndex = new();
     private readonly Dictionary<StringName, EnemyAiBrainDef> _enemyAiBrainIndex = new();
     private readonly Dictionary<StringName, ItemDef> _itemDefIndex = new();
-    private readonly Dictionary<StringName, TraitDef> _traitDefIndex = new();
+    private readonly Dictionary<StringName, TraitDefinition> _traitDefIndex = new();
+    private readonly Dictionary<StringName, BarrierProfileDefinition> _barrierProfileIndex = new();
     private readonly Dictionary<StringName, EquipmentAbilityBindingDefinition> _equipmentAbilityBindingIndex = new();
     internal EncounterRosterBuilder _encounter_builder = new EncounterRosterBuilder();
     public BattleState _state;
@@ -378,8 +379,9 @@ public sealed partial class BattleRuntimeModule : IDisposable
         GDictionary battle_special_profile_registry_snapshot = null,
         ISkillCatalog skill_catalog = null,
         IBattleSpecialProfileView battle_special_profile_view = null,
-        IReadOnlyDictionary<StringName, TraitDef> trait_defs = null,
-        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipment_ability_bindings = null
+        IReadOnlyDictionary<StringName, TraitDefinition> trait_defs = null,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipment_ability_bindings = null,
+        IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrier_profile_definitions = null
     )
     {
         BeginContentCatalogRebind();
@@ -406,6 +408,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         ApplyItemDefsTyped(resolvedItemDefs);
         ApplyTraitDefsTyped(trait_defs);
         ApplyEquipmentAbilityBindingsTyped(equipment_ability_bindings);
+        ApplyBarrierProfileDefinitionsTyped(barrier_profile_definitions);
 
         ApplyEnemyTemplatesTyped(enemy_templates);
         ApplyEnemyAiBrainsTyped(enemy_ai_brains);
@@ -459,7 +462,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _metrics_collector.Setup(this);
         _shield_service.Setup(this);
         _runtime_services.SetupRuntimeSidecars(this);
-        _layered_barrier_service.Setup(this);
+        _layered_barrier_service.Setup(this, _barrierProfileIndex);
         _timeline_driver.Setup(this);
         _skill_orchestrator.Setup(this);
         _casting_time_service.Setup(this);
@@ -2131,7 +2134,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _metrics_collector.Setup(this);
         _shield_service.Setup(this);
         _runtime_services.SetupRuntimeSidecars(this);
-        _layered_barrier_service.Setup(this);
+        _layered_barrier_service.Setup(this, _barrierProfileIndex);
         _timeline_driver.Setup(this);
         _skill_orchestrator.Setup(this);
         _casting_time_service.Setup(this);
@@ -2311,7 +2314,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _metrics_collector.Setup(this);
         _shield_service.Setup(this);
         _runtime_services.SetupRuntimeSidecars(this);
-        _layered_barrier_service.Setup(this);
+        _layered_barrier_service.Setup(this, _barrierProfileIndex);
         _timeline_driver.Setup(this);
         _skill_orchestrator.Setup(this);
         _casting_time_service.Setup(this);

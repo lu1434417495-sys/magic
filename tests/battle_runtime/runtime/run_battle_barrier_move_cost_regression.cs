@@ -6,11 +6,13 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_battle_barrier_move_cost_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
+    private IReadOnlyDictionary<StringName, BarrierProfileDefinition> _barrierProfileDefinitions;
 
     public override void _Initialize()
     {
         try
         {
+            _barrierProfileDefinitions = BarrierDefinitionTestContent.LoadValidated();
             TestFirstBoundaryInterruptionDoesNotExecuteMovement();
             TestBarrierInterruptedMoveCostUsesReachedAnchors();
             RequestTestExit(_test.Finish("Battle barrier move cost regression"));
@@ -94,10 +96,10 @@ public partial class run_battle_barrier_move_cost_regression : LifecycleTestScen
         runtime.dispose();
     }
 
-    private static Fixture BuildRuntimeWithSphere(StringName battleId, Vector2I enemyCoord)
+    private Fixture BuildRuntimeWithSphere(StringName battleId, Vector2I enemyCoord)
     {
         var runtime = new BattleRuntimeModule();
-        runtime.setup();
+        runtime.setup(barrier_profile_definitions: _barrierProfileDefinitions);
         BattleState state = BuildState(battleId, new Vector2I(8, 5));
         runtime.SetupStateForTests(state);
         BattleUnitState caster = BuildUnit("caster", "施法者", "player", new Vector2I(2, 2));

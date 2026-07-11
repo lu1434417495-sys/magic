@@ -26,13 +26,14 @@ public sealed class GameContentCatalog
     private ProgressionContentRegistry _progressionContentRegistry;
     private ProgressionIdentityCatalogData _progressionIdentityCatalog;
     private IReadOnlyDictionary<StringName, SkillDefinition> _skillDefinitions;
-    private IReadOnlyDictionary<StringName, TraitDef> _traitDefs;
-    private IReadOnlyDictionary<StringName, ProfessionDef> _professionDefs;
-    private IReadOnlyDictionary<StringName, AchievementDef> _achievementDefs;
-    private IReadOnlyDictionary<StringName, QuestDef> _questDefs;
+    private IReadOnlyDictionary<StringName, TraitDefinition> _traitDefs;
+    private IReadOnlyDictionary<StringName, ProfessionDefinition> _professionDefs;
+    private IReadOnlyDictionary<StringName, AchievementDefinition> _achievementDefs;
+    private IReadOnlyDictionary<StringName, QuestDefinition> _questDefs;
     private int _equipmentAbilityContentRevision;
     private IReadOnlyDictionary<StringName, EquipmentAbilityContentPackDefinition> _equipmentAbilityPacks;
     private IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> _equipmentAbilityBindings;
+    private IReadOnlyDictionary<StringName, BarrierProfileDefinition> _barrierProfileDefinitions;
     private IReadOnlyDictionary<StringName, ItemDef> _itemDefs;
     private IReadOnlyDictionary<StringName, RecipeDef> _recipeDefs;
     private IReadOnlyDictionary<StringName, EnemyTemplateDef> _enemyTemplates;
@@ -93,6 +94,9 @@ public sealed class GameContentCatalog
         _equipmentAbilityBindings = SnapshotTyped(
             session.GetEquipmentAbilityBindingDefinitionsTyped()
         );
+        _barrierProfileDefinitions = SnapshotTyped(
+            session.GetBarrierProfileDefinitionsTyped()
+        );
         _itemDefs = SnapshotTyped(session.GetItemDefsTyped());
         _recipeDefs = SnapshotTyped(session.GetRecipeDefsTyped());
         _enemyTemplates = SnapshotTyped(session.GetEnemyTemplatesTyped());
@@ -116,13 +120,14 @@ public sealed class GameContentCatalog
         _progressionContentRegistry = null;
         _progressionIdentityCatalog = new ProgressionIdentityCatalogData();
         _skillDefinitions = EmptyTyped<SkillDefinition>();
-        _traitDefs = EmptyTyped<TraitDef>();
-        _professionDefs = EmptyTyped<ProfessionDef>();
-        _achievementDefs = EmptyTyped<AchievementDef>();
-        _questDefs = EmptyTyped<QuestDef>();
+        _traitDefs = EmptyTyped<TraitDefinition>();
+        _professionDefs = EmptyTyped<ProfessionDefinition>();
+        _achievementDefs = EmptyTyped<AchievementDefinition>();
+        _questDefs = EmptyTyped<QuestDefinition>();
         _equipmentAbilityContentRevision = 0;
         _equipmentAbilityPacks = EmptyTyped<EquipmentAbilityContentPackDefinition>();
         _equipmentAbilityBindings = EmptyTyped<EquipmentAbilityBindingDefinition>();
+        _barrierProfileDefinitions = EmptyTyped<BarrierProfileDefinition>();
         _itemDefs = EmptyTyped<ItemDef>();
         _recipeDefs = EmptyTyped<RecipeDef>();
         _enemyTemplates = EmptyTyped<EnemyTemplateDef>();
@@ -166,7 +171,7 @@ public sealed class GameContentCatalog
     public IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionsTyped() =>
         _skillDefinitions;
 
-    public IReadOnlyDictionary<StringName, TraitDef> GetTraitDefsTyped() => _traitDefs;
+    public IReadOnlyDictionary<StringName, TraitDefinition> GetTraitDefsTyped() => _traitDefs;
 
     /// <summary>
     /// 技能内容门面。门面只持有本 catalog 引用、每次查询都读当前 typed 快照与 revision，
@@ -176,13 +181,13 @@ public sealed class GameContentCatalog
     /// </summary>
     public ISkillCatalog GetSkillCatalogTyped() => _skillCatalog ??= new SkillCatalog(this);
 
-    public IReadOnlyDictionary<StringName, ProfessionDef> GetProfessionDefsTyped() =>
+    public IReadOnlyDictionary<StringName, ProfessionDefinition> GetProfessionDefsTyped() =>
         _professionDefs;
 
-    public IReadOnlyDictionary<StringName, AchievementDef> GetAchievementDefsTyped() =>
+    public IReadOnlyDictionary<StringName, AchievementDefinition> GetAchievementDefsTyped() =>
         _achievementDefs;
 
-    public IReadOnlyDictionary<StringName, QuestDef> GetQuestDefsTyped() => _questDefs;
+    public IReadOnlyDictionary<StringName, QuestDefinition> GetQuestDefsTyped() => _questDefs;
 
     public int GetEquipmentAbilityContentRevision() => _equipmentAbilityContentRevision;
 
@@ -192,11 +197,14 @@ public sealed class GameContentCatalog
     public IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> GetEquipmentAbilityBindingDefinitionsTyped() =>
         _equipmentAbilityBindings;
 
-    public QuestDef GetQuestDefTyped(StringName questId)
+    public IReadOnlyDictionary<StringName, BarrierProfileDefinition> GetBarrierProfileDefinitionsTyped() =>
+        _barrierProfileDefinitions;
+
+    public QuestDefinition GetQuestDefTyped(StringName questId)
     {
         if (questId == "")
             return null;
-        return _questDefs.TryGetValue(questId, out QuestDef questDef) ? questDef : null;
+        return _questDefs.TryGetValue(questId, out QuestDefinition questDef) ? questDef : null;
     }
 
     public IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped() => _itemDefs;

@@ -98,7 +98,7 @@ public sealed class EncounterRosterBuilder : IDisposable
             IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
             IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains,
             IReadOnlyDictionary<StringName, ItemDef> itemDefs,
-            IReadOnlyDictionary<StringName, TraitDef> traitDefs,
+            IReadOnlyDictionary<StringName, TraitDefinition> traitDefs,
             IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings,
             int growthStage,
             int? enemyUnitCountOverride
@@ -109,7 +109,7 @@ public sealed class EncounterRosterBuilder : IDisposable
             EnemyTemplates = enemyTemplates ?? new Dictionary<StringName, EnemyTemplateDef>();
             EnemyAiBrains = enemyAiBrains ?? new Dictionary<StringName, EnemyAiBrainDef>();
             ItemDefs = itemDefs ?? new Dictionary<StringName, ItemDef>();
-            TraitDefs = traitDefs ?? new Dictionary<StringName, TraitDef>();
+            TraitDefs = traitDefs ?? new Dictionary<StringName, TraitDefinition>();
             EquipmentAbilityBindings =
                 equipmentAbilityBindings
                 ?? new Dictionary<StringName, EquipmentAbilityBindingDefinition>();
@@ -121,7 +121,7 @@ public sealed class EncounterRosterBuilder : IDisposable
         public IReadOnlyDictionary<StringName, EnemyTemplateDef> EnemyTemplates { get; }
         public IReadOnlyDictionary<StringName, EnemyAiBrainDef> EnemyAiBrains { get; }
         public IReadOnlyDictionary<StringName, ItemDef> ItemDefs { get; }
-        public IReadOnlyDictionary<StringName, TraitDef> TraitDefs { get; }
+        public IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs { get; }
         public IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> EquipmentAbilityBindings { get; }
         public int GrowthStage { get; }
         public int? EnemyUnitCountOverride { get; }
@@ -149,7 +149,7 @@ public sealed class EncounterRosterBuilder : IDisposable
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
         IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains,
         IReadOnlyDictionary<StringName, ItemDef> itemDefs,
-        IReadOnlyDictionary<StringName, TraitDef> traitDefs = null,
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefs = null,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null,
         int? growthStageOverride = null,
         int? enemyUnitCountOverride = null
@@ -174,7 +174,7 @@ public sealed class EncounterRosterBuilder : IDisposable
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
         IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains,
         IReadOnlyDictionary<StringName, ItemDef> itemDefs,
-        IReadOnlyDictionary<StringName, TraitDef> traitDefs = null,
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefs = null,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null,
         int? growthStageOverride = null,
         int? enemyUnitCountOverride = null
@@ -1117,7 +1117,7 @@ public sealed class EncounterRosterBuilder : IDisposable
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
         IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains,
         IReadOnlyDictionary<StringName, ItemDef> itemDefs,
-        IReadOnlyDictionary<StringName, TraitDef> traitDefs,
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefs,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings,
         int? growthStageOverride,
         int? enemyUnitCountOverride,

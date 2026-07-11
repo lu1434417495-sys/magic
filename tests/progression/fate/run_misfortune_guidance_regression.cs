@@ -263,10 +263,10 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
         manager.setup(
             partyState,
             new Dictionary<StringName, SkillDefinition>(),
-            new Dictionary<StringName, ProfessionDef>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
             progressionRegistry.GetAchievementDefsTyped(),
             itemDefIndex,
-            new Dictionary<StringName, QuestDef>(),
+            new Dictionary<StringName, QuestDefinition>(),
             null,
             new ProgressionIdentityCatalogData()
         );
@@ -278,7 +278,9 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
         MisfortuneGuidanceService guidance = new();
         guidance.Setup(manager, battleRuntime);
 
-        FaithService faith = new();
+        FaithContentRegistry faithRegistry = new();
+        faithRegistry.Rebuild();
+        FaithService faith = new(faithRegistry.GetFaithDeityDefsTyped());
         return new TestContext(
             partyState,
             manager,

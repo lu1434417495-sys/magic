@@ -94,30 +94,45 @@ public partial class run_character_management_quest_materializer_regression : Li
             "iron_ore",
             2
         );
-        QuestDef missingTargetQuest = new()
-        {
-            quest_id = "contract_supply_delivery_missing_target",
-            display_name = "Missing target",
-        };
-        missingTargetQuest.objective_defs.Add(
-            new GDictionary
+        QuestDefinition missingTargetQuest = new(
+            "contract_supply_delivery_missing_target",
+            "Missing target",
+            "",
+            "service_contract_board",
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<QuestAcceptRequirementDefinition>(),
+            new[]
             {
-                ["objective_id"] = "deliver_ore",
-                ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.SubmitItem),
-                ["target_id"] = "iron_ore",
-            }
+                new QuestObjectiveDefinition(
+                    "deliver_ore",
+                    QuestDef.ToStringName(QuestObjectiveKind.SubmitItem),
+                    "iron_ore",
+                    0
+                ),
+            },
+            System.Array.Empty<QuestRewardDefinition>(),
+            false,
+            "service_contract_board",
+            new[] { new StringName("contract_board") },
+            "",
+            "",
+            "",
+            ""
         );
 
-        CharacterManagementModule manager = BuildManager(
-            party,
-            itemDefs,
+        Dictionary<StringName, QuestDefinition> questDefinitions = BuildQuestDefIndex(
             new GDictionary
             {
                 [submitQuest.quest_id] = submitQuest,
                 [shortageQuest.quest_id] = shortageQuest,
                 [wrongItemQuest.quest_id] = wrongItemQuest,
-                [missingTargetQuest.quest_id] = missingTargetQuest,
             }
+        );
+        questDefinitions[missingTargetQuest.QuestId] = missingTargetQuest;
+        CharacterManagementModule manager = BuildManager(
+            party,
+            itemDefs,
+            questDefinitions
         );
         PartyWarehouseService warehouse = new();
         warehouse.Setup(party, BuildItemDefIndex(itemDefs));
@@ -204,11 +219,11 @@ public partial class run_character_management_quest_materializer_regression : Li
             "wrong item submit should not consume other inventory."
         );
 
-        QuestState missingTargetState = new() { quest_id = missingTargetQuest.quest_id };
+        QuestState missingTargetState = new() { quest_id = missingTargetQuest.QuestId };
         missingTargetState.MarkAccepted(9);
         party.SetActiveQuestState(missingTargetState);
         GDictionary missingTargetResult = QuestCommandResultProjection.Project(
-            manager.SubmitItemObjectiveTyped(missingTargetQuest.quest_id, "deliver_ore", 10)
+            manager.SubmitItemObjectiveTyped(missingTargetQuest.QuestId, "deliver_ore", 10)
         );
         _test.True(!ReadBool(missingTargetResult, "ok"), "submit_item should reject objectives without target_value.");
         _test.Eq(
@@ -217,7 +232,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             "missing target_value should not default to one."
         );
         _test.True(
-            party.HasActiveQuest(missingTargetQuest.quest_id),
+            party.HasActiveQuest(missingTargetQuest.QuestId),
             "missing target_value should keep quest active."
         );
     }
@@ -633,8 +648,8 @@ public partial class run_character_management_quest_materializer_regression : Li
         manager.setup(
             party,
             new Dictionary<StringName, SkillDefinition> { [triggerSkill.SkillId] = triggerSkill },
-            new Dictionary<StringName, ProfessionDef>(),
-            new Dictionary<StringName, AchievementDef>()
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>()
         );
 
         LevelGrowthTriggerResult setResult = manager.SetActiveLevelTriggerCoreSkillTyped(
@@ -724,8 +739,13 @@ public partial class run_character_management_quest_materializer_regression : Li
         manager.setup(
             party,
             new Dictionary<StringName, SkillDefinition> { [triggerSkill.SkillId] = triggerSkill },
-            new Dictionary<StringName, ProfessionDef> { [profession.profession_id] = profession },
-            new Dictionary<StringName, AchievementDef>()
+            TestProgressionDefinitionProjection.Professions(
+                new Dictionary<StringName, ProfessionDef>
+                {
+                    [profession.profession_id] = profession,
+                }
+            ),
+            new Dictionary<StringName, AchievementDefinition>()
         );
 
         CharacterProgressionDelta delta = manager.PromoteProfession(
@@ -859,11 +879,13 @@ public partial class run_character_management_quest_materializer_regression : Li
                         [triggerSkill.skill_id] = triggerSkill,
                     }
                 ),
-                new Dictionary<StringName, ProfessionDef>
-                {
-                    [profession.profession_id] = profession,
-                },
-                new Dictionary<StringName, AchievementDef>()
+                TestProgressionDefinitionProjection.Professions(
+                    new Dictionary<StringName, ProfessionDef>
+                    {
+                        [profession.profession_id] = profession,
+                    }
+                ),
+                new Dictionary<StringName, AchievementDefinition>()
             );
 
             CharacterProgressionDelta delta = manager.PromoteProfession(
@@ -917,10 +939,10 @@ public partial class run_character_management_quest_materializer_regression : Li
         manager.setup(
             party,
             new Dictionary<StringName, SkillDefinition> { [charge.SkillId] = charge },
-            new Dictionary<StringName, ProfessionDef>(),
-            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
             BuildItemDefIndex(BuildItemDefs()),
-            new Dictionary<StringName, QuestDef>()
+            new Dictionary<StringName, QuestDefinition>()
         );
 
         PendingCharacterReward reward = manager.BuildPendingSkillMasteryReward(
@@ -972,16 +994,22 @@ public partial class run_character_management_quest_materializer_regression : Li
         PartyState party,
         GDictionary itemDefs,
         GDictionary questDefs
+    ) => BuildManager(party, itemDefs, BuildQuestDefIndex(questDefs));
+
+    private static CharacterManagementModule BuildManager(
+        PartyState party,
+        GDictionary itemDefs,
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs
     )
     {
         CharacterManagementModule manager = new();
         manager.setup(
             party,
             new Dictionary<StringName, SkillDefinition>(),
-            new Dictionary<StringName, ProfessionDef>(),
-            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
             BuildItemDefIndex(itemDefs),
-            BuildQuestDefIndex(questDefs)
+            questDefs
         );
         return manager;
     }
@@ -1044,9 +1072,11 @@ public partial class run_character_management_quest_materializer_regression : Li
         return result;
     }
 
-    private static Dictionary<StringName, QuestDef> BuildQuestDefIndex(GDictionary questDefs)
+    private static Dictionary<StringName, QuestDefinition> BuildQuestDefIndex(
+        GDictionary questDefs
+    )
     {
-        Dictionary<StringName, QuestDef> result = new();
+        Dictionary<StringName, QuestDefinition> result = new();
         if (questDefs == null)
             return result;
         foreach (Variant rawKey in questDefs.Keys)
@@ -1057,7 +1087,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             if (questId == "")
                 continue;
             if (questDefs[rawKey].AsGodotObject() is QuestDef questDef)
-                result[questId] = questDef;
+                result[questId] = TestProgressionDefinitionProjection.Quest(questDef);
         }
         return result;
     }
@@ -1073,6 +1103,9 @@ public partial class run_character_management_quest_materializer_regression : Li
         {
             quest_id = questId,
             display_name = questId,
+            provider_kind = "service_contract_board",
+            provider_interaction_id = "service_contract_board",
+            listing_channels = new Godot.Collections.Array<StringName> { "contract_board" },
         };
         quest.objective_defs.Add(
             new GDictionary
@@ -1096,6 +1129,9 @@ public partial class run_character_management_quest_materializer_regression : Li
         {
             quest_id = questId,
             display_name = displayName,
+            provider_kind = "service_contract_board",
+            provider_interaction_id = "service_contract_board",
+            listing_channels = new Godot.Collections.Array<StringName> { "contract_board" },
         };
         quest.objective_defs.Add(
             new GDictionary

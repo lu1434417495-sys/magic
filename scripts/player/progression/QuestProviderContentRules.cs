@@ -27,22 +27,22 @@ public static class QuestProviderContentRules
     private static readonly StringName ChannelBountyRegistry = "bounty_registry";
     private static readonly StringName ChannelNpcOffer = "npc_offer";
 
-    public static QuestProviderKind ToProviderKind(QuestDef questDef)
+    public static QuestProviderKind ToProviderKind(QuestDefinition questDef)
     {
-        StringName kind = questDef.provider_kind;
+        StringName kind = questDef.ProviderKind;
         if (kind == ProviderContractBoard) return QuestProviderKind.ServiceContractBoard;
         if (kind == ProviderBountyRegistry) return QuestProviderKind.ServiceBountyRegistry;
         if (kind == ProviderNpc) return QuestProviderKind.Npc;
         return QuestProviderKind.Unknown;
     }
 
-    public static Godot.Collections.Array<QuestListingChannel> ToListingChannels(QuestDef questDef)
+    public static Godot.Collections.Array<QuestListingChannel> ToListingChannels(QuestDefinition questDef)
     {
         var result = new Godot.Collections.Array<QuestListingChannel>();
-        if (questDef?.listing_channels == null)
+        if (questDef == null)
             return result;
 
-        foreach (StringName channel in questDef.listing_channels)
+        foreach (StringName channel in questDef.ListingChannels)
         {
             result.Add(channel switch
             {

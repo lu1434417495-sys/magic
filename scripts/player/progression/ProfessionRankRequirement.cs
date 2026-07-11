@@ -18,6 +18,15 @@ public partial class ProfessionRankRequirement : Resource
     [Export]
     public Godot.Collections.Array<ReputationRequirement> required_reputation_rules = new();
 
+    internal Godot.Collections.Array<TagRequirement> RequiredTagRulesProjectionBorrowed =>
+        required_tag_rules;
+    internal Godot.Collections.Array<ProfessionRankGate> RequiredProfessionRanksProjectionBorrowed =>
+        required_profession_ranks;
+    internal Godot.Collections.Array<AttributeRequirement> RequiredAttributeRulesProjectionBorrowed =>
+        required_attribute_rules;
+    internal Godot.Collections.Array<ReputationRequirement> RequiredReputationRulesProjectionBorrowed =>
+        required_reputation_rules;
+
     public bool IsEmpty() =>
         required_tag_rules.Count == 0
         && required_profession_ranks.Count == 0

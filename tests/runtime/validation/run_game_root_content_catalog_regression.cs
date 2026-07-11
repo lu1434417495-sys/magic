@@ -74,6 +74,11 @@ public partial class run_game_root_content_catalog_regression : LifecycleTestSce
                 "content catalog trait defs 应与 GameSession 正式内容缓存一致。"
             );
             _test.Eq(
+                gameSession.GetBarrierProfileDefinitionsTyped().Count,
+                catalog.GetBarrierProfileDefinitionsTyped().Count,
+                "content catalog barrier profile definitions 应与 GameSession 正式内容缓存一致。"
+            );
+            _test.Eq(
                 gameSession.GetEquipmentAbilityBindingDefinitionsTyped().Count,
                 catalog.GetEquipmentAbilityBindingDefinitionsTyped().Count,
                 "content catalog equipment ability bindings 应与 GameSession 正式内容缓存一致。"
@@ -265,17 +270,17 @@ public partial class run_game_root_content_catalog_regression : LifecycleTestSce
                 "对只读视图的改写尝试不应影响 catalog skill definition 快照。"
             );
 
-            IReadOnlyDictionary<StringName, TraitDef> traitView = catalog.GetTraitDefsTyped();
+            IReadOnlyDictionary<StringName, TraitDefinition> traitView =
+                catalog.GetTraitDefsTyped();
             _test.True(
-                traitView as Dictionary<StringName, TraitDef> == null,
+                traitView as Dictionary<StringName, TraitDefinition> == null,
                 "typed trait getter 不应可被 downcast 成内部可变 Dictionary。"
             );
             int traitCountBefore = catalog.GetTraitDefsTyped().Count;
             bool traitMutationBlocked = false;
             try
             {
-                ((IDictionary<StringName, TraitDef>)traitView)["defensive_inject_trait"] =
-                    new TraitDef { trait_id = "defensive_inject_trait" };
+                ((IDictionary<StringName, TraitDefinition>)traitView).Clear();
             }
             catch (NotSupportedException)
             {
@@ -289,6 +294,18 @@ public partial class run_game_root_content_catalog_regression : LifecycleTestSce
                 catalog.GetTraitDefsTyped().Count,
                 traitCountBefore,
                 "对只读视图的改写尝试不应影响 catalog trait 快照。"
+            );
+            _test.True(
+                RejectsMutation(gameSession.GetProfessionDefsTyped()),
+                "GameSession profession definition snapshot 应拒绝写入。"
+            );
+            _test.True(
+                RejectsMutation(gameSession.GetAchievementDefsTyped()),
+                "GameSession achievement definition snapshot 应拒绝写入。"
+            );
+            _test.True(
+                RejectsMutation(gameSession.GetQuestDefsTyped()),
+                "GameSession quest definition snapshot 应拒绝写入。"
             );
 
             IReadOnlyDictionary<StringName, ItemDef> itemView = catalog.GetItemDefsTyped();
@@ -341,7 +358,7 @@ public partial class run_game_root_content_catalog_regression : LifecycleTestSce
             if (identityCatalog == null)
                 return;
 
-            IReadOnlyDictionary<StringName, RaceDef> raceView = identityCatalog.RaceDefs;
+            IReadOnlyDictionary<StringName, RaceDefinition> raceView = identityCatalog.RaceDefs;
             _test.True(raceView != null, "identity catalog 应暴露 race defs 只读视图。");
             if (raceView == null)
                 return;
@@ -349,7 +366,7 @@ public partial class run_game_root_content_catalog_regression : LifecycleTestSce
             // identity catalog 的 race 视图同样是防御性只读包装：downcast 成内部可变 Dictionary 应失败，
             // 否则下游可绕过只读约束改写 catalog 暴露的 identity snapshot。
             _test.True(
-                raceView as Dictionary<StringName, RaceDef> == null,
+                raceView as Dictionary<StringName, RaceDefinition> == null,
                 "identity catalog race getter 不应可被 downcast 成内部可变 Dictionary。"
             );
 
@@ -357,8 +374,7 @@ public partial class run_game_root_content_catalog_regression : LifecycleTestSce
             bool raceMutationBlocked = false;
             try
             {
-                ((IDictionary<StringName, RaceDef>)raceView)["identity_inject_race"] =
-                    new RaceDef();
+                ((IDictionary<StringName, RaceDefinition>)raceView).Clear();
             }
             catch (NotSupportedException)
             {
@@ -669,6 +685,19 @@ public partial class run_game_root_content_catalog_regression : LifecycleTestSce
             runtime.Dispose();
             CleanupGameSession(gameSession);
             CleanupGameSession(otherSession);
+        }
+    }
+
+    private static bool RejectsMutation<T>(IReadOnlyDictionary<StringName, T> snapshot)
+    {
+        try
+        {
+            ((IDictionary<StringName, T>)snapshot).Clear();
+            return false;
+        }
+        catch (NotSupportedException)
+        {
+            return true;
         }
     }
 

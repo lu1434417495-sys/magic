@@ -17,15 +17,19 @@ public partial class run_effective_trait_set_regression : LifecycleTestSceneTree
 
     private void TestTraitSetLookupsAndSortedBattleProjection()
     {
-        TraitDef sharp = BuildTrait("sharp_edge", "equipment_roll");
-        TraitDef guarded = BuildTrait("guarded_grip", "equipment_fixed");
+        TraitDefinition sharp = TestProgressionDefinitionProjection.Trait(
+            BuildTrait("sharp_edge", "equipment_roll")
+        );
+        TraitDefinition guarded = TestProgressionDefinitionProjection.Trait(
+            BuildTrait("guarded_grip", "equipment_fixed")
+        );
         EffectiveTraitSet set = new(
             new System.Collections.Generic.List<EffectiveTraitInstance>
             {
                 new()
                 {
                     TraitId = "sharp_edge",
-                    TraitDef = sharp,
+                    Definition = sharp,
                     SourceKind = TraitSourceKind.EquipmentRoll,
                     SourceId = "eq_000002",
                     EffectiveInstanceKey = "eq_000002_t01",
@@ -39,7 +43,7 @@ public partial class run_effective_trait_set_regression : LifecycleTestSceneTree
                 new()
                 {
                     TraitId = "guarded_grip",
-                    TraitDef = guarded,
+                    Definition = guarded,
                     SourceKind = TraitSourceKind.EquipmentFixed,
                     SourceId = "eq_000001",
                     EffectiveInstanceKey = "guarded_grip",

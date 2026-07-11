@@ -275,7 +275,9 @@ public partial class run_base_attack_bonus_regression : LifecycleTestSceneTree
             new AttributeSourceContext
             {
                 unit_progress = progress,
-                profession_defs = indexedProfessionDefs,
+                profession_defs = TestProgressionDefinitionProjection.Professions(
+                    indexedProfessionDefs
+                ),
             }
         );
         return service.GetSnapshot();

@@ -38,10 +38,14 @@ public partial class run_faith_service_regression : LifecycleTestSceneTree
 
     private void TestFortunaConfigMatchesStoryAcceptance()
     {
-        var faithService = new FaithService();
-        _test.True(faithService.Validate().Count == 0, "FaithService 默认配置应能通过基础校验。");
+        FaithContentRegistry faithRegistry = BuildFaithContentRegistry();
+        var faithService = new FaithService(faithRegistry.GetFaithDeityDefsTyped());
+        _test.True(
+            faithRegistry.GetValidationErrors().Count == 0,
+            "FaithService 默认配置应能通过基础校验。"
+        );
 
-        FaithDeityDef fortunaDef = faithService.GetFaithDeityDef(FortunaDeityId);
+        FaithDeityDefinition fortunaDef = faithService.GetFaithDeityDef(FortunaDeityId);
         _test.True(fortunaDef != null, "应能加载 Fortuna FaithDeityDef。");
         if (fortunaDef == null)
             return;
@@ -61,32 +65,32 @@ public partial class run_faith_service_regression : LifecycleTestSceneTree
         for (int index = 0; index < 5; index++)
         {
             int rankIndex = index + 1;
-            FaithRankDef rankDef = fortunaDef.GetRankDef(rankIndex);
+            FaithRankDefinition rankDef = fortunaDef.GetRankDefinition(rankIndex);
             _test.True(rankDef != null, $"Fortuna 应存在 rank {rankIndex} 配置。");
             if (rankDef == null)
                 continue;
 
-            _test.Eq(rankDef.required_gold, expectedGold[index], $"Fortuna rank {rankIndex} required_gold 错误。");
-            _test.Eq(rankDef.required_level, expectedLevel[index], $"Fortuna rank {rankIndex} required_level 错误。");
+            _test.Eq(rankDef.RequiredGold, expectedGold[index], $"Fortuna rank {rankIndex} required_gold 错误。");
+            _test.Eq(rankDef.RequiredLevel, expectedLevel[index], $"Fortuna rank {rankIndex} required_level 错误。");
             if (rankIndex == 1)
             {
                 _test.Eq(
-                    rankDef.required_custom_stat_id,
+                    rankDef.RequiredCustomStatId,
                     FortuneMarkedStatId,
                     "Fortuna rank 1 应使用 fortune_marked 占位门票。"
                 );
-                _test.Eq(rankDef.required_custom_stat_min_value, 1, "Fortuna rank 1 应要求 fortune_marked == 1。");
+                _test.Eq(rankDef.RequiredCustomStatMinValue, 1, "Fortuna rank 1 应要求 fortune_marked == 1。");
             }
             else
             {
                 _test.Eq(
-                    rankDef.required_achievement_id,
+                    rankDef.RequiredAchievementId,
                     expectedAchievements[index],
                     $"Fortuna rank {rankIndex} guidance achievement 占位 id 错误。"
                 );
             }
 
-            IReadOnlyList<FaithRankRewardEntrySpec> rewardEntries = rankDef.GetRewardEntrySpecs();
+            IReadOnlyList<FaithRankRewardEntryDefinition> rewardEntries = rankDef.RewardEntries;
             _test.Eq(rewardEntries.Count, 1, $"Fortuna rank {rankIndex} 应只有一条骨架奖励。");
             if (rewardEntries.Count == 0)
                 continue;
@@ -104,7 +108,8 @@ public partial class run_faith_service_regression : LifecycleTestSceneTree
         PartyState partyState = BuildPartyState();
         var manager = new CharacterManagementModule();
         manager.setup(partyState);
-        var faithService = new FaithService();
+        FaithContentRegistry faithRegistry = BuildFaithContentRegistry();
+        var faithService = new FaithService(faithRegistry.GetFaithDeityDefsTyped());
 
         for (int targetRank = 1; targetRank <= 5; targetRank++)
         {
@@ -162,8 +167,9 @@ public partial class run_faith_service_regression : LifecycleTestSceneTree
 
     private void TestMisfortuneConfigMatchesStoryAcceptance()
     {
-        var faithService = new FaithService();
-        FaithDeityDef misfortuneDef = faithService.GetFaithDeityDef(MisfortuneDeityId);
+        FaithContentRegistry faithRegistry = BuildFaithContentRegistry();
+        var faithService = new FaithService(faithRegistry.GetFaithDeityDefsTyped());
+        FaithDeityDefinition misfortuneDef = faithService.GetFaithDeityDef(MisfortuneDeityId);
         _test.True(misfortuneDef != null, "应能加载 Misfortune FaithDeityDef。");
         if (misfortuneDef == null)
             return;
@@ -188,36 +194,36 @@ public partial class run_faith_service_regression : LifecycleTestSceneTree
         };
 
         _test.Eq(misfortuneDef.GetMaxRank(), 5, "Misfortune 应保留 5 阶骨架。");
-        _test.Eq(misfortuneDef.rank_progress_stat_id, DoomAuthorityStatId, "Misfortune 应使用 doom_authority 作为 rank progress stat。");
+        _test.Eq(misfortuneDef.RankProgressStatId, DoomAuthorityStatId, "Misfortune 应使用 doom_authority 作为 rank progress stat。");
         for (int index = 0; index < 5; index++)
         {
             int rankIndex = index + 1;
-            FaithRankDef rankDef = misfortuneDef.GetRankDef(rankIndex);
+            FaithRankDefinition rankDef = misfortuneDef.GetRankDefinition(rankIndex);
             _test.True(rankDef != null, $"Misfortune 应存在 rank {rankIndex} 配置。");
             if (rankDef == null)
                 continue;
 
-            _test.Eq(rankDef.required_gold, expectedGold[index], $"Misfortune rank {rankIndex} required_gold 错误。");
-            _test.Eq(rankDef.required_level, expectedLevel[index], $"Misfortune rank {rankIndex} required_level 错误。");
+            _test.Eq(rankDef.RequiredGold, expectedGold[index], $"Misfortune rank {rankIndex} required_gold 错误。");
+            _test.Eq(rankDef.RequiredLevel, expectedLevel[index], $"Misfortune rank {rankIndex} required_level 错误。");
             if (rankIndex == 1)
             {
                 _test.Eq(
-                    rankDef.required_custom_stat_id,
+                    rankDef.RequiredCustomStatId,
                     DoomMarkedStatId,
                     "Misfortune rank 1 应使用 doom_marked 占位门票。"
                 );
-                _test.Eq(rankDef.required_custom_stat_min_value, 1, "Misfortune rank 1 应要求 doom_marked == 1。");
+                _test.Eq(rankDef.RequiredCustomStatMinValue, 1, "Misfortune rank 1 应要求 doom_marked == 1。");
             }
             else
             {
                 _test.Eq(
-                    rankDef.required_achievement_id,
+                    rankDef.RequiredAchievementId,
                     expectedAchievements[index],
                     $"Misfortune rank {rankIndex} guidance achievement 占位 id 错误。"
                 );
             }
 
-            _test.Eq(rankDef.GetRewardEntrySpecs().Count, 2, $"Misfortune rank {rankIndex} 应保留 1 条属性奖励和 1 条占位奖励。");
+            _test.Eq(rankDef.RewardEntries.Count, 2, $"Misfortune rank {rankIndex} 应保留 1 条属性奖励和 1 条占位奖励。");
             _test.True(
                 HasRewardEntry(rankDef, "attribute_delta", DoomAuthorityStatId, 1),
                 $"Misfortune rank {rankIndex} 应包含 doom_authority +1。"
@@ -238,10 +244,11 @@ public partial class run_faith_service_regression : LifecycleTestSceneTree
         PartyState partyState = BuildPartyState();
         var manager = new CharacterManagementModule();
         manager.setup(partyState);
-        var faithService = new FaithService();
+        FaithContentRegistry faithRegistry = BuildFaithContentRegistry();
+        var faithService = new FaithService(faithRegistry.GetFaithDeityDefsTyped());
         _test.True(
             faithService.GetFaithDeityDef(MisfortuneDeityId) != null,
-            $"Misfortune FaithService lookup 应在 manager setup 后仍可用。 registered={string.Join(",", faithService.GetFaithDeityDefs().Keys.Select(key => key.ToString()))} validation={string.Join(" | ", faithService.Validate())}"
+            $"Misfortune FaithService lookup 应在 manager setup 后仍可用。 registered={string.Join(",", faithService.GetFaithDeityDefs().Keys.Select(key => key.ToString()))} validation={string.Join(" | ", faithRegistry.GetValidationErrors())}"
         );
         var expectedKnowledgeUnlocks = new Dictionary<int, StringName>
         {
@@ -411,8 +418,15 @@ public partial class run_faith_service_regression : LifecycleTestSceneTree
         return memberState;
     }
 
+    private static FaithContentRegistry BuildFaithContentRegistry()
+    {
+        var registry = new FaithContentRegistry();
+        registry.Rebuild();
+        return registry;
+    }
+
     private static bool HasRewardEntry(
-        FaithRankDef rankDef,
+        FaithRankDefinition rankDef,
         StringName entryType,
         StringName targetId,
         int amount
@@ -420,7 +434,7 @@ public partial class run_faith_service_regression : LifecycleTestSceneTree
     {
         return rankDef != null
             && rankDef
-                .GetRewardEntrySpecs()
+                .RewardEntries
                 .Any(entry =>
                     entry.EntryType == entryType
                     && entry.TargetId == targetId

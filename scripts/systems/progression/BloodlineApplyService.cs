@@ -3,14 +3,14 @@ using Godot;
 
 public sealed class BloodlineApplyService
 {
-    private Dictionary<StringName, BloodlineDef> _bloodlineDefs = new();
-    private Dictionary<StringName, BloodlineStageDef> _bloodlineStageDefs = new();
+    private Dictionary<StringName, BloodlineDefinition> _bloodlineDefs = new();
+    private Dictionary<StringName, BloodlineStageDefinition> _bloodlineStageDefs = new();
 
     public void Setup(ProgressionIdentityCatalogData identityCatalog)
     {
         identityCatalog ??= new ProgressionIdentityCatalogData();
-        _bloodlineDefs = new Dictionary<StringName, BloodlineDef>(identityCatalog.BloodlineDefs);
-        _bloodlineStageDefs = new Dictionary<StringName, BloodlineStageDef>(
+        _bloodlineDefs = new Dictionary<StringName, BloodlineDefinition>(identityCatalog.BloodlineDefs);
+        _bloodlineStageDefs = new Dictionary<StringName, BloodlineStageDefinition>(
             identityCatalog.BloodlineStageDefs
         );
     }
@@ -23,8 +23,8 @@ public sealed class BloodlineApplyService
     {
         if (memberState == null || bloodlineId == "" || bloodlineStageId == "")
             return false;
-        _bloodlineDefs.TryGetValue(bloodlineId, out BloodlineDef bloodlineDef);
-        _bloodlineStageDefs.TryGetValue(bloodlineStageId, out BloodlineStageDef stageDef);
+        _bloodlineDefs.TryGetValue(bloodlineId, out BloodlineDefinition bloodlineDef);
+        _bloodlineStageDefs.TryGetValue(bloodlineStageId, out BloodlineStageDefinition stageDef);
         if (!IsValidBloodlineStagePair(bloodlineDef, stageDef, bloodlineId, bloodlineStageId))
             return false;
         memberState.SetBloodline(bloodlineId, bloodlineStageId);
@@ -42,20 +42,28 @@ public sealed class BloodlineApplyService
     }
 
     private static bool IsValidBloodlineStagePair(
-        BloodlineDef bloodlineDef,
-        BloodlineStageDef stageDef,
+        BloodlineDefinition bloodlineDef,
+        BloodlineStageDefinition stageDef,
         StringName bloodlineId,
         StringName bloodlineStageId
     )
     {
         if (bloodlineDef == null || stageDef == null)
             return false;
-        if (bloodlineDef.bloodline_id != bloodlineId)
+        if (bloodlineDef.BloodlineId != bloodlineId)
             return false;
-        if (stageDef.stage_id != bloodlineStageId)
+        if (stageDef.StageId != bloodlineStageId)
             return false;
-        if (stageDef.bloodline_id != bloodlineId)
+        if (stageDef.BloodlineId != bloodlineId)
             return false;
-        return bloodlineDef.stage_ids.Contains(bloodlineStageId);
+        return ContainsId(bloodlineDef.StageIds, bloodlineStageId);
+    }
+
+    private static bool ContainsId(IReadOnlyList<StringName> values, StringName expected)
+    {
+        foreach (StringName value in values)
+            if (value == expected)
+                return true;
+        return false;
     }
 }

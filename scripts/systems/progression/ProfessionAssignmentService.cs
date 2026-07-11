@@ -5,12 +5,12 @@ public sealed class ProfessionAssignmentService
 {
     private UnitProgress _unit_progress;
     private readonly Dictionary<StringName, SkillDefinition> _skillDefinitions = new();
-    private readonly Dictionary<StringName, ProfessionDef> _professionDefs = new();
+    private readonly Dictionary<StringName, ProfessionDefinition> _professionDefs = new();
 
     public void Setup(
         UnitProgress unit_progress,
         IReadOnlyDictionary<StringName, SkillDefinition> skill_definitions,
-        IReadOnlyDictionary<StringName, ProfessionDef> profession_defs
+        IReadOnlyDictionary<StringName, ProfessionDefinition> profession_defs
     )
     {
         _unit_progress = unit_progress;
@@ -28,7 +28,7 @@ public sealed class ProfessionAssignmentService
 
         if (profession_defs != null)
         {
-            foreach (KeyValuePair<StringName, ProfessionDef> pair in profession_defs)
+            foreach (KeyValuePair<StringName, ProfessionDefinition> pair in profession_defs)
             {
                 if (pair.Key != "" && pair.Value != null)
                     _professionDefs[pair.Key] = pair.Value;
@@ -100,7 +100,7 @@ public sealed class ProfessionAssignmentService
             return false;
 
         UnitProfessionProgress professionProgress = GetProfessionProgress(profession_id);
-        ProfessionDef professionDef = GetProfessionDef(profession_id);
+        ProfessionDefinition professionDef = GetProfessionDef(profession_id);
         UnitSkillProgress skillProgress = GetSkillProgress(skill_id);
         SkillDefinition skillDefinition = GetSkillDefinition(skill_id);
         if (
@@ -208,9 +208,9 @@ public sealed class ProfessionAssignmentService
             : null;
     }
 
-    private ProfessionDef GetProfessionDef(StringName professionId)
+    private ProfessionDefinition GetProfessionDef(StringName professionId)
     {
-        return _professionDefs.TryGetValue(professionId, out ProfessionDef professionDef)
+        return _professionDefs.TryGetValue(professionId, out ProfessionDefinition professionDef)
             ? professionDef
             : null;
     }
@@ -234,7 +234,7 @@ public sealed class ProfessionAssignmentService
     }
 
     private static List<StringName> GetProfessionAcceptedTags(
-        ProfessionDef professionDef
+        ProfessionDefinition professionDef
     )
     {
         List<StringName> acceptedTags = new();
@@ -242,17 +242,17 @@ public sealed class ProfessionAssignmentService
         if (professionDef == null)
             return acceptedTags;
 
-        if (professionDef.unlock_requirement != null)
+        if (professionDef.UnlockRequirement != null)
             AppendTagRules(
                 acceptedTags,
                 seenTags,
-                professionDef.unlock_requirement.required_tag_rules
+                professionDef.UnlockRequirement.RequiredTagRules
             );
 
-        foreach (ProfessionRankRequirement rankRequirement in professionDef.rank_requirements)
+        foreach (ProfessionRankRequirementDefinition rankRequirement in professionDef.RankRequirements)
         {
             if (rankRequirement != null)
-                AppendTagRules(acceptedTags, seenTags, rankRequirement.required_tag_rules);
+                AppendTagRules(acceptedTags, seenTags, rankRequirement.RequiredTagRules);
         }
         return acceptedTags;
     }
@@ -260,21 +260,21 @@ public sealed class ProfessionAssignmentService
     private static void AppendTagRules(
         List<StringName> acceptedTags,
         HashSet<StringName> seenTags,
-        IEnumerable<TagRequirement> tagRules
+        IEnumerable<TagRequirementDefinition> tagRules
     )
     {
         if (tagRules == null)
             return;
 
-        foreach (TagRequirement tagRule in tagRules)
+        foreach (TagRequirementDefinition tagRule in tagRules)
         {
             if (
                 tagRule == null
-                || tagRule.tag == ""
-                || !seenTags.Add(tagRule.tag)
+                || tagRule.Tag == ""
+                || !seenTags.Add(tagRule.Tag)
             )
                 continue;
-            acceptedTags.Add(tagRule.tag);
+            acceptedTags.Add(tagRule.Tag);
         }
     }
 

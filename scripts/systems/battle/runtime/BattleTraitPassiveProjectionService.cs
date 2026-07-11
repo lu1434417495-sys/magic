@@ -7,7 +7,7 @@ internal static class BattleTraitPassiveProjectionService
 
     internal static void ProjectEffectiveTraitPassives(
         BattleUnitState unitState,
-        IReadOnlyDictionary<StringName, TraitDef> traitDefs
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefs
     )
     {
         if (
@@ -23,7 +23,7 @@ internal static class BattleTraitPassiveProjectionService
         foreach (BattleEffectiveTraitInstanceState instance in unitState.effective_trait_instances)
         {
             StringName traitId = ProgressionDataUtils.to_string_name(instance?.trait_id ?? "");
-            if (traitId == "" || !traitDefs.TryGetValue(traitId, out TraitDef traitDef) || traitDef == null)
+            if (traitId == "" || !traitDefs.TryGetValue(traitId, out TraitDefinition traitDef) || traitDef == null)
                 continue;
 
             ProjectSaveTags(unitState, traitDef);
@@ -46,44 +46,44 @@ internal static class BattleTraitPassiveProjectionService
             unitState.EraseStatusEffect(statusId);
     }
 
-    private static void ProjectPassiveStatuses(BattleUnitState unitState, TraitDef traitDef)
+    private static void ProjectPassiveStatuses(BattleUnitState unitState, TraitDefinition traitDef)
     {
-        if (unitState == null || traitDef?.passive_status_effects == null)
+        if (unitState == null || traitDef == null)
             return;
 
-        foreach (TraitPassiveStatusEffectDef entry in traitDef.passive_status_effects)
+        foreach (TraitPassiveStatusEffectDefinition entry in traitDef.PassiveStatusEffects)
         {
-            StringName statusId = ProgressionDataUtils.to_string_name(entry?.status_id ?? "");
+            StringName statusId = ProgressionDataUtils.to_string_name(entry?.StatusId ?? "");
             if (statusId == "")
                 continue;
             BattleStatusEffectState status = new()
             {
                 status_id = statusId,
                 source_unit_id = unitState.unit_id,
-                source_profile_id = traitDef.trait_id,
+                source_profile_id = traitDef.TraitId,
                 source_layer_id = TraitPassiveStatusLayer,
-                power = Mathf.Max(entry.power, 1),
-                stacks = Mathf.Max(entry.stacks, 1),
+                power = Mathf.Max(entry.Power, 1),
+                stacks = Mathf.Max(entry.Stacks, 1),
                 duration = -1,
-                display_label = entry.display_label ?? "",
-                undispellable = entry.undispellable,
-                counts_as_debuff_override = entry.counts_as_debuff_override,
-                counts_as_debuff = entry.counts_as_debuff,
-                save_immunity_tags = BuildStringNameList(entry.save_immunity_tags),
+                display_label = entry.DisplayLabel ?? "",
+                undispellable = entry.Undispellable,
+                counts_as_debuff_override = entry.CountsAsDebuffOverride,
+                counts_as_debuff = entry.CountsAsDebuff,
+                save_immunity_tags = BuildStringNameList(entry.SaveImmunityTags),
             };
             unitState.SetStatusEffect(status);
         }
     }
 
-    private static void ProjectSaveBonuses(BattleUnitState unitState, TraitDef traitDef)
+    private static void ProjectSaveBonuses(BattleUnitState unitState, TraitDefinition traitDef)
     {
-        if (unitState?.save_bonus_by_ability == null || traitDef?.save_bonus_entries == null)
+        if (unitState?.save_bonus_by_ability == null || traitDef == null)
             return;
 
-        foreach (TraitSaveBonusEntryDef entry in traitDef.save_bonus_entries)
+        foreach (TraitSaveBonusEntryDefinition entry in traitDef.SaveBonusEntries)
         {
-            StringName saveAbility = ProgressionDataUtils.to_string_name(entry?.save_ability ?? "");
-            int bonus = entry?.bonus ?? 0;
+            StringName saveAbility = ProgressionDataUtils.to_string_name(entry?.SaveAbility ?? "");
+            int bonus = entry?.Bonus ?? 0;
             if (saveAbility == "" || bonus == 0)
                 continue;
             unitState.save_bonus_by_ability.TryGetValue(saveAbility, out int existing);
@@ -91,12 +91,12 @@ internal static class BattleTraitPassiveProjectionService
         }
     }
 
-    private static void ProjectSaveTags(BattleUnitState unitState, TraitDef traitDef)
+    private static void ProjectSaveTags(BattleUnitState unitState, TraitDefinition traitDef)
     {
-        if (unitState?.save_advantage_tags == null || traitDef?.save_advantage_tags == null)
+        if (unitState?.save_advantage_tags == null || traitDef == null)
             return;
 
-        foreach (StringName rawTag in traitDef.save_advantage_tags)
+        foreach (StringName rawTag in traitDef.SaveAdvantageTags)
         {
             StringName tag = ProgressionDataUtils.to_string_name(rawTag);
             if (tag == "" || unitState.save_advantage_tags.Contains(tag))
@@ -105,20 +105,20 @@ internal static class BattleTraitPassiveProjectionService
         }
     }
 
-    private static void ProjectDamageResistances(BattleUnitState unitState, TraitDef traitDef)
+    private static void ProjectDamageResistances(BattleUnitState unitState, TraitDefinition traitDef)
     {
         if (
             unitState?.damage_resistances == null
-            || traitDef?.damage_resistance_entries == null
+            || traitDef == null
         )
         {
             return;
         }
 
-        foreach (TraitDamageResistanceEntryDef entry in traitDef.damage_resistance_entries)
+        foreach (TraitDamageResistanceEntryDefinition entry in traitDef.DamageResistanceEntries)
         {
-            StringName damageTag = ProgressionDataUtils.to_string_name(entry?.damage_tag ?? "");
-            StringName mitigationTier = ProgressionDataUtils.to_string_name(entry?.mitigation_tier ?? "");
+            StringName damageTag = ProgressionDataUtils.to_string_name(entry?.DamageTag ?? "");
+            StringName mitigationTier = ProgressionDataUtils.to_string_name(entry?.MitigationTier ?? "");
             if (damageTag == "" || mitigationTier == "")
                 continue;
 

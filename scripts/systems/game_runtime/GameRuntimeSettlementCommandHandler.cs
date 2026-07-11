@@ -17,6 +17,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     private const int VILLAGE_RUMOR_RANGE = 5;
     private const int INTEL_NETWORK_RANGE = 8;
     private const string PERSIST_FAILURE_ROLLBACK_MESSAGE = "存档提交失败，操作已回滚。";
+    private static readonly StringName NPC_OFFER_LISTING_CHANNEL = "npc_offer";
 
     private static readonly HashSet<string> SHOP_INTERACTION_IDS = new()
     {
@@ -98,13 +99,13 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     private sealed class ContractBoardQuestData
     {
-        public QuestDef QuestDef { get; }
+        public QuestDefinition QuestDefinition { get; }
         public StringName QuestId { get; }
         public string DisplayName { get; }
         public string Description { get; }
         public string ProviderInteractionId { get; }
-        public IReadOnlyList<QuestDef.ObjectiveEntryData> ObjectiveEntries { get; }
-        public IReadOnlyList<QuestDef.RewardEntryData> RewardEntries { get; }
+        public IReadOnlyList<QuestObjectiveDefinition> ObjectiveEntries { get; }
+        public IReadOnlyList<QuestRewardDefinition> RewardEntries { get; }
         public bool IsRepeatable { get; }
         public string AcceptDialogueText { get; }
         public string AcceptFeedbackSuccess { get; }
@@ -112,27 +113,27 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         public string AcceptConfirmationText { get; }
 
         internal ContractBoardQuestData(
-            QuestDef questDef,
+            QuestDefinition questDefinition,
             string displayName,
             string description,
             string providerInteractionId,
-            IReadOnlyList<QuestDef.ObjectiveEntryData> objectiveEntries,
-            IReadOnlyList<QuestDef.RewardEntryData> rewardEntries
+            IReadOnlyList<QuestObjectiveDefinition> objectiveEntries,
+            IReadOnlyList<QuestRewardDefinition> rewardEntries
         )
         {
-            QuestDef = questDef;
-            QuestId = questDef?.quest_id ?? "";
+            QuestDefinition = questDefinition;
+            QuestId = questDefinition?.QuestId ?? "";
             DisplayName = displayName ?? "";
             Description = description ?? "";
             ProviderInteractionId = providerInteractionId ?? "";
             ObjectiveEntries =
-                objectiveEntries ?? System.Array.Empty<QuestDef.ObjectiveEntryData>();
-            RewardEntries = rewardEntries ?? System.Array.Empty<QuestDef.RewardEntryData>();
-            IsRepeatable = questDef?.is_repeatable ?? false;
-            AcceptDialogueText = questDef?.accept_dialogue_text ?? "";
-            AcceptFeedbackSuccess = questDef?.accept_feedback_success ?? "";
-            AcceptFeedbackFailure = questDef?.accept_feedback_failure ?? "";
-            AcceptConfirmationText = questDef?.accept_confirmation_text ?? "";
+                objectiveEntries ?? System.Array.Empty<QuestObjectiveDefinition>();
+            RewardEntries = rewardEntries ?? System.Array.Empty<QuestRewardDefinition>();
+            IsRepeatable = questDefinition?.IsRepeatable ?? false;
+            AcceptDialogueText = questDefinition?.AcceptDialogueText ?? "";
+            AcceptFeedbackSuccess = questDefinition?.AcceptFeedbackSuccess ?? "";
+            AcceptFeedbackFailure = questDefinition?.AcceptFeedbackFailure ?? "";
+            AcceptConfirmationText = questDefinition?.AcceptConfirmationText ?? "";
         }
     }
 
@@ -2631,16 +2632,16 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         if (interactionScriptId == "")
             return false;
 
-        var npcQuests = new List<QuestDef>();
-        foreach (QuestDef questDef in GetQuestDefsTyped().Values)
+        var npcQuests = new List<QuestDefinition>();
+        foreach (QuestDefinition questDefinition in GetQuestDefsTyped().Values)
         {
-            if (questDef.provider_kind != "npc")
+            if (questDefinition.ProviderKind != "npc")
                 continue;
-            if (questDef.provider_interaction_id != interactionScriptId)
+            if (questDefinition.ProviderInteractionId != interactionScriptId)
                 continue;
-            if (!questDef.listing_channels.Contains("npc_offer"))
+            if (!questDefinition.ListingChannels.Contains(NPC_OFFER_LISTING_CHANNEL))
                 continue;
-            npcQuests.Add(questDef);
+            npcQuests.Add(questDefinition);
         }
 
         if (npcQuests.Count == 0)
@@ -2661,7 +2662,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     private NpcQuestOfferWindowData _build_npc_quest_offer_window_data(
         string settlement_id,
         string npcInteractionId,
-        List<QuestDef> npcQuests
+        List<QuestDefinition> npcQuests
     )
     {
         var windowData = new NpcQuestOfferWindowData
@@ -2670,23 +2671,25 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             ActionId = "",
             NpcInteractionId = npcInteractionId,
             NpcName = _resolve_npc_display_name(npcInteractionId),
-            SelectedQuestId = npcQuests[0].quest_id.ToString(),
+            SelectedQuestId = npcQuests[0].QuestId.ToString(),
         };
 
-        foreach (QuestDef questDef in npcQuests)
+        foreach (QuestDefinition questDefinition in npcQuests)
         {
-            ContractBoardQuestData questData = _build_contract_board_quest_data(questDef);
+            ContractBoardQuestData questData = _build_contract_board_quest_data(
+                questDefinition
+            );
             QuestAcceptAvailabilityResult availability = _quest_accept_evaluator.Evaluate(
-                questDef,
+                questDefinition,
                 _build_quest_accept_context()
             );
             windowData.Entries.Add(
                 new NpcQuestOfferEntryData
                 {
-                    QuestId = questDef.quest_id.ToString(),
-                    DisplayName = questDef.display_name,
-                    Description = questDef.description,
-                    AcceptDialogueText = questDef.accept_dialogue_text,
+                    QuestId = questDefinition.QuestId.ToString(),
+                    DisplayName = questDefinition.DisplayName,
+                    Description = questDefinition.Description,
+                    AcceptDialogueText = questDefinition.AcceptDialogueText,
                     SummaryText = questData != null
                         ? _build_contract_board_objective_summary(questData)
                         : "",
@@ -2696,9 +2699,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                     IsEnabled = availability.CanAccept,
                     DisabledReason = availability.DisabledReason,
                     LockReasonId = availability.LockReasonId,
-                    AcceptFeedbackSuccess = questDef.accept_feedback_success,
-                    AcceptFeedbackFailure = questDef.accept_feedback_failure,
-                    AcceptConfirmationText = questDef.accept_confirmation_text,
+                    AcceptFeedbackSuccess = questDefinition.AcceptFeedbackSuccess,
+                    AcceptFeedbackFailure = questDefinition.AcceptFeedbackFailure,
+                    AcceptConfirmationText = questDefinition.AcceptConfirmationText,
                 }
             );
         }
@@ -2717,13 +2720,16 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     {
         var entries = new GDictArray();
         string normalizedInteractionId = interaction_script_id.Trim();
-        IReadOnlyDictionary<StringName, QuestDef> questDefs = GetQuestDefsTyped();
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = GetQuestDefsTyped();
         var questIds = new List<StringName>(questDefs.Keys);
         questIds.Sort((a, b) => string.CompareOrdinal(a.ToString(), b.ToString()));
         foreach (StringName questId in questIds)
         {
-            QuestDef questDef = questDefs[questId];
-            GDictionary questEntry = _build_contract_board_entry(questDef, normalizedInteractionId);
+            QuestDefinition questDefinition = questDefs[questId];
+            GDictionary questEntry = _build_contract_board_entry(
+                questDefinition,
+                normalizedInteractionId
+            );
             if (questEntry.Count != 0)
             {
                 entries.Add(questEntry);
@@ -2760,11 +2766,11 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     }
 
     private GDictionary _build_contract_board_entry(
-        QuestDef quest_def,
+        QuestDefinition quest_definition,
         string interaction_script_id
     )
     {
-        ContractBoardQuestData questData = _build_contract_board_quest_data(quest_def);
+        ContractBoardQuestData questData = _build_contract_board_quest_data(quest_definition);
         if (questData == null)
         {
             return new GDictionary();
@@ -2778,7 +2784,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             return new GDictionary();
         }
 
-        QuestProviderKind providerKind = QuestProviderContentRules.ToProviderKind(quest_def);
+        QuestProviderKind providerKind = QuestProviderContentRules.ToProviderKind(
+            quest_definition
+        );
         if (!QuestProviderContentRules.IsSupportedProviderKind(providerKind))
         {
             return new GDictionary();
@@ -2789,7 +2797,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             ? providerKind == QuestProviderKind.ServiceContractBoard
             : providerKind == QuestProviderKind.ServiceBountyRegistry;
         Godot.Collections.Array<QuestListingChannel> listingChannels =
-            QuestProviderContentRules.ToListingChannels(quest_def);
+            QuestProviderContentRules.ToListingChannels(quest_definition);
         bool matchesChannel = isContractBoard
             ? listingChannels.Contains(QuestListingChannel.ContractBoard)
             : listingChannels.Contains(QuestListingChannel.BountyRegistry);
@@ -2811,7 +2819,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         if (stateId is "available" or "repeatable")
         {
             QuestAcceptAvailabilityResult availability = _quest_accept_evaluator.Evaluate(
-                quest_def,
+                quest_definition,
                 _build_quest_accept_context()
             );
             isEnabled = availability.CanAccept;
@@ -2824,11 +2832,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             ["entry_id"] = questData.QuestId.ToString(),
             ["quest_id"] = questData.QuestId.ToString(),
             ["provider_interaction_id"] = providerInteractionId,
-            ["provider_kind"] = quest_def.provider_kind.ToString(),
+            ["provider_kind"] = quest_definition.ProviderKind.ToString(),
             ["listing_channels"] = new Godot.Collections.Array<string>(
-                quest_def.listing_channels != null
-                    ? quest_def.listing_channels.Select(c => c.ToString())
-                    : System.Array.Empty<string>()
+                quest_definition.ListingChannels.Select(c => c.ToString())
             ),
             ["display_name"] = questData.DisplayName,
             ["summary_text"] = _build_contract_board_objective_summary(questData),
@@ -2840,10 +2846,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             ["disabled_reason"] = disabledReason,
             ["lock_reason_id"] = lockReasonId,
             ["is_repeatable"] = questData.IsRepeatable,
-            ["accept_dialogue_text"] = quest_def.accept_dialogue_text,
-            ["accept_feedback_success"] = quest_def.accept_feedback_success,
-            ["accept_feedback_failure"] = quest_def.accept_feedback_failure,
-            ["accept_confirmation_text"] = quest_def.accept_confirmation_text,
+            ["accept_dialogue_text"] = quest_definition.AcceptDialogueText,
+            ["accept_feedback_success"] = quest_definition.AcceptFeedbackSuccess,
+            ["accept_feedback_failure"] = quest_definition.AcceptFeedbackFailure,
+            ["accept_confirmation_text"] = quest_definition.AcceptConfirmationText,
         };
     }
 
@@ -2972,7 +2978,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             quest_data.IsRepeatable
         );
         bool isCompleted = _is_contract_board_completed_state(stateId);
-        foreach (QuestDef.ObjectiveEntryData objectiveData in quest_data.ObjectiveEntries)
+        foreach (QuestObjectiveDefinition objectiveData in quest_data.ObjectiveEntries)
         {
             StringName objectiveId = objectiveData.ObjectiveId;
             int targetValue = objectiveData.TargetValue;
@@ -2988,19 +2994,20 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return objectiveLines;
     }
 
-    private string _describe_contract_board_objective(QuestDef.ObjectiveEntryData objective_data)
+    private string _describe_contract_board_objective(
+        QuestObjectiveDefinition objective_data
+    )
     {
-        StringName objectiveType = objective_data.ObjectiveType;
         string targetId = objective_data.TargetId.ToString();
-        if (QuestDef.ToObjectiveKind(objectiveType) == QuestObjectiveKind.SettlementAction)
+        if (objective_data.ObjectiveKind == QuestObjectiveKind.SettlementAction)
         {
             return $"据点事务 {targetId}";
         }
-        if (QuestDef.ToObjectiveKind(objectiveType) == QuestObjectiveKind.DefeatEnemy)
+        if (objective_data.ObjectiveKind == QuestObjectiveKind.DefeatEnemy)
         {
             return "击败敌对遭遇";
         }
-        if (QuestDef.ToObjectiveKind(objectiveType) == QuestObjectiveKind.SubmitItem)
+        if (objective_data.ObjectiveKind == QuestObjectiveKind.SubmitItem)
         {
             return $"提交物资 {GetItemDisplayName(objective_data.TargetId)}";
         }
@@ -3008,22 +3015,21 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     }
 
     private string _build_contract_board_reward_label(
-        IReadOnlyList<QuestDef.RewardEntryData> reward_entries
+        IReadOnlyList<QuestRewardDefinition> reward_entries
     )
     {
         var rewardParts = new List<string>();
-        foreach (QuestDef.RewardEntryData rewardData in reward_entries)
+        foreach (QuestRewardDefinition rewardData in reward_entries)
         {
-            StringName rewardType = rewardData.RewardType;
-            if (QuestDef.ToRewardKind(rewardType) == QuestRewardKind.Gold)
+            if (rewardData.RewardKind == QuestRewardKind.Gold)
             {
                 rewardParts.Add($"{rewardData.GoldAmount} 金");
             }
-            else if (QuestDef.ToRewardKind(rewardType) == QuestRewardKind.Item)
+            else if (rewardData.RewardKind == QuestRewardKind.Item)
             {
                 rewardParts.Add($"{GetItemDisplayName(rewardData.ItemId)} x{rewardData.ItemQuantity}");
             }
-            else if (QuestDef.ToRewardKind(rewardType) == QuestRewardKind.PendingCharacterReward)
+            else if (rewardData.RewardKind == QuestRewardKind.PendingCharacterReward)
             {
                 rewardParts.Add("角色奖励");
             }
@@ -3043,7 +3049,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     private StringName _resolve_active_submit_item_objective_id(
         StringName quest_id,
-        IReadOnlyList<QuestDef.ObjectiveEntryData> objective_defs
+        IReadOnlyList<QuestObjectiveDefinition> objective_defs
     )
     {
         QuestState questState = _get_active_quest_state(quest_id);
@@ -3051,9 +3057,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             return "";
         }
-        foreach (QuestDef.ObjectiveEntryData objectiveData in objective_defs)
+        foreach (QuestObjectiveDefinition objectiveData in objective_defs)
         {
-            if (QuestDef.ToObjectiveKind(objectiveData.ObjectiveType) != QuestObjectiveKind.SubmitItem)
+            if (objectiveData.ObjectiveKind != QuestObjectiveKind.SubmitItem)
             {
                 continue;
             }
@@ -3069,12 +3075,12 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     }
 
     private bool _quest_has_submit_item_objective(
-        IReadOnlyList<QuestDef.ObjectiveEntryData> objective_defs
+        IReadOnlyList<QuestObjectiveDefinition> objective_defs
     )
     {
-        foreach (QuestDef.ObjectiveEntryData objectiveData in objective_defs)
+        foreach (QuestObjectiveDefinition objectiveData in objective_defs)
         {
-            if (QuestDef.ToObjectiveKind(objectiveData.ObjectiveType) == QuestObjectiveKind.SubmitItem)
+            if (objectiveData.ObjectiveKind == QuestObjectiveKind.SubmitItem)
             {
                 return true;
             }
@@ -3969,16 +3975,16 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             : new Dictionary<StringName, ItemDef>();
     }
 
-    private IReadOnlyDictionary<StringName, TraitDef> _GetTraitDefsTyped()
+    private IReadOnlyDictionary<StringName, TraitDefinition> _GetTraitDefsTyped()
     {
         if (!_has_runtime())
         {
-            return new Dictionary<StringName, TraitDef>();
+            return new Dictionary<StringName, TraitDefinition>();
         }
         GameSession gameSession = Runtime.GetGameSession();
         return gameSession != null
             ? gameSession.GetTraitDefsTyped()
-            : new Dictionary<StringName, TraitDef>();
+            : new Dictionary<StringName, TraitDefinition>();
     }
 
     internal string GetItemDisplayName(StringName item_id)
@@ -3998,16 +4004,16 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             : new Dictionary<StringName, RecipeDef>();
     }
 
-    internal IReadOnlyDictionary<StringName, QuestDef> GetQuestDefsTyped()
+    internal IReadOnlyDictionary<StringName, QuestDefinition> GetQuestDefsTyped()
     {
         if (!_has_runtime())
         {
-            return new Dictionary<StringName, QuestDef>();
+            return new Dictionary<StringName, QuestDefinition>();
         }
         GameSession gameSession = Runtime.GetGameSession();
         return gameSession != null
             ? gameSession.GetQuestDefsTyped()
-            : new Dictionary<StringName, QuestDef>();
+            : new Dictionary<StringName, QuestDefinition>();
     }
 
     private bool _is_forge_modal_submission(GDictionary payload)
@@ -4093,7 +4099,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         }
 
         QuestAcceptAvailabilityResult availability = _quest_accept_evaluator.Evaluate(
-            questData.QuestDef,
+            questData.QuestDefinition,
             _build_quest_accept_context()
         );
 
@@ -4207,19 +4213,26 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     {
         if (quest_id == "")
             return null;
-        IReadOnlyDictionary<StringName, QuestDef> questDefs = GetQuestDefsTyped();
-        if (!questDefs.TryGetValue(quest_id, out QuestDef questDef) || questDef == null)
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = GetQuestDefsTyped();
+        if (
+            !questDefs.TryGetValue(quest_id, out QuestDefinition questDefinition)
+            || questDefinition == null
+        )
             return null;
-        return _build_contract_board_quest_data(questDef);
+        return _build_contract_board_quest_data(questDefinition);
     }
 
-    private ContractBoardQuestData _build_contract_board_quest_data(QuestDef quest_def)
+    private ContractBoardQuestData _build_contract_board_quest_data(
+        QuestDefinition quest_definition
+    )
     {
-        if (quest_def == null || quest_def.quest_id == "")
+        if (quest_definition == null || quest_definition.QuestId == "")
             return null;
-        string displayName = (quest_def.display_name ?? "").StripEdges();
-        string description = (quest_def.description ?? "").StripEdges();
-        string providerInteractionId = quest_def.provider_interaction_id.ToString().Trim();
+        string displayName = quest_definition.DisplayName.StripEdges();
+        string description = quest_definition.Description.StripEdges();
+        string providerInteractionId = quest_definition.ProviderInteractionId
+            .ToString()
+            .Trim();
         if (
             string.IsNullOrEmpty(displayName)
             || string.IsNullOrEmpty(description)
@@ -4228,15 +4241,15 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             return null;
         }
-        IReadOnlyList<QuestDef.ObjectiveEntryData> objectiveEntries =
-            quest_def.GetObjectiveEntriesTyped();
+        IReadOnlyList<QuestObjectiveDefinition> objectiveEntries =
+            quest_definition.Objectives;
         if (!_is_contract_board_objective_entries_valid(objectiveEntries))
             return null;
-        IReadOnlyList<QuestDef.RewardEntryData> rewardEntries = quest_def.GetRewardEntriesTyped();
+        IReadOnlyList<QuestRewardDefinition> rewardEntries = quest_definition.Rewards;
         if (!_is_contract_board_reward_entries_valid(rewardEntries))
             return null;
         return new ContractBoardQuestData(
-            quest_def,
+            quest_definition,
             displayName,
             description,
             providerInteractionId,
@@ -4246,31 +4259,31 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     }
 
     private static bool _is_contract_board_objective_entries_valid(
-        IReadOnlyList<QuestDef.ObjectiveEntryData> objective_entries
+        IReadOnlyList<QuestObjectiveDefinition> objective_entries
     )
     {
         if (objective_entries == null || objective_entries.Count == 0)
             return false;
         var seenObjectiveIds = new HashSet<StringName>();
-        foreach (QuestDef.ObjectiveEntryData objectiveData in objective_entries)
+        foreach (QuestObjectiveDefinition objectiveData in objective_entries)
         {
             if (objectiveData == null)
                 return false;
             if (objectiveData.ObjectiveId == "" || !seenObjectiveIds.Add(objectiveData.ObjectiveId))
                 return false;
-            if (!objectiveData.HasStrictTargetValue || objectiveData.TargetValue <= 0)
+            if (objectiveData.TargetValue <= 0)
                 return false;
-            if (QuestDef.ToObjectiveKind(objectiveData.ObjectiveType) == QuestObjectiveKind.SettlementAction)
+            if (objectiveData.ObjectiveKind == QuestObjectiveKind.SettlementAction)
             {
                 if (objectiveData.TargetId == "")
                     return false;
             }
-            else if (QuestDef.ToObjectiveKind(objectiveData.ObjectiveType) == QuestObjectiveKind.SubmitItem)
+            else if (objectiveData.ObjectiveKind == QuestObjectiveKind.SubmitItem)
             {
                 if (objectiveData.TargetId == "")
                     return false;
             }
-            else if (QuestDef.ToObjectiveKind(objectiveData.ObjectiveType) != QuestObjectiveKind.DefeatEnemy)
+            else if (objectiveData.ObjectiveKind != QuestObjectiveKind.DefeatEnemy)
             {
                 return false;
             }
@@ -4279,32 +4292,28 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     }
 
     private static bool _is_contract_board_reward_entries_valid(
-        IReadOnlyList<QuestDef.RewardEntryData> reward_entries
+        IReadOnlyList<QuestRewardDefinition> reward_entries
     )
     {
         if (reward_entries == null || reward_entries.Count == 0)
             return false;
-        foreach (QuestDef.RewardEntryData rewardData in reward_entries)
+        foreach (QuestRewardDefinition rewardData in reward_entries)
         {
             if (rewardData == null)
                 return false;
-            if (QuestDef.ToRewardKind(rewardData.RewardType) == QuestRewardKind.Gold)
+            if (rewardData.RewardKind == QuestRewardKind.Gold)
             {
-                if (!rewardData.HasStrictGoldAmount || rewardData.GoldAmount <= 0)
+                if (rewardData.GoldAmount <= 0)
                     return false;
             }
-            else if (QuestDef.ToRewardKind(rewardData.RewardType) == QuestRewardKind.Item)
+            else if (rewardData.RewardKind == QuestRewardKind.Item)
             {
-                if (
-                    rewardData.ItemId == ""
-                    || !rewardData.HasStrictItemQuantity
-                    || rewardData.ItemQuantity <= 0
-                )
+                if (rewardData.ItemId == "" || rewardData.ItemQuantity <= 0)
                 {
                     return false;
                 }
             }
-            else if (QuestDef.ToRewardKind(rewardData.RewardType) == QuestRewardKind.PendingCharacterReward)
+            else if (rewardData.RewardKind == QuestRewardKind.PendingCharacterReward)
             {
                 if (!_is_contract_board_pending_character_reward_valid(rewardData))
                     return false;
@@ -4318,22 +4327,22 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     }
 
     private static bool _is_contract_board_pending_character_reward_valid(
-        QuestDef.RewardEntryData reward_data
+        QuestRewardDefinition reward_data
     )
     {
         if (reward_data.PendingRewardMemberId == "")
             return false;
         if (reward_data.PendingRewardEntries == null || reward_data.PendingRewardEntries.Count == 0)
             return false;
-        foreach (QuestDef.PendingRewardEntryData entryData in reward_data.PendingRewardEntries)
+        foreach (
+            QuestPendingRewardEntryDefinition entryData in reward_data.PendingRewardEntries
+        )
         {
             if (
                 entryData == null
-                || !entryData.IsDictionaryEntry
                 || entryData.EntryType == ""
                 || !PendingCharacterRewardContentRules.IsSupportedEntryType(entryData.EntryType)
                 || entryData.TargetId == ""
-                || !entryData.HasStrictAmount
                 || entryData.Amount == 0
             )
             {
@@ -4406,22 +4415,22 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         }
 
         StringName questId = request.QuestId;
-        QuestDef questDef = Runtime.GetQuestDef(questId);
-        if (questDef == null || questDef.provider_kind != "npc")
+        QuestDefinition questDefinition = Runtime.GetQuestDef(questId);
+        if (questDefinition == null || questDefinition.ProviderKind != "npc")
         {
             string notNpcMessage = "该任务不是 NPC 委托。";
             UpdateStatus(notNpcMessage);
             return CommandError(notNpcMessage);
         }
 
-        if (questDef.provider_interaction_id != npcContext.NpcInteractionId)
+        if (questDefinition.ProviderInteractionId != npcContext.NpcInteractionId)
         {
             string wrongNpcMessage = "该任务不属于当前 NPC。";
             UpdateStatus(wrongNpcMessage);
             return CommandError(wrongNpcMessage);
         }
 
-        if (!questDef.listing_channels.Contains("npc_offer"))
+        if (!questDefinition.ListingChannels.Contains(NPC_OFFER_LISTING_CHANNEL))
         {
             string notOfferMessage = "该任务未配置为 NPC 委托。";
             UpdateStatus(notOfferMessage);
@@ -4429,14 +4438,14 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         }
 
         QuestAcceptAvailabilityResult availability = _quest_accept_evaluator.Evaluate(
-            questDef,
+            questDefinition,
             _build_quest_accept_context()
         );
 
         if (!availability.CanAccept)
         {
-            string feedback = !string.IsNullOrEmpty(questDef.accept_feedback_failure)
-                ? questDef.accept_feedback_failure
+            string feedback = !string.IsNullOrEmpty(questDefinition.AcceptFeedbackFailure)
+                ? questDefinition.AcceptFeedbackFailure
                 : $"不满足接取条件：{availability.DisabledReason}";
             _refresh_active_npc_quest_offer_context(feedback);
             UpdateStatus(feedback);
@@ -4446,13 +4455,13 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         bool isConfirmationSubmission = request.ConfirmAccept;
         bool hasPendingConfirmation = npcContext.PendingConfirmationQuestId == questId.ToString();
 
-        if (!string.IsNullOrEmpty(questDef.accept_confirmation_text))
+        if (!string.IsNullOrEmpty(questDefinition.AcceptConfirmationText))
         {
             if (!isConfirmationSubmission && !hasPendingConfirmation)
             {
                 _set_npc_quest_offer_confirmation_context(
                     questId,
-                    questDef.accept_confirmation_text
+                    questDefinition.AcceptConfirmationText
                 );
                 return CommandOk("请确认是否接受该委托。");
             }
@@ -4479,7 +4488,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
         GameRuntimeFacade.RuntimeCommandResult commandResult = Runtime.CommandAcceptQuestTyped(
             questId,
-            questDef.is_repeatable
+            questDefinition.IsRepeatable
         );
         if (!commandResult.Ok)
         {
@@ -4488,9 +4497,11 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             return CommandError(commandResult.Message);
         }
 
-        string successFeedback = !string.IsNullOrEmpty(questDef.accept_feedback_success)
-            ? questDef.accept_feedback_success
-            : $"已接受委托 {questDef.display_name}。";
+        string successFeedback = !string.IsNullOrEmpty(
+            questDefinition.AcceptFeedbackSuccess
+        )
+            ? questDefinition.AcceptFeedbackSuccess
+            : $"已接受委托 {questDefinition.DisplayName}。";
         _refresh_active_npc_quest_offer_context(successFeedback);
         UpdateStatus(successFeedback);
         return CommandOk(successFeedback);
@@ -4504,16 +4515,16 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
         string settlementId = context.SettlementId;
         string npcInteractionId = context.NpcInteractionId;
-        var npcQuests = new List<QuestDef>();
-        foreach (QuestDef questDef in GetQuestDefsTyped().Values)
+        var npcQuests = new List<QuestDefinition>();
+        foreach (QuestDefinition questDefinition in GetQuestDefsTyped().Values)
         {
-            if (questDef.provider_kind != "npc")
+            if (questDefinition.ProviderKind != "npc")
                 continue;
-            if (questDef.provider_interaction_id != npcInteractionId)
+            if (questDefinition.ProviderInteractionId != npcInteractionId)
                 continue;
-            if (!questDef.listing_channels.Contains("npc_offer"))
+            if (!questDefinition.ListingChannels.Contains(NPC_OFFER_LISTING_CHANNEL))
                 continue;
-            npcQuests.Add(questDef);
+            npcQuests.Add(questDefinition);
         }
 
         if (npcQuests.Count == 0)
@@ -4526,8 +4537,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         );
         refreshed.FeedbackText = feedback_text;
         refreshed.SelectedQuestId = context.SelectedQuestId;
-        if (!npcQuests.Exists(q => q.quest_id.ToString() == refreshed.SelectedQuestId))
-            refreshed.SelectedQuestId = npcQuests[0].quest_id.ToString();
+        if (!npcQuests.Exists(q => q.QuestId.ToString() == refreshed.SelectedQuestId))
+            refreshed.SelectedQuestId = npcQuests[0].QuestId.ToString();
         refreshed.PendingConfirmationQuestId = context.PendingConfirmationQuestId;
         refreshed.PendingConfirmationText = context.PendingConfirmationText;
         refreshed.PendingConfirmationSource = context.PendingConfirmationSource;

@@ -496,7 +496,9 @@ public sealed class GameRuntimeQuestCommandHandler
     }
 
     private QuestCommandDefData GetQuestCommandDefData(StringName questId) =>
-        QuestCommandDefData.FromQuestDef(HasRuntime() ? _runtime.GetQuestDef(questId) : null);
+        QuestCommandDefData.FromQuestDefinition(
+            HasRuntime() ? _runtime.GetQuestDef(questId) : null
+        );
 
     private Godot.Collections.Array<String> StringNameArrayToStringArray(
         Godot.Collections.Array<StringName> values
@@ -531,14 +533,14 @@ internal sealed class QuestCommandDefData
         IsRepeatable = isRepeatable;
     }
 
-    internal static QuestCommandDefData FromQuestDef(QuestDef questDef)
+    internal static QuestCommandDefData FromQuestDefinition(QuestDefinition questDefinition)
     {
-        if (questDef == null || questDef.quest_id == "")
+        if (questDefinition == null || questDefinition.QuestId == "")
             return new QuestCommandDefData(false, "", false);
         return new QuestCommandDefData(
             true,
-            questDef.display_name?.Trim() ?? "",
-            questDef.is_repeatable
+            questDefinition.DisplayName.Trim(),
+            questDefinition.IsRepeatable
         );
     }
 }

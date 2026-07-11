@@ -70,36 +70,41 @@ public partial class run_validation_text_surface_regression : LifecycleTestScene
             return;
 
         var originalQuestDefs = gameSession.GetQuestDefsSnapshotForTests();
-        var invalidQuest = new QuestDef
-        {
-            quest_id = "contract_invalid_headless_quest",
-            display_name = "Invalid Headless Quest",
-            provider_interaction_id = "service_contract_board",
-            objective_defs = new Godot.Collections.Array<GDictionary>
+        var invalidQuest = new QuestDefinition(
+            "contract_invalid_headless_quest",
+            "Invalid Headless Quest",
+            "Invalid quest fixture for validation text.",
+            "service_contract_board",
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<QuestAcceptRequirementDefinition>(),
+            new QuestObjectiveDefinition[]
             {
-                new()
-                {
-                    ["objective_id"] = "submit_missing_item",
-                    ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.SubmitItem),
-                    ["target_id"] = "missing_headless_item",
-                    ["target_value"] = 1,
-                },
+                new("submit_missing_item", "submit_item", "missing_headless_item", 1),
             },
-            reward_entries = new Godot.Collections.Array<GDictionary>
+            new QuestRewardDefinition[]
             {
-                new()
-                {
-                    ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold),
-                    ["amount"] = 10,
-                },
+                new(
+                    "gold",
+                    10,
+                    "",
+                    0,
+                    "",
+                    System.Array.Empty<QuestPendingRewardEntryDefinition>()
+                ),
             },
-        };
-        Error installError = (Error)gameSession.InstallTestContentDef(
-            "quest",
-            invalidQuest.quest_id,
-            invalidQuest
+            false,
+            "service_contract_board",
+            new StringName[] { "contract_board" },
+            "",
+            "",
+            "",
+            ""
         );
-        _test.Eq(installError, Error.Ok, "测试应能注入非法 quest 内容。");
+        var invalidQuestDefs = new Dictionary<StringName, QuestDefinition>(originalQuestDefs)
+        {
+            [invalidQuest.QuestId] = invalidQuest,
+        };
+        gameSession.ReplaceQuestDefsForTests(invalidQuestDefs);
         gameSession.RefreshContentValidationSnapshot();
 
         GameTextCommandResult snapshotResult = RunCommand(runner, "snapshot");

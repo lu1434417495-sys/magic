@@ -61,14 +61,15 @@ public partial class run_character_management_trait_attribute_regression : Lifec
         CharacterManagementModule manager = new();
         try
         {
-            Dictionary<StringName, TraitDef> traitDefs = BuildTraitDefs();
+            Dictionary<StringName, TraitDefinition> traitDefs =
+                TestProgressionDefinitionProjection.Traits(BuildTraitDefs());
             manager.setup(
                 partyState,
                 new Dictionary<StringName, SkillDefinition>(),
-                new Dictionary<StringName, ProfessionDef>(),
-                new Dictionary<StringName, AchievementDef>(),
+                new Dictionary<StringName, ProfessionDefinition>(),
+                new Dictionary<StringName, AchievementDefinition>(),
                 new Dictionary<StringName, ItemDef>(),
-                new Dictionary<StringName, QuestDef>(),
+                new Dictionary<StringName, QuestDefinition>(),
                 traitDefs,
                 null,
                 new ProgressionIdentityCatalogData()

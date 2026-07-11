@@ -138,7 +138,7 @@ public static class IdentityPayloadValidator
             var ascensionStageDef = Lookup(contentSource?.AscensionStageDefs, ascensionStageId);
             StringName ascensionBodySize =
                 ascensionStageDef != null
-                    ? ascensionStageDef.body_size_category_override
+                    ? ascensionStageDef.BodySizeCategoryOverride
                     : new StringName("");
             if (
                 ascensionBodySize != ""
@@ -150,7 +150,7 @@ public static class IdentityPayloadValidator
         var subraceId = memberState.subrace_id;
         var subraceDef = Lookup(contentSource?.SubraceDefs, subraceId);
         StringName subraceBodySize =
-            subraceDef != null ? subraceDef.body_size_category_override : new StringName("");
+            subraceDef != null ? subraceDef.BodySizeCategoryOverride : new StringName("");
         if (
             subraceBodySize != ""
             && BodySizeContentRules.IsValidBodySizeCategory(subraceBodySize)
@@ -160,7 +160,7 @@ public static class IdentityPayloadValidator
         var raceId = memberState.race_id;
         var raceDef = Lookup(contentSource?.RaceDefs, raceId);
         StringName raceBodySize =
-            raceDef != null ? raceDef.body_size_category : new StringName("");
+            raceDef != null ? raceDef.BodySizeCategory : new StringName("");
         if (raceBodySize != "" && BodySizeContentRules.IsValidBodySizeCategory(raceBodySize))
             return raceBodySize;
         return "";
@@ -197,7 +197,7 @@ public static class IdentityPayloadValidator
         return memberState.SetBodySizeCategory(category);
     }
 
-    private static RaceDef ValidateRace(
+    private static RaceDefinition ValidateRace(
         List<string> errors,
         string label,
         StringName raceId,
@@ -215,7 +215,7 @@ public static class IdentityPayloadValidator
         return raceDef;
     }
 
-    private static SubraceDef ValidateSubrace(
+    private static SubraceDefinition ValidateSubrace(
         List<string> errors,
         string label,
         StringName subraceId,
@@ -238,20 +238,20 @@ public static class IdentityPayloadValidator
         string label,
         StringName raceId,
         StringName subraceId,
-        RaceDef raceDef,
-        SubraceDef subraceDef
+        RaceDefinition raceDef,
+        SubraceDefinition subraceDef
     )
     {
         if (raceDef == null || subraceDef == null || raceId == "" || subraceId == "")
             return;
 
-        var parentRaceId = subraceDef.parent_race_id;
+        var parentRaceId = subraceDef.ParentRaceId;
         if (parentRaceId != raceId)
             errors.Add(
                 $"member {label} subrace {(string)subraceId} parent_race_id must be {(string)raceId}, got {(string)parentRaceId}"
             );
 
-        if (!ContainsId(raceDef.subrace_ids, subraceId))
+        if (!ContainsId(raceDef.SubraceIds, subraceId))
             errors.Add(
                 $"member {label} race {(string)raceId} must list subrace {(string)subraceId} in subrace_ids"
             );
@@ -286,14 +286,14 @@ public static class IdentityPayloadValidator
         if (bloodlineDef == null || stageDef == null)
             return;
 
-        var declaredBloodlineId = bloodlineDef.bloodline_id;
-        var declaredStageId = stageDef.stage_id;
-        var stageParentBloodlineId = stageDef.bloodline_id;
+        var declaredBloodlineId = bloodlineDef.BloodlineId;
+        var declaredStageId = stageDef.StageId;
+        var stageParentBloodlineId = stageDef.BloodlineId;
         if (
             declaredBloodlineId != bloodlineId
             || declaredStageId != bloodlineStageId
             || stageParentBloodlineId != bloodlineId
-            || !ContainsId(bloodlineDef.stage_ids, bloodlineStageId)
+            || !ContainsId(bloodlineDef.StageIds, bloodlineStageId)
         )
             errors.Add(
                 $"member {label} bloodline_stage_id {(string)bloodlineStageId} does not belong to bloodline {(string)bloodlineId}"
@@ -332,14 +332,14 @@ public static class IdentityPayloadValidator
         if (ascensionDef == null || stageDef == null)
             return;
 
-        var declaredAscensionId = ascensionDef.ascension_id;
-        var declaredStageId = stageDef.stage_id;
-        var stageParentAscensionId = stageDef.ascension_id;
+        var declaredAscensionId = ascensionDef.AscensionId;
+        var declaredStageId = stageDef.StageId;
+        var stageParentAscensionId = stageDef.AscensionId;
         if (
             declaredAscensionId != ascensionId
             || declaredStageId != ascensionStageId
             || stageParentAscensionId != ascensionId
-            || !ContainsId(ascensionDef.stage_ids, ascensionStageId)
+            || !ContainsId(ascensionDef.StageIds, ascensionStageId)
         )
             errors.Add(
                 $"member {label} ascension_stage_id {(string)ascensionStageId} does not belong to ascension {(string)ascensionId}"
@@ -363,31 +363,28 @@ public static class IdentityPayloadValidator
         StringName subraceId,
         StringName bloodlineId,
         StringName ascensionId,
-        AscensionDef ascensionDef
+        AscensionDefinition ascensionDef
     )
     {
         if (
-            ascensionDef.allowed_race_ids != null
-            && ascensionDef.allowed_race_ids.Count > 0
-            && !ascensionDef.allowed_race_ids.Contains(raceId)
+            ascensionDef.AllowedRaceIds.Count > 0
+            && !ContainsId(ascensionDef.AllowedRaceIds, raceId)
         )
             errors.Add(
                 $"member {label} ascension {(string)ascensionId} does not allow race {(string)raceId}"
             );
 
         if (
-            ascensionDef.allowed_subrace_ids != null
-            && ascensionDef.allowed_subrace_ids.Count > 0
-            && !ascensionDef.allowed_subrace_ids.Contains(subraceId)
+            ascensionDef.AllowedSubraceIds.Count > 0
+            && !ContainsId(ascensionDef.AllowedSubraceIds, subraceId)
         )
             errors.Add(
                 $"member {label} ascension {(string)ascensionId} does not allow subrace {(string)subraceId}"
             );
 
         if (
-            ascensionDef.allowed_bloodline_ids != null
-            && ascensionDef.allowed_bloodline_ids.Count > 0
-            && !ascensionDef.allowed_bloodline_ids.Contains(bloodlineId)
+            ascensionDef.AllowedBloodlineIds.Count > 0
+            && !ContainsId(ascensionDef.AllowedBloodlineIds, bloodlineId)
         )
             errors.Add(
                 $"member {label} ascension {(string)ascensionId} does not allow bloodline {(string)bloodlineId}"
@@ -395,11 +392,18 @@ public static class IdentityPayloadValidator
     }
 
     private static bool ContainsId(
-        Godot.Collections.Array<StringName> values,
+        IReadOnlyList<StringName> values,
         StringName expected
     )
     {
-        return values != null && values.Contains(expected);
+        if (values == null)
+            return false;
+        foreach (StringName value in values)
+        {
+            if (value == expected)
+                return true;
+        }
+        return false;
     }
 
     private static string MemberLabel(PartyMemberState memberState)

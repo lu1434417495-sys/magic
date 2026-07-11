@@ -175,8 +175,8 @@ internal sealed class BattleUnitFactory
         return itemDefs;
     }
 
-    private IReadOnlyDictionary<StringName, TraitDef> GetTraitDefIndex() =>
-        _runtime?.GetTraitDefIndexTyped() ?? new Dictionary<StringName, TraitDef>();
+    private IReadOnlyDictionary<StringName, TraitDefinition> GetTraitDefIndex() =>
+        _runtime?.GetTraitDefIndexTyped() ?? new Dictionary<StringName, TraitDefinition>();
 
     private IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> GetEquipmentAbilityBindingIndex() =>
         _runtime?.GetEquipmentAbilityBindingIndexTyped()

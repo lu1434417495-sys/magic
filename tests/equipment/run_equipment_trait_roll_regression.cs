@@ -194,37 +194,48 @@ public partial class run_equipment_trait_roll_regression : LifecycleTestSceneTre
 
     private static EquipmentTraitRollService BuildService()
     {
-        Dictionary<StringName, TraitDef> traitDefs = new()
+        Dictionary<StringName, TraitDefinition> traitDefs = new()
         {
-            ["sharp_edge"] = new TraitDef
-            {
-                trait_id = "sharp_edge",
-                allowed_source_kinds = new Godot.Collections.Array<StringName>
-                {
-                    "equipment_roll",
-                },
-                roll_value_schema = new Godot.Collections.Array<TraitRollValueSchemaEntry>
-                {
-                    new()
-                    {
-                        key = "amount",
-                        value_type = "int",
-                        min_value = 1,
-                        max_value = 6,
-                    },
-                },
-            },
-            ["heavy_head"] = new TraitDef
-            {
-                trait_id = "heavy_head",
-                allowed_source_kinds = new Godot.Collections.Array<StringName>
-                {
-                    "equipment_roll",
-                },
-            },
+            ["sharp_edge"] = BuildTraitDefinition(
+                "sharp_edge",
+                new TraitRollValueSchemaEntryDefinition(
+                    "amount",
+                    "int",
+                    1,
+                    6,
+                    Array.Empty<StringName>()
+                )
+            ),
+            ["heavy_head"] = BuildTraitDefinition("heavy_head"),
         };
         return new EquipmentTraitRollService(traitDefs.Values);
     }
+
+    private static TraitDefinition BuildTraitDefinition(
+        StringName traitId,
+        params TraitRollValueSchemaEntryDefinition[] rollValueSchema
+    ) =>
+        new(
+            traitId,
+            "",
+            "",
+            Array.Empty<StringName>(),
+            new StringName[] { "equipment_roll" },
+            "",
+            "passive",
+            "unique_by_trait",
+            "none",
+            "none",
+            "",
+            0,
+            0,
+            Array.Empty<AttributeModifierDefinition>(),
+            Array.Empty<StringName>(),
+            Array.Empty<TraitDamageResistanceEntryDefinition>(),
+            Array.Empty<TraitSaveBonusEntryDefinition>(),
+            Array.Empty<TraitPassiveStatusEffectDefinition>(),
+            rollValueSchema
+        );
 
     private static ItemDef BuildItem()
     {

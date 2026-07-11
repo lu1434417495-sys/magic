@@ -22,6 +22,15 @@ public partial class ProfessionPromotionRequirement : Resource
     [Export]
     public bool assigned_core_must_be_subset_of_qualifiers = false;
 
+    internal Array<StringName> RequiredSkillIdsProjectionBorrowed => required_skill_ids;
+    internal Array<TagRequirement> RequiredTagRulesProjectionBorrowed => required_tag_rules;
+    internal Array<ProfessionRankGate> RequiredProfessionRanksProjectionBorrowed =>
+        required_profession_ranks;
+    internal Array<AttributeRequirement> RequiredAttributeRulesProjectionBorrowed =>
+        required_attribute_rules;
+    internal Array<ReputationRequirement> RequiredReputationRulesProjectionBorrowed =>
+        required_reputation_rules;
+
     public bool IsEmpty()
     {
         return required_skill_ids.Count == 0

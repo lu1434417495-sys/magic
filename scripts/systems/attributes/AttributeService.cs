@@ -149,7 +149,7 @@ public sealed class AttributeService
 
     private UnitProgress _unit_progress;
     private Dictionary<StringName, SkillDefinition> _skill_definitions = new();
-    private Dictionary<StringName, ProfessionDef> _profession_defs = new();
+    private Dictionary<StringName, ProfessionDefinition> _profession_defs = new();
     private IReadOnlyList<AttributeModifierDefinition> _trait_attribute_modifiers =
         System.Array.Empty<AttributeModifierDefinition>();
     private IReadOnlyList<AttributeModifierDefinition> _equipment_state =
@@ -192,8 +192,8 @@ public sealed class AttributeService
                 : new Dictionary<StringName, SkillDefinition>();
         _profession_defs =
             _context.profession_defs != null
-                ? new Dictionary<StringName, ProfessionDef>(_context.profession_defs)
-                : new Dictionary<StringName, ProfessionDef>();
+                ? new Dictionary<StringName, ProfessionDefinition>(_context.profession_defs)
+                : new Dictionary<StringName, ProfessionDefinition>();
         _trait_attribute_modifiers = CopyAttributeModifierDefinitionList(
             _context.trait_attribute_modifiers
         );
@@ -467,9 +467,9 @@ public sealed class AttributeService
             return;
         AppendModifierEntries(
             entries,
-            _context.race_def.attribute_modifiers,
+            _context.race_def.AttributeModifiers,
             "race",
-            _context.race_def.race_id,
+            _context.race_def.RaceId,
             1
         );
     }
@@ -480,9 +480,9 @@ public sealed class AttributeService
             return;
         AppendModifierEntries(
             entries,
-            _context.subrace_def.attribute_modifiers,
+            _context.subrace_def.AttributeModifiers,
             "subrace",
-            _context.subrace_def.subrace_id,
+            _context.subrace_def.SubraceId,
             1
         );
     }
@@ -496,10 +496,10 @@ public sealed class AttributeService
         StringName sourceId =
             _context.age_stage_source_id != ""
                 ? _context.age_stage_source_id
-                : _context.age_stage_rule.stage_id;
+                : _context.age_stage_rule.StageId;
         AppendModifierEntries(
             entries,
-            _context.age_stage_rule.attribute_modifiers,
+            _context.age_stage_rule.AttributeModifiers,
             sourceType,
             sourceId,
             1
@@ -513,17 +513,17 @@ public sealed class AttributeService
         if (_context.bloodline_def != null)
             AppendModifierEntries(
                 entries,
-                _context.bloodline_def.attribute_modifiers,
+                _context.bloodline_def.AttributeModifiers,
                 "bloodline",
-                _context.bloodline_def.bloodline_id,
+                _context.bloodline_def.BloodlineId,
                 1
             );
         if (_context.bloodline_stage_def != null)
             AppendModifierEntries(
                 entries,
-                _context.bloodline_stage_def.attribute_modifiers,
+                _context.bloodline_stage_def.AttributeModifiers,
                 "bloodline",
-                _context.bloodline_stage_def.stage_id,
+                _context.bloodline_stage_def.StageId,
                 1
             );
     }
@@ -534,9 +534,9 @@ public sealed class AttributeService
             return;
         AppendModifierEntries(
             entries,
-            _context.ascension_stage_def.attribute_modifiers,
+            _context.ascension_stage_def.AttributeModifiers,
             "ascension",
-            _context.ascension_stage_def.stage_id,
+            _context.ascension_stage_def.StageId,
             1
         );
     }
@@ -560,7 +560,7 @@ public sealed class AttributeService
             "",
             ""
         );
-        StringName sourceId = _context.race_def != null ? _context.race_def.race_id : "versatility";
+        StringName sourceId = _context.race_def != null ? _context.race_def.RaceId : "versatility";
         var modifiers = new[] { modifier };
         AppendModifierEntries(entries, modifiers, "versatility", sourceId, 1);
     }
@@ -581,7 +581,7 @@ public sealed class AttributeService
                 continue;
             AppendModifierEntries(
                 entries,
-                professionDef.attribute_modifiers,
+                professionDef.AttributeModifiers,
                 "profession",
                 professionId,
                 professionProgress.rank
@@ -652,9 +652,9 @@ public sealed class AttributeService
         AppendModifierEntries(entries, state, "", "", 1);
     }
 
-    private static void AppendModifierEntries<T>(
+    private static void AppendModifierEntries(
         List<AttributeModifierEntry> entries,
-        IEnumerable<T> modifiers,
+        IEnumerable<AttributeModifierDefinition> modifiers,
         StringName sourceType,
         StringName sourceId,
         int rank
@@ -663,15 +663,9 @@ public sealed class AttributeService
         if (modifiers == null)
             return;
 
-        foreach (T modifierValue in modifiers)
+        foreach (AttributeModifierDefinition definition in modifiers)
         {
-            if (modifierValue is AttributeModifier modifier)
-            {
-                AttributeModifierDefinition definition = modifier.ToDefinition();
-                if (definition != null)
-                    AppendModifierEntry(entries, definition, sourceType, sourceId, rank);
-            }
-            else if (modifierValue is AttributeModifierDefinition definition)
+            if (definition != null)
                 AppendModifierEntry(entries, definition, sourceType, sourceId, rank);
         }
     }

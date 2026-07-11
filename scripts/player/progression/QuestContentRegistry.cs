@@ -1,11 +1,13 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.IO;
 using Godot;
 
 internal sealed class QuestContentRegistry
 {
     private const string QuestConfigDirectory = "res://data/configs/quests";
 
-    private readonly Dictionary<StringName, QuestDef> _questDefs = new();
+    private readonly Dictionary<StringName, QuestDefinition> _questDefs = new();
     private readonly List<string> _validationErrors = new();
 
     public void Rebuild()
@@ -83,10 +85,23 @@ internal sealed class QuestContentRegistry
             return;
         }
 
-        _questDefs[questId] = questDef;
+        try
+        {
+            QuestDefinition definition = QuestDefinition.FromResource(questDef, resourcePath);
+            _questDefs.Add(definition.QuestId, definition);
+        }
+        catch (InvalidDataException exception)
+        {
+            _validationErrors.Add(
+                $"QuestContentRegistry: {resourcePath} projection failed: {exception.Message}"
+            );
+        }
     }
 
-    internal IReadOnlyDictionary<StringName, QuestDef> GetQuestDefsTyped() => _questDefs;
+    internal IReadOnlyDictionary<StringName, QuestDefinition> GetQuestDefsTyped() =>
+        new ReadOnlyDictionary<StringName, QuestDefinition>(
+            new Dictionary<StringName, QuestDefinition>(_questDefs)
+        );
 
     internal IReadOnlyList<string> GetValidationErrors() => _validationErrors;
 }

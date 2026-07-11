@@ -38,4 +38,15 @@ public partial class AscensionDef : Resource
 
     [Export]
     public bool suppresses_original_race_traits;
+
+    internal Godot.Collections.Array<StringName> StageIdsBorrowed => stage_ids;
+    internal Godot.Collections.Array<StringName> TraitIdsBorrowed => trait_ids;
+    internal Godot.Collections.Array<RacialGrantedSkill> RacialGrantedSkillsBorrowed =>
+        racial_granted_skills;
+    internal Godot.Collections.Array<StringName> AllowedRaceIdsBorrowed => allowed_race_ids;
+    internal Godot.Collections.Array<StringName> AllowedSubraceIdsBorrowed =>
+        allowed_subrace_ids;
+    internal Godot.Collections.Array<StringName> AllowedBloodlineIdsBorrowed =>
+        allowed_bloodline_ids;
+    internal Godot.Collections.Array<string> TraitSummaryBorrowed => trait_summary;
 }

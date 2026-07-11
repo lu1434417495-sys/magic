@@ -33,13 +33,14 @@ public partial class run_trait_content_registry_regression : LifecycleTestSceneT
     private void TestOfficialTraitRegistryUsesGenericIdentityDefs()
     {
         using TraitContentRegistry registry = new();
-        IReadOnlyList<TraitDef> traitDefs = registry.GetTraitDefsTyped();
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefs =
+            registry.GetTraitDefsTyped();
 
-        foreach (TraitDef traitDef in traitDefs)
+        foreach (TraitDefinition traitDef in traitDefs.Values)
         {
             if (traitDef == null)
                 continue;
-            StringName traitId = traitDef.trait_id;
+            StringName traitId = traitDef.TraitId;
             if (!TraitContentRules.IsSourceKindAllowed(traitDef, TraitSourceKind.Identity))
                 continue;
 
@@ -138,14 +139,14 @@ public partial class run_trait_content_registry_regression : LifecycleTestSceneT
     }
 
     private void AssertTraitRuntimePolicy(
-        IReadOnlyList<TraitDef> traitDefs,
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefs,
         StringName traitId,
         TraitTriggerKind triggerKind,
         TraitChargeScopeKind chargeScope,
         TraitChargeResetTimingKind chargeResetTiming
     )
     {
-        TraitDef traitDef = FindTrait(traitDefs, traitId);
+        TraitDefinition traitDef = FindTrait(traitDefs, traitId);
         _test.True(traitDef != null, $"{traitId} should exist.");
         if (traitDef == null)
             return;
@@ -171,12 +172,15 @@ public partial class run_trait_content_registry_regression : LifecycleTestSceneT
         );
     }
 
-    private static TraitDef FindTrait(IReadOnlyList<TraitDef> traitDefs, StringName traitId)
+    private static TraitDefinition FindTrait(
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefs,
+        StringName traitId
+    )
     {
-        foreach (TraitDef traitDef in traitDefs)
-            if (traitDef != null && traitDef.trait_id == traitId)
-                return traitDef;
-        return null;
+        return traitDefs != null
+            && traitDefs.TryGetValue(traitId, out TraitDefinition traitDefinition)
+            ? traitDefinition
+            : null;
     }
 
     private static List<string> ToList(IEnumerable<string> values)

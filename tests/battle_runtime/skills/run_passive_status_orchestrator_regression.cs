@@ -41,9 +41,9 @@ public partial class run_passive_status_orchestrator_regression : LifecycleTestS
             partyState,
             registry.GetSkillDefinitionsTyped(),
             registry.GetProfessionDefsTyped(),
-            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, AchievementDefinition>(),
             new Dictionary<StringName, ItemDef>(),
-            new Dictionary<StringName, QuestDef>(),
+            new Dictionary<StringName, QuestDefinition>(),
             registry.GetTraitDefsTyped(),
             null,
             registry.GetIdentityCatalogTyped()
@@ -62,11 +62,11 @@ public partial class run_passive_status_orchestrator_regression : LifecycleTestS
         var unit = units[0];
         _test.True(
             unit.vision_tags.Contains("normal_vision"),
-            "vision tags should include normal_vision from RaceDef."
+            "vision tags should include normal_vision from the race definition."
         );
         _test.True(
             unit.proficiency_tags.Contains("civilian"),
-            "proficiency tags should include civilian from RaceDef."
+            "proficiency tags should include civilian from the race definition."
         );
         _test.True(
             unit.proficiency_tags.Contains("weapon_type_spear"),
@@ -286,63 +286,75 @@ public partial class run_passive_status_orchestrator_regression : LifecycleTestS
         );
     }
 
-    private static RaceDef MakeRaceDef()
+    private static RaceDefinition MakeRaceDef()
     {
-        RaceDef race = new()
-        {
-            race_id = "test_race",
-            display_name = "Test Race",
-            damage_resistances = new GDictionary
-            {
-                [new StringName("fire")] = new StringName("half"),
-            },
-        };
-        race.trait_ids.Add("test_race_trait");
-        race.vision_tags.Add("darkvision");
-        race.racial_granted_skills.Add(MakeRacialGrant("dragon_breath_test", "per_battle", 2));
-        return race;
+        return new RaceDefinition(
+            "test_race",
+            "Test Race",
+            "",
+            "",
+            "",
+            System.Array.Empty<StringName>(),
+            "medium",
+            6,
+            System.Array.Empty<AttributeModifierDefinition>(),
+            [new StringName("test_race_trait")],
+            [MakeRacialGrant("dragon_breath_test", "per_battle", 2)],
+            System.Array.Empty<StringName>(),
+            [new StringName("darkvision")],
+            System.Array.Empty<StringName>(),
+            new Dictionary<StringName, StringName> { ["fire"] = "half" },
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<string>()
+        );
     }
 
-    private static SubraceDef MakeSubraceDef()
+    private static SubraceDefinition MakeSubraceDef()
     {
-        SubraceDef subrace = new()
-        {
-            subrace_id = "test_subrace",
-            parent_race_id = "test_race",
-            display_name = "Test Subrace",
-        };
-        subrace.trait_ids.Add("test_subrace_trait");
-        subrace.save_advantage_tags.Add("poison");
-        subrace.racial_granted_skills.Add(MakeRacialGrant("nimble_escape_test", "per_turn", 1));
-        return subrace;
+        return new SubraceDefinition(
+            "test_subrace",
+            "test_race",
+            "Test Subrace",
+            "",
+            "",
+            0,
+            System.Array.Empty<AttributeModifierDefinition>(),
+            [new StringName("test_subrace_trait")],
+            [MakeRacialGrant("nimble_escape_test", "per_turn", 1)],
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            [new StringName("poison")],
+            new Dictionary<StringName, StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<string>()
+        );
     }
 
-    private static AscensionDef MakeAscensionDef(bool suppressesOriginalRaceTraits)
+    private static AscensionDefinition MakeAscensionDef(bool suppressesOriginalRaceTraits)
     {
-        AscensionDef ascension = new()
-        {
-            ascension_id = "test_ascension",
-            display_name = "Test Ascension",
-            suppresses_original_race_traits = suppressesOriginalRaceTraits,
-        };
-        ascension.trait_ids.Add("ascended_trait");
-        ascension.racial_granted_skills.Add(MakeRacialGrant("ascension_ray_test", "per_battle", 3));
-        return ascension;
+        return new AscensionDefinition(
+            "test_ascension",
+            "Test Ascension",
+            "",
+            System.Array.Empty<StringName>(),
+            [new StringName("ascended_trait")],
+            [MakeRacialGrant("ascension_ray_test", "per_battle", 3)],
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<string>(),
+            false,
+            suppressesOriginalRaceTraits
+        );
     }
 
-    private static RacialGrantedSkill MakeRacialGrant(
+    private static RacialGrantedSkillDefinition MakeRacialGrant(
         StringName skillId,
         StringName chargeKind,
         int charges
     )
     {
-        return new RacialGrantedSkill
-        {
-            skill_id = skillId,
-            minimum_skill_level = 1,
-            charge_kind = chargeKind,
-            charges = charges,
-        };
+        return new RacialGrantedSkillDefinition(skillId, 1, chargeKind, charges);
     }
 
     private static PartyState MakePartyState(IEnumerable<StringName> memberIds)

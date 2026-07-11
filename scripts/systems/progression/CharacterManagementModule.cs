@@ -51,22 +51,22 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
             _owner = owner;
         }
 
-        public RaceDef GetRaceDefForTraitAggregation(StringName memberId) =>
+        public RaceDefinition GetRaceDefForTraitAggregation(StringName memberId) =>
             _owner?.GetRaceDefForMember(memberId);
 
-        public SubraceDef GetSubraceDefForTraitAggregation(StringName memberId) =>
+        public SubraceDefinition GetSubraceDefForTraitAggregation(StringName memberId) =>
             _owner?.GetSubraceDefForMember(memberId);
 
-        public BloodlineDef GetBloodlineDefForTraitAggregation(StringName memberId) =>
+        public BloodlineDefinition GetBloodlineDefForTraitAggregation(StringName memberId) =>
             _owner?.GetBloodlineDefForMember(memberId);
 
-        public BloodlineStageDef GetBloodlineStageDefForTraitAggregation(StringName memberId) =>
+        public BloodlineStageDefinition GetBloodlineStageDefForTraitAggregation(StringName memberId) =>
             _owner?.GetBloodlineStageDefForMember(memberId);
 
-        public AscensionDef GetAscensionDefForTraitAggregation(StringName memberId) =>
+        public AscensionDefinition GetAscensionDefForTraitAggregation(StringName memberId) =>
             _owner?.GetAscensionDefForMember(memberId);
 
-        public AscensionStageDef GetAscensionStageDefForTraitAggregation(StringName memberId) =>
+        public AscensionStageDefinition GetAscensionStageDefForTraitAggregation(StringName memberId) =>
             _owner?.GetAscensionStageDefForMember(memberId);
 
         public PartyMemberState GetMemberStateForTraitAggregation(StringName memberId) =>
@@ -131,19 +131,20 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
     private bool _has_quest_def_catalog;
     private IReadOnlyDictionary<StringName, SkillDefinition> _skill_definition_index =
         new Dictionary<StringName, SkillDefinition>();
-    private Dictionary<StringName, ProfessionDef> _profession_def_index = new();
-    private Dictionary<StringName, AchievementDef> _achievement_def_index = new();
+    private Dictionary<StringName, ProfessionDefinition> _profession_def_index = new();
+    private Dictionary<StringName, AchievementDefinition> _achievement_def_index = new();
     private Dictionary<StringName, ItemDef> _item_def_index = new();
-    private Dictionary<StringName, QuestDef> _quest_def_index = new();
-    private Dictionary<StringName, TraitDef> _trait_def_index = new();
-    private Dictionary<StringName, RaceDef> _race_def_index = new();
-    private Dictionary<StringName, SubraceDef> _subrace_def_index = new();
-    private Dictionary<StringName, AgeProfileDef> _age_profile_def_index = new();
-    private Dictionary<StringName, BloodlineDef> _bloodline_def_index = new();
-    private Dictionary<StringName, BloodlineStageDef> _bloodline_stage_def_index = new();
-    private Dictionary<StringName, AscensionDef> _ascension_def_index = new();
-    private Dictionary<StringName, AscensionStageDef> _ascension_stage_def_index = new();
-    private Dictionary<StringName, StageAdvancementModifier> _stage_advancement_modifier_index = new();
+    private Dictionary<StringName, QuestDefinition> _quest_def_index = new();
+    private Dictionary<StringName, TraitDefinition> _trait_def_index = new();
+    private Dictionary<StringName, RaceDefinition> _race_def_index = new();
+    private Dictionary<StringName, SubraceDefinition> _subrace_def_index = new();
+    private Dictionary<StringName, AgeProfileDefinition> _age_profile_def_index = new();
+    private Dictionary<StringName, BloodlineDefinition> _bloodline_def_index = new();
+    private Dictionary<StringName, BloodlineStageDefinition> _bloodline_stage_def_index = new();
+    private Dictionary<StringName, AscensionDefinition> _ascension_def_index = new();
+    private Dictionary<StringName, AscensionStageDefinition> _ascension_stage_def_index = new();
+    private Dictionary<StringName, StageAdvancementDefinition>
+        _stage_advancement_definition_index = new();
     private readonly BloodlineApplyService _bloodline_apply_service = new();
     private readonly AscensionApplyService _ascension_apply_service = new();
     private readonly StageAdvancementApplyService _stage_advancement_apply_service = new();
@@ -189,7 +190,7 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         _bloodline_stage_def_index.Clear();
         _ascension_def_index.Clear();
         _ascension_stage_def_index.Clear();
-        _stage_advancement_modifier_index.Clear();
+        _stage_advancement_definition_index.Clear();
         _character_trait_service = null;
         _equipment_instance_id_allocator = null;
     }
@@ -197,10 +198,10 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
     public void setup(
         PartyState party_state,
         IReadOnlyDictionary<StringName, SkillDefinition> skill_definitions = null,
-        IReadOnlyDictionary<StringName, ProfessionDef> profession_defs = null,
-        IReadOnlyDictionary<StringName, AchievementDef> achievement_defs = null,
+        IReadOnlyDictionary<StringName, ProfessionDefinition> profession_defs = null,
+        IReadOnlyDictionary<StringName, AchievementDefinition> achievement_defs = null,
         IReadOnlyDictionary<StringName, ItemDef> item_defs = null,
-        IReadOnlyDictionary<StringName, QuestDef> quest_defs = null,
+        IReadOnlyDictionary<StringName, QuestDefinition> quest_defs = null,
         Func<StringName> equipment_instance_id_allocator = null,
         ProgressionIdentityCatalogData progression_identity_catalog = null
     ) =>
@@ -219,11 +220,11 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
     public void setup(
         PartyState party_state,
         IReadOnlyDictionary<StringName, SkillDefinition> skill_definitions,
-        IReadOnlyDictionary<StringName, ProfessionDef> profession_defs,
-        IReadOnlyDictionary<StringName, AchievementDef> achievement_defs,
+        IReadOnlyDictionary<StringName, ProfessionDefinition> profession_defs,
+        IReadOnlyDictionary<StringName, AchievementDefinition> achievement_defs,
         IReadOnlyDictionary<StringName, ItemDef> item_defs,
-        IReadOnlyDictionary<StringName, QuestDef> quest_defs,
-        IReadOnlyDictionary<StringName, TraitDef> trait_defs,
+        IReadOnlyDictionary<StringName, QuestDefinition> quest_defs,
+        IReadOnlyDictionary<StringName, TraitDefinition> trait_defs,
         Func<StringName> equipment_instance_id_allocator,
         ProgressionIdentityCatalogData progression_identity_catalog
     ) =>
@@ -243,10 +244,10 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
     public void setup(
         PartyState party_state,
         IReadOnlyDictionary<StringName, SkillDefinition> skill_definitions,
-        IReadOnlyDictionary<StringName, ProfessionDef> profession_defs,
-        IReadOnlyDictionary<StringName, AchievementDef> achievement_defs,
+        IReadOnlyDictionary<StringName, ProfessionDefinition> profession_defs,
+        IReadOnlyDictionary<StringName, AchievementDefinition> achievement_defs,
         IReadOnlyDictionary<StringName, ItemDef> item_defs,
-        IReadOnlyDictionary<StringName, QuestDef> quest_defs,
+        IReadOnlyDictionary<StringName, QuestDefinition> quest_defs,
         bool has_quest_def_catalog,
         Func<StringName> equipment_instance_id_allocator,
         ProgressionIdentityCatalogData progression_identity_catalog
@@ -259,7 +260,7 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
             item_defs,
             quest_defs,
             has_quest_def_catalog,
-            new Dictionary<StringName, TraitDef>(),
+            new Dictionary<StringName, TraitDefinition>(),
             equipment_instance_id_allocator,
             progression_identity_catalog
         );
@@ -267,12 +268,12 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
     public void setup(
         PartyState party_state,
         IReadOnlyDictionary<StringName, SkillDefinition> skill_definitions,
-        IReadOnlyDictionary<StringName, ProfessionDef> profession_defs,
-        IReadOnlyDictionary<StringName, AchievementDef> achievement_defs,
+        IReadOnlyDictionary<StringName, ProfessionDefinition> profession_defs,
+        IReadOnlyDictionary<StringName, AchievementDefinition> achievement_defs,
         IReadOnlyDictionary<StringName, ItemDef> item_defs,
-        IReadOnlyDictionary<StringName, QuestDef> quest_defs,
+        IReadOnlyDictionary<StringName, QuestDefinition> quest_defs,
         bool has_quest_def_catalog,
-        IReadOnlyDictionary<StringName, TraitDef> trait_defs,
+        IReadOnlyDictionary<StringName, TraitDefinition> trait_defs,
         Func<StringName> equipment_instance_id_allocator,
         ProgressionIdentityCatalogData progression_identity_catalog
     )
@@ -284,16 +285,30 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         _achievement_def_index = CloneContentDefIndex(achievement_defs);
         _item_def_index = CloneContentDefIndex(item_defs);
         _has_quest_def_catalog = has_quest_def_catalog;
-        _quest_def_index = CloneQuestDefIndex(quest_defs);
+        _quest_def_index = CloneContentDefIndex(quest_defs);
         _trait_def_index = CloneContentDefIndex(trait_defs);
-        _race_def_index = new Dictionary<StringName, RaceDef>(_progression_identity_catalog.RaceDefs);
-        _subrace_def_index = new Dictionary<StringName, SubraceDef>(_progression_identity_catalog.SubraceDefs);
-        _age_profile_def_index = new Dictionary<StringName, AgeProfileDef>(_progression_identity_catalog.AgeProfileDefs);
-        _bloodline_def_index = new Dictionary<StringName, BloodlineDef>(_progression_identity_catalog.BloodlineDefs);
-        _bloodline_stage_def_index = new Dictionary<StringName, BloodlineStageDef>(_progression_identity_catalog.BloodlineStageDefs);
-        _ascension_def_index = new Dictionary<StringName, AscensionDef>(_progression_identity_catalog.AscensionDefs);
-        _ascension_stage_def_index = new Dictionary<StringName, AscensionStageDef>(_progression_identity_catalog.AscensionStageDefs);
-        _stage_advancement_modifier_index = new Dictionary<StringName, StageAdvancementModifier>(
+        _race_def_index = new Dictionary<StringName, RaceDefinition>(
+            _progression_identity_catalog.RaceDefs
+        );
+        _subrace_def_index = new Dictionary<StringName, SubraceDefinition>(
+            _progression_identity_catalog.SubraceDefs
+        );
+        _age_profile_def_index = new Dictionary<StringName, AgeProfileDefinition>(
+            _progression_identity_catalog.AgeProfileDefs
+        );
+        _bloodline_def_index = new Dictionary<StringName, BloodlineDefinition>(
+            _progression_identity_catalog.BloodlineDefs
+        );
+        _bloodline_stage_def_index = new Dictionary<StringName, BloodlineStageDefinition>(
+            _progression_identity_catalog.BloodlineStageDefs
+        );
+        _ascension_def_index = new Dictionary<StringName, AscensionDefinition>(
+            _progression_identity_catalog.AscensionDefs
+        );
+        _ascension_stage_def_index = new Dictionary<StringName, AscensionStageDefinition>(
+            _progression_identity_catalog.AscensionStageDefs
+        );
+        _stage_advancement_definition_index = new Dictionary<StringName, StageAdvancementDefinition>(
             _progression_identity_catalog.StageAdvancementDefs
         );
         _character_trait_service = new CharacterTraitService(
@@ -402,19 +417,19 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         );
     }
 
-    private RaceDef GetRaceDefForMember(StringName member_id)
+    private RaceDefinition GetRaceDefForMember(StringName member_id)
     {
         var member_state = GetMemberState(member_id);
         return member_state == null ? null : GetRaceDef(member_state.race_id);
     }
 
-    private SubraceDef GetSubraceDefForMember(StringName member_id)
+    private SubraceDefinition GetSubraceDefForMember(StringName member_id)
     {
         var member_state = GetMemberState(member_id);
         return member_state == null ? null : GetSubraceDef(member_state.subrace_id);
     }
 
-    private BloodlineDef GetBloodlineDefForMember(StringName member_id)
+    private BloodlineDefinition GetBloodlineDefForMember(StringName member_id)
     {
         var member_state = GetMemberState(member_id);
         return member_state == null || member_state.bloodline_id == ""
@@ -422,7 +437,7 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
             : GetBloodlineDef(member_state.bloodline_id);
     }
 
-    private BloodlineStageDef GetBloodlineStageDefForMember(StringName member_id)
+    private BloodlineStageDefinition GetBloodlineStageDefForMember(StringName member_id)
     {
         var member_state = GetMemberState(member_id);
         return member_state == null || member_state.bloodline_stage_id == ""
@@ -430,7 +445,7 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
             : GetBloodlineStageDef(member_state.bloodline_stage_id);
     }
 
-    private AscensionDef GetAscensionDefForMember(StringName member_id)
+    private AscensionDefinition GetAscensionDefForMember(StringName member_id)
     {
         var member_state = GetMemberState(member_id);
         return member_state == null || member_state.ascension_id == ""
@@ -438,7 +453,7 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
             : GetAscensionDef(member_state.ascension_id);
     }
 
-    private AscensionStageDef GetAscensionStageDefForMember(StringName member_id)
+    private AscensionStageDefinition GetAscensionStageDefForMember(StringName member_id)
     {
         var member_state = GetMemberState(member_id);
         return member_state == null || member_state.ascension_stage_id == ""
@@ -446,7 +461,7 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
             : GetAscensionStageDef(member_state.ascension_stage_id);
     }
 
-    private AgeStageRule GetAgeStageRuleForMember(StringName member_id)
+    private AgeStageRuleDefinition GetAgeStageRuleForMember(StringName member_id)
     {
         var member_state = GetMemberState(member_id);
         if (member_state == null)
@@ -457,8 +472,8 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         var effective_stage_id = member_state.effective_age_stage_id;
         if (effective_stage_id == "")
             effective_stage_id = member_state.natural_age_stage_id;
-        foreach (var stage_rule in age_profile.stage_rules)
-            if (stage_rule != null && stage_rule.stage_id == effective_stage_id)
+        foreach (AgeStageRuleDefinition stage_rule in age_profile.StageRules)
+            if (stage_rule != null && stage_rule.StageId == effective_stage_id)
                 return stage_rule;
         return null;
     }
@@ -480,7 +495,9 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         context.skill_definitions = new Dictionary<StringName, SkillDefinition>(
             _skill_definition_index
         );
-        context.profession_defs = new Dictionary<StringName, ProfessionDef>(_profession_def_index);
+        context.profession_defs = new Dictionary<StringName, ProfessionDefinition>(
+            _profession_def_index
+        );
         context.race_def = GetRaceDefForMember(member_id);
         context.subrace_def = GetSubraceDefForMember(member_id);
         context.age_stage_rule = GetAgeStageRuleForMember(member_id);
@@ -693,7 +710,7 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
 
     public bool GrantRacialSkill(
         StringName member_id,
-        RacialGrantedSkill grant,
+        RacialGrantedSkillDefinition grant,
         StringName source_type,
         StringName source_id
     )
@@ -1424,17 +1441,17 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
             if (achievement_def == null)
                 continue;
             var progress_state = progression.GetAchievementProgressState(
-                achievement_def.achievement_id
+                achievement_def.AchievementId
             );
             if (progress_state == null)
                 progress_state = new AchievementProgressState
                 {
-                    achievement_id = achievement_def.achievement_id,
+                    achievement_id = achievement_def.AchievementId,
                 };
             if (progress_state.is_unlocked)
                 continue;
             progress_state.current_value += amount;
-            if (progress_state.current_value >= achievement_def.threshold)
+            if (progress_state.current_value >= achievement_def.Threshold)
             {
                 _finalize_achievement_unlock(
                     member_state,
@@ -1442,7 +1459,7 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
                     progress_state,
                     meta ?? new GDictionary()
                 );
-                _append_unique_string_name(unlocked_ids, achievement_def.achievement_id);
+                _append_unique_string_name(unlocked_ids, achievement_def.AchievementId);
             }
             progression.SetAchievementProgressState(progress_state);
         }
@@ -1488,7 +1505,7 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         }
         progress_state.current_value = Mathf.Max(
             progress_state.current_value,
-            Mathf.Max(achievement_def.threshold, 1)
+            Mathf.Max(achievement_def.Threshold, 1)
         );
         _finalize_achievement_unlock(
             member_state,
@@ -1557,7 +1574,7 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
 
     private void _finalize_achievement_unlock(
         PartyMemberState member_state,
-        AchievementDef achievement_def,
+        AchievementDefinition achievement_def,
         AchievementProgressState progress_state,
         GDictionary meta
     )
@@ -1827,7 +1844,7 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
                 if (unlocked_at >= recent_unlocked_time)
                 {
                     recent_unlocked_time = unlocked_at;
-                    recent_unlocked_name = achievement_def.display_name;
+                    recent_unlocked_name = achievement_def.DisplayName;
                 }
                 continue;
             }
@@ -1838,10 +1855,10 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
             active_entries.Add(
                 new AchievementProgressSummaryEntry(
                     achievement_id,
-                    achievement_def.display_name,
-                    achievement_def.description,
+                    achievement_def.DisplayName,
+                    achievement_def.Description,
                     current_value,
-                    achievement_def.threshold
+                    achievement_def.Threshold
                 )
             );
         }
@@ -2029,25 +2046,27 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         var ascension_stage_def = GetAscensionStageDefForMember(member_state.member_id);
         if (
             ascension_stage_def != null
-            && ascension_stage_def.body_size_category_override != ""
+            && ascension_stage_def.BodySizeCategoryOverride != ""
             && BodySizeContentRules.IsValidBodySizeCategory(
-                ascension_stage_def.body_size_category_override
+                ascension_stage_def.BodySizeCategoryOverride
             )
         )
-            return ascension_stage_def.body_size_category_override;
+            return ascension_stage_def.BodySizeCategoryOverride;
         var subrace_def = GetSubraceDefForMember(member_state.member_id);
         if (
             subrace_def != null
-            && subrace_def.body_size_category_override != ""
-            && BodySizeContentRules.IsValidBodySizeCategory(subrace_def.body_size_category_override)
+            && subrace_def.BodySizeCategoryOverride != ""
+            && BodySizeContentRules.IsValidBodySizeCategory(
+                subrace_def.BodySizeCategoryOverride
+            )
         )
-            return subrace_def.body_size_category_override;
+            return subrace_def.BodySizeCategoryOverride;
         var race_def = GetRaceDefForMember(member_state.member_id);
         if (
             race_def != null
-            && BodySizeContentRules.IsValidBodySizeCategory(race_def.body_size_category)
+            && BodySizeContentRules.IsValidBodySizeCategory(race_def.BodySizeCategory)
         )
-            return race_def.body_size_category;
+            return race_def.BodySizeCategory;
         return "";
     }
 
@@ -2078,16 +2097,19 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         );
     }
 
-    private List<StageAdvancementModifier> _collect_active_stage_advancement_modifiers(
+    private List<StageAdvancementDefinition> _collect_active_stage_advancement_modifiers(
         PartyMemberState member_state
     )
     {
-        var modifiers = new List<StageAdvancementModifier>();
+        var modifiers = new List<StageAdvancementDefinition>();
         if (member_state == null)
             return modifiers;
         foreach (var modifier_id in member_state.active_stage_advancement_modifier_ids)
         {
-            if (_stage_advancement_modifier_index.TryGetValue(modifier_id, out var modifier))
+            if (_stage_advancement_definition_index.TryGetValue(
+                modifier_id,
+                out StageAdvancementDefinition modifier
+            ))
                 modifiers.Add(modifier);
         }
         return modifiers;
@@ -2225,28 +2247,6 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         return entries;
     }
 
-    private static Dictionary<StringName, AchievementDef> IndexAchievementDefs(
-        GDictionary source
-    )
-    {
-        var result = new Dictionary<StringName, AchievementDef>();
-        if (source == null)
-            return result;
-        foreach (Variant rawKey in source.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            Variant rawValue = source[rawKey];
-            if (rawValue.VariantType != Variant.Type.Dictionary)
-                continue;
-            AchievementDef entry = AchievementDef.FromDictionary(rawValue.AsGodotDictionary());
-            if (entry == null || entry.achievement_id == "")
-                continue;
-            result[rawKey.AsStringName()] = entry;
-        }
-        return result;
-    }
-
     private static List<PendingCharacterRewardEntry> _sort_pending_reward_entries(
         IEnumerable<PendingCharacterRewardEntry> entries
     )
@@ -2381,6 +2381,17 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
     )
     {
         foreach (var value in values)
+            _append_unique_string_name(target, value);
+    }
+
+    private static void _append_unique_string_names(
+        GStringNameArray target,
+        IEnumerable<StringName> values
+    )
+    {
+        if (values == null)
+            return;
+        foreach (StringName value in values)
             _append_unique_string_name(target, value);
     }
 

@@ -120,8 +120,8 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
         manager.setup(
             partyState,
             new Dictionary<StringName, SkillDefinition>(),
-            new Dictionary<StringName, ProfessionDef>(),
-            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
             new Dictionary<StringName, ItemDef>(),
             ProjectQuestDefs(questDefs),
             true,
@@ -141,19 +141,35 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
 
     private void TestMissingObjectiveTargetValueDoesNotDefaultToOne()
     {
-        QuestDef questDef = BuildQuestDef(
+        QuestDefinition questDef = new(
             "contract_missing_target_value",
             "缺目标值",
-            "bad_target",
-            QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
-            "service:bad",
-            0
+            "",
+            "service_contract_board",
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<QuestAcceptRequirementDefinition>(),
+            new[]
+            {
+                new QuestObjectiveDefinition(
+                    "bad_target",
+                    QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
+                    "service:bad",
+                    0
+                ),
+            },
+            System.Array.Empty<QuestRewardDefinition>(),
+            false,
+            "service_contract_board",
+            new[] { new StringName("contract_board") },
+            "",
+            "",
+            "",
+            ""
         );
-        questDef.objective_defs[0].Remove("target_value");
         PartyState partyState = new();
         CharacterManagementModule manager = BuildManager(partyState, questDef);
 
-        _test.True(manager.AcceptQuest(questDef.quest_id, 5), "缺 target_value 的坏夹具仍可用于验证 service 拒绝进度事件。");
+        _test.True(manager.AcceptQuest(questDef.QuestId, 5), "缺 target_value 的坏夹具仍可用于验证 service 拒绝进度事件。");
         manager.ApplyQuestProgressEventsTyped(
             new[]
             {
@@ -161,7 +177,7 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
                     new GDictionary
                     {
                         ["event_type"] = "progress",
-                        ["quest_id"] = questDef.quest_id.ToString(),
+                        ["quest_id"] = questDef.QuestId.ToString(),
                         ["objective_id"] = "bad_target",
                         ["progress_delta"] = 1,
                         ["world_step"] = 6,
@@ -169,7 +185,7 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
                 ),
             }
         );
-        QuestState questState = partyState.GetActiveQuestState(questDef.quest_id);
+        QuestState questState = partyState.GetActiveQuestState(questDef.QuestId);
         _test.True(questState != null, "缺 target_value 任务应保持 active。");
         if (questState != null)
             _test.Eq(questState.GetObjectiveProgress("bad_target"), 0, "缺正式 target_value 时不应按默认 1 推进任务。");
@@ -177,21 +193,37 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
 
     private static CharacterManagementModule BuildManager(PartyState partyState, QuestDef questDef)
     {
+        return BuildManager(
+            partyState,
+            TestProgressionDefinitionProjection.Quest(questDef)
+        );
+    }
+
+    private static CharacterManagementModule BuildManager(
+        PartyState partyState,
+        QuestDefinition questDef
+    )
+    {
         CharacterManagementModule manager = new();
         manager.setup(
             partyState,
             new Dictionary<StringName, SkillDefinition>(),
-            new Dictionary<StringName, ProfessionDef>(),
-            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
             new Dictionary<StringName, ItemDef>(),
-            new Dictionary<StringName, QuestDef> { [questDef.quest_id] = questDef }
+            new Dictionary<StringName, QuestDefinition>
+            {
+                [questDef.QuestId] = questDef,
+            }
         );
         return manager;
     }
 
-    private static Dictionary<StringName, QuestDef> ProjectQuestDefs(GDictionary questDefs)
+    private static Dictionary<StringName, QuestDefinition> ProjectQuestDefs(
+        GDictionary questDefs
+    )
     {
-        Dictionary<StringName, QuestDef> result = new();
+        Dictionary<StringName, QuestDefinition> result = new();
         if (questDefs == null)
             return result;
         foreach (Variant rawKey in questDefs.Keys)
@@ -202,7 +234,7 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
             if (questId == "")
                 continue;
             if (questDefs[rawKey].AsGodotObject() is QuestDef questDef)
-                result[questId] = questDef;
+                result[questId] = TestProgressionDefinitionProjection.Quest(questDef);
         }
         return result;
     }
@@ -224,6 +256,9 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
         {
             quest_id = questId,
             display_name = displayName,
+            provider_kind = "service_contract_board",
+            provider_interaction_id = "service_contract_board",
+            listing_channels = new Godot.Collections.Array<StringName> { "contract_board" },
         };
         GDictionary objectiveDef = new()
         {

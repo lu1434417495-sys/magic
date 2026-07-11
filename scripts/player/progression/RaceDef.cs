@@ -53,4 +53,17 @@ public partial class RaceDef : Resource
 
     [Export]
     public Godot.Collections.Array<string> racial_trait_summary = new();
+
+    internal Godot.Collections.Array<StringName> SubraceIdsBorrowed => subrace_ids;
+    internal Godot.Collections.Array<Resource> AttributeModifiersBorrowed => attribute_modifiers;
+    internal Godot.Collections.Array<StringName> TraitIdsBorrowed => trait_ids;
+    internal Godot.Collections.Array<RacialGrantedSkill> RacialGrantedSkillsBorrowed =>
+        racial_granted_skills;
+    internal Godot.Collections.Array<StringName> ProficiencyTagsBorrowed => proficiency_tags;
+    internal Godot.Collections.Array<StringName> VisionTagsBorrowed => vision_tags;
+    internal Godot.Collections.Array<StringName> SaveAdvantageTagsBorrowed =>
+        save_advantage_tags;
+    internal Godot.Collections.Dictionary DamageResistancesBorrowed => damage_resistances;
+    internal Godot.Collections.Array<StringName> DialogueTagsBorrowed => dialogue_tags;
+    internal Godot.Collections.Array<string> RacialTraitSummaryBorrowed => racial_trait_summary;
 }

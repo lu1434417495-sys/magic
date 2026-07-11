@@ -1,6 +1,6 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 public readonly record struct ContingencyTemplateStoredSpellInfo(
@@ -18,31 +18,29 @@ public static class ContingencyContentRules
         Mathf.Max(matrixLoad * ReservedMpPerMatrixLoad, 1);
 
     public static IReadOnlyList<ContingencyTemplateStoredSpellInfo> GetTemplateStoredSpellsTyped(
-        ContingencySetupTemplateDef template
+        ContingencySetupTemplateDefinition template
     )
     {
-        var result = new List<ContingencyTemplateStoredSpellInfo>();
-        if (template?.stored_spells == null)
-            return result;
-        foreach (GDictionary authoredSpell in template.stored_spells)
+        if (template?.StoredSpells == null)
+            return System.Array.Empty<ContingencyTemplateStoredSpellInfo>();
+
+        var result = new List<ContingencyTemplateStoredSpellInfo>(template.StoredSpells.Count);
+        foreach (ContingencyStoredSpellTemplateDefinition storedSpell in template.StoredSpells)
         {
-            StringName storedSkillId = ReadStringName(authoredSpell, "stored_skill_id");
-            if (storedSkillId == "")
-                return new List<ContingencyTemplateStoredSpellInfo>();
-            int maxCastLevel = ReadInt(authoredSpell, "max_cast_level", 1);
+            if (storedSpell == null || storedSpell.StoredSkillId == "")
+                return System.Array.Empty<ContingencyTemplateStoredSpellInfo>();
             result.Add(
-                new ContingencyTemplateStoredSpellInfo(storedSkillId, Mathf.Max(maxCastLevel, 1))
+                new ContingencyTemplateStoredSpellInfo(
+                    storedSpell.StoredSkillId,
+                    Mathf.Max(storedSpell.MaxCastLevel, 1)
+                )
             );
         }
-        return result;
+        return new ReadOnlyCollection<ContingencyTemplateStoredSpellInfo>(result);
     }
 
-    // Stamps the per-member dynamic fields (source_skill_level, per-spell cast_level)
-    // onto an authored template. The produced payload goes through the single schema
-    // authority ContingencyMatrixSetupState.FromDictionary; this builder adds no
-    // validation of its own beyond structural reads.
-    public static GDictionary BuildSetupPayloadFromTemplate(
-        ContingencySetupTemplateDef template,
+    public static ContingencyMatrixSetupState BuildSetupStateFromTemplate(
+        ContingencySetupTemplateDefinition template,
         int sourceSkillLevel,
         IReadOnlyDictionary<StringName, int> castLevelsByStoredSkillId
     )
@@ -50,92 +48,165 @@ public static class ContingencyContentRules
         if (template == null)
             return null;
 
-        var storedSpells = new GArray();
-        foreach (GDictionary authoredSpell in template.stored_spells ?? new())
+        IReadOnlyDictionary<string, object> payload = BuildSetupPlainPayload(
+            template,
+            sourceSkillLevel,
+            castLevelsByStoredSkillId
+        );
+        if (payload == null)
+            return null;
+
+        using GodotProjectionLease<GDictionary> lease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                payload,
+                $"contingency-template:{template.TemplateId}",
+                LifetimeDomain.Request,
+                "ContingencyContentRules.BuildSetupStateFromTemplate"
+            );
+        return ContingencyMatrixSetupState.FromDictionary(lease.Value);
+    }
+
+    private static IReadOnlyDictionary<string, object> BuildSetupPlainPayload(
+        ContingencySetupTemplateDefinition template,
+        int sourceSkillLevel,
+        IReadOnlyDictionary<StringName, int> castLevelsByStoredSkillId
+    )
+    {
+        var storedSpells = new List<object>(template.StoredSpells.Count);
+        foreach (ContingencyStoredSpellTemplateDefinition storedSpell in template.StoredSpells)
         {
-            StringName storedSkillId = ReadStringName(authoredSpell, "stored_skill_id");
-            if (storedSkillId == "")
+            if (storedSpell == null || storedSpell.StoredSkillId == "")
                 return null;
+
             int castLevel = 1;
             if (
                 castLevelsByStoredSkillId != null
-                && castLevelsByStoredSkillId.TryGetValue(storedSkillId, out int resolvedLevel)
+                && castLevelsByStoredSkillId.TryGetValue(
+                    storedSpell.StoredSkillId,
+                    out int resolvedLevel
+                )
             )
-                castLevel = Mathf.Max(resolvedLevel, 1);
+            {
+                castLevel = Mathf.Clamp(
+                    resolvedLevel,
+                    1,
+                    Mathf.Max(storedSpell.MaxCastLevel, 1)
+                );
+            }
+
             storedSpells.Add(
-                new GDictionary
+                new Dictionary<string, object>(System.StringComparer.Ordinal)
                 {
-                    ["stored_skill_id"] = storedSkillId,
+                    ["stored_skill_id"] = storedSpell.StoredSkillId.ToString(),
                     ["cast_level"] = castLevel,
-                    ["order"] = ReadInt(authoredSpell, "order", 1),
-                    ["target_resolver"] = ReadDictionary(authoredSpell, "target_resolver"),
-                    ["parameter_bindings"] = ReadDictionary(authoredSpell, "parameter_bindings"),
-                    ["fallback_policy"] = ReadStringName(authoredSpell, "fallback_policy"),
+                    ["order"] = storedSpell.Order,
+                    ["target_resolver"] = BuildTargetResolverPlain(storedSpell.TargetResolver),
+                    ["parameter_bindings"] = storedSpell.ParameterBindings,
+                    ["fallback_policy"] = storedSpell.FallbackPolicy.ToString(),
                 }
             );
         }
 
-        return new GDictionary
+        return new ReadOnlyDictionary<string, object>(
+            new Dictionary<string, object>(System.StringComparer.Ordinal)
+            {
+                ["setup_id"] = template.TemplateId.ToString(),
+                ["display_name"] = template.DisplayName ?? "",
+                ["enabled"] = true,
+                ["charged"] = false,
+                ["source_skill_id"] = template.SourceSkillId.ToString(),
+                ["source_skill_level"] = Mathf.Max(sourceSkillLevel, 1),
+                ["matrix_load"] = template.MatrixLoad,
+                ["reserved_mp_max"] = 0,
+                ["material_costs"] = System.Array.Empty<object>(),
+                ["trigger"] = BuildTriggerPlain(template.Trigger),
+                ["release_mode"] = template.ReleaseMode.ToString(),
+                ["stored_spells"] = new ReadOnlyCollection<object>(storedSpells),
+            }
+        );
+    }
+
+    private static IReadOnlyDictionary<string, object> BuildTriggerPlain(
+        ContingencyTriggerDefinition trigger
+    )
+    {
+        if (trigger == null)
+            return new ReadOnlyDictionary<string, object>(new Dictionary<string, object>());
+
+        var result = new Dictionary<string, object>(System.StringComparer.Ordinal)
         {
-            ["setup_id"] = template.template_id,
-            ["display_name"] = template.display_name ?? "",
-            ["enabled"] = true,
-            ["charged"] = false,
-            ["source_skill_id"] = template.source_skill_id,
-            ["source_skill_level"] = Mathf.Max(sourceSkillLevel, 1),
-            ["matrix_load"] = template.matrix_load,
-            ["reserved_mp_max"] = 0,
-            ["material_costs"] = new GArray(),
-            ["trigger"] = NormalizeAuthoredStringValues(
-                template.trigger?.Duplicate(true) ?? new GDictionary()
-            ),
-            ["release_mode"] = template.release_mode,
-            ["stored_spells"] = storedSpells,
+            ["type"] = trigger.Type.ToString(),
         };
-    }
-
-    // Trigger payloads persist verbatim and downstream snapshot readers use the
-    // exact-String contract, so authored StringName values must be flattened here.
-    private static GDictionary NormalizeAuthoredStringValues(GDictionary source)
-    {
-        if (source == null)
-            return new GDictionary();
-        var keys = new List<Variant>();
-        foreach (Variant key in source.Keys)
-            keys.Add(key);
-        foreach (Variant key in keys)
+        switch (trigger.TriggerKind)
         {
-            Variant value = source[key];
-            if (value.VariantType == Variant.Type.StringName)
-                source[key] = value.AsStringName().ToString();
-            else if (value.VariantType == Variant.Type.Dictionary)
-                source[key] = NormalizeAuthoredStringValues(value.AsGodotDictionary());
+            case ContingencyTriggerKind.CombatStarted:
+            case ContingencyTriggerKind.FatalDamageIncoming:
+            case ContingencyTriggerKind.OwnerTurnStarted:
+                result["subject"] = trigger.Subject.ToString();
+                result["timing"] = trigger.Timing.ToString();
+                break;
+            case ContingencyTriggerKind.HpBelowPercent:
+                result["subject"] = trigger.Subject.ToString();
+                result["percent"] = trigger.Percent;
+                result["crossing_only"] = trigger.CrossingOnly;
+                result["timing"] = trigger.Timing.ToString();
+                break;
+            case ContingencyTriggerKind.IncomingDamagePercent:
+                result["subject"] = trigger.Subject.ToString();
+                result["damage_percent"] = trigger.DamagePercent;
+                result["damage_basis"] = trigger.DamageBasis.ToString();
+                result["damage_amount_mode"] = trigger.DamageAmountMode.ToString();
+                result["timing"] = trigger.Timing.ToString();
+                break;
+            case ContingencyTriggerKind.EnemyEnterRadius:
+                result["center"] = trigger.Center.ToString();
+                result["radius"] = trigger.Radius;
+                result["radius_metric"] = trigger.RadiusMetric.ToString();
+                result["source_team"] = trigger.SourceTeam.ToString();
+                result["timing"] = trigger.Timing.ToString();
+                break;
+            case ContingencyTriggerKind.StatusApplied:
+                result["subject"] = trigger.Subject.ToString();
+                result["status_tags"] = ToPlainStringList(trigger.StatusTags);
+                result["application_match"] = trigger.ApplicationMatch.ToString();
+                result["timing"] = trigger.Timing.ToString();
+                break;
+            case ContingencyTriggerKind.AffectedBySpell:
+                result["subject"] = trigger.Subject.ToString();
+                result["source_team"] = trigger.SourceTeam.ToString();
+                result["spell_match"] = trigger.SpellMatch.ToString();
+                result["timing"] = trigger.Timing.ToString();
+                break;
         }
-        return source;
+        return new ReadOnlyDictionary<string, object>(result);
     }
 
-    private static StringName ReadStringName(GDictionary source, string key)
+    private static IReadOnlyDictionary<string, object> BuildTargetResolverPlain(
+        ContingencyTargetResolverDefinition resolver
+    )
     {
-        if (source == null || !source.ContainsKey(key))
-            return "";
-        return ProgressionDataUtils.to_string_name(source[key]);
+        if (resolver == null)
+            return new ReadOnlyDictionary<string, object>(new Dictionary<string, object>());
+
+        var result = new Dictionary<string, object>(System.StringComparer.Ordinal)
+        {
+            ["type"] = resolver.Type.ToString(),
+        };
+        if (resolver.ResolverKind == ContingencyTargetResolverKind.EmptyCellNearOwner)
+        {
+            result["preference"] = resolver.Preference.ToString();
+            result["max_distance"] = resolver.MaxDistance;
+        }
+        return new ReadOnlyDictionary<string, object>(result);
     }
 
-    private static int ReadInt(GDictionary source, string key, int fallback)
+    private static IReadOnlyList<object> ToPlainStringList(IReadOnlyList<StringName> values)
     {
-        if (source == null || !source.ContainsKey(key))
-            return fallback;
-        Variant value = source[key];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
-    }
-
-    private static GDictionary ReadDictionary(GDictionary source, string key)
-    {
-        if (source == null || !source.ContainsKey(key))
-            return new GDictionary();
-        Variant value = source[key];
-        return value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary().Duplicate(true)
-            : new GDictionary();
+        if (values == null || values.Count == 0)
+            return System.Array.Empty<object>();
+        var result = new List<object>(values.Count);
+        foreach (StringName value in values)
+            result.Add(value.ToString());
+        return new ReadOnlyCollection<object>(result);
     }
 }

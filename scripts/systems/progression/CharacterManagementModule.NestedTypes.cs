@@ -163,69 +163,6 @@ public sealed partial class CharacterManagementModule
             new(false, errorCode, objectiveId, itemId, targetValue, requiredQuantity);
     }
 
-    private sealed class QuestObjectiveDefData
-    {
-        public readonly bool Exists;
-        public readonly StringName ObjectiveId;
-        public readonly StringName ObjectiveType;
-        public readonly StringName TargetId;
-        public readonly int TargetValue;
-
-        private QuestObjectiveDefData(
-            bool exists,
-            StringName objectiveId,
-            StringName objectiveType,
-            StringName targetId,
-            int targetValue
-        )
-        {
-            Exists = exists;
-            ObjectiveId = objectiveId;
-            ObjectiveType = objectiveType;
-            TargetId = targetId;
-            TargetValue = Mathf.Max(targetValue, 0);
-        }
-
-        public static QuestObjectiveDefData FromVariant(Variant value)
-        {
-            if (value.VariantType != Variant.Type.Dictionary)
-                return Empty();
-            return FromDictionary(value.AsGodotDictionary());
-        }
-
-        public static QuestObjectiveDefData FromDictionary(GDictionary data)
-        {
-            if (data == null || data.Count == 0)
-                return Empty();
-            return new QuestObjectiveDefData(
-                true,
-                CharacterQuestDataReader.ReadStringName(data, "objective_id"),
-                CharacterQuestDataReader.ReadStringName(data, "objective_type"),
-                CharacterQuestDataReader.ReadStringName(data, "target_id"),
-                CharacterQuestDataReader.TryReadInt(data, "target_value", out var targetValue)
-                    ? targetValue
-                    : 0
-            );
-        }
-
-        public static QuestObjectiveDefData FromQuestObjectiveEntry(
-            QuestDef.ObjectiveEntryData entry
-        )
-        {
-            if (entry == null)
-                return Empty();
-            return new QuestObjectiveDefData(
-                true,
-                entry.ObjectiveId,
-                entry.ObjectiveType,
-                entry.TargetId,
-                entry.HasStrictTargetValue ? entry.TargetValue : 0
-            );
-        }
-
-        private static QuestObjectiveDefData Empty() => new(false, "", "", "", 0);
-    }
-
     private sealed class QuestRewardData
     {
         public readonly bool Found;
@@ -249,32 +186,21 @@ public sealed partial class CharacterManagementModule
         public static QuestRewardData Missing() =>
             new(false, "quest_def_missing", "", new List<QuestRewardEntryData>());
 
-        public static QuestRewardData FromDictionary(GDictionary questData)
+        public static QuestRewardData FromQuestDefinition(
+            QuestDefinition questDefinition
+        )
         {
-            string displayName = CharacterQuestDataReader.ReadTrimmedString(
-                questData,
-                "display_name"
-            );
-            string errorCode = displayName.Length == 0 ? "invalid_quest_display_name" : "";
-            return new QuestRewardData(
-                true,
-                errorCode,
-                displayName,
-                QuestRewardEntryData.FromArray(
-                    CharacterQuestDataReader.ReadArray(questData, "reward_entries")
-                )
-            );
-        }
-
-        public static QuestRewardData FromQuestDef(QuestDef questDef)
-        {
-            if (questDef == null)
+            if (questDefinition == null)
                 return Missing();
-            string displayName = (questDef.display_name ?? "").StripEdges();
+            string displayName = questDefinition.DisplayName.StripEdges();
             string errorCode = displayName.Length == 0 ? "invalid_quest_display_name" : "";
             var rewardEntries = new List<QuestRewardEntryData>();
-            foreach (QuestDef.RewardEntryData rewardEntry in questDef.GetRewardEntriesTyped())
-                rewardEntries.Add(QuestRewardEntryData.FromQuestRewardEntry(rewardEntry));
+            foreach (QuestRewardDefinition rewardDefinition in questDefinition.Rewards)
+            {
+                rewardEntries.Add(
+                    QuestRewardEntryData.FromQuestRewardDefinition(rewardDefinition)
+                );
+            }
             return new QuestRewardData(true, errorCode, displayName, rewardEntries);
         }
     }
@@ -283,6 +209,7 @@ public sealed partial class CharacterManagementModule
     {
         public readonly bool Exists;
         public readonly StringName RewardType;
+        public readonly QuestRewardKind RewardKind;
         public readonly int Amount;
         public readonly StringName ItemId;
         public readonly int Quantity;
@@ -297,6 +224,7 @@ public sealed partial class CharacterManagementModule
         private QuestRewardEntryData(
             bool exists,
             StringName rewardType,
+            QuestRewardKind rewardKind,
             int amount,
             StringName itemId,
             int quantity,
@@ -311,6 +239,7 @@ public sealed partial class CharacterManagementModule
         {
             Exists = exists;
             RewardType = rewardType;
+            RewardKind = rewardKind;
             Amount = Mathf.Max(amount, 0);
             ItemId = itemId;
             Quantity = Mathf.Max(quantity, 0);
@@ -326,113 +255,69 @@ public sealed partial class CharacterManagementModule
         internal List<PendingCharacterRewardEntry> CloneEntries() =>
             DuplicatePendingCharacterRewardEntries(_entries);
 
-        public static IReadOnlyList<QuestRewardEntryData> FromArray(GArray rewardEntries)
+        public static QuestRewardEntryData FromQuestRewardDefinition(
+            QuestRewardDefinition definition
+        )
         {
-            var result = new List<QuestRewardEntryData>();
-            if (rewardEntries == null)
-                return result;
-            foreach (Variant rewardEntry in rewardEntries)
-                result.Add(FromVariant(rewardEntry));
-            return result;
-        }
-
-        public static QuestRewardEntryData FromVariant(Variant value)
-        {
-            if (value.VariantType != Variant.Type.Dictionary)
-                return Missing();
-            return FromDictionary(value.AsGodotDictionary());
-        }
-
-        public static QuestRewardEntryData FromDictionary(GDictionary data)
-        {
-            if (data == null || data.Count == 0)
-                return Missing();
-            CharacterQuestDataReader.TryReadInt(data, "amount", out var amount);
-            CharacterQuestDataReader.TryReadInt(data, "quantity", out var quantity);
-            return new QuestRewardEntryData(
-                true,
-                CharacterQuestDataReader.ReadStringName(data, "reward_type"),
-                amount,
-                CharacterQuestDataReader.ReadStringName(data, "item_id"),
-                quantity,
-                CharacterQuestDataReader.ReadStringName(data, "member_id"),
-                CharacterQuestDataReader.ReadStringName(data, "source_type"),
-                CharacterQuestDataReader.ReadStringName(data, "source_id"),
-                CharacterQuestDataReader.ReadTrimmedString(data, "source_label"),
-                CharacterQuestDataReader.ReadTrimmedString(data, "summary_text"),
-                CharacterQuestDataReader.ReadStringName(data, "reward_id"),
-                ProjectPendingRewardEntryDictionaries(
-                    CharacterQuestDataReader.ReadArray(data, "entries")
-                )
-            );
-        }
-
-        public static QuestRewardEntryData FromQuestRewardEntry(QuestDef.RewardEntryData entry)
-        {
-            if (entry == null)
+            if (definition == null)
                 return Missing();
             return new QuestRewardEntryData(
                 true,
-                entry.RewardType,
-                entry.HasStrictGoldAmount ? entry.GoldAmount : 0,
-                entry.ItemId,
-                entry.HasStrictItemQuantity ? entry.ItemQuantity : 0,
-                entry.PendingRewardMemberId,
+                definition.RewardType,
+                definition.RewardKind,
+                definition.GoldAmount,
+                definition.ItemId,
+                definition.ItemQuantity,
+                definition.PendingRewardMemberId,
                 "",
                 "",
                 "",
                 "",
                 "",
-                ProjectPendingRewardEntries(entry.PendingRewardEntries)
+                ProjectPendingRewardEntries(definition.PendingRewardEntries)
             );
         }
 
         private static QuestRewardEntryData Missing() =>
-            new(false, "", 0, "", 0, "", "", "", "", "", "", new List<PendingCharacterRewardEntry>());
+            new(
+                false,
+                "",
+                QuestRewardKind.Unknown,
+                0,
+                "",
+                0,
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                new List<PendingCharacterRewardEntry>()
+            );
 
         private static List<PendingCharacterRewardEntry> ProjectPendingRewardEntries(
-            IReadOnlyList<QuestDef.PendingRewardEntryData> entries
+            IReadOnlyList<QuestPendingRewardEntryDefinition> entries
         )
         {
             var result = new List<PendingCharacterRewardEntry>();
             if (entries == null)
                 return result;
-            foreach (QuestDef.PendingRewardEntryData entry in entries)
+            foreach (QuestPendingRewardEntryDefinition entry in entries)
             {
-                if (entry == null || !entry.IsDictionaryEntry)
+                if (entry == null)
                     continue;
                 result.Add(
                     new PendingCharacterRewardEntry
                     {
                         entry_type = entry.EntryType,
                         target_id = entry.TargetId,
-                        amount = entry.HasStrictAmount ? entry.Amount : 0,
+                        amount = entry.Amount,
                     }
                 );
             }
             return result;
         }
 
-        private static List<PendingCharacterRewardEntry> ProjectPendingRewardEntryDictionaries(
-            GArray entries
-        )
-        {
-            var result = new List<PendingCharacterRewardEntry>();
-            if (entries == null)
-                return result;
-            foreach (Variant entryValue in entries)
-            {
-                if (!entryValue.TryAsDictionary(out GDictionary entryData))
-                    continue;
-                PendingCharacterRewardEntryData entry = PendingCharacterRewardEntryData.FromDictionary(
-                    entryData
-                );
-                PendingCharacterRewardEntry rewardEntry = entry.ToRewardEntry();
-                if (rewardEntry != null)
-                    result.Add(rewardEntry);
-            }
-            return result;
-        }
     }
 
     private sealed class QuestRewardPreviewData
@@ -852,7 +737,7 @@ public sealed partial class CharacterManagementModule
 
     private PendingCharacterReward _build_achievement_pending_reward(
         PartyMemberState member_state,
-        AchievementDef achievement_def,
+        AchievementDefinition achievement_def,
         GDictionary meta
     )
     {
@@ -860,43 +745,56 @@ public sealed partial class CharacterManagementModule
             return null;
         var reward = new PendingCharacterReward
         {
-            reward_id = _build_reward_id(member_state.member_id, achievement_def.achievement_id),
+            reward_id = _build_reward_id(
+                member_state.member_id,
+                achievement_def.AchievementId
+            ),
             member_id = member_state.member_id,
             member_name = !string.IsNullOrEmpty(member_state.display_name)
                 ? member_state.display_name
                 : (string)member_state.member_id,
             source_type = RewardTypeAchievement,
-            source_id = achievement_def.achievement_id,
-            source_label = !string.IsNullOrEmpty(achievement_def.display_name)
-                ? achievement_def.display_name
-                : (string)achievement_def.achievement_id,
+            source_id = achievement_def.AchievementId,
+            source_label = !string.IsNullOrEmpty(achievement_def.DisplayName)
+                ? achievement_def.DisplayName
+                : (string)achievement_def.AchievementId,
             summary_text = CharacterQuestDataReader.TryReadString(
                 meta,
                 "summary_text",
                 out var summary_text
             )
                 ? summary_text
-                : achievement_def.description,
+                : achievement_def.Description,
             entries = _build_achievement_reward_entries(achievement_def),
         };
         return reward.IsEmpty() ? null : reward;
     }
 
     private List<PendingCharacterRewardEntry> _build_achievement_reward_entries(
-        AchievementDef achievement_def
+        AchievementDefinition achievement_def
     )
     {
         var entries = new List<PendingCharacterRewardEntry>();
         if (achievement_def == null)
             return entries;
-        foreach (AchievementRewardDef reward_def in achievement_def.rewards)
+        foreach (AchievementRewardDefinition reward_def in achievement_def.Rewards)
         {
-            if (reward_def == null || reward_def.IsEmpty())
+            if (
+                reward_def == null
+                || reward_def.RewardKind == PendingCharacterRewardEntryKind.Unknown
+                || reward_def.TargetId == ""
+                || (
+                    reward_def.RewardKind
+                        is PendingCharacterRewardEntryKind.AttributeDelta
+                            or PendingCharacterRewardEntryKind.SkillMastery
+                    && reward_def.Amount == 0
+                )
+            )
                 continue;
-            if (!PendingCharacterRewardContentRules.IsSupportedEntryType(reward_def.reward_type))
+            if (!PendingCharacterRewardContentRules.IsSupportedEntryType(reward_def.RewardType))
             {
                 GameLog.Error(
-                    $"Achievement {(string)achievement_def.achievement_id} has unsupported pending reward entry_type {(string)reward_def.reward_type}.",
+                    $"Achievement {(string)achievement_def.AchievementId} has unsupported pending reward entry_type {(string)reward_def.RewardType}.",
                     "progression.reward.unsupported_type",
                     "progression"
                 );
@@ -904,17 +802,17 @@ public sealed partial class CharacterManagementModule
             }
             var entry = new PendingCharacterRewardEntry
             {
-                entry_type = reward_def.reward_type,
-                target_id = reward_def.target_id,
+                entry_type = reward_def.RewardType,
+                target_id = reward_def.TargetId,
                 target_label = _resolve_reward_target_label(
-                    reward_def.reward_type,
-                    reward_def.target_id,
-                    reward_def.target_label
+                    reward_def.RewardType,
+                    reward_def.TargetId,
+                    reward_def.TargetLabel
                 ),
-                amount = reward_def.amount,
-                reason_text = !string.IsNullOrEmpty(reward_def.reason_text)
-                    ? reward_def.reason_text
-                    : achievement_def.display_name,
+                amount = reward_def.Amount,
+                reason_text = !string.IsNullOrEmpty(reward_def.ReasonText)
+                    ? reward_def.ReasonText
+                    : achievement_def.DisplayName,
             };
             if (!entry.IsEmpty())
                 entries.Add(entry);
@@ -922,16 +820,26 @@ public sealed partial class CharacterManagementModule
         return entries;
     }
 
-    private List<AchievementDef> _get_matching_achievement_defs(
+    private List<AchievementDefinition> _get_matching_achievement_defs(
         StringName event_type,
         StringName subject_id
     )
     {
-        var matches = new List<AchievementDef>();
+        var matches = new List<AchievementDefinition>();
         foreach (StringName achievement_id in SortedContentKeys(_achievement_def_index))
         {
             var achievement_def = GetAchievementDef(achievement_id);
-            if (achievement_def != null && achievement_def.MatchesEvent(event_type, subject_id))
+            if (
+                achievement_def != null
+                && achievement_def.AchievementId != ""
+                && achievement_def.EventType != ""
+                && achievement_def.Threshold > 0
+                && achievement_def.EventType == event_type
+                && (
+                    achievement_def.SubjectId == ""
+                    || achievement_def.SubjectId == subject_id
+                )
+            )
                 matches.Add(achievement_def);
         }
         return matches;

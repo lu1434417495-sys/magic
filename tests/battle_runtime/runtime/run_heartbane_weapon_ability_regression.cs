@@ -108,11 +108,11 @@ public partial class run_heartbane_weapon_ability_regression : LifecycleTestScen
         }
 
         // 机制文本落在 trait（心碎之刺）里，物品说明只保留风味文字。
-        if (fixture.TraitDefs.TryGetValue(HeartbreakStingTraitId, out TraitDef heartbreakStingTrait)
+        if (fixture.TraitDefs.TryGetValue(HeartbreakStingTraitId, out TraitDefinition heartbreakStingTrait)
             && heartbreakStingTrait != null)
         {
             _test.True(
-                heartbreakStingTrait.description.Contains("2D6 psychic"),
+                heartbreakStingTrait.Description.Contains("2D6 psychic"),
                 "心碎之刺 trait 文本应描述改造后的骰子附伤，而不是百分比伤害。"
             );
         }
@@ -698,7 +698,7 @@ public partial class run_heartbane_weapon_ability_regression : LifecycleTestScen
         internal BattleRuntimeModule Runtime { get; }
         internal IReadOnlyDictionary<StringName, ItemDef> ItemDefs { get; }
         internal IReadOnlyDictionary<StringName, SkillDefinition> SkillDefs { get; }
-        internal IReadOnlyDictionary<StringName, TraitDef> TraitDefs { get; }
+        internal IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs { get; }
         internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> Bindings { get; }
 
         internal static HeartbaneFixture Build(GArray damageRolls)

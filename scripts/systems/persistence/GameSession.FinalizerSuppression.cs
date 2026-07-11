@@ -197,9 +197,6 @@ public partial class GameSession
         var visited = new HashSet<GodotObject>();
         SuppressOwnedContentFinalizerGraphsForShutdown(visited);
         SuppressGodotObjectFinalizerGraph(_generation_config, visited);
-        SuppressResourceDictionaryProjectionFinalizers(_profession_defs, visited);
-        SuppressResourceDictionaryProjectionFinalizers(_achievement_defs, visited);
-        SuppressResourceDictionaryProjectionFinalizers(_quest_defs, visited);
         SuppressResourceDictionaryProjectionFinalizers(_item_defs, visited);
         SuppressResourceDictionaryProjectionFinalizers(_recipe_defs, visited);
         SuppressResourceDictionaryProjectionFinalizers(_enemy_templates, visited);
@@ -238,18 +235,12 @@ public partial class GameSession
     private void ClearSessionGodotObjectReferences()
     {
         _generation_config = null;
-        ClearResourceDictionaryProjection(_profession_defs);
-        ClearResourceDictionaryProjection(_achievement_defs);
-        ClearResourceDictionaryProjection(_quest_defs);
         ClearResourceDictionaryProjection(_item_defs);
         ClearResourceDictionaryProjection(_recipe_defs);
         ClearResourceDictionaryProjection(_enemy_templates);
         ClearResourceDictionaryProjection(_enemy_ai_brains);
         ClearResourceDictionaryProjection(_wild_encounter_rosters);
         _skillDefinitionIndex.Clear();
-        _profession_defs = new GDictionary();
-        _achievement_defs = new GDictionary();
-        _quest_defs = new GDictionary();
         _item_defs = new GDictionary();
         _recipe_defs = new GDictionary();
         _enemy_templates = new GDictionary();

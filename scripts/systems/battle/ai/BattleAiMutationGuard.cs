@@ -2030,7 +2030,7 @@ internal sealed class BattleAiMutationGuard
         private string _displayName = "";
         private StringName _sourceUnitId = "";
         private StringName _sourceSkillId = "";
-        private StringName _anchorMode = "fixed";
+        private BarrierAnchorMode _anchorMode = BarrierAnchorMode.Fixed;
         private Vector2I _anchorCoord = Vector2I.Zero;
         private int _radiusCells;
         private StringName _areaPattern = "diamond";
@@ -2052,7 +2052,7 @@ internal sealed class BattleAiMutationGuard
             snapshot._displayName = barrier.DisplayName ?? "";
             snapshot._sourceUnitId = barrier.SourceUnitId;
             snapshot._sourceSkillId = barrier.SourceSkillId;
-            snapshot._anchorMode = BarrierProfileDef.ToStringName(barrier.AnchorMode);
+            snapshot._anchorMode = barrier.AnchorMode;
             snapshot._anchorCoord = barrier.AnchorCoord;
             snapshot._radiusCells = barrier.RadiusCells;
             snapshot._areaPattern = barrier.AreaPattern;
@@ -2076,7 +2076,7 @@ internal sealed class BattleAiMutationGuard
                 DisplayName = _displayName,
                 SourceUnitId = _sourceUnitId,
                 SourceSkillId = _sourceSkillId,
-                AnchorMode = BarrierProfileDef.ToAnchorMode(_anchorMode),
+                AnchorMode = _anchorMode,
                 AnchorCoord = _anchorCoord,
                 RadiusCells = _radiusCells,
                 AreaPattern = _areaPattern,
@@ -2106,7 +2106,10 @@ internal sealed class BattleAiMutationGuard
             result.Set("display_name", StableValue.FromText(_displayName));
             result.Set("source_unit_id", StableValue.FromText(_sourceUnitId.ToString()));
             result.Set("source_skill_id", StableValue.FromText(_sourceSkillId.ToString()));
-            result.Set("anchor_mode", StableValue.FromText(_anchorMode.ToString()));
+            result.Set(
+                "anchor_mode",
+                StableValue.FromText(ToAnchorModeName(_anchorMode).ToString())
+            );
             result.Set("anchor_coord", StableValue.FromVector2I(_anchorCoord));
             result.Set("radius_cells", StableValue.FromInteger(_radiusCells));
             result.Set("area_pattern", StableValue.FromText(_areaPattern.ToString()));
@@ -2125,6 +2128,9 @@ internal sealed class BattleAiMutationGuard
             result.Set("layers", StableValue.FromArray(layers));
             return result;
         }
+
+        private static StringName ToAnchorModeName(BarrierAnchorMode anchorMode) =>
+            anchorMode == BarrierAnchorMode.Fixed ? "fixed" : "";
     }
 
     private sealed class BarrierLayerSnapshot

@@ -1,11 +1,13 @@
+using System.Collections.Generic;
+using System.IO;
 using Godot;
 
 public class AscensionContentRegistry : IdentityContentRegistryBase
 {
     private const string AscensionConfigDirectoryPath = "res://data/configs/ascensions";
 
-    private System.Collections.Generic.Dictionary<StringName, AscensionDef> _ascension_defs = new();
-    private System.Collections.Generic.Dictionary<StringName, AscensionStageDef> _ascension_stage_defs = new();
+    private readonly Dictionary<StringName, AscensionDefinition> _ascension_defs = new();
+    private readonly Dictionary<StringName, AscensionStageDefinition> _ascension_stage_defs = new();
 
     public AscensionContentRegistry()
     {
@@ -31,17 +33,11 @@ public class AscensionContentRegistry : IdentityContentRegistryBase
             _validation_errors.Add(e);
     }
 
-    public System.Collections.Generic.IReadOnlyDictionary<StringName, AscensionDef> GetAscensionDefsTyped()
-    {
-        return new System.Collections.Generic.Dictionary<StringName, AscensionDef>(_ascension_defs);
-    }
+    public IReadOnlyDictionary<StringName, AscensionDefinition> GetAscensionDefsTyped() =>
+        _snapshot_definitions(_ascension_defs);
 
-    public System.Collections.Generic.IReadOnlyDictionary<StringName, AscensionStageDef> GetAscensionStageDefsTyped()
-    {
-        return new System.Collections.Generic.Dictionary<StringName, AscensionStageDef>(
-            _ascension_stage_defs
-        );
-    }
+    public IReadOnlyDictionary<StringName, AscensionStageDefinition> GetAscensionStageDefsTyped() =>
+        _snapshot_definitions(_ascension_stage_defs);
 
     protected override void ClearRegistryData()
     {
@@ -94,7 +90,20 @@ public class AscensionContentRegistry : IdentityContentRegistryBase
             );
             return;
         }
-        _ascension_defs[ascensionDef.ascension_id] = ascensionDef;
+        try
+        {
+            AscensionDefinition definition = AscensionDefinition.FromResource(
+                ascensionDef,
+                $"ascension.{ascensionDef.ascension_id}"
+            );
+            _ascension_defs.Add(definition.AscensionId, definition);
+        }
+        catch (InvalidDataException exception)
+        {
+            _validation_errors.Add(
+                $"Ascension config {resourcePath} projection failed: {exception.Message}"
+            );
+        }
     }
 
     private void _register_ascension_stage(string resourcePath, AscensionStageDef stageDef)
@@ -116,12 +125,25 @@ public class AscensionContentRegistry : IdentityContentRegistryBase
             _validation_errors.Add($"Duplicate ascension stage_id registered: {stageDef.stage_id}");
             return;
         }
-        _ascension_stage_defs[stageDef.stage_id] = stageDef;
+        try
+        {
+            AscensionStageDefinition definition = AscensionStageDefinition.FromResource(
+                stageDef,
+                $"ascension_stage.{stageDef.stage_id}"
+            );
+            _ascension_stage_defs.Add(definition.StageId, definition);
+        }
+        catch (InvalidDataException exception)
+        {
+            _validation_errors.Add(
+                $"Ascension stage config {resourcePath} projection failed: {exception.Message}"
+            );
+        }
     }
 
-    private Godot.Collections.Array<string> _collect_validation_errors()
+    private List<string> _collect_validation_errors()
     {
-        var errors = new Godot.Collections.Array<string>();
+        var errors = new List<string>();
         foreach (var ascensionKey in _sorted_registry_keys(_ascension_defs.Keys))
         {
             var ascensionId = new StringName(ascensionKey);
@@ -136,9 +158,9 @@ public class AscensionContentRegistry : IdentityContentRegistryBase
     }
 
     private void _append_ascension_validation_errors(
-        Godot.Collections.Array<string> errors,
+        ICollection<string> errors,
         StringName ascensionId,
-        AscensionDef ascensionDef
+        AscensionDefinition ascensionDef
     )
     {
         var ownerLabel = $"Ascension {ascensionId}";
@@ -146,107 +168,98 @@ public class AscensionContentRegistry : IdentityContentRegistryBase
             errors,
             ownerLabel,
             "ascension_id",
-            ascensionDef.ascension_id
+            ascensionDef.AscensionId
         );
-        _append_string_field_error(errors, ownerLabel, "display_name", ascensionDef.display_name);
-        _append_string_field_error(errors, ownerLabel, "description", ascensionDef.description);
+        _append_string_field_error(errors, ownerLabel, "display_name", ascensionDef.DisplayName);
+        _append_string_field_error(errors, ownerLabel, "description", ascensionDef.Description);
         _append_string_name_array_errors(
             errors,
             ownerLabel,
-            V(ascensionDef.stage_ids),
+            ascensionDef.StageIds,
             "stage_ids"
         );
         _append_string_name_array_errors(
             errors,
             ownerLabel,
-            V(ascensionDef.trait_ids),
+            ascensionDef.TraitIds,
             "trait_ids"
         );
         _append_racial_granted_skill_array_errors(
             errors,
             ownerLabel,
-            V(ascensionDef.racial_granted_skills),
+            ascensionDef.RacialGrantedSkills,
             "racial_granted_skills"
         );
         _append_string_name_array_errors(
             errors,
             ownerLabel,
-            V(ascensionDef.allowed_race_ids),
+            ascensionDef.AllowedRaceIds,
             "allowed_race_ids"
         );
         _append_string_name_array_errors(
             errors,
             ownerLabel,
-            V(ascensionDef.allowed_subrace_ids),
+            ascensionDef.AllowedSubraceIds,
             "allowed_subrace_ids"
         );
         _append_string_name_array_errors(
             errors,
             ownerLabel,
-            V(ascensionDef.allowed_bloodline_ids),
+            ascensionDef.AllowedBloodlineIds,
             "allowed_bloodline_ids"
         );
         _append_string_array_errors(
             errors,
             ownerLabel,
-            V(ascensionDef.trait_summary),
+            ascensionDef.TraitSummary,
             "trait_summary"
         );
         _append_bool_field_error(
             errors,
             ownerLabel,
             "replaces_age_growth",
-            ascensionDef.replaces_age_growth
+            ascensionDef.ReplacesAgeGrowth
         );
         _append_bool_field_error(
             errors,
             ownerLabel,
             "suppresses_original_race_traits",
-            ascensionDef.suppresses_original_race_traits
+            ascensionDef.SuppressesOriginalRaceTraits
         );
     }
 
     private void _append_ascension_stage_validation_errors(
-        Godot.Collections.Array<string> errors,
+        ICollection<string> errors,
         StringName stageId,
-        AscensionStageDef stageDef
+        AscensionStageDefinition stageDef
     )
     {
         var ownerLabel = $"AscensionStage {stageId}";
-        _append_string_name_field_error(errors, ownerLabel, "stage_id", stageDef.stage_id);
-        _append_string_name_field_error(errors, ownerLabel, "ascension_id", stageDef.ascension_id);
-        _append_string_field_error(errors, ownerLabel, "display_name", stageDef.display_name);
-        _append_string_field_error(errors, ownerLabel, "description", stageDef.description);
+        _append_string_name_field_error(errors, ownerLabel, "stage_id", stageDef.StageId);
+        _append_string_name_field_error(errors, ownerLabel, "ascension_id", stageDef.AscensionId);
+        _append_string_field_error(errors, ownerLabel, "display_name", stageDef.DisplayName);
+        _append_string_field_error(errors, ownerLabel, "description", stageDef.Description);
         _append_attribute_modifier_array_errors(
             errors,
             ownerLabel,
-            V(stageDef.attribute_modifiers),
+            stageDef.AttributeModifiers,
             "attribute_modifiers"
         );
-        _append_string_name_array_errors(errors, ownerLabel, V(stageDef.trait_ids), "trait_ids");
+        _append_string_name_array_errors(errors, ownerLabel, stageDef.TraitIds, "trait_ids");
         _append_racial_granted_skill_array_errors(
             errors,
             ownerLabel,
-            V(stageDef.racial_granted_skills),
+            stageDef.RacialGrantedSkills,
             "racial_granted_skills"
         );
         _append_string_name_field_error(
             errors,
             ownerLabel,
             "body_size_category_override",
-            stageDef.body_size_category_override,
+            stageDef.BodySizeCategoryOverride,
             true
         );
-        _append_string_array_errors(errors, ownerLabel, V(stageDef.trait_summary), "trait_summary");
+        _append_string_array_errors(errors, ownerLabel, stageDef.TraitSummary, "trait_summary");
     }
 
-    private static Godot.Collections.Array V<[MustBeVariant] T>(Godot.Collections.Array<T> values)
-    {
-        var result = new Godot.Collections.Array();
-        if (values == null)
-            return result;
-        foreach (T value in values)
-            result.Add(Variant.From(value));
-        return result;
-    }
 }

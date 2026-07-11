@@ -62,8 +62,9 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
             runtime.SyncContentCatalogsTyped(
                 new Dictionary<StringName, ItemDef>(),
                 new Dictionary<StringName, SkillDefinition>(),
-                new Dictionary<StringName, TraitDef>(),
-                new Dictionary<StringName, EquipmentAbilityBindingDefinition>()
+                new Dictionary<StringName, TraitDefinition>(),
+                new Dictionary<StringName, EquipmentAbilityBindingDefinition>(),
+                new Dictionary<StringName, BarrierProfileDefinition>()
             );
 
             _test.True(!runtime.HasAiRuntimeBorrowers, "content sync clears decision/helper borrowers");
@@ -232,7 +233,10 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         );
         SkillDefinition skillDefinition = SkillDefinition.FromResource(skillResource);
         ItemDef itemDef = RequireResource<ItemDef>("res://data/configs/items/whetstone.tres");
-        TraitDef traitDef = RequireResource<TraitDef>("res://data/configs/traits/brave.tres");
+        TraitDef traitResource = RequireResource<TraitDef>(
+            "res://data/configs/traits/brave.tres"
+        );
+        TraitDefinition traitDefinition = TraitDefinition.FromResource(traitResource);
         EnemyTemplateDef enemyTemplate = RequireResource<EnemyTemplateDef>(
             "res://data/configs/enemies/templates/zombie_shambler.tres"
         );
@@ -242,7 +246,7 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         var equipmentBinding = new EquipmentAbilityBindingDefinition
         {
             BindingId = "borrower_teardown_binding",
-            TraitId = traitDef.trait_id,
+            TraitId = traitDefinition.TraitId,
         };
 
         return new ContentFixture(
@@ -251,7 +255,10 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
                 [skillDefinition.SkillId] = skillDefinition,
             },
             new Dictionary<StringName, ItemDef> { [itemDef.item_id] = itemDef },
-            new Dictionary<StringName, TraitDef> { [traitDef.trait_id] = traitDef },
+            new Dictionary<StringName, TraitDefinition>
+            {
+                [traitDefinition.TraitId] = traitDefinition,
+            },
             new Dictionary<StringName, EquipmentAbilityBindingDefinition>
             {
                 [equipmentBinding.BindingId] = equipmentBinding,
@@ -316,7 +323,7 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
     private sealed record ContentFixture(
         IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions,
         IReadOnlyDictionary<StringName, ItemDef> ItemDefs,
-        IReadOnlyDictionary<StringName, TraitDef> TraitDefs,
+        IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> EquipmentBindings,
         IReadOnlyDictionary<StringName, EnemyTemplateDef> EnemyTemplates,
         IReadOnlyDictionary<StringName, EnemyAiBrainDef> EnemyBrains

@@ -48,10 +48,10 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     public int basic_mastery;
 
     private Dictionary<StringName, SkillDefinition> _skill_definition_index = new();
-    private Dictionary<StringName, ProfessionDef> _profession_def_index = new();
-    private Dictionary<StringName, AchievementDef> _achievement_def_index = new();
+    private Dictionary<StringName, ProfessionDefinition> _profession_def_index = new();
+    private Dictionary<StringName, AchievementDefinition> _achievement_def_index = new();
     private Dictionary<StringName, ItemDef> _item_def_index = new();
-    private Dictionary<StringName, TraitDef> _trait_def_index = new();
+    private Dictionary<StringName, TraitDefinition> _trait_def_index = new();
     private ProgressionIdentityCatalogData _progression_identity_catalog = new();
     private readonly Dictionary<StringName, StringName> _ai_brain_by_member_id = new();
     private readonly Dictionary<StringName, StringName> _ai_state_by_member_id = new();
@@ -137,10 +137,10 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
 
     private void _apply_content_catalogs(
         IReadOnlyDictionary<StringName, SkillDefinition> typed_skill_definitions,
-        IReadOnlyDictionary<StringName, ProfessionDef> typed_profession_defs,
-        IReadOnlyDictionary<StringName, AchievementDef> typed_achievement_defs,
+        IReadOnlyDictionary<StringName, ProfessionDefinition> typed_profession_defs,
+        IReadOnlyDictionary<StringName, AchievementDefinition> typed_achievement_defs,
         IReadOnlyDictionary<StringName, ItemDef> typed_item_defs,
-        IReadOnlyDictionary<StringName, TraitDef> typed_trait_defs,
+        IReadOnlyDictionary<StringName, TraitDefinition> typed_trait_defs,
         ProgressionIdentityCatalogData progression_identity_catalog
     )
     {
@@ -148,17 +148,17 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
             ? new Dictionary<StringName, SkillDefinition>(typed_skill_definitions)
             : new Dictionary<StringName, SkillDefinition>();
         _profession_def_index = typed_profession_defs != null
-            ? new Dictionary<StringName, ProfessionDef>(typed_profession_defs)
-            : new Dictionary<StringName, ProfessionDef>();
+            ? new Dictionary<StringName, ProfessionDefinition>(typed_profession_defs)
+            : new Dictionary<StringName, ProfessionDefinition>();
         _achievement_def_index = typed_achievement_defs != null
-            ? new Dictionary<StringName, AchievementDef>(typed_achievement_defs)
-            : new Dictionary<StringName, AchievementDef>();
+            ? new Dictionary<StringName, AchievementDefinition>(typed_achievement_defs)
+            : new Dictionary<StringName, AchievementDefinition>();
         _item_def_index = typed_item_defs != null
             ? new Dictionary<StringName, ItemDef>(typed_item_defs)
             : new Dictionary<StringName, ItemDef>();
         _trait_def_index = typed_trait_defs != null
-            ? new Dictionary<StringName, TraitDef>(typed_trait_defs)
-            : new Dictionary<StringName, TraitDef>();
+            ? new Dictionary<StringName, TraitDefinition>(typed_trait_defs)
+            : new Dictionary<StringName, TraitDefinition>();
         _progression_identity_catalog =
             progression_identity_catalog ?? new ProgressionIdentityCatalogData();
         _setup_character_management();
@@ -1122,16 +1122,16 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
             var granted_skills = profession_def.GetGrantedSkillsForRank(target_rank);
             if (granted_skills == null)
                 continue;
-            foreach (ProfessionGrantedSkill granted_skill in granted_skills)
+            foreach (ProfessionGrantedSkillDefinition granted_skill in granted_skills)
             {
-                if (granted_skill == null || (string)granted_skill.skill_id == "")
+                if (granted_skill == null || (string)granted_skill.SkillId == "")
                     continue;
-                profession_progress.AddGrantedSkill(granted_skill.skill_id);
-                var sp = unit_progress.GetSkillProgress(granted_skill.skill_id);
+                profession_progress.AddGrantedSkill(granted_skill.SkillId);
+                var sp = unit_progress.GetSkillProgress(granted_skill.SkillId);
                 if (sp == null)
                 {
                     sp = new UnitSkillProgress();
-                    sp.skill_id = granted_skill.skill_id;
+                    sp.skill_id = granted_skill.SkillId;
                 }
                 sp.is_learned = true;
                 if ((string)sp.profession_granted_by == "")
@@ -1158,7 +1158,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         if (profession_def == null)
             return 0;
         int constitution = attributes.GetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution));
-        int hit_die_sides = Mathf.Max(profession_def.hit_die_sides, 1);
+        int hit_die_sides = Mathf.Max(profession_def.HitDieSides, 1);
         int total = 0;
         for (int ri = 0; ri < Mathf.Max(rank, 0); ri++)
         {
@@ -1249,7 +1249,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
             _profession_def_index,
             _achievement_def_index,
             _item_def_index,
-            new Dictionary<StringName, QuestDef>(),
+            new Dictionary<StringName, QuestDefinition>(),
             _trait_def_index,
             null,
             _progression_identity_catalog
@@ -1419,8 +1419,8 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
             ? skillDefinition
             : null;
 
-    private ProfessionDef _get_profession_def(StringName profession_id) =>
-        _profession_def_index.TryGetValue(profession_id, out ProfessionDef professionDef)
+    private ProfessionDefinition _get_profession_def(StringName profession_id) =>
+        _profession_def_index.TryGetValue(profession_id, out ProfessionDefinition professionDef)
             ? professionDef
             : null;
 

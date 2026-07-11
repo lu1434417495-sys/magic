@@ -148,10 +148,10 @@ public partial class run_game_runtime_reward_flow_regression : LifecycleTestScen
         runtime._character_management.setup(
             partyState,
             BuildSkillDefinitions(),
-            new Dictionary<StringName, ProfessionDef>(),
-            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
             new Dictionary<StringName, ItemDef>(),
-            new Dictionary<StringName, QuestDef>()
+            new Dictionary<StringName, QuestDefinition>()
         );
         runtime._settlement_command_handler.SetupRuntime(runtime);
         runtime._warehouse_handler.Setup(runtime);

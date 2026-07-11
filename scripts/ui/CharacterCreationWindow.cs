@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
@@ -960,7 +959,7 @@ public partial class CharacterCreationWindow : Control
 
     private void _refresh_age_stage_selection()
     {
-        AgeProfileDef ageProfile = _get_selected_age_profile();
+        AgeProfileDefinition ageProfile = _get_selected_age_profile();
         _ageStageIds = _collect_creation_age_stage_ids(ageProfile);
         if (_ageStageIds.Contains(_selected_age_stage_id))
         {
@@ -979,23 +978,25 @@ public partial class CharacterCreationWindow : Control
         _selected_age_years = _resolve_default_age_for_stage(ageProfile, _selected_age_stage_id);
     }
 
-    private GStringNameArray _collect_creation_age_stage_ids(AgeProfileDef ageProfile)
+    private GStringNameArray _collect_creation_age_stage_ids(
+        AgeProfileDefinition ageProfile
+    )
     {
         var ids = new GStringNameArray();
         if (ageProfile == null)
             return ids;
-        foreach (StringName stageId in ageProfile.creation_stage_ids)
+        foreach (StringName stageId in ageProfile.CreationStageIds)
         {
-            AgeStageRule stageRule = _get_age_stage_rule(ageProfile, stageId);
-            if (stageRule != null && stageRule.selectable_in_creation && !ids.Contains(stageId))
+            AgeStageRuleDefinition stageRule = _get_age_stage_rule(ageProfile, stageId);
+            if (stageRule != null && stageRule.SelectableInCreation && !ids.Contains(stageId))
                 ids.Add(stageId);
         }
         if (ids.Count == 0)
         {
-            foreach (AgeStageRule rule in ageProfile.stage_rules)
+            foreach (AgeStageRuleDefinition rule in ageProfile.StageRules)
             {
-                if (rule != null && rule.selectable_in_creation && !ids.Contains(rule.stage_id))
-                    ids.Add(rule.stage_id);
+                if (rule != null && rule.SelectableInCreation && !ids.Contains(rule.StageId))
+                    ids.Add(rule.StageId);
             }
         }
         return ids;
@@ -1020,7 +1021,7 @@ public partial class CharacterCreationWindow : Control
         _raceOptionIds.Clear();
         foreach (StringName raceId in _raceIds)
         {
-            RaceDef raceDef = _get_race_def(raceId);
+            RaceDefinition raceDef = _get_race_def(raceId);
             race_variant_button.AddItem(_identity_label(raceDef, raceId));
             _raceOptionIds.Add(raceId);
         }
@@ -1036,7 +1037,7 @@ public partial class CharacterCreationWindow : Control
         _subraceOptionIds.Clear();
         foreach (StringName subraceId in _subraceIds)
         {
-            SubraceDef subraceDef = _get_subrace_def(subraceId);
+            SubraceDefinition subraceDef = _get_subrace_def(subraceId);
             subrace_variant_button.AddItem(_identity_label(subraceDef, subraceId));
             _subraceOptionIds.Add(subraceId);
         }
@@ -1050,10 +1051,10 @@ public partial class CharacterCreationWindow : Control
             return;
         age_stage_variant_button.Clear();
         _ageStageOptionIds.Clear();
-        AgeProfileDef ageProfile = _get_selected_age_profile();
+        AgeProfileDefinition ageProfile = _get_selected_age_profile();
         foreach (StringName stageId in _ageStageIds)
         {
-            AgeStageRule stageRule = _get_age_stage_rule(ageProfile, stageId);
+            AgeStageRuleDefinition stageRule = _get_age_stage_rule(ageProfile, stageId);
             age_stage_variant_button.AddItem(_identity_label(stageRule, stageId));
             _ageStageOptionIds.Add(stageId);
         }
@@ -1240,10 +1241,13 @@ public partial class CharacterCreationWindow : Control
             return new GDictionary();
         }
 
-        RaceDef raceDef = _get_selected_race_def();
-        SubraceDef subraceDef = _get_selected_subrace_def();
-        AgeProfileDef ageProfile = _get_selected_age_profile();
-        AgeStageRule ageStageRule = _get_age_stage_rule(ageProfile, _selected_age_stage_id);
+        RaceDefinition raceDef = _get_selected_race_def();
+        SubraceDefinition subraceDef = _get_selected_subrace_def();
+        AgeProfileDefinition ageProfile = _get_selected_age_profile();
+        AgeStageRuleDefinition ageStageRule = _get_age_stage_rule(
+            ageProfile,
+            _selected_age_stage_id
+        );
         if (raceDef == null || subraceDef == null || ageProfile == null || ageStageRule == null)
             return new GDictionary();
 
@@ -1257,20 +1261,20 @@ public partial class CharacterCreationWindow : Control
 
         int ageYears = _selected_age_years;
         if (ageYears <= 0)
-            ageYears = _resolve_default_age_for_stage(ageProfile, ageStageRule.stage_id);
+            ageYears = _resolve_default_age_for_stage(ageProfile, ageStageRule.StageId);
         StringName versatilityPick = _selected_identity_has_human_versatility()
             ? _selected_versatility_pick
             : new StringName("");
 
         return new GDictionary
         {
-            ["race_id"] = raceDef.race_id,
-            ["subrace_id"] = subraceDef.subrace_id,
+            ["race_id"] = raceDef.RaceId,
+            ["subrace_id"] = subraceDef.SubraceId,
             ["age_years"] = ageYears,
             ["birth_at_world_step"] = 0,
-            ["age_profile_id"] = ageProfile.profile_id,
-            ["natural_age_stage_id"] = ageStageRule.stage_id,
-            ["effective_age_stage_id"] = ageStageRule.stage_id,
+            ["age_profile_id"] = ageProfile.ProfileId,
+            ["natural_age_stage_id"] = ageStageRule.StageId,
+            ["effective_age_stage_id"] = ageStageRule.StageId,
             ["effective_age_stage_source_type"] = new StringName(""),
             ["effective_age_stage_source_id"] = new StringName(""),
             ["body_size"] = bodySize,
@@ -1292,8 +1296,8 @@ public partial class CharacterCreationWindow : Control
     {
         if (identity_payload == null || identity_payload.Count == 0)
             return "身份内容无效，无法继续建卡。";
-        RaceDef raceDef = _get_selected_race_def();
-        SubraceDef subraceDef = _get_selected_subrace_def();
+        RaceDefinition raceDef = _get_selected_race_def();
+        SubraceDefinition subraceDef = _get_selected_subrace_def();
         var lines = new List<string>
         {
             $"种族：{_identity_label(raceDef, _selected_race_id)}",
@@ -1310,8 +1314,11 @@ public partial class CharacterCreationWindow : Control
     {
         if (identity_payload == null || identity_payload.Count == 0)
             return "年龄内容无效，无法继续建卡。";
-        AgeProfileDef ageProfile = _get_selected_age_profile();
-        AgeStageRule ageStageRule = _get_age_stage_rule(ageProfile, _selected_age_stage_id);
+        AgeProfileDefinition ageProfile = _get_selected_age_profile();
+        AgeStageRuleDefinition ageStageRule = _get_age_stage_rule(
+            ageProfile,
+            _selected_age_stage_id
+        );
         var lines = new List<string>
         {
             $"年龄：{DictInt(identity_payload, "age_years", 0)}",
@@ -1328,10 +1335,13 @@ public partial class CharacterCreationWindow : Control
     {
         if (identity_payload == null || identity_payload.Count == 0)
             return "身份内容无效，无法继续建卡。";
-        RaceDef raceDef = _get_selected_race_def();
-        SubraceDef subraceDef = _get_selected_subrace_def();
-        AgeProfileDef ageProfile = _get_selected_age_profile();
-        AgeStageRule ageStageRule = _get_age_stage_rule(ageProfile, _selected_age_stage_id);
+        RaceDefinition raceDef = _get_selected_race_def();
+        SubraceDefinition subraceDef = _get_selected_subrace_def();
+        AgeProfileDefinition ageProfile = _get_selected_age_profile();
+        AgeStageRuleDefinition ageStageRule = _get_age_stage_rule(
+            ageProfile,
+            _selected_age_stage_id
+        );
         var lines = new List<string>
         {
             $"姓名：{_player_name}",
@@ -1370,16 +1380,23 @@ public partial class CharacterCreationWindow : Control
     private int _resolve_preview_attribute_value(StringName attributeId, int baseValue)
     {
         var totals = new AttributeModifierTotals();
-        RaceDef raceDef = _get_selected_race_def();
-        SubraceDef subraceDef = _get_selected_subrace_def();
-        AgeProfileDef ageProfile = _get_selected_age_profile();
-        AgeStageRule ageStageRule = _get_age_stage_rule(ageProfile, _selected_age_stage_id);
+        RaceDefinition raceDef = _get_selected_race_def();
+        SubraceDefinition subraceDef = _get_selected_subrace_def();
+        AgeProfileDefinition ageProfile = _get_selected_age_profile();
+        AgeStageRuleDefinition ageStageRule = _get_age_stage_rule(
+            ageProfile,
+            _selected_age_stage_id
+        );
         if (raceDef != null)
-            _accumulate_attribute_modifiers(totals, attributeId, raceDef.attribute_modifiers);
+            _accumulate_attribute_modifiers(totals, attributeId, raceDef.AttributeModifiers);
         if (subraceDef != null)
-            _accumulate_attribute_modifiers(totals, attributeId, subraceDef.attribute_modifiers);
+            _accumulate_attribute_modifiers(totals, attributeId, subraceDef.AttributeModifiers);
         if (ageStageRule != null)
-            _accumulate_attribute_modifiers(totals, attributeId, ageStageRule.attribute_modifiers);
+            _accumulate_attribute_modifiers(
+                totals,
+                attributeId,
+                ageStageRule.AttributeModifiers
+            );
         if (_selected_identity_has_human_versatility() && _selected_versatility_pick == attributeId)
             totals.Flat += 1;
         int result = baseValue + totals.Flat;
@@ -1391,18 +1408,15 @@ public partial class CharacterCreationWindow : Control
     private static void _accumulate_attribute_modifiers(
         AttributeModifierTotals totals,
         StringName attributeId,
-        IEnumerable modifiers
+        IReadOnlyList<AttributeModifierDefinition> modifiers
     )
     {
-        foreach (object modifier in modifiers)
+        foreach (AttributeModifierDefinition modifier in modifiers)
         {
-            if (
-                modifier is not AttributeModifier attributeModifier
-                || attributeModifier.attribute_id != attributeId
-            )
+            if (modifier == null || modifier.AttributeId != attributeId)
                 continue;
-            int value = attributeModifier.GetValueForRank(1);
-            if (attributeModifier.ModeKind == AttributeModifierMode.Percent)
+            int value = modifier.GetValueForRank(1);
+            if (modifier.IsPercent())
                 totals.Percent += value;
             else
                 totals.Flat += value;
@@ -1412,11 +1426,11 @@ public partial class CharacterCreationWindow : Control
     private List<string> _collect_trait_summary_lines(bool includeOptions)
     {
         var lines = new List<string>();
-        RaceDef raceDef = _get_selected_race_def();
-        SubraceDef subraceDef = _get_selected_subrace_def();
+        RaceDefinition raceDef = _get_selected_race_def();
+        SubraceDefinition subraceDef = _get_selected_subrace_def();
         if (raceDef != null)
         {
-            foreach (string line in raceDef.racial_trait_summary)
+            foreach (string line in raceDef.RacialTraitSummary)
             {
                 if (!string.IsNullOrEmpty(line))
                     lines.Add(line);
@@ -1424,7 +1438,7 @@ public partial class CharacterCreationWindow : Control
         }
         if (subraceDef != null)
         {
-            foreach (string line in subraceDef.racial_trait_summary)
+            foreach (string line in subraceDef.RacialTraitSummary)
             {
                 if (!string.IsNullOrEmpty(line))
                     lines.Add(line);
@@ -1439,11 +1453,14 @@ public partial class CharacterCreationWindow : Control
     private List<string> _collect_age_trait_summary_lines()
     {
         var lines = new List<string>();
-        AgeProfileDef ageProfile = _get_selected_age_profile();
-        AgeStageRule ageStageRule = _get_age_stage_rule(ageProfile, _selected_age_stage_id);
+        AgeProfileDefinition ageProfile = _get_selected_age_profile();
+        AgeStageRuleDefinition ageStageRule = _get_age_stage_rule(
+            ageProfile,
+            _selected_age_stage_id
+        );
         if (ageStageRule == null)
             return lines;
-        foreach (string line in ageStageRule.trait_summary)
+        foreach (string line in ageStageRule.TraitSummary)
         {
             if (!string.IsNullOrEmpty(line))
                 lines.Add(line);
@@ -1454,139 +1471,153 @@ public partial class CharacterCreationWindow : Control
     private bool _selected_identity_has_human_versatility()
     {
         var traitIds = new GStringNameArray();
-        RaceDef raceDef = _get_selected_race_def();
-        SubraceDef subraceDef = _get_selected_subrace_def();
+        RaceDefinition raceDef = _get_selected_race_def();
+        SubraceDefinition subraceDef = _get_selected_subrace_def();
         if (raceDef != null)
-            AppendStringNameArray(traitIds, raceDef.trait_ids);
+            AppendStringNameArray(traitIds, raceDef.TraitIds);
         if (subraceDef != null)
-            AppendStringNameArray(traitIds, subraceDef.trait_ids);
+            AppendStringNameArray(traitIds, subraceDef.TraitIds);
 
         foreach (StringName traitId in traitIds)
         {
             if (traitId == HumanVersatilityTraitId)
                 return true;
-            TraitDef traitDef = _get_trait_def(traitId);
-            if (traitDef != null && traitDef.effect_type == HumanVersatilityTraitId)
+            TraitDefinition traitDef = _get_trait_def(traitId);
+            if (traitDef != null && traitDef.EffectType == HumanVersatilityTraitId)
                 return true;
         }
         return false;
     }
 
     private static StringName _resolve_body_size_category_for_selection(
-        RaceDef raceDef,
-        SubraceDef subraceDef
+        RaceDefinition raceDef,
+        SubraceDefinition subraceDef
     )
     {
         if (
             subraceDef != null
-            && subraceDef.body_size_category_override != (StringName)""
-            && BodySizeContentRules.IsValidBodySizeCategory(subraceDef.body_size_category_override)
+            && subraceDef.BodySizeCategoryOverride != (StringName)""
+            && BodySizeContentRules.IsValidBodySizeCategory(
+                subraceDef.BodySizeCategoryOverride
+            )
         )
         {
-            return subraceDef.body_size_category_override;
+            return subraceDef.BodySizeCategoryOverride;
         }
         if (
             raceDef != null
-            && BodySizeContentRules.IsValidBodySizeCategory(raceDef.body_size_category)
+            && BodySizeContentRules.IsValidBodySizeCategory(raceDef.BodySizeCategory)
         )
-            return raceDef.body_size_category;
+            return raceDef.BodySizeCategory;
         return "";
     }
 
-    private RaceDef _get_selected_race_def() => _get_race_def(_selected_race_id);
+    private RaceDefinition _get_selected_race_def() => _get_race_def(_selected_race_id);
 
-    private SubraceDef _get_selected_subrace_def() => _get_subrace_def(_selected_subrace_id);
+    private SubraceDefinition _get_selected_subrace_def() =>
+        _get_subrace_def(_selected_subrace_id);
 
-    private AgeProfileDef _get_selected_age_profile()
+    private AgeProfileDefinition _get_selected_age_profile()
     {
-        RaceDef raceDef = _get_selected_race_def();
+        RaceDefinition raceDef = _get_selected_race_def();
         if (raceDef == null)
             return null;
         if (_progressionContentRegistry == null)
             return null;
-        IReadOnlyDictionary<StringName, AgeProfileDef> ageProfileDefs =
+        IReadOnlyDictionary<StringName, AgeProfileDefinition> ageProfileDefs =
             _progressionContentRegistry.GetAgeProfileDefsTyped();
-        return ageProfileDefs.TryGetValue(raceDef.age_profile_id, out AgeProfileDef ageProfile)
+        return ageProfileDefs.TryGetValue(
+            raceDef.AgeProfileId,
+            out AgeProfileDefinition ageProfile
+        )
             ? ageProfile
             : null;
     }
 
-    private RaceDef _get_race_def(StringName raceId)
+    private RaceDefinition _get_race_def(StringName raceId)
     {
         if (raceId == (StringName)"" || _progressionContentRegistry == null)
             return null;
-        IReadOnlyDictionary<StringName, RaceDef> raceDefs =
+        IReadOnlyDictionary<StringName, RaceDefinition> raceDefs =
             _progressionContentRegistry.GetRaceDefsTyped();
-        return raceDefs.TryGetValue(raceId, out RaceDef raceDef) ? raceDef : null;
+        return raceDefs.TryGetValue(raceId, out RaceDefinition raceDef) ? raceDef : null;
     }
 
-    private SubraceDef _get_subrace_def(StringName subraceId)
+    private SubraceDefinition _get_subrace_def(StringName subraceId)
     {
         if (subraceId == (StringName)"" || _progressionContentRegistry == null)
             return null;
-        IReadOnlyDictionary<StringName, SubraceDef> subraceDefs =
+        IReadOnlyDictionary<StringName, SubraceDefinition> subraceDefs =
             _progressionContentRegistry.GetSubraceDefsTyped();
-        return subraceDefs.TryGetValue(subraceId, out SubraceDef subraceDef) ? subraceDef : null;
+        return subraceDefs.TryGetValue(subraceId, out SubraceDefinition subraceDef)
+            ? subraceDef
+            : null;
     }
 
-    private TraitDef _get_trait_def(StringName traitId)
+    private TraitDefinition _get_trait_def(StringName traitId)
     {
         if (traitId == (StringName)"" || _progressionContentRegistry == null)
             return null;
-        IReadOnlyDictionary<StringName, TraitDef> traitDefs =
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefs =
             _progressionContentRegistry.GetTraitDefsTyped();
-        return traitDefs.TryGetValue(traitId, out TraitDef traitDef) ? traitDef : null;
+        return traitDefs.TryGetValue(traitId, out TraitDefinition traitDef) ? traitDef : null;
     }
 
-    private static AgeStageRule _get_age_stage_rule(AgeProfileDef ageProfile, StringName stageId)
+    private static AgeStageRuleDefinition _get_age_stage_rule(
+        AgeProfileDefinition ageProfile,
+        StringName stageId
+    )
     {
         if (ageProfile == null || stageId == (StringName)"")
             return null;
-        foreach (AgeStageRule rule in ageProfile.stage_rules)
+        foreach (AgeStageRuleDefinition rule in ageProfile.StageRules)
         {
-            if (rule != null && rule.stage_id == stageId)
+            if (rule != null && rule.StageId == stageId)
                 return rule;
         }
         return null;
     }
 
-    private static int _resolve_default_age_for_stage(AgeProfileDef ageProfile, StringName stageId)
+    private static int _resolve_default_age_for_stage(
+        AgeProfileDefinition ageProfile,
+        StringName stageId
+    )
     {
         if (ageProfile == null || stageId == (StringName)"")
             return 0;
-        if (ageProfile.default_age_by_stage.ContainsKey(stageId))
-            return ageProfile.default_age_by_stage[stageId].AsInt32();
-        string stringStageId = stageId.ToString();
-        if (ageProfile.default_age_by_stage.ContainsKey(stringStageId))
-            return ageProfile.default_age_by_stage[stringStageId].AsInt32();
+        if (ageProfile.DefaultAgeByStage.TryGetValue(stageId, out int defaultAge))
+            return defaultAge;
         if (stageId == (StringName)"child")
-            return ageProfile.child_age;
+            return ageProfile.ChildAge;
         if (stageId == (StringName)"teen")
-            return ageProfile.teen_age;
+            return ageProfile.TeenAge;
         if (stageId == (StringName)"young_adult")
-            return ageProfile.young_adult_age;
+            return ageProfile.YoungAdultAge;
         if (stageId == (StringName)"adult")
-            return ageProfile.adult_age;
+            return ageProfile.AdultAge;
         if (stageId == (StringName)"middle_age")
-            return ageProfile.middle_age;
+            return ageProfile.MiddleAge;
         if (stageId == (StringName)"old")
-            return ageProfile.old_age;
+            return ageProfile.OldAge;
         if (stageId == (StringName)"venerable")
-            return ageProfile.venerable_age;
-        return ageProfile.adult_age;
+            return ageProfile.VenerableAge;
+        return ageProfile.AdultAge;
     }
 
-    private static string _identity_label(Resource definition, StringName fallbackId)
+    private static string _identity_label(object definition, StringName fallbackId)
     {
-        if (definition is RaceDef raceDef && !string.IsNullOrEmpty(raceDef.display_name))
-            return raceDef.display_name;
-        if (definition is SubraceDef subraceDef && !string.IsNullOrEmpty(subraceDef.display_name))
-            return subraceDef.display_name;
+        if (definition is RaceDefinition raceDef && !string.IsNullOrEmpty(raceDef.DisplayName))
+            return raceDef.DisplayName;
         if (
-            definition is AgeStageRule ageStageRule
-            && !string.IsNullOrEmpty(ageStageRule.display_name)
+            definition is SubraceDefinition subraceDef
+            && !string.IsNullOrEmpty(subraceDef.DisplayName)
         )
-            return ageStageRule.display_name;
+            return subraceDef.DisplayName;
+        if (
+            definition is AgeStageRuleDefinition ageStageRule
+            && !string.IsNullOrEmpty(ageStageRule.DisplayName)
+        )
+            return ageStageRule.DisplayName;
         return fallbackId.ToString();
     }
 
@@ -1640,12 +1671,15 @@ public partial class CharacterCreationWindow : Control
         EmitSignal(SignalName.cancelled);
     }
 
-    private static void AppendStringNameArray(GStringNameArray target, IEnumerable source)
+    private static void AppendStringNameArray(
+        GStringNameArray target,
+        IEnumerable<StringName> source
+    )
     {
-        foreach (object value in source)
+        foreach (StringName value in source)
         {
-            if (value is StringName stringName && stringName != (StringName)"")
-                target.Add(stringName);
+            if (value != (StringName)"")
+                target.Add(value);
         }
     }
 

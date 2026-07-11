@@ -12,7 +12,7 @@ internal static class ItemTraitDetailText
     // Traits without a display_name are skipped; unknown trait ids are skipped.
     internal static List<string> BuildTraitLines(
         ItemDef itemDef,
-        IReadOnlyDictionary<StringName, TraitDef> traitDefs
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefs
     )
     {
         var lines = new List<string>();
@@ -20,13 +20,13 @@ internal static class ItemTraitDetailText
             return lines;
         foreach (StringName traitId in itemDef.GetTraitIdsTyped())
         {
-            if (!traitDefs.TryGetValue(traitId, out TraitDef traitDef) || traitDef == null)
+            if (!traitDefs.TryGetValue(traitId, out TraitDefinition traitDef) || traitDef == null)
                 continue;
-            string name = (traitDef.display_name ?? "").Trim();
+            string name = (traitDef.DisplayName ?? "").Trim();
             if (name.Length == 0)
                 continue;
             lines.Add($"【{name}】");
-            string description = (traitDef.description ?? "").Trim();
+            string description = (traitDef.Description ?? "").Trim();
             if (description.Length > 0)
                 lines.Add(description);
         }
@@ -39,7 +39,7 @@ internal static class ItemTraitDetailText
     internal static string Compose(
         string baseDescription,
         ItemDef itemDef,
-        IReadOnlyDictionary<StringName, TraitDef> traitDefs
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefs
     )
     {
         string baseText = (baseDescription ?? "").Trim();

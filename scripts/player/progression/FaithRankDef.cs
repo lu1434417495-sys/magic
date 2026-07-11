@@ -40,6 +40,9 @@ public partial class FaithRankDef : Resource
     public Godot.Collections.Array<Godot.Collections.Dictionary> reward_entries { get; set; } =
         new();
 
+    internal Godot.Collections.Array<Godot.Collections.Dictionary> RewardEntriesProjectionBorrowed =>
+        reward_entries;
+
     public bool HasCustomStatRequirement()
     {
         return required_custom_stat_id != "" && required_custom_stat_min_value > 0;

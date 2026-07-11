@@ -9,7 +9,7 @@ internal sealed class QuestAcceptContext
     public int WorldStep { get; init; }
     public string SettlementId { get; init; } = "";
     public int SettlementTier { get; init; }
-    public IReadOnlyDictionary<StringName, QuestDef> QuestDefs { get; init; }
+    public IReadOnlyDictionary<StringName, QuestDefinition> QuestDefs { get; init; }
 }
 
 internal sealed class QuestAcceptAvailabilityResult
@@ -27,32 +27,27 @@ internal sealed class QuestAcceptAvailabilityResult
 
 internal sealed class QuestAcceptRequirementEvaluator
 {
-    private static readonly StringName RequirementQuestCompleted = "quest_completed";
-    private static readonly StringName RequirementQuestActive = "quest_active";
-    private static readonly StringName RequirementQuestNotCompleted = "quest_not_completed";
-
     internal QuestAcceptAvailabilityResult Evaluate(
-        QuestDef questDef,
+        QuestDefinition questDef,
         QuestAcceptContext context
     )
     {
-        if (questDef.accept_requirements == null || questDef.accept_requirements.Count == 0)
+        if (questDef.AcceptRequirements.Count == 0)
             return QuestAcceptAvailabilityResult.Accept();
 
-        foreach (Godot.Collections.Dictionary requirement in questDef.accept_requirements)
+        foreach (QuestAcceptRequirementDefinition requirement in questDef.AcceptRequirements)
         {
-            StringName requirementType = ReadStringName(requirement, "requirement_type");
-            QuestAcceptAvailabilityResult result = requirementType switch
+            QuestAcceptAvailabilityResult result = requirement.RequirementKind switch
             {
-                _ when requirementType == RequirementQuestCompleted =>
+                QuestAcceptRequirementKind.QuestCompleted =>
                     EvaluateQuestCompleted(requirement, context),
-                _ when requirementType == RequirementQuestActive =>
+                QuestAcceptRequirementKind.QuestActive =>
                     EvaluateQuestActive(requirement, context),
-                _ when requirementType == RequirementQuestNotCompleted =>
+                QuestAcceptRequirementKind.QuestNotCompleted =>
                     EvaluateQuestNotCompleted(requirement, context),
                 _ => QuestAcceptAvailabilityResult.Reject(
                     "unknown_requirement",
-                    $"未知需求类型：{requirementType}"
+                    $"未知需求类型：{requirement.RequirementType}"
                 ),
             };
 
@@ -64,14 +59,14 @@ internal sealed class QuestAcceptRequirementEvaluator
     }
 
     private static QuestAcceptAvailabilityResult EvaluateQuestCompleted(
-        Godot.Collections.Dictionary requirement,
+        QuestAcceptRequirementDefinition requirement,
         QuestAcceptContext context
     )
     {
         if (context.PartyState == null)
             return QuestAcceptAvailabilityResult.Reject("missing_party_state", "PartyState 不存在，无法评估任务接取条件。");
 
-        StringName questId = ReadStringName(requirement, "quest_id");
+        StringName questId = requirement.QuestId;
         if (questId == "")
             return QuestAcceptAvailabilityResult.Reject("missing_quest_id", "quest_completed 需求缺少 quest_id。");
 
@@ -85,14 +80,14 @@ internal sealed class QuestAcceptRequirementEvaluator
     }
 
     private static QuestAcceptAvailabilityResult EvaluateQuestActive(
-        Godot.Collections.Dictionary requirement,
+        QuestAcceptRequirementDefinition requirement,
         QuestAcceptContext context
     )
     {
         if (context.PartyState == null)
             return QuestAcceptAvailabilityResult.Reject("missing_party_state", "PartyState 不存在，无法评估任务接取条件。");
 
-        StringName questId = ReadStringName(requirement, "quest_id");
+        StringName questId = requirement.QuestId;
         if (questId == "")
             return QuestAcceptAvailabilityResult.Reject("missing_quest_id", "quest_active 需求缺少 quest_id。");
 
@@ -106,14 +101,14 @@ internal sealed class QuestAcceptRequirementEvaluator
     }
 
     private static QuestAcceptAvailabilityResult EvaluateQuestNotCompleted(
-        Godot.Collections.Dictionary requirement,
+        QuestAcceptRequirementDefinition requirement,
         QuestAcceptContext context
     )
     {
         if (context.PartyState == null)
             return QuestAcceptAvailabilityResult.Reject("missing_party_state", "PartyState 不存在，无法评估任务接取条件。");
 
-        StringName questId = ReadStringName(requirement, "quest_id");
+        StringName questId = requirement.QuestId;
         if (questId == "")
             return QuestAcceptAvailabilityResult.Reject("missing_quest_id", "quest_not_completed 需求缺少 quest_id。");
 
@@ -128,20 +123,8 @@ internal sealed class QuestAcceptRequirementEvaluator
 
     private static string GetQuestDisplayName(StringName questId, QuestAcceptContext context)
     {
-        if (context.QuestDefs.TryGetValue(questId, out QuestDef questDef))
-            return questDef.display_name;
+        if (context.QuestDefs.TryGetValue(questId, out QuestDefinition questDef))
+            return questDef.DisplayName;
         return questId.ToString();
-    }
-
-    private static StringName ReadStringName(Godot.Collections.Dictionary dict, string key)
-    {
-        if (dict == null || !dict.ContainsKey(key))
-            return "";
-        Variant value = dict[key];
-        if (value.VariantType == Variant.Type.StringName)
-            return (StringName)value;
-        if (value.VariantType == Variant.Type.String)
-            return new StringName((string)value);
-        return "";
     }
 }

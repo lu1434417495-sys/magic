@@ -22,6 +22,8 @@ public partial class TraitRollValueSchemaEntry : Resource
     internal TraitRollValueType ValueTypeKind =>
         TraitContentRules.ToRollValueType(value_type);
 
+    internal Godot.Collections.Array<StringName> AllowedValuesProjectionBorrowed => allowed_values;
+
     internal void AppendSchemaErrors(List<string> errors, string ownerLabel)
     {
         if (errors == null)

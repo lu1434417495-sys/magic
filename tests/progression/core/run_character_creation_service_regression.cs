@@ -497,34 +497,46 @@ public partial class run_character_creation_service_regression : LifecycleTestSc
         };
 
         return new ProgressionIdentityCatalogData(
-            new Dictionary<StringName, RaceDef> { [raceDef.race_id] = raceDef },
-            new Dictionary<StringName, SubraceDef>
-            {
-                [subraceDef.subrace_id] = subraceDef,
-                [wrongParentSubraceDef.subrace_id] = wrongParentSubraceDef,
-            },
-            new Dictionary<StringName, AgeProfileDef>(),
-            new Dictionary<StringName, BloodlineDef>
-            {
-                [titanBloodlineDef.bloodline_id] = titanBloodlineDef,
-                [dragonBloodlineDef.bloodline_id] = dragonBloodlineDef,
-            },
-            new Dictionary<StringName, BloodlineStageDef>
-            {
-                [titanBloodlineStageDef.stage_id] = titanBloodlineStageDef,
-                [dragonBloodlineStageDef.stage_id] = dragonBloodlineStageDef,
-            },
-            new Dictionary<StringName, AscensionDef>
-            {
-                [ascensionDef.ascension_id] = ascensionDef,
-                [bloodlineLockedAscensionDef.ascension_id] = bloodlineLockedAscensionDef,
-            },
-            new Dictionary<StringName, AscensionStageDef>
-            {
-                [ascensionStageDef.stage_id] = ascensionStageDef,
-                [bloodlineLockedStageDef.stage_id] = bloodlineLockedStageDef,
-            },
-            new Dictionary<StringName, StageAdvancementModifier>()
+            TestProgressionDefinitionProjection.Races(
+                new Dictionary<StringName, RaceDef> { [raceDef.race_id] = raceDef }
+            ),
+            TestProgressionDefinitionProjection.Subraces(
+                new Dictionary<StringName, SubraceDef>
+                {
+                    [subraceDef.subrace_id] = subraceDef,
+                    [wrongParentSubraceDef.subrace_id] = wrongParentSubraceDef,
+                }
+            ),
+            new Dictionary<StringName, AgeProfileDefinition>(),
+            TestProgressionDefinitionProjection.Bloodlines(
+                new Dictionary<StringName, BloodlineDef>
+                {
+                    [titanBloodlineDef.bloodline_id] = titanBloodlineDef,
+                    [dragonBloodlineDef.bloodline_id] = dragonBloodlineDef,
+                }
+            ),
+            TestProgressionDefinitionProjection.BloodlineStages(
+                new Dictionary<StringName, BloodlineStageDef>
+                {
+                    [titanBloodlineStageDef.stage_id] = titanBloodlineStageDef,
+                    [dragonBloodlineStageDef.stage_id] = dragonBloodlineStageDef,
+                }
+            ),
+            TestProgressionDefinitionProjection.Ascensions(
+                new Dictionary<StringName, AscensionDef>
+                {
+                    [ascensionDef.ascension_id] = ascensionDef,
+                    [bloodlineLockedAscensionDef.ascension_id] = bloodlineLockedAscensionDef,
+                }
+            ),
+            TestProgressionDefinitionProjection.AscensionStages(
+                new Dictionary<StringName, AscensionStageDef>
+                {
+                    [ascensionStageDef.stage_id] = ascensionStageDef,
+                    [bloodlineLockedStageDef.stage_id] = bloodlineLockedStageDef,
+                }
+            ),
+            new Dictionary<StringName, StageAdvancementDefinition>()
         );
     }
 
@@ -558,14 +570,17 @@ public partial class run_character_creation_service_regression : LifecycleTestSc
         );
 
         return new ProgressionIdentityCatalogData(
-            new Dictionary<StringName, RaceDef>
-            {
-                [human.race_id] = human,
-                [orphanRace.race_id] = orphanRace,
-                [invalidDefaultRace.race_id] = invalidDefaultRace,
-            },
-            new Dictionary<StringName, SubraceDef>
-            {
+            TestProgressionDefinitionProjection.Races(
+                new Dictionary<StringName, RaceDef>
+                {
+                    [human.race_id] = human,
+                    [orphanRace.race_id] = orphanRace,
+                    [invalidDefaultRace.race_id] = invalidDefaultRace,
+                }
+            ),
+            TestProgressionDefinitionProjection.Subraces(
+                new Dictionary<StringName, SubraceDef>
+                {
                 [new StringName("common_human")] = MakeIdentityOptionSubrace(
                     "common_human",
                     "human"
@@ -590,13 +605,14 @@ public partial class run_character_creation_service_regression : LifecycleTestSc
                     "valid_for_invalid_default",
                     "invalid_default_race"
                 ),
-            },
-            new Dictionary<StringName, AgeProfileDef>(),
-            new Dictionary<StringName, BloodlineDef>(),
-            new Dictionary<StringName, BloodlineStageDef>(),
-            new Dictionary<StringName, AscensionDef>(),
-            new Dictionary<StringName, AscensionStageDef>(),
-            new Dictionary<StringName, StageAdvancementModifier>()
+                }
+            ),
+            new Dictionary<StringName, AgeProfileDefinition>(),
+            new Dictionary<StringName, BloodlineDefinition>(),
+            new Dictionary<StringName, BloodlineStageDefinition>(),
+            new Dictionary<StringName, AscensionDefinition>(),
+            new Dictionary<StringName, AscensionStageDefinition>(),
+            new Dictionary<StringName, StageAdvancementDefinition>()
         );
     }
 

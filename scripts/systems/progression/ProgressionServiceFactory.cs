@@ -6,7 +6,7 @@ internal sealed class ProgressionServiceFactory
     internal ProgressionService Build(
         UnitProgress progression,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
-        IReadOnlyDictionary<StringName, ProfessionDef> professionDefs
+        IReadOnlyDictionary<StringName, ProfessionDefinition> professionDefs
     )
     {
         var assignmentService = new ProfessionAssignmentService();

@@ -329,7 +329,8 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             battle_special_profile_registry_snapshot: _content_catalog.GetBattleSpecialProfileRegistryRuntimeSnapshot(),
             skill_catalog: _content_catalog.GetSkillCatalogTyped(),
             skill_definitions: _content_catalog.GetSkillDefinitionsTyped(),
-            battle_special_profile_view: _content_catalog.GetBattleSpecialProfileView()
+            battle_special_profile_view: _content_catalog.GetBattleSpecialProfileView(),
+            barrier_profile_definitions: _content_catalog.GetBarrierProfileDefinitionsTyped()
         );
 
         _snapshot_builder.Setup(this);
@@ -2277,10 +2278,10 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         )
         {
             _equipment_trait_roll_service?.Dispose();
-            IEnumerable<TraitDef> traitDefs =
+            IEnumerable<TraitDefinition> traitDefs =
                 contentCatalog != null
                     ? contentCatalog.GetTraitDefsTyped().Values
-                    : _game_session.GetTraitDefsTyped().Values;
+                    : Array.Empty<TraitDefinition>();
             _equipment_trait_roll_service = new EquipmentTraitRollService(
                 traitDefs
             );

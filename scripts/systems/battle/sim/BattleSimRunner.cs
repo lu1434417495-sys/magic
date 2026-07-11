@@ -168,6 +168,8 @@ public sealed class BattleSimRunner
             _contentProvider.GetEnemyTemplatesTyped();
         IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains =
             _contentProvider.GetEnemyAiBrainsTyped();
+        IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions =
+            _contentProvider.GetBarrierProfileDefinitionsTyped();
         BattleSimOverrideApplyResult overrides = _overrideApplier.ApplyProfileTyped(
             skillDefinitions,
             enemyAiBrains,
@@ -176,14 +178,15 @@ public sealed class BattleSimRunner
         bool useFormalTerrain = scenarioDef != null && scenarioDef.use_formal_terrain_generation;
 
         runtime.setup(
-            null,
-            overrides.SkillDefinitions,
-            enemyTemplates,
-            overrides.EnemyAiBrains,
-            null,
-            default,
-            null,
-            useFormalTerrain ? null : _terrainGenerator
+            character_gateway: null,
+            skill_definitions: overrides.SkillDefinitions,
+            enemy_templates: enemyTemplates,
+            enemy_ai_brains: overrides.EnemyAiBrains,
+            encounter_builder: null,
+            equipment_drop_service: default,
+            item_defs: null,
+            terrain_generator: useFormalTerrain ? null : _terrainGenerator,
+            barrier_profile_definitions: barrierProfileDefinitions
         );
         runtime.SetAiTraceEnabled(scenarioDef != null && scenarioDef.trace_enabled);
         runtime.SetAiScoreProfile(overrides.AiScoreProfile);

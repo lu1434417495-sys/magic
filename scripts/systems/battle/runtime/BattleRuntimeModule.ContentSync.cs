@@ -33,8 +33,9 @@ public sealed partial class BattleRuntimeModule
     internal void SyncContentCatalogsTyped(
         IReadOnlyDictionary<StringName, ItemDef> itemDefs,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null,
-        IReadOnlyDictionary<StringName, TraitDef> traitDefs = null,
-        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefs = null,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null,
+        IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions = null
     )
     {
         BeginContentCatalogRebind();
@@ -47,6 +48,7 @@ public sealed partial class BattleRuntimeModule
         ApplyItemDefsTyped(itemDefs);
         ApplyTraitDefsTyped(traitDefs);
         ApplyEquipmentAbilityBindingsTyped(equipmentAbilityBindings);
+        ApplyBarrierProfileDefinitionsTyped(barrierProfileDefinitions);
         CompleteContentCatalogRebind();
     }
 
@@ -205,6 +207,7 @@ public sealed partial class BattleRuntimeModule
         _skillCatalog = null;
         _skillDefinitionIndex.Clear();
         _traitDefIndex.Clear();
+        _barrierProfileIndex.Clear();
         _equipmentAbilityBindingIndex.Clear();
         _itemDefIndex.Clear();
         _enemyTemplateIndex.Clear();
@@ -222,6 +225,7 @@ public sealed partial class BattleRuntimeModule
         || _skillCatalog != null
         || _skillDefinitionIndex.Count != 0
         || _traitDefIndex.Count != 0
+        || _barrierProfileIndex.Count != 0
         || _equipmentAbilityBindingIndex.Count != 0
         || _itemDefIndex.Count != 0
         || _enemyTemplateIndex.Count != 0
@@ -250,20 +254,45 @@ public sealed partial class BattleRuntimeModule
         }
     }
 
-    private void ApplyTraitDefsTyped(IReadOnlyDictionary<StringName, TraitDef> traitDefs)
+    private void ApplyTraitDefsTyped(IReadOnlyDictionary<StringName, TraitDefinition> traitDefs)
     {
         _traitDefIndex.Clear();
         if (traitDefs == null || traitDefs.Count == 0)
         {
             return;
         }
-        foreach ((StringName traitId, TraitDef traitDef) in traitDefs)
+        foreach ((StringName traitId, TraitDefinition traitDef) in traitDefs)
         {
-            if (traitId == "" || traitDef == null || traitDef.trait_id == "")
+            if (traitId == "" || traitDef == null || traitDef.TraitId == "")
             {
                 continue;
             }
-            _traitDefIndex[traitDef.trait_id] = traitDef;
+            _traitDefIndex[traitDef.TraitId] = traitDef;
+        }
+    }
+
+    private void ApplyBarrierProfileDefinitionsTyped(
+        IReadOnlyDictionary<StringName, BarrierProfileDefinition> profileDefinitions
+    )
+    {
+        _barrierProfileIndex.Clear();
+        if (profileDefinitions == null || profileDefinitions.Count == 0)
+        {
+            return;
+        }
+        foreach (
+            (StringName profileId, BarrierProfileDefinition profileDefinition) in profileDefinitions
+        )
+        {
+            if (
+                profileId == ""
+                || profileDefinition == null
+                || profileDefinition.ProfileId == ""
+            )
+            {
+                continue;
+            }
+            _barrierProfileIndex[profileDefinition.ProfileId] = profileDefinition;
         }
     }
 
@@ -302,7 +331,10 @@ public sealed partial class BattleRuntimeModule
 
     internal IReadOnlyDictionary<StringName, ItemDef> GetItemDefIndexTyped() => _itemDefIndex;
 
-    internal IReadOnlyDictionary<StringName, TraitDef> GetTraitDefIndexTyped() => _traitDefIndex;
+    internal IReadOnlyDictionary<StringName, TraitDefinition> GetTraitDefIndexTyped() => _traitDefIndex;
+
+    internal IReadOnlyDictionary<StringName, BarrierProfileDefinition> GetBarrierProfileIndexTyped() =>
+        _barrierProfileIndex;
 
     internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> GetEquipmentAbilityBindingIndexTyped() =>
         _equipmentAbilityBindingIndex;
@@ -327,9 +359,9 @@ public sealed partial class BattleRuntimeModule
         return new Dictionary<StringName, ItemDef>(_itemDefIndex);
     }
 
-    internal Dictionary<StringName, TraitDef> BuildTraitDefIndexSnapshotTyped()
+    internal Dictionary<StringName, TraitDefinition> BuildTraitDefIndexSnapshotTyped()
     {
-        return new Dictionary<StringName, TraitDef>(_traitDefIndex);
+        return new Dictionary<StringName, TraitDefinition>(_traitDefIndex);
     }
 
     internal Dictionary<StringName, EquipmentAbilityBindingDefinition> BuildEquipmentAbilityBindingIndexSnapshotTyped()

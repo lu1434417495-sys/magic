@@ -239,10 +239,10 @@ public partial class run_fortuna_guidance_regression : LifecycleTestSceneTree
         manager.setup(
             partyState,
             new Dictionary<StringName, SkillDefinition>(),
-            new Dictionary<StringName, ProfessionDef>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
             progressionRegistry.GetAchievementDefsTyped(),
             new Dictionary<StringName, ItemDef>(),
-            new Dictionary<StringName, QuestDef>(),
+            new Dictionary<StringName, QuestDefinition>(),
             null,
             new ProgressionIdentityCatalogData()
         );
@@ -250,7 +250,9 @@ public partial class run_fortuna_guidance_regression : LifecycleTestSceneTree
         FortunaGuidanceService guidance = new();
         guidance.Setup(manager);
 
-        FaithService faith = new();
+        FaithContentRegistry faithRegistry = new();
+        faithRegistry.Rebuild();
+        FaithService faith = new(faithRegistry.GetFaithDeityDefsTyped());
         return new TestContext(partyState, manager, guidance, faith);
     }
 

@@ -36,7 +36,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             "facade",
             BuildPartyState(12, 100),
             new[] { BuildSettlementRecord("spring_village_01", "春泉村", Vector2I.Zero, BuildBasicSettlementServices(false)) },
-            new GDictionary()
+            new Dictionary<StringName, QuestDefinition>()
         );
         try
         {
@@ -71,7 +71,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             "research",
             BuildPartyState(12, 250),
             new[] { BuildSettlementRecord("graystone_town_01", "灰石镇", Vector2I.Zero, BuildResearchServices()) },
-            new GDictionary()
+            new Dictionary<StringName, QuestDefinition>()
         );
         try
         {
@@ -160,7 +160,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
 
     private async Task TestSettlementHandlerRoutesActionsAndModalState()
     {
-        GDictionary questDefs = BuildQuestDefs();
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildQuestDefs();
         RuntimeFixture fixture = await BuildRuntimeFixture(
             "actions",
             BuildPartyState(20, 200),
@@ -224,8 +224,8 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_unknown_objective_type").Count == 0, "未知 objective_type 不应回退成 objective_id 出现在任务板。");
             _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_missing_rewards").Count == 0, "缺少 reward_entries 的契约不应回退成奖励待定出现在任务板。");
             _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_invalid_reward_amount").Count == 0, "非法 reward amount 的契约不应回退成奖励待定。");
-            _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_typed_missing_objective_target").Count == 0, "typed QuestDef 中缺少 target_id 的据点事务目标不应出现在任务板。");
-            _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_typed_invalid_reward_amount").Count == 0, "typed QuestDef 中非法 reward amount 的契约不应出现在任务板。");
+            _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_typed_missing_objective_target").Count == 0, "QuestDefinition 中缺少 target_id 的据点事务目标不应出现在任务板。");
+            _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_typed_invalid_reward_amount").Count == 0, "QuestDefinition 中非法 reward amount 的契约不应出现在任务板。");
             _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_string_key_only").Count == 0, "String key-only 契约不应被任务板恢复。");
 
             _test.False(
@@ -252,7 +252,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                         }
                     )
                     .Ok,
-                "typed QuestDef 中缺少 target_id 的坏契约即使被构造提交也应拒绝。"
+                "QuestDefinition 中缺少 target_id 的坏契约即使被构造提交也应拒绝。"
             );
             _test.False(
                 handler.CommandExecuteSettlementActionRuntimeTyped(
@@ -496,7 +496,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             {
                 _test.Eq(trainingQuest.GetObjectiveProgress("train_once"), 1, "据点动作应推进任务目标进度。");
             }
-            _test.True(runtime._party_state.HasClaimableQuest("contract_training"), "目标完成后据点动作应把 QuestDef 任务推进到 claimable_quests。");
+            _test.True(runtime._party_state.HasClaimableQuest("contract_training"), "目标完成后据点动作应把 QuestDefinition 任务推进到 claimable_quests。");
             _test.Eq(questTrainingResult.QuestProgressEvents.Count, 3, "typed service result 应直接暴露 canonical quest_progress_events。");
 
             SettlementServiceResult canonicalTrainingResult = handler.ExecuteSettlementActionTyped("spring_village_01", "service:training", new GDictionary
@@ -614,7 +614,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
 
     private async Task TestContractBoardEvaluatorAndFeedback()
     {
-        GDictionary questDefs = BuildEvaluatorQuestDefs();
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildEvaluatorQuestDefs();
         RuntimeFixture fixture = await BuildRuntimeFixture(
             "evaluator",
             BuildPartyState(20, 200),
@@ -988,7 +988,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             "invalid",
             BuildPartyState(12, 100),
             new[] { BuildSettlementRecord("spring_village_01", "春泉村", Vector2I.Zero, BuildShopAndStagecoachServices()) },
-            new GDictionary()
+            new Dictionary<StringName, QuestDefinition>()
         );
         try
         {
@@ -1123,11 +1123,17 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
         string suffix,
         PartyState partyState,
         IReadOnlyList<GDictionary> settlements,
-        GDictionary questDefs)
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs)
     {
         GameSession gameSession = await InstallGameSession($"SettlementHandlerGameSession_{suffix}");
         GDictionary worldData = BuildWorldData(settlements);
-        ConfigureSessionForRuntimeTest(gameSession, $"settlement_handler_{suffix}", worldData, partyState, questDefs ?? new GDictionary());
+        ConfigureSessionForRuntimeTest(
+            gameSession,
+            $"settlement_handler_{suffix}",
+            worldData,
+            partyState,
+            questDefs ?? new Dictionary<StringName, QuestDefinition>()
+        );
         IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
 
         var runtime = new GameRuntimeFacade
@@ -1177,14 +1183,20 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
         return new RuntimeFixture(runtime, gameSession, runtime._settlement_command_handler, runtime._party_warehouse_service);
     }
 
-    private static void ConfigureSessionForRuntimeTest(GameSession gameSession, string saveId, GDictionary worldData, PartyState partyState, GDictionary questDefs)
+    private static void ConfigureSessionForRuntimeTest(
+        GameSession gameSession,
+        string saveId,
+        GDictionary worldData,
+        PartyState partyState,
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs
+    )
     {
         gameSession.ConfigureRuntimeWorldForTests(
             saveId,
             TestConfigPath,
             worldData,
             partyState,
-            questDefs ?? new GDictionary(),
+            questDefs ?? new Dictionary<StringName, QuestDefinition>(),
             "settlement_handler_test",
             "Settlement Handler Test",
             new Vector2I(8, 8)
@@ -1334,121 +1346,98 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
         };
     }
 
-    private static GDictionary BuildQuestDefs()
+    private static IReadOnlyDictionary<StringName, QuestDefinition> BuildQuestDefs()
     {
-        var questDefs = new GDictionary();
-        AddQuestDef(questDefs, BuildQuestDef("contract_first_hunt", "首轮狩猎", "击败任意一组敌对遭遇。", "service_contract_board", new GArray { BuildObjective("defeat_enemy_once", "defeat_enemy", "", 1) }, new GArray { BuildGoldReward(80) }));
-        AddQuestDef(questDefs, BuildQuestDef("contract_manual_drill", "训练记录", "在训练场完成两次记录。", "service_contract_board", new GArray { BuildObjective("train_once", "settlement_action", "service:training", 2) }, new GArray { BuildGoldReward(30) }, false, "", "已接取任务《训练记录》。"));
-        AddQuestDef(questDefs, BuildQuestDef("contract_repeatable_patrol", "巡路值守", "完成一次例行巡路，随后可再次接取。", "service_contract_board", new GArray { BuildObjective("warehouse_visit", "settlement_action", "service:warehouse", 1) }, new GArray { BuildGoldReward(15) }, true));
-        AddQuestDef(questDefs, BuildQuestDef("contract_warehouse_visit", "仓储访问追踪", "据点仓储动作进度测试。", "service_warehouse_hidden", new GArray { BuildObjective("warehouse_visit", "settlement_action", "service:warehouse", 1) }, new GArray { BuildGoldReward(1) }));
-        AddQuestDef(questDefs, BuildQuestDef("contract_regional_bounty", "地区悬赏", "仅应出现在悬赏署任务板。", "service_bounty_registry", new GArray { BuildObjective("submit_report", "settlement_action", "service:report_bounty", 1) }, new GArray { BuildGoldReward(120) }));
-        AddQuest(questDefs, "contract_missing_display_name", new GDictionary { ["quest_id"] = "contract_missing_display_name", ["description"] = "缺少 display_name 的坏契约不应显示。", ["provider_interaction_id"] = "service_contract_board", ["objective_defs"] = new GArray { BuildObjective("bad_missing_name", "defeat_enemy", "", 1) }, ["reward_entries"] = new GArray { BuildGoldReward(1) } });
-        AddQuest(questDefs, "contract_missing_description", new GDictionary { ["quest_id"] = "contract_missing_description", ["display_name"] = "缺说明契约", ["provider_interaction_id"] = "service_contract_board", ["objective_defs"] = new GArray { BuildObjective("bad_missing_description", "defeat_enemy", "", 1) }, ["reward_entries"] = new GArray { BuildGoldReward(1) } });
-        AddQuest(questDefs, "contract_missing_objectives", new GDictionary { ["quest_id"] = "contract_missing_objectives", ["display_name"] = "缺目标契约", ["description"] = "缺少 objective_defs 的坏契约不应显示。", ["provider_interaction_id"] = "service_contract_board", ["reward_entries"] = new GArray { BuildGoldReward(1) } });
-        AddQuest(questDefs, "contract_missing_objective_target", BuildQuest("contract_missing_objective_target", "缺目标对象契约", "据点事务目标缺少 target_id 时不应回退成未命名。", "service_contract_board", new GArray { BuildObjective("bad_missing_target", "settlement_action", "", 1) }, new GArray { BuildGoldReward(1) }));
-        AddQuest(questDefs, "contract_unknown_objective_type", BuildQuest("contract_unknown_objective_type", "未知目标契约", "未知 objective_type 不应直接显示 objective_id。", "service_contract_board", new GArray { BuildObjective("bad_unknown_objective", "legacy_custom", "legacy_target", 1) }, new GArray { BuildGoldReward(1) }));
-        AddQuest(questDefs, "contract_missing_rewards", new GDictionary { ["quest_id"] = "contract_missing_rewards", ["display_name"] = "缺奖励契约", ["description"] = "缺少 reward_entries 的坏契约不应显示。", ["provider_interaction_id"] = "service_contract_board", ["objective_defs"] = new GArray { BuildObjective("bad_missing_rewards", "defeat_enemy", "", 1) } });
-        AddQuest(questDefs, "contract_invalid_reward_amount", BuildQuest("contract_invalid_reward_amount", "坏奖励契约", "非法奖励数值不应回退成奖励待定。", "service_contract_board", new GArray { BuildObjective("bad_reward_amount", "defeat_enemy", "", 1) }, new GArray { BuildGoldReward(0) }));
-        AddQuestDef(questDefs, BuildQuestDef("contract_typed_missing_objective_target", "typed 缺目标对象契约", "typed 据点事务目标缺少 target_id 时不应显示。", "service_contract_board", new GArray { BuildObjective("typed_bad_missing_target", "settlement_action", "", 1) }, new GArray { BuildGoldReward(1) }));
-        AddQuestDef(questDefs, BuildQuestDef("contract_typed_invalid_reward_amount", "typed 坏奖励契约", "typed 非法奖励数值不应回退成奖励待定。", "service_contract_board", new GArray { BuildObjective("typed_bad_reward_amount", "defeat_enemy", "", 1) }, new GArray { BuildGoldReward(0) }));
-        questDefs["contract_string_key_only"] = BuildQuest("contract_string_key_only", "旧 String key 契约", "用于验证任务板不再按 String key 恢复契约。", "service_contract_board", new GArray { BuildObjective("string_key_objective", "settlement_action", "service:training", 1) }, new GArray { BuildGoldReward(1) });
-        AddQuestDef(questDefs, BuildQuestDef("contract_supply_drop", "物资缴纳", "向任务板提交两份铁矿石。", "service_contract_board", new GArray { BuildObjective("deliver_ore", "submit_item", "iron_ore", 2) }, new GArray { BuildGoldReward(18) }));
-        AddQuestDef(questDefs, BuildQuestDef("contract_training", "训练追踪", "据点训练进度测试。", "service_training_hidden", new GArray { BuildObjective("train_once", "settlement_action", "service:training", 1) }, new GArray { BuildGoldReward(1) }));
-        return questDefs;
+        var questDefinitions = new Dictionary<StringName, QuestDefinition>();
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_first_hunt", "首轮狩猎", "击败任意一组敌对遭遇。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("defeat_enemy_once", "defeat_enemy", "", 1) }, new QuestRewardDefinition[] { BuildGoldReward(80) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_manual_drill", "训练记录", "在训练场完成两次记录。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("train_once", "settlement_action", "service:training", 2) }, new QuestRewardDefinition[] { BuildGoldReward(30) }, false, "", "已接取任务《训练记录》。"));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_repeatable_patrol", "巡路值守", "完成一次例行巡路，随后可再次接取。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("warehouse_visit", "settlement_action", "service:warehouse", 1) }, new QuestRewardDefinition[] { BuildGoldReward(15) }, true));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_warehouse_visit", "仓储访问追踪", "据点仓储动作进度测试。", "service_warehouse_hidden", new QuestObjectiveDefinition[] { BuildObjective("warehouse_visit", "settlement_action", "service:warehouse", 1) }, new QuestRewardDefinition[] { BuildGoldReward(1) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_regional_bounty", "地区悬赏", "仅应出现在悬赏署任务板。", "service_bounty_registry", new QuestObjectiveDefinition[] { BuildObjective("submit_report", "settlement_action", "service:report_bounty", 1) }, new QuestRewardDefinition[] { BuildGoldReward(120) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_missing_display_name", "", "缺少 display_name 的坏契约不应显示。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("bad_missing_name", "defeat_enemy", "", 1) }, new QuestRewardDefinition[] { BuildGoldReward(1) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_missing_description", "缺说明契约", "", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("bad_missing_description", "defeat_enemy", "", 1) }, new QuestRewardDefinition[] { BuildGoldReward(1) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_missing_objectives", "缺目标契约", "缺少 objective_defs 的坏契约不应显示。", "service_contract_board", System.Array.Empty<QuestObjectiveDefinition>(), new QuestRewardDefinition[] { BuildGoldReward(1) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_missing_objective_target", "缺目标对象契约", "据点事务目标缺少 target_id 时不应回退成未命名。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("bad_missing_target", "settlement_action", "", 1) }, new QuestRewardDefinition[] { BuildGoldReward(1) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_unknown_objective_type", "未知目标契约", "未知 objective_type 不应直接显示 objective_id。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("bad_unknown_objective", "legacy_custom", "legacy_target", 1) }, new QuestRewardDefinition[] { BuildGoldReward(1) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_missing_rewards", "缺奖励契约", "缺少 reward_entries 的坏契约不应显示。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("bad_missing_rewards", "defeat_enemy", "", 1) }, System.Array.Empty<QuestRewardDefinition>()));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_invalid_reward_amount", "坏奖励契约", "非法奖励数值不应回退成奖励待定。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("bad_reward_amount", "defeat_enemy", "", 1) }, new QuestRewardDefinition[] { BuildGoldReward(0) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_typed_missing_objective_target", "typed 缺目标对象契约", "typed 据点事务目标缺少 target_id 时不应显示。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("typed_bad_missing_target", "settlement_action", "", 1) }, new QuestRewardDefinition[] { BuildGoldReward(1) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_typed_invalid_reward_amount", "typed 坏奖励契约", "typed 非法奖励数值不应回退成奖励待定。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("typed_bad_reward_amount", "defeat_enemy", "", 1) }, new QuestRewardDefinition[] { BuildGoldReward(0) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_supply_drop", "物资缴纳", "向任务板提交两份铁矿石。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("deliver_ore", "submit_item", "iron_ore", 2) }, new QuestRewardDefinition[] { BuildGoldReward(18) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_training", "训练追踪", "据点训练进度测试。", "service_training_hidden", new QuestObjectiveDefinition[] { BuildObjective("train_once", "settlement_action", "service:training", 1) }, new QuestRewardDefinition[] { BuildGoldReward(1) }));
+        return questDefinitions;
     }
 
-    private static GDictionary BuildEvaluatorQuestDefs()
+    private static IReadOnlyDictionary<StringName, QuestDefinition> BuildEvaluatorQuestDefs()
     {
-        var questDefs = new GDictionary();
-        AddQuestDef(questDefs, BuildQuestDef("contract_prerequisite_hunt", "前置狩猎", "完成前置狩猎任务。", "service_contract_board", new GArray { BuildObjective("defeat_enemy_once", "defeat_enemy", "", 1) }, new GArray { BuildGoldReward(10) }));
-        QuestDef lockedQuest = BuildQuestDef("contract_locked_hunt", "锁定狩猎", "需要前置任务完成后才能接取。", "service_contract_board", new GArray { BuildObjective("defeat_enemy_locked", "defeat_enemy", "", 1) }, new GArray { BuildGoldReward(20) });
-        lockedQuest.accept_requirements.Add(new GDictionary
-        {
-            ["requirement_type"] = "quest_completed",
-            ["quest_id"] = "contract_prerequisite_hunt",
-        });
-        lockedQuest.accept_feedback_failure = "当前无法接取该前置契约。";
-        AddQuestDef(questDefs, lockedQuest);
-        AddQuestDef(questDefs, BuildQuestDef("contract_dialogue_quest", "对话契约", "展示接取对话文案。", "service_contract_board", new GArray { BuildObjective("dialogue_objective", "defeat_enemy", "", 1) }, new GArray { BuildGoldReward(5) }, false, "这是接取对话文案。"));
-        AddQuestDef(questDefs, BuildQuestDef("contract_confirmation_quest", "确认契约", "需要确认才能接取。", "service_contract_board", new GArray { BuildObjective("confirmation_objective", "defeat_enemy", "", 1) }, new GArray { BuildGoldReward(7) }, false, "", "已确认接取确认契约。", "", "确认要接取这个契约吗？"));
-        return questDefs;
+        var questDefinitions = new Dictionary<StringName, QuestDefinition>();
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_prerequisite_hunt", "前置狩猎", "完成前置狩猎任务。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("defeat_enemy_once", "defeat_enemy", "", 1) }, new QuestRewardDefinition[] { BuildGoldReward(10) }));
+        AddQuestDefinition(
+            questDefinitions,
+            BuildQuestDefinition(
+                "contract_locked_hunt",
+                "锁定狩猎",
+                "需要前置任务完成后才能接取。",
+                "service_contract_board",
+                new QuestObjectiveDefinition[] { BuildObjective("defeat_enemy_locked", "defeat_enemy", "", 1) },
+                new QuestRewardDefinition[] { BuildGoldReward(20) },
+                acceptFeedbackFailure: "当前无法接取该前置契约。",
+                acceptRequirements: new QuestAcceptRequirementDefinition[]
+                {
+                    new("quest_completed", "contract_prerequisite_hunt"),
+                }
+            )
+        );
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_dialogue_quest", "对话契约", "展示接取对话文案。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("dialogue_objective", "defeat_enemy", "", 1) }, new QuestRewardDefinition[] { BuildGoldReward(5) }, false, "这是接取对话文案。"));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_confirmation_quest", "确认契约", "需要确认才能接取。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("confirmation_objective", "defeat_enemy", "", 1) }, new QuestRewardDefinition[] { BuildGoldReward(7) }, false, "", "已确认接取确认契约。", "", "确认要接取这个契约吗？"));
+        return questDefinitions;
     }
 
-    private static void AddQuest(GDictionary questDefs, string questId, GDictionary questData)
+    private static void AddQuestDefinition(
+        Dictionary<StringName, QuestDefinition> questDefinitions,
+        QuestDefinition questDefinition
+    )
     {
-        questDefs[new StringName(questId)] = questData;
+        questDefinitions[questDefinition.QuestId] = questDefinition;
     }
 
-    private static void AddQuestDef(GDictionary questDefs, QuestDef questDef)
+    private static QuestDefinition BuildQuestDefinition(string questId, string displayName, string description, string providerInteractionId, IReadOnlyList<QuestObjectiveDefinition> objectives, IReadOnlyList<QuestRewardDefinition> rewards, bool isRepeatable = false, string acceptDialogueText = "", string acceptFeedbackSuccess = "", string acceptFeedbackFailure = "", string acceptConfirmationText = "", IReadOnlyList<QuestAcceptRequirementDefinition> acceptRequirements = null)
     {
-        questDefs[questDef.quest_id] = questDef;
-    }
-
-    private static GDictionary BuildQuest(string questId, string displayName, string description, string providerInteractionId, GArray objectiveDefs, GArray rewardEntries, bool isRepeatable = false)
-    {
-        var quest = new GDictionary
-        {
-            ["quest_id"] = questId,
-            ["display_name"] = displayName,
-            ["description"] = description,
-            ["provider_interaction_id"] = providerInteractionId,
-            ["objective_defs"] = objectiveDefs,
-            ["reward_entries"] = rewardEntries,
-        };
-        if (isRepeatable)
-        {
-            quest["is_repeatable"] = true;
-        }
-        return quest;
-    }
-
-    private static QuestDef BuildQuestDef(string questId, string displayName, string description, string providerInteractionId, GArray objectiveDefs, GArray rewardEntries, bool isRepeatable = false, string acceptDialogueText = "", string acceptFeedbackSuccess = "", string acceptFeedbackFailure = "", string acceptConfirmationText = "")
-    {
-        string providerKind = providerInteractionId;
-        Godot.Collections.Array<StringName> listingChannels = new();
+        StringName providerKind = providerInteractionId;
+        IReadOnlyList<StringName> listingChannels = System.Array.Empty<StringName>();
         if (providerInteractionId == "service_contract_board")
         {
-            listingChannels = new Godot.Collections.Array<StringName> { "contract_board" };
+            listingChannels = new StringName[] { "contract_board" };
         }
         else if (providerInteractionId == "service_bounty_registry")
         {
-            listingChannels = new Godot.Collections.Array<StringName> { "bounty_registry" };
+            listingChannels = new StringName[] { "bounty_registry" };
         }
 
-        var quest = new QuestDef
-        {
-            quest_id = questId,
-            display_name = displayName,
-            description = description,
-            provider_kind = providerKind,
-            provider_interaction_id = providerInteractionId,
-            listing_channels = listingChannels,
-            is_repeatable = isRepeatable,
-            accept_dialogue_text = acceptDialogueText,
-            accept_feedback_success = acceptFeedbackSuccess,
-            accept_feedback_failure = acceptFeedbackFailure,
-            accept_confirmation_text = acceptConfirmationText,
-        };
-        foreach (GDictionary objective in Dictionaries(objectiveDefs))
-        {
-            quest.objective_defs.Add((GDictionary)objective.Duplicate(true));
-        }
-        foreach (GDictionary reward in Dictionaries(rewardEntries))
-        {
-            quest.reward_entries.Add((GDictionary)reward.Duplicate(true));
-        }
-        return quest;
+        return new QuestDefinition(
+            questId,
+            displayName,
+            description,
+            providerInteractionId,
+            System.Array.Empty<StringName>(),
+            acceptRequirements ?? System.Array.Empty<QuestAcceptRequirementDefinition>(),
+            objectives,
+            rewards,
+            isRepeatable,
+            providerKind,
+            listingChannels,
+            acceptDialogueText,
+            acceptFeedbackSuccess,
+            acceptFeedbackFailure,
+            acceptConfirmationText
+        );
     }
 
-    private static GDictionary BuildObjective(string objectiveId, string objectiveType, string targetId, int targetValue)
-    {
-        return new GDictionary { ["objective_id"] = objectiveId, ["objective_type"] = objectiveType, ["target_id"] = targetId, ["target_value"] = targetValue };
-    }
+    private static QuestObjectiveDefinition BuildObjective(string objectiveId, string objectiveType, string targetId, int targetValue) =>
+        new(objectiveId, objectiveType, targetId, targetValue);
 
-    private static GDictionary BuildGoldReward(int amount)
-    {
-        return new GDictionary { ["reward_type"] = "gold", ["amount"] = amount };
-    }
+    private static QuestRewardDefinition BuildGoldReward(int amount) =>
+        new("gold", amount, "", 0, "", System.Array.Empty<QuestPendingRewardEntryDefinition>());
 
     private static GDictionary BuildTrainingRewardPayload()
     {

@@ -223,11 +223,11 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
         manager.setup(
             BuildPartyState(member),
             BuildSkillIndex(),
-            new Dictionary<StringName, ProfessionDef>(),
-            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
             BuildItemIndex(),
-            new Dictionary<StringName, QuestDef>(),
-            new Dictionary<StringName, TraitDef>(),
+            new Dictionary<StringName, QuestDefinition>(),
+            new Dictionary<StringName, TraitDefinition>(),
             null,
             new ProgressionIdentityCatalogData()
         );

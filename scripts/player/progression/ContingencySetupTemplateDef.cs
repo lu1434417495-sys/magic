@@ -23,8 +23,12 @@ public partial class ContingencySetupTemplateDef : Resource
     [Export]
     public GDictionary trigger { get; set; } = new();
 
+    internal GDictionary TriggerProjectionBorrowed => trigger;
+
     // Each entry follows the ContingencyStoredSpellEntryState schema, except that
     // cast_level is authored as max_cast_level and stamped per member at build time.
     [Export]
     public GDictionaryArray stored_spells { get; set; } = new();
+
+    internal GDictionaryArray StoredSpellsProjectionBorrowed => stored_spells;
 }

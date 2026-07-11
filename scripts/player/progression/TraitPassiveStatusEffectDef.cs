@@ -26,4 +26,7 @@ public partial class TraitPassiveStatusEffectDef : Resource
 
     [Export]
     public Godot.Collections.Array<StringName> save_immunity_tags { get; set; } = new();
+
+    internal Godot.Collections.Array<StringName> SaveImmunityTagsProjectionBorrowed =>
+        save_immunity_tags;
 }
