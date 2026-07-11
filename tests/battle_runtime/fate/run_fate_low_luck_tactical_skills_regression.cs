@@ -176,7 +176,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
             ((BattleUnitState)actionCase["enemy"]).current_hp < 60,
             "黑契推进·行契命中后应对目标造成伤害。"
         );
-        GodotSharpCleanup.DisposeBatch(turnStartBatch);
+        turnStartBatch?.Dispose();
         DisposeBlackContractCase(actionCase);
     }
 

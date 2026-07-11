@@ -132,7 +132,7 @@ public partial class run_phantasmal_kill_hover_preview_regression : LifecycleTes
         _test.True(snapshotText.Contains("免疫"), "HUD selected-skill text should mention immune/no-op targets.");
 
         BattleTestFixture.DisposeBattlePreview(preview);
-        GodotSharpCleanup.ClearRuntimeReferences(command);
+        BattleTestFixture.DisposeBattleCommand(command);
     }
 
     private static SkillDefinition MakeGroundPhantasmalKillSkill()

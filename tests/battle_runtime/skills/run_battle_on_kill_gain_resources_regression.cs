@@ -106,8 +106,8 @@ public partial class run_battle_on_kill_gain_resources_regression : LifecycleTes
         }
         finally
         {
-            GodotSharpCleanup.DisposeBatch(batch);
-            GodotSharpCleanup.ClearRuntimeReferences(command);
+            batch?.Dispose();
+            BattleTestFixture.DisposeBattleCommand(command);
         }
     }
 

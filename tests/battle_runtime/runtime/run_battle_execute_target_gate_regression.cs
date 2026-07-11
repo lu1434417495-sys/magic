@@ -31,7 +31,7 @@ public partial class run_battle_execute_target_gate_regression : LifecycleTestSc
         _test.False(target.HasStatusEffect("soul_fracture"), "高 HP preview 不应附加 soul fracture。");
 
         BattleTestFixture.DisposeBattlePreview(preview);
-        GodotSharpCleanup.ClearRuntimeReferences(command);
+        BattleTestFixture.DisposeBattleCommand(command);
     }
 
     private void TestHighHpTargetAffordanceDenied()
@@ -73,8 +73,8 @@ public partial class run_battle_execute_target_gate_regression : LifecycleTestSc
         _test.Eq(target.current_hp, 21, "高 HP 律令死亡命令失败时不应造成伤害。");
         _test.False(target.HasStatusEffect("soul_fracture"), "高 HP 律令死亡命令失败时不应附加状态。");
 
-        GodotSharpCleanup.DisposeBatch(batch);
-        GodotSharpCleanup.ClearRuntimeReferences(command);
+        batch?.Dispose();
+        BattleTestFixture.DisposeBattleCommand(command);
     }
 
     private void TestLowHpTargetPreviewAllowed()
@@ -94,7 +94,7 @@ public partial class run_battle_execute_target_gate_regression : LifecycleTestSc
         );
 
         BattleTestFixture.DisposeBattlePreview(preview);
-        GodotSharpCleanup.ClearRuntimeReferences(command);
+        BattleTestFixture.DisposeBattleCommand(command);
     }
 
     private void TestBossAndNormalUseSameThresholdGate()
@@ -113,7 +113,7 @@ public partial class run_battle_execute_target_gate_regression : LifecycleTestSc
         _test.Eq(bossTarget.current_hp, 21, "boss 高 HP preview 不应被非致命削血。");
 
         BattleTestFixture.DisposeBattlePreview(preview);
-        GodotSharpCleanup.ClearRuntimeReferences(command);
+        BattleTestFixture.DisposeBattleCommand(command);
     }
 
     private static BattleTestFixture CreateFixture(

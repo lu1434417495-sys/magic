@@ -366,8 +366,8 @@ public partial class run_phantasmal_kill_regression : LifecycleTestSceneTree
         _test.False(enemyOutOfRange.HasStatusEffect("stunned"), "out-of-range enemy should not gain stunned.");
         _test.False(allyOutOfRange.HasStatusEffect("stunned"), "out-of-range ally should not gain stunned.");
 
-        GodotSharpCleanup.DisposeBatch(batch);
-        GodotSharpCleanup.ClearRuntimeReferences(command);
+        batch?.Dispose();
+        BattleTestFixture.DisposeBattleCommand(command);
     }
 
     private static CombatEffectDefinition MakePhantasmalKillEffect() =>

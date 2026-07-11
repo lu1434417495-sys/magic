@@ -117,7 +117,7 @@ public partial class run_meteor_swarm_ai_regression : LifecycleTestSceneTree
         {
             BattleTestFixture.DisposeBattleAiScoreInput(scoreInput);
             BattleTestFixture.DisposeBattlePreview(preview);
-            GodotSharpCleanup.ClearRuntimeReferences(command);
+            BattleTestFixture.DisposeBattleCommand(command);
             setup?.Dispose();
         }
     }
@@ -327,7 +327,7 @@ public partial class run_meteor_swarm_ai_regression : LifecycleTestSceneTree
         if (preview == null || !preview.allowed)
         {
             BattleTestFixture.DisposeBattlePreview(preview);
-            GodotSharpCleanup.ClearRuntimeReferences(command);
+            BattleTestFixture.DisposeBattleCommand(command);
             return null;
         }
         var aiContext = new BattleAiContext
@@ -353,7 +353,7 @@ public partial class run_meteor_swarm_ai_regression : LifecycleTestSceneTree
         if (scoreInput == null)
         {
             BattleTestFixture.DisposeBattlePreview(preview);
-            GodotSharpCleanup.ClearRuntimeReferences(command);
+            BattleTestFixture.DisposeBattleCommand(command);
         }
         return scoreInput;
     }

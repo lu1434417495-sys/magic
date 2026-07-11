@@ -150,8 +150,8 @@ public partial class run_hunter_axe_weapon_ability_regression : LifecycleTestSce
             "未学习猎人标记时，装备入口施放不应创建角色技能进度。"
         );
 
-        GodotSharpCleanup.DisposeBatch(batch);
-        GodotSharpCleanup.ClearRuntimeReferences(command);
+        batch?.Dispose();
+        BattleTestFixture.DisposeBattleCommand(command);
         BattleTestFixture.DisposeBattleState(state);
     }
 
@@ -237,10 +237,10 @@ public partial class run_hunter_axe_weapon_ability_regression : LifecycleTestSce
             "已学习猎人标记时，标记后由施放者武器命中并触发追加伤害应给猎人标记增加熟练度。"
         );
 
-        GodotSharpCleanup.DisposeBatch(attackBatch);
-        GodotSharpCleanup.ClearRuntimeReferences(attackCommand);
-        GodotSharpCleanup.DisposeBatch(batch);
-        GodotSharpCleanup.ClearRuntimeReferences(command);
+        attackBatch?.Dispose();
+        BattleTestFixture.DisposeBattleCommand(attackCommand);
+        batch?.Dispose();
+        BattleTestFixture.DisposeBattleCommand(command);
         BattleTestFixture.DisposeBattleState(state);
     }
 

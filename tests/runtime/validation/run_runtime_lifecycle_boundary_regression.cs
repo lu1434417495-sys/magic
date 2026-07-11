@@ -14,7 +14,17 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
     private static readonly Regex DirectTestQuitPattern =
         new(@"\bQ" + @"uit\s*\(", RegexOptions.Compiled);
     private static readonly Regex DirectSceneTreeBasePattern =
-        new(@":\s*S" + @"ceneTree\b", RegexOptions.Compiled);
+        new(@":\s*(?:Godot\s*\.\s*)?S" + @"ceneTree\b", RegexOptions.Compiled);
+    private static readonly Regex DirectGcBarrierCallPattern =
+        new(
+            @"\b(?:System\s*\.\s*)?GC\s*\.\s*(?:Collect|WaitForPendingFinalizers|TryStartNoGCRegion|EndNoGCRegion)\s*\(",
+            RegexOptions.Compiled
+        );
+    private static readonly Regex MigrationCompatibilityPattern =
+        new(
+            @"\b(?:GodotSharpCleanup|migrate_test_exit_calls|test_exit_migration_manifest)\b",
+            RegexOptions.Compiled
+        );
     private static readonly Regex DynamicAttributeModifierConstructionPattern =
         new(@"\bnew\s+AttributeModifier\b", RegexOptions.Compiled);
     private static readonly Regex ProductionSceneTreeQuitPattern =
@@ -70,6 +80,9 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
         AssertNoTestLocalFinalizerControl();
         AssertNoDirectTestQuit();
         AssertConcreteRunnersUseLifecycleBase();
+        AssertFinalizerBarrierCallersAreExact();
+        AssertMigrationArtifactsAreDeleted();
+        AssertTestExitComponentsAreNarrow();
         AssertPhaseTwoLeaseDomainsReturnToBaseline();
         AssertNoDynamicAttributeModifierConstruction();
         AssertExactLegacyDebt();
@@ -149,6 +162,143 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
                 $"Concrete C# runners must derive through LifecycleTestSceneTree, but {Path.GetRelativePath(testsRoot, fullPath)} derives from the engine tree directly."
             );
         }
+    }
+
+    private void AssertFinalizerBarrierCallersAreExact()
+    {
+        string projectRoot = ProjectSettings.GlobalizePath("res://");
+        var allowedPaths = new HashSet<string>(
+            new[]
+            {
+                "scripts/utils/GodotObjectLifecycle.cs",
+                "tests/shared/LifecycleMeasurementBarrier.cs",
+            },
+            StringComparer.Ordinal
+        );
+        var discoveredPaths = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (string sourceRoot in new[] { "scripts", "tests" })
+        {
+            string absoluteRoot = Path.Combine(projectRoot, sourceRoot);
+            foreach (string filePath in Directory.GetFiles(absoluteRoot, "*.cs", SearchOption.AllDirectories))
+            {
+                string relativePath = Path.GetRelativePath(projectRoot, Path.GetFullPath(filePath))
+                    .Replace('\\', '/');
+                if (
+                    relativePath
+                    is "tests/runtime/validation/run_runtime_lifecycle_boundary_regression.cs"
+                        or "tests/runtime/validation/run_runtime_lifecycle_cleanup_regression.cs"
+                )
+                {
+                    continue;
+                }
+
+                if (!DirectGcBarrierCallPattern.IsMatch(File.ReadAllText(filePath)))
+                    continue;
+                discoveredPaths.Add(relativePath);
+                _test.True(
+                    allowedPaths.Contains(relativePath),
+                    $"direct GC barrier control is forbidden outside the two declared owners: {relativePath}"
+                );
+            }
+        }
+
+        _test.Eq(
+            discoveredPaths.Count,
+            allowedPaths.Count,
+            "production shutdown and test measurement are the only direct GC barrier owners"
+        );
+        foreach (string allowedPath in allowedPaths)
+        {
+            _test.True(
+                discoveredPaths.Contains(allowedPath),
+                $"declared GC barrier owner remains active: {allowedPath}"
+            );
+        }
+    }
+
+    private void AssertMigrationArtifactsAreDeleted()
+    {
+        string projectRoot = ProjectSettings.GlobalizePath("res://");
+        string[] deletedArtifacts =
+        {
+            "tools/migrate_test_exit_calls.py",
+            "tests/tooling/test_migrate_test_exit_calls.py",
+            "tests/tooling/test_exit_migration_manifest.txt",
+            "tests/shared/GodotSharpCleanup.cs",
+        };
+        foreach (string relativePath in deletedArtifacts)
+        {
+            _test.False(
+                File.Exists(Path.Combine(projectRoot, relativePath)),
+                $"migration-only artifact must stay deleted: {relativePath}"
+            );
+        }
+
+        foreach (string sourceRoot in new[] { "scripts", "tests", "tools" })
+        {
+            string absoluteRoot = Path.Combine(projectRoot, sourceRoot);
+            if (!Directory.Exists(absoluteRoot))
+                continue;
+            foreach (string filePath in Directory.GetFiles(absoluteRoot, "*", SearchOption.AllDirectories))
+            {
+                string extension = Path.GetExtension(filePath);
+                if (
+                    extension is not ".cs"
+                    && extension is not ".py"
+                    && extension is not ".txt"
+                )
+                {
+                    continue;
+                }
+                string relativePath = Path.GetRelativePath(projectRoot, Path.GetFullPath(filePath))
+                    .Replace('\\', '/');
+                if (
+                    relativePath
+                    is "tests/runtime/validation/run_runtime_lifecycle_boundary_regression.cs"
+                        or "tests/runtime/validation/run_runtime_lifecycle_cleanup_regression.cs"
+                )
+                {
+                    continue;
+                }
+                if (MigrationCompatibilityPattern.IsMatch(File.ReadAllText(filePath)))
+                {
+                    _test.Fail(
+                        $"migration compatibility marker remains in project source: {relativePath}"
+                    );
+                }
+            }
+        }
+    }
+
+    private void AssertTestExitComponentsAreNarrow()
+    {
+        string adapterSource = File.ReadAllText(
+            ProjectSettings.GlobalizePath("res://tests/shared/TestExitCoordinator.cs")
+        );
+        _test.True(
+            adapterSource.Contains("new ShutdownRequest(", StringComparison.Ordinal),
+            "TestExitCoordinator maps results to a production ShutdownRequest"
+        );
+        _test.False(
+            DirectGcBarrierCallPattern.IsMatch(adapterSource),
+            "TestExitCoordinator does not run a finalizer barrier"
+        );
+        _test.False(
+            DirectTestQuitPattern.IsMatch(adapterSource),
+            "TestExitCoordinator does not call the tree exit API"
+        );
+
+        string harnessSource = File.ReadAllText(
+            ProjectSettings.GlobalizePath("res://tests/shared/TestHarness.cs")
+        );
+        _test.False(
+            harnessSource.Contains("GodotTransientResourceScope", StringComparison.Ordinal)
+                || harnessSource.Contains("TestResourceOwnership", StringComparison.Ordinal)
+                || DirectGcBarrierCallPattern.IsMatch(harnessSource)
+                || DirectTestQuitPattern.IsMatch(harnessSource),
+            "TestHarness remains result aggregation only"
+        );
     }
 
     private void AssertExactLegacyDebt()

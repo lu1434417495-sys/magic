@@ -696,7 +696,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
 
     private static void DisposeDecision(BattleAiDecision decision)
     {
-        GodotSharpCleanup.ClearRuntimeReferences(decision?.command);
+        BattleTestFixture.DisposeBattleCommand(decision?.command);
         BattleTestFixture.DisposeBattleAiScoreInput(decision?.score_input);
         BattleTestFixture.DisposeBattleAiScoreInput(decision?.skill_score_input);
     }

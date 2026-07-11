@@ -415,7 +415,7 @@ public partial class run_battle_validation_result_projection_regression : Lifecy
         finally
         {
             BattleTestFixture.DisposeBattleFixture(runtime, state);
-            GodotSharpCleanup.DisposeBatch(batch);
+            batch?.Dispose();
         }
     }
 

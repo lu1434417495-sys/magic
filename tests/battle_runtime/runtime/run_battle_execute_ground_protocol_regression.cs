@@ -28,7 +28,7 @@ public partial class run_battle_execute_ground_protocol_regression : LifecycleTe
         _test.False(target.HasStatusEffect("soul_fracture"), "地面 execute preview 不应附加状态。");
 
         BattleTestFixture.DisposeBattlePreview(preview);
-        GodotSharpCleanup.ClearRuntimeReferences(command);
+        BattleTestFixture.DisposeBattleCommand(command);
     }
 
     private void TestGroundExecuteIssueDeniedBeforeCost()
@@ -48,8 +48,8 @@ public partial class run_battle_execute_ground_protocol_regression : LifecycleTe
         _test.Eq(source.current_mp, 20, "地面 execute 被拒绝时不应消耗 MP。");
         _test.Eq(source.GetCooldownTyped(skill.SkillId), 0, "地面 execute 被拒绝时不应进入冷却。");
 
-        GodotSharpCleanup.DisposeBatch(batch);
-        GodotSharpCleanup.ClearRuntimeReferences(command);
+        batch?.Dispose();
+        BattleTestFixture.DisposeBattleCommand(command);
     }
 
     private void TestGroundExecuteDoesNotMutateDamageOrStatus()
@@ -66,8 +66,8 @@ public partial class run_battle_execute_ground_protocol_regression : LifecycleTe
         _test.Eq(target.current_hp, 10, "地面 execute 被拒绝时不应改变目标 HP。");
         _test.False(target.HasStatusEffect("soul_fracture"), "地面 execute 被拒绝时不应附加 soul fracture。");
 
-        GodotSharpCleanup.DisposeBatch(batch);
-        GodotSharpCleanup.ClearRuntimeReferences(command);
+        batch?.Dispose();
+        BattleTestFixture.DisposeBattleCommand(command);
     }
 
     private static BattleTestFixture CreateFixture(
