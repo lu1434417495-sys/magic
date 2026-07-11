@@ -120,9 +120,15 @@ public partial class run_world_map_low_level_defensive_regression : LifecycleTes
         );
         _test.True(revealedCoords.Contains(new Vector2I(3, 3)), "迷雾揭示应返回中心格。");
 
-        GDictionary persistedState = fogSystem.ExportPersistentState();
+        using GodotProjectionLease<GDictionary> persistedStateLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                fogSystem.BuildPersistentStatePlain(),
+                "WorldMapLowLevelDefensiveRegression.fog_state",
+                LifetimeDomain.Request,
+                "WorldMapLowLevelDefensiveRegression.fog_state"
+            );
         var restoredFogSystem = new WorldMapFogSystem();
-        restoredFogSystem.Setup(new Vector2I(8, 8), persistedState);
+        restoredFogSystem.Setup(new Vector2I(8, 8), persistedStateLease.Value);
 
         _test.True(
             restoredFogSystem.IsExplored(new Vector2I(3, 3), "player"),

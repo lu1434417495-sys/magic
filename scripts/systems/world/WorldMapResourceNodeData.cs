@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -87,9 +88,8 @@ public sealed class WorldMapResourceNodeData
         return resourceNode.Exists ? resourceNode : null;
     }
 
-    internal GDictionary ToDictionary()
-    {
-        return new GDictionary
+    internal Dictionary<string, object> BuildSaveSnapshotPlain() =>
+        new(System.StringComparer.Ordinal)
         {
             ["node_id"] = NodeId,
             ["node_kind"] = NodeKind,
@@ -100,7 +100,6 @@ public sealed class WorldMapResourceNodeData
             ["max_charges"] = MaxCharges,
             ["remaining_charges"] = RemainingCharges,
         };
-    }
 
     // Resource nodes are immutable; harvesting rebuilds the one node with a lowered
     // remaining-charge count. Callers drop the node from the world once it hits zero.

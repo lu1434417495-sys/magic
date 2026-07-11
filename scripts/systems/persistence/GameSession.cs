@@ -4,9 +4,6 @@ using System.Threading.Tasks;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GDictionaryArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
-using GStringArray = Godot.Collections.Array<string>;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 [GlobalClass]
 public partial class GameSession : Node, IApplicationShutdownParticipant, IDisposable
@@ -67,16 +64,6 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
 
         public int ErrorCount => Errors.Count;
 
-        public GDictionary ToDictionary()
-        {
-            return new GDictionary
-            {
-                ["ok"] = Ok,
-                ["error_count"] = ErrorCount,
-                ["errors"] = ToGodotStringArray(Errors),
-            };
-        }
-
         public Dictionary<string, object> BuildSnapshotPlain()
         {
             var errors = new List<object>();
@@ -119,27 +106,6 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
             if (domain == null)
                 return Array.Empty<string>();
             return domain.Errors;
-        }
-
-        public GDictionary ToDictionary()
-        {
-            GDictionary domainSnapshots = new();
-            foreach (string domainId in ContentValidationDomainOrder)
-            {
-                domainSnapshots[domainId] = Domains.TryGetValue(
-                    domainId,
-                    out ContentValidationDomainSnapshotData domain
-                )
-                    ? domain?.ToDictionary() ?? new GDictionary()
-                    : new GDictionary();
-            }
-            return new GDictionary
-            {
-                ["ok"] = Ok,
-                ["error_count"] = ErrorCount,
-                ["domain_order"] = BuildDomainOrderArray(),
-                ["domains"] = domainSnapshots,
-            };
         }
 
         public Dictionary<string, object> BuildSnapshotPlain()
@@ -619,17 +585,17 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
     public int StartNewGame(string generation_config_path)
     {
         string presetName = WorldPresetRegistry.GetFallbackPresetName(generation_config_path);
-        return CreateNewSave(generation_config_path, "", presetName, new GDictionary());
+        return CreateNewSave(generation_config_path, "", presetName, null);
     }
 
     public int CreateNewSave(string generation_config_path)
     {
-        return CreateNewSave(generation_config_path, "", "", new GDictionary());
+        return CreateNewSave(generation_config_path, "", "", null);
     }
 
     public int CreateNewSave(string generation_config_path, StringName preset_id)
     {
-        return CreateNewSave(generation_config_path, preset_id, "", new GDictionary());
+        return CreateNewSave(generation_config_path, preset_id, "", null);
     }
 
     public int CreateNewSave(
@@ -638,7 +604,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         string preset_name
     )
     {
-        return CreateNewSave(generation_config_path, preset_id, preset_name, new GDictionary());
+        return CreateNewSave(generation_config_path, preset_id, preset_name, null);
     }
 
     public int CreateNewSave(
@@ -648,7 +614,6 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         GDictionary character_creation_payload
     )
     {
-        character_creation_payload ??= new GDictionary();
         int contentValidationError = RequireContentValidationForRuntime("create_new_save");
         if (contentValidationError != (int)Error.Ok)
             return contentValidationError;
@@ -721,13 +686,16 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
             LogSessionInfo(
                 "session.save.create.ok",
                 "已创建新存档。",
-                Json.Stringify(new GDictionary
-                {
-                    ["save_id"] = _active_save_id,
-                    ["generation_config_path"] = generation_config_path,
-                    ["preset_id"] = preset_id.ToString(),
-                    ["preset_name"] = preset_name,
-                })
+                StringifyPlainContext(
+                    new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        ["save_id"] = _active_save_id,
+                        ["generation_config_path"] = generation_config_path,
+                        ["preset_id"] = preset_id.ToString(),
+                        ["preset_name"] = preset_name,
+                    },
+                    "GameSession.session.save.create.ok"
+                )
             );
             DisposeCapturedPartyState(previousRuntimeState);
         }
@@ -815,12 +783,15 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
             LogSessionInfo(
                 "session.save.load.ok",
                 "已加载存档。",
-                Json.Stringify(new GDictionary
-                {
-                    ["save_id"] = save_id,
-                    ["save_path"] = savePath,
-                    ["generation_config_path"] = generationConfigPath,
-                })
+                StringifyPlainContext(
+                    new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        ["save_id"] = save_id,
+                        ["save_path"] = savePath,
+                        ["generation_config_path"] = generationConfigPath,
+                    },
+                    "GameSession.session.save.load.ok"
+                )
             );
             DisposeCapturedPartyState(previousRuntimeState);
         }
@@ -895,7 +866,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
             );
         _generation_config_path = ContentPathCanonicalizer.Canonicalize(generationConfigPath);
         _generation_definition = resolvedGenerationDefinition;
-        ReplaceWorldDataPayload(worldData ?? new GDictionary());
+        ReplaceWorldDataPayload(worldData);
         _player_coord = Vector2I.Zero;
         _player_faction_id = "player";
         PartyState previousPartyState = _party_state;
@@ -959,7 +930,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
 
     internal void ReplaceWorldDataPayloadForRuntimeRestore(GDictionary worldData)
     {
-        ReplaceWorldDataPayload(worldData ?? new GDictionary());
+        ReplaceWorldDataPayload(worldData);
     }
 
     private GodotProjectionLease<GDictionary> ActiveSaveMetaPayloadLease() =>
@@ -972,11 +943,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
 
     private void ReplaceActiveSaveMetaPayload(GDictionary payload)
     {
-        ReplacePlainPayload(
-            _activeSaveMeta,
-            payload ?? new GDictionary(),
-            "GameSession.active_save_meta"
-        );
+        ReplacePlainPayload(_activeSaveMeta, payload, "GameSession.active_save_meta");
     }
 
     private void ReplaceActiveSaveMetaPlain(
@@ -998,7 +965,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
 
     private void ReplaceWorldDataPayload(GDictionary payload)
     {
-        ReplacePlainPayload(_worldData, payload ?? new GDictionary(), "GameSession.world_data");
+        ReplacePlainPayload(_worldData, payload, "GameSession.world_data");
     }
 
     private void ReplaceWorldDataPlain(IReadOnlyDictionary<string, object> payload)
@@ -1015,8 +982,10 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
     )
     {
         target.Clear();
+        if (payload == null)
+            return;
         Dictionary<string, object> normalized =
-            RuntimePlainPayload.NormalizeDictionary(payload, ownerPath);
+            RuntimePlainPayload.NormalizeDictionaryStrict(payload, ownerPath);
         foreach (KeyValuePair<string, object> entry in normalized)
         {
             target[entry.Key] = entry.Value;
@@ -1044,7 +1013,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
     {
         if (!_worldData.TryGetValue(WorldEquipmentInstanceSerialKey, out object rawSerial))
             return "";
-        GDictionary usedIds = CollectPersistentEquipmentInstanceIds();
+        HashSet<string> usedIds = CollectPersistentEquipmentInstanceIds();
         int serial = rawSerial switch
         {
             int intValue => intValue,
@@ -1058,7 +1027,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
             StringName candidate = EquipmentInstanceState.FormatInstanceId(serial);
             serial += 1;
             _worldData[WorldEquipmentInstanceSerialKey] = serial;
-            if (!usedIds.ContainsKey(candidate.ToString()))
+            if (!usedIds.Contains(candidate.ToString()))
             {
                 MarkRuntimeStateDirty(SaveDirtyScopeWorldData);
                 return candidate;
@@ -1068,10 +1037,18 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
 
     public int SetWorldData(GDictionary world_data)
     {
-        GDictionary normalizedWorldData = NormalizeWorldData(world_data ?? new GDictionary());
-        if (normalizedWorldData.Count == 0)
+        if (world_data == null)
             return (int)Error.InvalidData;
-        ReplaceWorldDataPayload(normalizedWorldData);
+        if (
+            !_save_serializer.TryNormalizeWorldDataPlain(
+                world_data,
+                out Dictionary<string, object> normalizedWorldData
+            )
+        )
+        {
+            return (int)Error.InvalidData;
+        }
+        ReplaceWorldDataPlain(normalizedWorldData);
         MarkRuntimeStateDirty(SaveDirtyScopeWorldData);
         return (int)Error.Ok;
     }
@@ -1201,9 +1178,9 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         return _party_state?.GetMemberState(_party_state.leader_member_id);
     }
 
-    private GDictionary CollectPersistentEquipmentInstanceIds()
+    private HashSet<string> CollectPersistentEquipmentInstanceIds()
     {
-        GDictionary usedIds = new();
+        var usedIds = new HashSet<string>(StringComparer.Ordinal);
         if (_party_state == null)
             return usedIds;
         CollectWarehouseEquipmentInstanceIds(_party_state.warehouse_state, usedIds);
@@ -1219,7 +1196,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
                 );
                 if (instanceId == "")
                     continue;
-                usedIds[instanceId.ToString()] = true;
+                usedIds.Add(instanceId.ToString());
             }
         }
         return usedIds;
@@ -1227,7 +1204,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
 
     private void CollectWarehouseEquipmentInstanceIds(
         WarehouseState warehouse_state,
-        GDictionary used_ids
+        HashSet<string> used_ids
     )
     {
         if (warehouse_state == null || used_ids == null)
@@ -1239,7 +1216,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
             StringName instanceId = ProgressionDataUtils.to_string_name(instance.instance_id);
             if (instanceId == "")
                 continue;
-            used_ids[instanceId.ToString()] = true;
+            used_ids.Add(instanceId.ToString());
         }
     }
 
@@ -1429,7 +1406,13 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         LogSessionInfo(
             "session.runtime.unload.ok",
             "已卸载当前运行中世界。",
-            Json.Stringify(new GDictionary { ["save_id"] = unloadedSaveId })
+            StringifyPlainContext(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["save_id"] = unloadedSaveId,
+                },
+                "GameSession.session.runtime.unload.ok"
+            )
         );
     }
 
@@ -1456,11 +1439,14 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
             LogSessionInfo(
                 "session.save.autoload.skip_bad_candidate",
                 $"自动载入跳过坏存档 {candidateSaveId}。",
-                Json.Stringify(new GDictionary
-                {
-                    ["save_id"] = candidateSaveId,
-                    ["generation_config_path"] = generation_config_path,
-                })
+                StringifyPlainContext(
+                    new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        ["save_id"] = candidateSaveId,
+                        ["generation_config_path"] = generation_config_path,
+                    },
+                    "GameSession.session.save.autoload.skip_bad_candidate"
+                )
             );
         }
         return attemptedCandidate ? false : false;
@@ -1485,11 +1471,21 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
             generation_definition,
             gridSystem
         );
-        GDictionary worldData = WorldMapSpawnProjection.Project(worldBuild);
+        Dictionary<string, object> worldData =
+            WorldMapSpawnProjection.BuildSnapshotPlain(worldBuild);
+        if (
+            !_save_serializer.TryNormalizeWorldDataPlain(
+                worldData,
+                out Dictionary<string, object> normalizedWorldData
+            )
+        )
+        {
+            return (int)Error.InvalidData;
+        }
 
         _generation_config_path = ContentPathCanonicalizer.Canonicalize(generation_config_path);
         _generation_definition = generation_definition;
-        ReplaceWorldDataPayload(NormalizeWorldData(worldData));
+        ReplaceWorldDataPlain(normalizedWorldData);
         _player_coord = worldBuild.PlayerStartCoord;
         _player_faction_id = "player";
         _party_state = CreateDefaultPartyState();
@@ -1587,11 +1583,14 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
             PushSessionError(
                 "session.save.load.contingency_content_invalid",
                 "存档中的连锁应急术配置引用了非法技能内容。",
-                Json.Stringify(new GDictionary
-                {
-                    ["error_count"] = contingencyContentErrors.Count,
-                    ["first_error"] = contingencyContentErrors[0],
-                })
+                StringifyPlainContext(
+                    new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        ["error_count"] = contingencyContentErrors.Count,
+                        ["first_error"] = contingencyContentErrors[0],
+                    },
+                    "GameSession.session.save.load.contingency_content_invalid"
+                )
             );
             return (int)Error.InvalidData;
         }
@@ -1777,7 +1776,13 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
             PushSessionError(
                 "session.config.definition_unavailable",
                 $"GameSession snapshot has no world generation definition for {canonicalPath}.",
-                Json.Stringify(new GDictionary { ["generation_config_path"] = canonicalPath })
+                StringifyPlainContext(
+                    new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        ["generation_config_path"] = canonicalPath,
+                    },
+                    "GameSession.session.config.definition_unavailable"
+                )
             );
             return null;
         }
@@ -1797,16 +1802,6 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
     private PartyState NormalizePartyState(PartyState party_state)
     {
         return _save_serializer.NormalizePartyState(party_state) ?? new PartyState();
-    }
-
-    private GDictionary NormalizeWorldData(GDictionary world_data)
-    {
-        return _save_serializer.NormalizeWorldData(world_data ?? new GDictionary());
-    }
-
-    private GDictionary SerializeWorldData(GDictionary world_data)
-    {
-        return _save_serializer.SerializeWorldData(world_data ?? new GDictionary());
     }
 
     private void RotateLogSession()
@@ -1871,7 +1866,15 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         PartyState previousPartyState = _party_state;
         _active_save_id = GetString(state, "active_save_id");
         _active_save_path = GetString(state, "active_save_path");
-        ReplaceActiveSaveMetaPayload(GetDictionary(state, "active_save_meta").Duplicate(true));
+        using (GDictionary activeSaveMetaPayload = GetDictionary(state, "active_save_meta"))
+        {
+            ReplaceActiveSaveMetaPlain(
+                RuntimePlainPayload.NormalizeDictionaryStrict(
+                    activeSaveMetaPayload,
+                    "GameSession.RestoreRuntimeState.active_save_meta"
+                )
+            );
+        }
         string restoredGenerationPath = GetString(state, "generation_config_path");
         _generation_config_path = restoredGenerationPath;
         _generation_definition = DefinitionMatchesPath(
@@ -1880,7 +1883,15 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         )
             ? generationDefinition
             : null;
-        ReplaceWorldDataPayload(GetDictionary(state, "world_data").Duplicate(true));
+        using (GDictionary worldDataPayload = GetDictionary(state, "world_data"))
+        {
+            ReplaceWorldDataPlain(
+                RuntimePlainPayload.NormalizeDictionaryStrict(
+                    worldDataPayload,
+                    "GameSession.RestoreRuntimeState.world_data"
+                )
+            );
+        }
         _player_coord = GetVector2I(state, "player_coord", Vector2I.Zero);
         _player_faction_id = GetString(state, "player_faction_id", "player");
         _party_state =
@@ -1892,21 +1903,21 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         _battle_save_lock_enabled = ReadExactBool(state, "battle_save_lock_enabled", false);
         _battle_save_dirty = ReadExactBool(state, "battle_save_dirty", false);
         _runtime_save_dirty = ReadExactBool(state, "runtime_save_dirty", false);
-        _runtime_save_dirty_scopes = new StringNameList(
-            ProgressionDataUtils.to_string_name_array(
-            GetArray(state, "runtime_save_dirty_scopes")
-            )
-        );
+        using (GArray runtimeSaveDirtyScopesPayload =
+            GetArray(state, "runtime_save_dirty_scopes"))
+        {
+            _runtime_save_dirty_scopes = ReadStringNameList(runtimeSaveDirtyScopesPayload);
+        }
         _last_save_error = GetInt(state, "last_save_error", (int)Error.Ok);
         _last_save_error_reason = ProgressionDataUtils.to_string_name(
             GetString(state, "last_save_error_reason")
         );
         _post_decode_save_pending = ReadExactBool(state, "post_decode_save_pending", false);
-        _post_decode_save_reasons = new StringNameList(
-            ProgressionDataUtils.to_string_name_array(
-            GetArray(state, "post_decode_save_reasons")
-            )
-        );
+        using (GArray postDecodeSaveReasonsPayload =
+            GetArray(state, "post_decode_save_reasons"))
+        {
+            _post_decode_save_reasons = ReadStringNameList(postDecodeSaveReasonsPayload);
+        }
     }
 
     private static bool DefinitionMatchesPath(

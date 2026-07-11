@@ -1,7 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_world_map_spawn_typed_regression : LifecycleTestSceneTree
 {
@@ -38,7 +36,8 @@ public partial class run_world_map_spawn_typed_regression : LifecycleTestSceneTr
             definition,
             gridSystem
         );
-        GDictionary projectedWorld = WorldMapSpawnProjection.Project(typedWorld);
+        Dictionary<string, object> projectedWorld =
+            WorldMapSpawnProjection.BuildSnapshotPlain(typedWorld);
 
         _test.True(typedWorld.MapSeed > 0, "typed world build 应记录运行时 map seed。");
         _test.True(typedWorld.Settlements.Count > 0, "typed world build 应生成 settlement 列表。");
@@ -86,12 +85,12 @@ public partial class run_world_map_spawn_typed_regression : LifecycleTestSceneTr
         if (playerSettlement != null)
         {
             _test.Eq(
-                projectedWorld["player_start_settlement_id"].AsString(),
+                StringValue(projectedWorld, "player_start_settlement_id"),
                 playerSettlement.SettlementId,
                 "public world_data.player_start_settlement_id 应来自 typed settlement。"
             );
             _test.Eq(
-                projectedWorld["player_start_settlement_name"].AsString(),
+                StringValue(projectedWorld, "player_start_settlement_name"),
                 playerSettlement.DisplayName,
                 "public world_data.player_start_settlement_name 应来自 typed settlement。"
             );
@@ -110,8 +109,10 @@ public partial class run_world_map_spawn_typed_regression : LifecycleTestSceneTr
             firstSettlement.AvailableServices.Count > 0,
             "typed settlement 应持有 service entry 列表。"
         );
-        GDictionary firstProjectedSettlement = ArrayValue(projectedWorld, "settlements")[0]
-            .AsGodotDictionary();
+        IReadOnlyDictionary<string, object> firstProjectedSettlement =
+            ArrayValue(projectedWorld, "settlements")[0]
+                as IReadOnlyDictionary<string, object>
+            ?? new Dictionary<string, object>();
         _test.Eq(
             ArrayValue(firstProjectedSettlement, "facilities").Count,
             firstSettlement.Facilities.Count,
@@ -128,7 +129,7 @@ public partial class run_world_map_spawn_typed_regression : LifecycleTestSceneTr
             "typed service npc 列表与公开投影数量应一致。"
         );
         _test.Eq(
-            firstProjectedSettlement["settlement_id"].AsString(),
+            StringValue(firstProjectedSettlement, "settlement_id"),
             firstSettlement.SettlementId,
             "typed settlement id 应直接映射到公开投影。"
         );
@@ -213,21 +214,37 @@ public partial class run_world_map_spawn_typed_regression : LifecycleTestSceneTr
         _test.True(hasStartHerbGarden, "玩家初始点附近应保证一个新手药园。");
     }
 
-    private static GArray ArrayValue(GDictionary dictionary, string key)
+    private static IReadOnlyList<object> ArrayValue(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key
+    )
     {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-            return new GArray();
-        Variant value = dictionary[key];
-        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+        return dictionary != null
+            && dictionary.TryGetValue(key, out object value)
+            && value is IReadOnlyList<object> array
+            ? array
+            : System.Array.Empty<object>();
     }
 
-    private static GDictionary DictValue(GDictionary dictionary, string key)
+    private static IReadOnlyDictionary<string, object> DictValue(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key
+    )
     {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-            return new GDictionary();
-        Variant value = dictionary[key];
-        return value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
-            : new GDictionary();
+        return dictionary != null
+            && dictionary.TryGetValue(key, out object value)
+            && value is IReadOnlyDictionary<string, object> nested
+            ? nested
+            : new Dictionary<string, object>();
     }
+
+    private static string StringValue(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key
+    ) =>
+        dictionary != null
+        && dictionary.TryGetValue(key, out object value)
+        && value is string text
+            ? text
+            : "";
 }

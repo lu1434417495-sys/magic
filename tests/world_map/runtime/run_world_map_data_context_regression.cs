@@ -141,13 +141,9 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
         EncounterAnchorData clearedAnchor = BuildEncounterAnchor("cleared_anchor", "Cleared Anchor", new Vector2I(2, 0), true);
         try
         {
-            GDictionary rootWorldData = BuildRootWorldData();
-            rootWorldData["encounter_anchors"] = new GArray
-            {
-                WorldMapDataProjection.Project(farAnchor),
-                WorldMapDataProjection.Project(nearAnchor),
-                WorldMapDataProjection.Project(clearedAnchor),
-            };
+            using GodotProjectionLease<GDictionary> rootWorldDataLease =
+                BuildEncounterRootWorldDataLease(farAnchor, nearAnchor, clearedAnchor);
+            GDictionary rootWorldData = rootWorldDataLease.Value;
             context.BindRootWorldData(rootWorldData);
             context.SyncActiveWorldContext(BuildConfig(), grid, Vector2I.Zero, Vector2I.Zero);
 
@@ -646,6 +642,31 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
             ["encounter_anchors"] = new GArray(),
             ["world_events"] = new GArray(),
         };
+
+    private static GodotProjectionLease<GDictionary> BuildEncounterRootWorldDataLease(
+        params EncounterAnchorData[] encounterAnchors
+    )
+    {
+        var encounterAnchorPayloads = new List<object>();
+        foreach (EncounterAnchorData encounterAnchor in encounterAnchors)
+        {
+            if (encounterAnchor != null)
+                encounterAnchorPayloads.Add(encounterAnchor.BuildSaveSnapshotPlain());
+        }
+        return RuntimePlainPayload.ProjectDictionaryLease(
+            new Dictionary<string, object>(System.StringComparer.Ordinal)
+            {
+                ["world_step"] = 0,
+                ["settlements"] = new List<object>(),
+                ["world_npcs"] = new List<object>(),
+                ["encounter_anchors"] = encounterAnchorPayloads,
+                ["world_events"] = new List<object>(),
+            },
+            "test.world_map_data_context.encounter_root_world_data",
+            LifetimeDomain.Request,
+            "test.world_map_data_context.encounter_root_world_data"
+        );
+    }
 
     private static EncounterAnchorData BuildEncounterAnchor(
         string entityId,

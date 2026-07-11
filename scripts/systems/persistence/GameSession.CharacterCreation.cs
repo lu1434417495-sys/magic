@@ -2,11 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GDictionaryArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
-using GStringArray = Godot.Collections.Array<string>;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 // Partial slice of GameSession — new-game character/party defaults + starting skill/weapon grants.
 // Pure physical split: same class, no behavior change. See GameSession.cs.
@@ -53,7 +49,13 @@ public partial class GameSession
             PushSessionError(
                 "session.character_creation.invalid_payload",
                 $"GameSession rejected invalid character creation payload for main character {mainMemberId}.",
-                Json.Stringify(new GDictionary { ["member_id"] = mainMemberId })
+                StringifyPlainContext(
+                    new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        ["member_id"] = mainMemberId,
+                    },
+                    "GameSession.character_creation.invalid_payload"
+                )
             );
             return (int)Error.InvalidData;
         }
@@ -61,6 +63,24 @@ public partial class GameSession
         RevokeOrphanRacialSkills(_party_state);
         BackfillRacialGrantedSkills(_party_state);
         return (int)Error.Ok;
+    }
+
+    private static string StringifyPlainContext(
+        IReadOnlyDictionary<string, object> context,
+        string reason
+    )
+    {
+        string ownerId = string.IsNullOrWhiteSpace(reason)
+            ? "GameSession.json_context"
+            : reason;
+        using GodotProjectionLease<GDictionary> contextLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                context ?? new Dictionary<string, object>(StringComparer.Ordinal),
+                ownerId,
+                LifetimeDomain.Request,
+                ownerId
+            );
+        return Json.Stringify(contextLease.Value);
     }
 
     private void ApplyCharacterCreationIdentityPayload(
@@ -121,11 +141,13 @@ public partial class GameSession
             payload.ContainsKey("active_stage_advancement_modifier_ids")
             && HasArray(payload, "active_stage_advancement_modifier_ids")
         )
+        {
+            using Godot.Collections.Array modifierIdsPayload =
+                payload["active_stage_advancement_modifier_ids"].AsGodotArray();
             member_state.SetActiveStageAdvancementModifierIds(
-                ProgressionDataUtils.to_string_name_array(
-                    payload["active_stage_advancement_modifier_ids"]
-                )
+                new StringNameList(modifierIdsPayload)
             );
+        }
         member_state.SetBloodline(
             ReadPayloadStringName(payload, "bloodline_id", member_state.bloodline_id, true),
             ReadPayloadStringName(
@@ -305,10 +327,8 @@ public partial class GameSession
         partyState.SetMemberState(swordMember);
         partyState.leader_member_id = "player_sword_01";
         partyState.main_character_member_id = "player_sword_01";
-        partyState.active_member_ids = ProgressionDataUtils.to_string_name_array(
-            new GArray { "player_sword_01" }
-        );
-        partyState.reserve_member_ids = ProgressionDataUtils.to_string_name_array(new GArray());
+        partyState.active_member_ids = new StringNameList { "player_sword_01" };
+        partyState.reserve_member_ids = new StringNameList();
         return partyState;
     }
 
@@ -404,7 +424,7 @@ public partial class GameSession
         if (progression == null || skillDefinitions.Count == 0)
             return null;
 
-        GStringNameArray eligibleSkillIds = new();
+        List<StringName> eligibleSkillIds = new();
         foreach (StringName skillId in GetSortedSkillDefinitionIds(skillDefinitions))
         {
             SkillDefinition skillDefinition = skillDefinitions.TryGetValue(
@@ -487,44 +507,44 @@ public partial class GameSession
 
     private StringName ResolveStartingWeaponItemIdForSkill(SkillDefinition skillDefinition)
     {
-        GStringNameArray candidates = new();
+        List<StringName> candidates = new();
         if (
             SkillMatchesStartingWeaponType(
                 skillDefinition,
-                new GStringNameArray { "crossbow" },
-                new GStringArray { "crossbow" }
+                new StringName[] { "crossbow" },
+                new[] { "crossbow" }
             )
         )
             candidates.Add(StartingCrossbowWeaponItemId);
         if (
             SkillMatchesStartingWeaponType(
                 skillDefinition,
-                new GStringNameArray { "archer", "bow" },
-                new GStringArray { "archer_" }
+                new StringName[] { "archer", "bow" },
+                new[] { "archer_" }
             )
         )
             candidates.Add(StartingArcherWeaponItemId);
         if (
             SkillMatchesStartingWeaponType(
                 skillDefinition,
-                new GStringNameArray { "mage", "magic", "spell" },
-                new GStringArray { "mage_" }
+                new StringName[] { "mage", "magic", "spell" },
+                new[] { "mage_" }
             )
         )
             candidates.Add(StartingMageWeaponItemId);
         if (
             SkillMatchesStartingWeaponType(
                 skillDefinition,
-                new GStringNameArray { "priest", "faith", "heal" },
-                new GStringArray { "priest_", "saint_" }
+                new StringName[] { "priest", "faith", "heal" },
+                new[] { "priest_", "saint_" }
             )
         )
             candidates.Add(StartingPriestWeaponItemId);
         if (
             SkillMatchesStartingWeaponType(
                 skillDefinition,
-                new GStringNameArray { "warrior", "melee", "shield" },
-                new GStringArray { "warrior_" }
+                new StringName[] { "warrior", "melee", "shield" },
+                new[] { "warrior_" }
             )
         )
             candidates.Add(StartingMeleeWeaponItemId);
@@ -534,8 +554,8 @@ public partial class GameSession
 
     private bool SkillMatchesStartingWeaponType(
         SkillDefinition skillDefinition,
-        GStringNameArray tag_ids,
-        GStringArray skill_id_prefixes
+        IReadOnlyList<StringName> tag_ids,
+        IReadOnlyList<string> skill_id_prefixes
     )
     {
         if (skillDefinition == null)
@@ -554,7 +574,7 @@ public partial class GameSession
         return false;
     }
 
-    private StringName FirstValidStartingWeaponItemId(GStringNameArray candidates)
+    private StringName FirstValidStartingWeaponItemId(IEnumerable<StringName> candidates)
     {
         foreach (StringName itemId in candidates)
         {

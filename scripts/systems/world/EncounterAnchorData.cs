@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -57,6 +58,23 @@ public class EncounterAnchorData
             encounter_profile_id = encounter_profile_id,
             growth_stage = growth_stage,
             suppressed_until_step = suppressed_until_step,
+        };
+
+    internal Dictionary<string, object> BuildSaveSnapshotPlain() =>
+        new(System.StringComparer.Ordinal)
+        {
+            ["entity_id"] = entity_id.ToString(),
+            ["display_name"] = display_name ?? "",
+            ["world_coord"] = world_coord,
+            ["faction_id"] = faction_id.ToString(),
+            ["enemy_roster_template_id"] = enemy_roster_template_id.ToString(),
+            ["region_tag"] = region_tag.ToString(),
+            ["vision_range"] = vision_range,
+            ["is_cleared"] = is_cleared,
+            ["encounter_kind"] = encounter_kind.ToString(),
+            ["encounter_profile_id"] = encounter_profile_id.ToString(),
+            ["growth_stage"] = growth_stage,
+            ["suppressed_until_step"] = suppressed_until_step,
         };
 
     internal static StringName ToStringName(EncounterAnchorKind kind)

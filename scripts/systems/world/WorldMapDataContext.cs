@@ -114,7 +114,7 @@ public sealed class WorldMapDataContext
     {
         if (active_generation_definition == null || fogSystem == null || _activeRuntimeData == null)
             return false;
-        GDictionary fogStates = fogSystem.ExportPersistentState();
+        Dictionary<string, object> fogStates = fogSystem.BuildPersistentStatePlain();
         // Write fog directly into the typed active world data — no whole-world
         // ToDictionary/FromDictionary round-trip. On the root map _activeRuntimeData
         // and _rootRuntimeData are the same instance, so this updates root too.
@@ -132,9 +132,17 @@ public sealed class WorldMapDataContext
                 && submapEntry["world_data"].VariantType == Variant.Type.Dictionary
             )
             {
-                GDictionary submapWorldData = submapEntry["world_data"].AsGodotDictionary();
-                submapWorldData[WorldMapFogSystem.WorldDataFogStatesKey] = fogStates;
-                submapEntry["world_data"] = submapWorldData;
+                using (GDictionary submapWorldData =
+                    submapEntry["world_data"].AsGodotDictionary())
+                {
+                    submapWorldData[WorldMapFogSystem.WorldDataFogStatesKey] =
+                        RuntimePlainPayload.ProjectDictionaryInto(
+                            submapEntryLease,
+                            fogStates,
+                            $"WorldMapDataContext.active_submap.{active_map_id}.fog_states"
+                        );
+                    submapEntry["world_data"] = submapWorldData;
+                }
                 SetMountedSubmapEntry(active_map_id, submapEntry);
             }
         }
@@ -456,11 +464,21 @@ public sealed class WorldMapDataContext
         using GodotProjectionLease<GDictionary> rootWorldDataLease =
             RootWorldDataPayloadLease();
         GDictionary rootWorldData = rootWorldDataLease.Value;
-        var mountedSubmaps = GetDictionary(rootWorldData, "mounted_submaps");
-        mountedSubmaps[submapId] = submapEntry;
+        using GDictionary mountedSubmaps = GetDictionary(rootWorldData, "mounted_submaps");
+        Dictionary<string, object> submapEntryPlain =
+            submapEntry == null
+                ? new Dictionary<string, object>(StringComparer.Ordinal)
+                : RuntimePlainPayload.NormalizeDictionaryStrict(
+                    submapEntry,
+                    $"WorldMapDataContext.mounted_submap.{submapId}"
+                );
+        mountedSubmaps[submapId] = RuntimePlainPayload.ProjectDictionaryInto(
+            rootWorldDataLease,
+            submapEntryPlain,
+            $"WorldMapDataContext.mounted_submap.{submapId}"
+        );
         rootWorldData["mounted_submaps"] = mountedSubmaps;
         ReplaceRootWorldDataPayload(rootWorldData);
-        _rootRuntimeData = WorldRuntimeData.FromDictionary(rootWorldData) ?? WorldRuntimeData.Empty();
     }
 
     internal string GetMountedSubmapDisplayName(string submapId, string fallback = "")
@@ -503,14 +521,20 @@ public sealed class WorldMapDataContext
         using GodotProjectionLease<GDictionary> rootWorldDataLease =
             RootWorldDataPayloadLease();
         GDictionary rootWorldData = rootWorldDataLease.Value;
-        var returnStack = GetArray(rootWorldData, "submap_return_stack");
+        using GArray returnStack = GetArray(rootWorldData, "submap_return_stack");
         returnStack.Add(
-            WorldMapDataProjection.Project(new WorldMapSubmapReturnStackEntry(sourceMapId, sourceCoord))
+            RuntimePlainPayload.ProjectDictionaryInto(
+                rootWorldDataLease,
+                new WorldMapSubmapReturnStackEntry(
+                    sourceMapId,
+                    sourceCoord
+                ).BuildSaveSnapshotPlain(),
+                "WorldMapDataContext.submap_return"
+            )
         );
         rootWorldData["submap_return_stack"] = returnStack;
         rootWorldData["active_submap_id"] = submapId;
         ReplaceRootWorldDataPayload(rootWorldData);
-        _rootRuntimeData = WorldRuntimeData.FromDictionary(rootWorldData) ?? WorldRuntimeData.Empty();
 
         WorldMapMountedSubmapData targetSubmap = WorldMapMountedSubmapData.FromDictionary(
             submapEntry
@@ -544,19 +568,23 @@ public sealed class WorldMapDataContext
         using GodotProjectionLease<GDictionary> rootWorldDataLease =
             RootWorldDataPayloadLease();
         GDictionary rootWorldData = rootWorldDataLease.Value;
-        var returnStack = GetArray(rootWorldData, "submap_return_stack");
+        using GArray returnStack = GetArray(rootWorldData, "submap_return_stack");
         if (returnStack.Count == 0)
         {
             return WorldMapSubmapReturnResult.Fail("当前没有可返回的原坐标。");
         }
-        GDictionary returnEntry = returnStack[returnStack.Count - 1].AsGodotDictionary();
+        Variant returnEntryValue = returnStack[returnStack.Count - 1];
+        if (returnEntryValue.VariantType != Variant.Type.Dictionary)
+            return WorldMapSubmapReturnResult.Fail("子地图返回坐标数据无效。");
+        WorldMapSubmapReturnStackEntry typedReturnEntry;
+        using (GDictionary returnEntry = returnEntryValue.AsGodotDictionary())
+        {
+            typedReturnEntry = WorldMapSubmapReturnStackEntry.FromDictionary(returnEntry);
+        }
         returnStack.RemoveAt(returnStack.Count - 1);
-        WorldMapSubmapReturnStackEntry typedReturnEntry =
-            WorldMapSubmapReturnStackEntry.FromDictionary(returnEntry);
         rootWorldData["submap_return_stack"] = returnStack;
         rootWorldData["active_submap_id"] = typedReturnEntry.MapId;
         ReplaceRootWorldDataPayload(rootWorldData);
-        _rootRuntimeData = WorldRuntimeData.FromDictionary(rootWorldData) ?? WorldRuntimeData.Empty();
         return WorldMapSubmapReturnResult.Success(
             typedReturnEntry.MapId,
             typedReturnEntry.Coord
@@ -585,7 +613,11 @@ public sealed class WorldMapDataContext
         gg.Setup(generationDefinition.WorldSizeInChunks, generationDefinition.ChunkSize);
         var ss = new WorldMapSpawnSystem();
         WorldMapSpawnSystem.WorldBuildData swd = ss.BuildWorldTyped(generationDefinition, gg);
-        submapEntry["world_data"] = WorldMapSpawnProjection.Project(swd);
+        submapEntry["world_data"] = RuntimePlainPayload.ProjectDictionaryInto(
+            submapEntryLease,
+            WorldMapSpawnProjection.BuildSnapshotPlain(swd),
+            $"WorldMapDataContext.submap-generation.{submapId}"
+        );
         submapEntry["player_coord"] = swd.PlayerStartCoord;
         submapEntry["is_generated"] = true;
         SetMountedSubmapEntry(submapId, submapEntry);
@@ -806,9 +838,12 @@ public sealed class WorldMapDataContext
         GDictionary submapEntry = submapEntryLease.Value;
         if (submapEntry.Count > 0)
         {
-            using GodotProjectionLease<GDictionary> activeWorldDataLease =
-                ActiveWorldDataPayloadLease();
-            submapEntry["world_data"] = activeWorldDataLease.Value;
+            submapEntry["world_data"] = RuntimePlainPayload.ProjectDictionaryInto(
+                submapEntryLease,
+                _activeRuntimeData?.BuildSaveSnapshotPlain()
+                    ?? new Dictionary<string, object>(StringComparer.Ordinal),
+                $"WorldMapDataContext.active_submap.{active_map_id}"
+            );
             SetMountedSubmapEntry(active_map_id, submapEntry);
         }
     }
@@ -839,7 +874,7 @@ public sealed class WorldMapDataContext
     {
         if (_activeWorldUsesRoot)
         {
-            ReplaceRootWorldDataPayload(payload ?? new GDictionary());
+            ReplaceRootWorldDataPayload(payload);
             return;
         }
 
@@ -869,31 +904,26 @@ public sealed class WorldMapDataContext
         return cid.Length == 0 || cid == "always_true";
     }
 
-    private static GDictionary AsDictionary(object rawValue)
-    {
-        return TryAsDictionary(rawValue, out var value) ? value : new GDictionary();
-    }
-
     private static GArray GetArray(GDictionary source, string key)
     {
         if (source == null || !source.ContainsKey(key))
-        {
-            return new GArray();
-        }
+            throw new InvalidOperationException($"World payload requires array field '{key}'.");
         Variant value = source[key];
-        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+        if (value.VariantType != Variant.Type.Array)
+            throw new InvalidOperationException($"World payload field '{key}' must be an Array.");
+        return value.AsGodotArray();
     }
 
     private static GDictionary GetDictionary(GDictionary source, string key)
     {
         if (source == null || !source.ContainsKey(key))
-        {
-            return new GDictionary();
-        }
+            throw new InvalidOperationException($"World payload requires dictionary field '{key}'.");
         Variant value = source[key];
-        return value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
-            : new GDictionary();
+        if (value.VariantType != Variant.Type.Dictionary)
+            throw new InvalidOperationException(
+                $"World payload field '{key}' must be a Dictionary."
+            );
+        return value.AsGodotDictionary();
     }
 
     private static string GetString(GDictionary source, string key)
@@ -921,32 +951,6 @@ public sealed class WorldMapDataContext
         return value.VariantType == Variant.Type.Vector2I ? value.AsVector2I() : fallback;
     }
 
-    private static bool TryAsDictionary(object rawValue, out GDictionary value)
-    {
-        if (rawValue is GDictionary dictionary)
-        {
-            value = dictionary;
-            return true;
-        }
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Dictionary)
-        {
-            value = variant.AsGodotDictionary();
-            return true;
-        }
-        value = new GDictionary();
-        return false;
-    }
-
-    private static System.Collections.Generic.IEnumerable<GDictionary> Dictionaries(GArray values)
-    {
-        if (values == null)
-            yield break;
-        foreach (object rawValue in values)
-        {
-            if (TryAsDictionary(rawValue, out var value))
-                yield return value;
-        }
-    }
 }
 
 public sealed class WorldMapContextSyncResult
@@ -1035,6 +1039,13 @@ public sealed class WorldMapSubmapReturnStackEntry
             WorldMapDictionaryReaders.ReadString(data, "map_id"),
             WorldMapDictionaryReaders.ReadVector2I(data, "coord", Vector2I.Zero)
         );
+
+    internal Dictionary<string, object> BuildSaveSnapshotPlain() =>
+        new(StringComparer.Ordinal)
+        {
+            ["map_id"] = MapId,
+            ["coord"] = Coord,
+        };
 }
 
 internal static class WorldMapPlainPayload
@@ -1046,12 +1057,25 @@ internal static class WorldMapPlainPayload
     )
     {
         target.Clear();
+        if (source == null)
+            return;
         Dictionary<string, object> normalized =
-            RuntimePlainPayload.NormalizeDictionary(source ?? new GDictionary(), ownerPath);
+            RuntimePlainPayload.NormalizeDictionaryStrict(source, ownerPath);
         foreach (KeyValuePair<string, object> entry in normalized)
         {
             target[entry.Key] = entry.Value;
         }
+    }
+
+    internal static void ReplacePlain(
+        Dictionary<string, object> target,
+        IReadOnlyDictionary<string, object> source
+    )
+    {
+        target.Clear();
+        Dictionary<string, object> cloned = RuntimePlainPayload.CloneDictionary(source);
+        foreach (KeyValuePair<string, object> entry in cloned)
+            target[entry.Key] = entry.Value;
     }
 
     internal static GodotProjectionLease<GDictionary> ProjectLease(
@@ -1085,7 +1109,7 @@ public sealed class WorldMapMountedSubmapData
         string returnHintText,
         bool isGenerated,
         Vector2I playerCoord,
-        GDictionary worldData
+        IReadOnlyDictionary<string, object> worldData
     )
     {
         Exists = exists;
@@ -1094,11 +1118,7 @@ public sealed class WorldMapMountedSubmapData
         ReturnHintText = returnHintText ?? "";
         IsGenerated = isGenerated;
         PlayerCoord = playerCoord;
-        WorldMapPlainPayload.Replace(
-            _worldData,
-            worldData ?? new GDictionary(),
-            "WorldMapMountedSubmapData.worldData"
-        );
+        WorldMapPlainPayload.ReplacePlain(_worldData, worldData);
     }
 
     public bool HasPlayerCoord => PlayerCoord != UnsetPlayerCoord;
@@ -1126,9 +1146,10 @@ public sealed class WorldMapMountedSubmapData
                 "",
                 false,
                 UnsetPlayerCoord,
-                new GDictionary()
+                null
             );
         }
+        Dictionary<string, object> worldData = ReadDictionaryPlain(data, "world_data");
         return new WorldMapMountedSubmapData(
             true,
             ReadString(data, "display_name"),
@@ -1136,7 +1157,7 @@ public sealed class WorldMapMountedSubmapData
             ReadString(data, "return_hint_text"),
             ReadBool(data, "is_generated"),
             ReadVector2I(data, "player_coord", UnsetPlayerCoord),
-            ReadDictionary(data, "world_data")
+            worldData
         );
     }
 
@@ -1175,16 +1196,21 @@ public sealed class WorldMapMountedSubmapData
         return value.VariantType == Variant.Type.Vector2I ? value.AsVector2I() : fallback;
     }
 
-    private static GDictionary ReadDictionary(GDictionary data, string key)
+    private static Dictionary<string, object> ReadDictionaryPlain(
+        GDictionary data,
+        string key
+    )
     {
         if (data == null || !data.ContainsKey(key))
-        {
-            return new GDictionary();
-        }
+            return new Dictionary<string, object>(StringComparer.Ordinal);
         Variant value = data[key];
-        return value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
-            : new GDictionary();
+        if (value.VariantType != Variant.Type.Dictionary)
+            return new Dictionary<string, object>(StringComparer.Ordinal);
+        using GDictionary worldData = value.AsGodotDictionary();
+        return RuntimePlainPayload.NormalizeDictionaryStrict(
+            worldData,
+            "WorldMapMountedSubmapData.worldData"
+        );
     }
 }
 
@@ -1350,9 +1376,14 @@ public sealed class WorldMapSettlementStateData
         }
 
         var conditions = new List<string>();
-        foreach (object condition in ReadArray(data, "active_conditions"))
+        if (
+            data.ContainsKey("active_conditions")
+            && data["active_conditions"].VariantType == Variant.Type.Array
+        )
         {
-            conditions.Add(condition.ToString());
+            using GArray activeConditions = data["active_conditions"].AsGodotArray();
+            foreach (Variant condition in activeConditions)
+                conditions.Add(condition.ToString());
         }
 
         return new WorldMapSettlementStateData(
@@ -1445,15 +1476,6 @@ public sealed class WorldMapSettlementStateData
         return value.VariantType == Variant.Type.Int ? value.AsInt32() : 0;
     }
 
-    private static GArray ReadArray(GDictionary data, string key)
-    {
-        if (data == null || !data.ContainsKey(key))
-        {
-            return new GArray();
-        }
-        Variant value = data[key];
-        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
-    }
 }
 
 public sealed class WorldMapNpcData
@@ -1503,7 +1525,7 @@ public sealed class WorldMapNpcData
     {
         if (data == null || data.Count == 0)
         {
-            return new WorldMapNpcData(false, Vector2I.Zero, "", "", new GDictionary());
+            return new WorldMapNpcData(false, Vector2I.Zero, "", "", null);
         }
         return new WorldMapNpcData(
             true,
@@ -1686,13 +1708,4 @@ internal static class WorldMapDictionaryReaders
         return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
     }
 
-    internal static GDictionary ReadDictionary(GDictionary data, string key)
-    {
-        if (data == null || !data.ContainsKey(key))
-            return new GDictionary();
-        Variant value = data[key];
-        return value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
-            : new GDictionary();
-    }
 }

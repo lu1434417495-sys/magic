@@ -2,8 +2,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using System;
 
 public sealed class EncounterRosterBuilder : IDisposable
@@ -717,9 +715,7 @@ public sealed class EncounterRosterBuilder : IDisposable
                 );
             }
             unitState.SetKnownActiveSkillIds(
-                template != null
-                    ? new GStringNameArray(template.SkillIds)
-                    : new GStringNameArray()
+                template?.SkillIds ?? Array.Empty<StringName>()
             );
             if (unitState.known_active_skill_ids.Count == 0)
             {
@@ -742,13 +738,13 @@ public sealed class EncounterRosterBuilder : IDisposable
         return enemyUnits;
     }
 
-    private static GStringNameArray CopyTemplateSaveAdvantageTags(
+    private static StringNameList CopyTemplateSaveAdvantageTags(
         EnemyTemplateDefinition template
     )
     {
         return template?.SaveAdvantageTags != null
-            ? new GStringNameArray(template.SaveAdvantageTags)
-            : new GStringNameArray();
+            ? new StringNameList(template.SaveAdvantageTags)
+            : new StringNameList();
     }
 
     private static string ResolveEnemyUnitDisplayName(
@@ -939,11 +935,11 @@ public sealed class EncounterRosterBuilder : IDisposable
         );
     }
 
-    private static GStringNameArray PickDefaultEnemySkillIds(
+    private static IReadOnlyList<StringName> PickDefaultEnemySkillIds(
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
-        var preferredSkillIds = new GStringNameArray
+        StringName[] preferredSkillIds =
         {
             BasicAttackSkillId,
             "warrior_heavy_strike",
@@ -954,7 +950,7 @@ public sealed class EncounterRosterBuilder : IDisposable
         {
             if (IsValidEnemyCombatSkill(GetSkillDefinition(skillDefinitions, preferredSkillId)))
             {
-                return new GStringNameArray { preferredSkillId };
+                return new[] { preferredSkillId };
             }
         }
 
@@ -962,10 +958,10 @@ public sealed class EncounterRosterBuilder : IDisposable
         {
             if (IsValidEnemyCombatSkill(GetSkillDefinition(skillDefinitions, skillId)))
             {
-                return new GStringNameArray { skillId };
+                return new[] { skillId };
             }
         }
-        return new GStringNameArray();
+        return Array.Empty<StringName>();
     }
 
     private static bool IsValidEnemyCombatSkill(SkillDefinition skillDefinition)
@@ -1184,282 +1180,7 @@ public sealed class EncounterRosterBuilder : IDisposable
         }
     }
 
-    private static GDictionary GetDictionary(GDictionary data, string key, GDictionary fallback)
-    {
-        return TryGetValue(data, key, out object value)
-            && TryAsDictionary(value, out GDictionary dictionary)
-            ? dictionary
-            : fallback;
-    }
-
-    private static StringName GetStringName(GDictionary data, string key)
-    {
-        return TryGetValue(data, key, out object value)
-            ? ProgressionDataUtils.to_string_name(value)
-            : new StringName("");
-    }
-
-    private static int GetInt(GDictionary data, string key, int fallback = 0)
-    {
-        return TryGetValue(data, key, out object value) && TryAsInt(value, out int result)
-            ? result
-            : fallback;
-    }
-
-    private static int GetInt(GDictionary data, StringName key, int fallback = 0)
-    {
-        return TryGetValue(data, key, out object value) && TryAsInt(value, out int result)
-            ? result
-            : fallback;
-    }
-
-    private static int GetInt(GDictionary data, object key, int fallback = 0)
-    {
-        return TryGetExactValue(data, key, out object value) && TryAsInt(value, out int result)
-            ? result
-            : fallback;
-    }
-
-    private static string GetString(GDictionary data, string key, string fallback = "")
-    {
-        if (!TryGetValue(data, key, out object value) || IsNil(value))
-        {
-            return fallback;
-        }
-        return value.ToString();
-    }
-
-    private static IEnumerable<T> Objects<T>(GArray values)
-        where T : RefCounted
-    {
-        if (values == null)
-        {
-            yield break;
-        }
-        foreach (object rawValue in values)
-        {
-            if (TryAsObject(rawValue, out T value))
-            {
-                yield return value;
-            }
-        }
-    }
-
     public void Dispose()
     {
-    }
-
-    private static bool TryGetStrictInt(GDictionary data, string key, out int value)
-    {
-        if (TryGetExactValue(data, key, out object rawValue)
-            && TryAsStrictInt(rawValue, out value))
-        {
-            return true;
-        }
-        value = 0;
-        return false;
-    }
-
-    private static bool TryAsDictionary(object rawValue, out GDictionary value)
-    {
-        if (rawValue is GDictionary dictionary)
-        {
-            value = dictionary;
-            return true;
-        }
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Dictionary)
-        {
-            value = variant.AsGodotDictionary();
-            return true;
-        }
-        value = new GDictionary();
-        return false;
-    }
-
-    private static bool TryAsObject<T>(object rawValue, out T value)
-        where T : class
-    {
-        if (rawValue is T typedValue)
-        {
-            value = typedValue;
-            return true;
-        }
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Object)
-        {
-            value = variant.AsGodotObject() as T;
-            return value != null;
-        }
-        value = null;
-        return false;
-    }
-
-    private static bool TryAsStrictInt(object rawValue, out int value)
-    {
-        if (rawValue is int intValue)
-        {
-            value = intValue;
-            return true;
-        }
-        if (rawValue is long longValue)
-        {
-            value = (int)longValue;
-            return true;
-        }
-        if (rawValue is Variant variant && variant.TryAsInt(out value))
-            return true;
-        value = 0;
-        return false;
-    }
-
-    private static bool TryAsInt(object rawValue, out int value)
-    {
-        if (rawValue is int intValue)
-        {
-            value = intValue;
-            return true;
-        }
-        if (rawValue is long longValue)
-        {
-            value = (int)longValue;
-            return true;
-        }
-        if (rawValue is Variant variant)
-        {
-            if (variant.VariantType == Variant.Type.Nil)
-            {
-                value = 0;
-                return false;
-            }
-            value = variant.AsInt32();
-            return true;
-        }
-        value = 0;
-        return false;
-    }
-
-    private static bool TryAsStrictStringName(object rawValue, out StringName value)
-    {
-        if (rawValue is StringName stringNameValue)
-        {
-            value = StrictStringNameValue(stringNameValue);
-            return value != "";
-        }
-        if (rawValue is string stringValue)
-        {
-            string text = stringValue.StripEdges();
-            value = string.IsNullOrEmpty(text) ? new StringName("") : new StringName(text);
-            return value != "";
-        }
-        if (rawValue is Variant variant)
-        {
-            if (variant.VariantType == Variant.Type.StringName)
-            {
-                value = StrictStringNameValue(variant.AsStringName());
-                return value != "";
-            }
-            if (variant.VariantType == Variant.Type.String)
-            {
-                string text = variant.AsString().StripEdges();
-                value = string.IsNullOrEmpty(text) ? new StringName("") : new StringName(text);
-                return value != "";
-            }
-        }
-        value = "";
-        return false;
-    }
-
-    private static bool TryAsStrictString(object rawValue, out string value)
-    {
-        if (rawValue is string stringValue)
-        {
-            value = stringValue.StripEdges();
-            return true;
-        }
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.String)
-        {
-            value = variant.AsString().StripEdges();
-            return true;
-        }
-        value = "";
-        return false;
-    }
-
-    private static bool TryGetValue(GDictionary data, string key, out object value)
-    {
-        if (data != null && data.ContainsKey(key))
-        {
-            value = data[key];
-            return true;
-        }
-        value = null;
-        return false;
-    }
-
-    private static bool TryGetValue(GDictionary data, StringName key, out object value)
-    {
-        if (data != null && key != null && data.ContainsKey(key))
-        {
-            value = data[key];
-            return true;
-        }
-        value = null;
-        return false;
-    }
-
-    private static bool TryGetExactValue(GDictionary data, string key, out object value)
-    {
-        if (data != null && data.ContainsKey(key))
-        {
-            value = data[key];
-            return true;
-        }
-        value = null;
-        return false;
-    }
-
-    private static bool TryGetExactValue(GDictionary data, StringName key, out object value)
-    {
-        if (data != null && key != null && data.ContainsKey(key))
-        {
-            value = data[key];
-            return true;
-        }
-        value = null;
-        return false;
-    }
-
-    private static bool TryGetExactValue(GDictionary data, object key, out object value)
-    {
-        if (data == null || key == null)
-        {
-            value = null;
-            return false;
-        }
-        if (key is Variant variantKey)
-        {
-            if (data.ContainsKey(variantKey))
-            {
-                value = data[variantKey];
-                return true;
-            }
-        }
-        else if (key is string stringKey && data.ContainsKey(stringKey))
-        {
-            value = data[stringKey];
-            return true;
-        }
-        else if (key is StringName stringNameKey && data.ContainsKey(stringNameKey))
-        {
-            value = data[stringNameKey];
-            return true;
-        }
-        value = null;
-        return false;
-    }
-
-    private static bool IsNil(object rawValue)
-    {
-        return rawValue == null
-            || rawValue is Variant variant && variant.VariantType == Variant.Type.Nil;
     }
 }

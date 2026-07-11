@@ -175,7 +175,7 @@ public partial class run_save_payload_string_minimization_regression : Lifecycle
             GDictionary runtimeWorldData = runtimeWorldDataLease.Value;
             runtimeWorldData["active_submap_id"] = new StringName("");
             _test.True(
-                serializer.NormalizeWorldData(runtimeWorldData).Count == 0,
+                !serializer.TryNormalizeWorldDataPlain(runtimeWorldData, out _),
                 "Runtime world_data should reject StringName active_submap_id."
             );
 

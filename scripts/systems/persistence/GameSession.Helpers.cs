@@ -1,12 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GDictionaryArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
-using GStringArray = Godot.Collections.Array<string>;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 // Partial slice of GameSession — static Godot dictionary/variant read + conversion helpers.
 // Pure physical split: same class, no behavior change. See GameSession.cs.
@@ -76,12 +72,6 @@ public partial class GameSession
         return value.VariantType == Variant.Type.Vector2I ? value.AsVector2I() : fallback;
     }
 
-    private static T GetObject<T>(GDictionary dictionary, object key)
-        where T : RefCounted
-    {
-        return ReadGodotObject(dictionary, key) as T;
-    }
-
     private static bool TryRead(GDictionary dictionary, object key, out Variant value)
     {
         if (dictionary == null || key == null)
@@ -117,55 +107,17 @@ public partial class GameSession
         TryRead(dictionary, key, out Variant value)
         && value.VariantType == Variant.Type.String;
 
-    private static bool TryUnboxToDictionary(Variant value, out GDictionary dictionary)
+    private static StringNameList ReadStringNameList(GArray values)
     {
-        if (value.VariantType == Variant.Type.Dictionary)
+        var result = new StringNameList();
+        if (values == null)
+            return result;
+        foreach (Variant value in values)
         {
-            dictionary = value.AsGodotDictionary();
-            return true;
+            StringName normalized = ProgressionDataUtils.to_string_name(value);
+            if (normalized != "")
+                result.Add(normalized);
         }
-        dictionary = default;
-        return false;
-    }
-
-    private static GodotObject ReadGodotObject(GDictionary dictionary, object key)
-    {
-        if (!TryRead(dictionary, key, out Variant value))
-            return null;
-        return value.VariantType == Variant.Type.Object ? value.AsGodotObject() : null;
-    }
-
-    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
-    {
-        foreach (Variant value in values ?? new GArray())
-        {
-            if (value.VariantType == Variant.Type.Dictionary)
-                yield return value.AsGodotDictionary();
-        }
-    }
-
-    private static GArray ToUntypedArray(GDictionaryArray entries)
-    {
-        GArray raw = new();
-        if (entries == null)
-            return raw;
-        foreach (GDictionary entry in entries)
-            raw.Add(entry);
-        return raw;
-    }
-
-    private static GArray BuildDomainOrderArray()
-    {
-        GArray order = new();
-        foreach (string domainId in ContentValidationDomainOrder)
-            order.Add(domainId);
-        return order;
-    }
-
-    private static GStringArray ToGodotStringArray(IEnumerable<string> values)
-    {
-        GStringArray result = new();
-        AppendErrors(result, values);
         return result;
     }
 
@@ -177,33 +129,4 @@ public partial class GameSession
             target.Add(value ?? "");
     }
 
-    private static Variant ToVariant(object value)
-    {
-        return value switch
-        {
-            null => default,
-            Variant variantValue => variantValue,
-            bool boolValue => boolValue,
-            int intValue => intValue,
-            long longValue => longValue,
-            float floatValue => floatValue,
-            double doubleValue => doubleValue,
-            string stringValue => stringValue,
-            StringName stringNameValue => stringNameValue,
-            Vector2I vectorValue => vectorValue,
-            GDictionary dictionaryValue => dictionaryValue,
-            GArray arrayValue => arrayValue,
-            GodotObject objectValue => objectValue,
-            _ => value.ToString(),
-        };
-    }
-
-    private static bool VariantEquals(object leftValue, object rightValue)
-    {
-        var left = ToVariant(leftValue);
-        var right = ToVariant(rightValue);
-        if (left.VariantType != right.VariantType)
-            return false;
-        return left.Obj == right.Obj;
-    }
 }

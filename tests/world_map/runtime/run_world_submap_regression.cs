@@ -40,6 +40,19 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
         return lease.Value;
     }
 
+    private GDictionary ProjectWorldData(IReadOnlyDictionary<string, object> worldData)
+    {
+        GodotProjectionLease<GDictionary> lease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                worldData,
+                "world-submap-serializer-assertion",
+                LifetimeDomain.Request,
+                "run_world_submap_regression.ProjectWorldData"
+            );
+        _worldDataLeases.Add(lease);
+        return lease.Value;
+    }
+
     private void DisposeWorldDataLeases()
     {
         for (int index = _worldDataLeases.Count - 1; index >= 0; index--)
@@ -275,7 +288,14 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
             ["ashen_ashlands"] = BuildMountedSubmapEntry(false, new GDictionary()),
         };
 
-        GDictionary normalizedWorldData = serializer.NormalizeWorldData(rootWorldData);
+        bool normalized = serializer.TryNormalizeWorldDataPlain(
+            rootWorldData,
+            out Dictionary<string, object> normalizedWorldDataPlain
+        );
+        _test.True(normalized, "合法 root world_data 应能规范化为 plain payload。");
+        if (!normalized)
+            return;
+        GDictionary normalizedWorldData = ProjectWorldData(normalizedWorldDataPlain);
         GDictionary normalizedEntry = GetMountedSubmapEntry(normalizedWorldData, "ashen_ashlands");
         _test.True(normalizedEntry.Count > 0, "未生成子地图占位应能穿过 normalize_world_data。");
         _test.True(!DictBool(normalizedEntry, "is_generated", true), "未生成子地图 normalize 后应保持 is_generated=false。");
@@ -284,7 +304,9 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
             "未生成子地图 normalize 后应保持空 world_data。"
         );
 
-        GDictionary serializedWorldData = serializer.SerializeWorldData(normalizedWorldData);
+        GDictionary serializedWorldData = ProjectWorldData(
+            serializer.SerializeWorldDataPlain(normalizedWorldDataPlain)
+        );
         GDictionary serializedEntry = GetMountedSubmapEntry(serializedWorldData, "ashen_ashlands");
         _test.True(serializedEntry.Count > 0, "未生成子地图占位应能穿过 serialize_world_data。");
         _test.True(
@@ -298,8 +320,14 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
         {
             ["ashen_ashlands"] = BuildMountedSubmapEntry(true, generatedSubmapWorldData),
         };
-        GDictionary serializedGeneratedWorldData =
-            serializer.SerializeWorldData(generatedRootWorldData);
+        Dictionary<string, object> generatedRootWorldDataPlain =
+            RuntimePlainPayload.NormalizeDictionaryStrict(
+                generatedRootWorldData,
+                "run_world_submap_regression.generated_root_world_data"
+            );
+        GDictionary serializedGeneratedWorldData = ProjectWorldData(
+            serializer.SerializeWorldDataPlain(generatedRootWorldDataPlain)
+        );
         GDictionary serializedGeneratedEntry =
             GetMountedSubmapEntry(serializedGeneratedWorldData, "ashen_ashlands");
         GDictionary serializedGeneratedSubmapWorldData = Dict(

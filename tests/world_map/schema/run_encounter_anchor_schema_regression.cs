@@ -42,17 +42,19 @@ public partial class run_encounter_anchor_schema_regression : LifecycleTestScene
             suppressed_until_step = 11,
         };
 
-        EncounterAnchorData restoredAnchor = EncounterAnchorData.FromDictionary(
-            WorldMapDataProjection.Project(encounterAnchor)
-        );
+        using GodotProjectionLease<GDictionary> sourceLease =
+            WorldMapDataProjection.ProjectLease(encounterAnchor);
+        EncounterAnchorData restoredAnchor = EncounterAnchorData.FromDictionary(sourceLease.Value);
         _test.True(restoredAnchor != null, "valid projection payload should deserialize.");
         if (restoredAnchor == null)
         {
             return;
         }
+        using GodotProjectionLease<GDictionary> restoredLease =
+            WorldMapDataProjection.ProjectLease(restoredAnchor);
         AssertDictionaryEq(
-            WorldMapDataProjection.Project(restoredAnchor),
-            WorldMapDataProjection.Project(encounterAnchor),
+            restoredLease.Value,
+            sourceLease.Value,
             "valid roundtrip should preserve all serialized fields."
         );
     }

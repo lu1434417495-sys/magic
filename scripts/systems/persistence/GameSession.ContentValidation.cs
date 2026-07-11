@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 // Partial slice of GameSession — validation over the immutable bound content snapshot.
 public partial class GameSession
@@ -98,12 +97,13 @@ public partial class GameSession
         PushSessionError(
             "session.content.validation_blocked",
             "GameSession blocked formal runtime entry because content validation failed.",
-            Json.Stringify(
-                new GDictionary
+            StringifyPlainContext(
+                new Dictionary<string, object>(StringComparer.Ordinal)
                 {
                     ["operation_id"] = operationId.ToString(),
                     ["error_count"] = errorCount,
-                }
+                },
+                "GameSession.content.validation_blocked"
             )
         );
         return (int)Error.InvalidData;

@@ -424,69 +424,6 @@ public sealed class SaveSerializer
         return true;
     }
 
-    public GDictionary NormalizeWorldData(GDictionary worldData)
-    {
-        WorldRuntimeData runtimeData = WorldRuntimeData.FromDictionary(worldData);
-        if (runtimeData == null)
-        {
-            return new GDictionary();
-        }
-        string validationError = GetWorldDataValidationError(worldData);
-        if (!string.IsNullOrEmpty(validationError))
-        {
-            return new GDictionary();
-        }
-        GDictionary normalized = worldData.Duplicate(true);
-        normalized[WorldMapSeedKey] = (long)worldData[WorldMapSeedKey];
-        normalized["world_step"] = worldData["world_step"].AsInt32();
-        normalized[WorldEquipmentInstanceSerialKey] = worldData[WorldEquipmentInstanceSerialKey]
-            .AsInt32();
-        normalized["active_submap_id"] = worldData["active_submap_id"].AsString();
-        normalized["encounter_anchors"] = NormalizeEncounterAnchors(
-            ReadArray(worldData, "encounter_anchors")
-        );
-        normalized["resource_nodes"] = NormalizeResourceNodes(
-            ReadArray(worldData, "resource_nodes")
-        );
-        return normalized;
-    }
-
-    internal GDictionary NormalizeWorldData(WorldRuntimeData worldData)
-    {
-        return NormalizeWorldData(worldData?.ToDictionary() ?? new GDictionary());
-    }
-
-    public GDictionary SerializeWorldData(GDictionary worldData)
-    {
-        WorldRuntimeData runtimeData = WorldRuntimeData.FromDictionary(worldData);
-        if (runtimeData == null)
-        {
-            throw new InvalidOperationException("Corrupt save world_data: typed world runtime data parse failed.");
-        }
-        string validationError = GetWorldDataValidationError(worldData);
-        if (!string.IsNullOrEmpty(validationError))
-        {
-            throw new InvalidOperationException(validationError);
-        }
-        GDictionary serialized = worldData.Duplicate(true);
-        serialized[WorldMapSeedKey] = (long)worldData[WorldMapSeedKey];
-        serialized[WorldEquipmentInstanceSerialKey] = worldData[WorldEquipmentInstanceSerialKey]
-            .AsInt32();
-        serialized["active_submap_id"] = worldData["active_submap_id"].AsString();
-        serialized["encounter_anchors"] = SerializeObjectOrDictionaryArray(
-            ReadArray(worldData, "encounter_anchors")
-        );
-        serialized["resource_nodes"] = SerializeObjectOrDictionaryArray(
-            ReadArray(worldData, "resource_nodes")
-        );
-        return serialized;
-    }
-
-    internal GDictionary SerializeWorldData(WorldRuntimeData worldData)
-    {
-        return SerializeWorldData(worldData?.ToDictionary() ?? new GDictionary());
-    }
-
     public string GetWorldDataValidationError(GDictionary worldData)
     {
         if (worldData == null)
@@ -506,9 +443,8 @@ public sealed class SaveSerializer
         string nestedSchemaError = GetWorldDataNestedSchemaValidationError(worldData);
         if (!string.IsNullOrEmpty(nestedSchemaError))
             return nestedSchemaError;
-        return get_mounted_submaps_validation_error(
-            ReadDictionary(worldData, "mounted_submaps")
-        );
+        using GDictionary mountedSubmaps = ReadDictionary(worldData, "mounted_submaps");
+        return get_mounted_submaps_validation_error(mountedSubmaps);
     }
 
     public string GetWorldDataSchemaValidationError(GDictionary worldData)
@@ -593,19 +529,16 @@ public sealed class SaveSerializer
     {
         if (worldData == null)
             return "Corrupt save world_data: expected Dictionary.";
-        string returnStackError = GetSubmapReturnStackValidationError(
-            ReadArray(worldData, "submap_return_stack")
-        );
+        using GArray returnStack = ReadArray(worldData, "submap_return_stack");
+        string returnStackError = GetSubmapReturnStackValidationError(returnStack);
         if (!string.IsNullOrEmpty(returnStackError))
             return returnStackError;
-        string settlementError = GetSettlementsValidationError(
-            ReadArray(worldData, "settlements")
-        );
+        using GArray settlements = ReadArray(worldData, "settlements");
+        string settlementError = GetSettlementsValidationError(settlements);
         if (!string.IsNullOrEmpty(settlementError))
             return settlementError;
-        string eventError = GetWorldEventsValidationError(
-            ReadArray(worldData, "world_events")
-        );
+        using GArray worldEvents = ReadArray(worldData, "world_events");
+        string eventError = GetWorldEventsValidationError(worldEvents);
         if (!string.IsNullOrEmpty(eventError))
             return eventError;
         if (
@@ -613,9 +546,8 @@ public sealed class SaveSerializer
             && worldData["encounter_anchors"].VariantType != Variant.Type.Array
         )
             return "Corrupt save world_data.encounter_anchors: expected Array.";
-        string resourceNodeError = GetWorldResourceNodesValidationError(
-            ReadArray(worldData, "resource_nodes")
-        );
+        using GArray resourceNodes = ReadArray(worldData, "resource_nodes");
+        string resourceNodeError = GetWorldResourceNodesValidationError(resourceNodes);
         if (!string.IsNullOrEmpty(resourceNodeError))
             return resourceNodeError;
         if (
@@ -689,17 +621,18 @@ public sealed class SaveSerializer
             : FormatMountedSubmapWorldDataError(submapId, validationError);
     }
 
-    private string get_mounted_submaps_validation_error(Variant submapsValue)
+    private string get_mounted_submaps_validation_error(GDictionary submaps)
     {
-        if (!TryRawDictionary(submapsValue, out GDictionary submaps))
+        if (submaps == null)
             return "Corrupt save world_data: mounted_submaps must be a Dictionary.";
-        foreach (var submapKey in submaps.Keys)
+        foreach (KeyValuePair<Variant, Variant> submapEntry in submaps)
         {
-            var entryValue = submaps[submapKey];
+            Variant submapKey = submapEntry.Key;
+            Variant entryValue = submapEntry.Value;
             string keyText = submapKey.ToString();
             if (entryValue.VariantType != Variant.Type.Dictionary)
                 return $"Corrupt save mounted_submaps[{keyText}]: expected Dictionary.";
-            GDictionary entry = entryValue.AsGodotDictionary();
+            using GDictionary entry = entryValue.AsGodotDictionary();
             string[] required =
             {
                 "submap_id",
@@ -731,7 +664,7 @@ public sealed class SaveSerializer
                 return $"Corrupt save mounted_submaps[{keyText}]: is_generated must be a bool.";
             if (!IsSupportedVector2I(entry["player_coord"]))
                 return $"Corrupt save mounted_submaps[{keyText}]: player_coord must be a Vector2i payload.";
-            GDictionary mountedWorldData =
+            using GDictionary mountedWorldData =
                 entry["world_data"].VariantType == Variant.Type.Dictionary
                     ? entry["world_data"].AsGodotDictionary()
                     : null;
@@ -769,7 +702,7 @@ public sealed class SaveSerializer
         if (normalized == null)
             return new PartyState();
 
-        var livingMemberIds = new Godot.Collections.Array<StringName>();
+        var livingMemberIds = new StringNameList();
         foreach (string key in normalized.member_states.GetSortedIdStrings())
         {
             StringName memberId = new(key);
@@ -780,7 +713,7 @@ public sealed class SaveSerializer
         }
 
         HashSet<string> seenIds = new();
-        var activeMemberIds = new Godot.Collections.Array<StringName>();
+        var activeMemberIds = new StringNameList();
         foreach (StringName memberId in normalized.active_member_ids)
         {
             if (
@@ -795,7 +728,7 @@ public sealed class SaveSerializer
                 continue;
         }
 
-        var reserveMemberIds = new Godot.Collections.Array<StringName>();
+        var reserveMemberIds = new StringNameList();
         foreach (StringName memberId in normalized.reserve_member_ids)
         {
             if (IsEmpty(memberId) || seenIds.Contains(memberId.ToString()))
@@ -860,12 +793,8 @@ public sealed class SaveSerializer
             normalized.leader_member_id =
                 activeMemberIds.Count > 0 ? activeMemberIds[0] : new StringName("");
 
-        normalized.active_member_ids = ProgressionDataUtils.to_string_name_array(
-            Variant.From(activeMemberIds)
-        );
-        normalized.reserve_member_ids = ProgressionDataUtils.to_string_name_array(
-            Variant.From(reserveMemberIds)
-        );
+        normalized.active_member_ids = activeMemberIds;
+        normalized.reserve_member_ids = reserveMemberIds;
         return normalized;
     }
 
@@ -880,7 +809,8 @@ public sealed class SaveSerializer
             return value.AsVector2I();
         if (value.VariantType == Variant.Type.Dictionary)
         {
-            return ReadVector2IDictionary(value.AsGodotDictionary(), fallback);
+            using GDictionary vectorData = value.AsGodotDictionary();
+            return ReadVector2IDictionary(vectorData, fallback);
         }
         return fallback;
     }
@@ -1029,7 +959,7 @@ public sealed class SaveSerializer
         };
     }
 
-    private bool TryNormalizeWorldDataPlain(
+    internal bool TryNormalizeWorldDataPlain(
         IReadOnlyDictionary<string, object> worldData,
         out Dictionary<string, object> normalized
     )
@@ -1052,6 +982,39 @@ public sealed class SaveSerializer
             return false;
         normalized = runtimeData.BuildSaveSnapshotPlain();
         return true;
+    }
+
+    internal bool TryNormalizeWorldDataPlain(
+        GDictionary worldData,
+        out Dictionary<string, object> normalized
+    )
+    {
+        normalized = new Dictionary<string, object>(StringComparer.Ordinal);
+        if (worldData == null)
+            return false;
+
+        Dictionary<string, object> plain;
+        try
+        {
+            plain = RuntimePlainPayload.NormalizeDictionaryStrict(
+                worldData,
+                "SaveSerializer.TryNormalizeWorldDataPlain.input"
+            );
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+        return TryNormalizeWorldDataPlain(plain, out normalized);
+    }
+
+    internal Dictionary<string, object> SerializeWorldDataPlain(
+        IReadOnlyDictionary<string, object> worldData
+    )
+    {
+        if (TryNormalizeWorldDataPlain(worldData, out Dictionary<string, object> serialized))
+            return serialized;
+        throw new InvalidOperationException("Corrupt save world_data: validation failed.");
     }
 
     private static bool HasExactPlainKeys(
@@ -1154,7 +1117,7 @@ public sealed class SaveSerializer
         PartyState partyState,
         StringName memberId,
         HashSet<string> seenIds,
-        Godot.Collections.Array<StringName> target,
+        StringNameList target,
         int maxCount
     )
     {
@@ -1170,65 +1133,16 @@ public sealed class SaveSerializer
         return true;
     }
 
-    private static GArray NormalizeEncounterAnchors(Variant anchorsValue)
+    private static string GetSubmapReturnStackValidationError(GArray stackValues)
     {
-        var result = new GArray();
-        if (!TryRawArray(anchorsValue, out GArray anchorValues))
-            return result;
-        foreach (var anchorValue in anchorValues)
-        {
-            EncounterAnchorData parsedAnchor = anchorValue.VariantType == Variant.Type.Dictionary
-                ? EncounterAnchorData.FromDictionary(anchorValue.AsGodotDictionary())
-                : null;
-            if (parsedAnchor != null)
-                result.Add(WorldMapDataProjection.Project(parsedAnchor));
-        }
-        return result;
-    }
-
-    private static GArray NormalizeResourceNodes(Variant resourceNodesValue)
-    {
-        var result = new GArray();
-        if (!TryRawArray(resourceNodesValue, out GArray resourceNodeValues))
-            return result;
-        foreach (var resourceNodeValue in resourceNodeValues)
-        {
-            WorldMapResourceNodeData parsedNode =
-                resourceNodeValue.VariantType == Variant.Type.Dictionary
-                    ? WorldMapResourceNodeData.FromDictionary(resourceNodeValue.AsGodotDictionary())
-                    : null;
-            if (parsedNode != null && parsedNode.Exists)
-                result.Add(WorldMapDataProjection.Project(parsedNode));
-        }
-        return result;
-    }
-
-    private static GArray SerializeObjectOrDictionaryArray(Variant arrayValue)
-    {
-        var result = new GArray();
-        if (!TryRawArray(arrayValue, out GArray itemValues))
-            return result;
-        foreach (var itemValue in itemValues)
-        {
-            if (itemValue.VariantType == Variant.Type.Dictionary)
-            {
-                result.Add(itemValue.AsGodotDictionary().Duplicate(true));
-                continue;
-            }
-        }
-        return result;
-    }
-
-    private static string GetSubmapReturnStackValidationError(Variant stackValue)
-    {
-        if (!TryRawArray(stackValue, out GArray stackValues))
+        if (stackValues == null)
             return "Corrupt save world_data.submap_return_stack: expected Array.";
         int index = 0;
         foreach (var entryValue in stackValues)
         {
             if (entryValue.VariantType != Variant.Type.Dictionary)
                 return $"Corrupt save world_data.submap_return_stack[{index}]: expected Dictionary.";
-            GDictionary entry = entryValue.AsGodotDictionary();
+            using GDictionary entry = entryValue.AsGodotDictionary();
             if (!HasExactKeys(entry, new[] { "map_id", "coord" }))
                 return $"Corrupt save world_data.submap_return_stack[{index}]: fields must exactly match current schema.";
             if (!IsStringValue(entry["map_id"]))
@@ -1240,9 +1154,9 @@ public sealed class SaveSerializer
         return "";
     }
 
-    private static string GetWorldEventsValidationError(Variant eventsValue)
+    private static string GetWorldEventsValidationError(GArray eventValues)
     {
-        if (!TryRawArray(eventsValue, out GArray eventValues))
+        if (eventValues == null)
             return "Corrupt save world_data.world_events: expected Array.";
         string[] required =
         {
@@ -1261,7 +1175,7 @@ public sealed class SaveSerializer
         {
             if (eventValue.VariantType != Variant.Type.Dictionary)
                 return $"Corrupt save world_data.world_events[{index}]: expected Dictionary.";
-            GDictionary eventData = eventValue.AsGodotDictionary();
+            using GDictionary eventData = eventValue.AsGodotDictionary();
             if (!HasExactKeys(eventData, required))
                 return $"Corrupt save world_data.world_events[{index}]: fields must exactly match current schema.";
             foreach (
@@ -1289,9 +1203,9 @@ public sealed class SaveSerializer
         return "";
     }
 
-    private static string GetWorldResourceNodesValidationError(Variant resourceNodesValue)
+    private static string GetWorldResourceNodesValidationError(GArray resourceNodeValues)
     {
-        if (!TryRawArray(resourceNodesValue, out GArray resourceNodeValues))
+        if (resourceNodeValues == null)
             return "Corrupt save world_data.resource_nodes: expected Array.";
         string[] required =
         {
@@ -1309,7 +1223,7 @@ public sealed class SaveSerializer
         {
             if (resourceNodeValue.VariantType != Variant.Type.Dictionary)
                 return $"Corrupt save world_data.resource_nodes[{index}]: expected Dictionary.";
-            GDictionary resourceNode = resourceNodeValue.AsGodotDictionary();
+            using GDictionary resourceNode = resourceNodeValue.AsGodotDictionary();
             if (!HasExactKeys(resourceNode, required))
                 return $"Corrupt save world_data.resource_nodes[{index}]: fields must exactly match current schema.";
             foreach (
@@ -1353,9 +1267,9 @@ public sealed class SaveSerializer
         return "";
     }
 
-    private static string GetSettlementsValidationError(Variant settlementsValue)
+    private static string GetSettlementsValidationError(GArray settlementValues)
     {
-        if (!TryRawArray(settlementsValue, out GArray settlementValues))
+        if (settlementValues == null)
             return "Corrupt save world_data.settlements: expected Array.";
         string[] required =
         {
@@ -1379,7 +1293,7 @@ public sealed class SaveSerializer
         {
             if (settlementValue.VariantType != Variant.Type.Dictionary)
                 return $"Corrupt save world_data.settlements[{index}]: expected Dictionary.";
-            GDictionary settlementData = settlementValue.AsGodotDictionary();
+            using GDictionary settlementData = settlementValue.AsGodotDictionary();
             if (!HasExactKeys(settlementData, required))
                 return $"Corrupt save world_data.settlements[{index}]: fields must exactly match current schema.";
             foreach (
@@ -1461,7 +1375,8 @@ public sealed class SaveSerializer
             return true;
         if (value.VariantType != Variant.Type.Dictionary)
             return false;
-        return HasVector2IFields(value.AsGodotDictionary());
+        using GDictionary vectorData = value.AsGodotDictionary();
+        return HasVector2IFields(vectorData);
     }
 
     private static Vector2I ReadVector2IDictionary(GDictionary vectorData, Vector2I fallback)
@@ -1478,28 +1393,6 @@ public sealed class SaveSerializer
             && vectorData.ContainsKey("y")
             && vectorData["x"].VariantType == Variant.Type.Int
             && vectorData["y"].VariantType == Variant.Type.Int;
-    }
-
-    private static bool TryRawArray(Variant value, out GArray values)
-    {
-        if (value.VariantType == Variant.Type.Array)
-        {
-            values = value.AsGodotArray();
-            return true;
-        }
-        values = new GArray();
-        return false;
-    }
-
-    private static bool TryRawDictionary(Variant value, out GDictionary values)
-    {
-        if (value.VariantType == Variant.Type.Dictionary)
-        {
-            values = value.AsGodotDictionary();
-            return true;
-        }
-        values = new GDictionary();
-        return false;
     }
 
     private static bool HasExactKeys(GDictionary data, string[] requiredKeys)
@@ -1531,8 +1424,9 @@ public sealed class SaveSerializer
         }
         foreach (string optionalKey in optionalKeys)
             allowedKeys.Add(optionalKey);
-        foreach (var rawKey in data.Keys)
+        foreach (KeyValuePair<Variant, Variant> entry in data)
         {
+            Variant rawKey = entry.Key;
             if (rawKey.VariantType != Variant.Type.String)
                 return false;
             if (!allowedKeys.Contains(rawKey.AsString()))

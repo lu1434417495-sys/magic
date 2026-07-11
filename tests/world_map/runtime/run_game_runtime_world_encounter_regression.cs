@@ -30,13 +30,9 @@ public partial class run_game_runtime_world_encounter_regression : LifecycleTest
         EncounterAnchorData clearedAnchor = BuildEncounterAnchor("cleared_anchor", "Cleared Anchor", new Vector2I(0, 1), true);
         try
         {
-            GDictionary rootWorldData = BuildRootWorldData();
-            rootWorldData["encounter_anchors"] = new GArray
-            {
-                WorldMapDataProjection.Project(farAnchor),
-                WorldMapDataProjection.Project(nearAnchor),
-                WorldMapDataProjection.Project(clearedAnchor),
-            };
+            using GodotProjectionLease<GDictionary> rootWorldDataLease =
+                BuildRootWorldDataLease(farAnchor, nearAnchor, clearedAnchor);
+            GDictionary rootWorldData = rootWorldDataLease.Value;
             runtime._world_map_data_context.BindRootWorldData(rootWorldData);
             runtime._world_map_data_context.SyncActiveWorldContext(
                 BuildConfig(),
@@ -80,11 +76,9 @@ public partial class run_game_runtime_world_encounter_regression : LifecycleTest
         settlementAnchor.growth_stage = 0;
         try
         {
-            GDictionary rootWorldData = BuildRootWorldData();
-            rootWorldData["encounter_anchors"] = new GArray
-            {
-                WorldMapDataProjection.Project(settlementAnchor),
-            };
+            using GodotProjectionLease<GDictionary> rootWorldDataLease =
+                BuildRootWorldDataLease(settlementAnchor);
+            GDictionary rootWorldData = rootWorldDataLease.Value;
             runtime._world_map_data_context.BindRootWorldData(rootWorldData);
             runtime._world_map_data_context.SyncActiveWorldContext(
                 BuildConfig(),
@@ -122,15 +116,30 @@ public partial class run_game_runtime_world_encounter_regression : LifecycleTest
         }
     }
 
-    private static GDictionary BuildRootWorldData() =>
-        new()
+    private static GodotProjectionLease<GDictionary> BuildRootWorldDataLease(
+        params EncounterAnchorData[] encounterAnchors
+    )
+    {
+        var encounterAnchorPayloads = new List<object>();
+        foreach (EncounterAnchorData encounterAnchor in encounterAnchors)
         {
-            ["world_step"] = 0,
-            ["settlements"] = new GArray(),
-            ["world_npcs"] = new GArray(),
-            ["encounter_anchors"] = new GArray(),
-            ["world_events"] = new GArray(),
-        };
+            if (encounterAnchor != null)
+                encounterAnchorPayloads.Add(encounterAnchor.BuildSaveSnapshotPlain());
+        }
+        return RuntimePlainPayload.ProjectDictionaryLease(
+            new Dictionary<string, object>(System.StringComparer.Ordinal)
+            {
+                ["world_step"] = 0,
+                ["settlements"] = new List<object>(),
+                ["world_npcs"] = new List<object>(),
+                ["encounter_anchors"] = encounterAnchorPayloads,
+                ["world_events"] = new List<object>(),
+            },
+            "test.game_runtime_world_encounter.root_world_data",
+            LifetimeDomain.Request,
+            "test.game_runtime_world_encounter.root_world_data"
+        );
+    }
 
     private static WorldGenerationDefinition BuildConfig()
     {

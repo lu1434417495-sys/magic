@@ -42,7 +42,9 @@ public partial class run_world_runtime_data_typed_regression : LifecycleTestScen
         );
         _test.True(updated, "typed settlement state update 应成功。");
 
-        GDictionary projected = runtimeData.ToDictionary();
+        using GodotProjectionLease<GDictionary> projectedLease =
+            WorldMapDataProjection.ProjectLease(runtimeData);
+        GDictionary projected = projectedLease.Value;
         GDictionary settlement = projected["settlements"].AsGodotArray()[0].AsGodotDictionary();
         GDictionary state = settlement["settlement_state"].AsGodotDictionary();
         _test.True(state["visited"].AsBool(), "typed visited 更新应体现在 projection。");
@@ -74,7 +76,9 @@ public partial class run_world_runtime_data_typed_regression : LifecycleTestScen
         _test.Eq(node.SourceSettlementId, "spring", "typed resource node 应保留所属据点。");
         _test.Eq(node.RemainingCharges, 3, "typed resource node 应保留剩余次数。");
 
-        GDictionary projected = runtimeData.ToDictionary();
+        using GodotProjectionLease<GDictionary> projectedLease =
+            WorldMapDataProjection.ProjectLease(runtimeData);
+        GDictionary projected = projectedLease.Value;
         GDictionary projectedNode = projected["resource_nodes"].AsGodotArray()[0]
             .AsGodotDictionary();
         _test.Eq(
