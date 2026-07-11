@@ -12,7 +12,9 @@ public sealed class ProgressionService
     private const int LockHitBonusDefault = 1;
     private static readonly StringName PracticeTrackMeditation = "meditation";
     private static readonly StringName PracticeTrackCultivation = "cultivation";
-    private static readonly GStringNameArray PracticeTracks = new() { PracticeTrackMeditation, PracticeTrackCultivation };
+    private static readonly IReadOnlyList<StringName> PracticeTracks = Array.AsReadOnly(
+        new[] { PracticeTrackMeditation, PracticeTrackCultivation }
+    );
     private UnitProgress _unit_progress;
     private readonly Dictionary<StringName, SkillDefinition> _skill_definitions = new();
     private readonly Dictionary<StringName, ProfessionDefinition> _profession_defs = new();

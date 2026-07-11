@@ -114,7 +114,7 @@ public partial class CharacterCreationWindow : Control
     private GameContentCatalog _contentCatalog;
     private List<StringName> _raceIds = new();
     private List<StringName> _subraceIds = new();
-    private GStringNameArray _ageStageIds = new();
+    private List<StringName> _ageStageIds = new();
 
     public override void _Ready()
     {
@@ -979,11 +979,11 @@ public partial class CharacterCreationWindow : Control
         _selected_age_years = _resolve_default_age_for_stage(ageProfile, _selected_age_stage_id);
     }
 
-    private GStringNameArray _collect_creation_age_stage_ids(
+    private List<StringName> _collect_creation_age_stage_ids(
         AgeProfileDefinition ageProfile
     )
     {
-        var ids = new GStringNameArray();
+        var ids = new List<StringName>();
         if (ageProfile == null)
             return ids;
         foreach (StringName stageId in ageProfile.CreationStageIds)

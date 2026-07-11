@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -16,6 +17,7 @@ public partial class run_character_management_practice_regression : LifecycleTes
 
     private void Run()
     {
+        TestProgressionServiceUsesManagedPracticeTrackStorage();
         TestPracticeReplacementRequiresConfirmation();
         TestPracticeReplacementUsesFormalLearningValidation();
         TestPracticeReplacementSucceedsAfterFormalLearningValidation();
@@ -24,6 +26,22 @@ public partial class run_character_management_practice_regression : LifecycleTes
         TestPracticeReplacementServiceRequiresVerifiedLearning();
 
         RequestTestExit(_test.Finish("Character management practice regression"));
+    }
+
+    private void TestProgressionServiceUsesManagedPracticeTrackStorage()
+    {
+        FieldInfo field = typeof(ProgressionService).GetField(
+            "PracticeTracks",
+            BindingFlags.Static | BindingFlags.NonPublic
+        );
+        _test.True(field != null, "ProgressionService 应保留正式 practice track 集合。");
+        if (field == null)
+            return;
+
+        _test.True(
+            typeof(IReadOnlyList<StringName>).IsAssignableFrom(field.FieldType),
+            "ProgressionService 的静态 practice track 集合应为 managed IReadOnlyList，而不是 Godot collection。"
+        );
     }
 
     private void TestPracticeReplacementRequiresConfirmation()

@@ -38,8 +38,8 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
 
     public PartyState party_state;
     public CharacterManagementModule character_management;
-    public Godot.Collections.Array<StringName> ally_member_ids = new();
-    public Godot.Collections.Array<StringName> hostile_member_ids = new();
+    public List<StringName> ally_member_ids = new();
+    public List<StringName> hostile_member_ids = new();
 
     public int charge_mastery;
     public int heavy_mastery;
@@ -901,7 +901,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     {
         if (party_state == null)
             return;
-        party_state.active_member_ids = new Godot.Collections.Array<StringName>(ally_member_ids);
+        party_state.active_member_ids = new StringNameList(ally_member_ids);
         var fallback_main_id = _first_ally_member_id();
         if ((string)fallback_main_id == "")
             return;

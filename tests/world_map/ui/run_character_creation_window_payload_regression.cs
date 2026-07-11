@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Reflection;
 using System.Threading.Tasks;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
@@ -15,6 +17,7 @@ public partial class run_character_creation_window_payload_regression : Lifecycl
     {
         try
         {
+            TestAgeStageSelectionUsesManagedStorage();
             await TestConfirmationPayloadIncludesRolledAttributesAndIdentity();
         }
         catch (Exception ex)
@@ -25,11 +28,34 @@ public partial class run_character_creation_window_payload_regression : Lifecycl
         RequestTestExit(_test.Finish("Character creation window payload regression"));
     }
 
+    private void TestAgeStageSelectionUsesManagedStorage()
+    {
+        FieldInfo field = typeof(CharacterCreationWindow).GetField(
+            "_ageStageIds",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        );
+        _test.True(field != null, "建卡窗口应保留 age stage 选择集合。");
+        if (field == null)
+            return;
+
+        _test.True(
+            typeof(IReadOnlyList<StringName>).IsAssignableFrom(field.FieldType),
+            "建卡窗口长期保存的 age stage 选择应为 managed IReadOnlyList，而不是 Godot collection。"
+        );
+    }
+
     private async Task TestConfirmationPayloadIncludesRolledAttributesAndIdentity()
     {
         CharacterCreationWindow window = CharacterCreationScene.Instantiate<CharacterCreationWindow>();
         Root.AddChild(window);
         await ToSignal(this, SignalName.ProcessFrame);
+
+        GameSession gameSession = Root.GetNodeOrNull<GameSession>("GameSession");
+        _test.True(gameSession != null, "建卡窗口回归应能取得 canonical GameSession。");
+        GameContentCatalog contentCatalog = gameSession?.GetContentCatalogTyped();
+        _test.True(contentCatalog != null, "建卡窗口回归应注入当前 process content catalog。");
+        if (contentCatalog != null)
+            window.SetContentCatalog(contentCatalog);
 
         GDictionary capturedPayload = null;
         window.character_confirmed += payload => capturedPayload = payload;

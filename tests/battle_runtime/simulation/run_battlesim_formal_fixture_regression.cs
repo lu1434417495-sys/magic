@@ -28,6 +28,7 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
         try
         {
             TestFixtureNoLongerRegistersGlobalClass();
+            TestRosterMemberIdsUsePlainCollections();
             TestDefaultMainCharacterGetsRerollLuck();
             TestSelectedMainCharacterGetsRerollLuck();
             TestSelectedMainCharacterUsesConfiguredRerollCount();
@@ -51,6 +52,49 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
 
     private void TestFixtureNoLongerRegistersGlobalClass()
     {
+    }
+
+    private void TestRosterMemberIdsUsePlainCollections()
+    {
+        Type allyMemberIdsType = typeof(BattleSimFormalCombatFixture)
+            .GetField(nameof(BattleSimFormalCombatFixture.ally_member_ids))
+            ?.FieldType;
+        Type hostileMemberIdsType = typeof(BattleSimFormalCombatFixture)
+            .GetField(nameof(BattleSimFormalCombatFixture.hostile_member_ids))
+            ?.FieldType;
+        _test.Eq(
+            allyMemberIdsType,
+            typeof(List<StringName>),
+            "formal fixture 友军 roster owner 应是 plain List<StringName>。"
+        );
+        _test.Eq(
+            hostileMemberIdsType,
+            typeof(List<StringName>),
+            "formal fixture 敌军 roster owner 应是 plain List<StringName>。"
+        );
+
+        BattleSimFormalCombatFixture fixture = BuildFixture(
+            BattleSimFormalCombatFixture.ROSTER_MIXED_2S1A
+        );
+        _test.Eq(fixture.ally_member_ids.Count, 3, "2s1a fixture 应保留 3 个友军成员。");
+        _test.Eq(fixture.hostile_member_ids.Count, 3, "2s1a fixture 应保留 3 个敌军成员。");
+        _test.Eq(
+            fixture.ally_member_ids[0],
+            new StringName("ally_longsword_01"),
+            "plain 友军 roster 应保留建卡顺序。"
+        );
+        _test.Eq(
+            fixture.hostile_member_ids[0],
+            new StringName("enemy_longsword_01"),
+            "plain 敌军 roster 应保留建卡顺序。"
+        );
+        PartyState partyState = fixture.GetPartyState();
+        _test.Eq(partyState.active_member_ids.Count, 3, "active roster 应继续复制全部友军成员。");
+        _test.Eq(
+            partyState.active_member_ids[0],
+            fixture.ally_member_ids[0],
+            "active roster 应继续沿用相同的首位友军。"
+        );
     }
 
     private void TestDefaultMainCharacterGetsRerollLuck()
