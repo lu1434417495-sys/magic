@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using Godot;
 
@@ -28,10 +30,7 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
     private static readonly Regex DynamicAttributeModifierConstructionPattern =
         new(@"\bnew\s+AttributeModifier\b", RegexOptions.Compiled);
     private static readonly Regex ProductionSceneTreeQuitPattern =
-        new(
-            @"\bGetTree\s*\(\s*\)\s*\.\s*Q" + @"uit\s*\(",
-            RegexOptions.Compiled
-        );
+        new(@"\.\s*Q" + @"uit\s*\(", RegexOptions.Compiled);
     private static readonly Regex ProcessExitGodotApiPattern =
         new(
             @"\b(?:using\s+Godot|Godot\.|GD\s*\.|Engine\s*\.|GodotObject\s*\.|SceneTree\s*\.|GetTree\s*\(|GetNode(?:OrNull)?\s*\()",
@@ -41,6 +40,178 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
         new(
             @"\b(?:ILegacyEnemyContentCatalog|EnemyContentSeed|Enemy[A-Za-z0-9_]*Def|EnemyAiAction|BattleAiScoreProfile|WildEncounterRoster[A-Za-z0-9_]*Def|DropEntryDef|BattleSimProfileDef)\b",
             RegexOptions.Compiled
+        );
+    private static readonly Regex LegacyEnemyCatalogPattern =
+        new(
+            @"\b(?:ILegacyEnemyContentCatalog|LegacyEnemyContentRegistry)\b|ProcessContentHost\s*\.\s*LegacyEnemyContentRegistry",
+            RegexOptions.Compiled
+        );
+    private static readonly Regex ProductionTypeDeclarationPattern =
+        new(
+            @"\b(?:class|struct|interface|record(?:\s+(?:class|struct))?)\s+(?<name>[A-Za-z_][A-Za-z0-9_]*)",
+            RegexOptions.Compiled
+        );
+
+    private static readonly HashSet<string> SynchronousAuthoringOwnerAllowlist =
+        new(
+            new[]
+            {
+                "AgeContentRegistry",
+                "AscensionContentRegistry",
+                "BarrierContentRegistry",
+                "BattleSpecialProfileManifestValidator",
+                "BattleSpecialProfileRegistry",
+                "BloodlineContentRegistry",
+                "ContentValidationRunner",
+                "ContingencyTemplateContentRegistry",
+                "EnemyContentRegistry",
+                "EquipmentAbilityContentRegistry",
+                "FaithContentRegistry",
+                "IdentityContentRegistryBase",
+                "IdentityDefinitionProjection",
+                "ItemContentRegistry",
+                "ProfessionContentRegistry",
+                "ProgressionContentRegistry",
+                "QuestContentRegistry",
+                "RaceContentRegistry",
+                "RecipeContentRegistry",
+                "SkillContentRegistry",
+                "SkillLevelDescriptionContentRules",
+                "StageAdvancementContentRegistry",
+                "SubraceContentRegistry",
+                "TraitContentRegistry",
+            },
+            StringComparer.Ordinal
+        );
+
+    private static readonly HashSet<string> RuntimeDefinitionProjectionMemberAllowlist =
+        new(
+            new[]
+            {
+                "AgeProfileDefinition.FromResource",
+                "AgeStageRuleDefinition.FromResource",
+                "AscensionDefinition.FromResource",
+                "AscensionStageDefinition.FromResource",
+                "AttributeModifierDefinition.FromResource",
+                "AttributeRequirementDefinition.FromResource",
+                "BarrierLayerDefinition.FromResource",
+                "BarrierOutcomeDefinition.FromResource",
+                "BarrierProfileDefinition.FromResource",
+                "BattleAiScoreProfileDefinition.FromResource",
+                "BloodlineDefinition.FromResource",
+                "BloodlineStageDefinition.FromResource",
+                "CombatCastVariantDefinition.CopyEffectDefinitions",
+                "CombatCastVariantDefinition.FromResource",
+                "CombatDamageSegmentDefinition.FromResource",
+                "CombatDamageSegmentDefinition.ProjectArray",
+                "CombatEffectDefinition.FromResource",
+                "CombatEffectDefinition.ProjectEquipmentDurabilitySlotWeights",
+                "CombatSkillDefinition.FromResource",
+                "CombatSkillDefinition.ProjectCastVariants",
+                "CombatSkillDefinition.ProjectEffectDefinitions",
+                "CombatTargetDamageMultiplierRuleDefinition.FromResource",
+                "CombatTargetDamageMultiplierRuleDefinition.ProjectArray",
+                "ContingencyAutomationDefinition.FromResource",
+                "ContingencySetupTemplateDefinition.FromResource",
+                "EnemyAiActionDefinition.FromResource",
+                "EnemyTemplateDefinition.FromResource",
+                "EquipmentAttributeRequirementDefinition.FromResource",
+                "EquipmentRequirementDefinition.FromResource",
+                "FacilityDefinition.FromResource",
+                "FacilityNpcDefinition.FromResource",
+                "FacilitySlotDefinition.FromResource",
+                "FaithDeityDefinition.FromResource",
+                "FaithRankDefinition.FromResource",
+                "ItemDefinition.FromResource",
+                "MeteorSwarmImpactComponentData.FromResource",
+                "MeteorSwarmProfileData.FromResource",
+                "MountedSubmapDefinition.FromResource",
+                "ProfessionActiveConditionDefinition.FromResource",
+                "ProfessionDefinition.FromResource",
+                "ProfessionGrantedSkillDefinition.FromResource",
+                "ProfessionPromotionRequirementDefinition.FromResource",
+                "ProfessionRankGateDefinition.FromResource",
+                "ProfessionRankRequirementDefinition.FromResource",
+                "ProjectionContext.LoadRequired",
+                "ProjectionContext.ProjectGeneration",
+                "ProjectionContext.ProjectMountedSubmaps",
+                "QuestDefinition.FromResource",
+                "RaceDefinition.FromResource",
+                "RacialGrantedSkillDefinition.FromResource",
+                "RecipeDefinition.FromResource",
+                "ReputationRequirementDefinition.FromResource",
+                "SettlementDefinition.FromResource",
+                "SettlementDistributionDefinition.FromResource",
+                "SkillDefinition.FromResource",
+                "SkillDefinition.ProjectAttributeModifiers",
+                "SkillDefinition.ProjectIndex",
+                "StageAdvancementDefinition.FromResource",
+                "SubraceDefinition.FromResource",
+                "TagRequirementDefinition.FromResource",
+                "TraitDamageResistanceEntryDefinition.FromResource",
+                "TraitDefinition.FromResource",
+                "TraitPassiveStatusEffectDefinition.FromResource",
+                "TraitRollGroupDefinition.FromResource",
+                "TraitRollGroupEntryDefinition.FromResource",
+                "TraitRollValueSchemaEntryDefinition.FromResource",
+                "TraitSaveBonusEntryDefinition.FromResource",
+                "WeaponDamageDiceDefinition.FromResource",
+                "WeaponProfileDefinition.FromResource",
+                "WeightedFacilityDefinition.FromResource",
+                "WildSpawnRuleDefinition.FromResource",
+                "WorldEventDefinition.FromResource",
+                "WorldGenerationDefinition.FromResource",
+                "WorldMapSettlementBundleDefinition.FromResource",
+                "WorldMapSettlementNamePoolDefinition.FromResource",
+                "WorldMapWildSpawnBundleDefinition.FromResource",
+            },
+            StringComparer.Ordinal
+        );
+
+    private static readonly HashSet<string> ExplicitRawBoundaryMemberAllowlist =
+        new(
+            new[]
+            {
+                "BattleBoardController.OwnRenderResource",
+                "BattleBoardController.OwnsRenderResource",
+                "BattleSpecialProfileRuntimeView.ForMeteorSwarm",
+                "EngineAssetAccess.ResolveBorrowed",
+                "EngineAssetResolver._assets",
+                "EngineAssetResolver.ResolveBorrowed",
+                "GodotContentOwnership.IsBorrowedContent",
+                "GodotContentOwnership.RegisterBorrowedContent",
+                "GodotContentOwnership.RegisterDerivedContent",
+                "GodotObjectOwnershipRegistry.AssertBorrowedOrOwnedKnown",
+                "GodotRuntimeResourceOwnership.MarkOwnedTransient",
+                "GodotTransientResourceScope.Own",
+                "GodotWrapperOwnershipRegistry.AssertBorrowedOrOwnedKnown",
+                "IContentResourceLoader.LoadCanonical",
+                "ProcessContentHost._roots",
+                "ProcessContentHost.LoadCanonical",
+                "WorldDefinitionProjection.ProjectResources",
+            },
+            StringComparer.Ordinal
+        );
+
+    private static readonly HashSet<string> ExplicitOpaqueStorageMemberAllowlist =
+        new(
+            new[]
+            {
+                "ApplicationLifetimeCoordinator._shutdownSync",
+                "BattleSimOverridePatchDefinition.Value",
+                "GameLog._lock",
+                "GodotContentOwnership.StaticContentOwner",
+                "GodotObjectOwnershipRegistry.Sync",
+                "GodotWrapperOwnershipRegistry.Sync",
+                "LifecycleAuditRegistry._sync",
+                "NativeLeaseScope.OwnershipSync",
+                "ProcessContentHost.ProcessHostSync",
+                "ProjectionRoot.Lease",
+                "ProjectionRoot.Value",
+                "SettlementServiceResultPayloadEntry._value",
+                "ShutdownReport._sync",
+            },
+            StringComparer.Ordinal
         );
 
     private static readonly LifetimeDomain[] PhaseTwoLeaseDomains =
@@ -88,6 +259,10 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
         AssertExactLegacyDebt();
         AssertLifecycleStopgapCountersAreZero();
         AssertRawEnemyAuthoringInventory();
+        AssertNoLegacyEnemyContentCatalog();
+        AssertNoRawAuthoredResourceRuntimeSignatures();
+        AssertRetryFreeStrictRunnerSource();
+        AssertAutoloadOrderAndProcessSnapshotBinding();
         AssertProductionQuitOwner();
         AssertTestAdapterHasNoQuit();
         AssertProcessExitDiagnosticsHaveNoGodotApi();
@@ -396,6 +571,428 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
 
     }
 
+    private void AssertNoRawAuthoredResourceRuntimeSignatures()
+    {
+        Assembly assembly = typeof(GameSession).Assembly;
+        HashSet<string> productionTypeNames = DiscoverProductionTypeNames();
+        var violations = new HashSet<string>(StringComparer.Ordinal);
+        foreach (Type type in GetLoadableTypes(assembly))
+        {
+            Type topLevelType = GetTopLevelType(type);
+            if (
+                type == null
+                || typeof(Resource).IsAssignableFrom(type)
+                || typeof(Resource).IsAssignableFrom(topLevelType)
+                || !IsProductionType(type, productionTypeNames)
+                || type.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false)
+            )
+            {
+                continue;
+            }
+
+            const BindingFlags flags =
+                BindingFlags.Instance
+                | BindingFlags.Static
+                | BindingFlags.Public
+                | BindingFlags.NonPublic
+                | BindingFlags.DeclaredOnly;
+            string topLevelName = WithoutGenericArity(topLevelType.Name);
+            bool synchronousAuthoringOwner =
+                SynchronousAuthoringOwnerAllowlist.Contains(topLevelName);
+            if (!synchronousAuthoringOwner)
+            {
+                foreach (FieldInfo field in type.GetFields(flags))
+                {
+                    AddStoredRuntimeSignatureViolation(
+                        violations,
+                        type,
+                        field,
+                        field.FieldType,
+                        "field"
+                    );
+                }
+            }
+            foreach (ConstructorInfo constructor in type.GetConstructors(flags))
+            {
+                foreach (ParameterInfo parameter in constructor.GetParameters())
+                {
+                    AddRawBoundarySignatureViolation(
+                        violations,
+                        type,
+                        constructor,
+                        $"constructor parameter {parameter.Name}",
+                        parameter.ParameterType
+                    );
+                }
+            }
+            foreach (MethodInfo method in type.GetMethods(flags))
+            {
+                if (
+                    method.IsSpecialName
+                    || method.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false)
+                )
+                {
+                    continue;
+                }
+                AddRawBoundarySignatureViolation(
+                    violations,
+                    type,
+                    method,
+                    $"method {method.Name} return",
+                    method.ReturnType
+                );
+                foreach (ParameterInfo parameter in method.GetParameters())
+                {
+                    AddRawBoundarySignatureViolation(
+                        violations,
+                        type,
+                        method,
+                        $"method {method.Name} parameter {parameter.Name}",
+                        parameter.ParameterType
+                    );
+                }
+            }
+        }
+
+        foreach (string violation in violations)
+            _test.Fail($"raw authored Resource or opaque Godot carrier escaped into runtime storage: {violation}");
+    }
+
+    private void AssertNoLegacyEnemyContentCatalog()
+    {
+        string scriptsRoot = ProjectSettings.GlobalizePath("res://scripts");
+        List<string> matches = FindSourceMatches(scriptsRoot, LegacyEnemyCatalogPattern);
+        _test.Eq(
+            matches.Count,
+            0,
+            matches.Count == 0
+                ? "legacy Enemy/AI content catalog remains deleted"
+                : $"legacy Enemy/AI content catalog markers remain in {string.Join(", ", matches)}"
+        );
+    }
+
+    private void AssertRetryFreeStrictRunnerSource()
+    {
+        string runnerSource = File.ReadAllText(
+            ProjectSettings.GlobalizePath("res://tests/run_regression_suite.py")
+        );
+        string workflowSource = File.ReadAllText(
+            ProjectSettings.GlobalizePath("res://.github/workflows/ci.yml")
+        );
+        foreach (
+            string forbidden in new[]
+            {
+                "--finalizer-crash-retries",
+                "finalizer_crash_retries",
+                "finalizer_retries",
+                "borrowed_resource_shutdown",
+                "ObjectDB_leak_exempt",
+                "suppressed_leaked_unsafe",
+            }
+        )
+        {
+            _test.False(
+                runnerSource.Contains(forbidden, StringComparison.Ordinal)
+                    || workflowSource.Contains(forbidden, StringComparison.Ordinal),
+                $"regression runner/workflow contains no retry or shutdown exemption marker: {forbidden}"
+            );
+        }
+
+        foreach (
+            string required in new[]
+            {
+                "LEAKED_UNSAFE_REFERENCE_PREFIX",
+                "OBJECTDB_LEAK_PREFIX",
+                "RESOURCE_LEAK_PATTERN",
+                "LIFECYCLE_FATAL_MARKERS",
+            }
+        )
+        {
+            _test.True(
+                runnerSource.Contains(required, StringComparison.Ordinal),
+                $"strict runner retains fatal shutdown classification: {required}"
+            );
+        }
+        _test.True(
+            workflowSource.Contains("--fail-on-output-error", StringComparison.Ordinal)
+                && workflowSource.Contains("--lifecycle-correctness", StringComparison.Ordinal),
+            "CI runs the full suite with strict output and lifecycle correctness"
+        );
+    }
+
+    private void AssertAutoloadOrderAndProcessSnapshotBinding()
+    {
+        string projectSource = File.ReadAllText(
+            ProjectSettings.GlobalizePath("res://project.godot")
+        );
+        string autoloadSection = ExtractIniSection(projectSource, "autoload");
+        var autoloadEntries = new List<string>();
+        using (var reader = new StringReader(autoloadSection))
+        {
+            while (reader.ReadLine() is string line)
+            {
+                string normalized = line.Trim();
+                if (normalized.Length != 0 && !normalized.StartsWith(';'))
+                    autoloadEntries.Add(normalized);
+            }
+        }
+        _test.True(autoloadEntries.Count >= 2, "project declares coordinator and session autoloads");
+        if (autoloadEntries.Count >= 2)
+        {
+            _test.Eq(
+                autoloadEntries[0],
+                "ApplicationLifetimeCoordinator=\"*res://scripts/systems/lifecycle/ApplicationLifetimeCoordinator.cs\"",
+                "ApplicationLifetimeCoordinator is first in autoload order"
+            );
+            _test.Eq(
+                autoloadEntries[1],
+                "GameSession=\"*res://scripts/systems/persistence/GameSession.cs\"",
+                "GameSession follows the process lifetime owner"
+            );
+        }
+
+        FieldInfo snapshotField = typeof(GameSession).GetField(
+            "_contentSnapshot",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        );
+        _test.Eq(
+            snapshotField?.FieldType,
+            typeof(ContentSnapshot),
+            "GameSession stores the borrowed typed process snapshot"
+        );
+        MethodInfo bindContent = typeof(GameSession).GetMethod(
+            "BindContent",
+            BindingFlags.Instance | BindingFlags.NonPublic,
+            binder: null,
+            types: new[] { typeof(ContentSnapshot) },
+            modifiers: null
+        );
+        _test.True(bindContent != null, "GameSession exposes only the typed snapshot bind boundary");
+
+        ApplicationLifetimeCoordinator coordinator =
+            Root.GetNodeOrNull<ApplicationLifetimeCoordinator>("ApplicationLifetimeCoordinator");
+        GameSession session = Root.GetNodeOrNull<GameSession>("GameSession");
+        ContentSnapshot boundSnapshot = snapshotField?.GetValue(session) as ContentSnapshot;
+        ContentSnapshot publishedSnapshot = coordinator?.ContentHost?.GetSnapshot();
+        _test.True(
+            coordinator != null && session != null,
+            "coordinator and canonical GameSession autoloads are active"
+        );
+        _test.True(
+            boundSnapshot != null && ReferenceEquals(boundSnapshot, publishedSnapshot),
+            "canonical GameSession borrows the published process snapshot"
+        );
+        _test.True(
+            coordinator?.ContentHost?.GetSnapshotBorrowerDiagnostics().Count > 0,
+            "process content host records the attached session borrower"
+        );
+    }
+
+    private static string ExtractIniSection(string source, string sectionName)
+    {
+        string header = $"[{sectionName}]";
+        int start = source.IndexOf(header, StringComparison.Ordinal);
+        if (start < 0)
+            return string.Empty;
+        start += header.Length;
+        int nextSection = source.IndexOf("\n[", start, StringComparison.Ordinal);
+        return nextSection >= 0
+            ? source.Substring(start, nextSection - start)
+            : source.Substring(start);
+    }
+
+    private static HashSet<string> DiscoverProductionTypeNames()
+    {
+        string scriptsRoot = ProjectSettings.GlobalizePath("res://scripts");
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string filePath in Directory.GetFiles(scriptsRoot, "*.cs", SearchOption.AllDirectories))
+        {
+            string source = File.ReadAllText(filePath);
+            foreach (Match declaration in ProductionTypeDeclarationPattern.Matches(source))
+                names.Add(declaration.Groups["name"].Value);
+        }
+        return names;
+    }
+
+    private static bool IsProductionType(Type type, HashSet<string> productionTypeNames)
+    {
+        Type topLevelType = GetTopLevelType(type);
+        return productionTypeNames.Contains(WithoutGenericArity(topLevelType.Name));
+    }
+
+    private static Type GetTopLevelType(Type type)
+    {
+        Type topLevelType = type;
+        while (topLevelType?.DeclaringType != null)
+            topLevelType = topLevelType.DeclaringType;
+        return topLevelType;
+    }
+
+    private static void AddStoredRuntimeSignatureViolation(
+        HashSet<string> violations,
+        Type ownerType,
+        MemberInfo member,
+        Type signatureType,
+        string memberKind
+    )
+    {
+        string memberKey = BuildMemberKey(ownerType, member.Name);
+        if (!ExplicitRawBoundaryMemberAllowlist.Contains(memberKey))
+        {
+            AddRawResourceTypes(
+                violations,
+                ownerType,
+                $"{memberKind} {member.Name}",
+                signatureType
+            );
+        }
+
+        Type normalized = NormalizeSignatureType(signatureType);
+        if (
+            normalized != null
+            && IsOpaqueRuntimeStorageType(normalized)
+            && !ExplicitOpaqueStorageMemberAllowlist.Contains(memberKey)
+            && !ExplicitRawBoundaryMemberAllowlist.Contains(memberKey)
+        )
+        {
+            violations.Add(
+                $"{ownerType.FullName ?? ownerType.Name}.{memberKind} {member.Name} -> opaque {normalized.FullName ?? normalized.Name}"
+            );
+        }
+    }
+
+    private static void AddRawBoundarySignatureViolation(
+        HashSet<string> violations,
+        Type ownerType,
+        MemberInfo member,
+        string memberLabel,
+        Type signatureType
+    )
+    {
+        if (IsAllowedSynchronousRawBoundary(ownerType, member))
+            return;
+        AddRawResourceTypes(violations, ownerType, memberLabel, signatureType);
+    }
+
+    private static void AddRawResourceTypes(
+        HashSet<string> violations,
+        Type ownerType,
+        string memberLabel,
+        Type signatureType
+    )
+    {
+        foreach (Type rawType in EnumerateSignatureTypes(signatureType))
+        {
+            if (!IsProjectAuthoredResourceType(rawType))
+                continue;
+            violations.Add(
+                $"{ownerType.FullName ?? ownerType.Name}.{memberLabel} -> {rawType.FullName ?? rawType.Name}"
+            );
+        }
+    }
+
+    private static bool IsAllowedSynchronousRawBoundary(Type ownerType, MemberInfo member)
+    {
+        string memberKey = BuildMemberKey(ownerType, member.Name);
+        if (
+            ExplicitRawBoundaryMemberAllowlist.Contains(memberKey)
+            || RuntimeDefinitionProjectionMemberAllowlist.Contains(memberKey)
+        )
+            return true;
+
+        string ownerName = WithoutGenericArity(GetTopLevelType(ownerType).Name);
+        if (SynchronousAuthoringOwnerAllowlist.Contains(ownerName))
+            return member is ConstructorInfo || member is MethodInfo;
+
+        return false;
+    }
+
+    private static bool IsProjectAuthoredResourceType(Type type)
+    {
+        if (type == null)
+            return false;
+        if (type == typeof(Resource))
+            return true;
+        if (type.IsGenericParameter)
+        {
+            foreach (Type constraint in type.GetGenericParameterConstraints())
+                if (typeof(Resource).IsAssignableFrom(constraint))
+                    return true;
+            return false;
+        }
+        return type.Assembly == typeof(GameSession).Assembly
+            && typeof(Resource).IsAssignableFrom(type);
+    }
+
+    private static bool IsOpaqueRuntimeStorageType(Type type) =>
+        type == typeof(object)
+        || type == typeof(Variant)
+        || type == typeof(GodotObject)
+        || (
+            string.Equals(type.Namespace, "Godot.Collections", StringComparison.Ordinal)
+            && (
+                string.Equals(
+                    WithoutGenericArity(type.Name),
+                    "Array",
+                    StringComparison.Ordinal
+                )
+                || string.Equals(
+                    WithoutGenericArity(type.Name),
+                    "Dictionary",
+                    StringComparison.Ordinal
+                )
+            )
+        );
+
+    private static Type NormalizeSignatureType(Type type)
+    {
+        Type normalized = type;
+        while (normalized?.HasElementType == true)
+            normalized = normalized.GetElementType();
+        return normalized;
+    }
+
+    private static string BuildMemberKey(Type ownerType, string memberName)
+    {
+        string normalizedMemberName = memberName ?? string.Empty;
+        if (
+            normalizedMemberName.StartsWith("<", StringComparison.Ordinal)
+            && normalizedMemberName.EndsWith(">k__BackingField", StringComparison.Ordinal)
+        )
+        {
+            normalizedMemberName = normalizedMemberName.Substring(
+                1,
+                normalizedMemberName.Length - ">k__BackingField".Length - 1
+            );
+        }
+        return $"{WithoutGenericArity(ownerType?.Name)}.{normalizedMemberName}";
+    }
+
+    private static IEnumerable<Type> EnumerateSignatureTypes(Type type)
+    {
+        if (type == null)
+            yield break;
+
+        Type normalized = NormalizeSignatureType(type);
+        if (normalized == null)
+            yield break;
+
+        yield return normalized;
+        if (!normalized.IsGenericType)
+            yield break;
+        foreach (Type argument in normalized.GetGenericArguments())
+        {
+            foreach (Type nested in EnumerateSignatureTypes(argument))
+                yield return nested;
+        }
+    }
+
+    private static string WithoutGenericArity(string typeName)
+    {
+        int separator = typeName?.IndexOf('`') ?? -1;
+        return separator >= 0 ? typeName.Substring(0, separator) : typeName ?? string.Empty;
+    }
+
     private void AssertPhaseTwoLeaseDomainsReturnToBaseline()
     {
         foreach (LifetimeDomain domain in PhaseTwoLeaseDomains)
@@ -586,6 +1183,24 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
                 matches.Add(relativePath);
         }
         return matches;
+    }
+
+    private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException exception)
+        {
+            var types = new List<Type>();
+            foreach (Type type in exception.Types)
+            {
+                if (type != null)
+                    types.Add(type);
+            }
+            return types;
+        }
     }
 
     private static string ExtractMethodBody(string source, string signature)

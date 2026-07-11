@@ -42,6 +42,29 @@ class RegressionSuiteOutputGateTests(unittest.TestCase):
 		with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
 			runner.build_parser().parse_args(["--finalizer-crash-retries", "1"])
 
+	def test_runner_source_has_no_retry_or_shutdown_exemption_path(self) -> None:
+		source = RUNNER_PATH.read_text(encoding="utf-8")
+
+		for forbidden in (
+			"--finalizer-crash-retries",
+			"finalizer_crash_retries",
+			"finalizer_retries",
+			"borrowed_resource_shutdown",
+			"ObjectDB_leak_exempt",
+			"suppressed_leaked_unsafe",
+		):
+			with self.subTest(forbidden=forbidden):
+				self.assertNotIn(forbidden, source)
+
+		for required in (
+			"LEAKED_UNSAFE_REFERENCE_PREFIX",
+			"OBJECTDB_LEAK_PREFIX",
+			"RESOURCE_LEAK_PATTERN",
+			"LIFECYCLE_FATAL_MARKERS",
+		):
+			with self.subTest(required=required):
+				self.assertIn(required, source)
+
 	def test_parser_accepts_strict_output_and_timeout_options(self) -> None:
 		args = runner.build_parser().parse_args(
 			[
