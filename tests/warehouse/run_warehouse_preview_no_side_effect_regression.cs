@@ -7,7 +7,9 @@ public partial class run_warehouse_preview_no_side_effect_regression : Lifecycle
 {
     private readonly TestHarness _test = new();
     private readonly GodotTransientResourceScope _runtimeScope =
-        new("warehouse_preview_no_side_effect", quarantineOnDrain: true);
+        GodotTransientResourceScope.CreateTestQuarantine(
+            "warehouse_preview_no_side_effect"
+        );
 
     public override void _Initialize()
     {

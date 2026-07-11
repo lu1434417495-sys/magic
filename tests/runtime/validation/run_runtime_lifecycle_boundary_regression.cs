@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using Godot;
 
@@ -15,16 +16,44 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
         new(@"\bQ" + @"uit\s*\(", RegexOptions.Compiled);
     private static readonly Regex DirectSceneTreeBasePattern =
         new(@":\s*S" + @"ceneTree\b", RegexOptions.Compiled);
-    private static readonly Regex ProductionQuarantinePattern =
-        new(@"quarantineOnDrain\s*:\s*true", RegexOptions.Compiled);
-    private static readonly Regex DeclaredDebtArgumentPattern =
+    private static readonly Regex ProductionLegacyQuarantineFactoryPattern =
         new(
-            @"legacyDebt\s*:\s*GodotLifecycleLegacyDebtManifest\.BattleBoardControllerQuarantine\b",
+            @"\bGodotTransientResourceScope\s*\.\s*CreateLegacyQuarantine\s*\(",
+            RegexOptions.Compiled
+        );
+    private static readonly Regex ProductionTestQuarantineFactoryPattern =
+        new(
+            @"\bGodotTransientResourceScope\s*\.\s*CreateTestQuarantine\s*\(",
+            RegexOptions.Compiled
+        );
+    private static readonly Regex BattleBoardLegacyFactoryPattern =
+        new(
+            @"GodotTransientResourceScope\.CreateLegacyQuarantine\s*\(\s*""BattleBoardController""\s*,\s*GodotLifecycleLegacyDebtManifest\.BattleBoardControllerQuarantine\s*\)",
+            RegexOptions.Compiled | RegexOptions.Singleline
+        );
+    private static readonly Regex DirectQuarantineRetainPattern =
+        new(
+            @"\bGodotTestRuntimeQuarantine\s*\.\s*Retain\s*\(",
+            RegexOptions.Compiled
+        );
+    private static readonly Regex ProductionSceneTreeQuitPattern =
+        new(
+            @"\bGetTree\s*\(\s*\)\s*\.\s*Q" + @"uit\s*\(",
             RegexOptions.Compiled
         );
     private static readonly Regex ProcessExitGodotApiPattern =
         new(
             @"\b(?:using\s+Godot|Godot\.|GD\s*\.|Engine\s*\.|GodotObject\s*\.|SceneTree\s*\.|GetTree\s*\(|GetNode(?:OrNull)?\s*\()",
+            RegexOptions.Compiled
+        );
+    private static readonly Regex NormalSuppressRunningGatePattern =
+        new(
+            @"ApplicationLifetimeDiagnostics\.CurrentPhase\s*==\s*ApplicationShutdownPhase\.Running",
+            RegexOptions.Compiled
+        );
+    private static readonly Regex NormalSuppressRecordPattern =
+        new(
+            @"LifecycleAuditRegistry\.Shared\.RecordNormalPhaseSuppress\s*\(",
             RegexOptions.Compiled
         );
 
@@ -60,9 +89,11 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
         AssertConcreteRunnersUseLifecycleBase();
         AssertExactLegacyDebt();
         AssertExactProductionQuarantine();
+        AssertQuarantineFactorySurface();
         AssertProductionQuitOwner();
         AssertTestAdapterHasNoQuit();
         AssertProcessExitDiagnosticsHaveNoGodotApi();
+        AssertNormalSuppressInstrumentation();
         AssertNormalSessionSuppressCountIsZero();
         RequestTestExit(_test.Finish("Runtime lifecycle boundary regression"));
     }
@@ -165,7 +196,7 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
         string scriptsRoot = ProjectSettings.GlobalizePath("res://scripts");
         List<string> quarantineSites = FindSourceMatches(
             scriptsRoot,
-            ProductionQuarantinePattern
+            ProductionLegacyQuarantineFactoryPattern
         );
 
         _test.Eq(
@@ -186,15 +217,58 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
             Path.Combine(scriptsRoot, "ui", "BattleBoardController.cs")
         );
         _test.True(
-            DeclaredDebtArgumentPattern.IsMatch(battleBoardSource),
-            "the production quarantine call site names its exact legacy debt metadata"
+            BattleBoardLegacyFactoryPattern.IsMatch(battleBoardSource),
+            "the production quarantine factory receives its exact legacy debt metadata"
+        );
+
+        _test.Eq(
+            FindSourceMatches(scriptsRoot, ProductionTestQuarantineFactoryPattern).Count,
+            0,
+            "production cannot invoke the test quarantine factory"
+        );
+
+        string ownershipSource = File.ReadAllText(
+            Path.Combine(scriptsRoot, "utils", "GodotObjectOwnership.cs")
+        );
+        _test.Eq(
+            DirectQuarantineRetainPattern.Matches(ownershipSource).Count,
+            1,
+            "the ownership bridge contains the only direct quarantine retain call"
+        );
+    }
+
+    private void AssertQuarantineFactorySurface()
+    {
+        ConstructorInfo[] constructors = typeof(GodotTransientResourceScope).GetConstructors(
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+        );
+        int callableConstructorCount = 0;
+        foreach (ConstructorInfo constructor in constructors)
+        {
+            if (constructor.IsPrivate)
+                continue;
+
+            callableConstructorCount++;
+            ParameterInfo[] parameters = constructor.GetParameters();
+            _test.True(
+                parameters.Length == 1 && parameters[0].ParameterType == typeof(string),
+                "the only callable transient scope constructor is the normal one-argument path"
+            );
+        }
+        _test.Eq(
+            callableConstructorCount,
+            1,
+            "quarantine cannot be enabled through a positional constructor argument"
         );
     }
 
     private void AssertProductionQuitOwner()
     {
         string scriptsRoot = ProjectSettings.GlobalizePath("res://scripts");
-        List<string> quitSites = FindSourceMatches(scriptsRoot, DirectTestQuitPattern);
+        List<string> quitSites = FindSourceMatches(
+            scriptsRoot,
+            ProductionSceneTreeQuitPattern
+        );
 
         _test.Eq(quitSites.Count, 1, "production C# has exactly one SceneTree quit call");
         if (quitSites.Count == 1)
@@ -225,9 +299,37 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
                 "res://scripts/systems/lifecycle/ApplicationLifetimeDiagnostics.cs"
             )
         );
+        string callbackBody = ExtractMethodBody(
+            source,
+            "internal static void RecordProcessExit"
+        );
+        _test.True(
+            callbackBody.Length > 0,
+            "ProcessExit diagnostics callback remains discoverable by the boundary gate"
+        );
         _test.False(
-            ProcessExitGodotApiPattern.IsMatch(source),
+            ProcessExitGodotApiPattern.IsMatch(callbackBody),
             "ProcessExit diagnostics must not import or call Godot APIs"
+        );
+    }
+
+    private void AssertNormalSuppressInstrumentation()
+    {
+        string source = File.ReadAllText(
+            ProjectSettings.GlobalizePath("res://scripts/utils/GodotObjectOwnership.cs")
+        );
+        string methodBody = ExtractMethodBody(
+            source,
+            "internal static void SuppressBorrowedContentForProcessExit"
+        );
+        _test.True(
+            NormalSuppressRunningGatePattern.IsMatch(methodBody),
+            "process-only content suppression detects an unexpected Running-phase call"
+        );
+        _test.Eq(
+            NormalSuppressRecordPattern.Matches(methodBody).Count,
+            1,
+            "unexpected normal-phase process suppression records exactly one audit event"
         );
     }
 
@@ -253,5 +355,29 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
                 matches.Add(relativePath);
         }
         return matches;
+    }
+
+    private static string ExtractMethodBody(string source, string signature)
+    {
+        int signatureIndex = source.IndexOf(signature, StringComparison.Ordinal);
+        if (signatureIndex < 0)
+            return string.Empty;
+
+        int openingBrace = source.IndexOf('{', signatureIndex);
+        if (openingBrace < 0)
+            return string.Empty;
+
+        int depth = 0;
+        for (int index = openingBrace; index < source.Length; index++)
+        {
+            if (source[index] == '{')
+                depth++;
+            else if (source[index] == '}')
+                depth--;
+
+            if (depth == 0)
+                return source.Substring(openingBrace, index - openingBrace + 1);
+        }
+        return string.Empty;
     }
 }

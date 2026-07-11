@@ -78,7 +78,7 @@ internal sealed class TestHarness
 internal static class TestResourceOwnership
 {
     private static readonly GodotTransientResourceScope Scope =
-        new("TestResourceOwnership", quarantineOnDrain: true);
+        GodotTransientResourceScope.CreateTestQuarantine("TestResourceOwnership");
 
     internal static T Own<T>(T resource, string reason)
         where T : Resource

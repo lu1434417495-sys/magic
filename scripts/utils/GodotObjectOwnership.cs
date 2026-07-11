@@ -391,6 +391,9 @@ internal static class GodotContentOwnership
 
     internal static void SuppressBorrowedContentForProcessExit()
     {
+        if (ApplicationLifetimeDiagnostics.CurrentPhase == ApplicationShutdownPhase.Running)
+            LifecycleAuditRegistry.Shared.RecordNormalPhaseSuppress();
+
         List<object> staticWrappers;
         lock (StaticSync)
         {
@@ -585,34 +588,46 @@ internal static class GodotTestRuntimeQuarantine
 
 internal sealed class GodotTransientResourceScope : IDisposable
 {
+    private enum QuarantineMode
+    {
+        None = 0,
+        Legacy,
+        Test,
+    }
+
     private readonly List<object> _strongWrappers = new();
     private readonly HashSet<object> _strongWrapperSet = new(GodotWrapperReferenceComparer.Instance);
     private readonly List<object> _rootGraphs = new();
     private readonly HashSet<object> _rootGraphSet = new(GodotWrapperReferenceComparer.Instance);
     private bool _disposed;
 
-    internal GodotTransientResourceScope(
+    internal GodotTransientResourceScope(string name)
+        : this(name, QuarantineMode.None) { }
+
+    private GodotTransientResourceScope(string name, QuarantineMode quarantineMode)
+    {
+        Name = string.IsNullOrEmpty(name) ? "unnamed" : name;
+        QuarantineOnDrain = quarantineMode != QuarantineMode.None;
+    }
+
+    internal static GodotTransientResourceScope CreateLegacyQuarantine(
         string name,
-        bool quarantineOnDrain = false,
-        LifecycleLegacyDebtSnapshot legacyDebt = null
+        LifecycleLegacyDebtSnapshot legacyDebt
     )
     {
-        if (legacyDebt != null && !quarantineOnDrain)
+        ArgumentNullException.ThrowIfNull(legacyDebt);
+        if (!GodotLifecycleLegacyDebtManifest.IsDeclared(legacyDebt))
         {
-            LifecycleViolation.Report(
-                $"Legacy quarantine debt requires quarantineOnDrain. debt_id={legacyDebt.DebtId}"
+            throw new ArgumentException(
+                $"Undeclared lifecycle debt cannot authorize quarantine. debt_id={legacyDebt.DebtId}",
+                nameof(legacyDebt)
             );
         }
-        else if (legacyDebt != null && !GodotLifecycleLegacyDebtManifest.IsDeclared(legacyDebt))
-        {
-            LifecycleViolation.Report(
-                $"Undeclared lifecycle debt cannot authorize quarantine. debt_id={legacyDebt.DebtId}"
-            );
-        }
-
-        Name = string.IsNullOrEmpty(name) ? "unnamed" : name;
-        QuarantineOnDrain = quarantineOnDrain;
+        return new GodotTransientResourceScope(name, QuarantineMode.Legacy);
     }
+
+    internal static GodotTransientResourceScope CreateTestQuarantine(string name) =>
+        new(name, QuarantineMode.Test);
 
     internal string Name { get; }
     internal bool QuarantineOnDrain { get; }

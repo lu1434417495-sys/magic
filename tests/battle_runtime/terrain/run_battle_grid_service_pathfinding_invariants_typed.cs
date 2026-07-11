@@ -29,7 +29,9 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
 
     private readonly TestHarness _test = new();
     private readonly GodotTransientResourceScope _runtimeScope =
-        new("battle_grid_service_pathfinding_invariants", quarantineOnDrain: true);
+        GodotTransientResourceScope.CreateTestQuarantine(
+            "battle_grid_service_pathfinding_invariants"
+        );
     private BattleGridService _grid = null!;
 
     public static TestResult RunAll()

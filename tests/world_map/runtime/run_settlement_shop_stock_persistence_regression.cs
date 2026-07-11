@@ -7,7 +7,9 @@ public partial class run_settlement_shop_stock_persistence_regression : Lifecycl
 {
     private readonly TestHarness _test = new();
     private readonly GodotTransientResourceScope _runtimeScope =
-        new("settlement_shop_stock_persistence", quarantineOnDrain: true);
+        GodotTransientResourceScope.CreateTestQuarantine(
+            "settlement_shop_stock_persistence"
+        );
 
     public override void _Initialize()
     {

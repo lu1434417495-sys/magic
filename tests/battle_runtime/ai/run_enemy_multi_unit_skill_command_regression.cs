@@ -6,7 +6,9 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
 {
     private readonly TestHarness _test = new();
     private readonly GodotTransientResourceScope _runtimeScope =
-        new("enemy_multi_unit_skill_command", quarantineOnDrain: true);
+        GodotTransientResourceScope.CreateTestQuarantine(
+            "enemy_multi_unit_skill_command"
+        );
 
     public override void _Initialize()
     {
