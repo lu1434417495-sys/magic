@@ -29,10 +29,19 @@ public partial class BattleBoardProp : Node2D
     public override void _ExitTree()
     {
         if (
+            _interactionArea != null
+            && GodotObject.IsInstanceValid(_interactionArea)
+        )
+        {
+            _interactionArea.Monitoring = false;
+            _interactionArea.Monitorable = false;
+        }
+        if (
             _interactionShape != null
             && GodotObject.IsInstanceValid(_interactionShape)
         )
         {
+            _interactionShape.Disabled = true;
             _interactionShape.Shape = null;
         }
 
@@ -89,14 +98,30 @@ public partial class BattleBoardProp : Node2D
         if (!_needsInteractionShape || _interactionShape.Shape != null)
             return;
 
-        _interactionShapeLease ??= new NativeLeaseScope(
+        var interactionShapeLease = new NativeLeaseScope(
             $"battle-board-prop:{GetInstanceId()}",
-            LifetimeDomain.Battle
+            LifetimeDomain.SceneTree
         );
-        _interactionShape.Shape = _interactionShapeLease.Own(
-            new CircleShape2D { Radius = 16.0f },
-            "interaction-shape"
-        );
+        var interactionShape = new CircleShape2D { Radius = 16.0f };
+        bool shapeOwned = false;
+        try
+        {
+            interactionShapeLease.Own(interactionShape, "interaction-shape");
+            shapeOwned = true;
+            _interactionShape.Shape = interactionShape;
+            _interactionShapeLease = interactionShapeLease;
+        }
+        catch
+        {
+            if (shapeOwned)
+                interactionShapeLease.Dispose();
+            else
+            {
+                interactionShape.Dispose();
+                interactionShapeLease.Dispose();
+            }
+            throw;
+        }
     }
 
     private void DrawSpikeBarricade()
