@@ -16,6 +16,7 @@ public partial class run_application_shutdown_contract_regression : LifecycleTes
         TestShutdownStateMachineContracts();
         TestShutdownReportContracts();
         TestShutdownReportSkippedBarrierInvariant();
+        TestExitDiagnosticContracts();
         TestLifecycleAuditRegistryContracts();
 
         return _test.Finish("Application shutdown contract regression");
@@ -183,6 +184,37 @@ public partial class run_application_shutdown_contract_regression : LifecycleTes
             report.LegacyDebt[0].DebtId,
             "battle-board-controller-quarantine",
             "legacy debt identity is retained"
+        );
+    }
+
+    private void TestExitDiagnosticContracts()
+    {
+        var passingReport = new ShutdownReport(
+            new ShutdownRequest(
+                0,
+                ShutdownReason.TestComplete,
+                new ShutdownCallerResult("diagnostic-contract", true)
+            )
+        );
+        _test.Eq(
+            ApplicationLifetimeCoordinator.FormatCallerResult(passingReport),
+            "diagnostic-contract: PASS",
+            "coordinator emits the caller label and successful result"
+        );
+
+        passingReport.RecordFailure("diagnostic-contract", "forced failure");
+        _test.Eq(
+            ApplicationLifetimeCoordinator.FormatCallerResult(passingReport),
+            "diagnostic-contract: FAIL",
+            "coordinator result reflects the effective shutdown outcome"
+        );
+        _test.Eq(
+            TestExitCoordinator.FormatFailureDiagnostic(
+                "diagnostic-contract",
+                "assertion detail"
+            ),
+            "[test] diagnostic-contract: assertion detail",
+            "test exit adapter retains actionable assertion detail"
         );
     }
 

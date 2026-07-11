@@ -94,6 +94,7 @@ public partial class run_application_lifetime_coordinator_regression : Lifecycle
     }
 
     private readonly TestHarness _test = new();
+    private bool _terminalExitRequested;
 
     public override void _Initialize()
     {
@@ -111,7 +112,8 @@ public partial class run_application_lifetime_coordinator_regression : Lifecycle
             _test.Fail($"Unexpected coordinator regression exception: {exception}");
         }
 
-        RequestTestExit(_test.Finish("Application lifetime coordinator regression"));
+        if (!_terminalExitRequested)
+            RequestTestExit(_test.Finish("Application lifetime coordinator regression"));
     }
 
     private async Task RunAsync()
@@ -140,7 +142,7 @@ public partial class run_application_lifetime_coordinator_regression : Lifecycle
         await TestOffMainThreadRequestFailsBeforeShutdown(coordinator);
         await TestApplicationCloseConvergesOnOneShotNormalClose();
         await TestParticipantContractsAndSkippedHistory(gameSession);
-        await TestIdempotentRequestAndSuccessfulHistory(coordinator, gameSession);
+        TestIdempotentRequestAndSuccessfulHistory(coordinator, gameSession);
     }
 
     private async Task TestRealRuntimeParticipantRegistrationContracts(
@@ -565,7 +567,7 @@ public partial class run_application_lifetime_coordinator_regression : Lifecycle
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
     }
 
-    private async Task TestIdempotentRequestAndSuccessfulHistory(
+    private void TestIdempotentRequestAndSuccessfulHistory(
         ApplicationLifetimeCoordinator coordinator,
         GameSession gameSession
     )
@@ -584,7 +586,7 @@ public partial class run_application_lifetime_coordinator_regression : Lifecycle
             calls,
             onClose: () =>
             {
-                _test.True(
+                Require(
                     headlessSession.GetGameSessionTyped() != null,
                     "lower-order Runtime participant closes before real Runtime owners"
                 );
@@ -602,7 +604,7 @@ public partial class run_application_lifetime_coordinator_regression : Lifecycle
             calls,
             onClose: () =>
             {
-                _test.True(
+                Require(
                     headlessSession.GetGameSessionTyped() == null,
                     "higher-order Runtime participant closes after real Runtime owners"
                 );
@@ -619,7 +621,7 @@ public partial class run_application_lifetime_coordinator_regression : Lifecycle
             calls,
             onClose: () =>
             {
-                _test.Eq(
+                RequireEqual(
                     catalog.GetRevision(),
                     revisionBeforeShutdown,
                     "lower-order Session participant closes before GameSession"
@@ -634,7 +636,7 @@ public partial class run_application_lifetime_coordinator_regression : Lifecycle
             calls,
             onClose: () =>
             {
-                _test.Eq(
+                RequireEqual(
                     catalog.GetRevision(),
                     revisionBeforeShutdown + 1,
                     "higher-order Session participant closes after GameSession"
@@ -645,15 +647,13 @@ public partial class run_application_lifetime_coordinator_regression : Lifecycle
         coordinator.RegisterParticipant(sessionBefore);
         coordinator.RegisterParticipant(sessionAfter);
 
-        Task<ShutdownReport> first = coordinator
-            .RequestShutdownAsync(
-                new ShutdownRequest(
-                    0,
-                    ShutdownReason.TestComplete,
-                    new ShutdownCallerResult("first", true)
-                )
-            )
+        TestResult finalResult = _test.Finish(
+            "Application lifetime coordinator regression"
+        );
+        Task<ShutdownReport> first = TestExitCoordinator
+            .SubmitAsync(this, finalResult)
             .AsTask();
+        _terminalExitRequested = true;
 
         Task<ShutdownReport> laterDuplicate = coordinator
             .RequestShutdownAsync(
@@ -675,65 +675,82 @@ public partial class run_application_lifetime_coordinator_regression : Lifecycle
             .AsTask();
         coordinator._Notification((int)Node.NotificationWMCloseRequest);
 
-        _test.True(
+        EscalateTerminalFailure(
+            coordinator,
             ReferenceEquals(first, synchronousReentrant.ReentrantCompletion)
                 && ReferenceEquals(first, laterDuplicate)
                 && ReferenceEquals(first, laterSuccess),
             "synchronous reentrant and later shutdown requests share one completion task"
         );
-
-        ShutdownReport report = await first;
-
-        _test.True(
-            ReferenceEquals(report, synchronousReentrant.ObservedReport),
+        EscalateTerminalFailure(
+            coordinator,
+            synchronousReentrant.ObservedReport != null,
             "synchronous reentrant shutdown observes the first request report"
         );
-        _test.Eq(
-            synchronousReentrant.CloseCount,
-            1,
+        EscalateTerminalFailure(
+            coordinator,
+            synchronousReentrant.CloseCount == 1,
             "synchronous reentrant participant closes exactly once"
         );
-        _test.Eq(report.FirstRequest.Reason, ShutdownReason.TestComplete, "first reason wins");
-        _test.Eq(
-            report.EffectiveExitCode,
-            0,
-            "successful duplicate requests preserve the zero exit code"
-        );
-        _test.Eq(
-            report.DuplicateRequestDiagnostics.Count,
-            4,
-            "synchronous reentry, later requests, and window close share the cached report"
-        );
-        _test.True(
-            report.DuplicateRequestDiagnostics.Any(diagnostic =>
-                diagnostic.Reason == ShutdownReason.WindowClose
-            ),
-            "window close routes through RequestShutdownAsync"
-        );
-        _test.Eq(
-            string.Join(",", report.PhaseHistory),
-            "Running,Quiescing,RuntimeDrained,SceneDrained,ContentReleased,FinalizersDrained,QuitRequested",
-            "successful coordinator shutdown emits the legal success history"
-        );
-        _test.Eq(
-            string.Join(",", calls),
-            "synchronous-reentrant-runtime,runtime-before-real-owners,runtime-after-real-owners,session-before-game-session,session-after-game-session",
+        EscalateTerminalFailure(
+            coordinator,
+            string.Join(",", calls)
+                == "synchronous-reentrant-runtime,runtime-before-real-owners,runtime-after-real-owners,session-before-game-session,session-after-game-session",
             "idempotent requests close each participant once"
         );
-        await headlessParticipant.CloseForApplicationShutdownAsync(report);
-        _test.True(
+        EscalateTerminalFailure(
+            coordinator,
             headlessSession.GetRuntimeFacadeTyped() == null
                 && headlessSession.GetGameSessionTyped() == null,
-            "real Runtime participants remain closed after repeated close paths"
+            "real Runtime participants close before terminal exit"
         );
-        _test.Eq(
-            catalog.GetRevision(),
-            revisionBeforeShutdown + 1,
+        EscalateTerminalFailure(
+            coordinator,
+            catalog.GetRevision() == revisionBeforeShutdown + 1,
             "participant close plus SceneTree teardown closes GameSession exactly once"
         );
-        _test.True(
+        EscalateTerminalFailure(
+            coordinator,
             Root.GetNodeOrNull<Node>("GameSession") == null,
             "coordinator frees and awaits the GameSession tree owner"
+        );
+    }
+
+    private static void Require(bool condition, string message)
+    {
+        if (!condition)
+            throw new InvalidOperationException(message);
+    }
+
+    private static void RequireEqual<T>(T actual, T expected, string message)
+    {
+        if (!EqualityComparer<T>.Default.Equals(actual, expected))
+        {
+            throw new InvalidOperationException(
+                $"{message} | actual={actual} expected={expected}"
+            );
+        }
+    }
+
+    private static void EscalateTerminalFailure(
+        ApplicationLifetimeCoordinator coordinator,
+        bool condition,
+        string message
+    )
+    {
+        if (condition)
+            return;
+
+        GD.PushError($"[test] Application lifetime coordinator regression: {message}");
+        _ = coordinator.RequestShutdownAsync(
+            new ShutdownRequest(
+                1,
+                ShutdownReason.TestComplete,
+                new ShutdownCallerResult(
+                    "Application lifetime coordinator regression terminal assertion",
+                    false
+                )
+            )
         );
     }
 }

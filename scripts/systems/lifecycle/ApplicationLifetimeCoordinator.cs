@@ -448,6 +448,10 @@ public partial class ApplicationLifetimeCoordinator : Node, IApplicationShutdown
 
     private static void PrintPreQuitReport(ShutdownReport report)
     {
+        string callerResult = FormatCallerResult(report);
+        if (!string.IsNullOrEmpty(callerResult))
+            GD.Print(callerResult);
+
         GD.Print(
             "[lifecycle] shutdown-report ",
             $"reason={report.FirstRequest.Reason} ",
@@ -467,6 +471,17 @@ public partial class ApplicationLifetimeCoordinator : Node, IApplicationShutdown
                     + $"message={failure.Message}"
             );
         }
+    }
+
+    internal static string FormatCallerResult(ShutdownReport report)
+    {
+        ArgumentNullException.ThrowIfNull(report);
+        ShutdownCallerResult caller = report.FirstRequest.CallerResult;
+        if (caller == null)
+            return string.Empty;
+
+        bool passed = caller.Passed && report.EffectiveExitCode == 0;
+        return $"{caller.Label}: {(passed ? "PASS" : "FAIL")}";
     }
 
     private void EnsureMainThread()
