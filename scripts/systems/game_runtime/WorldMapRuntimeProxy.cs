@@ -78,14 +78,36 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetPendingResourceHarvestPrompt() ?? new Dictionary();
     }
 
-    public Dictionary GetLogSnapshot(int limit = 80)
+    public System.Collections.Generic.IReadOnlyDictionary<string, object> GetLogSnapshotPlain(
+        int limit = 80
+    )
     {
-        return _runtime?.GetLogSnapshot(limit) ?? new Dictionary();
+        return _runtime?.GetLogSnapshotPlain(limit)
+            ?? new System.Collections.Generic.Dictionary<string, object>(
+                StringComparer.Ordinal
+            );
     }
 
-    public Dictionary BuildHeadlessSnapshot()
+    internal System.Collections.Generic.IReadOnlyDictionary<string, object> BuildHeadlessSnapshotPlain()
     {
-        return _runtime?.BuildHeadlessSnapshot() ?? new Dictionary();
+        return _runtime?.BuildHeadlessSnapshotPlain()
+            ?? new System.Collections.Generic.Dictionary<string, object>(
+                StringComparer.Ordinal
+            );
+    }
+
+    internal GodotProjectionLease<Dictionary> BuildHeadlessSnapshotLease()
+    {
+        return _runtime != null
+            ? _runtime.BuildHeadlessSnapshotLease()
+            : RuntimePlainPayload.ProjectDictionaryLease(
+                new System.Collections.Generic.Dictionary<string, object>(
+                    StringComparer.Ordinal
+                ),
+                "world-map-runtime-proxy-headless-snapshot",
+                LifetimeDomain.Request,
+                "WorldMapRuntimeProxy.empty"
+            );
     }
 
     public string BuildTextSnapshot()

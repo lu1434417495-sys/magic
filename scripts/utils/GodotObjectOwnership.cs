@@ -16,16 +16,7 @@ internal enum GodotWrapperOwnershipKind
 
 internal static class GodotLifecycleLegacyDebtManifest
 {
-    internal static LifecycleLegacyDebtSnapshot BattleBoardControllerQuarantine { get; } =
-        new(
-            "battle-board-controller-quarantine",
-            "scripts/ui/BattleBoardController.cs",
-            "SceneTree",
-            2
-        );
-
-    internal static bool IsDeclared(LifecycleLegacyDebtSnapshot debt) =>
-        debt == BattleBoardControllerQuarantine;
+    internal static bool IsDeclared(LifecycleLegacyDebtSnapshot debt) => false;
 }
 
 internal static class GodotWrapperOwnershipRegistry
@@ -412,13 +403,6 @@ internal static class GodotContentOwnership
         GodotWrapperReferenceComparer.Instance
     );
     private static readonly HashSet<string> StaticStrongKeys = new(StringComparer.Ordinal);
-
-    static GodotContentOwnership()
-    {
-        LifecycleAuditRegistry.Shared.RegisterLegacyDebt(
-            GodotLifecycleLegacyDebtManifest.BattleBoardControllerQuarantine
-        );
-    }
 
     internal static void RegisterBorrowedContent(Resource root, string reason)
     {

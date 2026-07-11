@@ -24,24 +24,6 @@ public sealed partial class CharacterManagementModule
         return b.ProgressRatio.CompareTo(a.ProgressRatio);
     }
 
-    private static GDictionary ProjectAchievementProgressSummaryEntry(
-        AchievementProgressSummaryEntry entry
-    )
-    {
-        if (entry == null)
-            return new GDictionary();
-
-        return new GDictionary
-        {
-            ["achievement_id"] = entry.AchievementId,
-            ["display_name"] = entry.DisplayName,
-            ["description"] = entry.Description,
-            ["current_value"] = entry.CurrentValue,
-            ["threshold"] = entry.Threshold,
-            ["progress_ratio"] = entry.ProgressRatio,
-        };
-    }
-
     private static bool HasStringName(IReadOnlyList<StringName> values, StringName target)
     {
         foreach (StringName value in values)

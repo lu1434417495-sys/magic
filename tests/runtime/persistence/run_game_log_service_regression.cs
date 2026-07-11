@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_game_log_service_regression : LifecycleTestSceneTree
@@ -33,22 +32,23 @@ public partial class run_game_log_service_regression : LifecycleTestSceneTree
 
         AppendFourEntries(logService);
 
-        GArray recentEntries = logService.GetRecentEntries(10);
+        IReadOnlyList<IReadOnlyDictionary<string, object>> recentEntries =
+            logService.GetRecentEntriesPlain(10);
         _test.Eq(recentEntries.Count, 3, "ring buffer 应只保留最近 3 条内存日志。");
         if (recentEntries.Count == 3)
         {
-            GDictionary firstEntry = recentEntries[0].AsGodotDictionary();
-            GDictionary lastEntry = recentEntries[2].AsGodotDictionary();
-            _test.Eq(DictInt(firstEntry, "seq", 0), 2, "ring buffer 应丢弃最早一条日志。");
-            _test.Eq(DictString(lastEntry, "message", ""), "fourth", "最后一条内存日志应保留最新消息。");
+            IReadOnlyDictionary<string, object> firstEntry = recentEntries[0];
+            IReadOnlyDictionary<string, object> lastEntry = recentEntries[2];
+            _test.Eq(PlainInt(firstEntry, "seq", 0), 2, "ring buffer 应丢弃最早一条日志。");
+            _test.Eq(PlainString(lastEntry, "message", ""), "fourth", "最后一条内存日志应保留最新消息。");
         }
 
-        GDictionary snapshot = logService.BuildSnapshot(10);
-        _test.Eq(DictString(snapshot, "virtual_path", ""), virtualPath, "日志快照应返回当前虚拟路径。");
-        _test.Eq(DictString(snapshot, "file_path", ""), "", "默认日志快照不应暴露文件路径。");
-        _test.False(DictBool(snapshot, "file_output_enabled", true), "日志文件输出默认应关闭。");
-        _test.False(DictBool(snapshot, "file_write_active", true), "日志文件写入默认不应处于 active 状态。");
-        _test.Eq(DictInt(snapshot, "entry_count", 0), 3, "日志快照 entry_count 应匹配当前内存缓冲。");
+        IReadOnlyDictionary<string, object> snapshot = logService.BuildSnapshotPlain(10);
+        _test.Eq(PlainString(snapshot, "virtual_path", ""), virtualPath, "日志快照应返回当前虚拟路径。");
+        _test.Eq(PlainString(snapshot, "file_path", ""), "", "默认日志快照不应暴露文件路径。");
+        _test.False(PlainBool(snapshot, "file_output_enabled", true), "日志文件输出默认应关闭。");
+        _test.False(PlainBool(snapshot, "file_write_active", true), "日志文件写入默认不应处于 active 状态。");
+        _test.Eq(PlainInt(snapshot, "entry_count", 0), 3, "日志快照 entry_count 应匹配当前内存缓冲。");
     }
 
     private void TestGameLogServiceCanAppendOptInFile()
@@ -63,9 +63,9 @@ public partial class run_game_log_service_regression : LifecycleTestSceneTree
 
         AppendFourEntries(logService);
 
-        GDictionary snapshot = logService.BuildSnapshot(10);
-        _test.True(DictBool(snapshot, "file_output_enabled", false), "显式开启时日志快照应标记文件输出启用。");
-        _test.True(DictBool(snapshot, "file_write_active", false), "显式开启时日志文件写入应处于 active 状态。");
+        IReadOnlyDictionary<string, object> snapshot = logService.BuildSnapshotPlain(10);
+        _test.True(PlainBool(snapshot, "file_output_enabled", false), "显式开启时日志快照应标记文件输出启用。");
+        _test.True(PlainBool(snapshot, "file_write_active", false), "显式开启时日志文件写入应处于 active 状态。");
 
         List<string> lines = ReadNonEmptyLines(virtualPath);
         _test.Eq(lines.Count, 4, "jsonl 文件应追加所有写入日志，而不仅是 ring buffer。");
@@ -148,17 +148,42 @@ public partial class run_game_log_service_regression : LifecycleTestSceneTree
             : fallback;
     }
 
-    private static int DictInt(GDictionary dictionary, string key, int fallback)
+    private static string PlainString(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key,
+        string fallback
+    )
     {
-        return dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsInt32()
-            : fallback;
+        return dictionary != null
+            && dictionary.TryGetValue(key, out object value)
+            && value is string text
+                ? text
+                : fallback;
     }
 
-    private static bool DictBool(GDictionary dictionary, string key, bool fallback)
+    private static int PlainInt(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key,
+        int fallback
+    )
     {
-        return dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsBool()
-            : fallback;
+        return dictionary != null
+            && dictionary.TryGetValue(key, out object value)
+            && value is int number
+                ? number
+                : fallback;
+    }
+
+    private static bool PlainBool(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key,
+        bool fallback
+    )
+    {
+        return dictionary != null
+            && dictionary.TryGetValue(key, out object value)
+            && value is bool flag
+                ? flag
+                : fallback;
     }
 }

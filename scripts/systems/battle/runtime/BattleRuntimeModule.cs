@@ -21,6 +21,12 @@ internal static class BattleRuntimeDictionaryOptions
     }
 }
 
+internal enum BattleStartContextReferenceRole
+{
+    OwnedByStartScope = 0,
+    BorrowedForSynchronousStart = 1,
+}
+
 internal readonly struct BattleDefeatHandlingOptions
 {
     internal readonly bool CollectLoot;
@@ -485,19 +491,82 @@ public sealed partial class BattleRuntimeModule : IDisposable
         GDictionary context = null
     )
     {
+        return StartBattleCore(
+            encounter_anchor,
+            seed,
+            context,
+            BattleStartContextReferenceRole.OwnedByStartScope
+        );
+    }
+
+    internal BattleState StartBattleBorrowingContext(
+        EncounterAnchorData encounterAnchor,
+        long seed,
+        GDictionary borrowedContext
+    )
+    {
+        ArgumentNullException.ThrowIfNull(borrowedContext);
+        ValidateBorrowedStartContext(borrowedContext);
+        return StartBattleCore(
+            encounterAnchor,
+            seed,
+            borrowedContext,
+            BattleStartContextReferenceRole.BorrowedForSynchronousStart
+        );
+    }
+
+    private static void ValidateBorrowedStartContext(GDictionary context)
+    {
+        ValidateBorrowedArrayField(context, "battle_party");
+        ValidateBorrowedArrayField(context, "enemy_units");
+    }
+
+    private static void ValidateBorrowedArrayField(GDictionary context, string key)
+    {
+        if (
+            context.ContainsKey(key)
+            && context[key].VariantType != Variant.Type.Array
+        )
+        {
+            throw new InvalidOperationException(
+                $"Borrowed battle start context field '{key}' must be an Array."
+            );
+        }
+    }
+
+    private BattleState StartBattleCore(
+        EncounterAnchorData encounter_anchor,
+        long seed,
+        GDictionary context,
+        BattleStartContextReferenceRole contextRole
+    )
+    {
         using var contextScope = new GodotTransientResourceScope("BattleRuntimeModule.StartBattle");
-        context = contextScope.OwnWrapper(context ?? new GDictionary(), "context");
+        if (contextRole == BattleStartContextReferenceRole.OwnedByStartScope)
+            context = contextScope.OwnWrapper(context ?? new GDictionary(), "context");
+        else if (context == null)
+            throw new ArgumentNullException(nameof(context));
         ClearLastStartFailure();
         _ensure_sidecars_ready();
         var partyState =
             _characterGateway != null ? _characterGateway.GetPartyState() : null;
         GBattleUnitArray allyUnits = ToBattleUnitArray(
-            _unit_factory.BuildAllyUnits(partyState, context, contextScope)
+            _unit_factory.BuildAllyUnits(
+                partyState,
+                context,
+                contextScope,
+                BattleStartContextReferenceRole.BorrowedForSynchronousStart
+            )
         );
         if (allyUnits.Count == 0)
         {
             allyUnits = ToBattleUnitArray(
-                _unit_factory.BuildAllyUnits(null, context, contextScope)
+                _unit_factory.BuildAllyUnits(
+                    null,
+                    context,
+                    contextScope,
+                    BattleStartContextReferenceRole.BorrowedForSynchronousStart
+                )
             );
         }
 
@@ -507,9 +576,12 @@ public sealed partial class BattleRuntimeModule : IDisposable
         ClearAiActionPlans();
         calamity_by_member_id.Clear();
 
-        bool hasExplicitEnemyUnits =
-            context.ContainsKey("enemy_units")
-            && GetArray(context, "enemy_units").Count > 0;
+        bool hasExplicitEnemyUnits = false;
+        if (context.ContainsKey("enemy_units"))
+        {
+            using GArray explicitEnemyUnits = GetArray(context, "enemy_units");
+            hasExplicitEnemyUnits = explicitEnemyUnits.Count > 0;
+        }
         BattleStartOptions startOptions = BattleStartOptions.FromContext(
             context,
             !hasExplicitEnemyUnits
@@ -517,7 +589,12 @@ public sealed partial class BattleRuntimeModule : IDisposable
         if (hasExplicitEnemyUnits)
         {
             enemyUnits = ToBattleUnitArray(
-                _unit_factory.BuildEnemyUnits(encounter_anchor, context, contextScope)
+                _unit_factory.BuildEnemyUnits(
+                    encounter_anchor,
+                    context,
+                    contextScope,
+                    BattleStartContextReferenceRole.BorrowedForSynchronousStart
+                )
             );
         }
         else if (_encounter_builder != null)
@@ -601,18 +678,24 @@ public sealed partial class BattleRuntimeModule : IDisposable
             _state.ReplaceEnvironmentSnapshot(
                 BattleEnvironmentSnapshot.FromBattleStartContext(context, terrainProfileId)
             );
-            _state.SetCellsFromDictionary(
-                GetDict(terrainData, "cells"),
-                duplicateCells: false,
-                rebuildColumns: !terrainData.ContainsKey("cell_columns")
-            );
+            using (GDictionary cells = GetDict(terrainData, "cells"))
+            {
+                _state.SetCellsFromDictionary(
+                    cells,
+                    duplicateCells: false,
+                    rebuildColumns: !terrainData.ContainsKey("cell_columns")
+                );
+            }
             if (terrainData.ContainsKey("cell_columns"))
-                _state.ReplaceCellColumnsPayload(GetDict(terrainData, "cell_columns"));
+            {
+                using GDictionary cellColumns = GetDict(terrainData, "cell_columns");
+                _state.ReplaceCellColumnsPayload(cellColumns);
+            }
             _state.SetPartyBackpackView(_get_party_backpack_state(partyState) as WarehouseState);
             _state.timeline.tu_per_tick = _resolve_timeline_tu_per_tick(context);
 
-            GArray allySpawnCoords = GetArray(terrainData, "ally_spawns");
-            GArray enemySpawnCoords = GetArray(terrainData, "enemy_spawns");
+            using GArray allySpawnCoords = GetArray(terrainData, "ally_spawns");
+            using GArray enemySpawnCoords = GetArray(terrainData, "enemy_spawns");
             StringName allySpawnSide = "";
             StringName enemySpawnSide = "";
             if (startOptions.EnforceOpposingSpawnSides)
@@ -2469,9 +2552,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
     {
         if (source_unit == null || result == null || result.Count == 0)
             return;
-        GStringNameArray sourceStatusIds = NormalizeStatusIdArray(
-            GetArray(result, "source_status_effect_ids")
-        );
+        using GArray sourceStatusValues = GetArray(result, "source_status_effect_ids");
+        GStringNameArray sourceStatusIds = NormalizeStatusIdArray(sourceStatusValues);
         if (sourceStatusIds.Count == 0)
             return;
         MarkAppliedStatusesForTurnTiming(source_unit, sourceStatusIds);

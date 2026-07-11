@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 // Development-only headless bridge for automation and debugging.
@@ -107,10 +106,8 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
         return _runtime != null;
     }
 
-    internal Godot.Collections.Array<GDictionary> ListPresets()
-    {
-        return WorldPresetRegistry.ListPresets();
-    }
+    internal IReadOnlyList<WorldPresetRegistry.WorldPresetInfo> ListPresetsTyped() =>
+        WorldPresetRegistry.ListPresetsTyped();
 
     internal List<Dictionary<string, object>> ListSaveSlotsPlain()
     {
@@ -255,10 +252,25 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
                 : TrueRandomSeedService.RandiRange(1, int.MaxValue - 1);
         Dictionary<string, object> typedContext = BuildBattleStartContextTyped(
             encounterAnchor,
-            pendingRequest.CloneContext()
+            pendingRequest.CloneContextPlain()
         );
-        GDictionary context = ProjectTypedDictionary(typedContext);
-        BattleState runtimeState = battleRuntime.StartBattle(encounterAnchor, seed, context);
+        BattleState runtimeState;
+        using (
+            GodotProjectionLease<GDictionary> contextLease =
+                RuntimePlainPayload.ProjectDictionaryLease(
+                    typedContext,
+                    "headless-battle-start-context",
+                    LifetimeDomain.Request,
+                    "HeadlessGameTestSession.TryStartPendingBattle"
+                )
+        )
+        {
+            runtimeState = battleRuntime.StartBattleBorrowingContext(
+                encounterAnchor,
+                seed,
+                contextLease.Value
+            );
+        }
         BattleState storedState = battleRuntime.GetState();
         _lastBattleStartDiagnostic = BuildBattleStartDiagnostic(
             runtimeState,
@@ -370,9 +382,24 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
 
         _runtime.PrepareBattleStart(encounterAnchor);
         Dictionary<string, object> typedContext = BuildBattleStartContextTyped(encounterAnchor);
-        GDictionary context = ProjectTypedDictionary(typedContext);
         int seed = TrueRandomSeedService.RandiRange(1, int.MaxValue - 1);
-        BattleState runtimeState = battleRuntime.StartBattle(encounterAnchor, seed, context);
+        BattleState runtimeState;
+        using (
+            GodotProjectionLease<GDictionary> contextLease =
+                RuntimePlainPayload.ProjectDictionaryLease(
+                    typedContext,
+                    "headless-battle-start-context",
+                    LifetimeDomain.Request,
+                    "HeadlessGameTestSession.StartBattleDirect"
+                )
+        )
+        {
+            runtimeState = battleRuntime.StartBattleBorrowingContext(
+                encounterAnchor,
+                seed,
+                contextLease.Value
+            );
+        }
         BattleState storedState = battleRuntime.GetState();
         _lastBattleStartDiagnostic = BuildBattleStartDiagnostic(
             runtimeState,
@@ -565,9 +592,17 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
         };
     }
 
-    public GDictionary BuildSnapshot() => ProjectTypedDictionary(BuildSnapshotTyped());
+    internal GodotProjectionLease<GDictionary> BuildSnapshotLease()
+    {
+        return RuntimePlainPayload.ProjectDictionaryLease(
+            BuildSnapshotPlain(),
+            "headless-game-test-session-snapshot",
+            LifetimeDomain.Request,
+            "HeadlessGameTestSession.root"
+        );
+    }
 
-    internal Dictionary<string, object> BuildSnapshotTyped()
+    internal IReadOnlyDictionary<string, object> BuildSnapshotPlain()
     {
         var sessionSnapshot = new Dictionary<string, object>(StringComparer.Ordinal)
         {
@@ -575,9 +610,9 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
             ["generation_config_path"] =
                 _gameSession != null ? _gameSession.GetGenerationConfigPath() : "",
             ["world_loaded"] = HasWorldLoaded(),
-            ["presets"] = NormalizeEnumerable(WorldPresetRegistry.ListPresets()),
+            ["presets"] = BuildPresetSnapshotsPlain(),
             ["save_slots"] =
-                NormalizeEnumerable(
+                ClonePlainDictionaryList(
                     _gameSession != null
                         ? _gameSession.PeekSaveSlotsPlain()
                         : new List<Dictionary<string, object>>()
@@ -597,9 +632,12 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
                 ["text"] = "",
             },
             ["modal"] = new Dictionary<string, object>(StringComparer.Ordinal) { ["id"] = "" },
-            ["logs"] = NormalizeDictionary(
-                _gameSession != null ? _gameSession.GetLogSnapshot() : new GDictionary()
-            ),
+            ["logs"] =
+                _gameSession != null
+                    ? RuntimePlainPayload.CloneDictionary(
+                        _gameSession.GetLogSnapshotPlain()
+                    )
+                    : new Dictionary<string, object>(StringComparer.Ordinal),
             ["world"] = new Dictionary<string, object>(StringComparer.Ordinal),
             ["submap"] = new Dictionary<string, object>(StringComparer.Ordinal),
             ["party"] = new Dictionary<string, object>(StringComparer.Ordinal),
@@ -613,8 +651,8 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
 
         if (HasWorldLoaded())
         {
-            Dictionary<string, object> worldSnapshot = NormalizeDictionary(
-                _runtime.BuildHeadlessSnapshot()
+            Dictionary<string, object> worldSnapshot = RuntimePlainPayload.CloneDictionary(
+                _runtime.BuildHeadlessSnapshotPlain()
             );
             foreach ((string key, object value) in worldSnapshot)
                 snapshot[key] = value;
@@ -626,7 +664,7 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
 
     internal string BuildTextSnapshot()
     {
-        return GameTextSnapshotRenderer.RenderFullSnapshot(BuildSnapshot());
+        return GameTextSnapshotRenderer.RenderFullSnapshot(BuildSnapshotPlain());
     }
 
     public void Dispose()
@@ -822,9 +860,8 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
 
     private IReadOnlyList<EncounterAnchorData> GetWorldEncounterAnchorsTyped()
     {
-        return _runtime != null
-            ? ReadEncounterAnchorsTyped(_runtime.GetWorldData(), "encounter_anchors")
-            : Array.Empty<EncounterAnchorData>();
+        return _runtime?.GetActiveWorldRuntimeData()?.EncounterAnchors
+            ?? Array.Empty<EncounterAnchorData>();
     }
 
     private bool EncounterHasFormalLoot(EncounterAnchorData encounterAnchor)
@@ -838,15 +875,15 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
             _gameSession.GetWildEncounterRostersTyped();
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
             _gameSession.GetEnemyTemplatesTyped();
-        var builder = new EncounterRosterBuilder();
+        using var builder = new EncounterRosterBuilder();
         builder.Setup(wildEncounterRosters, enemyTemplates);
-        return builder
-                .BuildLootEntriesTyped(
-                    encounterAnchor,
-                    enemyTemplates: enemyTemplates,
-                    itemDefs: _gameSession.GetItemDefsTyped()
-                )
-                .Count > 0;
+        IReadOnlyList<IReadOnlyDictionary<string, object>> lootEntries =
+            builder.BuildLootEntriesPlain(
+            encounterAnchor,
+            enemyTemplates: enemyTemplates,
+            itemDefs: _gameSession.GetItemDefsTyped()
+        );
+        return lootEntries.Count > 0;
     }
 
     private EncounterAnchorData BuildHeadlessEncounterAnchor(StringName encounterKind)
@@ -894,10 +931,10 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
 
     private static Dictionary<string, object> BuildBattleStartContextTyped(
         EncounterAnchorData encounterAnchor,
-        GDictionary baseContext = null
+        IReadOnlyDictionary<string, object> baseContext = null
     )
     {
-        Dictionary<string, object> context = NormalizeDictionary(baseContext);
+        Dictionary<string, object> context = RuntimePlainPayload.CloneDictionary(baseContext);
         if (!context.ContainsKey("world_coord"))
         {
             context["world_coord"] = encounterAnchor != null ? encounterAnchor.world_coord : default(Vector2I);
@@ -974,19 +1011,26 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
             _gameSession.GetWildEncounterRostersTyped();
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
             _gameSession.GetEnemyTemplatesTyped();
-        var rosterBuilder = new EncounterRosterBuilder();
+        using var rosterBuilder = new EncounterRosterBuilder();
         rosterBuilder.Setup(wildEncounterRosters, enemyTemplates);
-        GArray previewLootEntries = rosterBuilder.BuildLootEntriesTyped(
-            _activeHeadlessEncounterAnchor,
-            enemyTemplates: enemyTemplates,
-            itemDefs: _gameSession.GetItemDefsTyped()
-        );
+        IReadOnlyList<IReadOnlyDictionary<string, object>> previewLootEntries =
+            rosterBuilder.BuildLootEntriesPlain(
+                _activeHeadlessEncounterAnchor,
+                enemyTemplates: enemyTemplates,
+                itemDefs: _gameSession.GetItemDefsTyped()
+            );
         if (previewLootEntries.Count == 0)
         {
             return;
         }
-        foreach (BattleLootEntry lootEntry in BattleLootEntryPayload.ParseEntries(previewLootEntries))
+        foreach (
+            BattleLootEntry lootEntry in BattleLootEntryPayload.ParseEntriesPlain(
+                previewLootEntries
+            )
+        )
+        {
             battleRuntime._active_loot_entries.Add(lootEntry);
+        }
     }
 
     private BattleEquipmentInstanceSelection ResolveBattleBackpackEquipmentInstance(
@@ -1420,136 +1464,34 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
         return result;
     }
 
-    private static Dictionary<string, object> NormalizeDictionary(GDictionary source)
+    private static List<object> BuildPresetSnapshotsPlain()
     {
-        var result = new Dictionary<string, object>(StringComparer.Ordinal);
-        if (source == null)
-            return result;
-        foreach (Variant rawKey in source.Keys)
+        var result = new List<object>();
+        foreach (WorldPresetRegistry.WorldPresetInfo preset in WorldPresetRegistry.ListPresetsTyped())
         {
-            string key = rawKey.VariantType switch
-            {
-                Variant.Type.String => rawKey.AsString(),
-                Variant.Type.StringName => rawKey.AsStringName().ToString(),
-                _ => "",
-            };
-            if (string.IsNullOrEmpty(key))
-                continue;
-            result[key] = NormalizeValue(source[rawKey]);
+            result.Add(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["preset_id"] = preset.PresetId,
+                    ["display_name"] = preset.DisplayName,
+                    ["size_label"] = preset.SizeLabel,
+                    ["generation_config_path"] = preset.GenerationConfigPath,
+                }
+            );
         }
         return result;
     }
 
-    private static List<object> NormalizeArray(GArray source)
+    private static List<object> ClonePlainDictionaryList(
+        IEnumerable<Dictionary<string, object>> source
+    )
     {
         var result = new List<object>();
         if (source == null)
             return result;
-        foreach (object rawValue in source)
-            result.Add(NormalizeValue(rawValue));
+        foreach (Dictionary<string, object> entry in source)
+            result.Add(RuntimePlainPayload.CloneDictionary(entry));
         return result;
-    }
-
-    private static List<object> NormalizeEnumerable(System.Collections.IEnumerable source)
-    {
-        var result = new List<object>();
-        if (source == null)
-            return result;
-        foreach (object rawValue in source)
-            result.Add(NormalizeValue(rawValue));
-        return result;
-    }
-
-    private static object NormalizeValue(object rawValue)
-    {
-        if (rawValue is Variant variantValue)
-            return NormalizeVariant(variantValue);
-        if (rawValue is GDictionary dictionaryValue)
-            return NormalizeDictionary(dictionaryValue);
-        if (rawValue is GArray arrayValue)
-            return NormalizeArray(arrayValue);
-        if (rawValue is GodotObject godotObjectValue)
-        {
-            LifecycleViolation.Report(
-                $"Headless snapshot payload contains live GodotObject. type={godotObjectValue.GetType().Name}"
-            );
-            return godotObjectValue.ToString() ?? "";
-        }
-        return rawValue;
-    }
-
-    private static object NormalizeVariant(Variant value)
-    {
-        return value.VariantType switch
-        {
-            Variant.Type.Nil => null,
-            Variant.Type.Bool => value.AsBool(),
-            Variant.Type.Int => value.AsInt64(),
-            Variant.Type.Float => value.AsDouble(),
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.Vector2I => value.AsVector2I(),
-            Variant.Type.Dictionary => NormalizeDictionary(value.AsGodotDictionary()),
-            Variant.Type.Array => NormalizeArray(value.AsGodotArray()),
-            Variant.Type.Object => NormalizeVariantObject(value),
-            _ => value.ToString() ?? "",
-        };
-    }
-
-    private static object NormalizeVariantObject(Variant value)
-    {
-        GodotObject godotObject = value.AsGodotObject();
-        if (godotObject != null)
-        {
-            LifecycleViolation.Report(
-                $"Headless snapshot Variant contains live GodotObject. type={godotObject.GetType().Name}"
-            );
-        }
-        return value.ToString() ?? "";
-    }
-
-    private static GDictionary ProjectTypedDictionary(IReadOnlyDictionary<string, object> source)
-    {
-        var projection = new GDictionary();
-        if (source == null)
-            return projection;
-        foreach ((string key, object value) in source)
-            projection[key] = ProjectTypedValue(value);
-        return projection;
-    }
-
-    private static GArray ProjectTypedArray(IReadOnlyList<object> source)
-    {
-        var projection = new GArray();
-        if (source == null)
-            return projection;
-        foreach (object value in source)
-            projection.Add(ProjectTypedValue(value));
-        return projection;
-    }
-
-    private static Variant ProjectTypedValue(object value)
-    {
-        if (value == null)
-            return default;
-        if (value is IReadOnlyDictionary<string, object> dictionaryValue)
-            return ProjectTypedDictionary(dictionaryValue);
-        if (value is IReadOnlyList<object> listValue)
-            return ProjectTypedArray(listValue);
-        return value switch
-        {
-            Variant variantValue => variantValue,
-            bool boolValue => boolValue,
-            int intValue => intValue,
-            long longValue => longValue,
-            float floatValue => floatValue,
-            double doubleValue => doubleValue,
-            string stringValue => stringValue,
-            StringName stringNameValue => stringNameValue,
-            Vector2I vectorValue => vectorValue,
-            GodotObject godotObjectValue => godotObjectValue.ToString() ?? "",
-            _ => value.ToString() ?? "",
-        };
     }
 
     private static Dictionary<string, object> ReadTypedDictionary(
@@ -1616,69 +1558,6 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
         if (source == null || !source.TryGetValue(key, out object rawValue))
             return fallback;
         return rawValue is bool boolValue ? boolValue : fallback;
-    }
-
-    private static IReadOnlyList<EncounterAnchorData> ReadEncounterAnchorsTyped(
-        GDictionary source,
-        string key
-    )
-    {
-        object rawValue = null;
-        if (source == null || string.IsNullOrEmpty(key))
-        {
-            return Array.Empty<EncounterAnchorData>();
-        }
-
-        if (source.ContainsKey(key))
-        {
-            rawValue = source[key];
-        }
-
-        if (rawValue is not Variant value || value.VariantType != Variant.Type.Array)
-        {
-            return Array.Empty<EncounterAnchorData>();
-        }
-
-        GArray rawAnchors = value.AsGodotArray();
-        var anchors = new List<EncounterAnchorData>(rawAnchors.Count);
-        foreach (object encounterValue in rawAnchors)
-        {
-            if (encounterValue is Variant variantValue && variantValue.VariantType == Variant.Type.Dictionary)
-            {
-                EncounterAnchorData variantAnchor =
-                    EncounterAnchorData.FromDictionary(variantValue.AsGodotDictionary());
-                if (variantAnchor != null)
-                {
-                    anchors.Add(variantAnchor);
-                }
-            }
-        }
-        return anchors;
-    }
-
-    private static GDictionary Result(
-        bool ok,
-        string message,
-        GameRuntimeFacade.RuntimeCommandCode code = GameRuntimeFacade.RuntimeCommandCode.None
-    )
-    {
-        GameRuntimeFacade.RuntimeCommandCode resolvedCode =
-            code != GameRuntimeFacade.RuntimeCommandCode.None
-                ? code
-                : ok
-                    ? GameRuntimeFacade.RuntimeCommandCode.Ok
-                    : GameRuntimeFacade.RuntimeCommandCode.Failed;
-        return new GDictionary
-        {
-            ["ok"] = ok,
-            ["message"] = message ?? "",
-            ["code"] = (int)resolvedCode,
-        };
-    }
-
-    private static GDictionary Result(SessionCommandOutcome outcome)
-    {
-        return Result(outcome.Ok, outcome.Message, outcome.Code);
     }
 
 }

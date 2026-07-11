@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 internal class GameLogService
@@ -30,7 +30,7 @@ internal class GameLogService
         Initialize(maxEntries, fileOutputEnabled);
     }
 
-    internal GDictionary AppendEntry(
+    internal void AppendEntry(
         string level,
         string domain,
         string event_id,
@@ -56,33 +56,40 @@ internal class GameLogService
             _entries.RemoveAt(0);
         }
         AppendToFile(entry);
-        return DuplicateDictionary(entry);
     }
 
-    internal GArray GetRecentEntries(int limit = DefaultTailLimit)
+    internal IReadOnlyList<IReadOnlyDictionary<string, object>> GetRecentEntriesPlain(
+        int limit = DefaultTailLimit
+    )
     {
         int resolvedLimit = Math.Max(limit, 0);
         int startIndex = Math.Max(_entries.Count - resolvedLimit, 0);
-        var result = new GArray();
+        var result = new List<IReadOnlyDictionary<string, object>>(
+            _entries.Count - startIndex
+        );
         for (int index = startIndex; index < _entries.Count; index++)
         {
-            result.Add(_entries[index].ToDictionary());
+            result.Add(_entries[index].BuildFactsPlain());
         }
-        return result;
+        return result.AsReadOnly();
     }
 
-    internal GDictionary BuildSnapshot(int limit = DefaultTailLimit)
+    internal IReadOnlyDictionary<string, object> BuildSnapshotPlain(
+        int limit = DefaultTailLimit
+    )
     {
-        return new GDictionary
-        {
-            ["file_path"] = GetLogPath(),
-            ["virtual_path"] = _sessionLogVirtualPath,
-            ["file_output_enabled"] = _fileOutputEnabled,
-            ["file_write_active"] = _writeEnabled,
-            ["entry_count"] = _entries.Count,
-            ["buffer_limit"] = _maxEntries,
-            ["entries"] = GetRecentEntries(limit),
-        };
+        return new ReadOnlyDictionary<string, object>(
+            new Dictionary<string, object>(StringComparer.Ordinal)
+            {
+                ["file_path"] = GetLogPath(),
+                ["virtual_path"] = _sessionLogVirtualPath,
+                ["file_output_enabled"] = _fileOutputEnabled,
+                ["file_write_active"] = _writeEnabled,
+                ["entry_count"] = _entries.Count,
+                ["buffer_limit"] = _maxEntries,
+                ["entries"] = GetRecentEntriesPlain(limit),
+            }
+        );
     }
 
     internal void StartNewSession()
@@ -201,7 +208,14 @@ internal class GameLogService
         try
         {
             file.SeekEnd();
-            file.StoreLine(Json.Stringify(entry.ToDictionary()));
+            using GodotProjectionLease<GDictionary> entryLease =
+                RuntimePlainPayload.ProjectDictionaryLease(
+                    entry.BuildFactsPlain(),
+                    "game-log-file-entry",
+                    LifetimeDomain.Request,
+                    "GameLogService.AppendToFile"
+                );
+            file.StoreLine(Json.Stringify(entryLease.Value));
         }
         finally
         {
@@ -222,7 +236,7 @@ internal class GameLogService
             return "";
         }
         long unixTimeSeconds = unixTimeMs / 1000;
-        GDictionary datetime = Time.GetDatetimeDictFromUnixTime(unixTimeSeconds);
+        using GDictionary datetime = Time.GetDatetimeDictFromUnixTime(unixTimeSeconds);
         return string.Format(
             "{0:D4}-{1:D2}-{2:D2} {3:D2}:{4:D2}:{5:D2}.{6:D3}",
             GetInt(datetime, "year", 1970),
@@ -233,11 +247,6 @@ internal class GameLogService
             GetInt(datetime, "second", 0),
             MathMod(unixTimeMs, 1000)
         );
-    }
-
-    private static GDictionary DuplicateDictionary(GameLogEntry value)
-    {
-        return value?.ToDictionary() ?? new GDictionary();
     }
 
     private static int GetInt(GDictionary source, string key, int fallback)
@@ -283,19 +292,21 @@ internal class GameLogService
         public string Message { get; }
         public string Context { get; }
 
-        internal GDictionary ToDictionary()
+        internal IReadOnlyDictionary<string, object> BuildFactsPlain()
         {
-            return new GDictionary
-            {
-                ["seq"] = Seq,
-                ["time_unix_ms"] = TimeUnixMs,
-                ["time_text"] = TimeText,
-                ["level"] = Level,
-                ["domain"] = Domain,
-                ["event_id"] = EventId,
-                ["message"] = Message,
-                ["context"] = Context,
-            };
+            return new ReadOnlyDictionary<string, object>(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["seq"] = Seq,
+                    ["time_unix_ms"] = TimeUnixMs,
+                    ["time_text"] = TimeText,
+                    ["level"] = Level,
+                    ["domain"] = Domain,
+                    ["event_id"] = EventId,
+                    ["message"] = Message,
+                    ["context"] = Context,
+                }
+            );
         }
     }
 }

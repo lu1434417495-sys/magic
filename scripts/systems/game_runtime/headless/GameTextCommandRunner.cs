@@ -115,7 +115,7 @@ public sealed class GameTextCommandRunner : IDisposable
         result.ok = commandResult.Ok;
         result.message = commandResult.Message;
         result.code = commandResult.Code;
-        result.SetSnapshot(_session.BuildSnapshotTyped());
+        result.SetSnapshot(_session.BuildSnapshotPlain());
         result.human_log = $"{(result.ok ? "OK" : "ERR")} {result.command_text}";
         result.snapshot_text = _session.BuildTextSnapshot();
         return result;
@@ -123,7 +123,7 @@ public sealed class GameTextCommandRunner : IDisposable
 
     private void FinalizeExpectResult(GameTextCommandResult result, List<string> tokens)
     {
-        IReadOnlyDictionary<string, object> snapshot = _session.BuildSnapshotTyped();
+        IReadOnlyDictionary<string, object> snapshot = _session.BuildSnapshotPlain();
         result.SetSnapshot(snapshot);
         ExpectationResult assertionResult = ExecuteExpect(tokens, snapshot);
         result.ok = assertionResult.Ok;
@@ -171,7 +171,7 @@ public sealed class GameTextCommandRunner : IDisposable
     {
         if (tokens.Count < 2 || tokens[1] != "list")
             return Result(false, "用法: preset list");
-        return Result(true, $"Listed {_session.ListPresets().Count} presets.");
+        return Result(true, $"Listed {_session.ListPresetsTyped().Count} presets.");
     }
 
     private CommandOutcome ExecuteSaveCommand(List<string> tokens)
@@ -526,13 +526,21 @@ public sealed class GameTextCommandRunner : IDisposable
             || source == SettlementSubmissionSource.Forge
         )
         {
-            GDictionary modalPayload = BuildSanitizedSettlementModalActionPayload(
+            IReadOnlyDictionary<string, object> modalPayload =
+                BuildSanitizedSettlementModalActionPayload(
                 namedArgs,
                 source,
                 quantity
             );
+            using GodotProjectionLease<GDictionary> modalPayloadLease =
+                RuntimePlainPayload.ProjectDictionaryLease(
+                    modalPayload,
+                    "game-text-settlement-modal-payload",
+                    LifetimeDomain.Request,
+                    "GameTextCommandRunner.ExecuteSettlementCommand.modalPayload"
+                );
             return ResultFromRuntimeOutcome(
-                runtime.CommandExecuteSettlementActionTyped(actionId, modalPayload)
+                runtime.CommandExecuteSettlementActionTyped(actionId, modalPayloadLease.Value)
             );
         }
         string settlementId = namedArgs.TryGetValue("settlement_id", out string explicitSettlementId)
@@ -1151,13 +1159,13 @@ public sealed class GameTextCommandRunner : IDisposable
         return result;
     }
 
-    private static GDictionary BuildSanitizedSettlementModalActionPayload(
+    private static IReadOnlyDictionary<string, object> BuildSanitizedSettlementModalActionPayload(
         IReadOnlyDictionary<string, string> namedArgs,
         SettlementSubmissionSource source,
         int quantity
     )
     {
-        var payload = new GDictionary
+        var payload = new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["submission_source"] = SettlementSubmissionSources.ToPayloadValue(source),
         };
@@ -1309,8 +1317,8 @@ public sealed class GameTextCommandRunner : IDisposable
     {
         return value switch
         {
-            IReadOnlyDictionary<string, object> dictionary => Json.Stringify(ProjectTypedDictionary(dictionary)),
-            IReadOnlyList<object> array => Json.Stringify(ProjectTypedArray(array)),
+            IReadOnlyDictionary<string, object> dictionary => StringifyDictionary(dictionary),
+            IReadOnlyList<object> array => StringifyArray(array),
             bool boolValue => boolValue ? "true" : "false",
             float floatValue => floatValue.ToString(CultureInfo.GetCultureInfo("")),
             double doubleValue => doubleValue.ToString(CultureInfo.GetCultureInfo("")),
@@ -1318,6 +1326,29 @@ public sealed class GameTextCommandRunner : IDisposable
             long longValue => longValue.ToString(CultureInfo.GetCultureInfo("")),
             _ => value?.ToString() ?? "",
         };
+    }
+
+    private static string StringifyDictionary(IReadOnlyDictionary<string, object> value)
+    {
+        using GodotProjectionLease<GDictionary> lease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                value,
+                "game-text-stringify-dictionary",
+                LifetimeDomain.Request,
+                "GameTextCommandRunner.StringifyValue.dictionary"
+            );
+        return Json.Stringify(lease.Value);
+    }
+
+    private static string StringifyArray(IReadOnlyList<object> value)
+    {
+        using GodotProjectionLease<GArray> lease = RuntimePlainPayload.ProjectArrayLease(
+            value,
+            "game-text-stringify-array",
+            LifetimeDomain.Request,
+            "GameTextCommandRunner.StringifyValue.array"
+        );
+        return Json.Stringify(lease.Value);
     }
 
     private static string StringifyForSummary(object value)
@@ -1449,46 +1480,6 @@ public sealed class GameTextCommandRunner : IDisposable
                 result = 0;
                 return false;
         }
-    }
-
-    private static GDictionary ProjectTypedDictionary(IReadOnlyDictionary<string, object> source)
-    {
-        var projection = new GDictionary();
-        foreach ((string key, object value) in source)
-            projection[key] = ProjectTypedValue(value);
-        return projection;
-    }
-
-    private static GArray ProjectTypedArray(IReadOnlyList<object> source)
-    {
-        var projection = new GArray();
-        foreach (object value in source)
-            projection.Add(ProjectTypedValue(value));
-        return projection;
-    }
-
-    private static Variant ProjectTypedValue(object value)
-    {
-        if (value == null)
-            return default;
-        if (value is IReadOnlyDictionary<string, object> dictionaryValue)
-            return ProjectTypedDictionary(dictionaryValue);
-        if (value is IReadOnlyList<object> listValue)
-            return ProjectTypedArray(listValue);
-        return value switch
-        {
-            Variant variantValue => variantValue,
-            bool boolValue => boolValue,
-            int intValue => intValue,
-            long longValue => longValue,
-            float floatValue => floatValue,
-            double doubleValue => doubleValue,
-            string stringValue => stringValue,
-            StringName stringNameValue => stringNameValue,
-            Vector2I vectorValue => vectorValue,
-            GodotObject godotObject => godotObject.ToString() ?? "",
-            _ => value.ToString() ?? "",
-        };
     }
 
     private static ExpectationResult ExpectOk(string summary, string actual, string expected)

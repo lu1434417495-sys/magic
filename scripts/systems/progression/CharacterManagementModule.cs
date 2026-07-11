@@ -1788,16 +1788,24 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         return delta;
     }
 
-    public GDictionary GetMemberAchievementSummary(StringName member_id)
+    public GDictionary GetMemberAchievementSummary(StringName member_id) =>
+        RuntimePlainPayload.ProjectDictionary(
+            GetMemberAchievementSummarySnapshotPlain(member_id),
+            "CharacterManagementModule.GetMemberAchievementSummary"
+        );
+
+    internal IReadOnlyDictionary<string, object> GetMemberAchievementSummarySnapshotPlain(
+        StringName member_id
+    )
     {
         var member_state = GetMemberState(member_id);
         if (member_state == null || member_state.progression is not UnitProgress progression)
-            return new GDictionary
+            return new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["unlocked_count"] = 0,
                 ["in_progress_count"] = 0,
                 ["recent_unlocked_name"] = "",
-                ["active_progress_entries"] = new GArray(),
+                ["active_progress_entries"] = new List<object>(),
             };
 
         var unlocked_count = 0;
@@ -1838,10 +1846,22 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
             );
         }
         active_entries.Sort(CompareAchievementProgressEntry);
-        var active_progress_entries = new GArray();
-        foreach (var entry in active_entries)
-            active_progress_entries.Add(ProjectAchievementProgressSummaryEntry(entry));
-        return new GDictionary
+        var active_progress_entries = new List<object>();
+        foreach (AchievementProgressSummaryEntry entry in active_entries)
+        {
+            active_progress_entries.Add(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["achievement_id"] = entry.AchievementId,
+                    ["display_name"] = entry.DisplayName,
+                    ["description"] = entry.Description,
+                    ["current_value"] = entry.CurrentValue,
+                    ["threshold"] = entry.Threshold,
+                    ["progress_ratio"] = entry.ProgressRatio,
+                }
+            );
+        }
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["unlocked_count"] = unlocked_count,
             ["in_progress_count"] = in_progress_count,

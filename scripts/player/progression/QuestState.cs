@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Collections.Generic;
 
 internal enum QuestStatusKind
 {
@@ -209,6 +210,56 @@ public class QuestState
             { "completed_at_world_step", completed_at_world_step },
             { "reward_claimed_at_world_step", reward_claimed_at_world_step },
             { "last_progress_context", last_progress_context.ToDictionary() },
+        };
+    }
+
+    internal Dictionary<string, object> BuildSnapshotPlain()
+    {
+        var objectiveProgress = new Dictionary<string, object>(StringComparer.Ordinal);
+        if (objective_progress != null)
+        {
+            var entries = new List<KeyValuePair<StringName, int>>(
+                objective_progress.ValuesTyped
+            );
+            entries.Sort(
+                (left, right) =>
+                    string.CompareOrdinal(left.Key.ToString(), right.Key.ToString())
+            );
+            foreach ((StringName objectiveId, int value) in entries)
+                objectiveProgress[objectiveId.ToString()] = value;
+        }
+
+        var progressContext = new Dictionary<string, object>(StringComparer.Ordinal);
+        QuestProgressContext context = last_progress_context;
+        if (context != null)
+        {
+            if (context.MemberId != "")
+                progressContext["member_id"] = context.MemberId.ToString();
+            if (!string.IsNullOrEmpty(context.ActionId))
+                progressContext["action_id"] = context.ActionId;
+            if (context.EnemyTemplateId != "")
+                progressContext["enemy_template_id"] = context.EnemyTemplateId.ToString();
+            if (!string.IsNullOrEmpty(context.SettlementId))
+                progressContext["settlement_id"] = context.SettlementId;
+            if (context.SourceType != "")
+                progressContext["source_type"] = context.SourceType.ToString();
+            if (context.SourceId != "")
+                progressContext["source_id"] = context.SourceId.ToString();
+            if (context.ItemId != "")
+                progressContext["item_id"] = context.ItemId.ToString();
+            if (context.SubmittedQuantity > 0)
+                progressContext["submitted_quantity"] = context.SubmittedQuantity;
+        }
+
+        return new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["quest_id"] = quest_id.ToString(),
+            ["status_id"] = status_id.ToString(),
+            ["objective_progress"] = objectiveProgress,
+            ["accepted_at_world_step"] = accepted_at_world_step,
+            ["completed_at_world_step"] = completed_at_world_step,
+            ["reward_claimed_at_world_step"] = reward_claimed_at_world_step,
+            ["last_progress_context"] = progressContext,
         };
     }
 

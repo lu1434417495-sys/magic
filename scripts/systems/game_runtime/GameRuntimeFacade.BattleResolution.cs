@@ -124,8 +124,25 @@ public sealed partial class GameRuntimeFacade
         if (encounterAnchor == null)
             return false;
         int seed = _pending_battle_generation_request.Seed;
-        var context = _pending_battle_generation_request.CloneContext();
-        var runtimeState = _battle_runtime.StartBattle(encounterAnchor, seed, context);
+        Dictionary<string, object> context =
+            _pending_battle_generation_request.CloneContextPlain();
+        BattleState runtimeState;
+        using (
+            GodotProjectionLease<GDictionary> contextLease =
+                RuntimePlainPayload.ProjectDictionaryLease(
+                    context,
+                    "pending-battle-start-context",
+                    LifetimeDomain.Request,
+                    "GameRuntimeFacade.TryCompletePendingBattleStart"
+                )
+        )
+        {
+            runtimeState = _battle_runtime.StartBattleBorrowingContext(
+                encounterAnchor,
+                seed,
+                contextLease.Value
+            );
+        }
         if (runtimeState == null || runtimeState.IsEmpty())
             return false;
         _pending_battle_generation_request.Clear();

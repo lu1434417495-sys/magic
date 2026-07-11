@@ -86,7 +86,9 @@ public partial class run_misfortune_service_regression : LifecycleTestSceneTree
             };
             var builder = new GameRuntimeSnapshotBuilder();
             builder.Setup(snapshotRuntime);
-            GDictionary snapshot = builder.BuildHeadlessSnapshot();
+            using GodotProjectionLease<GDictionary> snapshotLease =
+                builder.BuildHeadlessSnapshotLease();
+            GDictionary snapshot = snapshotLease.Value;
             builder.Dispose();
 
             _test.Eq(

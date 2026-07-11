@@ -78,7 +78,9 @@ public partial class run_battle_skill_entry_identity_regression : LifecycleTestS
                 );
             }
 
-            GDictionary battleSnapshot = Dict(session.BuildSnapshot(), "battle");
+            using GodotProjectionLease<GDictionary> selectedSnapshotLease =
+                session.BuildSnapshotLease();
+            GDictionary battleSnapshot = Dict(selectedSnapshotLease.Value, "battle");
             _test.Eq(
                 DictString(battleSnapshot, "selected_skill_entry_id"),
                 ExpectedEntryId,
@@ -249,8 +251,13 @@ public partial class run_battle_skill_entry_identity_regression : LifecycleTestS
     {
         for (int tick = 0; tick < maxTicks; tick++)
         {
-            GDictionary battleSnapshot = Dict(runner.GetSession()?.BuildSnapshot(), "battle");
-            if (DictBool(battleSnapshot, "active"))
+            HeadlessGameTestSession session = runner.GetSession();
+            if (session == null)
+                break;
+            bool battleActive;
+            using (GodotProjectionLease<GDictionary> snapshotLease = session.BuildSnapshotLease())
+                battleActive = DictBool(Dict(snapshotLease.Value, "battle"), "active");
+            if (battleActive)
                 return;
             runner.ExecuteLine("battle tick 1");
         }
@@ -261,12 +268,22 @@ public partial class run_battle_skill_entry_identity_regression : LifecycleTestS
     {
         for (int tick = 0; tick < maxTicks; tick++)
         {
-            GDictionary battleSnapshot = Dict(runner.GetSession()?.BuildSnapshot(), "battle");
-            if (!DictBool(battleSnapshot, "active"))
+            HeadlessGameTestSession session = runner.GetSession();
+            if (session == null)
                 break;
-            string activeUnitId = DictString(battleSnapshot, "active_unit_id");
-            GDictionary activeUnit = FindBattleUnit(battleSnapshot, activeUnitId);
-            if (DictString(activeUnit, "control_mode") == "manual")
+            bool battleActive;
+            bool manualTurn;
+            using (GodotProjectionLease<GDictionary> snapshotLease = session.BuildSnapshotLease())
+            {
+                GDictionary battleSnapshot = Dict(snapshotLease.Value, "battle");
+                battleActive = DictBool(battleSnapshot, "active");
+                string activeUnitId = DictString(battleSnapshot, "active_unit_id");
+                GDictionary activeUnit = FindBattleUnit(battleSnapshot, activeUnitId);
+                manualTurn = DictString(activeUnit, "control_mode") == "manual";
+            }
+            if (!battleActive)
+                break;
+            if (manualTurn)
                 return;
             AssertCommandOk(runner.ExecuteLine("battle tick 1"), "推进到手动回合的 battle tick 应成功。");
         }

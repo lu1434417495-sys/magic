@@ -131,6 +131,105 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
             return;
         }
 
+        BattleRuntimeModule battleRuntime = session
+            .GetRuntimeFacadeTyped()
+            ?.GetBattleRuntime();
+        _test.True(battleRuntime != null, "borrowed context 回归前置：battle runtime 应存在。");
+        if (battleRuntime == null)
+        {
+            session.Dispose(true);
+            await CleanupSharedGameSession(sharedGameSession);
+            return;
+        }
+
+        LifecycleAuditSnapshot borrowedFailureBaseline =
+            LifecycleAuditRegistry.Shared.CaptureSnapshot();
+        var invalidContext = new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["battle_party"] = 1,
+        };
+        bool borrowedFailureThrown;
+        using (
+            GodotProjectionLease<GDictionary> invalidContextLease =
+                RuntimePlainPayload.ProjectDictionaryLease(
+                    invalidContext,
+                    "headless-battle-start-invalid-context",
+                    LifetimeDomain.Request,
+                    "run_headless_game_test_session_regression.invalid_context"
+                )
+        )
+        {
+            LifecycleAuditSnapshot active = LifecycleAuditRegistry.Shared.CaptureSnapshot();
+            _test.Eq(
+                active.ActiveOwnerCount,
+                borrowedFailureBaseline.ActiveOwnerCount + 1,
+                "malformed borrowed context lease 应精确拥有一个 root container。"
+            );
+            _test.Eq(
+                active.ActiveLeaseCount,
+                borrowedFailureBaseline.ActiveLeaseCount + 1,
+                "malformed borrowed context 应只登记一个 caller lease。"
+            );
+            _test.Eq(
+                active.ActiveScopeCount,
+                borrowedFailureBaseline.ActiveScopeCount,
+                "malformed borrowed context 不应登记额外 native scope。"
+            );
+            _test.Eq(
+                active.ActiveContentBorrowerCount,
+                borrowedFailureBaseline.ActiveContentBorrowerCount,
+                "malformed borrowed context 不应登记 content borrower。"
+            );
+            borrowedFailureThrown = Throws<InvalidOperationException>(
+                () =>
+                    battleRuntime.StartBattleBorrowingContext(
+                        null,
+                        1,
+                        invalidContextLease.Value
+                    )
+            );
+            LifecycleAuditSnapshot afterThrow =
+                LifecycleAuditRegistry.Shared.CaptureSnapshot();
+            _test.Eq(
+                afterThrow.ActiveOwnerCount,
+                active.ActiveOwnerCount,
+                "borrowed context 抛错后 caller lease 应在 using 内保持唯一 owner。"
+            );
+            _test.Eq(
+                afterThrow.ActiveLeaseCount,
+                active.ActiveLeaseCount,
+                "borrowed context 抛错后 caller lease 应在 using 内保持 active。"
+            );
+        }
+        _test.True(
+            borrowedFailureThrown,
+            "非空 malformed borrowed battle context 应在进入 runtime 后稳定拒绝。"
+        );
+        AssertAuditBaseline(
+            borrowedFailureBaseline,
+            LifecycleAuditRegistry.Shared.CaptureSnapshot(),
+            "borrowed battle context throw"
+        );
+        AssertSafetyCounters(
+            borrowedFailureBaseline,
+            LifecycleAuditRegistry.Shared.CaptureSnapshot(),
+            "borrowed battle context throw",
+            includeKnownSuppressBaseline: true
+        );
+        _test.True(
+            Throws<ArgumentNullException>(
+                () => battleRuntime.StartBattleBorrowingContext(null, 1, null)
+            ),
+            "borrowed battle context 入口应独立拒绝 null。"
+        );
+        AssertAuditBaseline(
+            borrowedFailureBaseline,
+            LifecycleAuditRegistry.Shared.CaptureSnapshot(),
+            "borrowed battle context null guard"
+        );
+
+        LifecycleAuditSnapshot borrowedSuccessBaseline =
+            LifecycleAuditRegistry.Shared.CaptureSnapshot();
         HeadlessGameTestSession.SessionCommandOutcome battleResult = session.StartBattleByKindTyped(
             EncounterAnchorData.ToStringName(EncounterAnchorKind.Single)
         );
@@ -144,6 +243,17 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
             await CleanupSharedGameSession(sharedGameSession);
             return;
         }
+        AssertAuditBaseline(
+            borrowedSuccessBaseline,
+            LifecycleAuditRegistry.Shared.CaptureSnapshot(),
+            "borrowed battle context return"
+        );
+        AssertSafetyCounters(
+            borrowedSuccessBaseline,
+            LifecycleAuditRegistry.Shared.CaptureSnapshot(),
+            "borrowed battle context return",
+            includeKnownSuppressBaseline: false
+        );
 
         _test.True(
             sharedGameSession.IsBattleSaveLocked(),
@@ -239,7 +349,8 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
             "Headless snapshot 只读回归前置：index.dat 应已被删除。"
         );
 
-        GDictionary snapshot = session.BuildSnapshot();
+        using GodotProjectionLease<GDictionary> snapshotLease = session.BuildSnapshotLease();
+        GDictionary snapshot = snapshotLease.Value;
         _test.True(
             snapshot.TryGetValue("session", out Variant sessionValue)
                 && sessionValue.VariantType == Variant.Type.Dictionary,
@@ -249,7 +360,9 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
         snapshot["status"] = mutatedStatus;
         GDictionary mutatedSession = snapshot["session"].AsGodotDictionary();
         mutatedSession["world_loaded"] = false;
-        GDictionary secondSnapshot = session.BuildSnapshot();
+        using GodotProjectionLease<GDictionary> secondSnapshotLease =
+            session.BuildSnapshotLease();
+        GDictionary secondSnapshot = secondSnapshotLease.Value;
         _test.True(
             DictString(secondSnapshot["status"].AsGodotDictionary(), "view", "")
                 != "mutated",
@@ -476,6 +589,61 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
 
     private static string DictString(GDictionary dictionary, string key, string fallback) =>
         dictionary != null && dictionary.ContainsKey(key) ? dictionary[key].AsString() : fallback;
+
+    private void AssertAuditBaseline(
+        LifecycleAuditSnapshot expected,
+        LifecycleAuditSnapshot actual,
+        string label
+    )
+    {
+        _test.Eq(actual.ActiveOwnerCount, expected.ActiveOwnerCount, $"{label}: owner baseline");
+        _test.Eq(actual.ActiveLeaseCount, expected.ActiveLeaseCount, $"{label}: lease baseline");
+        _test.Eq(actual.ActiveScopeCount, expected.ActiveScopeCount, $"{label}: scope baseline");
+        _test.Eq(
+            actual.ActiveContentBorrowerCount,
+            expected.ActiveContentBorrowerCount,
+            $"{label}: borrower baseline"
+        );
+    }
+
+    private void AssertSafetyCounters(
+        LifecycleAuditSnapshot expected,
+        LifecycleAuditSnapshot actual,
+        string label,
+        bool includeKnownSuppressBaseline
+    )
+    {
+        _test.Eq(actual.EscapedCount, expected.EscapedCount, $"{label}: escaped baseline");
+        _test.Eq(actual.UnknownCount, expected.UnknownCount, $"{label}: unknown baseline");
+        _test.Eq(actual.ViolationCount, expected.ViolationCount, $"{label}: violation baseline");
+        _test.Eq(
+            actual.QuarantineCount,
+            expected.QuarantineCount,
+            $"{label}: quarantine baseline"
+        );
+        if (includeKnownSuppressBaseline)
+        {
+            _test.Eq(
+                actual.NormalPhaseSuppressCount,
+                expected.NormalPhaseSuppressCount,
+                $"{label}: normal-phase suppress baseline"
+            );
+        }
+    }
+
+    private static bool Throws<TException>(Action action)
+        where TException : Exception
+    {
+        try
+        {
+            action();
+            return false;
+        }
+        catch (TException)
+        {
+            return true;
+        }
+    }
 
     private static int GetGameLogSinkCount()
     {

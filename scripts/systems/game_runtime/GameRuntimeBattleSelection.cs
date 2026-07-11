@@ -63,6 +63,12 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         return DuplicateStringNameArray(GetTargetUnitIdsStateTyped());
     }
 
+    internal IReadOnlyList<Vector2I> GetSelectedBattleSkillTargetCoordsSnapshotPlain() =>
+        CollectSelectedBattleSkillTargetCoordsTyped();
+
+    internal IReadOnlyList<StringName> GetSelectedBattleSkillTargetUnitIdsSnapshotPlain() =>
+        GetTargetUnitIdsStateTyped();
+
     internal GVector2IArray GetSelectedBattleSkillValidTargetCoords()
     {
         return DuplicateVector2IArray(CollectSelectedBattleSkillValidTargetCoordsTyped());

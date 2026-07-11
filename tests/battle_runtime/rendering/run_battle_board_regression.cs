@@ -76,16 +76,15 @@ public partial class run_battle_board_regression : LifecycleTestSceneTree
         }
 
         BattleBoardRenderProfile canyon = BattleBoardRenderProfile.ForTerrainProfileId("canyon");
-        foreach (GDictionary sourceSpec in canyon.GetSourceSpecs())
+        foreach (BattleBoardTileSourceSpec sourceSpec in canyon.GetSourceSpecs())
         {
-            _test.True(sourceSpec.ContainsKey("key"), "source spec 应包含 key。");
-            _test.True(sourceSpec.ContainsKey("files"), "source spec 应包含 files。");
-            _test.True(sourceSpec.ContainsKey("layer_role"), "source spec 应包含 layer_role。");
-            _test.True(sourceSpec.ContainsKey("atlas_region_size"), "source spec 应包含 atlas_region_size。");
-            GArray files = DictArray(sourceSpec, "files");
-            foreach (Variant fileNameValue in files)
+            _test.True(sourceSpec.Key != "", "source spec 应包含 key。");
+            _test.True(sourceSpec.Files != null, "source spec 应包含 files。");
+            _test.True(sourceSpec.LayerRole != "", "source spec 应包含 layer_role。");
+            _test.True(sourceSpec.AtlasRegionSize != Vector2I.Zero, "source spec 应包含 atlas_region_size。");
+            foreach (string fileName in sourceSpec.Files)
             {
-                string path = $"{canyon.asset_dir}/{fileNameValue.AsString()}";
+                string path = $"{canyon.asset_dir}/{fileName}";
                 _test.True(FileAccess.FileExists(path), $"source spec 贴图必须存在：{path}");
             }
         }
@@ -109,7 +108,7 @@ public partial class run_battle_board_regression : LifecycleTestSceneTree
             "single_unit",
             1,
             1,
-            new GDictionary()
+            new Dictionary<Vector2I, string>()
         );
 
         bool ready = await WaitForBoardRenderReady(board);

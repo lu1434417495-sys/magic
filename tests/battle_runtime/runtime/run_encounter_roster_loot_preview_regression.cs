@@ -1,7 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_encounter_roster_loot_preview_regression : LifecycleTestSceneTree
 {
@@ -40,14 +38,32 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
             new Dictionary<StringName, EnemyTemplateDef> { [template.template_id] = template }
         );
 
-        GArray lootEntries = builder.BuildLootEntriesTyped(
+        IReadOnlyList<IReadOnlyDictionary<string, object>> lootEntries = builder.BuildLootEntriesPlain(
             BuildTemplateEncounterAnchor("wolf_den_drop_schema", template.template_id)
         );
 
         _test.Eq(lootEntries.Count, 1, "canonical enemy template 应暴露 1 条正式掉落 schema。");
-        if (lootEntries.Count == 0 || !TryGetDictionary(lootEntries[0], out GDictionary lootEntry))
+        if (lootEntries.Count == 0)
         {
             return;
+        }
+        IReadOnlyDictionary<string, object> lootEntry = lootEntries[0];
+        List<BattleLootEntry> parsedEntries = BattleLootEntryPayload.ParseEntriesPlain(
+            lootEntries
+        );
+        _test.Eq(
+            parsedEntries.Count,
+            1,
+            "plain loot preview 应能直接解析为 typed BattleLootEntry，无 Godot 投影。"
+        );
+        if (parsedEntries.Count > 0)
+        {
+            _test.Eq(
+                parsedEntries[0].ItemId,
+                new StringName("beast_hide"),
+                "plain loot parser 应保留 item_id。"
+            );
+            _test.Eq(parsedEntries[0].Quantity, 2, "plain loot parser 应保留聚合数量。");
         }
 
         _test.True(!lootEntry.ContainsKey("drop_id"), "掉落 schema 不应继续暴露旧 drop_id alias。");
@@ -103,7 +119,7 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
             new Dictionary<StringName, EnemyTemplateDef> { [template.template_id] = template }
         );
 
-        GArray lootEntries = builder.BuildLootEntriesTyped(
+        IReadOnlyList<IReadOnlyDictionary<string, object>> lootEntries = builder.BuildLootEntriesPlain(
             BuildTemplateEncounterAnchor("missing_label_drop_schema", template.template_id)
         );
 
@@ -160,13 +176,15 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
         encounterAnchor.encounter_profile_id = roster.profile_id;
         encounterAnchor.growth_stage = 0;
 
-        GArray lootEntries = builder.BuildLootEntriesTyped(encounterAnchor);
+        IReadOnlyList<IReadOnlyDictionary<string, object>> lootEntries =
+            builder.BuildLootEntriesPlain(encounterAnchor);
 
         _test.Eq(lootEntries.Count, 1, "roster 聚合后相同 item_id 的掉落应合并为 1 条。");
-        if (lootEntries.Count == 0 || !TryGetDictionary(lootEntries[0], out GDictionary lootEntry))
+        if (lootEntries.Count == 0)
         {
             return;
         }
+        IReadOnlyDictionary<string, object> lootEntry = lootEntries[0];
 
         _test.Eq(
             DictString(lootEntry, "drop_source_kind"),
@@ -255,36 +273,30 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
         };
     }
 
-    private static string DictString(GDictionary data, string key, string fallback = "")
+    private static string DictString(
+        IReadOnlyDictionary<string, object> data,
+        string key,
+        string fallback = ""
+    )
     {
-        return data != null && data.ContainsKey(key) ? data[key].AsString() : fallback;
+        return data != null
+            && data.TryGetValue(key, out object value)
+            && value is string text
+                ? text
+                : fallback;
     }
 
-    private static int DictInt(GDictionary data, string key, int fallback = 0)
+    private static int DictInt(
+        IReadOnlyDictionary<string, object> data,
+        string key,
+        int fallback = 0
+    )
     {
-        return data != null && data.ContainsKey(key) ? data[key].AsInt32() : fallback;
-    }
-
-    private static bool TryGetDictionary(object rawValue, out GDictionary value)
-    {
-        if (rawValue is GDictionary dictionary)
-        {
-            value = dictionary;
-            return true;
-        }
-
-        try
-        {
-            dynamic dynamicValue = rawValue;
-            value = dynamicValue.AsGodotDictionary();
-            return true;
-        }
-        catch
-        {
-        }
-
-        value = new GDictionary();
-        return false;
+        return data != null
+            && data.TryGetValue(key, out object value)
+            && value is int number
+                ? number
+                : fallback;
     }
 
 }

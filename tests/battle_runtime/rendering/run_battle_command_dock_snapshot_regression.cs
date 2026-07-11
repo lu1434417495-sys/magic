@@ -1,9 +1,5 @@
 using System;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringArray = Godot.Collections.Array<string>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 // A2.1 data-layer regression: locks the command_dock / hint_text /
 // recent_battle_log_lines contract that BattleHudAdapter.BuildSnapshot now
@@ -34,13 +30,13 @@ public partial class run_battle_command_dock_snapshot_regression : LifecycleTest
     private void TestManualUnitActingDockAndHint()
     {
         using BattleTestFixture fixture = BuildFixture(out BattleUnitState caster, "manual");
-        GDictionary snapshot = BuildSnapshot(fixture, new StringName(""));
-        GDictionary dock = Dock(snapshot);
+        BattleHudSnapshot snapshot = BuildSnapshot(fixture, new StringName(""));
+        BattleHudCommandDockSnapshot dock = snapshot.CommandDock;
 
-        _test.True(DockBool(dock, "resolve_enabled"), "手动单位行动期 resolve_enabled 应为真。");
-        _test.False(DockBool(dock, "clear_skill_enabled"), "未选技能时 clear_skill_enabled 应为假。");
-        _test.False(DockBool(dock, "prev_variant_enabled"), "未选技能时 prev_variant_enabled 应为假。");
-        _test.False(DockBool(dock, "next_variant_enabled"), "未选技能时 next_variant_enabled 应为假。");
+        _test.True(dock.ResolveEnabled, "手动单位行动期 resolve_enabled 应为真。");
+        _test.False(dock.ClearSkillEnabled, "未选技能时 clear_skill_enabled 应为假。");
+        _test.False(dock.PrevVariantEnabled, "未选技能时 prev_variant_enabled 应为假。");
+        _test.False(dock.NextVariantEnabled, "未选技能时 next_variant_enabled 应为假。");
         _test.Eq(
             Hint(snapshot),
             "点选技能或移动；Enter 结束行动",
@@ -51,14 +47,14 @@ public partial class run_battle_command_dock_snapshot_regression : LifecycleTest
     private void TestSelectedSkillDockAndSingleTargetHint()
     {
         using BattleTestFixture fixture = BuildFixture(out BattleUnitState caster, "manual");
-        GDictionary snapshot = BuildSnapshot(fixture, SkillId);
-        GDictionary dock = Dock(snapshot);
+        BattleHudSnapshot snapshot = BuildSnapshot(fixture, SkillId);
+        BattleHudCommandDockSnapshot dock = snapshot.CommandDock;
 
-        _test.True(DockBool(dock, "clear_skill_enabled"), "已选技能时 clear_skill_enabled 应为真。");
+        _test.True(dock.ClearSkillEnabled, "已选技能时 clear_skill_enabled 应为真。");
         // No content catalog → the adapter cannot resolve cast variants, so the
         // wraparound-cycle buttons stay disabled (count <= 1).
-        _test.False(DockBool(dock, "prev_variant_enabled"), "无可切换形态时 prev_variant_enabled 应为假。");
-        _test.False(DockBool(dock, "next_variant_enabled"), "无可切换形态时 next_variant_enabled 应为假。");
+        _test.False(dock.PrevVariantEnabled, "无可切换形态时 prev_variant_enabled 应为假。");
+        _test.False(dock.NextVariantEnabled, "无可切换形态时 next_variant_enabled 应为假。");
         _test.Eq(
             Hint(snapshot),
             "左键选择目标格释放；Esc 取消，Q/E 切换形态",
@@ -70,21 +66,21 @@ public partial class run_battle_command_dock_snapshot_regression : LifecycleTest
     {
         using BattleTestFixture fixture = BuildFixture(out BattleUnitState caster, "manual");
         fixture.State.modal_state = "battle_resolving";
-        GDictionary snapshot = BuildSnapshot(fixture, SkillId);
-        GDictionary dock = Dock(snapshot);
+        BattleHudSnapshot snapshot = BuildSnapshot(fixture, SkillId);
+        BattleHudCommandDockSnapshot dock = snapshot.CommandDock;
 
-        _test.False(DockBool(dock, "resolve_enabled"), "模态阻断时 resolve_enabled 应为假。");
-        _test.False(DockBool(dock, "clear_skill_enabled"), "模态阻断时 clear_skill_enabled 应为假。");
+        _test.False(dock.ResolveEnabled, "模态阻断时 resolve_enabled 应为假。");
+        _test.False(dock.ClearSkillEnabled, "模态阻断时 clear_skill_enabled 应为假。");
         _test.Eq(Hint(snapshot), "战斗结算中…请稍候", "模态阻断时应提示战斗结算中。");
     }
 
     private void TestAutoModeHint()
     {
         using BattleTestFixture fixture = BuildFixture(out BattleUnitState caster, "ai");
-        GDictionary snapshot = BuildSnapshot(fixture, new StringName(""));
-        GDictionary dock = Dock(snapshot);
+        BattleHudSnapshot snapshot = BuildSnapshot(fixture, new StringName(""));
+        BattleHudCommandDockSnapshot dock = snapshot.CommandDock;
 
-        _test.False(DockBool(dock, "resolve_enabled"), "自动模式单位 resolve_enabled 应为假。");
+        _test.False(dock.ResolveEnabled, "自动模式单位 resolve_enabled 应为假。");
         _test.Eq(Hint(snapshot), "自动模式：等待 AI 行动", "自动控制单位应提示等待 AI 行动。");
     }
 
@@ -98,8 +94,8 @@ public partial class run_battle_command_dock_snapshot_regression : LifecycleTest
         fixture.State.log_entries.Add("第三条");
         fixture.State.log_entries.Add("第四条");
 
-        GDictionary snapshot = BuildSnapshot(fixture, new StringName(""));
-        GStringArray lines = snapshot["recent_battle_log_lines"].As<GStringArray>();
+        BattleHudSnapshot snapshot = BuildSnapshot(fixture, new StringName(""));
+        var lines = snapshot.RecentBattleLogLines;
 
         _test.Eq(lines.Count, 3, "recent_battle_log_lines 应裁剪到最近 3 条非空记录。");
         _test.Eq(lines[0], "第二条", "应保留最旧在前的顺序（裁剪后第 1 条）。");
@@ -122,7 +118,10 @@ public partial class run_battle_command_dock_snapshot_regression : LifecycleTest
         );
     }
 
-    private static GDictionary BuildSnapshot(BattleTestFixture fixture, StringName selectedSkillId)
+    private static BattleHudSnapshot BuildSnapshot(
+        BattleTestFixture fixture,
+        StringName selectedSkillId
+    )
     {
         using var adapter = new BattleHudAdapter();
         return adapter.BuildSnapshot(
@@ -131,29 +130,14 @@ public partial class run_battle_command_dock_snapshot_regression : LifecycleTest
             selectedSkillId,
             selectedSkillId == "" ? "" : "指令带技能",
             "",
-            new GVector2IArray(),
+            Array.Empty<Vector2I>(),
             1,
-            new GStringNameArray(),
+            Array.Empty<StringName>(),
             new StringName(""),
             "遭遇",
             null
         );
     }
 
-    private static GDictionary Dock(GDictionary snapshot)
-    {
-        return snapshot.ContainsKey("command_dock")
-            ? snapshot["command_dock"].As<GDictionary>()
-            : new GDictionary();
-    }
-
-    private static bool DockBool(GDictionary dock, string key)
-    {
-        return dock.ContainsKey(key) && dock[key].AsBool();
-    }
-
-    private static string Hint(GDictionary snapshot)
-    {
-        return snapshot.ContainsKey("hint_text") ? snapshot["hint_text"].AsString() : "";
-    }
+    private static string Hint(BattleHudSnapshot snapshot) => snapshot?.HintText ?? "";
 }

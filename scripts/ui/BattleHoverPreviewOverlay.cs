@@ -1,7 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
 public partial class BattleHoverPreviewOverlay : PanelContainer
@@ -30,6 +28,8 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
 
     public override void _Ready()
     {
+        if (_layout != null)
+            return;
         MouseFilter = MouseFilterEnum.Ignore;
         Visible = false;
         CustomMinimumSize = new Vector2(340, 0);
@@ -42,18 +42,18 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         Visible = false;
     }
 
-    public void ApplyPreview(GDictionary preview)
+    internal void ApplyPreview(BattleHoverSnapshot preview)
     {
-        if (preview == null || preview.Count == 0)
+        if (preview == null)
         {
             Visible = false;
             return;
         }
 
-        GDictionary targetUnit = DictDictionary(preview, "target_unit");
-        bool hasTargetUnit = targetUnit.Count > 0;
-        bool hasSkill = DictBool(preview, "has_selected_skill", false);
-        bool isValidTarget = DictBool(preview, "hover_is_valid_target", false);
+        BattleHoverTargetUnitSnapshot targetUnit = preview.TargetUnit;
+        bool hasTargetUnit = targetUnit != null;
+        bool hasSkill = preview.HasSelectedSkill;
+        bool isValidTarget = preview.HoverIsValidTarget;
 
         if (!hasTargetUnit && !hasSkill)
         {
@@ -62,18 +62,18 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         }
 
         _refresh_target_unit(targetUnit);
-        _refresh_hit_stages(DictArray(preview, "hit_stage_rates"));
-        _refresh_fate_badges(DictArray(preview, "fate_badges"));
+        _refresh_hit_stages(preview.HitStageRates);
+        _refresh_fate_badges(preview.FateBadges);
         _refresh_damage_label(
-            DictInt(preview, "damage_min", 0),
-            DictInt(preview, "damage_max", 0),
-            DictString(preview, "damage_text", "")
+            preview.DamageMin,
+            preview.DamageMax,
+            preview.DamageText
         );
-        string saveBranchText = DictString(preview, "save_branch_preview_text", "");
+        string saveBranchText = preview.SaveBranchPreviewText;
         _refresh_hit_summary(
             !string.IsNullOrEmpty(saveBranchText)
                 ? saveBranchText
-                : DictString(preview, "hit_badge_text", "")
+                : preview.HitBadgeText
         );
         _refresh_invalid_label(hasSkill && !isValidTarget);
 
@@ -152,9 +152,9 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         _layout.AddChild(_invalidLabel);
     }
 
-    private void _refresh_target_unit(GDictionary targetUnit)
+    private void _refresh_target_unit(BattleHoverTargetUnitSnapshot targetUnit)
     {
-        if (targetUnit.Count == 0)
+        if (targetUnit == null)
         {
             _targetHeader.Visible = false;
             _targetHpBar.Visible = false;
@@ -165,21 +165,21 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         _targetHeader.Visible = true;
         _targetHpBar.Visible = true;
         _targetHpLabel.Visible = true;
-        _targetNameLabel.Text = DictString(targetUnit, "name", "单位");
+        _targetNameLabel.Text = string.IsNullOrEmpty(targetUnit.Name) ? "单位" : targetUnit.Name;
         _targetFactionLabel.Text =
-            DictBool(targetUnit, "is_self", false) ? "本单位"
-            : DictBool(targetUnit, "is_enemy", false) ? "敌方"
+            targetUnit.IsSelf ? "本单位"
+            : targetUnit.IsEnemy ? "敌方"
             : "我方";
 
-        int hpCurrent = DictInt(targetUnit, "hp_current", 0);
-        int hpMax = Mathf.Max(DictInt(targetUnit, "hp_max", 1), 1);
+        int hpCurrent = targetUnit.HpCurrent;
+        int hpMax = Mathf.Max(targetUnit.HpMax, 1);
         _targetHpBar.MinValue = 0;
         _targetHpBar.MaxValue = hpMax;
         _targetHpBar.Value = Mathf.Clamp(hpCurrent, 0, hpMax);
         _targetHpLabel.Text = $"HP {hpCurrent}/{hpMax}";
     }
 
-    private void _refresh_hit_stages(GArray stageRates)
+    private void _refresh_hit_stages(IReadOnlyList<int> stageRates)
     {
         ClearChildren(_hitStageRow);
         if (stageRates.Count == 0)
@@ -189,8 +189,8 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         }
 
         _hitStageRow.Visible = true;
-        foreach (var rateValue in stageRates)
-            _hitStageRow.AddChild(_build_hit_stage_segment(rateValue.AsInt32()));
+        foreach (int rateValue in stageRates)
+            _hitStageRow.AddChild(_build_hit_stage_segment(rateValue));
     }
 
     private void _refresh_hit_summary(string summaryText)
@@ -205,7 +205,7 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         _hitSummaryLabel.Text = summaryText;
     }
 
-    private void _refresh_fate_badges(GArray badges)
+    private void _refresh_fate_badges(IReadOnlyList<BattleHudFateBadgeSnapshot> badges)
     {
         ClearChildren(_fateBadgeRow);
         if (badges.Count == 0)
@@ -215,9 +215,9 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         }
 
         _fateBadgeRow.Visible = true;
-        foreach (GDictionary badge in ReadDictionaryItems(badges))
+        foreach (BattleHudFateBadgeSnapshot badge in badges)
         {
-            if (badge.Count == 0)
+            if (badge == null)
                 continue;
             _fateBadgeRow.AddChild(_build_fate_badge(badge));
         }
@@ -256,20 +256,20 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         };
     }
 
-    private static Control _build_fate_badge(GDictionary badge)
+    private static Control _build_fate_badge(BattleHudFateBadgeSnapshot badge)
     {
         var container = new PanelContainer();
         container.AddThemeStyleboxOverride(
             "panel",
-            _build_fate_badge_style(DictStringName(badge, "tone", "calm"))
+            _build_fate_badge_style(badge.Tone ?? new StringName("calm"))
         );
 
-        var label = new Label { Text = DictString(badge, "text", "") };
+        var label = new Label { Text = badge.Text ?? "" };
         label.AddThemeFontSizeOverride("font_size", PreviewFontCaption);
         label.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_PRIMARY());
         container.AddChild(label);
 
-        string tooltipText = DictString(badge, "tooltip_text", "");
+        string tooltipText = badge.TooltipText ?? "";
         if (!string.IsNullOrEmpty(tooltipText))
             container.TooltipText = tooltipText;
         return container;
@@ -360,75 +360,4 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         }
     }
 
-    private static GDictionary DictDictionary(GDictionary dict, string key)
-    {
-        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Dictionary)
-            return new GDictionary();
-        return value.AsGodotDictionary();
-    }
-
-    private static GArray DictArray(GDictionary dict, string key)
-    {
-        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Array)
-            return new GArray();
-        return value.AsGodotArray();
-    }
-
-    private static string DictString(GDictionary dict, string key, string defaultValue)
-    {
-        if (!TryRead(dict, key, out Variant value))
-            return defaultValue;
-        return value.VariantType switch
-        {
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
-            _ => defaultValue,
-        };
-    }
-
-    private static StringName DictStringName(GDictionary dict, string key, string defaultValue)
-    {
-        if (!TryRead(dict, key, out Variant value))
-            return new StringName(defaultValue);
-        return value.VariantType switch
-        {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => new StringName(defaultValue),
-        };
-    }
-
-    private static bool DictBool(GDictionary dict, string key, bool defaultValue)
-    {
-        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Bool)
-            return defaultValue;
-        return value.AsBool();
-    }
-
-    private static int DictInt(GDictionary dict, string key, int defaultValue)
-    {
-        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Int)
-            return defaultValue;
-        return value.AsInt32();
-    }
-
-    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray items)
-    {
-        if (items == null)
-            yield break;
-        foreach (Variant item in items)
-        {
-            if (item.VariantType == Variant.Type.Dictionary)
-                yield return item.AsGodotDictionary();
-        }
-    }
-
-    private static bool TryRead(GDictionary dict, string key, out Variant value)
-    {
-        value = default;
-        if (dict == null || !dict.ContainsKey(key))
-            return false;
-        value = dict[key];
-        return value.VariantType != Variant.Type.Nil;
-    }
 }

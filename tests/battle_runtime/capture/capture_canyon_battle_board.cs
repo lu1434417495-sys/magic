@@ -57,7 +57,7 @@ public partial class capture_canyon_battle_board : LifecycleTestSceneTree
             "single_unit",
             1,
             1,
-            new GDictionary()
+            new Dictionary<Vector2I, string>()
         );
         if (!await WaitForBoardRenderReady(board))
         {

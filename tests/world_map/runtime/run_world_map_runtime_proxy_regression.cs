@@ -120,16 +120,18 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
         proxy.Setup(runtime);
         try
         {
-            GDictionary headlessSnapshot = proxy.BuildHeadlessSnapshot();
+            using GodotProjectionLease<GDictionary> headlessSnapshotLease =
+                proxy.BuildHeadlessSnapshotLease();
+            GDictionary headlessSnapshot = headlessSnapshotLease.Value;
             _test.Eq(
                 DictString(Dict(headlessSnapshot, "status"), "text", ""),
                 "runtime-status",
-                "BuildHeadlessSnapshot() 应返回 runtime 快照。"
+                "BuildHeadlessSnapshotPlain() 应返回 runtime 快照。"
             );
             _test.Eq(
                 DictString(Dict(headlessSnapshot, "world"), "map_id", ""),
                 "snapshot_map",
-                "BuildHeadlessSnapshot() 应包含 runtime 世界上下文。"
+                "BuildHeadlessSnapshotPlain() 应包含 runtime 世界上下文。"
             );
             _test.Eq(
                 proxy.BuildTextSnapshot(),

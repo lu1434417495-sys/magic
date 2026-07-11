@@ -21,9 +21,8 @@ public partial class run_progression_text_snapshot_regression : LifecycleTestSce
 
     private void TestPartyTextSnapshotRendersProgressionState()
     {
-        List<string> lines = TextSnapshotLines(
-            GameTextSnapshotRenderer.RenderFullSnapshot(
-                new GDictionary
+        GDictionary rawSnapshot =
+            new GDictionary
                 {
                     ["party"] = new GDictionary
                     {
@@ -94,7 +93,13 @@ public partial class run_progression_text_snapshot_regression : LifecycleTestSce
                             },
                         },
                     },
-                }
+                };
+        List<string> lines = TextSnapshotLines(
+            GameTextSnapshotRenderer.RenderFullSnapshot(
+                RuntimePlainPayload.NormalizeDictionaryStrict(
+                    rawSnapshot,
+                    "run_progression_text_snapshot_regression"
+                )
             )
         );
 

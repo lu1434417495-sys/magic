@@ -409,6 +409,32 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         };
     }
 
+    internal IReadOnlyDictionary<string, object> GetSettlementHeadlessFactsPlain(
+        string settlementId
+    )
+    {
+        if (!_has_runtime())
+            return EmptyPlainDictionary();
+
+        string targetId = settlementId ?? "";
+        if (string.IsNullOrEmpty(targetId))
+            return EmptyPlainDictionary();
+        IReadOnlyDictionary<string, object> settlement = GetSettlementRecordSnapshotPlain(
+            targetId
+        );
+        if (settlement.Count == 0)
+            return EmptyPlainDictionary();
+
+        return new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["settlement_id"] = ReadPlainString(settlement, "settlement_id"),
+            ["display_name"] = ReadPlainString(settlement, "display_name"),
+            ["tier_name"] = ReadPlainString(settlement, "tier_name"),
+            ["faction_id"] = ReadPlainString(settlement, "faction_id"),
+            ["services"] = BuildSettlementServiceIdentityFactsPlain(settlement),
+        };
+    }
+
     internal GDictionary GetShopWindowData()
     {
         GDictionary context = GetActiveShopContext();
@@ -453,6 +479,29 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return context;
     }
 
+    internal IReadOnlyDictionary<string, object> GetShopWindowDataSnapshotPlain()
+    {
+        Dictionary<string, object> context = CloneActiveShopContextPlain();
+        if (context.Count == 0)
+            return context;
+
+        var entries = new List<object>();
+        AppendWindowEntriesPlain(entries, context, "buy_entries");
+        AppendWindowEntriesPlain(entries, context, "sell_entries");
+        context["entries"] = entries;
+        context["summary_text"] = $"持有金币：{ReadPlainInt(context, "gold")}";
+        context["state_summary_text"] = ReadPlainString(context, "feedback_text");
+        context["action_id"] = "shop:trade";
+        context["panel_kind"] = SettlementPanelKinds.ToPayloadValue(
+            SettlementPanelKind.Shop
+        );
+        context["show_member_selector"] = true;
+        context.Remove("party_state");
+        context["member_options"] = BuildMemberOptionsSnapshotPlain();
+        context["default_member_id"] = ResolveDefaultSettlementMemberId().ToString();
+        return context;
+    }
+
     internal GDictionary GetContractBoardWindowData()
     {
         GDictionary context = GetActiveContractBoardContext();
@@ -466,6 +515,13 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         );
     }
 
+    internal IReadOnlyDictionary<string, object> GetContractBoardWindowDataSnapshotPlain()
+    {
+        Dictionary<string, object> context = CloneActiveContractBoardContextPlain();
+        context.Remove("party_state");
+        return context;
+    }
+
     internal GDictionary GetNpcQuestOfferWindowData()
     {
         NpcQuestOfferWindowData data = GetActiveNpcQuestOfferContextTyped();
@@ -477,6 +533,12 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             data.ToDictionary(),
             "GameRuntimeSettlementCommandHandler.GetNpcQuestOfferWindowData"
         );
+    }
+
+    internal IReadOnlyDictionary<string, object> GetNpcQuestOfferWindowDataSnapshotPlain()
+    {
+        NpcQuestOfferWindowData data = GetActiveNpcQuestOfferContextTyped();
+        return data?.BuildSnapshotPlain() ?? EmptyPlainDictionary();
     }
 
     internal NpcQuestOfferWindowData GetActiveNpcQuestOfferContextTyped()
@@ -495,6 +557,19 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             context,
             "GameRuntimeSettlementCommandHandler.GetForgeWindowData"
         );
+    }
+
+    internal IReadOnlyDictionary<string, object> GetForgeWindowDataSnapshotPlain()
+    {
+        Dictionary<string, object> context = CloneActiveForgeContextPlain();
+        if (context.Count == 0)
+        {
+            Dictionary<string, object> shopContext = CloneActiveShopContextPlain();
+            if (WindowDataMatchesPanelKindPlain(shopContext, SettlementPanelKind.Forge))
+                context = shopContext;
+        }
+        context.Remove("party_state");
+        return context;
     }
 
     internal GDictionary GetStagecoachWindowData()
@@ -538,6 +613,42 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         context["empty_details_text"] = "当前没有可用路线。";
         context["party_state"] = GetPartyState()?.ToDictionary() ?? new GDictionary();
         context["member_options"] = _build_member_options();
+        context["default_member_id"] = ResolveDefaultSettlementMemberId().ToString();
+        return context;
+    }
+
+    internal IReadOnlyDictionary<string, object> GetStagecoachWindowDataSnapshotPlain()
+    {
+        Dictionary<string, object> context = CloneActiveStagecoachContextPlain();
+        if (context.Count == 0)
+            return context;
+
+        var entries = new List<object>();
+        AppendWindowEntriesPlain(entries, context, "destinations");
+        int gold = ReadPlainInt(context, "gold");
+        context["entries"] = entries;
+        context["summary_text"] = $"持有金币：{gold}";
+        context["state_summary_text"] = ReadPlainString(context, "feedback_text");
+        context["action_id"] = "stagecoach:travel";
+        context["panel_kind"] = SettlementPanelKinds.ToPayloadValue(
+            SettlementPanelKind.Stagecoach
+        );
+        context["meta"] =
+            $"驿站：{ReadPlainString(context, "origin_name")}  |  金币：{gold}";
+        context["confirm_label"] = "确认出发";
+        context["cancel_label"] = "返回据点";
+        context["show_member_selector"] = true;
+        context["entry_title"] = "可选路线";
+        context["summary_title"] = "行程概况";
+        context["state_title"] = "行程状态";
+        context["cost_title"] = "行程费用";
+        context["details_title"] = "行程说明";
+        context["member_title"] = "出发成员";
+        context["empty_state_label"] = "状态：暂无路线";
+        context["empty_cost_label"] = "费用：暂无路线";
+        context["empty_details_text"] = "当前没有可用路线。";
+        context.Remove("party_state");
+        context["member_options"] = BuildMemberOptionsSnapshotPlain();
         context["default_member_id"] = ResolveDefaultSettlementMemberId().ToString();
         return context;
     }
@@ -2252,6 +2363,197 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             ["current_mp"] = memberState.current_mp,
         };
     }
+
+    private IReadOnlyDictionary<string, object> GetSettlementRecordSnapshotPlain(
+        string settlementId
+    )
+    {
+        WorldRuntimeData worldData = Runtime?.GetActiveWorldRuntimeData();
+        if (worldData == null || string.IsNullOrEmpty(settlementId))
+            return EmptyPlainDictionary();
+        foreach (WorldMapSettlementRecordData settlement in worldData.Settlements)
+        {
+            if (settlement != null && settlement.SettlementId == settlementId)
+                return settlement.BuildSaveSnapshotPlain();
+        }
+        return EmptyPlainDictionary();
+    }
+
+    private static IReadOnlyList<object> BuildSettlementServiceIdentityFactsPlain(
+        IReadOnlyDictionary<string, object> settlement
+    )
+    {
+        var entries = new List<object>();
+        foreach (object rawEntry in ReadPlainList(settlement, "available_services"))
+        {
+            if (rawEntry is not IReadOnlyDictionary<string, object> entry)
+                continue;
+            entries.Add(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["action_id"] = ReadPlainString(entry, "action_id"),
+                    ["facility_name"] = ReadPlainString(entry, "facility_name"),
+                    ["npc_name"] = ReadPlainString(entry, "npc_name"),
+                    ["service_type"] = ReadPlainString(entry, "service_type"),
+                    ["interaction_script_id"] = ReadPlainString(
+                        entry,
+                        "interaction_script_id"
+                    ),
+                }
+            );
+        }
+        return entries;
+    }
+
+    private IReadOnlyList<object> BuildMemberOptionsSnapshotPlain()
+    {
+        var options = new List<object>();
+        PartyState partyState = GetPartyState();
+        if (partyState == null)
+            return options;
+
+        var seenMemberIds = new HashSet<StringName>();
+        foreach (StringName memberId in partyState.active_member_ids)
+        {
+            if (
+                memberId == ""
+                || !seenMemberIds.Add(memberId)
+                || partyState.GetMemberState(memberId) == null
+            )
+            {
+                continue;
+            }
+            options.Add(BuildMemberOptionSnapshotPlain(partyState, memberId, "上阵"));
+        }
+        foreach (StringName memberId in partyState.reserve_member_ids)
+        {
+            if (
+                memberId == ""
+                || !seenMemberIds.Add(memberId)
+                || partyState.GetMemberState(memberId) == null
+            )
+            {
+                continue;
+            }
+            options.Add(BuildMemberOptionSnapshotPlain(partyState, memberId, "替补"));
+        }
+        return options;
+    }
+
+    private IReadOnlyDictionary<string, object> BuildMemberOptionSnapshotPlain(
+        PartyState partyState,
+        StringName memberId,
+        string rosterRole
+    )
+    {
+        PartyMemberState memberState = partyState.GetMemberState(memberId);
+        if (memberState == null)
+            return EmptyPlainDictionary();
+        return new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["member_id"] = memberId.ToString(),
+            ["display_name"] = GetMemberDisplayName(memberId),
+            ["roster_role"] = rosterRole,
+            ["is_leader"] = partyState.leader_member_id == memberId,
+            ["current_hp"] = memberState.current_hp,
+            ["current_mp"] = memberState.current_mp,
+        };
+    }
+
+    private static void AppendWindowEntriesPlain(
+        List<object> target,
+        IReadOnlyDictionary<string, object> context,
+        string key
+    )
+    {
+        foreach (object rawEntry in ReadPlainList(context, key))
+        {
+            if (rawEntry is not IReadOnlyDictionary<string, object> entry)
+                continue;
+            Dictionary<string, object> copy = RuntimePlainPayload.CloneDictionary(entry);
+            if (!copy.ContainsKey("is_enabled"))
+                copy["is_enabled"] = false;
+            target.Add(copy);
+        }
+    }
+
+    private Dictionary<string, object> CloneActiveShopContextPlain() =>
+        _has_runtime()
+            ? RuntimePlainPayload.CloneDictionary(Runtime.GetActiveShopContextPlain())
+            : new Dictionary<string, object>(StringComparer.Ordinal);
+
+    private Dictionary<string, object> CloneActiveContractBoardContextPlain() =>
+        _has_runtime()
+            ? RuntimePlainPayload.CloneDictionary(Runtime.GetActiveContractBoardContextPlain())
+            : new Dictionary<string, object>(StringComparer.Ordinal);
+
+    private Dictionary<string, object> CloneActiveForgeContextPlain() =>
+        _has_runtime()
+            ? RuntimePlainPayload.CloneDictionary(Runtime.GetActiveForgeContextPlain())
+            : new Dictionary<string, object>(StringComparer.Ordinal);
+
+    private Dictionary<string, object> CloneActiveStagecoachContextPlain() =>
+        _has_runtime()
+            ? RuntimePlainPayload.CloneDictionary(Runtime.GetActiveStagecoachContextPlain())
+            : new Dictionary<string, object>(StringComparer.Ordinal);
+
+    private static bool WindowDataMatchesPanelKindPlain(
+        IReadOnlyDictionary<string, object> context,
+        SettlementPanelKind panelKind
+    )
+    {
+        return ReadPlainString(context, "panel_kind")
+            == SettlementPanelKinds.ToPayloadValue(panelKind);
+    }
+
+    private static IReadOnlyList<object> ReadPlainList(
+        IReadOnlyDictionary<string, object> values,
+        string key
+    )
+    {
+        return values != null
+            && values.TryGetValue(key, out object value)
+            && value is IReadOnlyList<object> list
+                ? list
+                : Array.Empty<object>();
+    }
+
+    private static string ReadPlainString(
+        IReadOnlyDictionary<string, object> values,
+        string key,
+        string fallback = ""
+    )
+    {
+        if (values == null || !values.TryGetValue(key, out object value))
+            return fallback;
+        return value switch
+        {
+            string text => text,
+            StringName stringName => stringName.ToString(),
+            _ => fallback,
+        };
+    }
+
+    private static int ReadPlainInt(
+        IReadOnlyDictionary<string, object> values,
+        string key,
+        int fallback = 0
+    )
+    {
+        if (values == null || !values.TryGetValue(key, out object value))
+            return fallback;
+        return value switch
+        {
+            byte number => number,
+            short number => number,
+            int number => number,
+            long number when number >= int.MinValue && number <= int.MaxValue => (int)number,
+            _ => fallback,
+        };
+    }
+
+    private static Dictionary<string, object> EmptyPlainDictionary() =>
+        new(StringComparer.Ordinal);
 
     private void _open_contract_board_modal(string settlement_id, GDictionary payload)
     {

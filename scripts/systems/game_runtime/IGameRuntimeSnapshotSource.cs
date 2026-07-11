@@ -1,22 +1,25 @@
+using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
+// Snapshot sources expose only detached plain facts or borrowed typed domain state.
+// Godot collection projection belongs exclusively to the outer snapshot lease boundary.
 public interface IGameRuntimeSnapshotSource
 {
     bool IsBattleActive();
     string GetStatusText();
     string GetActiveModalId();
     RuntimeModalKind GetActiveModalKind();
-    GDictionary GetLogSnapshot(int limit);
-    GDictionary GetSelectedSettlement();
-    GDictionary GetSelectedWorldNpc();
+    IReadOnlyDictionary<string, object> GetLogSnapshotPlain(int limit);
+    WorldMapSettlementData GetSelectedSettlementData();
+    WorldMapNpcData GetSelectedWorldNpcData();
     EncounterAnchorData GetSelectedEncounterAnchor();
-    GDictionary GetSelectedWorldEvent();
-    GArray GetNearbyEncounterEntries(int limit);
-    GArray GetNearbyWorldEventEntries(int limit);
+    WorldMapEventData GetSelectedWorldEventData();
+    IReadOnlyList<IReadOnlyDictionary<string, object>> GetNearbyEncounterEntriesSnapshotPlain(
+        int limit
+    );
+    IReadOnlyList<IReadOnlyDictionary<string, object>> GetNearbyWorldEventEntriesSnapshotPlain(
+        int limit
+    );
     string GetActiveMapId();
     string GetActiveMapDisplayName();
     bool IsSubmapActive();
@@ -24,30 +27,33 @@ public interface IGameRuntimeSnapshotSource
     Vector2I GetPlayerCoord();
     bool IsPlayerVisibleOnWorldMap();
     Vector2I GetSelectedCoord();
-    GDictionary GetPendingSubmapPrompt();
+    IReadOnlyDictionary<string, object> GetPendingSubmapPromptSnapshotPlain();
     string GetSubmapReturnHintText();
-    GDictionary GetGameOverContext();
+    IReadOnlyDictionary<string, object> GetGameOverContextSnapshotPlain();
     PartyState GetPartyState();
     StringName GetPartySelectedMemberId();
     int GetPendingRewardCount();
-    GDictionary GetMemberAchievementSummary(StringName member_id);
+    IReadOnlyDictionary<string, object> GetMemberAchievementSummarySnapshotPlain(
+        StringName member_id
+    );
     AttributeSnapshot GetMemberAttributeSnapshot(StringName member_id);
-    GArray GetMemberEquippedEntries(StringName member_id);
+    IReadOnlyList<IReadOnlyDictionary<string, object>> GetMemberEquippedEntriesSnapshotPlain(
+        StringName member_id
+    );
     string GetMemberDisplayName(StringName member_id);
     string GetResolvedSettlementId();
-    GDictionary GetSettlementWindowData(string settlement_id);
+    IReadOnlyDictionary<string, object> GetSettlementHeadlessFactsPlain(
+        string settlement_id
+    );
     string GetSettlementFeedbackText();
-    GDictionary GetShopWindowData();
-    GDictionary GetContractBoardWindowData();
-    GDictionary GetActiveContractBoardContext();
-    GDictionary GetNpcQuestOfferWindowData();
-    GDictionary GetActiveNpcQuestOfferContext();
-    GDictionary GetActiveShopContext();
-    GDictionary GetForgeWindowData();
-    GDictionary GetStagecoachWindowData();
-    GDictionary GetCharacterInfoContext();
+    IReadOnlyDictionary<string, object> GetShopWindowDataSnapshotPlain();
+    IReadOnlyDictionary<string, object> GetContractBoardWindowDataSnapshotPlain();
+    IReadOnlyDictionary<string, object> GetNpcQuestOfferWindowDataSnapshotPlain();
+    IReadOnlyDictionary<string, object> GetForgeWindowDataSnapshotPlain();
+    IReadOnlyDictionary<string, object> GetStagecoachWindowDataSnapshotPlain();
+    IReadOnlyDictionary<string, object> GetCharacterInfoContextSnapshotPlain();
     string GetActiveWarehouseEntryLabel();
-    GDictionary GetWarehouseWindowData();
+    IReadOnlyDictionary<string, object> GetWarehouseWindowDataSnapshotPlain();
     ContingencySetupMutationResult GetLastContingencyCommandResultTyped();
     BattleState GetBattleState();
     BattleRuntimeModule GetBattleRuntime();
@@ -57,17 +63,17 @@ public interface IGameRuntimeSnapshotSource
     StringName GetSelectedBattleSkillVariantId();
     string GetSelectedBattleSkillName();
     string GetSelectedBattleSkillVariantName();
-    GVector2IArray GetSelectedBattleSkillTargetCoords();
-    GStringNameArray GetSelectedBattleSkillTargetUnitIds();
+    IReadOnlyList<Vector2I> GetSelectedBattleSkillTargetCoordsSnapshotPlain();
+    IReadOnlyList<StringName> GetSelectedBattleSkillTargetUnitIdsSnapshotPlain();
     int GetSelectedBattleSkillRequiredCoordCount();
     BattlePreview GetSelectedBattleSkillPreview();
     StringName GetActiveBattleEncounterId();
     string GetActiveBattleEncounterName();
     string GetBattleActiveUnitName();
-    GDictionary GetPendingBattleStartPrompt();
-    GDictionary GetBattleTerrainCounts();
+    IReadOnlyDictionary<string, object> GetPendingBattleStartPromptSnapshotPlain();
+    IReadOnlyDictionary<string, int> GetBattleTerrainCountsSnapshotTyped();
     PendingCharacterReward GetSnapshotReward();
-    GDictionary GetLastBattleLootSnapshot();
-    GDictionary GetCurrentPromotionPrompt();
+    IReadOnlyDictionary<string, object> GetLastBattleLootSnapshotPlain();
+    IReadOnlyDictionary<string, object> GetCurrentPromotionPromptSnapshotPlain();
     GameSession GetGameSession();
 }

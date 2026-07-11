@@ -375,7 +375,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             if (submap_hint_label != null)
                 submap_hint_label.Text = worldViewModel.SubmapReturnHintText;
             runtime_log_dock?.ShowWorldLogs(
-                _runtime_proxy.GetLogSnapshot(120),
+                _runtime_proxy.GetLogSnapshotPlain(120),
                 worldViewModel.ActiveMapDisplayName,
                 worldViewModel.StatusText
             );

@@ -38,7 +38,7 @@ public partial class run_text_command_reward_flow_regression : LifecycleTestScen
             GameTextCommandResult partyOpenResult = runner.ExecuteLine("party open");
             AssertCommandOk(partyOpenResult, "party open 应成功。");
             _test.Eq(
-                SnapshotString(partyOpenResult.snapshot, "modal", "id"),
+                SnapshotString(partyOpenResult.SnapshotTyped, "modal", "id"),
                 "party",
                 "party open 后应进入 party modal。"
             );
@@ -46,7 +46,7 @@ public partial class run_text_command_reward_flow_regression : LifecycleTestScen
             GameTextCommandResult partyCloseResult = runner.ExecuteLine("close");
             AssertCommandOk(partyCloseResult, "close 应通过 typed reward-flow 路由关闭 party modal。");
             _test.Eq(
-                SnapshotString(partyCloseResult.snapshot, "modal", "id"),
+                SnapshotString(partyCloseResult.SnapshotTyped, "modal", "id"),
                 "",
                 "close party 后应清空 modal。"
             );
@@ -74,7 +74,7 @@ public partial class run_text_command_reward_flow_regression : LifecycleTestScen
                 "promotion choose 缺失职业选项时应返回 InvalidState code。"
             );
             _test.Eq(
-                SnapshotString(promotionResult.snapshot, "modal", "id"),
+                SnapshotString(promotionResult.SnapshotTyped, "modal", "id"),
                 "promotion",
                 "promotion choose 失败后应仍停留在 promotion modal。"
             );
@@ -99,7 +99,7 @@ public partial class run_text_command_reward_flow_regression : LifecycleTestScen
                 "reward modal close 应返回 InvalidState code。"
             );
             _test.Eq(
-                SnapshotString(blockedCloseResult.snapshot, "modal", "id"),
+                SnapshotString(blockedCloseResult.SnapshotTyped, "modal", "id"),
                 "reward",
                 "reward modal close 失败后应仍停留在 reward modal。"
             );
@@ -107,12 +107,16 @@ public partial class run_text_command_reward_flow_regression : LifecycleTestScen
             GameTextCommandResult rewardConfirmResult = runner.ExecuteLine("reward confirm");
             AssertCommandOk(rewardConfirmResult, "reward confirm 应成功。");
             _test.Eq(
-                SnapshotString(rewardConfirmResult.snapshot, "modal", "id"),
+                SnapshotString(rewardConfirmResult.SnapshotTyped, "modal", "id"),
                 "",
                 "reward confirm 后应清空 modal。"
             );
             _test.Eq(
-                SnapshotInt(rewardConfirmResult.snapshot, "party", "pending_reward_count"),
+                SnapshotInt(
+                    rewardConfirmResult.SnapshotTyped,
+                    "party",
+                    "pending_reward_count"
+                ),
                 0,
                 "reward confirm 后待处理奖励数量应归零。"
             );
@@ -146,26 +150,61 @@ public partial class run_text_command_reward_flow_regression : LifecycleTestScen
         };
     }
 
-    private static string SnapshotString(GDictionary snapshot, string topLevelKey, string nestedKey) =>
+    private static string SnapshotString(
+        IReadOnlyDictionary<string, object> snapshot,
+        string topLevelKey,
+        string nestedKey
+    ) =>
         DictString(Dict(snapshot, topLevelKey), nestedKey, "");
 
-    private static int SnapshotInt(GDictionary snapshot, string topLevelKey, string nestedKey) =>
+    private static int SnapshotInt(
+        IReadOnlyDictionary<string, object> snapshot,
+        string topLevelKey,
+        string nestedKey
+    ) =>
         DictInt(Dict(snapshot, topLevelKey), nestedKey, 0);
 
-    private static GDictionary Dict(GDictionary dictionary, string key) =>
-        dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsGodotDictionary()
-            : new GDictionary();
+    private static IReadOnlyDictionary<string, object> Dict(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key
+    ) =>
+        dictionary != null
+        && dictionary.TryGetValue(key, out object rawValue)
+        && rawValue is IReadOnlyDictionary<string, object> nested
+            ? nested
+            : new Dictionary<string, object>(System.StringComparer.Ordinal);
 
-    private static string DictString(GDictionary dictionary, string key, string fallback) =>
-        dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsString()
-            : fallback;
+    private static string DictString(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key,
+        string fallback
+    )
+    {
+        if (dictionary == null || !dictionary.TryGetValue(key, out object rawValue))
+            return fallback;
+        return rawValue switch
+        {
+            string stringValue => stringValue,
+            StringName stringNameValue => stringNameValue.ToString(),
+            _ => fallback,
+        };
+    }
 
-    private static int DictInt(GDictionary dictionary, string key, int fallback) =>
-        dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsInt32()
-            : fallback;
+    private static int DictInt(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key,
+        int fallback
+    )
+    {
+        if (dictionary == null || !dictionary.TryGetValue(key, out object rawValue))
+            return fallback;
+        return rawValue switch
+        {
+            int intValue => intValue,
+            long longValue => (int)longValue,
+            _ => fallback,
+        };
+    }
 
     private void AssertCommandOk(GameTextCommandResult result, string message)
     {

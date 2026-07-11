@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -27,55 +28,58 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
                 runner,
                 $"{CommandPrefix(missingSkillMemberId)} save {missingSkillMemberId} hp_mirror_self"
             );
-            AssertLastResult(missingSkillSave.snapshot, missingSkillMemberId, "hp_mirror_self", ok: false, "missing_required_skill", charged: false, reservedMpMax: 0, materialQuantity: 0);
-            AssertNoSavedSetup(missingSkillSave.snapshot, missingSkillMemberId, "missing required skill should not save a contingency setup.");
+            AssertLastResult(missingSkillSave.SnapshotTyped, missingSkillMemberId, "hp_mirror_self", ok: false, "missing_required_skill", charged: false, reservedMpMax: 0, materialQuantity: 0);
+            AssertNoSavedSetup(missingSkillSave.SnapshotTyped, missingSkillMemberId, "missing required skill should not save a contingency setup.");
 
             string memberId = PrepareContingencyMemberFixture(runner);
             RunCommand(runner, $"{CommandPrefix(memberId)} status {memberId}");
-            AssertEmptyStatusSnapshot(runner.GetSession().BuildSnapshot(), memberId);
+            AssertEmptyStatusSnapshot(
+                runner.GetSession().BuildSnapshotPlain(),
+                memberId
+            );
 
             GameTextCommandResult saveResult = RunCommand(
                 runner,
                 $"{CommandPrefix(memberId)} save {memberId} hp_mirror_self"
             );
-            AssertLastResult(saveResult.snapshot, memberId, "hp_mirror_self", ok: true, "ok", charged: false, reservedMpMax: 0, materialQuantity: 0);
-            AssertSavedUnchargedStatus(saveResult.snapshot, saveResult.snapshot_text, memberId);
+            AssertLastResult(saveResult.SnapshotTyped, memberId, "hp_mirror_self", ok: true, "ok", charged: false, reservedMpMax: 0, materialQuantity: 0);
+            AssertSavedUnchargedStatus(saveResult.SnapshotTyped, saveResult.snapshot_text, memberId);
 
             GameTextCommandResult chargeResult = RunCommand(
                 runner,
                 $"{CommandPrefix(memberId)} charge {memberId} hp_mirror_self"
             );
-            AssertLastResult(chargeResult.snapshot, memberId, "hp_mirror_self", ok: true, "ok", charged: true, reservedMpMax: 6, materialQuantity: 1);
-            AssertChargedStatus(chargeResult.snapshot, chargeResult.snapshot_text, memberId);
-            AssertWarehouseQuantity(chargeResult.snapshot, 0, "charge should deduct one contingency gem.");
+            AssertLastResult(chargeResult.SnapshotTyped, memberId, "hp_mirror_self", ok: true, "ok", charged: true, reservedMpMax: 6, materialQuantity: 1);
+            AssertChargedStatus(chargeResult.SnapshotTyped, chargeResult.snapshot_text, memberId);
+            AssertWarehouseQuantity(chargeResult.SnapshotTyped, 0, "charge should deduct one contingency gem.");
 
             GameTextCommandResult editResult = RunCommandExpectFail(
                 runner,
                 $"{CommandPrefix(memberId)} edit {memberId} hp_mirror_self"
             );
-            AssertLastResult(editResult.snapshot, memberId, "hp_mirror_self", ok: false, "setup_charged", charged: true, reservedMpMax: 6, materialQuantity: 1);
-            AssertChargedStatus(editResult.snapshot, editResult.snapshot_text, memberId);
-            AssertWarehouseQuantity(editResult.snapshot, 0, "charged edit failure should not refund contingency gem.");
+            AssertLastResult(editResult.SnapshotTyped, memberId, "hp_mirror_self", ok: false, "setup_charged", charged: true, reservedMpMax: 6, materialQuantity: 1);
+            AssertChargedStatus(editResult.SnapshotTyped, editResult.snapshot_text, memberId);
+            AssertWarehouseQuantity(editResult.SnapshotTyped, 0, "charged edit failure should not refund contingency gem.");
 
             GameTextCommandResult clearResult = RunCommand(
                 runner,
                 $"{CommandPrefix(memberId)} clear {memberId} hp_mirror_self"
             );
-            AssertLastResult(clearResult.snapshot, memberId, "hp_mirror_self", ok: true, "ok", charged: false, reservedMpMax: 0, materialQuantity: 0);
-            AssertClearedStatus(clearResult.snapshot, clearResult.snapshot_text, memberId);
-            AssertWarehouseQuantity(clearResult.snapshot, 0, "clear should not refund contingency gem.");
+            AssertLastResult(clearResult.SnapshotTyped, memberId, "hp_mirror_self", ok: true, "ok", charged: false, reservedMpMax: 0, materialQuantity: 0);
+            AssertClearedStatus(clearResult.SnapshotTyped, clearResult.snapshot_text, memberId);
+            AssertWarehouseQuantity(clearResult.SnapshotTyped, 0, "clear should not refund contingency gem.");
 
             runner.GetSession().GetGameSessionTyped().SetBattleSaveLock(true);
             GameTextCommandResult lockedSave = RunCommandExpectFail(
                 runner,
                 $"{CommandPrefix(memberId)} save {memberId} hp_mirror_self"
             );
-            AssertLastResult(lockedSave.snapshot, memberId, "hp_mirror_self", ok: false, "battle_mutation_blocked", charged: false, reservedMpMax: 0, materialQuantity: 0);
+            AssertLastResult(lockedSave.SnapshotTyped, memberId, "hp_mirror_self", ok: false, "battle_mutation_blocked", charged: false, reservedMpMax: 0, materialQuantity: 0);
             GameTextCommandResult lockedCharge = RunCommandExpectFail(
                 runner,
                 $"{CommandPrefix(memberId)} charge {memberId} hp_mirror_self"
             );
-            AssertLastResult(lockedCharge.snapshot, memberId, "hp_mirror_self", ok: false, "battle_mutation_blocked", charged: false, reservedMpMax: 0, materialQuantity: 0);
+            AssertLastResult(lockedCharge.SnapshotTyped, memberId, "hp_mirror_self", ok: false, "battle_mutation_blocked", charged: false, reservedMpMax: 0, materialQuantity: 0);
             runner.GetSession().GetGameSessionTyped().SetBattleSaveLock(false);
         }
         finally
@@ -184,18 +188,25 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         );
     }
 
-    private void AssertEmptyStatusSnapshot(GDictionary snapshot, string memberId)
+    private void AssertEmptyStatusSnapshot(
+        IReadOnlyDictionary<string, object> snapshot,
+        string memberId
+    )
     {
-        GDictionary status = MemberStatus(snapshot, memberId);
+        IReadOnlyDictionary<string, object> status = MemberStatus(snapshot, memberId);
         _test.Eq(DictString(status, "member_id"), memberId, "status command should create member contingency status.");
         _test.Eq(DictInt(status, "setup_count", -1), 0, "status before save should report zero setups.");
     }
 
-    private void AssertSavedUnchargedStatus(GDictionary snapshot, string textSnapshot, string memberId)
+    private void AssertSavedUnchargedStatus(
+        IReadOnlyDictionary<string, object> snapshot,
+        string textSnapshot,
+        string memberId
+    )
     {
-        GDictionary status = MemberStatus(snapshot, memberId);
+        IReadOnlyDictionary<string, object> status = MemberStatus(snapshot, memberId);
         _test.Eq(DictInt(status, "setup_count", -1), 1, "save should create one setup.");
-        GDictionary setup = FirstSetup(status);
+        IReadOnlyDictionary<string, object> setup = FirstSetup(status);
         _test.Eq(DictString(setup, "setup_id"), "hp_mirror_self", "save should write hp_mirror_self setup id.");
         _test.Eq(DictString(setup, "display_name"), "濒死镜影", "save should write stable display name.");
         _test.False(DictBool(setup, "charged", true), "saved setup should be uncharged.");
@@ -204,7 +215,9 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         _test.Eq(DictString(Dict(setup, "trigger"), "type"), "hp_below_percent", "saved setup should expose trigger type.");
         _test.Eq(DictInt(Dict(setup, "trigger"), "percent", -1), 30, "saved setup should expose trigger percent.");
         _test.Eq(DictString(setup, "release_mode"), "burst_release", "saved setup should expose release mode.");
-        GDictionary spell = FirstDictionary(ArrayValue(setup, "stored_spells"));
+        IReadOnlyDictionary<string, object> spell = FirstDictionary(
+            ArrayValue(setup, "stored_spells")
+        );
         _test.Eq(DictString(spell, "stored_skill_id"), "mage_mirror_image", "saved setup should expose stored spell id.");
         _test.Eq(DictInt(spell, "cast_level", -1), 2, "saved setup should cap mirror image at learned level 2.");
         _test.Eq(DictInt(spell, "order", -1), 1, "saved setup should expose stored spell order.");
@@ -215,9 +228,13 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         _test.True(textSnapshot.Contains("spells=mage_mirror_image@2:self"), "text snapshot should render stored spell summary.");
     }
 
-    private void AssertChargedStatus(GDictionary snapshot, string textSnapshot, string memberId)
+    private void AssertChargedStatus(
+        IReadOnlyDictionary<string, object> snapshot,
+        string textSnapshot,
+        string memberId
+    )
     {
-        GDictionary setup = FirstSetup(MemberStatus(snapshot, memberId));
+        IReadOnlyDictionary<string, object> setup = FirstSetup(MemberStatus(snapshot, memberId));
         _test.True(DictBool(setup, "charged", false), "charged status should report charged=true.");
         _test.Eq(DictInt(setup, "reserved_mp_max", -1), 6, "charged status should reserve matrix_load * 2 MP.");
         _test.Eq(DictInt(setup, "effective_mp_max", -1), 24, "charged status should expose effective MP max after reservation.");
@@ -242,21 +259,29 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
             RunCommand(runner, "battle start settlement");
             AdvanceUntilBattleActive(runner);
 
-            GDictionary snapshot = runner.GetSession().BuildSnapshot();
-            GDictionary setup = FirstSetup(MemberStatus(snapshot, memberId));
+            IReadOnlyDictionary<string, object> snapshot =
+                runner.GetSession().BuildSnapshotPlain();
+            IReadOnlyDictionary<string, object> setup = FirstSetup(
+                MemberStatus(snapshot, memberId)
+            );
             _test.Eq(DictInt(setup, "effective_mp_max", -1), 24, "headless party setup snapshot should expose effective MP max.");
 
-            GDictionary battle = Dict(snapshot, "battle");
+            IReadOnlyDictionary<string, object> battle = Dict(snapshot, "battle");
             _test.True(DictBool(battle, "active", false), "headless battle snapshot should be active.");
-            GDictionary contingency = Dict(battle, "contingency");
+            IReadOnlyDictionary<string, object> contingency = Dict(battle, "contingency");
             _test.Eq(DictInt(contingency, "release_queue_count", -1), 0, "battle contingency snapshot should expose release queue count.");
-            GDictionary instance = FirstDictionary(ArrayValue(contingency, "instances"));
+            IReadOnlyDictionary<string, object> instance = FirstDictionary(
+                ArrayValue(contingency, "instances")
+            );
             _test.Eq(DictString(instance, "setup_id"), "hp_mirror_self", "battle contingency snapshot should expose setup id.");
             _test.Eq(DictString(instance, "trigger_type"), "hp_below_percent", "battle contingency snapshot should expose trigger type.");
             _test.Eq(DictString(instance, "release_mode"), "burst_release", "battle contingency snapshot should expose release mode.");
             _test.Eq(ArrayValue(instance, "stored_spells").Count, 1, "battle contingency snapshot should expose stored spells.");
 
-            GDictionary ownerUnit = FindBattleUnit(battle, DictString(instance, "owner_unit_id"));
+            IReadOnlyDictionary<string, object> ownerUnit = FindBattleUnit(
+                battle,
+                DictString(instance, "owner_unit_id")
+            );
             _test.Eq(DictString(ownerUnit, "contingency_state"), "armed", "battle unit snapshot should expose armed contingency state.");
             _test.False(DictBool(ownerUnit, "contingency_suppressed", true), "battle unit snapshot should expose suppressed flag.");
             _test.Eq(DictInt(ownerUnit, "contingency_release_queue_count", -1), 0, "battle unit snapshot should expose release queue count.");
@@ -286,15 +311,21 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
             InstallOwnerTurnContingencySetup(runner, memberId);
             using BattleEventBatch ownerTurnBatch = new();
             BattleRuntimeModule battleRuntime = runner.GetSession().GetRuntimeFacadeTyped().GetBattleRuntime();
-            GDictionary battle = Dict(runner.GetSession().BuildSnapshot(), "battle");
-            GDictionary ownerInstance = FirstDictionary(ArrayValue(Dict(battle, "contingency"), "instances"));
+            IReadOnlyDictionary<string, object> battle = Dict(
+                runner.GetSession().BuildSnapshotPlain(),
+                "battle"
+            );
+            IReadOnlyDictionary<string, object> ownerInstance = FirstDictionary(
+                ArrayValue(Dict(battle, "contingency"), "instances")
+            );
             BattleUnitState ownerBattleUnit = battleRuntime?.GetState()?.GetUnit(DictString(ownerInstance, "owner_unit_id"));
             _test.True(ownerBattleUnit != null, "headless contingency report fixture should resolve owner battle unit.");
             battleRuntime?._record_turn_started(ownerBattleUnit, ownerTurnBatch);
             battleRuntime?._append_batch_logs_to_state(ownerTurnBatch);
 
-            GDictionary reportSnapshot = runner.GetSession().BuildSnapshot();
-            GDictionary reportEntry = FindReportEntry(
+            IReadOnlyDictionary<string, object> reportSnapshot =
+                runner.GetSession().BuildSnapshotPlain();
+            IReadOnlyDictionary<string, object> reportEntry = FindReportEntry(
                 ArrayValue(Dict(reportSnapshot, "battle"), "report_entries"),
                 "contingency_triggered"
             );
@@ -313,9 +344,13 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         }
     }
 
-    private void AssertClearedStatus(GDictionary snapshot, string textSnapshot, string memberId)
+    private void AssertClearedStatus(
+        IReadOnlyDictionary<string, object> snapshot,
+        string textSnapshot,
+        string memberId
+    )
     {
-        GDictionary setup = FirstSetup(MemberStatus(snapshot, memberId));
+        IReadOnlyDictionary<string, object> setup = FirstSetup(MemberStatus(snapshot, memberId));
         _test.False(DictBool(setup, "charged", true), "clear status should report charged=false.");
         _test.Eq(DictInt(setup, "reserved_mp_max", -1), 0, "clear status should remove MP reservation.");
         _test.Eq(DictInt(setup, "material_quantity", -1), 0, "clear status should remove material receipt.");
@@ -323,14 +358,18 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         _test.True(textSnapshot.Contains("material=special_contingency_gem:0"), "text snapshot should render cleared material receipt.");
     }
 
-    private void AssertNoSavedSetup(GDictionary snapshot, string memberId, string message)
+    private void AssertNoSavedSetup(
+        IReadOnlyDictionary<string, object> snapshot,
+        string memberId,
+        string message
+    )
     {
-        GDictionary status = MemberStatus(snapshot, memberId);
+        IReadOnlyDictionary<string, object> status = MemberStatus(snapshot, memberId);
         _test.Eq(DictInt(status, "setup_count", -1), 0, message);
     }
 
     private void AssertLastResult(
-        GDictionary snapshot,
+        IReadOnlyDictionary<string, object> snapshot,
         string memberId,
         string setupId,
         bool ok,
@@ -340,7 +379,10 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         int materialQuantity
     )
     {
-        GDictionary result = Dict(Dict(snapshot, "party"), "contingency_last_result");
+        IReadOnlyDictionary<string, object> result = Dict(
+            Dict(snapshot, "party"),
+            "contingency_last_result"
+        );
         _test.Eq(DictBool(result, "ok", !ok), ok, "last contingency result ok mismatch.");
         _test.Eq(DictString(result, "reason_id"), reasonId, "last contingency result reason mismatch.");
         _test.Eq(DictString(result, "member_id"), memberId, "last contingency result member mismatch.");
@@ -351,12 +393,22 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         _test.Eq(DictInt(result, "material_quantity", -1), materialQuantity, "last contingency result material quantity mismatch.");
     }
 
-    private void AssertWarehouseQuantity(GDictionary snapshot, int expected, string message)
+    private void AssertWarehouseQuantity(
+        IReadOnlyDictionary<string, object> snapshot,
+        int expected,
+        string message
+    )
     {
         int actual = 0;
-        foreach (Variant entryValue in ArrayValue(Dict(Dict(snapshot, "warehouse"), "window_data"), "entries"))
+        foreach (
+            object entryValue in ArrayValue(
+                Dict(Dict(snapshot, "warehouse"), "window_data"),
+                "entries"
+            )
+        )
         {
-            GDictionary entry = entryValue.AsGodotDictionary();
+            if (entryValue is not IReadOnlyDictionary<string, object> entry)
+                continue;
             if (DictString(entry, "item_id") == GemId.ToString())
                 actual += DictInt(entry, "total_quantity");
         }
@@ -426,7 +478,7 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         );
 
     private void AssertStructuredContingencyReportEntry(
-        GDictionary entry,
+        IReadOnlyDictionary<string, object> entry,
         string decision,
         string reasonId,
         string memberId,
@@ -450,15 +502,19 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         _test.True(entry.ContainsKey("target_resolver"), "report should expose target_resolver field.");
     }
 
-    private static GDictionary FindReportEntry(GArray entries, string entryType)
+    private static IReadOnlyDictionary<string, object> FindReportEntry(
+        IReadOnlyList<object> entries,
+        string entryType
+    )
     {
-        foreach (Variant value in entries)
+        foreach (object value in entries)
         {
-            GDictionary entry = value.AsGodotDictionary();
+            if (value is not IReadOnlyDictionary<string, object> entry)
+                continue;
             if (DictString(entry, "entry_type") == entryType)
                 return entry;
         }
-        return new GDictionary();
+        return new Dictionary<string, object>();
     }
 
     private GameTextCommandResult RunCommand(GameTextCommandRunner runner, string commandText)
@@ -513,57 +569,114 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
             granted_source_type = "player",
         };
 
-    private static GDictionary MemberStatus(GDictionary snapshot, string memberId) =>
+    private static IReadOnlyDictionary<string, object> MemberStatus(
+        IReadOnlyDictionary<string, object> snapshot,
+        string memberId
+    ) =>
         Dict(Dict(Dict(snapshot, "party"), "contingency_status_by_member"), memberId);
 
-    private static GDictionary FirstSetup(GDictionary status) =>
-        FirstDictionary(ArrayValue(status, "setups"));
+    private static IReadOnlyDictionary<string, object> FirstSetup(
+        IReadOnlyDictionary<string, object> status
+    ) => FirstDictionary(ArrayValue(status, "setups"));
 
-    private static GDictionary FirstDictionary(GArray values)
+    private static IReadOnlyDictionary<string, object> FirstDictionary(
+        IReadOnlyList<object> values
+    )
     {
-        foreach (Variant value in values)
-            return value.AsGodotDictionary();
-        return new GDictionary();
+        foreach (object value in values)
+        {
+            if (value is IReadOnlyDictionary<string, object> dictionary)
+                return dictionary;
+        }
+        return new Dictionary<string, object>();
     }
 
-    private static GDictionary FindBattleUnit(GDictionary battle, string unitId)
+    private static IReadOnlyDictionary<string, object> FindBattleUnit(
+        IReadOnlyDictionary<string, object> battle,
+        string unitId
+    )
     {
-        foreach (Variant value in ArrayValue(battle, "units"))
+        foreach (object value in ArrayValue(battle, "units"))
         {
-            GDictionary unit = value.AsGodotDictionary();
+            if (value is not IReadOnlyDictionary<string, object> unit)
+                continue;
             if (DictString(unit, "unit_id") == unitId)
                 return unit;
         }
-        return new GDictionary();
+        return new Dictionary<string, object>();
     }
 
     private void AdvanceUntilBattleActive(GameTextCommandRunner runner, int maxTicks = 64)
     {
         for (int tick = 0; tick < maxTicks; tick++)
         {
-            if (DictBool(Dict(runner.GetSession().BuildSnapshot(), "battle"), "active", false))
+            bool battleActive = DictBool(
+                Dict(runner.GetSession().BuildSnapshotPlain(), "battle"),
+                "active",
+                false
+            );
+            if (battleActive)
                 return;
             RunCommand(runner, "battle tick 1");
         }
         _test.Fail("headless battle contingency snapshot fixture did not enter an active battle.");
     }
 
-    private static GArray ArrayValue(GDictionary dictionary, string key) =>
-        dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsGodotArray()
-            : new GArray();
+    private static IReadOnlyList<object> ArrayValue(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key
+    ) =>
+        dictionary != null
+        && dictionary.TryGetValue(key, out object value)
+        && value is IReadOnlyList<object> array
+            ? array
+            : System.Array.Empty<object>();
 
-    private static GDictionary Dict(GDictionary dictionary, string key) =>
-        dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsGodotDictionary()
-            : new GDictionary();
+    private static IReadOnlyDictionary<string, object> Dict(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key
+    ) =>
+        dictionary != null
+        && dictionary.TryGetValue(key, out object value)
+        && value is IReadOnlyDictionary<string, object> nested
+            ? nested
+            : new Dictionary<string, object>();
 
-    private static bool DictBool(GDictionary dictionary, string key, bool fallback) =>
-        dictionary != null && dictionary.ContainsKey(key) ? dictionary[key].AsBool() : fallback;
+    private static bool DictBool(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key,
+        bool fallback
+    ) =>
+        dictionary != null && dictionary.TryGetValue(key, out object value)
+            ? value is bool boolValue
+                ? boolValue
+                : fallback
+            : fallback;
 
-    private static int DictInt(GDictionary dictionary, string key, int fallback = 0) =>
-        dictionary != null && dictionary.ContainsKey(key) ? dictionary[key].AsInt32() : fallback;
+    private static int DictInt(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key,
+        int fallback = 0
+    ) =>
+        dictionary != null && dictionary.TryGetValue(key, out object value)
+            ? value switch
+            {
+                int intValue => intValue,
+                long longValue => (int)longValue,
+                _ => fallback,
+            }
+            : fallback;
 
-    private static string DictString(GDictionary dictionary, string key) =>
-        dictionary != null && dictionary.ContainsKey(key) ? dictionary[key].AsString() : "";
+    private static string DictString(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key
+    ) =>
+        dictionary != null && dictionary.TryGetValue(key, out object value)
+            ? value switch
+            {
+                string stringValue => stringValue,
+                StringName stringNameValue => stringNameValue.ToString(),
+                _ => "",
+            }
+            : "";
 }

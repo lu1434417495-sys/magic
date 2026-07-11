@@ -53,7 +53,9 @@ public partial class run_world_map_settlement_entry_regression : LifecycleTestSc
             _test.Eq(context.Facade.GetSelectedCoord(), probe.TargetCoord, "据点窗口打开时选中格应保持在目标据点格。");
             _test.False(context.Facade.IsPlayerVisibleOnWorldMap(), "据点窗口打开时世界地图上不应绘制玩家。");
 
-            GDictionary openSnapshot = context.Facade.BuildHeadlessSnapshot();
+            using GodotProjectionLease<GDictionary> openSnapshotLease =
+                context.Facade.BuildHeadlessSnapshotLease();
+            GDictionary openSnapshot = openSnapshotLease.Value;
             GDictionary worldSnapshot = Dict(openSnapshot, "world");
             _test.False(DictBool(worldSnapshot, "player_visible_on_map", true), "据点窗口打开时 world snapshot 应暴露隐藏玩家状态。");
             _test.True(

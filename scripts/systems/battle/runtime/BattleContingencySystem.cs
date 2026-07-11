@@ -525,6 +525,74 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
         };
     }
 
+    internal IReadOnlyDictionary<string, object> BuildSnapshotPlain()
+    {
+        var instances = new List<object>();
+        foreach (BattleContingencyInstance instance in GetInstancesTyped())
+        {
+            if (instance == null)
+                continue;
+            instances.Add(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["instance_id"] = instance.InstanceId.ToString(),
+                    ["setup_id"] = instance.SetupId.ToString(),
+                    ["owner_member_id"] = instance.OwnerMemberId.ToString(),
+                    ["owner_unit_id"] = instance.OwnerUnitId.ToString(),
+                    ["caster_unit_id"] = instance.CasterUnitId.ToString(),
+                    ["trigger_type"] = (instance.Setup?.Trigger?.Type ?? new StringName(""))
+                        .ToString(),
+                    ["release_mode"] = (instance.Setup?.ReleaseMode ?? new StringName(""))
+                        .ToString(),
+                    ["stored_spells"] = BuildStoredSpellSnapshotPlain(
+                        instance.Setup?.StoredSpells
+                    ),
+                    ["suppressed"] = instance.Suppressed,
+                    ["consumed"] = IsInstanceConsumed(instance),
+                }
+            );
+        }
+
+        var queued = new List<object>();
+        foreach (ContingencyReleaseContext context in _releaseQueue)
+        {
+            if (context == null || !context.IsValid)
+                continue;
+            queued.Add(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["instance_id"] = context.InstanceId.ToString(),
+                    ["setup_id"] = context.SetupId.ToString(),
+                    ["owner_member_id"] = context.OwnerMemberId.ToString(),
+                    ["owner_unit_id"] = context.OwnerUnitId.ToString(),
+                    ["trigger_type"] = context.TriggerType.ToString(),
+                    ["triggering_unit_id"] = context.TriggeringUnitId.ToString(),
+                    ["source_event_id"] = context.SourceEventId.ToString(),
+                }
+            );
+        }
+
+        var triggerCandidateIndex = new Dictionary<string, object>(StringComparer.Ordinal);
+        List<StringName> triggerTypes = new(_instanceIdsByTriggerType.Keys);
+        triggerTypes.Sort(CompareStringNamesOrdinal);
+        foreach (StringName triggerType in triggerTypes)
+        {
+            var instanceIds = new List<object>();
+            foreach (StringName instanceId in GetInstanceIdsForTrigger(triggerType))
+                instanceIds.Add(instanceId.ToString());
+            triggerCandidateIndex[triggerType.ToString()] = instanceIds;
+        }
+
+        return new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["instances"] = instances,
+            ["queued_release_contexts"] = queued,
+            ["release_queue_count"] = _releaseQueue.Count,
+            ["sequential_auto_cast_queue_count"] = GetQueuedSequentialAutoCastCount(),
+            ["trigger_candidate_index"] = triggerCandidateIndex,
+        };
+    }
+
     public void Dispose()
     {
         if (_disposed)
@@ -960,6 +1028,36 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
                     ["cast_level"] = spell.CastLevel,
                     ["order"] = spell.Order,
                     ["target_resolver"] = new GDictionary
+                    {
+                        ["type"] = spell.TargetResolver?.Type.ToString() ?? "",
+                    },
+                }
+            );
+        }
+        return result;
+    }
+
+    private static List<object> BuildStoredSpellSnapshotPlain(
+        IReadOnlyList<ContingencyStoredSpellEntryState> spells
+    )
+    {
+        var result = new List<object>();
+        foreach (
+            ContingencyStoredSpellEntryState spell in spells
+                ?? Array.Empty<ContingencyStoredSpellEntryState>()
+        )
+        {
+            if (spell == null)
+                continue;
+            result.Add(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["stored_skill_id"] = spell.StoredSkillId.ToString(),
+                    ["cast_level"] = spell.CastLevel,
+                    ["order"] = spell.Order,
+                    ["target_resolver"] = new Dictionary<string, object>(
+                        StringComparer.Ordinal
+                    )
                     {
                         ["type"] = spell.TargetResolver?.Type.ToString() ?? "",
                     },

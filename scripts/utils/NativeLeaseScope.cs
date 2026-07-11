@@ -69,6 +69,34 @@ internal sealed class NativeLeaseScope : IDisposable
         }
     }
 
+    internal bool Owns(object wrapper)
+    {
+        if (wrapper == null)
+            return false;
+        lock (OwnershipSync)
+            return _ownedByWrapper.ContainsKey(wrapper);
+    }
+
+    internal int OwnedCount
+    {
+        get
+        {
+            lock (OwnershipSync)
+                return _owned.Count;
+        }
+    }
+
+    internal IReadOnlyList<IDisposable> SnapshotOwnedWrappers()
+    {
+        lock (OwnershipSync)
+        {
+            var result = new List<IDisposable>(_owned.Count);
+            foreach (OwnedEntry entry in _owned)
+                result.Add(entry.Wrapper);
+            return result.AsReadOnly();
+        }
+    }
+
     internal T Own<T>(T wrapper, string reason)
         where T : class, IDisposable
     {

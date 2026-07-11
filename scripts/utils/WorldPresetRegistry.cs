@@ -74,16 +74,6 @@ internal static class WorldPresetRegistry
 
     internal static IReadOnlyList<WorldPresetInfo> ListPresetsTyped() => Presets;
 
-    internal static Godot.Collections.Array<GDictionary> ListPresets()
-    {
-        var presets = new Godot.Collections.Array<GDictionary>();
-        foreach (var preset in Presets)
-        {
-            presets.Add(preset.ToDictionary());
-        }
-        return presets;
-    }
-
     internal static bool TryGetPresetTyped(StringName presetId, out WorldPresetInfo preset)
     {
         foreach (var candidate in Presets)

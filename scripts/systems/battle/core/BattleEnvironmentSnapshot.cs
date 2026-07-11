@@ -106,7 +106,7 @@ public sealed class BattleEnvironmentSnapshot
         if (value.VariantType != Variant.Type.Array)
             yield break;
 
-        GArray values = value.AsGodotArray();
+        using GArray values = value.AsGodotArray();
         foreach (Variant rawValue in values)
         {
             StringName tag = ProgressionDataUtils.to_string_name(rawValue);

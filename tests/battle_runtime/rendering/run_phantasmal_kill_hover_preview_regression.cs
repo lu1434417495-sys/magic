@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -52,13 +53,13 @@ public partial class run_phantasmal_kill_hover_preview_regression : LifecycleTes
 
         _test.True(
             preview != null && preview.allowed,
-            $"Phantasmal Kill ground hover preview should be allowed. log={(preview != null ? string.Join(" | ", preview.log_lines) : "null")}"
+            $"Phantasmal Kill ground hover preview should be allowed. log={(preview != null ? string.Join(" | ", preview.LogLinesTyped) : "null")}"
         );
-        _test.Eq(preview.target_coords.Count, 49, "Phantasmal Kill hover should expose a 7x7 ground area.");
-        _test.True(preview.target_unit_ids.Contains(weakEnemy.unit_id), "hover preview should include in-area enemy.");
-        _test.True(preview.target_unit_ids.Contains(weakAlly.unit_id), "hover preview should include in-area ally.");
-        _test.True(preview.target_unit_ids.Contains(immuneEnemy.unit_id), "hover preview should include immune no-op unit.");
-        _test.False(preview.target_unit_ids.Contains(outsideEnemy.unit_id), "hover preview should exclude units outside 7x7.");
+        _test.Eq(preview.TargetCoordsTyped.Count, 49, "Phantasmal Kill hover should expose a 7x7 ground area.");
+        _test.True(preview.TargetUnitIdsTyped.Contains(weakEnemy.unit_id), "hover preview should include in-area enemy.");
+        _test.True(preview.TargetUnitIdsTyped.Contains(weakAlly.unit_id), "hover preview should include in-area ally.");
+        _test.True(preview.TargetUnitIdsTyped.Contains(immuneEnemy.unit_id), "hover preview should include immune no-op unit.");
+        _test.False(preview.TargetUnitIdsTyped.Contains(outsideEnemy.unit_id), "hover preview should exclude units outside 7x7.");
 
         using GodotProjectionLease<GDictionary> branchLease =
             BattlePreviewProjection.BuildSaveBranchLease(preview.SaveBranchPreviewTyped);
@@ -97,7 +98,7 @@ public partial class run_phantasmal_kill_hover_preview_regression : LifecycleTes
         );
 
         var adapter = new BattleHudAdapter();
-        GDictionary hover = adapter.BuildHoverPreview(
+        BattleHoverSnapshot hover = adapter.BuildHoverPreview(
             fixture.State,
             new Vector2I(4, 4),
             skill.SkillId,
@@ -105,7 +106,7 @@ public partial class run_phantasmal_kill_hover_preview_regression : LifecycleTes
             new Godot.Collections.Array<Vector2I> { new Vector2I(4, 4) },
             preview
         );
-        GDictionary snapshot = adapter.BuildSnapshot(
+        BattleHudSnapshot snapshot = adapter.BuildSnapshot(
             fixture.State,
             new Vector2I(4, 4),
             skill.SkillId,
@@ -119,14 +120,14 @@ public partial class run_phantasmal_kill_hover_preview_regression : LifecycleTes
             preview
         );
 
-        string hoverText = DictString(hover, "save_branch_preview_text");
+        string hoverText = hover.SaveBranchPreviewText;
         _test.True(hoverText.Contains("友军"), "hover text should warn about friendly-fire risk.");
         _test.True(hoverText.Contains("处决"), "hover text should mention execute risk.");
         _test.True(hoverText.Contains("免疫"), "hover text should mention immune/no-op targets.");
         _test.False(hoverText.Contains("POISON_LOG"), "hover text should come from structured summary_text, not log_lines.");
-        _test.False(DictString(hover, "damage_text").Contains("999"), "hover should suppress damage preview when save branch summary exists.");
+        _test.False(hover.DamageText.Contains("999"), "hover should suppress damage preview when save branch summary exists.");
 
-        string snapshotText = DictString(snapshot, "selected_skill_save_branch_preview_text");
+        string snapshotText = snapshot.SelectedSkillSaveBranchPreviewText;
         _test.True(snapshotText.Contains("友军"), "HUD selected-skill text should warn about friendly-fire risk.");
         _test.True(snapshotText.Contains("免疫"), "HUD selected-skill text should mention immune/no-op targets.");
 

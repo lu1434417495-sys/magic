@@ -237,12 +237,12 @@ public sealed class WorldMapDataContext
     internal WorldMapSettlementData GetSettlementAt(Vector2I coord) =>
         _settlementByCoord.TryGetValue(coord, out WorldMapSettlementRecordData settlement)
             ? settlement.ToSettlementData()
-            : WorldMapSettlementData.FromDictionary(new GDictionary());
+            : WorldMapSettlementData.Empty;
 
     internal WorldMapNpcData GetWorldNpcAt(Vector2I coord) =>
         _worldNpcByCoord.TryGetValue(coord, out WorldMapNpcData worldNpc)
             ? worldNpc
-            : WorldMapNpcData.FromDictionary(new GDictionary());
+            : WorldMapNpcData.Empty;
 
     internal EncounterAnchorData GetEncounterAnchorAt(Vector2I coord) =>
         _encounterAnchorByCoord.TryGetValue(coord, out EncounterAnchorData encounterAnchor)
@@ -1152,6 +1152,8 @@ public sealed class WorldMapSettlementData
 
     public bool IsEmpty => !Exists;
 
+    internal static WorldMapSettlementData Empty { get; } = new(false, "", "");
+
     public string DisplayNameOrFallback(string fallback) =>
         string.IsNullOrEmpty(DisplayName) ? fallback : DisplayName;
 
@@ -1317,6 +1319,9 @@ public sealed class WorldMapNpcData
     }
 
     public bool IsEmpty => !Exists;
+
+    internal static WorldMapNpcData Empty { get; } =
+        new(false, Vector2I.Zero, "", "", null);
 
     public bool HasValidCharacterInfoFields =>
         Exists

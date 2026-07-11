@@ -1,5 +1,5 @@
 using System;
-using Godot;
+using System.Collections.Generic;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -13,9 +13,9 @@ public sealed class GameTextCommandResult : IDisposable
         public string actual = "";
         public string expected = "";
 
-        internal GDictionary ToDictionary()
+        internal IReadOnlyDictionary<string, object> BuildFacts()
         {
-            return new GDictionary
+            return new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["ok"] = ok,
                 ["message"] = message,
@@ -26,26 +26,29 @@ public sealed class GameTextCommandResult : IDisposable
         }
     }
 
-    private readonly System.Collections.Generic.List<AssertionEntry> _assertions = new();
-    private readonly System.Collections.Generic.Dictionary<string, object> _snapshot =
-        new(System.StringComparer.Ordinal);
+    private readonly List<AssertionEntry> _assertions = new();
+    private readonly List<IReadOnlyDictionary<string, object>> _assertionFacts = new();
+    private readonly Dictionary<string, object> _snapshot = new(StringComparer.Ordinal);
 
     public string command_text = "";
     public bool ok = true;
     public GameRuntimeFacade.RuntimeCommandCode code = GameRuntimeFacade.RuntimeCommandCode.Ok;
     public bool skipped;
     public string message = "";
-    public GDictionary snapshot => ProjectDictionary(_snapshot);
     public string human_log = "";
     public string snapshot_text = "";
-    public Godot.Collections.Array<GDictionary> assertions
+
+    internal IReadOnlyDictionary<string, object> SnapshotTyped =>
+        RuntimePlainPayload.CloneDictionary(_snapshot);
+
+    internal IReadOnlyList<IReadOnlyDictionary<string, object>> AssertionFactsTyped
     {
         get
         {
-            var projection = new Godot.Collections.Array<GDictionary>();
-            foreach (AssertionEntry entry in _assertions)
-                projection.Add(entry.ToDictionary());
-            return projection;
+            var result = new List<IReadOnlyDictionary<string, object>>(_assertionFacts.Count);
+            foreach (IReadOnlyDictionary<string, object> facts in _assertionFacts)
+                result.Add(RuntimePlainPayload.CloneDictionary(facts));
+            return result.AsReadOnly();
         }
     }
 
@@ -57,39 +60,58 @@ public sealed class GameTextCommandResult : IDisposable
         string expected
     )
     {
-        _assertions.Add(
-            new AssertionEntry
-            {
-                ok = ok,
-                message = message ?? "",
-                summary = summary ?? "",
-                actual = actual ?? "",
-                expected = expected ?? "",
-            }
-        );
+        var entry = new AssertionEntry
+        {
+            ok = ok,
+            message = message ?? "",
+            summary = summary ?? "",
+            actual = actual ?? "",
+            expected = expected ?? "",
+        };
+        _assertions.Add(entry);
+        _assertionFacts.Add(entry.BuildFacts());
     }
 
-    internal void SetSnapshot(System.Collections.Generic.IReadOnlyDictionary<string, object> snapshot)
+    internal void SetSnapshot(IReadOnlyDictionary<string, object> snapshot)
     {
         _snapshot.Clear();
         if (snapshot == null)
             return;
-        foreach ((string key, object value) in CloneTypedDictionary(snapshot))
+        foreach ((string key, object value) in RuntimePlainPayload.CloneDictionary(snapshot))
             _snapshot[key] = value;
     }
 
-    internal System.Collections.Generic.IReadOnlyDictionary<string, object> SnapshotTyped =>
-        _snapshot;
+    internal GodotProjectionLease<GDictionary> BuildSnapshotLease() =>
+        RuntimePlainPayload.ProjectDictionaryLease(
+            SnapshotTyped,
+            "game-text-command-result-snapshot",
+            LifetimeDomain.Request,
+            "GameTextCommandResult.snapshot"
+        );
+
+    internal GodotProjectionLease<GArray> BuildAssertionFactsLease()
+    {
+        var facts = new List<object>();
+        foreach (IReadOnlyDictionary<string, object> assertion in AssertionFactsTyped)
+            facts.Add(RuntimePlainPayload.CloneDictionary(assertion));
+        return RuntimePlainPayload.ProjectArrayLease(
+            facts,
+            "game-text-command-result-assertions",
+            LifetimeDomain.Request,
+            "GameTextCommandResult.assertions"
+        );
+    }
 
     public void Dispose()
     {
         _assertions.Clear();
+        _assertionFacts.Clear();
         _snapshot.Clear();
     }
 
     public string Render()
     {
-        var lines = new System.Collections.Generic.List<string>();
+        var lines = new List<string>();
         if (skipped)
             lines.Add($"SKIP {command_text}");
         else
@@ -110,148 +132,4 @@ public sealed class GameTextCommandResult : IDisposable
         return string.Join("\n", lines);
     }
 
-    private static System.Collections.Generic.Dictionary<string, object> CloneTypedDictionary(
-        System.Collections.Generic.IReadOnlyDictionary<string, object> source
-    )
-    {
-        var result = new System.Collections.Generic.Dictionary<string, object>(
-            System.StringComparer.Ordinal
-        );
-        if (source == null)
-            return result;
-        foreach ((string key, object value) in source)
-            result[key] = CloneTypedValue(value);
-        return result;
-    }
-
-    private static System.Collections.Generic.List<object> CloneTypedArray(
-        System.Collections.Generic.IReadOnlyList<object> source
-    )
-    {
-        var result = new System.Collections.Generic.List<object>();
-        if (source == null)
-            return result;
-        foreach (object value in source)
-            result.Add(CloneTypedValue(value));
-        return result;
-    }
-
-    private static object CloneTypedValue(object value)
-    {
-        if (value == null)
-            return null;
-        if (value is Variant variantValue)
-            return CloneVariantValue(variantValue);
-        if (value is GDictionary godotDictionaryValue)
-            return CloneGodotDictionary(godotDictionaryValue);
-        if (value is GArray arrayValue)
-            return CloneGodotArray(arrayValue);
-        if (value is System.Collections.Generic.IReadOnlyDictionary<string, object> dictionaryValue)
-            return CloneTypedDictionary(dictionaryValue);
-        if (value is System.Collections.Generic.IReadOnlyList<object> listValue)
-            return CloneTypedArray(listValue);
-        if (value is GodotObject godotObjectValue)
-            return godotObjectValue.ToString() ?? "";
-        return value;
-    }
-
-    private static System.Collections.Generic.Dictionary<string, object> CloneGodotDictionary(
-        GDictionary source
-    )
-    {
-        var result = new System.Collections.Generic.Dictionary<string, object>(
-            System.StringComparer.Ordinal
-        );
-        if (source == null)
-            return result;
-        foreach (Variant rawKey in source.Keys)
-        {
-            string key = rawKey.VariantType switch
-            {
-                Variant.Type.String => rawKey.AsString(),
-                Variant.Type.StringName => rawKey.AsStringName().ToString(),
-                _ => "",
-            };
-            if (key.Length == 0)
-                continue;
-            result[key] = CloneTypedValue(source[rawKey]);
-        }
-        return result;
-    }
-
-    private static System.Collections.Generic.List<object> CloneGodotArray(GArray source)
-    {
-        var result = new System.Collections.Generic.List<object>();
-        if (source == null)
-            return result;
-        foreach (object value in source)
-            result.Add(CloneTypedValue(value));
-        return result;
-    }
-
-    private static object CloneVariantValue(Variant value)
-    {
-        return value.VariantType switch
-        {
-            Variant.Type.Nil => null,
-            Variant.Type.Bool => value.AsBool(),
-            Variant.Type.Int => value.AsInt64(),
-            Variant.Type.Float => value.AsDouble(),
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.Vector2I => value.AsVector2I(),
-            Variant.Type.Dictionary => CloneGodotDictionary(value.AsGodotDictionary()),
-            Variant.Type.Array => CloneGodotArray(value.AsGodotArray()),
-            Variant.Type.Object => value.ToString() ?? "",
-            _ => value.ToString() ?? "",
-        };
-    }
-
-    private static GDictionary ProjectDictionary(
-        System.Collections.Generic.IReadOnlyDictionary<string, object> source
-    )
-    {
-        var projection = new GDictionary();
-        if (source == null)
-            return projection;
-        foreach ((string key, object value) in source)
-            projection[key] = ProjectValue(value);
-        return projection;
-    }
-
-    private static Godot.Collections.Array ProjectArray(
-        System.Collections.Generic.IReadOnlyList<object> source
-    )
-    {
-        var projection = new Godot.Collections.Array();
-        if (source == null)
-            return projection;
-        foreach (object value in source)
-            projection.Add(ProjectValue(value));
-        return projection;
-    }
-
-    private static Variant ProjectValue(object value)
-    {
-        if (value == null)
-            return default;
-        if (value is System.Collections.Generic.IReadOnlyDictionary<string, object> dictionaryValue)
-            return ProjectDictionary(dictionaryValue);
-        if (value is System.Collections.Generic.IReadOnlyList<object> listValue)
-            return ProjectArray(listValue);
-        return value switch
-        {
-            Variant variantValue => variantValue,
-            bool boolValue => boolValue,
-            int intValue => intValue,
-            long longValue => longValue,
-            float floatValue => floatValue,
-            double doubleValue => doubleValue,
-            string stringValue => stringValue,
-            StringName stringNameValue => stringNameValue,
-            Vector2I vectorValue => vectorValue,
-            GodotObject godotObjectValue => godotObjectValue.ToString() ?? "",
-            _ => value.ToString() ?? "",
-        };
-    }
 }

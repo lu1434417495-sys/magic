@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
+using GArray = System.Collections.Generic.IReadOnlyList<object>;
+using GDictionary = System.Collections.Generic.IReadOnlyDictionary<string, object>;
 
 // Stable text snapshots for regression diffing and agent/debug inspection.
 // This renderer is a development aid, not a player-facing presentation layer.
@@ -10,7 +10,7 @@ public static class GameTextSnapshotRenderer
 {
     public static string RenderFullSnapshot(GDictionary snapshot)
     {
-        snapshot ??= new GDictionary();
+        snapshot ??= EmptyDictionary();
         var sections = new List<string>();
         AppendSection(sections, "SESSION", BuildSessionLines(GetDictionary(snapshot, "session")));
         AppendSection(
@@ -658,11 +658,9 @@ public static class GameTextSnapshotRenderer
     {
         if (section == null)
             return 0;
-        TryRead(section, key, out Variant entriesValue);
+        TryRead(section, key, out object entriesValue);
         if (TryAsArray(entriesValue, out var entries))
             return entries.Count;
-        if (entriesValue.VariantType == Variant.Type.PackedStringArray)
-            return entriesValue.AsStringArray().Length;
         return 0;
     }
 
@@ -934,7 +932,7 @@ public static class GameTextSnapshotRenderer
         {
             if (!TryAsDictionary(coordValue, out var coord))
             {
-                parts.Add(FormatCoord(new GDictionary()));
+                parts.Add(FormatCoord(EmptyDictionary()));
                 continue;
             }
             parts.Add(FormatCoord(coord));
@@ -999,8 +997,8 @@ public static class GameTextSnapshotRenderer
     private static List<string> SortedStringKeys(GDictionary values)
     {
         var keys = new List<string>();
-        foreach (object key in values.Keys)
-            keys.Add(StringFromValue(key));
+        foreach (string key in values.Keys)
+            keys.Add(key);
         keys.Sort(StringComparer.Ordinal);
         return keys;
     }
@@ -1030,52 +1028,57 @@ public static class GameTextSnapshotRenderer
 
     private static GDictionary GetDictionary(GDictionary dictionary, string key)
     {
-        return TryGetDictionary(dictionary, key, out var value) ? value : new GDictionary();
+        return TryGetDictionary(dictionary, key, out var value) ? value : EmptyDictionary();
     }
 
     private static GArray GetArray(GDictionary dictionary, string key)
     {
-        return TryGetArray(dictionary, key, out var value) ? value : new GArray();
+        return TryGetArray(dictionary, key, out var value) ? value : EmptyArray();
     }
 
     private static bool HasArray(GDictionary dictionary, string key)
     {
-        if (dictionary == null) return false;
-        TryRead(dictionary, key, out Variant v);
+        if (dictionary == null)
+            return false;
+        TryRead(dictionary, key, out object v);
         return TryAsArray(v, out _);
     }
 
     private static bool TryGetArray(GDictionary dictionary, string key, out GArray value)
     {
-        value = new GArray();
-        if (dictionary == null) return false;
-        TryRead(dictionary, key, out Variant v);
+        value = EmptyArray();
+        if (dictionary == null)
+            return false;
+        TryRead(dictionary, key, out object v);
         return TryAsArray(v, out value);
     }
 
     private static bool TryGetDictionary(GDictionary dictionary, string key, out GDictionary value)
     {
-        value = new GDictionary();
-        if (dictionary == null) return false;
-        TryRead(dictionary, key, out Variant v);
+        value = EmptyDictionary();
+        if (dictionary == null)
+            return false;
+        TryRead(dictionary, key, out object v);
         return TryAsDictionary(v, out value);
     }
 
     private static bool TryGetExactString(GDictionary dictionary, string key, out string value)
     {
         value = "";
-        if (dictionary == null) return false;
-        TryRead(dictionary, key, out Variant v);
-        if (v.VariantType != Variant.Type.String)
+        if (dictionary == null)
             return false;
-        value = v.AsString();
+        TryRead(dictionary, key, out object v);
+        if (v is not string text)
+            return false;
+        value = text;
         return true;
     }
 
     private static string GetString(GDictionary dictionary, string key, string fallback = "")
     {
-        if (dictionary == null) return fallback;
-        TryRead(dictionary, key, out Variant v);
+        if (dictionary == null)
+            return fallback;
+        TryRead(dictionary, key, out object v);
         return StringFromValue(v, fallback);
     }
 
@@ -1088,19 +1091,21 @@ public static class GameTextSnapshotRenderer
 
     private static int GetInt(GDictionary dictionary, string key, int fallback = 0)
     {
-        if (dictionary == null) return fallback;
-        TryRead(dictionary, key, out Variant v);
+        if (dictionary == null)
+            return fallback;
+        TryRead(dictionary, key, out object v);
         return IntFromValue(v, fallback);
     }
 
     private static bool ReadExactBool(GDictionary dictionary, string key, bool fallback = false)
     {
-        if (dictionary == null) return fallback;
-        TryRead(dictionary, key, out Variant v);
-        return v.VariantType == Variant.Type.Bool ? v.AsBool() : fallback;
+        if (dictionary == null)
+            return fallback;
+        TryRead(dictionary, key, out object v);
+        return v is bool flag ? flag : fallback;
     }
 
-    private static bool TryRead(GDictionary dictionary, string key, out Variant value)
+    private static bool TryRead(GDictionary dictionary, string key, out object value)
     {
         if (dictionary == null || string.IsNullOrEmpty(key))
         {
@@ -1123,12 +1128,7 @@ public static class GameTextSnapshotRenderer
             value = array;
             return true;
         }
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Array)
-        {
-            value = variant.AsGodotArray();
-            return true;
-        }
-        value = new GArray();
+        value = EmptyArray();
         return false;
     }
 
@@ -1139,12 +1139,7 @@ public static class GameTextSnapshotRenderer
             value = dictionary;
             return true;
         }
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Dictionary)
-        {
-            value = variant.AsGodotDictionary();
-            return true;
-        }
-        value = new GDictionary();
+        value = EmptyDictionary();
         return false;
     }
 
@@ -1154,14 +1149,7 @@ public static class GameTextSnapshotRenderer
             return fallback;
         if (rawValue is string text)
             return text;
-        if (rawValue is not Variant value)
-            return fallback;
-        return value.VariantType switch
-        {
-            Variant.Type.Nil => fallback,
-            Variant.Type.String => value.AsString(),
-            _ => fallback,
-        };
+        return fallback;
     }
 
     private static int IntFromValue(object rawValue, int fallback = 0)
@@ -1169,16 +1157,16 @@ public static class GameTextSnapshotRenderer
         if (rawValue is int intValue)
             return intValue;
         if (rawValue is long longValue)
-            return (int)longValue;
-        if (rawValue is not Variant value)
-            return fallback;
-        return value.VariantType switch
-        {
-            Variant.Type.Int => value.AsInt32(),
-            Variant.Type.Nil => fallback,
-            _ => fallback,
-        };
+            return longValue is >= int.MinValue and <= int.MaxValue
+                ? (int)longValue
+                : fallback;
+        return fallback;
     }
+
+    private static GDictionary EmptyDictionary() =>
+        new Dictionary<string, object>(StringComparer.Ordinal);
+
+    private static GArray EmptyArray() => new List<object>();
 
     private static string GetFileName(string path)
     {

@@ -1,6 +1,8 @@
 using System;
 using Godot;
 using Godot.Collections;
+using PlainDictionary = System.Collections.Generic.Dictionary<string, object>;
+using PlainList = System.Collections.Generic.List<object>;
 
 public sealed class GameRuntimeWarehouseHandler
 {
@@ -80,6 +82,15 @@ public sealed class GameRuntimeWarehouseHandler
         if (GetPartyState() == null || GetPartyWarehouseService() == null)
             return new Dictionary();
         return BuildWarehouseWindowData();
+    }
+
+    internal System.Collections.Generic.IReadOnlyDictionary<string, object> GetWarehouseWindowDataSnapshotPlain()
+    {
+        if (!HasRuntime())
+            return new PlainDictionary(StringComparer.Ordinal);
+        if (GetPartyState() == null || GetPartyWarehouseService() == null)
+            return new PlainDictionary(StringComparer.Ordinal);
+        return BuildWarehouseWindowDataSnapshotPlain();
     }
 
     internal GameRuntimeFacade.RuntimeCommandResult CommandOpenPartyWarehouseTyped()
@@ -460,6 +471,56 @@ public sealed class GameRuntimeWarehouseHandler
         return entries;
     }
 
+    private PlainList BuildWarehouseTargetMemberEntriesPlain()
+    {
+        var entries = new PlainList();
+        var seenMemberIds = new System.Collections.Generic.HashSet<StringName>();
+        PartyState partyState = GetPartyState();
+        if (!HasRuntime() || partyState == null)
+            return entries;
+
+        foreach (StringName memberId in partyState.active_member_ids)
+        {
+            if (
+                memberId == ""
+                || !seenMemberIds.Add(memberId)
+                || partyState.GetMemberState(memberId) == null
+            )
+            {
+                continue;
+            }
+            entries.Add(
+                new PlainDictionary(StringComparer.Ordinal)
+                {
+                    ["member_id"] = memberId.ToString(),
+                    ["display_name"] = GetMemberDisplayName(memberId),
+                    ["roster_role"] = "active",
+                }
+            );
+        }
+
+        foreach (StringName memberId in partyState.reserve_member_ids)
+        {
+            if (
+                memberId == ""
+                || !seenMemberIds.Add(memberId)
+                || partyState.GetMemberState(memberId) == null
+            )
+            {
+                continue;
+            }
+            entries.Add(
+                new PlainDictionary(StringComparer.Ordinal)
+                {
+                    ["member_id"] = memberId.ToString(),
+                    ["display_name"] = GetMemberDisplayName(memberId),
+                    ["roster_role"] = "reserve",
+                }
+            );
+        }
+        return entries;
+    }
+
     private string BuildWarehouseUseFailureMessage(PartyItemUseService.PartyItemUseResult useResult)
     {
         if (useResult == null)
@@ -571,6 +632,108 @@ public sealed class GameRuntimeWarehouseHandler
             ["default_target_member_id"] = ResolveWarehouseTargetMemberId().ToString(),
             ["entries"] = inventoryEntries,
         };
+    }
+
+    private System.Collections.Generic.IReadOnlyDictionary<string, object> BuildWarehouseWindowDataSnapshotPlain()
+    {
+        int totalCapacity = 0;
+        int usedSlots = 0;
+        int freeSlots = 0;
+        bool isOverCapacity = false;
+        var inventoryEntries = new PlainList();
+        PlainList targetMembers = BuildWarehouseTargetMemberEntriesPlain();
+
+        PartyWarehouseService partyWarehouseService = GetPartyWarehouseService();
+        if (partyWarehouseService != null)
+        {
+            totalCapacity = partyWarehouseService.GetTotalCapacity();
+            usedSlots = partyWarehouseService.GetUsedSlots();
+            freeSlots = partyWarehouseService.GetFreeSlots();
+            isOverCapacity = partyWarehouseService.IsOverCapacity();
+
+            GameSession gameSession = GetGameSession();
+            System.Collections.Generic.IReadOnlyDictionary<StringName, TraitDef> traitDefs =
+                gameSession != null
+                    ? gameSession.GetTraitDefsTyped()
+                    : new System.Collections.Generic.Dictionary<StringName, TraitDef>();
+
+            foreach (
+                WarehouseInventoryEntry inventoryEntry in
+                partyWarehouseService.GetInventoryEntriesTyped()
+            )
+            {
+                inventoryEntries.Add(
+                    BuildWarehouseInventoryEntrySnapshotPlain(inventoryEntry, traitDefs)
+                );
+            }
+        }
+
+        string summaryText = string.Format(
+            "容量 {0} 格  |  已用 {1} 格  |  空余 {2} 格",
+            totalCapacity,
+            usedSlots,
+            freeSlots
+        );
+        string statusText =
+            "当前版本支持查看、丢弃和让指定角色使用技能书。非装备物品会优先补满同类堆栈，装备则按实例独立占格。";
+        if (isOverCapacity)
+        {
+            statusText = string.Format(
+                "仓库当前超容 {0} 格。已存物品不会被删除，但此时不能继续新增条目，只能整理和移除。",
+                usedSlots - totalCapacity
+            );
+        }
+
+        return new PlainDictionary(StringComparer.Ordinal)
+        {
+            ["title"] = "共享仓库",
+            ["meta"] = string.Format(
+                "入口：{0}  |  规则：全队共享、按堆栈/实例占格、不计重量。",
+                GetActiveWarehouseMetaLabel()
+            ),
+            ["summary_text"] = summaryText,
+            ["status_text"] = statusText,
+            ["target_members"] = targetMembers,
+            ["default_target_member_id"] = ResolveWarehouseTargetMemberId().ToString(),
+            ["entries"] = inventoryEntries,
+        };
+    }
+
+    private System.Collections.Generic.IReadOnlyDictionary<string, object> BuildWarehouseInventoryEntrySnapshotPlain(
+        WarehouseInventoryEntry entry,
+        System.Collections.Generic.IReadOnlyDictionary<StringName, TraitDef> traitDefs
+    )
+    {
+        if (entry == null)
+            return new PlainDictionary(StringComparer.Ordinal);
+
+        var result = new PlainDictionary(StringComparer.Ordinal)
+        {
+            ["item_id"] = entry.ItemId.ToString(),
+            ["display_name"] = entry.DisplayName,
+            ["description"] = ItemTraitDetailText.Compose(
+                entry.Description,
+                entry.ItemDef,
+                traitDefs
+            ),
+            ["icon"] = entry.Icon,
+            ["quantity"] = entry.Quantity,
+            ["total_quantity"] = entry.TotalQuantity,
+            ["is_stackable"] = entry.IsStackable,
+            ["stack_limit"] = entry.StackLimit,
+            ["item_category"] = entry.ItemCategory.ToString(),
+            ["is_skill_book"] = entry.IsSkillBook,
+            ["granted_skill_id"] = entry.GrantedSkillId.ToString(),
+            ["storage_mode"] = entry.StorageMode.ToString(),
+        };
+        if (entry.HasEquipmentInstance)
+        {
+            result["instance_id"] = entry.InstanceId.ToString();
+            result["rarity"] = entry.Rarity;
+            result["current_durability"] = entry.CurrentDurability;
+        }
+        result["granted_skill_name"] = GetSkillDisplayName(entry.GrantedSkillId);
+        return result;
     }
 
     private PartyWarehouseService.WarehouseRemoveItemResult RemoveWarehouseItemOrInstance(

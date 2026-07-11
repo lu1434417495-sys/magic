@@ -1,7 +1,6 @@
+using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
 public partial class RuntimeLogDock : PanelContainer
@@ -70,7 +69,7 @@ public partial class RuntimeLogDock : PanelContainer
         _apply_static_skin();
         collapse_button.Pressed += _toggle_collapsed;
         opacity_button.Pressed += _cycle_opacity;
-        ShowWorldLogs(new GDictionary(), "", "");
+        ShowWorldLogs(new Dictionary<string, object>(StringComparer.Ordinal), "", "");
     }
 
     public bool IsCollapsed()
@@ -108,22 +107,25 @@ public partial class RuntimeLogDock : PanelContainer
     }
 
     public void ShowWorldLogs(
-        GDictionary log_snapshot,
+        IReadOnlyDictionary<string, object> log_snapshot,
         string active_map_display_name = "",
         string status_text = ""
     )
     {
-        log_snapshot ??= new GDictionary();
+        log_snapshot ??= new Dictionary<string, object>(StringComparer.Ordinal);
         List<DisplayLogEntry> displayEntries = _build_runtime_log_entries(
-            DictArray(log_snapshot, "entries")
+            PlainList(log_snapshot, "entries")
         );
-        string virtualPath = DictString(log_snapshot, "virtual_path", "");
+        string virtualPath = PlainString(log_snapshot, "virtual_path", "");
         string sourceId = $"runtime:{virtualPath}";
         string scopeText = !string.IsNullOrEmpty(active_map_display_name)
             ? active_map_display_name
             : "世界地图";
-        int entryCount = DictInt(log_snapshot, "entry_count", displayEntries.Count);
-        int bufferLimit = Mathf.Max(DictInt(log_snapshot, "buffer_limit", displayEntries.Count), 1);
+        int entryCount = PlainInt(log_snapshot, "entry_count", displayEntries.Count);
+        int bufferLimit = Mathf.Max(
+            PlainInt(log_snapshot, "buffer_limit", displayEntries.Count),
+            1
+        );
         string metaText = $"{scopeText}  ·  最近 {entryCount}/{bufferLimit} 条";
 
         _sync_entries(sourceId, WorldLogTitle, metaText, WorldLogEmptyText, displayEntries);
@@ -239,19 +241,25 @@ public partial class RuntimeLogDock : PanelContainer
             collapse_button.AddThemeFontSizeOverride("font_size", buttonFontSize);
     }
 
-    private static List<DisplayLogEntry> _build_runtime_log_entries(GArray entries)
+    private static List<DisplayLogEntry> _build_runtime_log_entries(
+        IReadOnlyList<object> entries
+    )
     {
         var displayEntries = new List<DisplayLogEntry>();
-        foreach (GDictionary entry in ReadDictionaryItems(entries))
+        foreach (IReadOnlyDictionary<string, object> entry in ReadPlainDictionaryItems(entries))
         {
-            string message = DictString(entry, "message", "").StripEdges();
+            string message = PlainString(entry, "message", "").StripEdges();
             if (string.IsNullOrEmpty(message))
                 continue;
-            int seq = DictInt(entry, "seq", 0);
-            string eventId = DictString(entry, "event_id", "");
-            string domain = DictString(entry, "domain", "runtime").ToUpper(System.Globalization.CultureInfo.GetCultureInfo(""));
-            string level = DictString(entry, "level", "info").ToUpper(System.Globalization.CultureInfo.GetCultureInfo(""));
-            string timeText = _shorten_time_text(DictString(entry, "time_text", ""));
+            int seq = PlainInt(entry, "seq", 0);
+            string eventId = PlainString(entry, "event_id", "");
+            string domain = PlainString(entry, "domain", "runtime").ToUpper(
+                System.Globalization.CultureInfo.GetCultureInfo("")
+            );
+            string level = PlainString(entry, "level", "info").ToUpper(
+                System.Globalization.CultureInfo.GetCultureInfo("")
+            );
+            string timeText = _shorten_time_text(PlainString(entry, "time_text", ""));
 
             displayEntries.Add(
                 new DisplayLogEntry(
@@ -450,49 +458,61 @@ public partial class RuntimeLogDock : PanelContainer
         };
     }
 
-    private static GArray DictArray(GDictionary dict, string key)
+    private static IReadOnlyList<object> PlainList(
+        IReadOnlyDictionary<string, object> values,
+        string key
+    )
     {
-        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Array)
-            return new GArray();
-        return value.AsGodotArray();
+        return TryReadPlain(values, key, out object value)
+            && value is IReadOnlyList<object> items
+                ? items
+                : Array.Empty<object>();
     }
 
-    private static string DictString(GDictionary dict, string key, string defaultValue)
+    private static string PlainString(
+        IReadOnlyDictionary<string, object> values,
+        string key,
+        string defaultValue
+    )
     {
-        if (!TryRead(dict, key, out Variant value))
-            return defaultValue;
-        return value.VariantType switch
-        {
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
-            _ => defaultValue,
-        };
+        return TryReadPlain(values, key, out object value) && value is string text
+            ? text
+            : defaultValue;
     }
 
-    private static int DictInt(GDictionary dict, string key, int defaultValue)
+    private static int PlainInt(
+        IReadOnlyDictionary<string, object> values,
+        string key,
+        int defaultValue
+    )
     {
-        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Int)
-            return defaultValue;
-        return value.AsInt32();
+        return TryReadPlain(values, key, out object value) && value is int number
+            ? number
+            : defaultValue;
     }
 
-    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray items)
+    private static IEnumerable<IReadOnlyDictionary<string, object>> ReadPlainDictionaryItems(
+        IReadOnlyList<object> items
+    )
     {
         if (items == null)
             yield break;
-        foreach (Variant item in items)
+        foreach (object item in items)
         {
-            if (item.VariantType == Variant.Type.Dictionary)
-                yield return item.AsGodotDictionary();
+            if (item is IReadOnlyDictionary<string, object> dictionary)
+                yield return dictionary;
         }
     }
 
-    private static bool TryRead(GDictionary dict, string key, out Variant value)
+    private static bool TryReadPlain(
+        IReadOnlyDictionary<string, object> values,
+        string key,
+        out object value
+    )
     {
-        value = default;
-        if (dict == null || !dict.ContainsKey(key))
-            return false;
-        value = dict[key];
-        return value.VariantType != Variant.Type.Nil;
+        value = null;
+        return values != null
+            && values.TryGetValue(key, out value)
+            && value != null;
     }
 }

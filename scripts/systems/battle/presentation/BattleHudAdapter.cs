@@ -1,12 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-using GIntArray = Godot.Collections.Array<int>;
-using GStringArray = Godot.Collections.Array<string>;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 public sealed class BattleHudAdapter : IDisposable
 {
@@ -31,6 +25,56 @@ public sealed class BattleHudAdapter : IDisposable
         public string message = "";
     }
 
+    private readonly record struct SelectionInfo(
+        StringName SelectionMode,
+        bool IsMultiUnit,
+        int MinTargetCount,
+        int MaxTargetCount,
+        bool ConfirmReady,
+        bool AutoCastReady
+    );
+
+    private readonly record struct DamagePreviewSummary(
+        bool HasDamage,
+        int MinDamage,
+        int MaxDamage,
+        string SummaryText
+    )
+    {
+        internal static DamagePreviewSummary Empty => new(false, 0, 0, "");
+    }
+
+    private sealed record FatePreviewFacts(
+        string SummaryText,
+        string TooltipText,
+        IReadOnlyList<BattleHudFateBadgeSnapshot> Badges
+    )
+    {
+        internal static FatePreviewFacts Empty { get; } =
+            new("", "", Array.Empty<BattleHudFateBadgeSnapshot>());
+    }
+
+    private readonly record struct PortraitData(
+        string PortraitKey,
+        string Glyph,
+        Color PrimaryColor,
+        Color SecondaryColor,
+        Color EdgeColor
+    );
+
+    private readonly record struct PortraitPalette(
+        Color PrimaryColor,
+        Color SecondaryColor,
+        Color EdgeColor
+    );
+
+    private readonly record struct SkillSlotState(
+        string FooterText,
+        bool IsDisabled,
+        int Cooldown,
+        string DisabledReason
+    );
+
     public static string EQUIPMENT_PREVIEW_DEFAULT_FAILURE_MESSAGE() =>
         EquipmentPreviewDefaultFailureMessage;
 
@@ -41,7 +85,6 @@ public sealed class BattleHudAdapter : IDisposable
         _queueReadyLookup.Clear();
         _equipmentPreviewCacheSignature = "";
         _equipmentPreviewCache.Clear();
-        GC.SuppressFinalize(this);
     }
 
     public void SetupRuntimeContext(GameRuntimeFacade runtime, GameSession gameSession = null)
@@ -50,15 +93,15 @@ public sealed class BattleHudAdapter : IDisposable
         _gameSession = gameSession;
     }
 
-    internal GDictionary BuildSnapshot(
+    internal BattleHudSnapshot BuildSnapshot(
         BattleState battle_state,
         Vector2I selected_coord,
         StringName selected_skill_id,
         string selected_skill_name,
         string selected_skill_variant_name,
-        GVector2IArray selected_skill_target_coords,
+        IEnumerable<Vector2I> selected_skill_target_coords,
         int selected_skill_required_coord_count,
-        GStringNameArray selected_skill_target_unit_ids,
+        IEnumerable<StringName> selected_skill_target_unit_ids,
         StringName selected_skill_variant_id,
         string encounter_display_name,
         BattlePreview selected_skill_runtime_preview,
@@ -69,17 +112,17 @@ public sealed class BattleHudAdapter : IDisposable
         selected_skill_entry_id = NormalizeStringName(selected_skill_entry_id);
         selected_skill_variant_id = NormalizeStringName(selected_skill_variant_id);
         if (battle_state == null)
-            return new GDictionary();
+            return BattleHudSnapshot.Empty;
 
-        GVector2IArray targetCoords = CloneVector2IArray(selected_skill_target_coords);
-        GStringNameArray targetUnitIds = CloneStringNameArray(selected_skill_target_unit_ids);
+        List<Vector2I> targetCoords = CloneVector2IList(selected_skill_target_coords);
+        List<StringName> targetUnitIds = CloneStringNameList(selected_skill_target_unit_ids);
         BattleUnitState activeUnit = GetUnit(battle_state, battle_state.active_unit_id);
         BattleCellState selectedCell = GetCell(battle_state, selected_coord);
         BattleUnitState selectedUnit = GetUnitAtCoord(battle_state, selected_coord);
         BattleUnitState focusUnit = selectedUnit ?? activeUnit;
         int selectedTargetCount = targetCoords.Count;
         BattlePreview runtimePreview = selected_skill_runtime_preview;
-        GDictionary selectionInfo = BuildSkillTargetSelectionInfo(
+        SelectionInfo selectionInfo = BuildSkillTargetSelectionInfo(
             battle_state,
             activeUnit,
             selected_skill_id,
@@ -88,17 +131,15 @@ public sealed class BattleHudAdapter : IDisposable
         AttackPreviewData hitPreview = BuildSelectedSkillHitPreview(
             runtimePreview
         );
-        GDictionary saveBranchPreview = BuildSelectedSkillSaveBranchPreview(
+        BattlePresentationPayload saveBranchPreview = BuildSelectedSkillSaveBranchPreview(
             runtimePreview
         );
-        GDictionary damagePreview = BuildSelectedSkillDamagePreview(
+        DamagePreviewSummary damagePreview = BuildSelectedSkillDamagePreview(
             runtimePreview
         );
-        if (saveBranchPreview.Count > 0)
-        {
-            damagePreview = new GDictionary();
-        }
-        GDictionary fatePreview = BuildSelectedSkillFatePreview(
+        if (!saveBranchPreview.IsEmpty)
+            damagePreview = DamagePreviewSummary.Empty;
+        FatePreviewFacts fatePreview = BuildSelectedSkillFatePreview(
             runtimePreview
         );
         string tooltipText = BuildSelectedSkillPreviewTooltip(
@@ -111,19 +152,18 @@ public sealed class BattleHudAdapter : IDisposable
             ? encounter_display_name
             : "战斗地图";
 
-        return new GDictionary
-        {
-            ["header_title"] = headerTitle,
-            ["header_subtitle"] = BuildHeaderSubtitle(battle_state, activeUnit),
-            ["round_badge"] = BuildRoundBadge(battle_state),
-            ["mode_text"] = FormatControlMode(
+        return new BattleHudSnapshot(
+            headerTitle: headerTitle,
+            headerSubtitle: BuildHeaderSubtitle(battle_state, activeUnit),
+            roundBadge: BuildRoundBadge(battle_state),
+            modeText: FormatControlMode(
                 activeUnit != null ? activeUnit.control_mode : new StringName("manual")
             ),
-            ["queue_entries"] = BuildQueueEntries(battle_state),
-            ["focus_unit"] = BuildFocusUnitSnapshot(focusUnit, battle_state),
-            ["skill_title"] = BuildSkillTitle(selected_skill_name, selected_skill_variant_name),
-            ["selected_skill_variant_name"] = selected_skill_variant_name ?? "",
-            ["skill_subtitle"] = BuildSkillSubtitle(
+            queueEntries: BuildQueueEntries(battle_state),
+            focusUnit: BuildFocusUnitSnapshot(focusUnit, battle_state),
+            skillTitle: BuildSkillTitle(selected_skill_name, selected_skill_variant_name),
+            selectedSkillVariantName: selected_skill_variant_name ?? "",
+            skillSubtitle: BuildSkillSubtitle(
                 activeUnit,
                 selected_skill_name,
                 selected_skill_variant_name,
@@ -134,141 +174,102 @@ public sealed class BattleHudAdapter : IDisposable
                 damagePreview,
                 saveBranchPreview
             ),
-            ["skill_slots"] = BuildSkillSlots(activeUnit, selected_skill_entry_id),
-            ["tile_text"] = BuildTileText(selected_coord, selectedCell, selectedUnit),
-            ["selected_skill_hit_preview_text"] = hitPreview?.SummaryText ?? "",
-            ["selected_skill_hit_preview_payload"] = ProjectHitPreview(hitPreview),
-            ["selected_skill_hit_badge_text"] = BuildSelectedSkillHitBadgeText(hitPreview),
-            ["selected_skill_hit_stage_rates"] = CopyIntArray(
-                hitPreview?.StageSuccessRates,
-                "BattleHudAdapter.snapshot.hit_stage_rates"
-            ),
-            ["selected_skill_damage_preview_text"] = DictString(damagePreview, "summary_text"),
-            ["selected_skill_damage_min"] = DictInt(damagePreview, "min_damage"),
-            ["selected_skill_damage_max"] = DictInt(damagePreview, "max_damage"),
-            ["selected_skill_save_branch_preview_payload"] = CopyDictionary(
-                saveBranchPreview,
-                "BattleHudAdapter.snapshot.save_branch_preview"
-            ),
-            ["selected_skill_save_branch_preview_text"] =
-                DictString(saveBranchPreview, "summary_text"),
-            ["selected_skill_fate_preview_text"] = DictString(fatePreview, "summary_text"),
-            ["selected_skill_fate_badges"] = CopyArray(
-                DictArray(fatePreview, "badges"),
-                "BattleHudAdapter.snapshot.fate_badges"
-            ),
-            ["selected_skill_preview_tooltip_text"] = tooltipText,
-            ["selected_skill_target_selection_mode"] = DictStringName(
-                    selectionInfo,
-                    "selection_mode",
-                    "single_unit"
-                )
-                .ToString(),
-            ["selected_skill_target_min_count"] = DictInt(selectionInfo, "min_target_count", 1),
-            ["selected_skill_target_max_count"] = DictInt(selectionInfo, "max_target_count", 1),
-            ["selected_skill_target_count"] = selectedTargetCount,
-            ["selected_skill_confirm_ready"] = DictBool(selectionInfo, "confirm_ready"),
-            ["selected_skill_auto_cast_ready"] = DictBool(selectionInfo, "auto_cast_ready"),
-            ["command_dock"] = BuildCommandDock(
+            skillSlots: BuildSkillSlots(activeUnit, selected_skill_entry_id),
+            tileText: BuildTileText(selected_coord, selectedCell, selectedUnit),
+            selectedSkillHitPreviewText: hitPreview?.SummaryText ?? "",
+            hitPreviewPayload: BattlePresentationPayload.FromAttackPreview(hitPreview),
+            selectedSkillHitBadgeText: BuildSelectedSkillHitBadgeText(hitPreview),
+            selectedSkillHitStageRates: BuildStageSuccessRates(hitPreview),
+            selectedSkillDamagePreviewText: damagePreview.SummaryText,
+            selectedSkillDamageMin: damagePreview.MinDamage,
+            selectedSkillDamageMax: damagePreview.MaxDamage,
+            saveBranchPreviewPayload: saveBranchPreview,
+            selectedSkillSaveBranchPreviewText: saveBranchPreview.SummaryText,
+            selectedSkillFatePreviewText: fatePreview.SummaryText,
+            selectedSkillFateBadges: fatePreview.Badges,
+            selectedSkillPreviewTooltipText: tooltipText,
+            selectedSkillTargetSelectionMode: selectionInfo.SelectionMode.ToString(),
+            selectedSkillTargetMinCount: selectionInfo.MinTargetCount,
+            selectedSkillTargetMaxCount: selectionInfo.MaxTargetCount,
+            selectedSkillTargetCount: selectedTargetCount,
+            selectedSkillConfirmReady: selectionInfo.ConfirmReady,
+            selectedSkillAutoCastReady: selectionInfo.AutoCastReady,
+            commandDock: BuildCommandDock(
                 battle_state,
                 activeUnit,
                 selected_skill_id,
                 selectedTargetCount
             ),
-            ["hint_text"] = BuildHintText(
+            hintText: BuildHintText(
                 battle_state,
                 activeUnit,
                 selected_skill_id,
                 selectedTargetCount,
                 selectionInfo
             ),
-            ["recent_battle_log_lines"] = BuildRecentBattleLogLines(battle_state),
-            ["equipment_panel"] = BuildEquipmentPanelSnapshot(
-                battle_state,
-                activeUnit
-            ),
-        };
+            recentBattleLogLines: BuildRecentBattleLogLines(battle_state),
+            equipmentPanel: BuildEquipmentPanelSnapshot(battle_state, activeUnit)
+        );
     }
 
-    internal GDictionary BuildHoverPreview(
+    internal BattleHoverSnapshot BuildHoverPreview(
         BattleState battle_state,
         Vector2I hover_coord,
         StringName selected_skill_id,
         StringName selected_skill_variant_id,
-        GVector2IArray valid_target_coords,
+        IEnumerable<Vector2I> valid_target_coords,
         BattlePreview hover_runtime_preview
     )
     {
         selected_skill_id = NormalizeStringName(selected_skill_id);
         selected_skill_variant_id = NormalizeStringName(selected_skill_variant_id);
-        var result = new GDictionary
-        {
-            ["hover_coord"] = hover_coord,
-            ["hover_is_valid_target"] = false,
-            ["has_selected_skill"] = !IsEmpty(selected_skill_id),
-            ["hit_preview"] = new GDictionary(),
-            ["hit_stage_rates"] = new GArray(),
-            ["hit_badge_text"] = "",
-            ["fate_badges"] = new GArray(),
-            ["save_branch_preview"] = new GDictionary(),
-            ["save_branch_preview_text"] = "",
-            ["damage_min"] = 0,
-            ["damage_max"] = 0,
-            ["damage_text"] = "",
-            ["target_unit"] = new GDictionary(),
-        };
+        bool hasSelectedSkill = !IsEmpty(selected_skill_id);
+        BattleHoverTargetUnitSnapshot targetUnit = null;
         if (battle_state == null || !battle_state.ContainsCell(hover_coord))
-            return result;
+            return EmptyHover(hover_coord, hasSelectedSkill, targetUnit);
 
         BattleUnitState hoveredUnit = GetUnitAtCoord(battle_state, hover_coord);
         if (hoveredUnit != null)
-            result["target_unit"] = BuildHoverTargetUnitSnapshot(hoveredUnit, battle_state);
+            targetUnit = BuildHoverTargetUnitSnapshot(hoveredUnit, battle_state);
 
-        if (IsEmpty(selected_skill_id))
-            return result;
+        if (!hasSelectedSkill)
+            return EmptyHover(hover_coord, false, targetUnit);
 
-        GVector2IArray normalizedValid = CloneVector2IArray(valid_target_coords);
+        List<Vector2I> normalizedValid = CloneVector2IList(valid_target_coords);
         bool isValidTarget = normalizedValid.Contains(hover_coord);
-        result["hover_is_valid_target"] = isValidTarget;
         if (!isValidTarget)
-            return result;
+            return EmptyHover(hover_coord, true, targetUnit);
 
         AttackPreviewData hitPreview = BuildSelectedSkillHitPreview(
             hover_runtime_preview
         );
-        GDictionary saveBranchPreview = BuildSelectedSkillSaveBranchPreview(
+        BattlePresentationPayload saveBranchPreview = BuildSelectedSkillSaveBranchPreview(
             hover_runtime_preview
         );
-        GDictionary damagePreview = BuildSelectedSkillDamagePreview(
+        DamagePreviewSummary damagePreview = BuildSelectedSkillDamagePreview(
             hover_runtime_preview
         );
-        if (saveBranchPreview.Count > 0)
-        {
-            damagePreview = new GDictionary();
-        }
-        GDictionary fatePreview = BuildSelectedSkillFatePreview(
+        if (!saveBranchPreview.IsEmpty)
+            damagePreview = DamagePreviewSummary.Empty;
+        FatePreviewFacts fatePreview = BuildSelectedSkillFatePreview(
             hover_runtime_preview
         );
 
-        result["hit_preview"] = ProjectHitPreview(hitPreview);
-        result["hit_stage_rates"] = CopyIntArray(
-            hitPreview?.StageSuccessRates,
-            "BattleHudAdapter.hover.hit_stage_rates"
+        return new BattleHoverSnapshot(
+            hoverCoord: hover_coord,
+            hoverIsValidTarget: true,
+            hasSelectedSkill: true,
+            hitPreview: BattlePresentationPayload.FromAttackPreview(hitPreview),
+            hitStageRates: BuildStageSuccessRates(hitPreview),
+            hitBadgeText: BuildSelectedSkillHitBadgeText(hitPreview),
+            fateBadges: fatePreview.Badges,
+            saveBranchPreview: saveBranchPreview,
+            saveBranchPreviewText: saveBranchPreview.SummaryText,
+            damageMin: damagePreview.MinDamage,
+            damageMax: damagePreview.MaxDamage,
+            damageText: damagePreview.SummaryText,
+            targetUnit: targetUnit
         );
-        result["hit_badge_text"] = BuildSelectedSkillHitBadgeText(hitPreview);
-        result["fate_badges"] = CopyArray(
-            DictArray(fatePreview, "badges"),
-            "BattleHudAdapter.hover.fate_badges"
-        );
-        result["save_branch_preview"] = CopyDictionary(
-            saveBranchPreview,
-            "BattleHudAdapter.hover.save_branch_preview"
-        );
-        result["save_branch_preview_text"] = DictString(saveBranchPreview, "summary_text");
-        result["damage_min"] = DictInt(damagePreview, "min_damage");
-        result["damage_max"] = DictInt(damagePreview, "max_damage");
-        result["damage_text"] = DictString(damagePreview, "summary_text");
-        return result;
     }
 
     public string FormatSelectedSkillHitBadgeText(AttackPreviewData hit_preview)
@@ -276,33 +277,15 @@ public sealed class BattleHudAdapter : IDisposable
         return BuildSelectedSkillHitBadgeText(hit_preview);
     }
 
-    private static GDictionary ProjectHitPreview(AttackPreviewData hitPreview)
-    {
-        return hitPreview?.ToDictionary() ?? new GDictionary();
-    }
-
-    private static GDictionary CopyDictionary(GDictionary source, string reason) =>
-        RuntimePayloadCopy.Dictionary(source, reason);
-
-    private static GArray CopyArray(GArray source, string reason) =>
-        RuntimePayloadCopy.Array(source, reason);
-
-    private static GIntArray CopyIntArray(GIntArray source, string reason)
-    {
-        GIntArray result = source != null ? source.Duplicate(true) : new GIntArray();
-        RuntimeStateLifecycle.MarkValueGraphFinalizerless(result, reason);
-        return result;
-    }
-
-    private GDictionary BuildHoverTargetUnitSnapshot(
+    private BattleHoverTargetUnitSnapshot BuildHoverTargetUnitSnapshot(
         BattleUnitState unitState,
         BattleState battleState
     )
     {
         if (unitState == null)
-            return new GDictionary();
+            return null;
 
-        GDictionary portraitData = BuildPortraitData(unitState, battleState);
+        PortraitData portraitData = BuildPortraitData(unitState, battleState);
         int hpMax = GetSnapshotValue(unitState, "hp_max", Mathf.Max(unitState.current_hp, 1));
         int mpMax = GetSnapshotValue(unitState, "mp_max", Mathf.Max(unitState.current_mp, 0));
         int staminaMax = GetSnapshotValue(
@@ -319,40 +302,60 @@ public sealed class BattleHudAdapter : IDisposable
         bool isEnemy =
             battleState != null && battleState.enemy_unit_ids.Contains(unitState.unit_id);
         bool isSelf = battleState != null && unitState.unit_id == battleState.active_unit_id;
-        return new GDictionary
-        {
-            ["unit_id"] = unitState.unit_id,
-            ["name"] = FormatUnitName(unitState, "单位"),
-            ["glyph"] = DictString(portraitData, "glyph", "?"),
-            ["portrait_key"] = DictString(portraitData, "portrait_key", ""),
-            ["primary_color"] = DictColor(
-                portraitData,
-                "primary_color",
-                new Color(0.62f, 0.47f, 0.32f, 1.0f)
-            ),
-            ["edge_color"] = DictColor(
-                portraitData,
-                "edge_color",
-                new Color(0.93f, 0.77f, 0.5f, 1.0f)
-            ),
-            ["hp_current"] = unitState.current_hp,
-            ["hp_max"] = Mathf.Max(hpMax, 1),
-            ["mp_current"] = unitState.current_mp,
-            ["mp_max"] = Mathf.Max(mpMax, 1),
-            ["mp_visible"] = IsResourceUnlocked(unitState, CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)),
-            ["stamina_current"] = unitState.current_stamina,
-            ["stamina_max"] = Mathf.Max(staminaMax, 1),
-            ["aura_current"] = unitState.current_aura,
-            ["aura_max"] = Mathf.Max(auraMax, 1),
-            ["aura_visible"] = IsResourceUnlocked(
+        return new BattleHoverTargetUnitSnapshot(
+            UnitId: unitState.unit_id,
+            Name: FormatUnitName(unitState, "单位"),
+            Glyph: portraitData.Glyph,
+            PortraitKey: portraitData.PortraitKey,
+            PrimaryColor: portraitData.PrimaryColor,
+            EdgeColor: portraitData.EdgeColor,
+            HpCurrent: unitState.current_hp,
+            HpMax: Mathf.Max(hpMax, 1),
+            MpCurrent: unitState.current_mp,
+            MpMax: Mathf.Max(mpMax, 1),
+            MpVisible: IsResourceUnlocked(unitState, CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)),
+            StaminaCurrent: unitState.current_stamina,
+            StaminaMax: Mathf.Max(staminaMax, 1),
+            AuraCurrent: unitState.current_aura,
+            AuraMax: Mathf.Max(auraMax, 1),
+            AuraVisible: IsResourceUnlocked(
                 unitState,
                 CombatResourceIds.ToStringName(CombatResourceIdKind.Aura)
             ),
-            ["ap_current"] = unitState.current_ap,
-            ["ap_max"] = Mathf.Max(apMax, 1),
-            ["is_enemy"] = isEnemy,
-            ["is_self"] = isSelf,
-        };
+            ApCurrent: unitState.current_ap,
+            ApMax: Mathf.Max(apMax, 1),
+            IsEnemy: isEnemy,
+            IsSelf: isSelf
+        );
+    }
+
+    private static BattleHoverSnapshot EmptyHover(
+        Vector2I coord,
+        bool hasSelectedSkill,
+        BattleHoverTargetUnitSnapshot targetUnit
+    ) =>
+        new(
+            coord,
+            false,
+            hasSelectedSkill,
+            BattlePresentationPayload.Empty,
+            Array.Empty<int>(),
+            "",
+            Array.Empty<BattleHudFateBadgeSnapshot>(),
+            BattlePresentationPayload.Empty,
+            "",
+            0,
+            0,
+            "",
+            targetUnit
+        );
+
+    private static IReadOnlyList<int> BuildStageSuccessRates(AttackPreviewData preview)
+    {
+        var result = new List<int>();
+        foreach (AttackPreviewStage stage in preview?.Stages ?? new List<AttackPreviewStage>())
+            result.Add(stage.SuccessRatePercent);
+        return result.AsReadOnly();
     }
 
     private string BuildHeaderSubtitle(BattleState battleState, BattleUnitState activeUnit)
@@ -360,20 +363,21 @@ public sealed class BattleHudAdapter : IDisposable
         return $"阶段 {FormatPhase(battleState.phase)}  |  友军 {battleState.ally_unit_ids.Count}  |  敌军 {battleState.enemy_unit_ids.Count}  |  当前 {FormatUnitName(activeUnit, "无")}";
     }
 
-    private GDictionary BuildRoundBadge(BattleState battleState)
+    private BattleHudRoundBadgeSnapshot BuildRoundBadge(BattleState battleState)
     {
         if (battleState.timeline == null)
-            return new GDictionary { ["tu_text"] = "TU --", ["ready_text"] = "READY 0" };
-        return new GDictionary
-        {
-            ["tu_text"] = $"TU {battleState.timeline.current_tu}",
-            ["ready_text"] = $"READY {battleState.timeline.ready_unit_ids.Count}",
-        };
+            return new BattleHudRoundBadgeSnapshot("TU --", "READY 0");
+        return new BattleHudRoundBadgeSnapshot(
+            $"TU {battleState.timeline.current_tu}",
+            $"READY {battleState.timeline.ready_unit_ids.Count}"
+        );
     }
 
-    private GArray BuildQueueEntries(BattleState battleState)
+    private IReadOnlyList<BattleHudQueueEntrySnapshot> BuildQueueEntries(
+        BattleState battleState
+    )
     {
-        var queueEntries = new GArray();
+        var queueEntries = new List<BattleHudQueueEntrySnapshot>();
         if (battleState == null)
             return queueEntries;
 
@@ -384,7 +388,7 @@ public sealed class BattleHudAdapter : IDisposable
                 _queueReadyLookup.Add(unitId);
         }
 
-        var orderedIds = new GStringNameArray();
+        var orderedIds = new List<StringName>();
         var seenIds = new HashSet<StringName>();
         if (IsLivingUnit(battleState, battleState.active_unit_id))
         {
@@ -422,37 +426,25 @@ public sealed class BattleHudAdapter : IDisposable
             BattleUnitState unitState = GetUnit(battleState, unitId);
             if (unitState == null)
                 continue;
-            GDictionary portraitData = BuildPortraitData(unitState, battleState);
+            PortraitData portraitData = BuildPortraitData(unitState, battleState);
             int hpMax = GetSnapshotValue(unitState, "hp_max", 1);
             queueEntries.Add(
-                new GDictionary
+                new BattleHudQueueEntrySnapshot
                 {
-                    ["slot_index"] = index + 1,
-                    ["name"] = FormatUnitName(unitState, "单位"),
-                    ["glyph"] = DictString(portraitData, "glyph", "?"),
-                    ["portrait_key"] = DictString(portraitData, "portrait_key", ""),
-                    ["primary_color"] = DictColor(
-                        portraitData,
-                        "primary_color",
-                        new Color(0.62f, 0.47f, 0.32f, 1.0f)
-                    ),
-                    ["secondary_color"] = DictColor(
-                        portraitData,
-                        "secondary_color",
-                        new Color(0.2f, 0.12f, 0.08f, 1.0f)
-                    ),
-                    ["edge_color"] = DictColor(
-                        portraitData,
-                        "edge_color",
-                        new Color(0.93f, 0.77f, 0.5f, 1.0f)
-                    ),
-                    ["hp_ratio"] = GetRatio(unitState.current_hp, hpMax),
-                    ["hp_text"] = $"HP {unitState.current_hp}/{hpMax}",
-                    ["ap_text"] =
+                    SlotIndex = index + 1,
+                    Name = FormatUnitName(unitState, "单位"),
+                    Glyph = portraitData.Glyph,
+                    PortraitKey = portraitData.PortraitKey,
+                    PrimaryColor = portraitData.PrimaryColor,
+                    SecondaryColor = portraitData.SecondaryColor,
+                    EdgeColor = portraitData.EdgeColor,
+                    HpRatio = GetRatio(unitState.current_hp, hpMax),
+                    HpText = $"HP {unitState.current_hp}/{hpMax}",
+                    ApText =
                         $"AP {unitState.current_ap} / 行动 {unitState.current_move_points}",
-                    ["is_active"] = unitId == battleState.active_unit_id,
-                    ["is_ready"] = _queueReadyLookup.Contains(unitId),
-                    ["is_enemy"] = battleState.enemy_unit_ids.Contains(unitId),
+                    IsActive = unitId == battleState.active_unit_id,
+                    IsReady = _queueReadyLookup.Contains(unitId),
+                    IsEnemy = battleState.enemy_unit_ids.Contains(unitId),
                 }
             );
         }
@@ -460,46 +452,32 @@ public sealed class BattleHudAdapter : IDisposable
         if (orderedIds.Count > QUEUE_ENTRY_LIMIT)
         {
             queueEntries.Add(
-                new GDictionary
-                {
-                    ["is_overflow"] = true,
-                    ["overflow_text"] = $"+{orderedIds.Count - QUEUE_ENTRY_LIMIT}",
-                }
+                BattleHudQueueEntrySnapshot.Overflow(
+                    $"+{orderedIds.Count - QUEUE_ENTRY_LIMIT}"
+                )
             );
         }
-        return queueEntries;
+        return queueEntries.AsReadOnly();
     }
 
-    private GDictionary BuildFocusUnitSnapshot(BattleUnitState unitState, BattleState battleState)
+    private BattleHudFocusUnitSnapshot BuildFocusUnitSnapshot(
+        BattleUnitState unitState,
+        BattleState battleState
+    )
     {
         if (unitState == null)
         {
-            return new GDictionary
-            {
-                ["name"] = "待命",
-                ["role_text"] = "未选中单位",
-                ["resource_info"] = BuildResourceInfo(null),
-                ["glyph"] = "?",
-                ["portrait_key"] = "",
-                ["primary_color"] = new Color(0.42f, 0.3f, 0.22f, 1.0f),
-                ["secondary_color"] = new Color(0.16f, 0.1f, 0.07f, 1.0f),
-                ["edge_color"] = new Color(0.88f, 0.72f, 0.48f, 1.0f),
-                ["hp_current"] = 0,
-                ["hp_max"] = 1,
-                ["mp_current"] = 0,
-                ["mp_max"] = 1,
-                ["stamina_current"] = 0,
-                ["stamina_max"] = 1,
-                ["aura_current"] = 0,
-                ["aura_max"] = 1,
-                ["ap_current"] = 0,
-                ["ap_max"] = 1,
-                ["move_current"] = 0,
-                ["move_max"] = BattleUnitState.DefaultMovePointsPerTurn,
-            };
+            return new BattleHudFocusUnitSnapshot(
+                "待命", "未选中单位", BuildResourceInfo(null), "?", "",
+                new Color(0.42f, 0.3f, 0.22f, 1.0f),
+                new Color(0.16f, 0.1f, 0.07f, 1.0f),
+                new Color(0.88f, 0.72f, 0.48f, 1.0f),
+                0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0,
+                BattleUnitState.DefaultMovePointsPerTurn
+            );
         }
 
-        GDictionary portraitData = BuildPortraitData(unitState, battleState);
+        PortraitData portraitData = BuildPortraitData(unitState, battleState);
         int hpMax = GetSnapshotValue(unitState, "hp_max", Mathf.Max(unitState.current_hp, 1));
         int mpMax = GetSnapshotValue(unitState, "mp_max", Mathf.Max(unitState.current_mp, 0));
         int staminaMax = GetSnapshotValue(
@@ -514,44 +492,31 @@ public sealed class BattleHudAdapter : IDisposable
             Mathf.Max(unitState.current_ap, 1)
         );
         int moveMax = BattleUnitState.DefaultMovePointsPerTurn;
-        return new GDictionary
-        {
-            ["name"] = FormatUnitName(unitState, "单位"),
-            ["role_text"] = BuildFocusRoleText(unitState, battleState),
-            ["resource_info"] = BuildResourceInfo(unitState),
-            ["glyph"] = DictString(portraitData, "glyph", "?"),
-            ["portrait_key"] = DictString(portraitData, "portrait_key", ""),
-            ["primary_color"] = DictColor(
-                portraitData,
-                "primary_color",
-                new Color(0.62f, 0.47f, 0.32f, 1.0f)
-            ),
-            ["secondary_color"] = DictColor(
-                portraitData,
-                "secondary_color",
-                new Color(0.2f, 0.12f, 0.08f, 1.0f)
-            ),
-            ["edge_color"] = DictColor(
-                portraitData,
-                "edge_color",
-                new Color(0.93f, 0.77f, 0.5f, 1.0f)
-            ),
-            ["hp_current"] = unitState.current_hp,
-            ["hp_max"] = Mathf.Max(hpMax, 1),
-            ["mp_current"] = unitState.current_mp,
-            ["mp_max"] = Mathf.Max(mpMax, 1),
-            ["stamina_current"] = unitState.current_stamina,
-            ["stamina_max"] = Mathf.Max(staminaMax, 1),
-            ["aura_current"] = unitState.current_aura,
-            ["aura_max"] = Mathf.Max(auraMax, 1),
-            ["ap_current"] = unitState.current_ap,
-            ["ap_max"] = Mathf.Max(apMax, 1),
-            ["move_current"] = unitState.current_move_points,
-            ["move_max"] = moveMax,
-        };
+        return new BattleHudFocusUnitSnapshot(
+            FormatUnitName(unitState, "单位"),
+            BuildFocusRoleText(unitState, battleState),
+            BuildResourceInfo(unitState),
+            portraitData.Glyph,
+            portraitData.PortraitKey,
+            portraitData.PrimaryColor,
+            portraitData.SecondaryColor,
+            portraitData.EdgeColor,
+            unitState.current_hp,
+            Mathf.Max(hpMax, 1),
+            unitState.current_mp,
+            Mathf.Max(mpMax, 1),
+            unitState.current_stamina,
+            Mathf.Max(staminaMax, 1),
+            unitState.current_aura,
+            Mathf.Max(auraMax, 1),
+            unitState.current_ap,
+            Mathf.Max(apMax, 1),
+            unitState.current_move_points,
+            moveMax
+        );
     }
 
-    private GDictionary BuildResourceInfo(BattleUnitState unitState)
+    private BattleHudResourceInfoSnapshot BuildResourceInfo(BattleUnitState unitState)
     {
         int hpCurrent = unitState?.current_hp ?? 0;
         int mpCurrent = unitState?.current_mp ?? 0;
@@ -565,38 +530,32 @@ public sealed class BattleHudAdapter : IDisposable
         int auraMax = GetSnapshotValue(unitState, "aura_max", Mathf.Max(auraCurrent, 0));
         int apMax = GetSnapshotValue(unitState, "action_points", Mathf.Max(apCurrent, 1));
         int moveMax = BattleUnitState.DefaultMovePointsPerTurn;
-        return new GDictionary
-        {
-            ["hp"] = ResourceLine(hpCurrent, Mathf.Max(hpMax, 1), "HP", true),
-            ["mp"] = ResourceLine(
+        return new BattleHudResourceInfoSnapshot(
+            ResourceLine(hpCurrent, Mathf.Max(hpMax, 1), "HP", true),
+            ResourceLine(
                 mpCurrent,
                 Mathf.Max(mpMax, 1),
                 "MP",
                 IsResourceUnlocked(unitState, CombatResourceIds.ToStringName(CombatResourceIdKind.Mp))
             ),
-            ["stamina"] = ResourceLine(staminaCurrent, Mathf.Max(staminaMax, 1), "ST", true),
-            ["aura"] = ResourceLine(
+            ResourceLine(staminaCurrent, Mathf.Max(staminaMax, 1), "ST", true),
+            ResourceLine(
                 auraCurrent,
                 Mathf.Max(auraMax, 1),
                 "AU",
                 IsResourceUnlocked(unitState, CombatResourceIds.ToStringName(CombatResourceIdKind.Aura))
             ),
-            ["ap"] = ResourceLine(apCurrent, Mathf.Max(apMax, 1), "AP", true),
-            ["move"] = ResourceLine(moveCurrent, moveMax, "MOVE", true),
-        };
+            ResourceLine(apCurrent, Mathf.Max(apMax, 1), "AP", true),
+            ResourceLine(moveCurrent, moveMax, "MOVE", true)
+        );
     }
 
-    private GDictionary ResourceLine(int current, int max, string label, bool visible)
-    {
-        return new GDictionary
-        {
-            ["current"] = current,
-            ["max"] = Mathf.Max(max, 1),
-            ["ratio"] = GetRatio(current, max),
-            ["label"] = label,
-            ["visible"] = visible,
-        };
-    }
+    private BattleHudResourceLineSnapshot ResourceLine(
+        int current,
+        int max,
+        string label,
+        bool visible
+    ) => new(current, Mathf.Max(max, 1), GetRatio(current, max), label, visible);
 
     private bool IsResourceUnlocked(BattleUnitState unitState, StringName resourceId)
     {
@@ -627,10 +586,10 @@ public sealed class BattleHudAdapter : IDisposable
         string selectedSkillVariantName,
         int selectedCount,
         int requiredCount,
-        GDictionary selectionInfo,
+        SelectionInfo selectionInfo,
         AttackPreviewData hitPreview,
-        GDictionary damagePreview,
-        GDictionary saveBranchPreview
+        DamagePreviewSummary damagePreview,
+        BattlePresentationPayload saveBranchPreview
     )
     {
         if (activeUnit == null)
@@ -638,14 +597,12 @@ public sealed class BattleHudAdapter : IDisposable
         if (string.IsNullOrEmpty(selectedSkillName))
             return $"当前单位 {FormatUnitName(activeUnit, "单位")}  ·  已装备技能 {BuildSkillAvailabilityView(activeUnit).SkillEntries.Count}";
         string title = BuildSkillTitle(selectedSkillName, selectedSkillVariantName);
-        if (DictBool(selectionInfo, "is_multi_unit"))
+        if (selectionInfo.IsMultiUnit)
         {
-            int minTargetCount = DictInt(selectionInfo, "min_target_count", 1);
-            int maxTargetCount = DictInt(
-                selectionInfo,
-                "max_target_count",
-                Mathf.Max(requiredCount, 1)
-            );
+            int minTargetCount = selectionInfo.MinTargetCount;
+            int maxTargetCount = selectionInfo.MaxTargetCount > 0
+                ? selectionInfo.MaxTargetCount
+                : Mathf.Max(requiredCount, 1);
             if (selectedCount <= 0)
                 return $"当前技能 {title}  ·  左键逐个点选目标单位";
             if (selectedCount < minTargetCount)
@@ -656,13 +613,13 @@ public sealed class BattleHudAdapter : IDisposable
         }
 
         var previewParts = new List<string>();
-        string saveBranchText = DictString(saveBranchPreview, "summary_text");
+        string saveBranchText = saveBranchPreview.SummaryText;
         if (!string.IsNullOrEmpty(saveBranchText))
             previewParts.Add(saveBranchText);
         string hitPreviewText = hitPreview?.SummaryText ?? "";
         if (!string.IsNullOrEmpty(hitPreviewText))
             previewParts.Add(hitPreviewText);
-        string damagePreviewText = DictString(damagePreview, "summary_text");
+        string damagePreviewText = damagePreview.SummaryText;
         if (!string.IsNullOrEmpty(damagePreviewText))
             previewParts.Add(damagePreviewText);
         if (previewParts.Count > 0)
@@ -672,9 +629,12 @@ public sealed class BattleHudAdapter : IDisposable
         return $"当前技能 {title}  ·  选点 {selectedCount}/{requiredCount}";
     }
 
-    private GArray BuildSkillSlots(BattleUnitState activeUnit, StringName selectedSkillEntryId)
+    private IReadOnlyList<BattleHudSkillSlotSnapshot> BuildSkillSlots(
+        BattleUnitState activeUnit,
+        StringName selectedSkillEntryId
+    )
     {
-        var skillSlots = new GArray();
+        var skillSlots = new List<BattleHudSkillSlotSnapshot>();
         if (activeUnit != null)
         {
             BattleSkillAvailabilityView availabilityView = BuildSkillAvailabilityView(activeUnit);
@@ -689,43 +649,41 @@ public sealed class BattleHudAdapter : IDisposable
                 string displayName = GetSkillDisplayName(skillDefinition, skillId);
                 string iconKey = GetSkillIconKey(skillDefinition, skillId);
                 Color accentColor = BuildSkillColor(iconKey, displayName);
-                GDictionary slotState = BuildSkillSlotState(activeUnit, skillDefinition, skillId);
+                SkillSlotState slotState = BuildSkillSlotState(activeUnit, skillDefinition, skillId);
                 string description =
                     skillDefinition != null ? skillDefinition.Description.StripEdges() : "";
                 skillSlots.Add(
-                    new GDictionary
-                    {
-                        ["index"] = index,
-                        ["is_empty"] = false,
-                        ["skill_entry_id"] = entry.EntryRef.SkillEntryId.ToString(),
-                        ["skill_id"] = skillId.ToString(),
-                        ["source_kind"] = FormatSkillEntrySourceKind(entry.EntryRef.SourceKind),
-                        ["source_label_key"] = FormatSkillEntrySourceLabelKey(entry.EntryRef.SourceKind),
-                        ["skill_level"] = entry.SkillLevel,
-                        ["is_battle_only"] =
-                            entry.EntryRef.SourceKind != BattleSkillEntrySourceKind.KnownSkill,
-                        ["suppressed_source_keys"] = ToUntypedStringNameArray(entry.SuppressedSourceKeys),
-                        ["display_name"] = displayName,
-                        ["short_name"] = BuildSkillShortName(displayName),
-                        ["description"] = description,
-                        ["icon_key"] = iconKey,
-                        ["hotkey"] = index < 9 ? (index + 1).ToString() : "",
-                        ["footer_text"] = DictString(slotState, "footer_text"),
-                        ["is_selected"] = entry.EntryRef.SkillEntryId == selectedSkillEntryId,
-                        ["is_disabled"] = DictBool(slotState, "is_disabled"),
-                        ["accent_color"] = accentColor,
-                        ["accent_dark"] = accentColor.Darkened(0.48f),
-                        ["edge_color"] = accentColor.Lightened(0.16f),
-                        ["cooldown"] = DictInt(slotState, "cooldown"),
-                        ["disabled_reason"] = DictString(slotState, "disabled_reason"),
-                    }
+                    new BattleHudSkillSlotSnapshot(
+                        index,
+                        false,
+                        entry.EntryRef.SkillEntryId.ToString(),
+                        skillId.ToString(),
+                        FormatSkillEntrySourceKind(entry.EntryRef.SourceKind),
+                        FormatSkillEntrySourceLabelKey(entry.EntryRef.SourceKind),
+                        entry.SkillLevel,
+                        entry.EntryRef.SourceKind != BattleSkillEntrySourceKind.KnownSkill,
+                        entry.SuppressedSourceKeys,
+                        displayName,
+                        BuildSkillShortName(displayName),
+                        description,
+                        iconKey,
+                        index < 9 ? (index + 1).ToString() : "",
+                        slotState.FooterText,
+                        entry.EntryRef.SkillEntryId == selectedSkillEntryId,
+                        slotState.IsDisabled,
+                        accentColor,
+                        accentColor.Darkened(0.48f),
+                        accentColor.Lightened(0.16f),
+                        slotState.Cooldown,
+                        slotState.DisabledReason
+                    )
                 );
             }
         }
 
         for (int index = skillSlots.Count; index < SKILL_GRID_SIZE; index++)
-            skillSlots.Add(new GDictionary { ["index"] = index, ["is_empty"] = true });
-        return skillSlots;
+            skillSlots.Add(new BattleHudSkillSlotSnapshot(index, true));
+        return skillSlots.AsReadOnly();
     }
 
     private BattleSkillAvailabilityView BuildSkillAvailabilityView(BattleUnitState activeUnit)
@@ -780,44 +738,52 @@ public sealed class BattleHudAdapter : IDisposable
         };
     }
 
-    private GDictionary BuildEquipmentPanelSnapshot(
+    private BattleHudEquipmentPanelSnapshot BuildEquipmentPanelSnapshot(
         BattleState battleState,
         BattleUnitState activeUnit
     )
     {
-        var snapshot = new GDictionary
-        {
-            ["title"] = "队伍共享背包（战斗局部）",
-            ["meta"] = "仅显示本场战斗复制出的队伍共享背包；据点共享仓库入口战中不可用。",
-            ["active_unit_id"] = "",
-            ["active_unit_name"] = "无当前行动单位",
-            ["ap_cost"] = CHANGE_EQUIPMENT_AP_COST,
-            ["can_change_equipment"] = false,
-            ["disabled_reason"] = "当前没有可换装单位。",
-            ["slots"] = new GArray(),
-            ["backpack_entries"] = new GArray(),
-            ["summary_text"] = "battle-local view 尚未就绪。",
-        };
+        const string title = "队伍共享背包（战斗局部）";
+        const string meta = "仅显示本场战斗复制出的队伍共享背包；据点共享仓库入口战中不可用。";
         if (battleState == null)
-            return snapshot;
-        if (activeUnit != null)
         {
-            snapshot["active_unit_id"] = activeUnit.unit_id.ToString();
-            snapshot["active_unit_name"] = FormatUnitName(activeUnit, "当前行动单位");
+            return new BattleHudEquipmentPanelSnapshot(
+                title,
+                meta,
+                "",
+                "无当前行动单位",
+                CHANGE_EQUIPMENT_AP_COST,
+                false,
+                "当前没有可换装单位。",
+                Array.Empty<BattleHudEquipmentSlotSnapshot>(),
+                Array.Empty<BattleHudBackpackEntrySnapshot>(),
+                "battle-local view 尚未就绪。"
+            );
         }
 
+        string activeUnitId = activeUnit?.unit_id.ToString() ?? "";
+        string activeUnitName = FormatUnitName(activeUnit, "无当前行动单位");
         string disabledReason = GetChangeEquipmentDisabledReason(battleState, activeUnit);
-        snapshot["can_change_equipment"] = string.IsNullOrEmpty(disabledReason);
-        snapshot["disabled_reason"] = disabledReason;
-        snapshot["slots"] = BuildEquipmentSlotEntries(activeUnit);
-        snapshot["backpack_entries"] = BuildBackpackEquipmentEntries(
+        IReadOnlyList<BattleHudEquipmentSlotSnapshot> slots =
+            BuildEquipmentSlotEntries(activeUnit);
+        IReadOnlyList<BattleHudBackpackEntrySnapshot> backpackEntries =
+            BuildBackpackEquipmentEntries(
             battleState,
             activeUnit,
             disabledReason
         );
-        snapshot["summary_text"] =
-            $"当前行动单位：{DictString(snapshot, "active_unit_name", "无")}  |  换装消耗 {CHANGE_EQUIPMENT_AP_COST} AP  |  背包装备实例 {DictArray(snapshot, "backpack_entries").Count} 件";
-        return snapshot;
+        return new BattleHudEquipmentPanelSnapshot(
+            title,
+            meta,
+            activeUnitId,
+            activeUnitName,
+            CHANGE_EQUIPMENT_AP_COST,
+            string.IsNullOrEmpty(disabledReason),
+            disabledReason,
+            slots,
+            backpackEntries,
+            $"当前行动单位：{activeUnitName}  |  换装消耗 {CHANGE_EQUIPMENT_AP_COST} AP  |  背包装备实例 {backpackEntries.Count} 件"
+        );
     }
 
     private string GetChangeEquipmentDisabledReason(
@@ -842,73 +808,59 @@ public sealed class BattleHudAdapter : IDisposable
         return "";
     }
 
-    private GArray BuildEquipmentSlotEntries(BattleUnitState activeUnit)
+    private IReadOnlyList<BattleHudEquipmentSlotSnapshot> BuildEquipmentSlotEntries(
+        BattleUnitState activeUnit
+    )
     {
-        var entries = new GArray();
+        var entries = new List<BattleHudEquipmentSlotSnapshot>();
         IReadOnlyDictionary<StringName, ItemDef> itemDefs = GetItemDefs();
         EquipmentState equipmentView = activeUnit?.GetEquipmentView() as EquipmentState;
         foreach (StringName slotId in EquipmentRules.GetAllSlotIdsTyped())
         {
-            var slotEntry = new GDictionary
-            {
-                ["slot_id"] = slotId.ToString(),
-                ["slot_label"] = EquipmentRules.GetSlotLabel(slotId),
-                ["is_filled"] = false,
-                ["is_entry_slot"] = false,
-                ["entry_slot_id"] = "",
-                ["item_id"] = "",
-                ["item_display_name"] = "空",
-                ["instance_id"] = "",
-                ["occupied_slot_ids"] = new GStringArray(),
-                ["occupied_slot_labels"] = new GStringArray(),
-                ["can_unequip"] = false,
-                ["disabled_reason"] = "",
-            };
-            if (equipmentView == null)
-            {
-                entries.Add(slotEntry);
-                continue;
-            }
-
-            StringName itemId = ProgressionDataUtils.to_string_name(
-                equipmentView.GetEquippedItemId(slotId)
+            StringName itemId = equipmentView != null
+                ? ProgressionDataUtils.to_string_name(equipmentView.GetEquippedItemId(slotId))
+                : new StringName("");
+            StringName entrySlotId = equipmentView != null
+                ? ProgressionDataUtils.to_string_name(equipmentView.GetEntrySlotForSlot(slotId))
+                : new StringName("");
+            bool isFilled = !IsEmpty(itemId) && !IsEmpty(entrySlotId);
+            IReadOnlyList<StringName> occupiedSlotIds = isFilled
+                ? equipmentView.GetOccupiedSlotIdsForEntryTyped(entrySlotId)
+                : Array.Empty<StringName>();
+            bool isEntrySlot = isFilled && entrySlotId == slotId;
+            entries.Add(
+                new BattleHudEquipmentSlotSnapshot(
+                    slotId.ToString(),
+                    EquipmentRules.GetSlotLabel(slotId),
+                    isFilled,
+                    isEntrySlot,
+                    isFilled ? entrySlotId.ToString() : "",
+                    isFilled ? itemId.ToString() : "",
+                    isFilled ? GetItemDisplayName(itemDefs, itemId) : "空",
+                    isFilled
+                        ? ProgressionDataUtils
+                            .to_string_name(equipmentView.GetEquippedInstanceId(slotId))
+                            .ToString()
+                        : "",
+                    StringifyStringNameArray(occupiedSlotIds),
+                    BuildSlotLabels(occupiedSlotIds),
+                    isEntrySlot,
+                    isFilled && !isEntrySlot
+                        ? $"该槽位由 {EquipmentRules.GetSlotLabel(entrySlotId)} 占用，请从入口槽卸下。"
+                        : ""
+                )
             );
-            StringName entrySlotId = ProgressionDataUtils.to_string_name(
-                equipmentView.GetEntrySlotForSlot(slotId)
-            );
-            if (IsEmpty(itemId) || IsEmpty(entrySlotId))
-            {
-                entries.Add(slotEntry);
-                continue;
-            }
-            IReadOnlyList<StringName> occupiedSlotIds =
-                equipmentView.GetOccupiedSlotIdsForEntryTyped(entrySlotId);
-            slotEntry["is_filled"] = true;
-            slotEntry["is_entry_slot"] = entrySlotId == slotId;
-            slotEntry["entry_slot_id"] = entrySlotId.ToString();
-            slotEntry["item_id"] = itemId.ToString();
-            slotEntry["item_display_name"] = GetItemDisplayName(itemDefs, itemId);
-            slotEntry["instance_id"] = ProgressionDataUtils
-                .to_string_name(equipmentView.GetEquippedInstanceId(slotId))
-                .ToString();
-            slotEntry["occupied_slot_ids"] = StringifyStringNameArray(occupiedSlotIds);
-            slotEntry["occupied_slot_labels"] = BuildSlotLabels(occupiedSlotIds);
-            slotEntry["can_unequip"] = entrySlotId == slotId;
-            if (entrySlotId != slotId)
-                slotEntry["disabled_reason"] =
-                    $"该槽位由 {EquipmentRules.GetSlotLabel(entrySlotId)} 占用，请从入口槽卸下。";
-            entries.Add(slotEntry);
         }
         return entries;
     }
 
-    private GArray BuildBackpackEquipmentEntries(
+    private IReadOnlyList<BattleHudBackpackEntrySnapshot> BuildBackpackEquipmentEntries(
         BattleState battleState,
         BattleUnitState activeUnit,
         string disabledReason
     )
     {
-        var entries = new GArray();
+        var entries = new List<BattleHudBackpackEntrySnapshot>();
         IReadOnlyDictionary<StringName, ItemDef> itemDefs = GetItemDefs();
         WarehouseState backpackView = battleState?.GetPartyBackpackView();
         if (backpackView == null)
@@ -936,7 +888,7 @@ public sealed class BattleHudAdapter : IDisposable
             StringName itemId = ProgressionDataUtils.to_string_name(instance.item_id);
             StringName instanceId = ProgressionDataUtils.to_string_name(instance.instance_id);
             ItemDef itemDef = GetItemDef(itemDefs, itemId);
-            var allowedSlotIds = new GStringNameArray();
+            var allowedSlotIds = new List<StringName>();
             string entryDisabledReason = disabledReason;
             if (itemDef == null)
             {
@@ -983,22 +935,19 @@ public sealed class BattleHudAdapter : IDisposable
             }
 
             entries.Add(
-                new GDictionary
-                {
-                    ["instance_id"] = instanceId.ToString(),
-                    ["item_id"] = itemId.ToString(),
-                    ["display_name"] = GetItemDisplayName(itemDefs, itemId),
-                    ["description"] = GetItemDescription(itemDef),
-                    ["icon"] = GetItemIcon(itemDef),
-                    ["allowed_slot_ids"] = StringifyStringNameArray(allowedSlotIds),
-                    ["allowed_slot_labels"] = BuildSlotLabels(allowedSlotIds),
-                    ["default_slot_id"] = defaultSlot.ToString(),
-                    ["occupied_slot_ids_by_default"] = StringifyStringNameArray(
-                        GetFinalOccupiedSlotIds(itemDef, defaultSlot)
-                    ),
-                    ["can_equip"] = string.IsNullOrEmpty(entryDisabledReason),
-                    ["disabled_reason"] = entryDisabledReason,
-                }
+                new BattleHudBackpackEntrySnapshot(
+                    instanceId.ToString(),
+                    itemId.ToString(),
+                    GetItemDisplayName(itemDefs, itemId),
+                    GetItemDescription(itemDef),
+                    GetItemIcon(itemDef),
+                    StringifyStringNameArray(allowedSlotIds),
+                    BuildSlotLabels(allowedSlotIds),
+                    defaultSlot.ToString(),
+                    StringifyStringNameArray(GetFinalOccupiedSlotIds(itemDef, defaultSlot)),
+                    string.IsNullOrEmpty(entryDisabledReason),
+                    entryDisabledReason
+                )
             );
         }
         return entries;
@@ -1008,7 +957,7 @@ public sealed class BattleHudAdapter : IDisposable
         BattleUnitState activeUnit,
         StringName itemId,
         StringName instanceId,
-        GStringNameArray allowedSlotIds,
+        IReadOnlyList<StringName> allowedSlotIds,
         string previewCacheSignature = ""
     )
     {
@@ -1104,7 +1053,7 @@ public sealed class BattleHudAdapter : IDisposable
         BattleUnitState activeUnit,
         StringName itemId,
         StringName instanceId,
-        GStringNameArray allowedSlotIds
+        IEnumerable<StringName> allowedSlotIds
     )
     {
         var slotParts = new List<string>();
@@ -1246,16 +1195,19 @@ public sealed class BattleHudAdapter : IDisposable
         return preview.LogLinesTyped.Count > 0 ? preview.LogLinesTyped[^1] : "";
     }
 
-    private static GStringNameArray GetFinalOccupiedSlotIds(ItemDef itemDef, StringName entrySlotId)
+    private static IReadOnlyList<StringName> GetFinalOccupiedSlotIds(
+        ItemDef itemDef,
+        StringName entrySlotId
+    )
     {
         if (itemDef == null || IsEmpty(entrySlotId))
-            return new GStringNameArray();
+            return Array.Empty<StringName>();
         return ToStringNameArray(itemDef.GetFinalOccupiedSlotIdsTyped(entrySlotId));
     }
 
-    private static GStringNameArray ToStringNameArray(IEnumerable<StringName> values)
+    private static List<StringName> ToStringNameArray(IEnumerable<StringName> values)
     {
-        var result = new GStringNameArray();
+        var result = new List<StringName>();
         if (values == null)
             return result;
         foreach (StringName value in values)
@@ -1295,9 +1247,9 @@ public sealed class BattleHudAdapter : IDisposable
         return itemDef != null ? itemDef.icon : "";
     }
 
-    private static GStringArray BuildSlotLabels(IEnumerable<StringName> slotIds)
+    private static IReadOnlyList<string> BuildSlotLabels(IEnumerable<StringName> slotIds)
     {
-        var labels = new GStringArray();
+        var labels = new List<string>();
         if (slotIds != null)
         {
             foreach (StringName slotId in slotIds)
@@ -1306,9 +1258,11 @@ public sealed class BattleHudAdapter : IDisposable
         return labels;
     }
 
-    private static GStringArray StringifyStringNameArray(IEnumerable<StringName> values)
+    private static IReadOnlyList<string> StringifyStringNameArray(
+        IEnumerable<StringName> values
+    )
     {
-        var result = new GStringArray();
+        var result = new List<string>();
         if (values != null)
         {
             foreach (StringName value in values)
@@ -1317,7 +1271,7 @@ public sealed class BattleHudAdapter : IDisposable
         return result;
     }
 
-    private GDictionary BuildSkillSlotState(
+    private SkillSlotState BuildSkillSlotState(
         BattleUnitState activeUnit,
         SkillDefinition skillDefinition,
         StringName skillId
@@ -1353,7 +1307,7 @@ public sealed class BattleHudAdapter : IDisposable
         return EnabledSkillSlot(apCost, mpCost, staminaCost, auraCost, cooldown);
     }
 
-    private GDictionary EnabledSkillSlot(
+    private SkillSlotState EnabledSkillSlot(
         int apCost,
         int mpCost,
         int staminaCost,
@@ -1361,24 +1315,21 @@ public sealed class BattleHudAdapter : IDisposable
         int cooldown
     )
     {
-        return new GDictionary
-        {
-            ["footer_text"] = BuildSkillFooter(apCost, mpCost, staminaCost, auraCost, cooldown),
-            ["is_disabled"] = false,
-            ["cooldown"] = cooldown,
-            ["disabled_reason"] = "",
-        };
+        return new SkillSlotState(
+            BuildSkillFooter(apCost, mpCost, staminaCost, auraCost, cooldown),
+            false,
+            cooldown,
+            ""
+        );
     }
 
-    private static GDictionary DisabledSkillSlot(string footerText, int cooldown, string reason)
+    private static SkillSlotState DisabledSkillSlot(
+        string footerText,
+        int cooldown,
+        string reason
+    )
     {
-        return new GDictionary
-        {
-            ["footer_text"] = footerText,
-            ["is_disabled"] = true,
-            ["cooldown"] = cooldown,
-            ["disabled_reason"] = reason,
-        };
+        return new SkillSlotState(footerText, true, cooldown, reason);
     }
 
     private static string BuildSkillFooter(
@@ -1412,7 +1363,7 @@ public sealed class BattleHudAdapter : IDisposable
         return $"地格 {FormatCoord(selectedCoord)}  ·  {FormatTerrainName(selectedCell)}  ·  高度 {(selectedCell != null ? selectedCell.current_height : 0)}  ·  占位 {FormatUnitName(selectedUnit, "无")}";
     }
 
-    private GDictionary BuildPortraitData(BattleUnitState unitState, BattleState battleState)
+    private PortraitData BuildPortraitData(BattleUnitState unitState, BattleState battleState)
     {
         string portraitKey = "";
         if (unitState != null && !IsEmpty(unitState.source_member_id))
@@ -1428,54 +1379,42 @@ public sealed class BattleHudAdapter : IDisposable
             battleState != null
             && unitState != null
             && battleState.enemy_unit_ids.Contains(unitState.unit_id);
-        GDictionary palette = BuildPortraitPalette(portraitKey, isEnemy);
-        return new GDictionary
-        {
-            ["portrait_key"] = portraitKey,
-            ["glyph"] = BuildUnitGlyph(unitState),
-            ["primary_color"] = DictColor(
-                palette,
-                "primary_color",
-                new Color(0.62f, 0.47f, 0.32f, 1.0f)
-            ),
-            ["secondary_color"] = DictColor(
-                palette,
-                "secondary_color",
-                new Color(0.2f, 0.12f, 0.08f, 1.0f)
-            ),
-            ["edge_color"] = DictColor(palette, "edge_color", new Color(0.93f, 0.77f, 0.5f, 1.0f)),
-        };
+        PortraitPalette palette = BuildPortraitPalette(portraitKey, isEnemy);
+        return new PortraitData(
+            portraitKey,
+            BuildUnitGlyph(unitState),
+            palette.PrimaryColor,
+            palette.SecondaryColor,
+            palette.EdgeColor
+        );
     }
 
-    private static GDictionary BuildPortraitPalette(string portraitKey, bool isEnemy)
+    private static PortraitPalette BuildPortraitPalette(string portraitKey, bool isEnemy)
     {
         string normalizedKey = portraitKey.ToLower(System.Globalization.CultureInfo.GetCultureInfo(""));
         if (normalizedKey.Contains("sword"))
         {
-            return new GDictionary
-            {
-                ["primary_color"] = new Color(0.28f, 0.55f, 0.85f, 1.0f),
-                ["secondary_color"] = new Color(0.1f, 0.18f, 0.32f, 1.0f),
-                ["edge_color"] = new Color(0.96f, 0.83f, 0.54f, 1.0f),
-            };
+            return new PortraitPalette(
+                new Color(0.28f, 0.55f, 0.85f, 1.0f),
+                new Color(0.1f, 0.18f, 0.32f, 1.0f),
+                new Color(0.96f, 0.83f, 0.54f, 1.0f)
+            );
         }
         if (normalizedKey.Contains("axe"))
         {
-            return new GDictionary
-            {
-                ["primary_color"] = new Color(0.78f, 0.34f, 0.22f, 1.0f),
-                ["secondary_color"] = new Color(0.28f, 0.09f, 0.05f, 1.0f),
-                ["edge_color"] = new Color(0.98f, 0.77f, 0.44f, 1.0f),
-            };
+            return new PortraitPalette(
+                new Color(0.78f, 0.34f, 0.22f, 1.0f),
+                new Color(0.28f, 0.09f, 0.05f, 1.0f),
+                new Color(0.98f, 0.77f, 0.44f, 1.0f)
+            );
         }
         if (normalizedKey.Contains("spear"))
         {
-            return new GDictionary
-            {
-                ["primary_color"] = new Color(0.24f, 0.72f, 0.53f, 1.0f),
-                ["secondary_color"] = new Color(0.07f, 0.2f, 0.14f, 1.0f),
-                ["edge_color"] = new Color(0.96f, 0.85f, 0.52f, 1.0f),
-            };
+            return new PortraitPalette(
+                new Color(0.24f, 0.72f, 0.53f, 1.0f),
+                new Color(0.07f, 0.2f, 0.14f, 1.0f),
+                new Color(0.96f, 0.85f, 0.52f, 1.0f)
+            );
         }
 
         int hashValue = Math.Abs((int)StringExtensions.Hash(normalizedKey));
@@ -1486,14 +1425,13 @@ public sealed class BattleHudAdapter : IDisposable
             isEnemy ? 0.82f : 0.88f,
             1.0f
         );
-        return new GDictionary
-        {
-            ["primary_color"] = baseColor,
-            ["secondary_color"] = baseColor.Darkened(0.62f),
-            ["edge_color"] = isEnemy
+        return new PortraitPalette(
+            baseColor,
+            baseColor.Darkened(0.62f),
+            isEnemy
                 ? new Color(0.9f, 0.46f, 0.3f, 1.0f)
-                : new Color(0.94f, 0.79f, 0.5f, 1.0f),
-        };
+                : new Color(0.94f, 0.79f, 0.5f, 1.0f)
+        );
     }
 
     private static Color BuildSkillColor(string iconKey, string displayName)
@@ -1564,14 +1502,12 @@ public sealed class BattleHudAdapter : IDisposable
         {
             BattleSpecialProfilePreviewFacts facts =
                 selectedSkillPreview.special_profile_preview_facts;
-            using GodotProjectionLease<GDictionary> factsLease =
-                MeteorSwarmProjection.BuildLease(facts);
-            GDictionary factsPayload = factsLease.Value;
+            MeteorSwarmPreviewFacts meteorFacts = facts as MeteorSwarmPreviewFacts;
             string summaryText = selectedSkillPreview.hit_preview?.SummaryText;
             if (string.IsNullOrEmpty(summaryText))
             {
                 summaryText =
-                    $"陨星雨影响 {DictInt(factsPayload, "impact_count", selectedSkillPreview.target_coords.Count)} 格、预计波及 {DictInt(factsPayload, "expected_target_count", selectedSkillPreview.target_unit_ids.Count)} 个单位。";
+                    $"陨星雨影响 {meteorFacts?.impact_count ?? selectedSkillPreview.TargetCoordsTyped.Count} 格、预计波及 {meteorFacts?.expected_target_count ?? selectedSkillPreview.TargetUnitIdsTyped.Count} 个单位。";
             }
             var hitPreview = new AttackPreviewData
             {
@@ -1588,39 +1524,28 @@ public sealed class BattleHudAdapter : IDisposable
         return null;
     }
 
-    private static GDictionary BuildSelectedSkillDamagePreview(BattlePreview selectedSkillPreview)
+    private static DamagePreviewSummary BuildSelectedSkillDamagePreview(
+        BattlePreview selectedSkillPreview
+    )
     {
-        if (selectedSkillPreview?.DamagePreviewTyped == null)
-            return new GDictionary();
-        using GodotProjectionLease<GDictionary> lease =
-            BattleDamagePreviewRangeProjection.BuildLease(
-                selectedSkillPreview.DamagePreviewTyped
-            );
-        if (lease.Value.Count > 0)
-            return CopyDictionary(
-                lease.Value,
-                "BattleHudAdapter.BuildSelectedSkillDamagePreview"
-            );
-        return new GDictionary();
+        BattleDamagePreviewRangeService.SkillDamagePreview? damagePreview =
+            selectedSkillPreview?.DamagePreviewTyped;
+        if (!damagePreview.HasValue || !damagePreview.Value.HasDamage)
+            return DamagePreviewSummary.Empty;
+        BattleDamagePreviewRangeService.SkillDamagePreview value = damagePreview.Value;
+        return new DamagePreviewSummary(
+            true,
+            value.MinDamage,
+            value.MaxDamage,
+            value.SummaryText
+        );
     }
 
-    private static GDictionary BuildSelectedSkillSaveBranchPreview(BattlePreview selectedSkillPreview)
-    {
-        if (selectedSkillPreview?.SaveBranchPreviewTyped == null)
-            return new GDictionary();
-        using GodotProjectionLease<GDictionary> lease =
-            BattlePreviewProjection.BuildSaveBranchLease(
-                selectedSkillPreview.SaveBranchPreviewTyped
-            );
-        if (lease.Value.Count > 0)
-            return CopyDictionary(
-                lease.Value,
-                "BattleHudAdapter.BuildSelectedSkillSaveBranchPreview"
-            );
-        return new GDictionary();
-    }
+    private static BattlePresentationPayload BuildSelectedSkillSaveBranchPreview(
+        BattlePreview selectedSkillPreview
+    ) => BattlePresentationPayload.FromSaveBranch(selectedSkillPreview?.SaveBranchPreviewTyped);
 
-    private GDictionary BuildSelectedSkillFatePreview(BattlePreview selectedSkillPreview)
+    private FatePreviewFacts BuildSelectedSkillFatePreview(BattlePreview selectedSkillPreview)
     {
         BattleFatePreviewData fatePreview = selectedSkillPreview?.FatePreviewTyped;
         if (fatePreview?.ForceHitNoCrit == true)
@@ -1629,13 +1554,13 @@ public sealed class BattleHudAdapter : IDisposable
             return BuildStandardFatePreview(fatePreview);
         if (selectedSkillPreview?.hit_preview?.ForceHitNoCrit == true)
             return BuildForceHitNoCritFatePreview();
-        return new GDictionary();
+        return FatePreviewFacts.Empty;
     }
 
-    private GDictionary BuildStandardFatePreview(BattleFatePreviewData fatePreview)
+    private FatePreviewFacts BuildStandardFatePreview(BattleFatePreviewData fatePreview)
     {
         if (fatePreview == null || !fatePreview.UsesFateAttack)
-            return new GDictionary();
+            return FatePreviewFacts.Empty;
 
         bool isDisadvantage = fatePreview.IsDisadvantage;
         int critGateDie = Mathf.Max(fatePreview.CritGateDie, 1);
@@ -1643,15 +1568,13 @@ public sealed class BattleHudAdapter : IDisposable
         int critThreshold = Mathf.Clamp(fatePreview.CritThreshold, 1, 20);
         bool critLocked = fatePreview.CritLocked;
         bool mercyActive = fatePreview.MercyActive;
-        var badges = new GArray
+        var badges = new List<BattleHudFateBadgeSnapshot>
         {
-            new GDictionary
-            {
-                ["text"] = isDisadvantage ? "劣势" : "未陷劣势",
-                ["tone"] = isDisadvantage ? new StringName("warning") : new StringName("calm"),
-                ["tooltip_text"] =
-                    $"当前命中与命运骰按{(isDisadvantage ? "劣势取低" : "正常单骰")}口径结算。",
-            },
+            new(
+                isDisadvantage ? "劣势" : "未陷劣势",
+                isDisadvantage ? new StringName("warning") : new StringName("calm"),
+                $"当前命中与命运骰按{(isDisadvantage ? "劣势取低" : "正常单骰")}口径结算。"
+            ),
         };
         var detailLines = new List<string>
         {
@@ -1661,138 +1584,107 @@ public sealed class BattleHudAdapter : IDisposable
         if (critLocked)
         {
             badges.Add(
-                new GDictionary
-                {
-                    ["text"] = "禁暴击",
-                    ["tone"] = new StringName("warning"),
-                    ["tooltip_text"] = "当前暴击已被锁定，不会触发暴击门或高位大成功。",
-                }
+                new BattleHudFateBadgeSnapshot(
+                    "禁暴击",
+                    new StringName("warning"),
+                    "当前暴击已被锁定，不会触发暴击门或高位大成功。"
+                )
             );
             detailLines.Add("暴击：已封锁");
         }
         else
         {
             badges.Add(
-                new GDictionary
-                {
-                    ["text"] = $"暴击门 d{critGateDie}",
-                    ["tone"] = new StringName("gate"),
-                    ["tooltip_text"] = $"命运暴击门尺寸：d{critGateDie}。",
-                }
+                new BattleHudFateBadgeSnapshot(
+                    $"暴击门 d{critGateDie}",
+                    new StringName("gate"),
+                    $"命运暴击门尺寸：d{critGateDie}。"
+                )
             );
             detailLines.Add($"暴击门：d{critGateDie}");
         }
         badges.Add(
-            new GDictionary
-            {
-                ["text"] = fumbleLowEnd <= 1 ? "大失败 1" : $"大失败 1-{fumbleLowEnd}",
-                ["tone"] = new StringName("danger"),
-                ["tooltip_text"] = $"当前大失败区间：1-{fumbleLowEnd}。",
-            }
+            new BattleHudFateBadgeSnapshot(
+                fumbleLowEnd <= 1 ? "大失败 1" : $"大失败 1-{fumbleLowEnd}",
+                new StringName("danger"),
+                $"当前大失败区间：1-{fumbleLowEnd}。"
+            )
         );
         detailLines.Add($"大失败：1-{fumbleLowEnd}");
         if (!critLocked && critGateDie == 20)
         {
             string highThreatText = $"高位大成功 {critThreshold}-20";
             badges.Add(
-                new GDictionary
-                {
-                    ["text"] = highThreatText,
-                    ["tone"] = new StringName("high_threat"),
-                    ["tooltip_text"] = $"当前高位大成功区间：{critThreshold}-20。",
-                }
+                new BattleHudFateBadgeSnapshot(
+                    highThreatText,
+                    new StringName("high_threat"),
+                    $"当前高位大成功区间：{critThreshold}-20。"
+                )
             );
             detailLines.Add(highThreatText);
         }
         if (mercyActive)
         {
             badges.Add(
-                new GDictionary
-                {
-                    ["text"] = "命运的怜悯",
-                    ["tone"] = new StringName("mercy"),
-                    ["tooltip_text"] = "effective_luck<=-5 且处于劣势时，暴击门只额外放大一档。",
-                }
+                new BattleHudFateBadgeSnapshot(
+                    "命运的怜悯",
+                    new StringName("mercy"),
+                    "effective_luck<=-5 且处于劣势时，暴击门只额外放大一档。"
+                )
             );
             detailLines.Add("命运的怜悯：已生效");
         }
 
-        return new GDictionary
-        {
-            ["summary_text"] = BuildFatePreviewSummaryText(badges),
-            ["tooltip_text"] = string.Join("\n", detailLines),
-            ["badges"] = badges,
-            ["is_disadvantage"] = isDisadvantage,
-            ["effective_luck"] = fatePreview.EffectiveLuck,
-            ["crit_gate_die"] = critGateDie,
-            ["fumble_low_end"] = fumbleLowEnd,
-            ["crit_threshold"] = critThreshold,
-            ["crit_locked"] = critLocked,
-            ["mercy_active"] = mercyActive,
-        };
+        return new FatePreviewFacts(
+            BuildFatePreviewSummaryText(badges),
+            string.Join("\n", detailLines),
+            badges
+        );
     }
 
-    private GDictionary BuildForceHitNoCritFatePreview()
+    private FatePreviewFacts BuildForceHitNoCritFatePreview()
     {
-        var badges = new GArray
+        var badges = new List<BattleHudFateBadgeSnapshot>
         {
-            new GDictionary
-            {
-                ["text"] = "必定命中",
-                ["tone"] = new StringName("calm"),
-                ["tooltip_text"] = "这次攻击不会再进行命中骰判定，直接视为命中。",
-            },
-            new GDictionary
-            {
-                ["text"] = "禁暴击",
-                ["tone"] = new StringName("warning"),
-                ["tooltip_text"] = "这次攻击不会触发暴击。",
-            },
-            new GDictionary
-            {
-                ["text"] = "摆幅压低",
-                ["tone"] = new StringName("gate"),
-                ["tooltip_text"] = "这次攻击的命运摆幅已被压低，不再展示标准 crit/fumble 区间。",
-            },
+            new("必定命中", new StringName("calm"), "这次攻击不会再进行命中骰判定，直接视为命中。"),
+            new("禁暴击", new StringName("warning"), "这次攻击不会触发暴击。"),
+            new("摆幅压低", new StringName("gate"), "这次攻击的命运摆幅已被压低，不再展示标准 crit/fumble 区间。"),
         };
-        return new GDictionary
-        {
-            ["summary_text"] = BuildFatePreviewSummaryText(badges),
-            ["tooltip_text"] =
-                "命运判定概览\n状态：强制命中\n暴击：已封锁\n说明：这次攻击不再走标准命中/暴击/大失败骰。",
-            ["badges"] = badges,
-            ["force_hit_no_crit"] = true,
-        };
+        return new FatePreviewFacts(
+            BuildFatePreviewSummaryText(badges),
+            "命运判定概览\n状态：强制命中\n暴击：已封锁\n说明：这次攻击不再走标准命中/暴击/大失败骰。",
+            badges
+        );
     }
 
-    private static string BuildFatePreviewSummaryText(GArray badges)
+    private static string BuildFatePreviewSummaryText(
+        IEnumerable<BattleHudFateBadgeSnapshot> badges
+    )
     {
         var parts = new List<string>();
-        foreach (GDictionary badge in ReadDictionaryItems(badges))
-        {
-            parts.Add(DictString(badge, "text"));
-        }
+        foreach (BattleHudFateBadgeSnapshot badge in badges ?? Array.Empty<BattleHudFateBadgeSnapshot>())
+            parts.Add(badge?.Text ?? "");
         return string.Join("  ·  ", parts);
     }
 
     private static string BuildSelectedSkillPreviewTooltip(
         AttackPreviewData hitPreview,
-        GDictionary fatePreview,
-        GDictionary damagePreview,
-        GDictionary saveBranchPreview
+        FatePreviewFacts fatePreview,
+        DamagePreviewSummary damagePreview,
+        BattlePresentationPayload saveBranchPreview
     )
     {
         var sections = new List<string>();
-        string saveBranchText = DictString(saveBranchPreview, "summary_text");
+        string saveBranchText = saveBranchPreview?.SummaryText ?? "";
         if (!string.IsNullOrEmpty(saveBranchText))
             sections.Add(saveBranchText);
         string hitText = hitPreview?.SummaryText ?? "";
         if (!string.IsNullOrEmpty(hitText))
             sections.Add(hitText);
-        string damageText = DictString(damagePreview, "summary_text");
+        string damageText = damagePreview.SummaryText;
         if (!string.IsNullOrEmpty(damageText))
             sections.Add(damageText);
-        string fateTooltip = DictString(fatePreview, "tooltip_text");
+        string fateTooltip = fatePreview?.TooltipText ?? "";
         if (!string.IsNullOrEmpty(fateTooltip))
             sections.Add(fateTooltip);
         return string.Join("\n\n", sections);
@@ -1803,8 +1695,8 @@ public sealed class BattleHudAdapter : IDisposable
         if (hitPreview == null)
             return "";
         int successRate = hitPreview.SuccessRatePercent;
-        if (successRate <= 0 && hitPreview.StageSuccessRates.Count > 0)
-            successRate = hitPreview.StageSuccessRates[0];
+        if (successRate <= 0 && hitPreview.Stages.Count > 0)
+            successRate = hitPreview.Stages[0].SuccessRatePercent;
         if (successRate <= 0)
             return "";
         return $"命中 {Mathf.Clamp(successRate, 0, 100)}%";
@@ -1814,7 +1706,7 @@ public sealed class BattleHudAdapter : IDisposable
     // A2 rebuild plan requires this to live ONLY here so the panel never shows a
     // button as enabled while the facade would reject the command. Definitions
     // mirror facade gating (manual active unit, UnitActing phase, no modal flow).
-    private GDictionary BuildCommandDock(
+    private BattleHudCommandDockSnapshot BuildCommandDock(
         BattleState battleState,
         BattleUnitState activeUnit,
         StringName selectedSkillId,
@@ -1828,13 +1720,12 @@ public sealed class BattleHudAdapter : IDisposable
         // option to switch between. Keeping both keys lets the panel label them
         // independently while staying faithful to the keyboard Q/E behaviour.
         bool canCycleVariant = unitActing && hasSkill && GetUnlockedVariantCount(activeUnit, selectedSkillId) > 1;
-        return new GDictionary
-        {
-            ["resolve_enabled"] = unitActing,
-            ["clear_skill_enabled"] = unitActing && hasSkill,
-            ["prev_variant_enabled"] = canCycleVariant,
-            ["next_variant_enabled"] = canCycleVariant,
-        };
+        return new BattleHudCommandDockSnapshot(
+            unitActing,
+            unitActing && hasSkill,
+            canCycleVariant,
+            canCycleVariant
+        );
     }
 
     // One-line "what can I do now" hint, covering the five states called out in the
@@ -1845,7 +1736,7 @@ public sealed class BattleHudAdapter : IDisposable
         BattleUnitState activeUnit,
         StringName selectedSkillId,
         int selectedTargetCount,
-        GDictionary selectionInfo
+        SelectionInfo selectionInfo
     )
     {
         if (battleState == null)
@@ -1858,14 +1749,14 @@ public sealed class BattleHudAdapter : IDisposable
             return "自动模式：等待 AI 行动";
         if (IsEmpty(selectedSkillId))
             return "点选技能或移动；Enter 结束行动";
-        if (DictBool(selectionInfo, "is_multi_unit"))
+        if (selectionInfo.IsMultiUnit)
         {
-            if (DictBool(selectionInfo, "auto_cast_ready"))
+            if (selectionInfo.AutoCastReady)
                 return "已达目标上限，将自动施放";
-            if (DictBool(selectionInfo, "confirm_ready"))
+            if (selectionInfo.ConfirmReady)
                 return "已达最少目标；点击自己或空地结算，或继续点选";
             int remaining = Mathf.Max(
-                DictInt(selectionInfo, "min_target_count", 1) - selectedTargetCount,
+                selectionInfo.MinTargetCount - selectedTargetCount,
                 0
             );
             return $"继续点选目标，还需 {remaining} 个；Esc 取消";
@@ -1876,9 +1767,9 @@ public sealed class BattleHudAdapter : IDisposable
     // Tail of the battle log, same source as RuntimeLogDock's battle view
     // (battle_state.log_entries), trimmed to the most recent N non-empty lines for
     // the in-panel LogLabel. Oldest-first so the panel can append top-to-bottom.
-    private static GStringArray BuildRecentBattleLogLines(BattleState battleState)
+    private static IReadOnlyList<string> BuildRecentBattleLogLines(BattleState battleState)
     {
-        var lines = new GStringArray();
+        var lines = new List<string>();
         StringList logEntries = battleState?.log_entries;
         if (logEntries == null)
             return lines;
@@ -1920,22 +1811,21 @@ public sealed class BattleHudAdapter : IDisposable
         return GetEffectiveCombatDefinition(skillDefinition, skillLevel).UnlockedCastVariants.Count;
     }
 
-    private GDictionary BuildSkillTargetSelectionInfo(
+    private SelectionInfo BuildSkillTargetSelectionInfo(
         BattleState battleState,
         BattleUnitState activeUnit,
         StringName selectedSkillId,
         int selectedCount
     )
     {
-        var defaultInfo = new GDictionary
-        {
-            ["selection_mode"] = new StringName("single_unit"),
-            ["is_multi_unit"] = false,
-            ["min_target_count"] = 1,
-            ["max_target_count"] = Mathf.Max(selectedCount, 1),
-            ["confirm_ready"] = false,
-            ["auto_cast_ready"] = false,
-        };
+        var defaultInfo = new SelectionInfo(
+            new StringName("single_unit"),
+            false,
+            1,
+            Mathf.Max(selectedCount, 1),
+            false,
+            false
+        );
         if (battleState == null || activeUnit == null || IsEmpty(selectedSkillId))
             return defaultInfo;
         SkillDefinition skillDefinition = GetSkillDefinition(
@@ -1961,15 +1851,14 @@ public sealed class BattleHudAdapter : IDisposable
         bool confirmReady =
             isMultiUnit && selectedCount >= minTargetCount && selectedCount < maxTargetCount;
         bool autoCastReady = isMultiUnit && selectedCount >= maxTargetCount;
-        return new GDictionary
-        {
-            ["selection_mode"] = selectionMode,
-            ["is_multi_unit"] = isMultiUnit,
-            ["min_target_count"] = minTargetCount,
-            ["max_target_count"] = maxTargetCount,
-            ["confirm_ready"] = confirmReady,
-            ["auto_cast_ready"] = autoCastReady,
-        };
+        return new SelectionInfo(
+            selectionMode,
+            isMultiUnit,
+            minTargetCount,
+            maxTargetCount,
+            confirmReady,
+            autoCastReady
+        );
     }
 
     private CombatSkillResourceCosts GetEffectiveSkillCosts(
@@ -2157,141 +2046,24 @@ public sealed class BattleHudAdapter : IDisposable
         return itemDefs.TryGetValue(itemId, out ItemDef itemDef) ? itemDef : null;
     }
 
-    private static int DictionaryInt(GDictionary dict, object key, int fallback = 0)
+    private static List<Vector2I> CloneVector2IList(IEnumerable<Vector2I> source)
     {
-        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Int
-            ? value.AsInt32()
-            : fallback;
-    }
-
-    private static string DictString(GDictionary dict, object key, string fallback = "")
-    {
-        if (!TryRead(dict, key, out Variant value))
-            return fallback;
-        return value.VariantType switch
-        {
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
-            _ => fallback,
-        };
-    }
-
-    private static int DictInt(GDictionary dict, object key, int fallback = 0)
-    {
-        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Int
-            ? value.AsInt32()
-            : fallback;
-    }
-
-    private static bool DictBool(GDictionary dict, object key, bool fallback = false)
-    {
-        if (!TryRead(dict, key, out Variant value))
-            return fallback;
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
-    }
-
-    private static StringName DictStringName(
-        GDictionary dict,
-        object key,
-        StringName fallback = default
-    )
-    {
-        if (!TryRead(dict, key, out Variant value))
-            return NormalizeStringName(fallback);
-        return value.VariantType switch
-        {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => NormalizeStringName(fallback),
-        };
-    }
-
-    private static GArray DictArray(GDictionary dict, object key)
-    {
-        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Array
-            ? value.AsGodotArray()
-            : new GArray();
-    }
-
-    private static Color DictColor(GDictionary dict, object key, Color fallback)
-    {
-        return
-            TryRead(dict, key, out Variant value)
-            && value.VariantType == Variant.Type.Color
-            ? value.AsColor()
-            : fallback;
-    }
-
-    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
-    {
-        if (values == null)
-            yield break;
-        foreach (Variant value in values)
-        {
-            if (value.VariantType == Variant.Type.Dictionary)
-                yield return value.AsGodotDictionary();
-        }
-    }
-
-    private static bool TryRead(GDictionary dict, object key, out Variant value)
-    {
-        if (dict == null)
-        {
-            value = default;
-            return false;
-        }
-        Variant variantKey = KeyToVariant(key);
-        bool found = dict.ContainsKey(variantKey);
-        value = found ? dict[variantKey] : default;
-        return found;
-    }
-
-    private static Variant KeyToVariant(object key)
-    {
-        return key switch
-        {
-            Variant variantKey => variantKey,
-            StringName stringNameKey => stringNameKey,
-            string stringKey => stringKey,
-            int intKey => intKey,
-            long longKey => longKey,
-            _ => default,
-        };
-    }
-
-    private static GVector2IArray CloneVector2IArray(GVector2IArray source)
-        => new Vector2IList(source).ToGodotArray();
-
-    private static GStringNameArray CloneStringNameArray(GStringNameArray source)
-    {
-        var result = new StringNameList();
-        if (source == null)
-            return result.ToGodotArray();
-        foreach (StringName id in source)
-            if (!IsEmpty(id))
-                result.Add(id);
-        return result.ToGodotArray();
-    }
-
-    private static GArray ToUntypedStringNameArray(GStringNameArray source)
-    {
-        var result = new GArray();
-        if (source == null)
-            return result;
-        foreach (StringName id in source)
-            if (!IsEmpty(id))
-                result.Add(id);
+        var result = new List<Vector2I>();
+        if (source != null)
+            result.AddRange(source);
         return result;
     }
 
-    private static GArray ToUntypedStringNameArray(IEnumerable<StringName> source)
+    private static List<StringName> CloneStringNameList(IEnumerable<StringName> source)
     {
-        var result = new GArray();
+        var result = new List<StringName>();
         if (source == null)
             return result;
         foreach (StringName id in source)
+        {
             if (!IsEmpty(id))
                 result.Add(id);
+        }
         return result;
     }
 

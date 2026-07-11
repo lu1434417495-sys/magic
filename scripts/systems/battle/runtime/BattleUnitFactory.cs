@@ -256,7 +256,9 @@ internal sealed class BattleUnitFactory
     internal IReadOnlyList<BattleUnitState> BuildAllyUnits(
         PartyState party_state,
         Godot.Collections.Dictionary context,
-        GodotTransientResourceScope owner = null
+        GodotTransientResourceScope owner = null,
+        BattleStartContextReferenceRole contextRole =
+            BattleStartContextReferenceRole.OwnedByStartScope
     )
     {
         GodotTransientResourceScope localScope = null;
@@ -269,27 +271,34 @@ internal sealed class BattleUnitFactory
 
         using (localScope)
         {
-            context = contextScope.OwnWrapper(
-                context ?? new Godot.Collections.Dictionary(),
-                "context"
-            );
-            Godot.Collections.Array battleParty = ReadArray(context, "battle_party");
+            if (contextRole == BattleStartContextReferenceRole.OwnedByStartScope)
+            {
+                context = contextScope.OwnWrapper(
+                    context ?? new Godot.Collections.Dictionary(),
+                    "context"
+                );
+            }
+            else if (context == null)
+            {
+                throw new ArgumentNullException(nameof(context));
+            }
+            using Godot.Collections.Array battleParty = ReadArray(context, "battle_party");
             if (battleParty.Count > 0)
             {
                 return _normalize_unit_payloads(battleParty);
             }
-            var member_ids = new Godot.Collections.Array();
+            var memberIds = new List<StringName>();
             if (party_state?.active_member_ids != null && party_state.active_member_ids.Count > 0)
             {
                 foreach (var memberId in party_state.active_member_ids)
-                    member_ids.Add(memberId);
+                    memberIds.Add(memberId);
             }
-            if (member_ids.Count == 0)
-                member_ids = _extract_ally_member_ids(context);
+            if (memberIds.Count == 0)
+                memberIds.AddRange(_extract_ally_member_ids(context));
             var units = new List<BattleUnitState>();
-            for (int i = 0; i < member_ids.Count; i++)
+            for (int i = 0; i < memberIds.Count; i++)
             {
-                var mid = ProgressionDataUtils.to_string_name(member_ids[i]);
+                StringName mid = ProgressionDataUtils.to_string_name(memberIds[i]);
                 var ms = party_state?.GetMemberState(mid);
                 if (ms != null && ms.progression == null)
                     continue;
@@ -445,7 +454,9 @@ internal sealed class BattleUnitFactory
     internal IReadOnlyList<BattleUnitState> BuildEnemyUnits(
         EncounterAnchorData enc,
         Godot.Collections.Dictionary ctx,
-        GodotTransientResourceScope owner = null
+        GodotTransientResourceScope owner = null,
+        BattleStartContextReferenceRole contextRole =
+            BattleStartContextReferenceRole.OwnedByStartScope
     )
     {
         GodotTransientResourceScope localScope = null;
@@ -458,11 +469,18 @@ internal sealed class BattleUnitFactory
 
         using (localScope)
         {
-            ctx = contextScope.OwnWrapper(
-                ctx ?? new Godot.Collections.Dictionary(),
-                "context"
-            );
-            Godot.Collections.Array enemyUnits = ReadArray(ctx, "enemy_units");
+            if (contextRole == BattleStartContextReferenceRole.OwnedByStartScope)
+            {
+                ctx = contextScope.OwnWrapper(
+                    ctx ?? new Godot.Collections.Dictionary(),
+                    "context"
+                );
+            }
+            else if (ctx == null)
+            {
+                throw new ArgumentNullException(nameof(ctx));
+            }
+            using Godot.Collections.Array enemyUnits = ReadArray(ctx, "enemy_units");
             if (enemyUnits.Count > 0)
             {
                 return _normalize_unit_payloads(enemyUnits);
@@ -522,13 +540,13 @@ internal sealed class BattleUnitFactory
         if (td == null || td.Count == 0)
             return owner.NewDictionary("terrain-output-empty");
         var tr = RuntimePayloadCopy.Dictionary(td, "BattleUnitFactory._atgo.terrain");
-        Godot.Collections.Array allySpawns = ReadArray(ctx, "ally_spawns");
+        using Godot.Collections.Array allySpawns = ReadArray(ctx, "ally_spawns");
         if (allySpawns.Count > 0)
             tr["ally_spawns"] = RuntimePayloadCopy.Array(
                 allySpawns,
                 "BattleUnitFactory._atgo.ally_spawns"
             );
-        Godot.Collections.Array enemySpawns = ReadArray(ctx, "enemy_spawns");
+        using Godot.Collections.Array enemySpawns = ReadArray(ctx, "enemy_spawns");
         if (enemySpawns.Count > 0)
             tr["enemy_spawns"] = RuntimePayloadCopy.Array(
                 enemySpawns,
@@ -630,8 +648,12 @@ internal sealed class BattleUnitFactory
         _sync_passive_battle_statuses(us, prog, ms);
         _sync_trait_passive_projection(us);
         _filter_skills_by_equipment_requirements(us);
-        us.movement_tags = _extract_movement_tags(ReadArray(ctx, "ally_movement_tags"));
-        Godot.Collections.Array defaultActiveSkillIds = ReadArray(ctx, "default_active_skill_ids");
+        using Godot.Collections.Array allyMovementTags = ReadArray(ctx, "ally_movement_tags");
+        us.movement_tags = _extract_movement_tags(allyMovementTags);
+        using Godot.Collections.Array defaultActiveSkillIds = ReadArray(
+            ctx,
+            "default_active_skill_ids"
+        );
         if (us.known_active_skill_ids.Count == 0 && defaultActiveSkillIds.Count > 0)
             foreach (var sv in defaultActiveSkillIds)
             {
@@ -692,8 +714,9 @@ internal sealed class BattleUnitFactory
             us.SetUnarmedWeaponProjection();
         us.action_threshold = defaults.ActionThreshold;
         us.SetCombatResources(hpMax, mpMax, stamMax, us.current_aura, ap, BattleUnitState.DefaultMovePointsPerTurn);
-        us.movement_tags = _extract_movement_tags(ReadArray(ctx, "enemy_movement_tags"));
-        Godot.Collections.Array enemySkillIds = ReadArray(ctx, "enemy_skill_ids");
+        using Godot.Collections.Array enemyMovementTags = ReadArray(ctx, "enemy_movement_tags");
+        us.movement_tags = _extract_movement_tags(enemyMovementTags);
+        using Godot.Collections.Array enemySkillIds = ReadArray(ctx, "enemy_skill_ids");
         if (enemySkillIds.Count > 0)
         {
             var configuredSkillIds = new List<StringName>();
@@ -793,9 +816,20 @@ internal sealed class BattleUnitFactory
         );
     }
 
-    private static Godot.Collections.Array _extract_ally_member_ids(
+    private static List<StringName> _extract_ally_member_ids(
         Godot.Collections.Dictionary ctx
-    ) => ReadArray(ctx, "ally_member_ids");
+    )
+    {
+        var result = new List<StringName>();
+        using Godot.Collections.Array values = ReadArray(ctx, "ally_member_ids");
+        foreach (Variant value in values)
+        {
+            StringName memberId = ProgressionDataUtils.to_string_name(value);
+            if (memberId != "")
+                result.Add(memberId);
+        }
+        return result;
+    }
 
     private SkillDefinition _skill_definition_from_runtime(StringName sid)
     {

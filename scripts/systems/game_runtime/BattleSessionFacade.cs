@@ -63,6 +63,24 @@ public sealed class BattleSessionFacade : IDisposable
         return DuplicateStringNameArray(battleSelection.GetSelectedBattleSkillTargetUnitIds());
     }
 
+    internal IReadOnlyList<Vector2I> GetSelectedBattleSkillTargetCoordsSnapshotPlain()
+    {
+        if (IsBattleInteractionBlocked())
+            return System.Array.Empty<Vector2I>();
+        GameRuntimeBattleSelection battleSelection = GetBattleSelection();
+        return battleSelection?.GetSelectedBattleSkillTargetCoordsSnapshotPlain()
+            ?? System.Array.Empty<Vector2I>();
+    }
+
+    internal IReadOnlyList<StringName> GetSelectedBattleSkillTargetUnitIdsSnapshotPlain()
+    {
+        if (IsBattleInteractionBlocked())
+            return System.Array.Empty<StringName>();
+        GameRuntimeBattleSelection battleSelection = GetBattleSelection();
+        return battleSelection?.GetSelectedBattleSkillTargetUnitIdsSnapshotPlain()
+            ?? System.Array.Empty<StringName>();
+    }
+
     public GVector2IArray GetSelectedBattleSkillValidTargetCoords()
     {
         if (IsBattleInteractionBlocked())
@@ -135,7 +153,17 @@ public sealed class BattleSessionFacade : IDisposable
 
     internal Dictionary GetBattleTerrainCounts()
     {
-        var counts = new Dictionary
+        var result = new Dictionary();
+        foreach ((string terrainId, int count) in GetBattleTerrainCountsSnapshotTyped())
+            result[terrainId] = count;
+        return result;
+    }
+
+    internal IReadOnlyDictionary<string, int> GetBattleTerrainCountsSnapshotTyped()
+    {
+        var counts = new System.Collections.Generic.Dictionary<string, int>(
+            StringComparer.Ordinal
+        )
         {
             [BattleTerrainRules.ToStringName(BattleTerrainKind.Land).ToString()] = 0,
             [BattleTerrainRules.ToStringName(BattleTerrainKind.Forest).ToString()] = 0,
@@ -155,7 +183,7 @@ public sealed class BattleSessionFacade : IDisposable
             var terrainId = cellState.base_terrain.ToString();
             if (!counts.ContainsKey(terrainId))
                 counts[terrainId] = 0;
-            counts[terrainId] = counts[terrainId].AsInt32() + 1;
+            counts[terrainId] += 1;
         }
         return counts;
     }

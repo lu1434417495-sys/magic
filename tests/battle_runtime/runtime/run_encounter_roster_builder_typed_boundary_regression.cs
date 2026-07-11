@@ -18,7 +18,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
         TestTypedEnemyUnitBuildMatchesPublicBoundary();
         TestEncounterBuilderUnlocksCasterMpResources();
         TestEnemyAttackEquipmentProjectsAbilitySourceAndCreatureTags();
-        TestTypedLootPreviewMatchesPublicBoundary();
+        TestPlainLootPreviewMatchesTypedDefinitions();
         RequestTestExit(_test.Finish("Encounter roster builder typed boundary regression"));
     }
 
@@ -270,7 +270,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
         );
     }
 
-    private void TestTypedLootPreviewMatchesPublicBoundary()
+    private void TestPlainLootPreviewMatchesTypedDefinitions()
     {
         using GameSession gameSession = new();
         using EncounterRosterBuilder builder = new();
@@ -294,8 +294,10 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
             suppressed_until_step = 0,
         };
 
-        GArray typedLoot = builder.BuildLootEntriesTyped(encounterAnchor);
-        GArray explicitTypedLoot = builder.BuildLootEntriesTyped(
+        IReadOnlyList<IReadOnlyDictionary<string, object>> plainLoot =
+            builder.BuildLootEntriesPlain(encounterAnchor);
+        IReadOnlyList<IReadOnlyDictionary<string, object>> explicitPlainLoot =
+            builder.BuildLootEntriesPlain(
             encounterAnchor,
             gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             gameSession.GetEnemyTemplatesTyped(),
@@ -303,11 +305,11 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
             gameSession.GetItemDefsTyped()
         );
 
-        _test.Eq(typedLoot.Count, explicitTypedLoot.Count, "typed loot preview 数量应一致。");
+        _test.Eq(plainLoot.Count, explicitPlainLoot.Count, "plain loot preview 数量应一致。");
         _test.Eq(
-            SummarizeLoot(typedLoot),
-            SummarizeLoot(explicitTypedLoot),
-            "不同 typed 输入源的 loot preview 结果应保持一致。"
+            SummarizeLoot(plainLoot),
+            SummarizeLoot(explicitPlainLoot),
+            "不同 typed definition 输入源的 plain loot preview 结果应保持一致。"
         );
     }
 
@@ -328,22 +330,52 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
         return string.Join(" || ", values);
     }
 
-    private static string SummarizeLoot(GArray lootEntries)
+    private static string SummarizeLoot(
+        IReadOnlyList<IReadOnlyDictionary<string, object>> lootEntries
+    )
     {
         List<string> values = new();
-        foreach (Variant entryValue in lootEntries ?? new GArray())
+        foreach (
+            IReadOnlyDictionary<string, object> entry in
+            lootEntries ?? System.Array.Empty<IReadOnlyDictionary<string, object>>()
+        )
         {
-            if (entryValue.VariantType != Variant.Type.Dictionary)
+            if (entry == null)
             {
                 values.Add("non_dict");
                 continue;
             }
-            GDictionary entry = entryValue.AsGodotDictionary();
             values.Add(
-                $"{DictString(entry, "drop_source_kind")}|{DictString(entry, "drop_source_id")}|{DictString(entry, "drop_entry_id")}|{DictString(entry, "item_id")}|{DictInt(entry, "quantity", 0)}"
+                $"{PlainString(entry, "drop_source_kind")}|{PlainString(entry, "drop_source_id")}|{PlainString(entry, "drop_entry_id")}|{PlainString(entry, "item_id")}|{PlainInt(entry, "quantity", 0)}"
             );
         }
         return string.Join(" || ", values);
+    }
+
+    private static string PlainString(
+        IReadOnlyDictionary<string, object> values,
+        string key,
+        string fallback = ""
+    )
+    {
+        return values != null
+            && values.TryGetValue(key, out object value)
+            && value is string text
+                ? text
+                : fallback;
+    }
+
+    private static int PlainInt(
+        IReadOnlyDictionary<string, object> values,
+        string key,
+        int fallback = 0
+    )
+    {
+        return values != null
+            && values.TryGetValue(key, out object value)
+            && value is int number
+                ? number
+                : fallback;
     }
 
     private static bool TryFindSkillEntry(

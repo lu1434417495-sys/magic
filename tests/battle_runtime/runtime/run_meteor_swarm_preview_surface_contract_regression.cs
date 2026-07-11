@@ -103,7 +103,7 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Life
         _test.True(!string.IsNullOrEmpty(previewFactId), "preview facts 必须带稳定 preview_fact_id。");
         _test.Eq(preview.hit_preview?.Source ?? "", "special_profile_preview_facts", "preview.hit_preview 应标记 special facts 来源。");
         _test.Eq(preview.hit_preview?.Source ?? "", preview.hit_preview?.Source ?? "", "preview source 应稳定。");
-        _test.Eq(preview.target_coords.Count, 49, "preview surface 必须暴露同一份 7x7 target coords。");
+        _test.Eq(preview.TargetCoordsTyped.Count, 49, "preview surface 必须暴露同一份 7x7 target coords。");
         _test.True(
             factsPayload.GetValueOrDefault("target_numeric_summary", new GArray()).AsGodotArray().Count >= 2,
             "preview facts 应携带全目标数值摘要。"
@@ -114,7 +114,7 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Life
         );
 
         var hud = new BattleHudAdapter();
-        GDictionary snapshot = hud.BuildSnapshot(
+        BattleHudSnapshot snapshot = hud.BuildSnapshot(
             setup.Runtime.GetState(),
             new Vector2I(4, 4),
             "mage_meteor_swarm",
@@ -127,11 +127,8 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Life
             "",
             preview
         );
-        GDictionary hitPreviewPayload = snapshot
-            .GetValueOrDefault("selected_skill_hit_preview_payload", new Variant())
-            .AsGodotDictionary();
         _test.Eq(
-            DictString(hitPreviewPayload, "source", ""),
+            snapshot.HitPreviewPayload.Source,
             "special_profile_preview_facts",
             "HUD hit payload 应消费 special facts。"
         );
@@ -142,7 +139,7 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Life
             "HUD 必须和 runtime preview 共用同一 preview_fact_id。"
         );
         _test.Eq(
-            snapshot.GetValueOrDefault("selected_skill_hit_preview_text", "").As<string>() ?? "",
+            snapshot.SelectedSkillHitPreviewText,
             preview.hit_preview?.SummaryText ?? "",
             "HUD 应显示 runtime 提供的 summary text。"
         );

@@ -50,11 +50,19 @@ public partial class run_game_runtime_pending_battle_request_regression : Lifecy
             _test.Eq(request.Seed, 777, "Pending request should retain the seed.");
 
             context["custom_flag"] = "mutated";
-            GDictionary storedContext = request.CloneContext();
-            _test.Eq(storedContext["custom_flag"].AsString(), "original", "Pending request should duplicate the input context.");
+            Dictionary<string, object> storedContext = request.CloneContextPlain();
+            _test.Eq(
+                PlainString(storedContext, "custom_flag"),
+                "original",
+                "Pending request should duplicate the input context."
+            );
 
             storedContext["custom_flag"] = "clone_mutated";
-            _test.Eq(request.CloneContext()["custom_flag"].AsString(), "original", "Pending request should return cloned contexts.");
+            _test.Eq(
+                PlainString(request.CloneContextPlain(), "custom_flag"),
+                "original",
+                "Pending request should return cloned contexts."
+            );
 
             runtime.ClearPendingBattleGenerationRequest();
             _test.False(runtime.HasPendingBattleGenerationRequest(), "Clearing typed request should clear pending state.");
@@ -79,5 +87,18 @@ public partial class run_game_runtime_pending_battle_request_regression : Lifecy
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 10);
         unit.RefreshFootprint();
         return unit;
+    }
+
+    private static string PlainString(
+        IReadOnlyDictionary<string, object> values,
+        string key,
+        string fallback = ""
+    )
+    {
+        return values != null
+            && values.TryGetValue(key, out object value)
+            && value is string text
+                ? text
+                : fallback;
     }
 }

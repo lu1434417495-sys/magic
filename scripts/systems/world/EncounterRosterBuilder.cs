@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -194,7 +195,7 @@ public sealed class EncounterRosterBuilder : IDisposable
         return BuildEnemyUnitsWithContext(encounterAnchor, buildContext);
     }
 
-    internal GArray BuildLootEntriesTyped(
+    internal IReadOnlyList<IReadOnlyDictionary<string, object>> BuildLootEntriesPlain(
         EncounterAnchorData encounterAnchor,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null,
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates = null,
@@ -204,7 +205,7 @@ public sealed class EncounterRosterBuilder : IDisposable
         int? enemyUnitCountOverride = null
     )
     {
-        return BuildLootEntriesFromDefinitionsTyped(
+        return BuildLootEntriesFromDefinitionsPlain(
             encounterAnchor,
             skillDefinitions,
             enemyTemplates,
@@ -215,7 +216,7 @@ public sealed class EncounterRosterBuilder : IDisposable
         );
     }
 
-    internal GArray BuildLootEntriesFromDefinitionsTyped(
+    internal IReadOnlyList<IReadOnlyDictionary<string, object>> BuildLootEntriesFromDefinitionsPlain(
         EncounterAnchorData encounterAnchor,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null,
         IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates = null,
@@ -237,7 +238,7 @@ public sealed class EncounterRosterBuilder : IDisposable
             enemyUnitCountOverride,
             allowSetupEnemyTemplateFallback: true
         );
-        return BuildLootEntriesWithContext(encounterAnchor, buildContext);
+        return BuildLootEntriesWithContextPlain(encounterAnchor, buildContext);
     }
 
     private static EnemyTemplateDef ResolveEnemyTemplate(
@@ -275,7 +276,7 @@ public sealed class EncounterRosterBuilder : IDisposable
         return null;
     }
 
-    private GArray BuildPreviewLootEntriesFromRoster(
+    private IReadOnlyList<IReadOnlyDictionary<string, object>> BuildPreviewLootFactsFromRoster(
         EncounterAnchorData encounterAnchor,
         WildEncounterRosterDef encounterRoster,
         EncounterBuildContextData buildContext
@@ -288,7 +289,7 @@ public sealed class EncounterRosterBuilder : IDisposable
             || buildContext.EnemyTemplates.Count == 0
         )
         {
-            return new GArray();
+            return System.Array.Empty<IReadOnlyDictionary<string, object>>();
         }
         var aggregatedEntries = new Dictionary<string, PreviewLootEntryData>();
         var orderedKeys = new List<string>();
@@ -316,7 +317,7 @@ public sealed class EncounterRosterBuilder : IDisposable
             );
             MergePreviewLootEntries(aggregatedEntries, orderedKeys, previewEntries);
         }
-        return PreviewEntryMapToArray(aggregatedEntries, orderedKeys);
+        return PreviewEntryMapToFacts(aggregatedEntries, orderedKeys);
     }
 
     private static List<PreviewLootEntryData> BuildPreviewLootEntriesFromTemplate(
@@ -446,53 +447,58 @@ public sealed class EncounterRosterBuilder : IDisposable
         }
     }
 
-    private static GArray PreviewEntryMapToArray(
+    private static IReadOnlyList<IReadOnlyDictionary<string, object>> PreviewEntryMapToFacts(
         IReadOnlyDictionary<string, PreviewLootEntryData> targetEntries,
         IEnumerable<string> orderedKeys
     )
     {
-        var previewEntries = new GArray();
+        var previewEntries = new List<IReadOnlyDictionary<string, object>>();
         foreach (string entryKey in orderedKeys)
         {
             if (targetEntries.TryGetValue(entryKey, out PreviewLootEntryData previewEntry))
             {
-                previewEntries.Add(ProjectPreviewLootEntry(previewEntry));
+                previewEntries.Add(BuildPreviewLootEntryFacts(previewEntry));
             }
         }
-        return previewEntries;
+        return previewEntries.AsReadOnly();
     }
 
-    private static GArray PreviewEntriesToArray(IEnumerable<PreviewLootEntryData> previewEntries)
+    private static IReadOnlyList<IReadOnlyDictionary<string, object>> PreviewEntriesToFacts(
+        IEnumerable<PreviewLootEntryData> previewEntries
+    )
     {
-        var projectedEntries = new GArray();
+        var projectedEntries = new List<IReadOnlyDictionary<string, object>>();
         if (previewEntries == null)
         {
-            return projectedEntries;
+            return projectedEntries.AsReadOnly();
         }
         foreach (PreviewLootEntryData previewEntry in previewEntries)
         {
             if (previewEntry != null)
             {
-                projectedEntries.Add(ProjectPreviewLootEntry(previewEntry));
+                projectedEntries.Add(BuildPreviewLootEntryFacts(previewEntry));
             }
         }
-        return projectedEntries;
+        return projectedEntries.AsReadOnly();
     }
 
-    private static GDictionary ProjectPreviewLootEntry(PreviewLootEntryData entry)
+    private static IReadOnlyDictionary<string, object> BuildPreviewLootEntryFacts(
+        PreviewLootEntryData entry
+    )
     {
-        if (entry == null)
-            return new GDictionary();
-        return new GDictionary
-        {
-            ["drop_type"] = entry.DropType.ToString(),
-            ["drop_source_kind"] = entry.DropSourceKind.ToString(),
-            ["drop_source_id"] = entry.DropSourceId.ToString(),
-            ["drop_source_label"] = entry.DropSourceLabel,
-            ["drop_entry_id"] = entry.DropEntryId.ToString(),
-            ["item_id"] = entry.ItemId.ToString(),
-            ["quantity"] = entry.Quantity,
-        };
+        ArgumentNullException.ThrowIfNull(entry);
+        return new ReadOnlyDictionary<string, object>(
+            new Dictionary<string, object>(StringComparer.Ordinal)
+            {
+                ["drop_type"] = entry.DropType.ToString(),
+                ["drop_source_kind"] = entry.DropSourceKind.ToString(),
+                ["drop_source_id"] = entry.DropSourceId.ToString(),
+                ["drop_source_label"] = entry.DropSourceLabel,
+                ["drop_entry_id"] = entry.DropEntryId.ToString(),
+                ["item_id"] = entry.ItemId.ToString(),
+                ["quantity"] = entry.Quantity,
+            }
+        );
     }
 
     private GArray BuildProfileEnemyUnits(
@@ -1071,7 +1077,7 @@ public sealed class EncounterRosterBuilder : IDisposable
         return new GArray();
     }
 
-    private GArray BuildLootEntriesWithContext(
+    private IReadOnlyList<IReadOnlyDictionary<string, object>> BuildLootEntriesWithContextPlain(
         EncounterAnchorData encounterAnchor,
         EncounterBuildContextData buildContext
     )
@@ -1082,13 +1088,13 @@ public sealed class EncounterRosterBuilder : IDisposable
             var template = ResolveEnemyTemplate(encounterAnchor, buildContext.EnemyTemplates);
             if (template == null)
             {
-                return new GArray();
+                return System.Array.Empty<IReadOnlyDictionary<string, object>>();
             }
             int enemyCount = Mathf.Max(
                 buildContext.EnemyUnitCountOverride ?? template.enemy_count,
                 1
             );
-            return PreviewEntriesToArray(
+            return PreviewEntriesToFacts(
                 BuildPreviewLootEntriesFromTemplate(
                     template,
                     enemyCount,
@@ -1098,7 +1104,7 @@ public sealed class EncounterRosterBuilder : IDisposable
                 )
             );
         }
-        return BuildPreviewLootEntriesFromRoster(
+        return BuildPreviewLootFactsFromRoster(
             encounterAnchor,
             encounterRoster,
             buildContext

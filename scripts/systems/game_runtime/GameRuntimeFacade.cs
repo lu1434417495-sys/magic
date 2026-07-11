@@ -481,19 +481,10 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
 
     public string GetStatusText() => _current_status_message;
 
-    public GDictionary GetLogSnapshot() => GetLogSnapshot(30);
-
-    public GDictionary GetLogSnapshot(int limit) =>
+    public IReadOnlyDictionary<string, object> GetLogSnapshotPlain(int limit = 30) =>
         _game_session != null
-            ? _game_session.GetLogSnapshot(limit)
-            : new GDictionary();
-
-    public GArray GetRecentLogs() => GetRecentLogs(30);
-
-    public GArray GetRecentLogs(int limit) =>
-        _game_session != null
-            ? _game_session.GetRecentLogs(limit)
-            : new GArray();
+            ? _game_session.GetLogSnapshotPlain(limit)
+            : new Dictionary<string, object>(StringComparer.Ordinal);
 
     public string GetActiveLogFilePath() =>
         _game_session != null ? _game_session.GetActiveLogFilePath() : "";
@@ -505,6 +496,9 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
 
     public GDictionary GetGameOverContext() =>
         ProjectPlainPayload(_active_game_over_context, "GameRuntimeFacade.game_over_context");
+
+    public IReadOnlyDictionary<string, object> GetGameOverContextSnapshotPlain() =>
+        RuntimePlainPayload.CloneDictionary(_active_game_over_context);
 
     public string GetActiveSettlementId() => _active_settlement_id;
 
@@ -519,11 +513,30 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     public GDictionary GetPendingSubmapPrompt() =>
         GameRuntimePendingSubmapPromptProjection.Project(_pending_submap_prompt);
 
+    public IReadOnlyDictionary<string, object> GetPendingSubmapPromptSnapshotPlain()
+    {
+        if (_pending_submap_prompt == null || _pending_submap_prompt.IsEmpty)
+            return new Dictionary<string, object>(StringComparer.Ordinal);
+        return new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["event_id"] = _pending_submap_prompt.EventId.ToString(),
+            ["source_map_id"] = _pending_submap_prompt.SourceMapId,
+            ["source_coord"] = _pending_submap_prompt.SourceCoord,
+            ["target_submap_id"] = _pending_submap_prompt.TargetSubmapId.ToString(),
+            ["target_display_name"] = _pending_submap_prompt.TargetDisplayName,
+            ["title"] = _pending_submap_prompt.Title,
+            ["description"] = _pending_submap_prompt.Description,
+        };
+    }
+
     public GDictionary GetPendingBattleStartPrompt() =>
         ProjectPlainPayload(
             _pending_battle_start_prompt,
             "GameRuntimeFacade.pending_battle_start_prompt"
         );
+
+    public IReadOnlyDictionary<string, object> GetPendingBattleStartPromptSnapshotPlain() =>
+        RuntimePlainPayload.CloneDictionary(_pending_battle_start_prompt);
 
     public bool IsSubmapActive() => _world_map_data_context.IsSubmapActive();
 
@@ -537,6 +550,9 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             : new GDictionary();
     }
 
+    public WorldMapSettlementData GetSelectedSettlementData() =>
+        _world_map_data_context.GetSettlementAt(_selected_coord);
+
     public GDictionary GetSelectedWorldNpc()
     {
         var npc = _get_world_npc_at(_selected_coord);
@@ -544,6 +560,9 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             ? RuntimePayloadCopy.Dictionary(npc, "GameRuntimeFacade.GetSelectedWorldNpc")
             : new GDictionary();
     }
+
+    public WorldMapNpcData GetSelectedWorldNpcData() =>
+        _world_map_data_context.GetWorldNpcAt(_selected_coord);
 
     public EncounterAnchorData GetSelectedEncounterAnchor() =>
         _get_encounter_anchor_at(_selected_coord);
@@ -555,6 +574,9 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             ? RuntimePayloadCopy.Dictionary(worldEvent, "GameRuntimeFacade.GetSelectedWorldEvent")
             : new GDictionary();
     }
+
+    public WorldMapEventData GetSelectedWorldEventData() =>
+        _world_map_data_context.GetWorldEventAt(_selected_coord);
 
     public GArray GetNearbyEncounterEntries() => GetNearbyEncounterEntries(8);
 
@@ -647,6 +669,28 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         return entries;
     }
 
+    public IReadOnlyList<IReadOnlyDictionary<string, object>> GetNearbyEncounterEntriesSnapshotPlain(
+        int limit
+    )
+    {
+        var result = new List<IReadOnlyDictionary<string, object>>();
+        foreach (WorldEncounterViewModel entry in BuildNearbyEncounterViewModels(limit))
+        {
+            result.Add(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["entity_id"] = entry.EntityId,
+                    ["display_name"] = entry.DisplayName,
+                    ["coord"] = CoordPlain(entry.Coord),
+                    ["distance"] = entry.Distance,
+                    ["encounter_kind"] = entry.EncounterKind,
+                    ["growth_stage"] = entry.GrowthStage,
+                }
+            );
+        }
+        return result.AsReadOnly();
+    }
+
     private IReadOnlyList<WorldEventViewModel> BuildNearbyWorldEventViewModels(int limit)
     {
         int maxEntries = Math.Max(limit, 0);
@@ -680,6 +724,28 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         if (entries.Count > maxEntries)
             entries.RemoveRange(maxEntries, entries.Count - maxEntries);
         return entries;
+    }
+
+    public IReadOnlyList<IReadOnlyDictionary<string, object>> GetNearbyWorldEventEntriesSnapshotPlain(
+        int limit
+    )
+    {
+        var result = new List<IReadOnlyDictionary<string, object>>();
+        foreach (WorldEventViewModel entry in BuildNearbyWorldEventViewModels(limit))
+        {
+            result.Add(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["event_id"] = entry.EventId,
+                    ["display_name"] = entry.DisplayName,
+                    ["coord"] = CoordPlain(entry.Coord),
+                    ["distance"] = entry.Distance,
+                    ["event_type"] = entry.EventType,
+                    ["target_submap_id"] = entry.TargetSubmapId,
+                }
+            );
+        }
+        return result.AsReadOnly();
     }
 
     public string GetResolvedSettlementId() => ResolveCommandSettlementId();
@@ -758,6 +824,13 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             ? _character_management.GetMemberAchievementSummary(member_id)
             : new GDictionary();
 
+    public IReadOnlyDictionary<string, object> GetMemberAchievementSummarySnapshotPlain(
+        StringName member_id
+    ) =>
+        _character_management != null
+            ? _character_management.GetMemberAchievementSummarySnapshotPlain(member_id)
+            : new Dictionary<string, object>(StringComparer.Ordinal);
+
     public AttributeSnapshot GetMemberAttributeSnapshot(StringName member_id) =>
         _character_management != null
             ? _character_management.GetMemberAttributeSnapshot(member_id)
@@ -767,6 +840,37 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         _party_equipment_service != null
             ? ProjectEquipmentEntries(_party_equipment_service.GetEquippedEntriesTyped(member_id))
             : new GArray();
+
+    public IReadOnlyList<IReadOnlyDictionary<string, object>> GetMemberEquippedEntriesSnapshotPlain(
+        StringName member_id
+    )
+    {
+        var result = new List<IReadOnlyDictionary<string, object>>();
+        if (_party_equipment_service == null)
+            return result.AsReadOnly();
+        foreach (
+            PartyEquipmentService.EquipmentViewEntry entry in
+            _party_equipment_service.GetEquippedEntriesTyped(member_id)
+        )
+        {
+            if (entry == null)
+                continue;
+            result.Add(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["slot_id"] = entry.SlotId.ToString(),
+                    ["slot_label"] = entry.SlotLabel,
+                    ["item_id"] = entry.ItemId.ToString(),
+                    ["instance_id"] = entry.InstanceId.ToString(),
+                    ["equipment_type_id"] = entry.EquipmentTypeId.ToString(),
+                    ["display_name"] = entry.DisplayName,
+                    ["icon"] = entry.Icon,
+                    ["description"] = entry.Description,
+                }
+            );
+        }
+        return result.AsReadOnly();
+    }
 
     public string GetMemberDisplayName(StringName member_id) =>
         GetMemberDisplayNameInternal(member_id);
@@ -780,6 +884,10 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
 
     public GDictionary GetSettlementWindowData(string settlement_id) =>
         _settlement_command_handler.GetSettlementWindowData(settlement_id);
+
+    public IReadOnlyDictionary<string, object> GetSettlementHeadlessFactsPlain(
+        string settlement_id
+    ) => _settlement_command_handler.GetSettlementHeadlessFactsPlain(settlement_id);
 
     public string GetSettlementFeedbackText() => _active_settlement_feedback_text;
 
@@ -801,6 +909,9 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             "GameRuntimeFacade.active_character_info_context"
         );
 
+    public IReadOnlyDictionary<string, object> GetCharacterInfoContextSnapshotPlain() =>
+        RuntimePlainPayload.CloneDictionary(_active_character_info_context);
+
     public string GetActiveWarehouseEntryLabel() => _active_warehouse_entry_label;
 
     internal void SetActiveWarehouseEntryLabel(string entry_label) =>
@@ -808,14 +919,26 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
 
     public GDictionary GetShopWindowData() => _settlement_command_handler.GetShopWindowData();
 
+    public IReadOnlyDictionary<string, object> GetShopWindowDataSnapshotPlain() =>
+        _settlement_command_handler.GetShopWindowDataSnapshotPlain();
+
     public GDictionary GetContractBoardWindowData() =>
         _settlement_command_handler.GetContractBoardWindowData();
+
+    public IReadOnlyDictionary<string, object> GetContractBoardWindowDataSnapshotPlain() =>
+        _settlement_command_handler.GetContractBoardWindowDataSnapshotPlain();
 
     public GDictionary GetNpcQuestOfferWindowData() =>
         _settlement_command_handler.GetNpcQuestOfferWindowData();
 
+    public IReadOnlyDictionary<string, object> GetNpcQuestOfferWindowDataSnapshotPlain() =>
+        _settlement_command_handler.GetNpcQuestOfferWindowDataSnapshotPlain();
+
     public GDictionary GetForgeWindowData() =>
         _settlement_command_handler.GetForgeWindowData();
+
+    public IReadOnlyDictionary<string, object> GetForgeWindowDataSnapshotPlain() =>
+        _settlement_command_handler.GetForgeWindowDataSnapshotPlain();
 
     internal void SetActiveContractBoardContext(GDictionary context) =>
         ReplacePlainPayload(
@@ -854,17 +977,29 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             "GameRuntimeFacade.active_contract_board_context"
         );
 
+    internal IReadOnlyDictionary<string, object> GetActiveContractBoardContextPlain() =>
+        RuntimePlainPayload.CloneDictionary(_active_contract_board_context);
+
     public GDictionary GetActiveNpcQuestOfferContext() =>
         _active_npc_quest_offer_data?.ToDictionary() ?? new GDictionary();
 
     public GDictionary GetActiveShopContext() =>
         ProjectPlainPayload(_active_shop_context, "GameRuntimeFacade.active_shop_context");
 
+    internal IReadOnlyDictionary<string, object> GetActiveShopContextPlain() =>
+        RuntimePlainPayload.CloneDictionary(_active_shop_context);
+
     public GDictionary GetActiveForgeContext() =>
         ProjectPlainPayload(_active_forge_context, "GameRuntimeFacade.active_forge_context");
 
+    internal IReadOnlyDictionary<string, object> GetActiveForgeContextPlain() =>
+        RuntimePlainPayload.CloneDictionary(_active_forge_context);
+
     public GDictionary GetStagecoachWindowData() =>
         _settlement_command_handler.GetStagecoachWindowData();
+
+    public IReadOnlyDictionary<string, object> GetStagecoachWindowDataSnapshotPlain() =>
+        _settlement_command_handler.GetStagecoachWindowDataSnapshotPlain();
 
     internal void SetActiveStagecoachContext(GDictionary context) =>
         ReplacePlainPayload(
@@ -881,8 +1016,16 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             "GameRuntimeFacade.active_stagecoach_context"
         );
 
+    internal IReadOnlyDictionary<string, object> GetActiveStagecoachContextPlain() =>
+        RuntimePlainPayload.CloneDictionary(_active_stagecoach_context);
+
     public GDictionary GetWarehouseWindowData() =>
         _party_state != null ? _warehouse_handler.GetWarehouseWindowData() : new GDictionary();
+
+    public IReadOnlyDictionary<string, object> GetWarehouseWindowDataSnapshotPlain() =>
+        _party_state != null
+            ? _warehouse_handler.GetWarehouseWindowDataSnapshotPlain()
+            : new Dictionary<string, object>(StringComparer.Ordinal);
 
     public BattleState GetBattleState() => _battle_state;
 
@@ -1073,6 +1216,12 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     public GStringNameArray GetSelectedBattleSkillTargetUnitIds() =>
         _battle_session_facade.GetSelectedBattleSkillTargetUnitIds();
 
+    public IReadOnlyList<Vector2I> GetSelectedBattleSkillTargetCoordsSnapshotPlain() =>
+        _battle_session_facade.GetSelectedBattleSkillTargetCoordsSnapshotPlain();
+
+    public IReadOnlyList<StringName> GetSelectedBattleSkillTargetUnitIdsSnapshotPlain() =>
+        _battle_session_facade.GetSelectedBattleSkillTargetUnitIdsSnapshotPlain();
+
     public GVector2IArray GetSelectedBattleSkillValidTargetCoords() =>
         _battle_session_facade.GetSelectedBattleSkillValidTargetCoords();
 
@@ -1097,11 +1246,17 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     public GDictionary GetBattleTerrainCounts() =>
         _battle_session_facade.GetBattleTerrainCounts();
 
+    public IReadOnlyDictionary<string, int> GetBattleTerrainCountsSnapshotTyped() =>
+        _battle_session_facade.GetBattleTerrainCountsSnapshotTyped();
+
     public GDictionary GetLastBattleLootSnapshot() =>
         ProjectPlainPayload(
             _last_battle_loot_snapshot,
             "GameRuntimeFacade.last_battle_loot_snapshot"
         );
+
+    public IReadOnlyDictionary<string, object> GetLastBattleLootSnapshotPlain() =>
+        RuntimePlainPayload.CloneDictionary(_last_battle_loot_snapshot);
 
     public PendingCharacterReward GetActiveReward() => _active_reward;
 
@@ -1115,6 +1270,13 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         _reward_flow_handler != null
             ? _reward_flow_handler.GetCurrentPromotionPrompt()
             : new GDictionary();
+
+    public IReadOnlyDictionary<string, object> GetCurrentPromotionPromptSnapshotPlain()
+    {
+        if (_pending_promotion_prompt.Count > 0)
+            return RuntimePlainPayload.CloneDictionary(_pending_promotion_prompt);
+        return RuntimePlainPayload.CloneDictionary(_pending_world_promotion_prompt);
+    }
 
     internal GDictionary GetPendingPromotionPrompt() =>
         ProjectPlainPayload(
@@ -1350,7 +1512,11 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         return Mathf.Min(tickCount, 1);
     }
 
-    public GDictionary BuildHeadlessSnapshot() => _snapshot_builder.BuildHeadlessSnapshot();
+    public IReadOnlyDictionary<string, object> BuildHeadlessSnapshotPlain() =>
+        _snapshot_builder.BuildHeadlessSnapshotPlain();
+
+    internal GodotProjectionLease<GDictionary> BuildHeadlessSnapshotLease() =>
+        _snapshot_builder.BuildHeadlessSnapshotLease();
 
     public string BuildTextSnapshot() => _snapshot_builder.BuildTextSnapshot();
 

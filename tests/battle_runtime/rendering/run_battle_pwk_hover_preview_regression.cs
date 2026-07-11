@@ -24,7 +24,7 @@ public partial class run_battle_pwk_hover_preview_regression : LifecycleTestScen
         BattlePreview preview = fixture.Runtime.PreviewCommand(MakeUnitCommand(source, target, skill));
         PoisonPreview(preview);
 
-        GDictionary hover = new BattleHudAdapter().BuildHoverPreview(
+        BattleHoverSnapshot hover = new BattleHudAdapter().BuildHoverPreview(
             fixture.State,
             target.coord,
             skill.SkillId,
@@ -33,10 +33,10 @@ public partial class run_battle_pwk_hover_preview_regression : LifecycleTestScen
             preview
         );
 
-        _test.False(DictBool(hover, "hover_is_valid_target"), "高 HP PWK hover 应被标记为非法目标。");
-        _test.Eq(DictDictionary(hover, "save_branch_preview").Count, 0, "高 HP PWK hover 不应输出分支预览。");
-        _test.Eq(DictString(hover, "save_branch_preview_text"), "", "高 HP PWK hover 不应输出命中率文本。");
-        _test.Eq(DictString(hover, "damage_text"), "", "高 HP PWK hover 不应输出伤害文本。");
+        _test.False(hover.HoverIsValidTarget, "高 HP PWK hover 应被标记为非法目标。");
+        _test.True(hover.SaveBranchPreview.IsEmpty, "高 HP PWK hover 不应输出分支预览。");
+        _test.Eq(hover.SaveBranchPreviewText, "", "高 HP PWK hover 不应输出命中率文本。");
+        _test.Eq(hover.DamageText, "", "高 HP PWK hover 不应输出伤害文本。");
 
         BattleTestFixture.DisposeBattlePreview(preview);
     }
@@ -53,11 +53,11 @@ public partial class run_battle_pwk_hover_preview_regression : LifecycleTestScen
             BattlePreviewProjection.BuildSaveBranchLease(preview.SaveBranchPreviewTyped);
         GDictionary branchPreview = branchLease.Value;
 
-        _test.True(preview.allowed, $"低 HP PWK preview 应允许。 log={string.Join(" | ", preview.log_lines)}");
+        _test.True(preview.allowed, $"低 HP PWK preview 应允许。 log={string.Join(" | ", preview.LogLinesTyped)}");
         _test.Eq(DictStringName(branchPreview, "kind"), new StringName("execute"), "低 HP PWK preview 应输出 execute 分支。");
         _test.True(DictInt(branchPreview, "hit_chance_basis_points") > 0, "低 HP PWK preview 应输出玩家命中率。");
 
-        GDictionary hover = new BattleHudAdapter().BuildHoverPreview(
+        BattleHoverSnapshot hover = new BattleHudAdapter().BuildHoverPreview(
             fixture.State,
             target.coord,
             skill.SkillId,
@@ -66,7 +66,7 @@ public partial class run_battle_pwk_hover_preview_regression : LifecycleTestScen
             preview
         );
 
-        string branchText = DictString(hover, "save_branch_preview_text");
+        string branchText = hover.SaveBranchPreviewText;
         _test.True(branchText.Contains("命中率"), "低 HP PWK hover 应展示命中率。");
         _test.True(branchText.Contains("死亡律令"), "低 HP PWK hover 应展示失败分支。");
         _test.True(branchText.Contains("灵魂裂解"), "低 HP PWK hover 应展示成功分支。");
@@ -85,7 +85,7 @@ public partial class run_battle_pwk_hover_preview_regression : LifecycleTestScen
         PoisonPreview(preview);
 
         var adapter = new BattleHudAdapter();
-        GDictionary hover = adapter.BuildHoverPreview(
+        BattleHoverSnapshot hover = adapter.BuildHoverPreview(
             fixture.State,
             target.coord,
             skill.SkillId,
@@ -93,7 +93,7 @@ public partial class run_battle_pwk_hover_preview_regression : LifecycleTestScen
             new Godot.Collections.Array<Vector2I> { target.coord },
             preview
         );
-        GDictionary snapshot = adapter.BuildSnapshot(
+        BattleHudSnapshot snapshot = adapter.BuildSnapshot(
             fixture.State,
             target.coord,
             skill.SkillId,
@@ -108,23 +108,23 @@ public partial class run_battle_pwk_hover_preview_regression : LifecycleTestScen
         );
 
         _test.True(
-            DictString(hover, "save_branch_preview_text").Contains("命中率"),
+            hover.SaveBranchPreviewText.Contains("命中率"),
             "hover 应使用结构化 save branch 文本。"
         );
         _test.False(
-            DictString(hover, "save_branch_preview_text").Contains("POISON_LOG"),
+            hover.SaveBranchPreviewText.Contains("POISON_LOG"),
             "hover 不应从 log_lines 解析 PWK 文案。"
         );
         _test.False(
-            DictString(hover, "damage_text").Contains("999"),
+            hover.DamageText.Contains("999"),
             "hover 不应用 damage preview 伪造 PWK 文案。"
         );
         _test.True(
-            DictString(snapshot, "selected_skill_save_branch_preview_text").Contains("命中率"),
+            snapshot.SelectedSkillSaveBranchPreviewText.Contains("命中率"),
             "HUD snapshot 应投影结构化 save branch 文本。"
         );
         _test.False(
-            DictString(snapshot, "selected_skill_damage_preview_text").Contains("999"),
+            snapshot.SelectedSkillDamagePreviewText.Contains("999"),
             "HUD snapshot 不应用 damage preview 伪造 PWK 文案。"
         );
 
@@ -259,16 +259,6 @@ public partial class run_battle_pwk_hover_preview_regression : LifecycleTestScen
         );
     }
 
-    private static GDictionary DictDictionary(GDictionary data, string key)
-    {
-        if (data == null || !data.ContainsKey(key))
-        {
-            return new GDictionary();
-        }
-        Variant value = data[key];
-        return value.VariantType == Variant.Type.Dictionary ? value.AsGodotDictionary() : new GDictionary();
-    }
-
     private static string DictString(GDictionary data, string key)
     {
         return data != null && data.ContainsKey(key) ? data[key].AsString() : "";
@@ -284,8 +274,4 @@ public partial class run_battle_pwk_hover_preview_regression : LifecycleTestScen
         return data != null && data.ContainsKey(key) ? data[key].AsInt32() : 0;
     }
 
-    private static bool DictBool(GDictionary data, string key)
-    {
-        return data != null && data.ContainsKey(key) && data[key].AsBool();
-    }
 }

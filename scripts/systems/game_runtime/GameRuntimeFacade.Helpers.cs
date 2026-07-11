@@ -95,6 +95,9 @@ public sealed partial class GameRuntimeFacade
     private static GDictionary CoordDict(Vector2I coord) =>
         new() { ["x"] = coord.X, ["y"] = coord.Y };
 
+    private static Dictionary<string, object> CoordPlain(Vector2I coord) =>
+        new(StringComparer.Ordinal) { ["x"] = coord.X, ["y"] = coord.Y };
+
     private static void ResizeArray(GArray values, int maxCount)
     {
         if (values.Count > maxCount)

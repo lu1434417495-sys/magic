@@ -216,8 +216,8 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
                 "缺失 skill_def 的 pending character reward 不应写入 party_state。"
             );
 
-            Godot.Collections.Array logEntries = DictArray(
-                fixture.GameSession.GetLogSnapshot(),
+            IReadOnlyList<object> logEntries = PlainList(
+                fixture.GameSession.GetLogSnapshotPlain(),
                 "entries"
             );
             _test.True(
@@ -254,8 +254,10 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
 
             fixture.GameSession.SetBattleSaveLock(true);
             fixture.Facade.StartBattle(encounterAnchor);
+            using GodotProjectionLease<GDictionary> startedSnapshotLease =
+                fixture.Facade.BuildHeadlessSnapshotLease();
             GDictionary startedSnapshot = DictDictionary(
-                fixture.Facade.BuildHeadlessSnapshot(),
+                startedSnapshotLease.Value,
                 "battle"
             );
             _test.True(DictBool(startedSnapshot, "active", false), "正式 battle start 后应处于 battle active。");
@@ -284,8 +286,10 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
             GameRuntimeFacade.RuntimeCommandResult confirmResult =
                 fixture.Facade.CommandConfirmBattleStartTyped();
             _test.True(confirmResult.Ok, "确认开始战斗命令应成功。");
+            using GodotProjectionLease<GDictionary> confirmedSnapshotLease =
+                fixture.Facade.BuildHeadlessSnapshotLease();
             GDictionary confirmedSnapshot = DictDictionary(
-                fixture.Facade.BuildHeadlessSnapshot(),
+                confirmedSnapshotLease.Value,
                 "battle"
             );
             _test.False(
@@ -365,7 +369,9 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
                 "battle overflow 后 beast_hide 不应误写入共享仓库。"
             );
 
-            GDictionary snapshot = fixture.Facade.BuildHeadlessSnapshot();
+            using GodotProjectionLease<GDictionary> snapshotLease =
+                fixture.Facade.BuildHeadlessSnapshotLease();
+            GDictionary snapshot = snapshotLease.Value;
             GDictionary lootSnapshot = DictDictionary(snapshot, "loot");
             Godot.Collections.Array lootEntries = DictArray(lootSnapshot, "loot_entries");
             Godot.Collections.Array overflowEntries = DictArray(lootSnapshot, "overflow_entries");
@@ -392,8 +398,8 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
                 $"headless snapshot 应暴露本次战斗 overflow entry（4 荒狼各 1 张 + 狼王 2 张兽皮）。 entries={overflowEntries}"
             );
 
-            GDictionary resolvedLog = FindRecentLogEntry(
-                DictArray(fixture.GameSession.GetLogSnapshot(), "entries"),
+            IReadOnlyDictionary<string, object> resolvedLog = FindRecentLogEntry(
+                PlainList(fixture.GameSession.GetLogSnapshotPlain(), "entries"),
                 "battle.resolved"
             );
             _test.True(resolvedLog.Count > 0, "battle overflow 结算后应写入 battle.resolved 日志。");
@@ -741,20 +747,46 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
         return false;
     }
 
-    private static GDictionary FindRecentLogEntry(Godot.Collections.Array entries, string eventId)
+    private static IReadOnlyList<object> PlainList(
+        IReadOnlyDictionary<string, object> values,
+        string key
+    )
+    {
+        return values != null
+            && values.TryGetValue(key, out object value)
+            && value is IReadOnlyList<object> items
+                ? items
+                : System.Array.Empty<object>();
+    }
+
+    private static string PlainString(
+        IReadOnlyDictionary<string, object> values,
+        string key,
+        string fallback = ""
+    )
+    {
+        return values != null
+            && values.TryGetValue(key, out object value)
+            && value is string text
+                ? text
+                : fallback;
+    }
+
+    private static IReadOnlyDictionary<string, object> FindRecentLogEntry(
+        IReadOnlyList<object> entries,
+        string eventId
+    )
     {
         if (entries == null)
-            return new GDictionary();
+            return new Dictionary<string, object>();
         for (int index = entries.Count - 1; index >= 0; index--)
         {
-            Variant entryValue = entries[index];
-            if (entryValue.VariantType != Variant.Type.Dictionary)
+            if (entries[index] is not IReadOnlyDictionary<string, object> entry)
                 continue;
-            GDictionary entry = entryValue.AsGodotDictionary();
-            if (DictString(entry, "event_id", "") == eventId)
+            if (PlainString(entry, "event_id") == eventId)
                 return entry;
         }
-        return new GDictionary();
+        return new Dictionary<string, object>();
     }
 
     private sealed class RuntimeFixture

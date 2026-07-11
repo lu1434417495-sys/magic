@@ -19,13 +19,8 @@ internal sealed class GameRuntimePendingBattleGenerationRequest
         ReplaceContext(context);
     }
 
-    internal GDictionary CloneContext()
-    {
-        return RuntimePlainPayload.ProjectDictionary(
-            _context,
-            "GameRuntimePendingBattleGenerationRequest.CloneContext"
-        );
-    }
+    internal Dictionary<string, object> CloneContextPlain() =>
+        RuntimePlainPayload.CloneDictionary(_context);
 
     internal void Clear()
     {

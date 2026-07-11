@@ -650,15 +650,10 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
 
     internal GameLogService GetLogService() => _log_service;
 
-    public GArray GetRecentLogs() => GetRecentLogs(50);
-
-    public GArray GetRecentLogs(int limit = 50) =>
-        _log_service != null ? _log_service.GetRecentEntries(limit) : new GArray();
-
-    public GDictionary GetLogSnapshot() => GetLogSnapshot(50);
-
-    public GDictionary GetLogSnapshot(int limit = 50) =>
-        _log_service != null ? _log_service.BuildSnapshot(limit) : new GDictionary();
+    internal IReadOnlyDictionary<string, object> GetLogSnapshotPlain(int limit = 50) =>
+        _log_service != null
+            ? _log_service.BuildSnapshotPlain(limit)
+            : new Dictionary<string, object>(StringComparer.Ordinal);
 
     public string GetActiveLogFilePath() =>
         _log_service != null ? _log_service.GetLogPath() : "";
@@ -768,7 +763,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
 
     public bool IsContentValidationOk() => _contentValidationSnapshotData?.Ok ?? false;
 
-    public GDictionary LogEvent(
+    public void LogEvent(
         string level,
         string domain,
         string event_id,
@@ -776,20 +771,12 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         string context = ""
     )
     {
-        return _log_service != null
-            ? _log_service.AppendEntry(
-                level,
-                domain,
-                event_id,
-                message,
-                context
-            )
-            : new GDictionary();
+        _log_service?.AppendEntry(level, domain, event_id, message, context);
     }
 
-    public GDictionary LogEvent(string level, string domain, string event_id, string message)
+    public void LogEvent(string level, string domain, string event_id, string message)
     {
-        return LogEvent(level, domain, event_id, message, "");
+        LogEvent(level, domain, event_id, message, "");
     }
 
     public WorldMapGenerationConfig GetGenerationConfig() => _generation_config;

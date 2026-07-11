@@ -197,7 +197,7 @@ internal static class RuntimePlainPayload
             List<object> listValue => CloneList(listValue),
             IReadOnlyList<object> listValue => CloneList(listValue),
             bool or byte or short or int or long or float or double or string or StringName
-                or Vector2I or Vector2 or Vector3I or Vector3 => value,
+                or Vector2I or Vector2 or Vector3I or Vector3 or Color => value,
             Variant => throw UnsupportedCloneValue(value),
             GodotObject => throw UnsupportedCloneValue(value),
             System.IDisposable => throw UnsupportedCloneValue(value),
@@ -324,6 +324,130 @@ internal static class RuntimePlainPayload
         return rawValue;
     }
 
+    internal static Dictionary<string, object> NormalizeDictionaryStrict(
+        GDictionary source,
+        string ownerPath
+    )
+    {
+        var result = new Dictionary<string, object>(System.StringComparer.Ordinal);
+        if (source == null)
+            return result;
+
+        foreach (Variant rawKey in source.Keys)
+        {
+            string key = rawKey.VariantType switch
+            {
+                Variant.Type.String => rawKey.AsString(),
+                Variant.Type.StringName => rawKey.AsStringName().ToString(),
+                _ => throw new System.InvalidOperationException(
+                    $"Plain runtime payload dictionary key at {ownerPath} must be String or StringName, got {rawKey.VariantType}."
+                ),
+            };
+            if (string.IsNullOrEmpty(key))
+            {
+                throw new System.InvalidOperationException(
+                    $"Plain runtime payload dictionary key at {ownerPath} must not be empty."
+                );
+            }
+            if (result.ContainsKey(key))
+            {
+                throw new System.InvalidOperationException(
+                    $"Plain runtime payload dictionary at {ownerPath} contains duplicate normalized key '{key}'."
+                );
+            }
+
+            string childPath = string.IsNullOrEmpty(ownerPath) ? key : $"{ownerPath}.{key}";
+            result[key] = NormalizeRuntimeValueStrict(source[rawKey], childPath);
+        }
+        return result;
+    }
+
+    internal static List<object> NormalizeArrayStrict(GArray source, string ownerPath)
+    {
+        var result = new List<object>();
+        if (source == null)
+            return result;
+
+        int index = 0;
+        foreach (Variant rawValue in source)
+        {
+            result.Add(NormalizeRuntimeVariantStrict(rawValue, $"{ownerPath}[{index}]"));
+            index++;
+        }
+        return result;
+    }
+
+    internal static object NormalizeRuntimeValueStrict(object rawValue, string path)
+    {
+        if (rawValue is Variant variantValue)
+            return NormalizeRuntimeVariantStrict(variantValue, path);
+        if (rawValue is GDictionary dictionaryValue)
+            return NormalizeDictionaryStrict(dictionaryValue, path);
+        if (rawValue is GArray arrayValue)
+            return NormalizeArrayStrict(arrayValue, path);
+        if (rawValue is GodotObject godotObject)
+        {
+            throw new System.InvalidOperationException(
+                $"Plain runtime payload does not accept Godot Object at {path}. type={godotObject.GetType().Name}"
+            );
+        }
+        return CloneValue(rawValue);
+    }
+
+    private static object NormalizeRuntimeVariantStrict(Variant value, string path)
+    {
+        switch (value.VariantType)
+        {
+            case Variant.Type.Nil:
+                return null;
+            case Variant.Type.Bool:
+                return value.AsBool();
+            case Variant.Type.Int:
+                return value.AsInt64();
+            case Variant.Type.Float:
+                return value.AsDouble();
+            case Variant.Type.String:
+                return value.AsString();
+            case Variant.Type.StringName:
+                return value.AsStringName();
+            case Variant.Type.Vector2I:
+                return value.AsVector2I();
+            case Variant.Type.Vector2:
+                return value.AsVector2();
+            case Variant.Type.Vector3I:
+                return value.AsVector3I();
+            case Variant.Type.Vector3:
+                return value.AsVector3();
+            case Variant.Type.Color:
+                return value.AsColor();
+            case Variant.Type.Dictionary:
+            {
+                using GDictionary dictionary = value.AsGodotDictionary();
+                return NormalizeDictionaryStrict(dictionary, path);
+            }
+            case Variant.Type.Array:
+            {
+                using GArray array = value.AsGodotArray();
+                return NormalizeArrayStrict(array, path);
+            }
+            case Variant.Type.PackedStringArray:
+            {
+                var result = new List<object>();
+                foreach (string entry in value.AsStringArray())
+                    result.Add(entry ?? "");
+                return result;
+            }
+            case Variant.Type.Object:
+                throw new System.InvalidOperationException(
+                    $"Plain runtime payload does not accept Godot Object at {path}."
+                );
+            default:
+                throw new System.InvalidOperationException(
+                    $"Plain runtime payload does not support Variant type {value.VariantType} at {path}."
+                );
+        }
+    }
+
     private static bool TryAsDictionary(object value, out GDictionary dictionary)
     {
         if (value is GDictionary dictionaryValue)
@@ -354,6 +478,7 @@ internal static class RuntimePlainPayload
             Variant.Type.Vector2 => value.AsVector2(),
             Variant.Type.Vector3I => value.AsVector3I(),
             Variant.Type.Vector3 => value.AsVector3(),
+            Variant.Type.Color => value.AsColor(),
             Variant.Type.Dictionary => NormalizeDictionary(value.AsGodotDictionary(), path),
             Variant.Type.Array => NormalizeArray(value.AsGodotArray(), path),
             Variant.Type.Object => throw new System.InvalidOperationException(
@@ -392,6 +517,7 @@ internal static class RuntimePlainPayload
             Vector2 vector2Value => vector2Value,
             Vector3I vector3IValue => vector3IValue,
             Vector3 vector3Value => vector3Value,
+            Color colorValue => colorValue,
             IReadOnlyDictionary<string, object> dictionaryValue =>
                 ProjectDictionary(dictionaryValue, reason),
             IReadOnlyList<object> listValue => ProjectArray(listValue, reason),
@@ -475,6 +601,8 @@ internal static class RuntimePlainPayload
                 return vector3IValue;
             case Vector3 vector3Value:
                 return vector3Value;
+            case Color colorValue:
+                return colorValue;
             case IReadOnlyDictionary<string, object> dictionaryValue:
             {
                 GDictionary dictionary = lease.Own(new GDictionary(), reason);
@@ -563,6 +691,8 @@ internal static class RuntimePlainPayload
                 return value.AsVector3I();
             case Variant.Type.Vector3:
                 return value.AsVector3();
+            case Variant.Type.Color:
+                return value.AsColor();
             case Variant.Type.Dictionary:
             {
                 using GDictionary dictionary = value.AsGodotDictionary();
