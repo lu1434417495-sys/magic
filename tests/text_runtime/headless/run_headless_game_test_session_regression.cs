@@ -248,7 +248,7 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
             await CleanupSharedGameSession(sharedGameSession);
             return;
         }
-        AssertBattleRuntimeScopeDelta(
+        AssertBattleRuntimeScopesDrained(
             borrowedSuccessBaseline,
             LifecycleAuditRegistry.Shared.CaptureSnapshot(),
             "borrowed battle context return"
@@ -599,7 +599,7 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
         );
     }
 
-    private void AssertBattleRuntimeScopeDelta(
+    private void AssertBattleRuntimeScopesDrained(
         LifecycleAuditSnapshot expected,
         LifecycleAuditSnapshot actual,
         string label
@@ -609,8 +609,8 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
         _test.Eq(actual.ActiveLeaseCount, expected.ActiveLeaseCount, $"{label}: lease baseline");
         _test.Eq(
             actual.ActiveScopeCount,
-            expected.ActiveScopeCount + 2,
-            $"{label}: two AI action-plan battle scopes"
+            expected.ActiveScopeCount,
+            $"{label}: typed AI action plans retain no native battle scopes"
         );
         _test.Eq(
             actual.ActiveContentBorrowerCount,

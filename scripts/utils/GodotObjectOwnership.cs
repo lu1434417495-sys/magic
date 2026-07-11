@@ -34,7 +34,6 @@ internal static class GodotWrapperOwnershipRegistry
 
     private static readonly object Sync = new();
     private static readonly ConditionalWeakTable<object, Entry> Entries = new();
-    private static readonly List<WeakReference<object>> EntryRefs = new();
 
     internal static bool Register(
         object wrapper,
@@ -65,7 +64,7 @@ internal static class GodotWrapperOwnershipRegistry
                 if (IsStaticContentKind(existing.Kind) && IsStaticContentKind(kind))
                     return true;
 
-                LifecycleViolation.Report(
+                LifecycleAuditRegistry.Shared.RecordOwnerConflict(
                     $"Godot wrapper ownership conflict. type={wrapper.GetType().Name}, old={existing.Kind}, new={kind}, old_reason={existing.Reason}, reason={reason}"
                 );
                 return false;
@@ -80,7 +79,6 @@ internal static class GodotWrapperOwnershipRegistry
                 TypeName = wrapper.GetType().Name,
             };
             Entries.Add(wrapper, entry);
-            EntryRefs.Add(entry.Wrapper);
             return true;
         }
     }
@@ -122,7 +120,6 @@ internal static class GodotWrapperOwnershipRegistry
                 TypeName = wrapper.GetType().Name,
             };
             Entries.Add(wrapper, entry);
-            EntryRefs.Add(entry.Wrapper);
             return true;
         }
     }
@@ -241,40 +238,6 @@ internal static class GodotWrapperOwnershipRegistry
         TryGetKind(wrapper, out GodotWrapperOwnershipKind kind)
         && kind == GodotWrapperOwnershipKind.RuntimeState;
 
-    internal static List<object> SnapshotWrappers(GodotWrapperOwnershipKind kind)
-    {
-        var result = new List<object>();
-        lock (Sync)
-        {
-            for (int index = EntryRefs.Count - 1; index >= 0; index--)
-            {
-                WeakReference<object> weakRef = EntryRefs[index];
-                if (!weakRef.TryGetTarget(out object wrapper) || wrapper == null)
-                {
-                    EntryRefs.RemoveAt(index);
-                    continue;
-                }
-                if (!Entries.TryGetValue(wrapper, out Entry entry) || entry.Kind != kind)
-                    continue;
-                if (wrapper is GodotObject godotObject && !IsInstanceValid(godotObject))
-                    continue;
-                result.Add(wrapper);
-            }
-        }
-        return result;
-    }
-
-    internal static List<GodotObject> SnapshotObjects(GodotWrapperOwnershipKind kind)
-    {
-        var result = new List<GodotObject>();
-        foreach (object wrapper in SnapshotWrappers(kind))
-        {
-            if (wrapper is GodotObject godotObject)
-                result.Add(godotObject);
-        }
-        return result;
-    }
-
     internal static void RegisterRuntimeState(GodotObject obj, string reason)
     {
         Register(obj, GodotWrapperOwnershipKind.RuntimeState, owner: null, reason: reason);
@@ -322,17 +285,6 @@ internal static class GodotWrapperOwnershipRegistry
             is GodotWrapperOwnershipKind.BorrowedStaticContent
                 or GodotWrapperOwnershipKind.DerivedStaticContent;
 
-    private static bool IsInstanceValid(GodotObject obj)
-    {
-        try
-        {
-            return obj != null && GodotObject.IsInstanceValid(obj);
-        }
-        catch (ObjectDisposedException)
-        {
-            return false;
-        }
-    }
 }
 
 internal static class GodotObjectOwnershipRegistry
@@ -363,9 +315,6 @@ internal static class GodotObjectOwnershipRegistry
 
     internal static bool IsBorrowedOrDerivedStaticContent(GodotObject obj) =>
         GodotWrapperOwnershipRegistry.IsBorrowedOrDerivedStaticContent(obj);
-
-    internal static List<GodotObject> SnapshotObjects(GodotWrapperOwnershipKind kind) =>
-        GodotWrapperOwnershipRegistry.SnapshotObjects(kind);
 
     internal static void AssertOwnedTransient(GodotObject obj, string reason) =>
         GodotWrapperOwnershipRegistry.AssertOwnedTransient(obj, reason);

@@ -38,6 +38,17 @@ internal sealed record LifecycleShutdownPhaseAuditSnapshot(
     string Failure
 );
 
+internal sealed record LifecycleAuditActivitySnapshot(
+    long OwnersRegistered,
+    long OwnersClosed,
+    long NativeWrappersOwned,
+    long NativeWrappersDisposed,
+    long ProjectionContainersOwned,
+    long ProjectionContainersDisposed,
+    long TransfersOut,
+    long TransfersIn
+);
+
 internal sealed record LifecycleAuditSnapshot(
     int ProcessContentRootCount,
     long ActiveContentSnapshotEpoch,
@@ -51,10 +62,18 @@ internal sealed record LifecycleAuditSnapshot(
     long TransferredCount,
     long EscapedCount,
     long UnknownCount,
+    long OwnerConflictCount,
+    long CloseAfterUseCount,
     long ViolationCount,
     long NormalPhaseSuppressCount,
     long QuarantineCount,
     IReadOnlyDictionary<string, int> ActiveCountsByDomain,
+    IReadOnlyDictionary<string, int> ActiveContentBorrowerCountsByDomain,
+    IReadOnlyDictionary<string, int> ActiveOwnerCountsByDomain,
+    IReadOnlyDictionary<string, int> ActiveProjectionLeaseCountsByDomain,
+    IReadOnlyDictionary<string, int> ActiveNativeScopeCountsByDomain,
+    IReadOnlyDictionary<string, int> ActiveJobCountsByDomain,
+    LifecycleAuditActivitySnapshot Activity,
     IReadOnlyList<LifecycleWeakDiagnosticSnapshot> WeakDiagnostics,
     IReadOnlyList<LifecycleProcessContentRootSnapshot> ProcessContentRoots,
     IReadOnlyList<LifecycleLegacyDebtSnapshot> LegacyDebt,
@@ -76,6 +95,8 @@ internal sealed class LifecycleAuditRegistry
     private sealed record ActiveDiagnostic(
         LifecycleAuditActiveKind Kind,
         string OwnerDomain,
+        bool IsNativeWrapper,
+        bool IsProjectionContainer,
         WeakReference<object> Target
     );
 
@@ -98,9 +119,19 @@ internal sealed class LifecycleAuditRegistry
     private long _transferredCount;
     private long _escapedCount;
     private long _unknownCount;
+    private long _ownerConflictCount;
+    private long _closeAfterUseCount;
     private long _violationCount;
     private long _normalPhaseSuppressCount;
     private long _quarantineCount;
+    private long _ownersRegistered;
+    private long _ownersClosed;
+    private long _nativeWrappersOwned;
+    private long _nativeWrappersDisposed;
+    private long _projectionContainersOwned;
+    private long _projectionContainersDisposed;
+    private long _transfersOut;
+    private long _transfersIn;
 
     internal static LifecycleAuditRegistry Shared { get; } = new();
 
@@ -124,11 +155,25 @@ internal sealed class LifecycleAuditRegistry
                 return;
             }
 
+            bool isNativeWrapper = IsNativeWrapperDiagnostic(kind, diagnosticId);
+            bool isProjectionContainer =
+                isNativeWrapper && IsProjectionContainerDiagnostic(diagnosticId);
             _activeDiagnostics.Add(
                 diagnosticId,
-                new ActiveDiagnostic(kind, ownerDomain, new WeakReference<object>(target))
+                new ActiveDiagnostic(
+                    kind,
+                    ownerDomain,
+                    isNativeWrapper,
+                    isProjectionContainer,
+                    new WeakReference<object>(target)
+                )
             );
             _createdCount++;
+            _ownersRegistered++;
+            if (isNativeWrapper)
+                _nativeWrappersOwned++;
+            if (isProjectionContainer)
+                _projectionContainersOwned++;
         }
     }
 
@@ -160,6 +205,11 @@ internal sealed class LifecycleAuditRegistry
 
             _activeDiagnostics.Remove(diagnosticId);
             _disposedCount++;
+            _ownersClosed++;
+            if (diagnostic.IsNativeWrapper)
+                _nativeWrappersDisposed++;
+            if (diagnostic.IsProjectionContainer)
+                _projectionContainersDisposed++;
         }
     }
 
@@ -240,7 +290,11 @@ internal sealed class LifecycleAuditRegistry
     internal void RecordTransferred()
     {
         lock (_sync)
+        {
             _transferredCount++;
+            _transfersOut++;
+            _transfersIn++;
+        }
     }
 
     internal bool TryTransferActiveDomain(
@@ -307,6 +361,34 @@ internal sealed class LifecycleAuditRegistry
         );
     }
 
+    internal void RecordOwnerConflict(string diagnostic)
+    {
+        lock (_sync)
+        {
+            _ownerConflictCount++;
+            _violationCount++;
+        }
+        LifecycleViolation.Report(
+            string.IsNullOrWhiteSpace(diagnostic)
+                ? "Lifecycle object has conflicting owners."
+                : diagnostic
+        );
+    }
+
+    internal void RecordCloseAfterUse(string diagnostic)
+    {
+        lock (_sync)
+        {
+            _closeAfterUseCount++;
+            _violationCount++;
+        }
+        LifecycleViolation.Report(
+            string.IsNullOrWhiteSpace(diagnostic)
+                ? "Lifecycle object was used after close."
+                : diagnostic
+        );
+    }
+
     internal void RecordNormalPhaseSuppress()
     {
         lock (_sync)
@@ -360,9 +442,22 @@ internal sealed class LifecycleAuditRegistry
     {
         lock (_sync)
         {
-            var domainCounts = _activeDiagnostics
-                .Values.GroupBy(diagnostic => diagnostic.OwnerDomain, StringComparer.Ordinal)
-                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
+            IReadOnlyDictionary<string, int> domainCounts = CaptureDomainCounts();
+            IReadOnlyDictionary<string, int> contentBorrowerCounts = CaptureDomainCounts(
+                LifecycleAuditActiveKind.ContentBorrower
+            );
+            IReadOnlyDictionary<string, int> ownerCounts = CaptureDomainCounts(
+                LifecycleAuditActiveKind.Owner
+            );
+            IReadOnlyDictionary<string, int> projectionLeaseCounts = CaptureDomainCounts(
+                LifecycleAuditActiveKind.Lease
+            );
+            IReadOnlyDictionary<string, int> nativeScopeCounts = CaptureDomainCounts(
+                LifecycleAuditActiveKind.Scope
+            );
+            IReadOnlyDictionary<string, int> jobCounts = CaptureDomainCounts(
+                LifecycleAuditActiveKind.Job
+            );
 
             LifecycleWeakDiagnosticSnapshot[] weakDiagnostics = _activeDiagnostics
                 .Select(entry =>
@@ -410,10 +505,27 @@ internal sealed class LifecycleAuditRegistry
                 _transferredCount,
                 _escapedCount,
                 _unknownCount,
+                _ownerConflictCount,
+                _closeAfterUseCount,
                 _violationCount,
                 _normalPhaseSuppressCount,
                 _quarantineCount,
-                new ReadOnlyDictionary<string, int>(domainCounts),
+                domainCounts,
+                contentBorrowerCounts,
+                ownerCounts,
+                projectionLeaseCounts,
+                nativeScopeCounts,
+                jobCounts,
+                new LifecycleAuditActivitySnapshot(
+                    _ownersRegistered,
+                    _ownersClosed,
+                    _nativeWrappersOwned,
+                    _nativeWrappersDisposed,
+                    _projectionContainersOwned,
+                    _projectionContainersDisposed,
+                    _transfersOut,
+                    _transfersIn
+                ),
                 weakDiagnostics,
                 contentRoots,
                 _legacyDebt.Values.OrderBy(debt => debt.DebtId, StringComparer.Ordinal).ToArray(),
@@ -425,6 +537,49 @@ internal sealed class LifecycleAuditRegistry
     private int CountActive(LifecycleAuditActiveKind kind)
     {
         return _activeDiagnostics.Values.Count(diagnostic => diagnostic.Kind == kind);
+    }
+
+    private IReadOnlyDictionary<string, int> CaptureDomainCounts()
+    {
+        Dictionary<string, int> counts = _activeDiagnostics
+            .Values.GroupBy(diagnostic => diagnostic.OwnerDomain, StringComparer.Ordinal)
+            .OrderBy(group => group.Key, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
+        return new ReadOnlyDictionary<string, int>(counts);
+    }
+
+    private IReadOnlyDictionary<string, int> CaptureDomainCounts(
+        LifecycleAuditActiveKind kind
+    )
+    {
+        Dictionary<string, int> counts = _activeDiagnostics
+            .Values.Where(diagnostic => diagnostic.Kind == kind)
+            .GroupBy(diagnostic => diagnostic.OwnerDomain, StringComparer.Ordinal)
+            .OrderBy(group => group.Key, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
+        return new ReadOnlyDictionary<string, int>(counts);
+    }
+
+    private static bool IsNativeWrapperDiagnostic(
+        LifecycleAuditActiveKind kind,
+        string diagnosticId
+    ) =>
+        kind == LifecycleAuditActiveKind.Owner
+        && diagnosticId.StartsWith("native-owner:", StringComparison.Ordinal);
+
+    private static bool IsProjectionContainerDiagnostic(string diagnosticId)
+    {
+        const string nativeOwnerPrefix = "native-owner:";
+        const string projectionOwnerSegment = ":projection:";
+        int domainSeparator = diagnosticId.IndexOf(
+            ':',
+            nativeOwnerPrefix.Length
+        );
+        return domainSeparator >= 0
+            && diagnosticId.IndexOf(
+                projectionOwnerSegment,
+                StringComparison.Ordinal
+            ) == domainSeparator;
     }
 
     private bool ValidateDiagnostic(string diagnosticId, string ownerDomain, object target)

@@ -27,7 +27,7 @@ public partial class run_battle_session_promotion_prompt_regression : LifecycleT
     {
         GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         GameRuntimeFacade runtime = new();
-        BattleSessionFacade facade = new();
+        BattleSessionFacade facade = new(new FixedBattleSeedSource(1729));
         try
         {
             int createError = gameSession.CreateNewSave(TestWorldConfig);
@@ -114,7 +114,7 @@ public partial class run_battle_session_promotion_prompt_regression : LifecycleT
     {
         GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         GameRuntimeFacade runtime = new();
-        BattleSessionFacade facade = new();
+        BattleSessionFacade facade = new(new FixedBattleSeedSource(1729));
         try
         {
             int createError = gameSession.CreateNewSave(TestWorldConfig);

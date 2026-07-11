@@ -514,7 +514,7 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
         expectedResult.SetLootEntries(new[] { BuildMissingItemLootEntry() });
         runtime.SetRuntimeBattleState(endedState);
 
-        BattleSessionFacade facade = new();
+        BattleSessionFacade facade = new(new FixedBattleSeedSource(1729));
         facade.Setup(runtime);
         return new BattleSessionFacadeFixture(facade, runtime, gameSession, battleRuntime, expectedResult);
     }
@@ -578,7 +578,7 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
             return null;
         }
 
-        GameRuntimeFacade facade = new();
+        GameRuntimeFacade facade = new(new FixedBattleSeedSource(1729));
         facade.Setup(gameSession);
         ConfigureFixedCombatForFacade(facade);
         return new WorldBattleFixture(facade, gameSession);

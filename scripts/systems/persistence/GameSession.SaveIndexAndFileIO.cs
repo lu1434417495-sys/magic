@@ -59,7 +59,7 @@ public partial class GameSession
         bool shouldRewriteIndex = false;
         List<Dictionary<string, object>> entries = new();
         int indexRecoveryError = FileIOCoordinator.RecoverReplaceTarget(
-            SaveIndexPath,
+            _persistenceOptions.SaveIndexPath,
             SaveFileCompressionMode,
             "session.save.index",
             "save index",
@@ -67,7 +67,7 @@ public partial class GameSession
         );
         if (indexRecoveryError != (int)Error.Ok && indexRecoveryError != (int)Error.DoesNotExist)
             shouldRewriteIndex = true;
-        if (!FileAccess.FileExists(SaveIndexPath))
+        if (!FileAccess.FileExists(_persistenceOptions.SaveIndexPath))
         {
             shouldRewriteIndex = true;
         }
@@ -78,7 +78,7 @@ public partial class GameSession
                 LifetimeDomain.Request
             );
             FileAccess openedIndexFile = FileAccess.OpenCompressed(
-                SaveIndexPath,
+                _persistenceOptions.SaveIndexPath,
                 FileAccess.ModeFlags.Read,
                 (FileAccess.CompressionMode)SaveFileCompressionMode
             );
@@ -90,7 +90,7 @@ public partial class GameSession
             {
                 FileAccess indexFile = fileScope.Own(
                     openedIndexFile,
-                    $"open:{SaveIndexPath}"
+                    $"open:{_persistenceOptions.SaveIndexPath}"
                 );
                 try
                 {
@@ -135,7 +135,7 @@ public partial class GameSession
     {
         if (IsSaveIndexCacheCurrent())
             return CloneSaveIndexEntries(_saveIndexEntriesCache);
-        if (!FileAccess.FileExists(SaveIndexPath))
+        if (!FileAccess.FileExists(_persistenceOptions.SaveIndexPath))
             return new List<Dictionary<string, object>>();
 
         using NativeLeaseScope fileScope = new(
@@ -143,7 +143,7 @@ public partial class GameSession
             LifetimeDomain.Request
         );
         FileAccess openedIndexFile = FileAccess.OpenCompressed(
-            SaveIndexPath,
+            _persistenceOptions.SaveIndexPath,
             FileAccess.ModeFlags.Read,
             (FileAccess.CompressionMode)SaveFileCompressionMode
         );
@@ -151,7 +151,7 @@ public partial class GameSession
             return new List<Dictionary<string, object>>();
         FileAccess indexFile = fileScope.Own(
             openedIndexFile,
-            $"open:{SaveIndexPath}"
+            $"open:{_persistenceOptions.SaveIndexPath}"
         );
         Dictionary<string, object> plainPayload;
         try
@@ -183,7 +183,7 @@ public partial class GameSession
         using GodotProjectionLease<GDictionary> payload =
             BuildSaveIndexPayloadLease(normalizedEntries);
         int writeError = EnsureSaveRepository().WriteCompressedVariantAtomically(
-            SaveIndexPath,
+            _persistenceOptions.SaveIndexPath,
             payload,
             "session.save.index",
             "save index"
@@ -248,7 +248,7 @@ public partial class GameSession
 
     private SaveIndexFileSignature GetSaveIndexFileSignature()
     {
-        if (!FileAccess.FileExists(SaveIndexPath))
+        if (!FileAccess.FileExists(_persistenceOptions.SaveIndexPath))
             return SaveIndexFileSignature.Missing;
 
         int size = -1;
@@ -258,14 +258,14 @@ public partial class GameSession
             LifetimeDomain.Request
         );
         FileAccess openedIndexFile = FileAccess.Open(
-            SaveIndexPath,
+            _persistenceOptions.SaveIndexPath,
             FileAccess.ModeFlags.Read
         );
         if (openedIndexFile != null)
         {
             FileAccess indexFile = fileScope.Own(
                 openedIndexFile,
-                $"open:{SaveIndexPath}"
+                $"open:{_persistenceOptions.SaveIndexPath}"
             );
             try
             {
@@ -282,7 +282,7 @@ public partial class GameSession
         }
         return new SaveIndexFileSignature(
             true,
-            (int)FileAccess.GetModifiedTime(SaveIndexPath),
+            (int)FileAccess.GetModifiedTime(_persistenceOptions.SaveIndexPath),
             size,
             fingerprint
         );
@@ -432,19 +432,23 @@ public partial class GameSession
 
     private List<Dictionary<string, object>> RebuildSaveIndexEntriesFromSaveFilesPlain()
     {
-        if (!DirAccess.DirExistsAbsolute(ProjectSettings.GlobalizePath(SaveDirectory)))
+        if (
+            !DirAccess.DirExistsAbsolute(
+                ProjectSettings.GlobalizePath(_persistenceOptions.SaveDirectory)
+            )
+        )
             return new List<Dictionary<string, object>>();
 
         using NativeLeaseScope directoryScope = new(
             "save-index-directory-scan",
             LifetimeDomain.Request
         );
-        DirAccess openedSaveDir = DirAccess.Open(SaveDirectory);
+        DirAccess openedSaveDir = DirAccess.Open(_persistenceOptions.SaveDirectory);
         if (openedSaveDir == null)
             return new List<Dictionary<string, object>>();
         DirAccess saveDir = directoryScope.Own(
             openedSaveDir,
-            $"open:{SaveDirectory}"
+            $"open:{_persistenceOptions.SaveDirectory}"
         );
 
         try
@@ -455,7 +459,7 @@ public partial class GameSession
             if (listError != Error.Ok)
             {
                 throw new InvalidOperationException(
-                    $"Failed to list save directory {SaveDirectory} for index rebuild. Error: {(int)listError}"
+                    $"Failed to list save directory {_persistenceOptions.SaveDirectory} for index rebuild. Error: {(int)listError}"
                 );
             }
 
@@ -471,7 +475,7 @@ public partial class GameSession
                 string candidateSaveId = fileName[..^4];
                 if (!_save_serializer.IsValidSaveIdToken(candidateSaveId))
                     continue;
-                string savePath = $"{SaveDirectory}/{fileName}";
+                string savePath = $"{_persistenceOptions.SaveDirectory}/{fileName}";
                 int readError = ReadSavePayload(
                     savePath,
                     out Dictionary<string, object> plainPayload,

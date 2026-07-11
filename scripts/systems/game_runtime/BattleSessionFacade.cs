@@ -9,7 +9,15 @@ public sealed class BattleSessionFacade : IDisposable
 {
     private static readonly string RuntimeUnavailableMessage = "运行时尚未初始化。";
 
+    private readonly IBattleSeedSource _battleSeedSource;
+
     private WeakReference<GameRuntimeFacade> _runtimeRef;
+
+    internal BattleSessionFacade(IBattleSeedSource battleSeedSource)
+    {
+        _battleSeedSource = battleSeedSource
+            ?? throw new ArgumentNullException(nameof(battleSeedSource));
+    }
 
     private GameRuntimeFacade _runtime
     {
@@ -651,7 +659,7 @@ public sealed class BattleSessionFacade : IDisposable
     {
         if (encounterAnchor == null)
             return 0;
-        return (int)TrueRandomSeedService.GenerateSeed();
+        return _battleSeedSource.NextSeed(encounterAnchor);
     }
 
     public BattleState GetRuntimeBattleState()

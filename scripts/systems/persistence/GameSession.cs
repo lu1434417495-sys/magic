@@ -9,13 +9,12 @@ using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 [GlobalClass]
-public partial class GameSession : Node, IApplicationShutdownParticipant
+public partial class GameSession : Node, IApplicationShutdownParticipant, IDisposable
 {
     private const string ApplicationShutdownParticipantId = "game-session";
     private const int ApplicationShutdownOrder = 0;
-    private const string SaveDirectory = "user://saves";
-    private const string SaveIndexPath = "user://saves/index.dat";
     private const int SaveVersion = 12;
+    internal static int CurrentSaveVersion => SaveVersion;
     private const int SaveIndexVersion = 3;
     private const int MaxActiveMemberCount = 4;
     private static readonly int SaveFileCompressionMode = (int)FileAccess.CompressionMode.Zstd;
@@ -242,6 +241,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
     private ContentValidationSnapshotData _contentValidationSnapshotData = new();
 
     public SaveSerializer _save_serializer = new();
+    private readonly GameSessionPersistenceOptions _persistenceOptions;
     private SaveRepository _save_repository;
     private GameLogService _log_service = new();
     private IGameLogSink _log_sink;
@@ -257,7 +257,17 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
     public bool fail_payload_write;
 
     public GameSession()
+        : this(GameSessionPersistenceOptions.Production)
     {
+    }
+
+    internal GameSession(GameSessionPersistenceOptions persistenceOptions)
+    {
+        ArgumentNullException.ThrowIfNull(persistenceOptions);
+        ArgumentException.ThrowIfNullOrWhiteSpace(persistenceOptions.SaveDirectory);
+        ArgumentException.ThrowIfNullOrWhiteSpace(persistenceOptions.SaveIndexPath);
+
+        _persistenceOptions = persistenceOptions;
         EnsureGameRoot();
         _save_serializer.Setup(
             SaveVersion,
@@ -429,6 +439,8 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         if (GodotObject.IsInstanceValid(this))
             Free();
     }
+
+    void IDisposable.Dispose() => Dispose();
 
     public override void _ExitTree() => CloseNormal();
 
@@ -1381,7 +1393,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
     {
         ResetRuntimeState();
         InvalidateSaveIndexCache();
-        int removeError = RemoveDirectoryRecursive(SaveDirectory);
+        int removeError = RemoveDirectoryRecursive(_persistenceOptions.SaveDirectory);
         if (removeError != (int)Error.Ok)
             return removeError;
         LogSessionInfo("session.save.clear.ok", "已清理存档目录。");
@@ -1972,7 +1984,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
     private SaveRepository BuildSaveRepository() =>
         new(
             _save_serializer,
-            SaveDirectory,
+            _persistenceOptions.SaveDirectory,
             SaveFileCompressionMode,
             PushSessionError,
             ShouldFailPayloadWrite

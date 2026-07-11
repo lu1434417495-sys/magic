@@ -19,8 +19,10 @@ internal sealed class SaveRepository
         Func<bool> shouldFailPayloadWrite
     )
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(saveDirectory);
+
         _serializer = serializer;
-        _saveDirectory = saveDirectory ?? "";
+        _saveDirectory = saveDirectory;
         _compressionMode = compressionMode;
         _errorSink = errorSink;
         _shouldFailPayloadWrite = shouldFailPayloadWrite;

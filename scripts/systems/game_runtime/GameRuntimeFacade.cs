@@ -191,7 +191,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     private GameRuntimeBattleWritebackService _battle_writeback_service = new();
     internal GameRuntimeBattleLootCommitService _battle_loot_commit_service = new();
     private GameRuntimeCharacterInfoBuilder _character_info_builder = new();
-    internal BattleSessionFacade _battle_session_facade = new();
+    internal BattleSessionFacade _battle_session_facade;
     internal GameRuntimeBattleSelection _battle_selection = new();
     private readonly GameRuntimeBattleSelectionState _battle_selection_state = new();
     internal GameRuntimeSettlementCommandHandler _settlement_command_handler = new();
@@ -263,7 +263,14 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     }
 
     public GameRuntimeFacade()
+        : this(new TrueRandomBattleSeedSource())
     {
+    }
+
+    internal GameRuntimeFacade(IBattleSeedSource seedSource)
+    {
+        ArgumentNullException.ThrowIfNull(seedSource);
+        _battle_session_facade = new BattleSessionFacade(seedSource);
         _battle_runtime = new BattleRuntimeModule();
         BindRuntimeSidecarOwners();
     }
@@ -435,6 +442,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         GC.SuppressFinalize(this);
         CommitPendingRuntimeStateOnDispose();
         _battle_runtime?.dispose();
+        _release_battle_save_lock();
         _battle_grid_service?.Dispose();
         _snapshot_builder?.Dispose();
         _command_logger?.Dispose();

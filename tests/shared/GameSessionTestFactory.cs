@@ -28,6 +28,15 @@ internal static class GameSessionTestFactory
         return new GameSession { Name = nodeName ?? "GameSession" };
     }
 
+    internal static GameSession CreateForCoordinatorAttachment(
+        GameSessionPersistenceOptions persistenceOptions,
+        string nodeName = "GameSession"
+    )
+    {
+        ArgumentNullException.ThrowIfNull(persistenceOptions);
+        return new GameSession(persistenceOptions) { Name = nodeName ?? "GameSession" };
+    }
+
     internal static GameSession CreateBorrowingProcessSnapshot(SceneTree tree)
     {
         ArgumentNullException.ThrowIfNull(tree);
