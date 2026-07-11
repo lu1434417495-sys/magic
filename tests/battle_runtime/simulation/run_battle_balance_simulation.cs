@@ -26,12 +26,15 @@ public partial class run_battle_balance_simulation : LifecycleTestSceneTree
             return 1;
         }
 
-        BattleSimScenarioDef scenario = ResourceLoader.Load<BattleSimScenarioDef>(args[0]);
-        if (scenario == null)
+        BattleSimScenarioDef scenarioResource =
+            ResourceLoader.Load<BattleSimScenarioDef>(args[0]);
+        if (scenarioResource == null)
         {
             GD.PushError($"Failed to load BattleSimScenarioDef from {args[0]}.");
             return 1;
         }
+        BattleSimScenarioDefinition scenario = scenarioResource.ToDefinition();
+        scenarioResource = null;
 
         var profiles = new List<BattleSimProfileDefinition>();
         for (int index = 1; index < args.Length; index++)

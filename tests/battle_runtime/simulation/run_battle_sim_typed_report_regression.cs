@@ -27,7 +27,9 @@ public partial class run_battle_sim_typed_report_regression : LifecycleTestScene
             skill_level_map = new GDictionary { [skillId] = 4 },
         };
 
-        BattleUnitState unitState = spec.ToBattleUnitState("player", "manual");
+        BattleUnitState unitState = spec
+            .ToDefinition("player", "manual")
+            .CreateRuntimeState();
 
         _test.Eq(
             unitState.GetKnownSkillLevelTyped(skillId),
@@ -47,8 +49,9 @@ public partial class run_battle_sim_typed_report_regression : LifecycleTestScene
         bool rejected = false;
         try
         {
+            BattleSimScenarioDefinition definition = scenario.ToDefinition();
             using GodotProjectionLease<GDictionary> contextLease =
-                scenario.BuildStartContextLease();
+                definition.BuildStartContextLease();
         }
         catch (InvalidOperationException error)
         {

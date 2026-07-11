@@ -22,7 +22,10 @@ public partial class run_battle_ai_vs_ai_simulation_regression : LifecycleTestSc
 
     private TestResult Run()
     {
-        BattleSimScenarioDef scenario = ResourceLoader.Load<BattleSimScenarioDef>(AiVsAiScenarioPath);
+        BattleSimScenarioDef scenarioResource =
+            ResourceLoader.Load<BattleSimScenarioDef>(AiVsAiScenarioPath);
+        BattleSimScenarioDefinition scenario = scenarioResource?.ToDefinition();
+        scenarioResource = null;
         BattleSimProfileDefinition baselineProfile = GameSessionTestFactory
             .GetProcessSnapshot()
             .BattleSimProfiles["baseline"];

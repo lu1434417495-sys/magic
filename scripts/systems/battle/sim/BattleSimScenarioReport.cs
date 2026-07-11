@@ -1,6 +1,6 @@
 public sealed class BattleSimScenarioReport
 {
-    public BattleSimScenarioDef ScenarioDef { get; set; }
+    internal BattleSimScenarioDefinition Scenario { get; set; }
 
     public int GeneratedAtUnix { get; set; }
 
@@ -10,6 +10,6 @@ public sealed class BattleSimScenarioReport
 
     public BattleSimOutputFiles OutputFiles { get; set; } = new();
 
-    public string ScenarioId => ScenarioDef?.scenario_id.ToString() ?? "";
+    public string ScenarioId => Scenario?.ScenarioId.ToString() ?? "";
 
 }

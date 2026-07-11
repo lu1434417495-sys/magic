@@ -52,17 +52,7 @@ public partial class BattleSimScenarioDef : Resource
     [Export]
     public int[] seeds { get; set; } = { 101 };
 
-    public IReadOnlyList<int> ResolveSeeds()
-    {
-        var r = new List<int>();
-        foreach (int s in seeds)
-            r.Add(s);
-        if (r.Count == 0)
-            r.Add(101);
-        return r;
-    }
-
-    internal GodotProjectionLease<Godot.Collections.Dictionary> BuildStartContextLease()
+    internal BattleSimScenarioDefinition ToDefinition()
     {
         List<BattleSimScenarioUnitEntry> allyEntries = BuildUnitEntries(
             ally_units,
@@ -76,62 +66,40 @@ public partial class BattleSimScenarioDef : Resource
             "hostile",
             "ai"
         );
-        var contextPlain = new Dictionary<string, object>(System.StringComparer.Ordinal)
+        var resolvedSeeds = new List<int>();
+        if (seeds != null)
         {
-            ["battle_party"] = BuildUnitPayloadsPlain(allyEntries),
-            ["enemy_units"] = BuildUnitPayloadsPlain(enemyEntries),
-            ["tu_per_tick"] = tu_per_tick,
-            ["battle_terrain_profile"] = terrain_profile_id,
-            ["world_coord"] = world_coord,
-        };
+            foreach (int seed in seeds)
+                resolvedSeeds.Add(seed);
+        }
+        if (resolvedSeeds.Count == 0)
+            resolvedSeeds.Add(101);
 
-        if (use_formal_terrain_generation)
-        {
-            if (map_size != Vector2I.Zero)
-                contextPlain["battle_map_size"] = map_size;
-            return RuntimePlainPayload.ProjectDictionaryLease(
-                contextPlain,
-                "battle-sim-scenario",
-                LifetimeDomain.Request,
-                "BattleSimScenarioDef.BuildStartContextLease"
-            );
-        }
+        IReadOnlyDictionary<Vector2I, IReadOnlyDictionary<string, object>> cells =
+            use_formal_terrain_generation
+                ? new Dictionary<Vector2I, IReadOnlyDictionary<string, object>>()
+                : BuildCellsPlain();
 
-        contextPlain["ally_spawns"] = BuildSpawnCoordsPlain(allyEntries);
-        contextPlain["enemy_spawns"] = BuildSpawnCoordsPlain(enemyEntries);
-        contextPlain["map_size"] = map_size;
-        Dictionary<Vector2I, IReadOnlyDictionary<string, object>> cells = BuildCellsPlain();
-        GodotProjectionLease<Godot.Collections.Dictionary> lease =
-            RuntimePlainPayload.ProjectDictionaryLease(
-                contextPlain,
-                "battle-sim-scenario",
-                LifetimeDomain.Request,
-                "BattleSimScenarioDef.BuildStartContextLease"
-            );
-        try
-        {
-            var projectedCells = lease.Own(
-                new Godot.Collections.Dictionary(),
-                "BattleSimScenarioDef.BuildStartContextLease.cells"
-            );
-            foreach (
-                KeyValuePair<Vector2I, IReadOnlyDictionary<string, object>> entry in cells
-            )
-            {
-                projectedCells[entry.Key] = RuntimePlainPayload.ProjectDictionaryInto(
-                    lease,
-                    entry.Value,
-                    $"BattleSimScenarioDef.BuildStartContextLease.cells[{entry.Key}]"
-                );
-            }
-            lease.Value["cells"] = projectedCells;
-            return lease;
-        }
-        catch
-        {
-            lease.Dispose();
-            throw;
-        }
+        return new BattleSimScenarioDefinition(
+            scenario_id,
+            display_name,
+            description,
+            map_size,
+            terrain_profile_id,
+            use_formal_terrain_generation,
+            world_coord,
+            allyEntries,
+            enemyEntries,
+            ally_units?.Count ?? 0,
+            enemy_units?.Count ?? 0,
+            cells,
+            timeline_ticks_per_step,
+            tu_per_tick,
+            max_iterations,
+            manual_policy,
+            trace_enabled,
+            resolvedSeeds
+        );
     }
 
     private static List<BattleSimScenarioUnitEntry> BuildUnitEntries(
@@ -159,38 +127,6 @@ public partial class BattleSimScenarioDef : Resource
             }
         }
         return entries;
-    }
-
-    private static List<object> BuildUnitPayloadsPlain(
-        IReadOnlyList<BattleSimScenarioUnitEntry> unitEntries
-    )
-    {
-        var payloads = new List<object>();
-        if (unitEntries == null)
-            return payloads;
-        foreach (BattleSimScenarioUnitEntry entry in unitEntries)
-        {
-            if (entry?.UnitState == null)
-                continue;
-            payloads.Add(entry.UnitState.BuildSnapshotPlain());
-        }
-        return payloads;
-    }
-
-    private static List<object> BuildSpawnCoordsPlain(
-        IReadOnlyList<BattleSimScenarioUnitEntry> unitEntries
-    )
-    {
-        var coords = new List<object>();
-        if (unitEntries == null)
-            return coords;
-        foreach (BattleSimScenarioUnitEntry entry in unitEntries)
-        {
-            if (entry == null)
-                continue;
-            coords.Add(entry.Coord);
-        }
-        return coords;
     }
 
     private Dictionary<Vector2I, IReadOnlyDictionary<string, object>> BuildCellsPlain()
@@ -225,7 +161,10 @@ public partial class BattleSimScenarioDef : Resource
         var snapshots =
             new Dictionary<Vector2I, IReadOnlyDictionary<string, object>>();
         foreach (KeyValuePair<Vector2I, BattleCellState> entry in cells)
-            snapshots[entry.Key] = entry.Value.BuildSnapshotPlain();
+            snapshots[entry.Key] = ContentValueNormalizer.NormalizeDictionary(
+                RuntimePlainPayload.CloneDictionary(entry.Value.BuildSnapshotPlain()),
+                $"BattleSimScenarioDef[{scenario_id}].cells[{entry.Key}]"
+            );
         return snapshots;
     }
 

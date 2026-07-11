@@ -31,7 +31,7 @@ internal static class BattleSimReportProjection
     }
 
     internal static GodotProjectionLease<GDictionary> BuildScenarioLease(
-        BattleSimScenarioDef scenario
+        BattleSimScenarioDefinition scenario
     ) =>
         BuildRootLease(
             "battle_sim_scenario",
@@ -204,7 +204,7 @@ internal static class BattleSimReportProjection
 
     internal static GDictionary WriteScenario<TLeaseRoot>(
         GodotProjectionLease<TLeaseRoot> lease,
-        BattleSimScenarioDef scenario,
+        BattleSimScenarioDefinition scenario,
         string reason
     )
         where TLeaseRoot : class, IDisposable
@@ -257,7 +257,7 @@ internal static class BattleSimReportProjection
             comparisonIndex++;
         }
 
-        target["scenario"] = WriteScenario(lease, report.ScenarioDef, $"{reason}.scenario");
+        target["scenario"] = WriteScenario(lease, report.Scenario, $"{reason}.scenario");
         target["generated_at_unix"] = report.GeneratedAtUnix;
         target["profile_entries"] = profileEntries;
         target["comparisons"] = comparisons;
@@ -526,35 +526,31 @@ internal static class BattleSimReportProjection
     private static void WriteScenarioInto<TLeaseRoot>(
         GodotProjectionLease<TLeaseRoot> lease,
         GDictionary target,
-        BattleSimScenarioDef scenario,
+        BattleSimScenarioDefinition scenario,
         string reason
     )
         where TLeaseRoot : class, IDisposable
     {
         if (scenario == null)
             return;
-        target["scenario_id"] = scenario.scenario_id.ToString();
-        target["display_name"] = scenario.display_name;
-        target["description"] = scenario.description;
-        target["map_size"] = scenario.map_size;
-        target["terrain_profile_id"] = scenario.terrain_profile_id.ToString();
-        target["use_formal_terrain_generation"] = scenario.use_formal_terrain_generation;
-        target["world_coord"] = scenario.world_coord;
-        target["timeline_ticks_per_step"] = scenario.timeline_ticks_per_step;
-        target["tu_per_tick"] = scenario.tu_per_tick;
-        target["max_iterations"] = scenario.max_iterations;
-        target["manual_policy"] = scenario.manual_policy.ToString();
-        target["trace_enabled"] = scenario.trace_enabled;
+        target["scenario_id"] = scenario.ScenarioId.ToString();
+        target["display_name"] = scenario.DisplayName;
+        target["description"] = scenario.Description;
+        target["map_size"] = scenario.MapSize;
+        target["terrain_profile_id"] = scenario.TerrainProfileId.ToString();
+        target["use_formal_terrain_generation"] = scenario.UseFormalTerrainGeneration;
+        target["world_coord"] = scenario.WorldCoord;
+        target["timeline_ticks_per_step"] = scenario.TimelineTicksPerStep;
+        target["tu_per_tick"] = scenario.TuPerTick;
+        target["max_iterations"] = scenario.MaxIterations;
+        target["manual_policy"] = scenario.ManualPolicy.ToString();
+        target["trace_enabled"] = scenario.TraceEnabled;
         GArray seeds = NewArray(lease, $"{reason}.seeds");
-        int[] sourceSeeds = scenario.seeds;
-        if (sourceSeeds == null || sourceSeeds.Length == 0)
-            seeds.Add(101);
-        else
-            foreach (int seed in sourceSeeds)
-                seeds.Add(seed);
+        foreach (int seed in scenario.Seeds)
+            seeds.Add(seed);
         target["seeds"] = seeds;
-        target["ally_unit_count"] = scenario.ally_units.Count;
-        target["enemy_unit_count"] = scenario.enemy_units.Count;
+        target["ally_unit_count"] = scenario.AuthoringAllyUnitCount;
+        target["enemy_unit_count"] = scenario.AuthoringEnemyUnitCount;
     }
 
     private static GDictionary WriteIntDictionary<TLeaseRoot>(

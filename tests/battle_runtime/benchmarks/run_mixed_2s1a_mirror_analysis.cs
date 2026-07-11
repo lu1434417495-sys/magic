@@ -32,12 +32,15 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
         string outputPath = ReadStringEnvironment("OUTPUT_FILE", "");
         bool progressEnabled = ReadBoolEnvironment("PROGRESS", string.IsNullOrEmpty(outputPath));
 
-        BattleSimScenarioDef scenarioDef = ResourceLoader.Load<BattleSimScenarioDef>(ScenarioPath);
-        if (scenarioDef == null)
+        BattleSimScenarioDef scenarioResource =
+            ResourceLoader.Load<BattleSimScenarioDef>(ScenarioPath);
+        if (scenarioResource == null)
         {
             GD.PushError("[ERROR] Failed to load scenario");
             return 1;
         }
+        BattleSimScenarioDefinition scenarioDefinition = scenarioResource.ToDefinition();
+        scenarioResource = null;
 
         var contentLoader = new TestContentResourceLoader();
         var contentProvider = new BattleSimContentProvider(
@@ -93,7 +96,7 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
             {
                 long seed = rng.Randi();
                 var fixture = BuildFormalFixture(
-                    scenarioDef,
+                    scenarioDefinition,
                     overrides,
                     progressionRegistry,
                     itemRegistry,
@@ -102,7 +105,7 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
                 try
                 {
                     GDictionary result = RunSingleSimulation(
-                        scenarioDef,
+                        scenarioDefinition,
                         overrides,
                         enemyTemplates,
                         terrainGenerator,
@@ -231,7 +234,6 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
         finally
         {
             DisposeObjects(
-                scenarioDef,
                 itemRegistry,
                 progressionRegistry,
                 terrainGenerator,
@@ -258,7 +260,7 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
     }
 
     private static BattleSimFormalCombatFixture BuildFormalFixture(
-        BattleSimScenarioDef scenarioDef,
+        BattleSimScenarioDefinition scenarioDefinition,
         BattleSimOverrideApplyResult overrides,
         ProgressionContentRegistry progressionRegistry,
         ItemContentRegistry itemRegistry,
@@ -268,14 +270,14 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
         var fixture = new BattleSimFormalCombatFixture();
         fixture.SetupContent(progressionRegistry, itemRegistry, overrides.SkillDefinitions);
         if (
-            !fixture.BuildRoster(scenarioDef.scenario_id, rosterOptions)
+            !fixture.BuildRoster(scenarioDefinition.ScenarioId, rosterOptions)
         )
-            GD.PushError($"Unsupported formal battle sim roster: {scenarioDef.scenario_id}");
+            GD.PushError($"Unsupported formal battle sim roster: {scenarioDefinition.ScenarioId}");
         return fixture;
     }
 
     private static GDictionary RunSingleSimulation(
-        BattleSimScenarioDef scenarioDef,
+        BattleSimScenarioDefinition scenarioDefinition,
         BattleSimOverrideApplyResult overrides,
         IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates,
         BattleTerrainGenerator terrainGenerator,
@@ -288,7 +290,7 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
         EncounterAnchorData encounterAnchor = null;
         try
         {
-            bool useFormalTerrain = scenarioDef != null && scenarioDef.use_formal_terrain_generation;
+            bool useFormalTerrain = scenarioDefinition.UseFormalTerrainGeneration;
             runtime.setup(
                 fixture,
                 overrides.SkillDefinitions,
@@ -304,19 +306,19 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
 
             encounterAnchor = new EncounterAnchorData
             {
-                entity_id = scenarioDef != null && scenarioDef.scenario_id != ""
-                    ? scenarioDef.scenario_id
+                entity_id = scenarioDefinition.ScenarioId != ""
+                    ? scenarioDefinition.ScenarioId
                     : "battle_sim",
-                display_name = scenarioDef != null && !string.IsNullOrEmpty(scenarioDef.display_name)
-                    ? scenarioDef.display_name
-                    : scenarioDef?.scenario_id.ToString() ?? "battle_sim",
+                display_name = !string.IsNullOrEmpty(scenarioDefinition.DisplayName)
+                    ? scenarioDefinition.DisplayName
+                    : scenarioDefinition.ScenarioId.ToString(),
                 faction_id = "hostile",
                 world_coord = Vector2I.Zero,
                 region_tag = "simulation",
             };
 
             using GodotProjectionLease<GDictionary> baseContextLease =
-                scenarioDef.BuildStartContextLease();
+                scenarioDefinition.BuildStartContextLease();
             using GodotProjectionLease<GDictionary> contextLease =
                 fixture.BuildRuntimeContextLease(runtime, baseContextLease.Value);
             GDictionary context = contextLease.Value;
@@ -326,7 +328,7 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
             BattleSimExecutionLoopResult loopResult = new BattleSimExecutionLoop().Run(
                 runtime,
                 state,
-                scenarioDef,
+                scenarioDefinition,
                 MaxIdleLoops
             );
             return new GDictionary

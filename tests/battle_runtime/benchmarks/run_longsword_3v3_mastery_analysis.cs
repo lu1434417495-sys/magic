@@ -31,12 +31,15 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
         string outputPath = ReadStringEnvironment("OUTPUT_FILE", "");
         bool progressEnabled = ReadBoolEnvironment("PROGRESS", string.IsNullOrEmpty(outputPath));
 
-        BattleSimScenarioDef scenarioDef = ResourceLoader.Load<BattleSimScenarioDef>(ScenarioPath);
-        if (scenarioDef == null)
+        BattleSimScenarioDef scenarioResource =
+            ResourceLoader.Load<BattleSimScenarioDef>(ScenarioPath);
+        if (scenarioResource == null)
         {
             GD.PushError("[ERROR] Failed to load scenario");
             return 1;
         }
+        BattleSimScenarioDefinition scenarioDefinition = scenarioResource.ToDefinition();
+        scenarioResource = null;
 
         var contentProvider = new BattleSimContentProvider(
             GameSessionTestFactory.GetProcessSnapshot()
@@ -71,7 +74,7 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
                 long seed = rng.Randi();
                 var gateway = new TestMasteryGateway();
                 GDictionary result = RunSingleSimulation(
-                    scenarioDef,
+                    scenarioDefinition,
                     overrides,
                     contentProvider,
                     terrainGenerator,
@@ -154,12 +157,12 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
         }
         finally
         {
-            DisposeObjects(scenarioDef, terrainGenerator, contentProvider);
+            DisposeObjects(terrainGenerator, contentProvider);
         }
     }
 
     private static GDictionary RunSingleSimulation(
-        BattleSimScenarioDef scenarioDef,
+        BattleSimScenarioDefinition scenarioDefinition,
         BattleSimOverrideApplyResult overrides,
         BattleSimContentProvider contentProvider,
         BattleTerrainGenerator terrainGenerator,
@@ -172,7 +175,7 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
         EncounterAnchorData encounterAnchor = null;
         try
         {
-            bool useFormalTerrain = scenarioDef != null && scenarioDef.use_formal_terrain_generation;
+            bool useFormalTerrain = scenarioDefinition.UseFormalTerrainGeneration;
             runtime.setup(
                 gateway,
                 overrides.SkillDefinitions,
@@ -188,25 +191,25 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
 
             encounterAnchor = new EncounterAnchorData
             {
-                entity_id = scenarioDef != null && scenarioDef.scenario_id != ""
-                    ? scenarioDef.scenario_id
+                entity_id = scenarioDefinition.ScenarioId != ""
+                    ? scenarioDefinition.ScenarioId
                     : "battle_sim",
-                display_name = scenarioDef != null && !string.IsNullOrEmpty(scenarioDef.display_name)
-                    ? scenarioDef.display_name
-                    : scenarioDef?.scenario_id.ToString() ?? "battle_sim",
+                display_name = !string.IsNullOrEmpty(scenarioDefinition.DisplayName)
+                    ? scenarioDefinition.DisplayName
+                    : scenarioDefinition.ScenarioId.ToString(),
                 faction_id = "hostile",
                 world_coord = Vector2I.Zero,
                 region_tag = "simulation",
             };
 
             using GodotProjectionLease<Godot.Collections.Dictionary> startContextLease =
-                scenarioDef.BuildStartContextLease();
+                scenarioDefinition.BuildStartContextLease();
             state = runtime.StartBattle(encounterAnchor, seed, startContextLease.Value);
 
             BattleSimExecutionLoopResult loopResult = new BattleSimExecutionLoop().Run(
                 runtime,
                 state,
-                scenarioDef,
+                scenarioDefinition,
                 MaxIdleLoops
             );
             return new GDictionary

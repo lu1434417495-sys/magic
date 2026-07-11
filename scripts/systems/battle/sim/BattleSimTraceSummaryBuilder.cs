@@ -113,7 +113,7 @@ public sealed class BattleSimTraceSummaryBuilder
             runs.Add(compactRun.ToPlainDictionary());
         return PlainMap(
             ("source_report", sourceReportPath ?? ""),
-            ("scenario", BattleSimFilePayloadProjection.BuildScenarioFacts(report?.ScenarioDef)),
+            ("scenario", BattleSimFilePayloadProjection.BuildScenarioFacts(report?.Scenario)),
             ("batch_id", 0),
             ("generated_at_unix", report?.GeneratedAtUnix ?? 0),
             ("profile_count", report?.ProfileEntries.Count ?? 0),

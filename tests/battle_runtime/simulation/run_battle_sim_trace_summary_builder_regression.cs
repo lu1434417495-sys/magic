@@ -106,7 +106,7 @@ public partial class run_battle_sim_trace_summary_builder_regression : Lifecycle
     {
         var report = new BattleSimScenarioReport
         {
-            ScenarioDef = new BattleSimScenarioDef { scenario_id = "sample" },
+            Scenario = new BattleSimScenarioDef { scenario_id = "sample" }.ToDefinition(),
         };
         report.ProfileEntries.Add(
             new BattleSimProfileReportEntry

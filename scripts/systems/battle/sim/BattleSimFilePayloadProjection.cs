@@ -29,33 +29,30 @@ internal static class BattleSimFilePayloadProjection
         );
 
     internal static Dictionary<string, object> BuildScenarioFacts(
-        BattleSimScenarioDef scenario
+        BattleSimScenarioDefinition scenario
     )
     {
         var result = NewMap();
         if (scenario == null)
             return result;
         var seeds = new List<object>();
-        if (scenario.seeds == null || scenario.seeds.Length == 0)
-            seeds.Add(101);
-        else
-            foreach (int seed in scenario.seeds)
-                seeds.Add(seed);
-        result["scenario_id"] = scenario.scenario_id.ToString();
-        result["display_name"] = scenario.display_name ?? "";
-        result["description"] = scenario.description ?? "";
-        result["map_size"] = scenario.map_size;
-        result["terrain_profile_id"] = scenario.terrain_profile_id.ToString();
-        result["use_formal_terrain_generation"] = scenario.use_formal_terrain_generation;
-        result["world_coord"] = scenario.world_coord;
-        result["timeline_ticks_per_step"] = scenario.timeline_ticks_per_step;
-        result["tu_per_tick"] = scenario.tu_per_tick;
-        result["max_iterations"] = scenario.max_iterations;
-        result["manual_policy"] = scenario.manual_policy.ToString();
-        result["trace_enabled"] = scenario.trace_enabled;
+        foreach (int seed in scenario.Seeds)
+            seeds.Add(seed);
+        result["scenario_id"] = scenario.ScenarioId.ToString();
+        result["display_name"] = scenario.DisplayName;
+        result["description"] = scenario.Description;
+        result["map_size"] = scenario.MapSize;
+        result["terrain_profile_id"] = scenario.TerrainProfileId.ToString();
+        result["use_formal_terrain_generation"] = scenario.UseFormalTerrainGeneration;
+        result["world_coord"] = scenario.WorldCoord;
+        result["timeline_ticks_per_step"] = scenario.TimelineTicksPerStep;
+        result["tu_per_tick"] = scenario.TuPerTick;
+        result["max_iterations"] = scenario.MaxIterations;
+        result["manual_policy"] = scenario.ManualPolicy.ToString();
+        result["trace_enabled"] = scenario.TraceEnabled;
         result["seeds"] = seeds;
-        result["ally_unit_count"] = scenario.ally_units.Count;
-        result["enemy_unit_count"] = scenario.enemy_units.Count;
+        result["ally_unit_count"] = scenario.AuthoringAllyUnitCount;
+        result["enemy_unit_count"] = scenario.AuthoringEnemyUnitCount;
         return result;
     }
 
@@ -87,7 +84,7 @@ internal static class BattleSimFilePayloadProjection
         var comparisons = new List<object>();
         foreach (BattleSimProfileComparison comparison in report.Comparisons)
             comparisons.Add(BuildComparisonFacts(comparison));
-        result["scenario"] = BuildScenarioFacts(report.ScenarioDef);
+        result["scenario"] = BuildScenarioFacts(report.Scenario);
         result["generated_at_unix"] = report.GeneratedAtUnix;
         result["profile_entries"] = profileEntries;
         result["comparisons"] = comparisons;

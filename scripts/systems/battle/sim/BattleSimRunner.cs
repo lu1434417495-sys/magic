@@ -47,16 +47,17 @@ public sealed class BattleSimRunner
     }
 
     internal BattleSimScenarioReport RunScenario(
-        BattleSimScenarioDef scenarioDef,
+        BattleSimScenarioDefinition scenarioDefinition,
         IReadOnlyList<BattleSimProfileDefinition> profileDefs = null
     )
     {
         List<BattleSimProfileDefinition> resolvedProfiles = _ResolveProfiles(profileDefs);
         ValidateProfileOverrides(resolvedProfiles);
-        var resolvedSeeds = scenarioDef.ResolveSeeds();
+        System.ArgumentNullException.ThrowIfNull(scenarioDefinition);
+        IReadOnlyList<int> resolvedSeeds = scenarioDefinition.Seeds;
         var report = new BattleSimScenarioReport
         {
-            ScenarioDef = scenarioDef,
+            Scenario = scenarioDefinition,
             GeneratedAtUnix = (int)Time.GetUnixTimeFromSystem(),
         };
 
@@ -68,7 +69,7 @@ public sealed class BattleSimRunner
                     $"[BattleSim] progress_log={ProjectSettings.GlobalizePath(progress_log_path)}"
                 );
                 _LogProgress(
-                    $"[BattleSim] start scenario={scenarioDef.scenario_id} profiles={resolvedProfiles.Count} seeds={resolvedSeeds.Count} max_iterations={scenarioDef.max_iterations}"
+                    $"[BattleSim] start scenario={scenarioDefinition.ScenarioId} profiles={resolvedProfiles.Count} seeds={resolvedSeeds.Count} max_iterations={scenarioDefinition.MaxIterations}"
                 );
             }
 
@@ -87,7 +88,7 @@ public sealed class BattleSimRunner
                     }
 
                     BattleSimRunReport runResult = _RunSingleSimulation(
-                        scenarioDef,
+                        scenarioDefinition,
                         profile,
                         seed
                     );
@@ -114,7 +115,7 @@ public sealed class BattleSimRunner
             report.Comparisons.AddRange(
                 _reportBuilder.BuildProfileComparisons(report.ProfileEntries)
             );
-            report.OutputFiles = _WriteReportFiles(scenarioDef, report);
+            report.OutputFiles = _WriteReportFiles(scenarioDefinition, report);
 
             if (progress_logging_enabled)
             {
@@ -208,7 +209,7 @@ public sealed class BattleSimRunner
     }
 
     private BattleSimRunReport _RunSingleSimulation(
-        BattleSimScenarioDef scenarioDef,
+        BattleSimScenarioDefinition scenarioDefinition,
         BattleSimProfileDefinition profile,
         int seed
     )
@@ -228,7 +229,7 @@ public sealed class BattleSimRunner
         );
         ThrowIfOverrideErrors(profile, overrides);
         var runtime = new BattleRuntimeModule();
-        bool useFormalTerrain = scenarioDef != null && scenarioDef.use_formal_terrain_generation;
+        bool useFormalTerrain = scenarioDefinition.UseFormalTerrainGeneration;
 
         runtime.setup(
             character_gateway: null,
@@ -241,24 +242,24 @@ public sealed class BattleSimRunner
             terrain_generator: useFormalTerrain ? null : _terrainGenerator,
             barrier_profile_definitions: barrierProfileDefinitions
         );
-        runtime.SetAiTraceEnabled(scenarioDef != null && scenarioDef.trace_enabled);
+        runtime.SetAiTraceEnabled(scenarioDefinition.TraceEnabled);
         runtime.SetAiScoreProfile(overrides.AiScoreProfile);
         runtime.SetFactionAiScoreProfiles(overrides.FactionAiScoreProfiles);
 
-        EncounterAnchorData encounterAnchor = _BuildEncounterAnchor(scenarioDef);
+        EncounterAnchorData encounterAnchor = _BuildEncounterAnchor(scenarioDefinition);
         using GodotProjectionLease<Godot.Collections.Dictionary> startContextLease =
-            scenarioDef.BuildStartContextLease();
+            scenarioDefinition.BuildStartContextLease();
         BattleState state = runtime.StartBattle(encounterAnchor, seed, startContextLease.Value);
         BattleSimExecutionLoopResult loopResult = _executionLoop.Run(
             runtime,
             state,
-            scenarioDef,
+            scenarioDefinition,
             MaxIdleLoops
         );
 
         var runResult = new BattleSimRunReport
         {
-            ScenarioId = scenarioDef != null ? scenarioDef.scenario_id.ToString() : "",
+            ScenarioId = scenarioDefinition.ScenarioId.ToString(),
             ProfileId = profile.ProfileId.ToString(),
             Seed = seed,
             BattleId = state != null ? state.battle_id.ToString() : "",
@@ -287,17 +288,19 @@ public sealed class BattleSimRunner
         return runResult;
     }
 
-    private EncounterAnchorData _BuildEncounterAnchor(BattleSimScenarioDef scenarioDef)
+    private EncounterAnchorData _BuildEncounterAnchor(
+        BattleSimScenarioDefinition scenarioDefinition
+    )
     {
         var encounterAnchor = new EncounterAnchorData();
         encounterAnchor.entity_id =
-            scenarioDef != null && scenarioDef.scenario_id != ""
-                ? scenarioDef.scenario_id
+            scenarioDefinition.ScenarioId != ""
+                ? scenarioDefinition.ScenarioId
                 : "battle_sim";
         encounterAnchor.display_name =
-            scenarioDef != null && !string.IsNullOrEmpty(scenarioDef.display_name)
-                ? scenarioDef.display_name
-                : scenarioDef.scenario_id;
+            !string.IsNullOrEmpty(scenarioDefinition.DisplayName)
+                ? scenarioDefinition.DisplayName
+                : scenarioDefinition.ScenarioId;
         encounterAnchor.faction_id = "hostile";
         encounterAnchor.world_coord = Vector2I.Zero;
         encounterAnchor.region_tag = "simulation";
@@ -347,13 +350,13 @@ public sealed class BattleSimRunner
     }
 
     private BattleSimOutputFiles _WriteReportFiles(
-        BattleSimScenarioDef scenarioDef,
+        BattleSimScenarioDefinition scenarioDefinition,
         BattleSimScenarioReport report
     )
     {
         string scenarioKey =
-            scenarioDef != null && scenarioDef.scenario_id != ""
-                ? scenarioDef.scenario_id.ToString()
+            scenarioDefinition.ScenarioId != ""
+                ? scenarioDefinition.ScenarioId.ToString()
                 : "battle_sim";
         int timestamp = (int)Time.GetUnixTimeFromSystem();
         string reportDir = $"{ReportDirectory}/{scenarioKey}";

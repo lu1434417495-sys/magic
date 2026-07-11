@@ -139,7 +139,7 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
         );
     }
 
-    private static BattleSimScenarioDef BuildReadyQueueScenario()
+    private static BattleSimScenarioDefinition BuildReadyQueueScenario()
     {
         var scenario = new BattleSimScenarioDef
         {
@@ -159,7 +159,7 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
                 BuildReadyQueueUnit("ab_hostile_two", "敌方二号", "hostile", "ai", new Vector2I(1, 1)),
             },
         };
-        return scenario;
+        return scenario.ToDefinition();
     }
 
     private static BattleSimUnitSpec BuildReadyQueueUnit(
@@ -191,7 +191,7 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
         };
     }
 
-    private static BattleSimScenarioDef BuildScenario()
+    private static BattleSimScenarioDefinition BuildScenario()
     {
         return new BattleSimScenarioDef
         {
@@ -212,7 +212,7 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
             {
                 BuildEnemyArcher("mist_harrier_sim", "雾沼猎压者", new Vector2I(1, 2)),
             },
-        };
+        }.ToDefinition();
     }
 
     private static BattleSimUnitSpec BuildManualUnit(StringName unitId, string displayName, Vector2I coord)

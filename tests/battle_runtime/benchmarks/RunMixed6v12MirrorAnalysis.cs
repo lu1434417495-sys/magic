@@ -70,12 +70,15 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
             : ScenarioPath;
         if (string.IsNullOrEmpty(scenarioPath))
             scenarioPath = ScenarioPath;
-        var scenario = ResourceLoader.Load<BattleSimScenarioDef>(scenarioPath);
-        if (scenario == null)
+        BattleSimScenarioDef scenarioResource =
+            ResourceLoader.Load<BattleSimScenarioDef>(scenarioPath);
+        if (scenarioResource == null)
         {
             GameLog.Error($"Failed to load scenario: {scenarioPath}", "bench.scenario.load_failed", "bench");
             return 1;
         }
+        BattleSimScenarioDefinition scenario = scenarioResource.ToDefinition();
+        scenarioResource = null;
 
         var contentLoader = new TestContentResourceLoader();
         var contentProvider = new BattleSimContentProvider(
@@ -95,7 +98,7 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
         if (skillDefinitions.Count == 0 || enemyAiBrains.Count == 0)
         {
             GameLog.Error($"Battle sim content provider returned empty content: skills={skillDefinitions.Count}, brains={enemyAiBrains.Count}.", "bench.content.empty", "bench");
-            DisposeObjects(scenario, itemRegistry, progressionRegistry, terrainGenerator, overrideApplier, contentProvider);
+            DisposeObjects(itemRegistry, progressionRegistry, terrainGenerator, overrideApplier, contentProvider);
             return 1;
         }
 
@@ -107,7 +110,7 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
             ?? contentProvider.GetBattleSimProfilesTyped()["baseline"];
         var traceSummaryReport = new BattleSimScenarioReport
         {
-            ScenarioDef = scenario,
+            Scenario = scenario,
             GeneratedAtUnix = (int)Time.GetUnixTimeFromSystem(),
         };
         traceSummaryReport.ProfileEntries.Add(
@@ -273,7 +276,6 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
 
         DisposeObjects(
             baseline,
-            scenario,
             itemRegistry,
             progressionRegistry,
             terrainGenerator,
@@ -293,7 +295,7 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
     }
 
     private static BattleSimFormalCombatFixture BuildFormalFixture(
-        BattleSimScenarioDef scenario,
+        BattleSimScenarioDefinition scenario,
         BattleSimOverrideApplyResult overrides,
         ProgressionContentRegistry progressionRegistry,
         ItemContentRegistry itemRegistry,
@@ -325,14 +327,14 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
             };
         }
         if (
-            !fixture.BuildRoster(scenario.scenario_id, effectiveRosterOptions)
+            !fixture.BuildRoster(scenario.ScenarioId, effectiveRosterOptions)
         )
-            GameLog.Error($"Unsupported formal battle sim roster: {scenario.scenario_id}", "bench.roster.unsupported", "bench");
+            GameLog.Error($"Unsupported formal battle sim roster: {scenario.ScenarioId}", "bench.roster.unsupported", "bench");
         return fixture;
     }
 
     private MixedSimulationRunResult RunSingleSimulation(
-        BattleSimScenarioDef scenario,
+        BattleSimScenarioDefinition scenario,
         BattleSimOverrideApplyResult overrides,
         IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates,
         BattleTerrainGenerator terrainGenerator,
@@ -352,7 +354,7 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
         bool aiProfileRecorderEnded = false;
         try
         {
-            bool useFormalTerrain = scenario != null && scenario.use_formal_terrain_generation;
+            bool useFormalTerrain = scenario.UseFormalTerrainGeneration;
             PrintProgress($"[Progress] run seed={seed} runtime setup start");
             runtime.setup(
                 fixture,
@@ -373,8 +375,10 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
 
             encounterAnchor = new EncounterAnchorData
             {
-                entity_id = scenario != null && scenario.scenario_id != "" ? scenario.scenario_id : "battle_sim",
-                display_name = scenario != null && !string.IsNullOrEmpty(scenario.display_name) ? scenario.display_name : scenario?.scenario_id.ToString() ?? "battle_sim",
+                entity_id = scenario.ScenarioId != "" ? scenario.ScenarioId : "battle_sim",
+                display_name = !string.IsNullOrEmpty(scenario.DisplayName)
+                    ? scenario.DisplayName
+                    : scenario.ScenarioId.ToString(),
                 faction_id = "hostile",
                 world_coord = Vector2I.Zero,
                 region_tag = "simulation",
@@ -640,7 +644,7 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
         bool aiMutationGuardEnabled,
         bool validateSpawnReachability,
         bool validateBidirectionalSpawnReachability,
-        BattleSimScenarioDef scenario,
+        BattleSimScenarioDefinition scenario,
         BatchAccumulator accum,
         IReadOnlyDictionary<string, PerUnitAggregate> perUnitSummary,
         IReadOnlyList<object> runDetails,
@@ -832,7 +836,7 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
     }
 
     private static Dictionary<string, object> ProjectScenarioPlain(
-        BattleSimScenarioDef scenario
+        BattleSimScenarioDefinition scenario
     ) => BattleSimFilePayloadProjection.BuildScenarioFacts(scenario);
 
     private static Dictionary<string, object> BuildStartFailurePlain(

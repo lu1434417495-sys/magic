@@ -47,8 +47,10 @@
 
 系统主入口：
 
-- 场景定义：`res://scripts/systems/battle/sim/BattleSimScenarioDef.cs`
-- 单位定义：`res://scripts/systems/battle/sim/BattleSimUnitSpec.cs`
+- 场景 authoring/import 资源：`res://scripts/systems/battle/sim/BattleSimScenarioDef.cs`
+- 单位 authoring/import 资源：`res://scripts/systems/battle/sim/BattleSimUnitSpec.cs`
+- 不可变场景运行定义：`res://scripts/systems/battle/sim/BattleSimScenarioDefinition.cs`
+- 不可变单位运行定义：`res://scripts/systems/battle/sim/BattleSimUnitDefinition.cs`
 - 正式角色 fixture：`res://scripts/systems/battle/sim/BattleSimFormalCombatFixture.cs`
 - profile 定义：`res://scripts/systems/battle/sim/BattleSimProfileDef.cs`
 - patch 应用：`res://scripts/systems/battle/sim/BattleSimOverrideApplier.cs`
@@ -67,6 +69,19 @@
 - `BattleAiScoreService`
 - `BattleAiContext`
 - `EnemyAiAction` 及具体 action 脚本
+
+## 生命周期边界
+
+`BattleSimScenarioDef` 与 `BattleSimUnitSpec` 是同步 authoring/import `Resource`。它们只在加载 `.tres`、解析导出字段、校验输入并执行投影时存在于入口边界；入口必须在同一同步调用链内调用 `ToDefinition()`，不能把这两个 authored `Resource` 保存在 runner、执行循环、报告或文件输出对象中。
+
+`BattleSimScenarioDef.ToDefinition()` 会把场景字段、seed、地格快照和双方单位一次性投影为不可变的 plain `BattleSimScenarioDefinition`。其中每个 authored `BattleSimUnitSpec` 会通过 `ToDefinition()` 变成 `BattleSimUnitDefinition`；单位定义保存深拷贝后的 plain 快照，每次运行再重建一份新的可变 `BattleUnitState`。因此：
+
+- `ToDefinition()` 返回后再修改 authored scenario/unit `Resource`，不会改变已生成的运行定义。
+- 不同 run 从同一 `BattleSimUnitDefinition` 重建的 `BattleUnitState` 不共享可变状态。
+- `BattleSimRunner`、`BattleSimExecutionLoop`、`BattleSimScenarioReport`、`BattleSimReportProjection`、`BattleSimFilePayloadProjection` 与 `BattleSimTraceSummaryBuilder` 只消费 `BattleSimScenarioDefinition` / `BattleSimUnitDefinition` 及其他 plain projection，不持有原始 scenario/unit `Resource`。
+- 开战和序列化所需的 Godot `Dictionary` 只在请求边界临时投影，并由对应的 `GodotProjectionLease` 在使用后释放；它们不是长期运行状态。
+
+从路径加载的 scenario 资源由 `ResourceLoader` 缓存管理。CLI 或 benchmark 只需要加载它、立即调用 `ToDefinition()`，然后丢弃局部引用；benchmark 不拥有这个 path-backed `Resource`，不得手工调用 `Dispose()` 或 `Free()`。benchmark 仍应显式释放自己创建并拥有的 fixture、runtime service、文件 scope 和 projection lease。
 
 ## 仓内示例资源
 
@@ -185,24 +200,24 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
 
 完整执行顺序如下：
 
-1. 读取 scenario 资源。
-2. 读取所有 profile 资源。
-3. `BattleSimRunner` 为每个 profile 遍历 scenario 中的所有 seed。
-4. 每次单场运行都会新建一个 `GameSession` 和一个 `BattleRuntimeModule`。
-5. runner 从 `GameSession` 读取当前仓库注册的：
+1. 入口同步读取 `BattleSimScenarioDef` authoring 资源，并立即调用 `ToDefinition()`；其中的 `BattleSimUnitSpec` 同步投影为 plain `BattleSimUnitDefinition`。
+2. 读取所有 profile 资源，并在交给 runner 前投影为 typed definition。
+3. 从此处开始，`BattleSimRunner` 只持有 immutable plain `BattleSimScenarioDefinition`，并为每个 profile 遍历其中的所有 seed。
+4. 入口把进程级 `ContentSnapshot` 绑定到 `BattleSimContentProvider`；每次单场运行只新建独立的 `BattleRuntimeModule`，不会为每个 seed 新建或保留 `GameSession`。
+5. runner 从 `BattleSimContentProvider` 的 typed process snapshot 读取当前仓库注册的：
    - `skill_defs`
    - `enemy_ai_brains`
    - `enemy_templates`
 6. `BattleSimOverrideApplier` 深拷贝技能和 AI brain 资源，再把 profile 的 patch 应用到拷贝上，避免污染原始资源。
 7. runtime 使用被 patch 后的资源完成 `setup(...)`。
 8. runtime 开启 AI trace，并设置本次运行使用的 `BattleAiScoreProfile`。
-9. scenario 通过 `build_start_context()` 构造开战上下文，明确给出：
+9. `BattleSimScenarioDefinition` 通过 `BuildStartContextLease()` 临时投影开战上下文，明确给出：
    - 友军单位
    - 敌军单位
    - 出生点
    - 地图大小
    - 地格定义
-   - 时间轴参数
+   - runtime 开战所需的 `tu_per_tick`；执行循环直接从 plain definition 读取 `timeline_ticks_per_step`
 10. runtime 开始战斗。
 11. `BattleSimExecutionLoop` 接管单场基础推进。
 12. 如果当前行动单位是手动单位，则按 `manual_policy` 发指令。
@@ -217,12 +232,12 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
    - `metrics`
    - `ai_turn_traces`
    - `final_units`
-17. `BattleSimReportBuilder` 生成 profile summary 与 baseline 对比。
-18. runner 把完整 `report_json` 和扁平化的 `turn_trace_jsonl` 写到 `user://simulation_reports/...`；如果完整 report 中存在 `ai_turn_traces`，还会用 `BattleSimTraceSummaryBuilder` 同步写出 `trace_summary_json`。
+17. `BattleSimReportBuilder` 生成 profile summary 与 baseline 对比；report 保存 plain scenario definition，不回挂 authored scenario `Resource`。
+18. runner 把完整 `report_json` 和扁平化的 `turn_trace_jsonl` 写到 `user://simulation_reports/...`；report/file/trace projection 只在写出时临时创建并释放 Godot wrapper。如果完整 report 中存在 `ai_turn_traces`，还会用 `BattleSimTraceSummaryBuilder` 同步写出 `trace_summary_json`。
 
 ## 场景定义
 
-`BattleSimScenarioDef` 是“单组实验环境”的定义。它决定这次模拟跑什么地图、有哪些单位、按什么时间轴跑、要跑哪些随机 seed。
+`BattleSimScenarioDef` 是“单组实验环境”的 authoring/import 定义。它决定这次模拟跑什么地图、有哪些单位、按什么时间轴跑、要跑哪些随机 seed，但不会越过同步 `ToDefinition()` 边界进入 runtime。runner 实际消费的是不可变 plain `BattleSimScenarioDefinition`。
 
 关键字段如下：
 
@@ -233,7 +248,7 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
 - `description`
   - 文本说明。
 - `map_size`
-  - 这是 battle sim 场景资源自己的地图大小字段，不是 runtime battle start 的 legacy `map_size` 输入。手工平地布局会直接使用它；当开启正式地形生成时，`build_start_context()` 会把它转换成正式输入字段 `battle_map_size`。
+  - 这是 battle sim 场景资源自己的地图大小字段，不是 runtime battle start 的 legacy `map_size` 输入。手工平地布局会直接使用它；当开启正式地形生成时，`BattleSimScenarioDefinition.BuildStartContextLease()` 会把它转换成正式输入字段 `battle_map_size`。
 - `terrain_profile_id`
   - 地形 profile 标识。
 - `use_formal_terrain_generation`
@@ -259,7 +274,7 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
 - `seeds`
   - 用于重复实验的种子列表。
 
-`build_start_context()` 会把 scenario 转成 runtime 真正使用的开战上下文，字段包括：
+`BattleSimScenarioDefinition.BuildStartContextLease()` 会把 plain scenario definition 临时投影为 runtime 真正使用的开战上下文；调用方在本次单场运行的请求作用域结束时释放 lease。字段包括：
 
 - 手工布局模式：
   - `battle_party`
@@ -268,7 +283,6 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
   - `enemy_spawns`
   - `map_size`
   - `cells`
-  - `timeline_ticks_per_step`
   - `tu_per_tick`
   - `battle_terrain_profile`
 - 正式地形生成模式：
@@ -276,7 +290,6 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
   - `enemy_units`
   - `battle_map_size`
   - `world_coord`
-  - `timeline_ticks_per_step`
   - `tu_per_tick`
   - `battle_terrain_profile`
 
@@ -284,7 +297,7 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
 
 ### 单位定义
 
-`BattleSimUnitSpec` 用于旧式显式参战单位夹具。它的职责不是“引用一个模板并自动生成全部内容”，而是“把模拟需要的单位状态显式写出来”。
+`BattleSimUnitSpec` 用于旧式显式参战单位夹具。它是同步 authoring/import `Resource`，职责不是“引用一个模板并自动生成全部内容”，而是“把模拟需要的单位状态显式写出来”。`BattleSimUnitSpec.ToDefinition()` 会把它深拷贝为 immutable plain `BattleSimUnitDefinition`；运行时每场战斗都由该 definition 新建独立的 `BattleUnitState`，不会持有或复用原始 `BattleSimUnitSpec`。
 
 如果模拟目标是玩家角色、队伍成员、装备投影、技能进度、职业生命成长或建卡属性，优先使用 `BattleSimFormalCombatFixture`，不要在 `.tres` 场景里写 `base_attributes` / `attribute_overrides` / `weapon_projection`。当前 `mixed_2sword_1arch_mirror_simulation` 与 `mixed_6v12_mirror_simulation` 就是这种模式：场景资源只保留地图、地形、时间轴和 seed，单位由 fixture 走 `CharacterCreationService`、`CharacterManagementModule`、`AttributeService` 与正式装备投影生成，并在开战前按装备与职业被动后的有效 `hp_max` 补满所有成员当前生命。formal fixture 会显式开启 `validate_spawn_reachability` 与 `validate_bidirectional_spawn_reachability`；如果生成出的地图导致 player 与 hostile 任一方向无法抵达可攻击位置，`BattleRuntimeModule.start_battle()` 会用下一个 terrain seed attempt 重刷地图，而不是把不可交战地图纳入模拟样本。
 
