@@ -5,7 +5,7 @@ using Godot;
 
 /// <summary>
 /// 正式内容的组合根读入口。catalog 借用 process <see cref="ContentSnapshot"/> 的不可变
-/// typed 字典，并单独借用 Phase 4 前保留的 legacy enemy 边界。
+/// typed 字典；不会保留任何 authored Resource。
 ///
 /// 两条防御性不变量：
 /// 1. 非 AI 内容只来自构建期冻结的 process snapshot，session/catalog 不再复制或重建 registry。
@@ -31,14 +31,14 @@ public sealed class GameContentCatalog
     private IReadOnlyDictionary<StringName, BarrierProfileDefinition> _barrierProfileDefinitions;
     private IReadOnlyDictionary<StringName, ItemDefinition> _itemDefinitions;
     private IReadOnlyDictionary<StringName, RecipeDefinition> _recipeDefinitions;
-    private IReadOnlyDictionary<StringName, EnemyTemplateDef> _enemyTemplates;
-    private IReadOnlyDictionary<StringName, EnemyAiBrainDef> _enemyAiBrains;
-    private IReadOnlyDictionary<StringName, WildEncounterRosterDef> _wildEncounterRosters;
+    private IReadOnlyDictionary<StringName, EnemyTemplateDefinition> _enemyTemplateDefinitions;
+    private IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> _enemyBrainDefinitions;
+    private IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> _encounterRosterDefinitions;
+    private IReadOnlyDictionary<StringName, BattleSimProfileDefinition> _battleSimProfiles;
     private IBattleSpecialProfileView _battleSpecialProfileView;
 
     public GameContentCatalog()
     {
-        LegacyEnemyContentDebt.Register();
         ResetSnapshot();
     }
 
@@ -58,13 +58,11 @@ public sealed class GameContentCatalog
     /// </summary>
     internal void BindSnapshot(
         GameSession session,
-        ContentSnapshot snapshot,
-        ILegacyEnemyContentCatalog legacyEnemyContent
+        ContentSnapshot snapshot
     )
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(snapshot);
-        ArgumentNullException.ThrowIfNull(legacyEnemyContent);
 
         _sessionRef = new WeakReference<GameSession>(session);
         _snapshotEpoch = snapshot.Epoch;
@@ -80,9 +78,10 @@ public sealed class GameContentCatalog
         _barrierProfileDefinitions = snapshot.BarrierProfiles;
         _itemDefinitions = snapshot.Items;
         _recipeDefinitions = snapshot.Recipes;
-        _enemyTemplates = legacyEnemyContent.EnemyTemplates;
-        _enemyAiBrains = legacyEnemyContent.EnemyBrains;
-        _wildEncounterRosters = legacyEnemyContent.EncounterRosters;
+        _enemyTemplateDefinitions = snapshot.EnemyTemplates;
+        _enemyBrainDefinitions = snapshot.EnemyBrains;
+        _encounterRosterDefinitions = snapshot.EncounterRosters;
+        _battleSimProfiles = snapshot.BattleSimProfiles;
         _battleSpecialProfileView = snapshot.BattleSpecialProfiles;
         _revision++;
     }
@@ -102,9 +101,10 @@ public sealed class GameContentCatalog
         _barrierProfileDefinitions = EmptyTyped<BarrierProfileDefinition>();
         _itemDefinitions = EmptyTyped<ItemDefinition>();
         _recipeDefinitions = EmptyTyped<RecipeDefinition>();
-        _enemyTemplates = EmptyTyped<EnemyTemplateDef>();
-        _enemyAiBrains = EmptyTyped<EnemyAiBrainDef>();
-        _wildEncounterRosters = EmptyTyped<WildEncounterRosterDef>();
+        _enemyTemplateDefinitions = EmptyTyped<EnemyTemplateDefinition>();
+        _enemyBrainDefinitions = EmptyTyped<EnemyAiBrainDefinition>();
+        _encounterRosterDefinitions = EmptyTyped<WildEncounterRosterDefinition>();
+        _battleSimProfiles = EmptyTyped<BattleSimProfileDefinition>();
         _battleSpecialProfileView = BattleSpecialProfileRuntimeView.Empty;
     }
 
@@ -176,16 +176,17 @@ public sealed class GameContentCatalog
     public IReadOnlyDictionary<StringName, RecipeDefinition> GetRecipeDefsTyped() =>
         _recipeDefinitions;
 
-    // Phase 3 debt: these three getters are intentionally the only raw content
-    // surface on this catalog. See LegacyEnemyContentDebt.BorrowerOwners.
-    public IReadOnlyDictionary<StringName, EnemyTemplateDef> GetEnemyTemplatesTyped() =>
-        _enemyTemplates;
+    internal IReadOnlyDictionary<StringName, EnemyTemplateDefinition> GetEnemyTemplateDefinitions() =>
+        _enemyTemplateDefinitions;
 
-    public IReadOnlyDictionary<StringName, EnemyAiBrainDef> GetEnemyAiBrainsTyped() =>
-        _enemyAiBrains;
+    internal IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> GetEnemyAiBrainDefinitions() =>
+        _enemyBrainDefinitions;
 
-    public IReadOnlyDictionary<StringName, WildEncounterRosterDef> GetWildEncounterRostersTyped() =>
-        _wildEncounterRosters;
+    internal IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> GetEncounterRosterDefinitions() =>
+        _encounterRosterDefinitions;
+
+    internal IReadOnlyDictionary<StringName, BattleSimProfileDefinition> GetBattleSimProfiles() =>
+        _battleSimProfiles;
 
     internal IBattleSpecialProfileView GetBattleSpecialProfileView() =>
         _battleSpecialProfileView ?? BattleSpecialProfileRuntimeView.Empty;

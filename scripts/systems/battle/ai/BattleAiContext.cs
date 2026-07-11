@@ -28,7 +28,7 @@ public class BattleAiContext : IBattleAiScoreContext
     public BattleState state { get; set; }
     public BattleUnitState unit_state { get; set; }
     public BattleGridService grid_service { get; set; }
-    public BattleAiScoreProfile active_score_profile { get; set; }
+    public BattleAiScoreProfileDefinition active_score_profile { get; set; }
     internal ISkillCatalog skill_catalog { get; private set; }
     IReadOnlyDictionary<StringName, SkillDefinition> IBattleAiScoreContext.skill_definitions =>
         _skillDefinitionsById;
@@ -62,7 +62,6 @@ public class BattleAiContext : IBattleAiScoreContext
     internal BattleAiRuntimeActionPlan runtime_action_plan { get; set; }
     internal BattleAiQueryService ai_query_service;
     internal BattleAiCandidateEvaluationService candidate_evaluator { get; set; }
-    public bool allow_authored_action_fallback_for_tests { get; set; }
     public bool trace_enabled { get; set; }
 
     private int _action_trace_nonce;
@@ -457,7 +456,6 @@ public class BattleAiContext : IBattleAiScoreContext
         trace_enabled = traceEnabled;
         ai_query_service = null;
         candidate_evaluator = null;
-        allow_authored_action_fallback_for_tests = false;
         ClearDecisionState();
         SetSkillDefinitionsCached(
             skillDefinitions
@@ -476,7 +474,6 @@ public class BattleAiContext : IBattleAiScoreContext
         ai_query_service = null;
         candidate_evaluator = null;
         trace_enabled = false;
-        allow_authored_action_fallback_for_tests = false;
         move_cost_callback = null;
         preview_command_callback = null;
         skill_score_input_callback = null;
@@ -668,11 +665,11 @@ public class BattleAiContext : IBattleAiScoreContext
         );
     }
 
-    internal IReadOnlyList<EnemyAiAction> GetRuntimeActionsTyped(StringName state_id)
+    internal IReadOnlyList<EnemyAiActionDefinition> GetRuntimeActionsTyped(StringName state_id)
     {
         if (IsEmpty(state_id) || runtime_action_plan == null)
         {
-            return System.Array.Empty<EnemyAiAction>();
+            return System.Array.Empty<EnemyAiActionDefinition>();
         }
         return runtime_action_plan.GetActions(state_id);
     }
@@ -695,14 +692,14 @@ public class BattleAiContext : IBattleAiScoreContext
             && runtime_action_plan.HasState(state_id);
     }
 
-    internal bool IsRuntimeActionPlanStale(EnemyAiBrainDef brain)
+    internal bool IsRuntimeActionPlanStale(EnemyAiBrainDefinition brain)
     {
         return runtime_action_plan != null
             && runtime_action_plan.IsStaleFor(unit_state, brain);
     }
 
     internal BattleAiRuntimeActionPlan.RuntimeActionMetadata GetRuntimeActionMetadataTyped(
-        EnemyAiAction action
+        EnemyAiActionDefinition action
     )
     {
         return runtime_action_plan != null

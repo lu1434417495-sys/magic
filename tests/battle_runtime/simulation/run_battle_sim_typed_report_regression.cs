@@ -82,7 +82,13 @@ public partial class run_battle_sim_typed_report_regression : LifecycleTestScene
         };
 
         BattleSimProfileSummary summary = new BattleSimReportBuilder().BuildProfileSummary(
-            new BattleSimProfileDef { profile_id = "baseline" },
+            new BattleSimProfileDefinition(
+                "baseline",
+                "Baseline",
+                "",
+                BattleAiScoreProfileDefinition.Default,
+                Array.Empty<BattleSimOverridePatchDefinition>()
+            ),
             new List<BattleSimRunReport> { report }
         );
 

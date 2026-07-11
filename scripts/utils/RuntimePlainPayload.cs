@@ -203,10 +203,43 @@ internal static class RuntimePlainPayload
             Variant => throw UnsupportedCloneValue(value),
             GodotObject => throw UnsupportedCloneValue(value),
             System.IDisposable => throw UnsupportedCloneValue(value),
-            System.Collections.IDictionary => throw UnsupportedCloneValue(value),
+            System.Collections.IDictionary dictionaryValue =>
+                CloneStringKeyedDictionary(dictionaryValue),
             System.Collections.IEnumerable enumerableValue => CloneEnumerable(enumerableValue),
             _ => throw UnsupportedCloneValue(value),
         };
+    }
+
+    private static Dictionary<string, object> CloneStringKeyedDictionary(
+        System.Collections.IDictionary source
+    )
+    {
+        var result = new Dictionary<string, object>(System.StringComparer.Ordinal);
+        if (source == null)
+            return result;
+
+        foreach (System.Collections.DictionaryEntry entry in source)
+        {
+            string key = entry.Key switch
+            {
+                string stringKey => stringKey,
+                StringName stringNameKey => stringNameKey.ToString(),
+                _ => throw UnsupportedCloneValue(source),
+            };
+            if (string.IsNullOrEmpty(key))
+            {
+                throw new System.InvalidOperationException(
+                    "Plain runtime payload clone does not accept an empty dictionary key."
+                );
+            }
+            if (!result.TryAdd(key, CloneValue(entry.Value)))
+            {
+                throw new System.InvalidOperationException(
+                    $"Plain runtime payload clone contains duplicate normalized key '{key}'."
+                );
+            }
+        }
+        return result;
     }
 
     private static List<object> CloneList(IReadOnlyList<object> source)

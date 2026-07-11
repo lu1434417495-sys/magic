@@ -47,6 +47,17 @@ public partial class EnemyAiStateDef : Resource
         return result;
     }
 
+    internal EnemyAiStateDefinition ToDefinition()
+    {
+        var actionDefinitions = new List<EnemyAiActionDefinition>();
+        foreach (EnemyAiAction action in GetTypedActions())
+            actionDefinitions.Add(action.ToDefinition());
+        var slotDefinitions = new List<EnemyAiGenerationSlotDefinition>();
+        foreach (EnemyAiGenerationSlotDef slot in GetTypedGenerationSlots())
+            slotDefinitions.Add(slot.ToDefinition());
+        return new EnemyAiStateDefinition(state_id, actionDefinitions, slotDefinitions);
+    }
+
     public GStringArray ValidateSchema(
         StringName brainId = default,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null

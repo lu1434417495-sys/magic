@@ -18,15 +18,6 @@ public partial class UseChargePathAoeAction : EnemyAiAction
     [Export]
     public int desired_max_distance { get; set; } = 1;
 
-    internal override BattleAiDecision Decide(BattleAiContext context)
-    {
-        AiTraceRecorder.Enter("decide:charge_path_aoe");
-        BattleAiDecision decision =
-            new BattleAiChargePathAoeActionEvaluator().Evaluate(this, context);
-        AiTraceRecorder.Exit("decide:charge_path_aoe");
-        return decision;
-    }
-
     public override Godot.Collections.Array<string> ValidateSchema()
     {
         Godot.Collections.Array<string> errors = _collect_base_validation_errors();

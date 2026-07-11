@@ -8,6 +8,11 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
+    {
         try
         {
             TestMeleeCloseInPrefersScreeningRangedAllyWhenHealthy();
@@ -68,7 +73,7 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
 
         MoveToRangeAction action = BuildScreeningAction("screening_close_in_probe");
         BattleAiContext aiContext = BuildAiContext(runtime, wolf);
-        BattleAiDecision decision = action.Decide(aiContext);
+        BattleAiDecision decision = Evaluate(action, aiContext);
         _test.Eq(
             decision?.command?.target_coord ?? new Vector2I(-1, -1),
             new Vector2I(3, 4),
@@ -76,7 +81,7 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
         );
 
         wolf.current_hp = 8;
-        BattleAiDecision lowHpDecision = action.Decide(aiContext);
+        BattleAiDecision lowHpDecision = Evaluate(action, aiContext);
         _test.Eq(
             lowHpDecision?.command?.target_coord ?? new Vector2I(-1, -1),
             new Vector2I(2, 3),
@@ -146,7 +151,7 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
 
         MoveToRangeAction action = BuildScreeningAction("path_cost_screening_probe");
         action.screening_path_bonus = 300;
-        BattleAiDecision decision = action.Decide(BuildAiContext(runtime, wolf));
+        BattleAiDecision decision = Evaluate(action, BuildAiContext(runtime, wolf));
         _test.Eq(
             decision?.command?.target_coord ?? new Vector2I(-1, -1),
             new Vector2I(1, 2),
@@ -200,8 +205,10 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
         AddUnitToState(runtime, state, archer, isEnemy: true);
         AddUnitToState(runtime, state, player, isEnemy: false);
 
-        BattleAiDecision decision = BuildScreeningAction("geometric_screening_probe")
-            .Decide(BuildAiContext(runtime, wolf));
+        BattleAiDecision decision = Evaluate(
+            BuildScreeningAction("geometric_screening_probe"),
+            BuildAiContext(runtime, wolf)
+        );
         _test.True(
             decision?.command?.target_coord != new Vector2I(3, 5),
             "仅处于几何最短路但不增加路径成本、也不能贴身/反击的格子不应成为守线偏好的移动目标。"
@@ -256,14 +263,14 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
         AddUnitToState(runtime, state, player, isEnemy: false);
 
         MoveToRangeAction action = BuildScreeningAction("locked_screening_probe");
-        BattleAiDecision lockedDecision = action.Decide(BuildAiContext(runtime, wolf));
+        BattleAiDecision lockedDecision = Evaluate(action, BuildAiContext(runtime, wolf));
         _test.True(
             lockedDecision == null,
             "已移动且未获准使用锁定移动力时，screening move_to_range 不应继续产出移动指令。"
         );
 
         wolf.can_use_locked_move_points_this_turn = true;
-        BattleAiDecision allowedDecision = action.Decide(BuildAiContext(runtime, wolf));
+        BattleAiDecision allowedDecision = Evaluate(action, BuildAiContext(runtime, wolf));
         _test.True(
             allowedDecision?.command?.IsMove() == true,
             "获得锁定移动力许可时，screening move_to_range 仍应能产出移动指令。"
@@ -282,8 +289,8 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
             target_selector = "nearest_enemy",
             desired_min_distance = 1,
             desired_max_distance = 1,
-            screening_mode = MoveToRangeAction.ToStringName(
-                MoveToRangeAction.MoveToRangeScreeningMode.RangedAlly
+            screening_mode = BattleAiMoveToRangeActionEvaluator.ToStringName(
+                BattleAiMoveToRangeActionEvaluator.MoveToRangeScreeningMode.RangedAlly
             ),
             screening_min_hp_basis_points = 4000,
         };
@@ -296,8 +303,8 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
         runtime.setup(
             null,
             gameSession.GetSkillDefinitionsTyped(),
-            gameSession.GetEnemyTemplatesTyped(),
-            gameSession.GetEnemyAiBrainsTyped(),
+            gameSession.GetEnemyTemplateDefinitions(),
+            gameSession.GetEnemyAiBrainDefinitions(),
             null
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
@@ -490,6 +497,15 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
             }
         );
     }
+
+    private static BattleAiDecision Evaluate(
+        MoveToRangeAction action,
+        BattleAiContext context
+    ) =>
+        new BattleAiMoveToRangeActionEvaluator().Evaluate(
+            (MoveToRangeActionDefinition)action.ToDefinition(),
+            context
+        );
 
     private sealed class BattleRuntimeScope : IDisposable
     {

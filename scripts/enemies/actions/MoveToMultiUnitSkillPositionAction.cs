@@ -6,15 +6,6 @@ public partial class MoveToMultiUnitSkillPositionAction : UseMultiUnitSkillActio
     [Export]
     public int target_count_weight { get; set; } = 40;
 
-    internal override BattleAiDecision Decide(BattleAiContext context)
-    {
-        AiTraceRecorder.Enter("decide:move_to_multi_unit_skill_position");
-        BattleAiDecision decision =
-            new BattleAiMoveToMultiUnitSkillPositionEvaluator().Evaluate(this, context);
-        AiTraceRecorder.Exit("decide:move_to_multi_unit_skill_position");
-        return decision;
-    }
-
     public override Godot.Collections.Array<string> ValidateSchema()
     {
         Godot.Collections.Array<string> errors = base.ValidateSchema();

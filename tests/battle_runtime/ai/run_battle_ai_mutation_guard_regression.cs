@@ -85,7 +85,9 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "matched",
             new List<BattleAiStateResolver.TransitionConditionTrace>
             {
-                BattleAiStateResolver.TransitionConditionTrace.FromCondition(condition),
+                BattleAiStateResolver.TransitionConditionTrace.FromCondition(
+                    condition.ToDefinition()
+                ),
             }
         );
         var command = new BattleCommand
@@ -171,7 +173,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             exception,
             "active unit HP mutation 应触发 fail-fast guard。",
             "current_hp",
-            "BattleAiMutationGuardTestAction.Decide"
+            "BattleAiService.ChooseCommandImpl"
         );
         _test.Eq(fixture.Actor.current_hp, beforeHp, "active unit HP mutation 应被恢复。");
     }
@@ -192,7 +194,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             exception,
             "其他单位坐标 mutation 应触发 fail-fast guard。",
             "coord",
-            "BattleAiMutationGuardTestAction.Decide"
+            "BattleAiService.ChooseCommandImpl"
         );
         _test.Eq(fixture.Hero.coord, beforeCoord, "其他单位坐标 mutation 应被恢复。");
         AssertVector2IArrayEq(
@@ -235,7 +237,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             exception,
             "cell occupant mutation 应触发 fail-fast guard。",
             "occupant_unit_id",
-            "BattleAiMutationGuardTestAction.Decide"
+            "BattleAiService.ChooseCommandImpl"
         );
         cell = fixture.GridService.GetCellState(fixture.State, new Vector2I(3, 1));
         _test.Eq(cell?.occupant_unit_id ?? "", beforeOccupant, "cell occupant mutation 应被恢复。");
@@ -258,7 +260,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             exception,
             "cell height mutation 应触发 fail-fast guard。",
             "height_offset",
-            "BattleAiMutationGuardTestAction.Decide"
+            "BattleAiService.ChooseCommandImpl"
         );
         cell = fixture.GridService.GetCellState(fixture.State, new Vector2I(0, 0));
         _test.Eq(cell?.current_height ?? int.MinValue, beforeHeight, "cell current_height mutation 应被恢复。");
@@ -281,7 +283,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             exception,
             "effective trait payload mutation 应触发 fail-fast guard。",
             "effective_trait_instances",
-            "BattleAiMutationGuardTestAction.Decide"
+            "BattleAiService.ChooseCommandImpl"
         );
 
         _test.Eq(
@@ -321,7 +323,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             exception,
             "effective trait id mutation 应触发 fail-fast guard。",
             "effective_trait_ids",
-            "BattleAiMutationGuardTestAction.Decide"
+            "BattleAiService.ChooseCommandImpl"
         );
         _test.True(
             fixture.Actor.effective_trait_ids.Count == 1
@@ -355,11 +357,64 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         );
     }
 
-    private static BattleAiMutationGuardTestAction MakeMutationAction(StringName kind)
+    private static StringName MakeMutationAction(StringName kind) => kind;
+
+    private static void ApplyMutationForTest(StringName mutationKind, BattleAiContext context)
     {
-        var action = new BattleAiMutationGuardTestAction();
-        action.setup(kind);
-        return action;
+        if (context == null)
+        {
+            return;
+        }
+
+        switch (mutationKind.ToString())
+        {
+            case "active_hp":
+                context.unit_state.current_hp = 1;
+                break;
+            case "other_coord":
+                if (
+                    context.state.ContainsUnit(new StringName("hero"))
+                    && context.state.GetUnit(new StringName("hero"))
+                        is BattleUnitState target
+                )
+                {
+                    target.SetAnchorCoord(new Vector2I(4, 2));
+                }
+                break;
+            case "blackboard":
+                context.unit_state.ai_blackboard.SetText("rogue_key", "should_not_persist");
+                break;
+            case "cell_occupant":
+                context.grid_service.SetOccupant(
+                    context.state,
+                    new Vector2I(3, 1),
+                    context.unit_state.unit_id
+                );
+                break;
+            case "cell_height":
+                context.grid_service.SetHeightOffset(context.state, new Vector2I(0, 0), 2);
+                break;
+            case "effective_trait":
+                if (context.unit_state.effective_trait_instances.Count > 0)
+                {
+                    context.unit_state.effective_trait_instances = TraitTestData.EffectiveTraits(
+                        TraitTestData.EffectiveTrait(
+                            "halfling_luck",
+                            "halfling_luck",
+                            "on_crit",
+                            "per_turn",
+                            "turn_start",
+                            effectType: "savage_attacks",
+                            sourceType: "character",
+                            sourceId: "guard_actor"
+                        )
+                    );
+                }
+                break;
+            case "effective_trait_ids":
+                context.unit_state.effective_trait_ids.Add("rogue_trait");
+                break;
+        }
     }
 
     private void TestSnapshotIsPlainAndRestoresExactStateWithoutAuditGrowth()
@@ -490,19 +545,11 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         fixture?.Service.ChooseCommand(fixture.Context, captureTrace: false)?.Decision;
 
     private Fixture BuildFixture(
-        EnemyAiAction action,
+        StringName mutationKind,
         bool includeBrain = true,
         bool includeState = true
     )
     {
-        var resourceScope = new NativeLeaseScope(
-            "BattleAiMutationGuard.BuildFixture",
-            LifetimeDomain.Request
-        );
-        if (action != null)
-        {
-            resourceScope.Own(action, "action");
-        }
         BattleState state = BuildFlatState(new Vector2I(6, 4));
         var gridService = new BattleGridService();
         BattleUnitState actor = BuildUnit(
@@ -530,31 +577,47 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         state.phase = "unit_acting";
         state.active_unit_id = actor.unit_id;
 
-        Dictionary<StringName, EnemyAiBrainDef> brainMap = new();
+        Dictionary<StringName, EnemyAiBrainDefinition> brainMap = new();
         if (includeBrain)
         {
-            var brain = resourceScope.Own(
-                new EnemyAiBrainDef
-                {
-                    brain_id = "guard_brain",
-                    default_state_id = "engage",
-                    states = new Godot.Collections.Array<EnemyAiStateDef>(),
-                },
-                "BattleAiMutationGuard.BuildFixture.brain"
-            );
+            var states = new List<EnemyAiStateDefinition>();
             if (includeState)
             {
-                EnemyAiStateDef brainState = resourceScope.Own(
-                    new EnemyAiStateDef
-                    {
-                        state_id = "engage",
-                        actions = new Godot.Collections.Array<EnemyAiAction> { action },
-                    },
-                    "state"
+                states.Add(
+                    new EnemyAiStateDefinition(
+                        "engage",
+                        new EnemyAiActionDefinition[]
+                        {
+                            new WaitActionDefinition(
+                                new StringName($"test_mutation_{mutationKind}"),
+                                "",
+                                BattleAiActionIntent.Wait,
+                                0,
+                                0
+                            ),
+                        },
+                        Array.Empty<EnemyAiGenerationSlotDefinition>()
+                    )
                 );
-                brain.states.Add(brainState);
             }
-            brainMap[brain.brain_id] = brain;
+            var brain = new EnemyAiBrainDefinition(
+                "guard_brain",
+                "engage",
+                BattleAiScoreProfileDefinition.Default,
+                states,
+                Array.Empty<EnemyAiTransitionRuleDefinition>()
+            );
+            brainMap[brain.BrainId] = brain;
+        }
+
+        var actionPlan = new BattleAiRuntimeActionPlan();
+        if (brainMap.TryGetValue("guard_brain", out EnemyAiBrainDefinition brainDefinition))
+        {
+            actionPlan.SetSource(actor, brainDefinition);
+            if (brainDefinition.TryGetState("engage", out EnemyAiStateDefinition stateDefinition))
+            {
+                actionPlan.AddStateActions(stateDefinition.StateId, stateDefinition.Actions);
+            }
         }
 
         var service = new BattleAiService();
@@ -564,7 +627,12 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             state = state,
             unit_state = actor,
             grid_service = gridService,
-            allow_authored_action_fallback_for_tests = true,
+            runtime_action_plan = actionPlan,
+        };
+        context.action_score_input_callback = (_, _, _, _, _, _, _) =>
+        {
+            ApplyMutationForTest(mutationKind, context);
+            return null;
         };
         context.SetSkillDefinitions(new Dictionary<StringName, SkillDefinition>());
 
@@ -576,7 +644,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             Hero = hero,
             Service = service,
             Context = context,
-            ResourceScope = resourceScope,
+            ActionPlan = actionPlan,
         };
     }
 
@@ -810,13 +878,13 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         public BattleUnitState Hero;
         public BattleAiService Service;
         public BattleAiContext Context;
-        public NativeLeaseScope ResourceScope;
+        public BattleAiRuntimeActionPlan ActionPlan;
 
         public void Dispose()
         {
             Context?.ClearRuntimeBindings();
+            ActionPlan?.Dispose();
             Service?.Dispose();
-            ResourceScope?.Dispose();
         }
     }
 }

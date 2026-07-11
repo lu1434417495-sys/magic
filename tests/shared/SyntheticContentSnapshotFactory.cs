@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using Godot;
 
 internal sealed class SyntheticContentSnapshotSeed
@@ -28,6 +27,10 @@ internal sealed class SyntheticContentSnapshotSeed
     internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> EquipmentAbilityBindings { get; set; }
     internal IReadOnlyDictionary<string, WorldGenerationDefinition> WorldGenerations { get; set; }
     internal IBattleSpecialProfileView BattleSpecialProfiles { get; set; }
+    internal IReadOnlyDictionary<StringName, EnemyTemplateDefinition> EnemyTemplates { get; set; }
+    internal IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> EnemyBrains { get; set; }
+    internal IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> EncounterRosters { get; set; }
+    internal IReadOnlyDictionary<StringName, BattleSimProfileDefinition> BattleSimProfiles { get; set; }
 }
 
 internal static class SyntheticContentSnapshotFactory
@@ -61,7 +64,11 @@ internal static class SyntheticContentSnapshotFactory
             OrEmpty(seed.EquipmentAbilityPacks),
             OrEmpty(seed.EquipmentAbilityBindings),
             seed.WorldGenerations ?? new Dictionary<string, WorldGenerationDefinition>(StringComparer.Ordinal),
-            seed.BattleSpecialProfiles ?? BattleSpecialProfileRuntimeView.Empty
+            seed.BattleSpecialProfiles ?? BattleSpecialProfileRuntimeView.Empty,
+            OrEmpty(seed.EnemyTemplates),
+            OrEmpty(seed.EnemyBrains),
+            OrEmpty(seed.EncounterRosters),
+            OrEmpty(seed.BattleSimProfiles)
         );
     }
 
@@ -93,58 +100,16 @@ internal static class SyntheticContentSnapshotFactory
             EquipmentAbilityBindings = source.EquipmentAbilityBindings,
             WorldGenerations = source.WorldGenerations,
             BattleSpecialProfiles = source.BattleSpecialProfiles,
+            EnemyTemplates = source.EnemyTemplates,
+            EnemyBrains = source.EnemyBrains,
+            EncounterRosters = source.EncounterRosters,
+            BattleSimProfiles = source.BattleSimProfiles,
         };
     }
-
-    internal static ILegacyEnemyContentCatalog CreateEmptyLegacyEnemyContent() =>
-        new SyntheticLegacyEnemyContentCatalog();
-
-    internal static ILegacyEnemyContentCatalog CreateLegacyEnemyContent(
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates = null,
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyBrains = null,
-        IReadOnlyDictionary<StringName, WildEncounterRosterDef> encounterRosters = null,
-        IReadOnlyDictionary<StringName, BattleSimProfileDef> simulationProfiles = null
-    ) =>
-        new SyntheticLegacyEnemyContentCatalog(
-            enemyTemplates,
-            enemyBrains,
-            encounterRosters,
-            simulationProfiles
-        );
 
     private static IReadOnlyDictionary<StringName, T> OrEmpty<T>(
         IReadOnlyDictionary<StringName, T> source
     )
         where T : class => source ?? new Dictionary<StringName, T>();
 
-    private sealed class SyntheticLegacyEnemyContentCatalog : ILegacyEnemyContentCatalog
-    {
-        internal SyntheticLegacyEnemyContentCatalog(
-            IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates = null,
-            IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyBrains = null,
-            IReadOnlyDictionary<StringName, WildEncounterRosterDef> encounterRosters = null,
-            IReadOnlyDictionary<StringName, BattleSimProfileDef> simulationProfiles = null
-        )
-        {
-            EnemyTemplates = Freeze(enemyTemplates);
-            EnemyBrains = Freeze(enemyBrains);
-            EncounterRosters = Freeze(encounterRosters);
-            SimulationProfiles = Freeze(simulationProfiles);
-        }
-
-        public IReadOnlyDictionary<StringName, EnemyTemplateDef> EnemyTemplates { get; }
-        public IReadOnlyDictionary<StringName, EnemyAiBrainDef> EnemyBrains { get; }
-        public IReadOnlyDictionary<StringName, WildEncounterRosterDef> EncounterRosters { get; }
-        public IReadOnlyDictionary<StringName, BattleSimProfileDef> SimulationProfiles { get; }
-
-        private static IReadOnlyDictionary<StringName, T> Freeze<T>(
-            IReadOnlyDictionary<StringName, T> source
-        )
-            where T : class =>
-            new ReadOnlyDictionary<StringName, T>(
-                source == null
-                    ? new Dictionary<StringName, T>()
-                    : new Dictionary<StringName, T>(source)
-            );
-    }
 }

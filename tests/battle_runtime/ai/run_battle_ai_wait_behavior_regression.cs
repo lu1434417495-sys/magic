@@ -9,6 +9,11 @@ public partial class run_battle_ai_wait_behavior_regression : LifecycleTestScene
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
+    {
         try
         {
             TestWaitActionMarksActiveRestWhenStaminaStarved();
@@ -227,20 +232,20 @@ public partial class run_battle_ai_wait_behavior_regression : LifecycleTestScene
     {
         var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         var runtime = new BattleRuntimeModule();
-        var enemyAiBrains = new Dictionary<StringName, EnemyAiBrainDef>(
-            gameSession.GetEnemyAiBrainsTyped()
+        var enemyAiBrains = new Dictionary<StringName, EnemyAiBrainDefinition>(
+            gameSession.GetEnemyAiBrainDefinitions()
         );
         foreach (EnemyAiBrainDef brain in extraBrains ?? Array.Empty<EnemyAiBrainDef>())
         {
             if (brain != null && brain.brain_id != (StringName)"")
             {
-                enemyAiBrains[brain.brain_id] = brain;
+                enemyAiBrains[brain.brain_id] = brain.ToDefinition();
             }
         }
         runtime.setup(
             null,
             gameSession.GetSkillDefinitionsTyped(),
-            gameSession.GetEnemyTemplatesTyped(),
+            gameSession.GetEnemyTemplateDefinitions(),
             enemyAiBrains,
             null
         );

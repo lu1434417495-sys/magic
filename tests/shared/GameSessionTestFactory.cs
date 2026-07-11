@@ -42,7 +42,7 @@ internal static class GameSessionTestFactory
         host.RegisterSnapshotBorrower(borrowerId, session);
         try
         {
-            session.BindContent(snapshot, host.LegacyEnemyContent);
+            session.BindContent(snapshot);
             session.BindContentBorrower(host, borrowerId);
             return session;
         }
@@ -66,32 +66,23 @@ internal static class GameSessionTestFactory
     }
 
     internal static GameSession CreateSyntheticFromProcessSnapshot(
-        Action<SyntheticContentSnapshotSeed> configure,
-        ILegacyEnemyContentCatalog legacyEnemyContent = null
+        Action<SyntheticContentSnapshotSeed> configure
     )
     {
         SyntheticContentSnapshotSeed seed = SyntheticContentSnapshotFactory.CreateSeed(
             GetProcessSnapshot()
         );
         configure?.Invoke(seed);
-        return CreateSynthetic(
-            SyntheticContentSnapshotFactory.Create(seed),
-            legacyEnemyContent
-                ?? CreateLoadedLegacyEnemyContent()
-        );
+        return CreateSynthetic(SyntheticContentSnapshotFactory.Create(seed));
     }
 
-    internal static GameSession CreateSynthetic(
-        ContentSnapshot snapshot,
-        ILegacyEnemyContentCatalog legacyEnemyContent
-    )
+    internal static GameSession CreateSynthetic(ContentSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        ArgumentNullException.ThrowIfNull(legacyEnemyContent);
         var session = new GameSession();
         try
         {
-            session.BindContent(snapshot, legacyEnemyContent);
+            session.BindContent(snapshot);
             return session;
         }
         catch
@@ -101,22 +92,14 @@ internal static class GameSessionTestFactory
         }
     }
 
-    internal static GameSession CreateSynthetic(ContentSnapshot snapshot) =>
-        CreateSynthetic(
-            snapshot,
-            SyntheticContentSnapshotFactory.CreateEmptyLegacyEnemyContent()
-        );
-
     internal static GameSession CreateSynthetic(
         HeadlessGameTestSession headlessSession,
-        Action<SyntheticContentSnapshotSeed> configure,
-        ILegacyEnemyContentCatalog legacyEnemyContent = null
+        Action<SyntheticContentSnapshotSeed> configure
     )
     {
         ArgumentNullException.ThrowIfNull(headlessSession);
         GameSession session = CreateSyntheticFromProcessSnapshot(
-            configure,
-            legacyEnemyContent
+            configure
         );
         try
         {
@@ -127,66 +110,6 @@ internal static class GameSessionTestFactory
         {
             session.Dispose();
             throw;
-        }
-    }
-
-    internal static ILegacyEnemyContentCatalog CreateLoadedLegacyEnemyContent()
-    {
-        if (Engine.GetMainLoop() is not SceneTree tree)
-        {
-            throw new InvalidOperationException(
-                "A running SceneTree is required to copy process legacy enemy content."
-            );
-        }
-        ILegacyEnemyContentCatalog processLegacy = tree.Root
-            .GetNode<ApplicationLifetimeCoordinator>("ApplicationLifetimeCoordinator")
-            .ContentHost.LegacyEnemyContent;
-        ILegacyEnemyContentCatalog copied =
-            SyntheticContentSnapshotFactory.CreateLegacyEnemyContent(
-            new Dictionary<StringName, EnemyTemplateDef>(processLegacy.EnemyTemplates),
-            new Dictionary<StringName, EnemyAiBrainDef>(processLegacy.EnemyBrains),
-            new Dictionary<StringName, WildEncounterRosterDef>(
-                processLegacy.EncounterRosters
-            ),
-            new Dictionary<StringName, BattleSimProfileDef>(processLegacy.SimulationProfiles)
-        );
-        RegisterBorrowedLegacyGraph(copied);
-        return copied;
-    }
-
-    private static void RegisterBorrowedLegacyGraph(ILegacyEnemyContentCatalog catalog)
-    {
-        RegisterBorrowedResources(catalog.EnemyTemplates.Values, catalog, "enemy-template");
-        RegisterBorrowedResources(catalog.EnemyBrains.Values, catalog, "enemy-brain");
-        RegisterBorrowedResources(catalog.EncounterRosters.Values, catalog, "encounter-roster");
-        RegisterBorrowedResources(catalog.SimulationProfiles.Values, catalog, "simulation-profile");
-    }
-
-    private static void RegisterBorrowedResources<T>(
-        IEnumerable<T> roots,
-        object owner,
-        string label
-    )
-        where T : Resource
-    {
-        foreach (T root in roots)
-        {
-            if (root == null)
-                continue;
-            string source = root.ResourcePath ?? label;
-            GodotTypedResourceGraphWalker.VisitValueGraph(root, wrapper =>
-            {
-                if (GodotWrapperOwnershipRegistry.IsBorrowedOrDerivedStaticContent(wrapper))
-                    return;
-                if (GodotWrapperOwnershipRegistry.IsOwnedTransient(wrapper))
-                    return;
-                GodotWrapperOwnershipRegistry.Register(
-                    wrapper,
-                    GodotWrapperOwnershipKind.BorrowedStaticContent,
-                    owner,
-                    $"synthetic-legacy:{label}:{source}"
-                );
-            });
         }
     }
 

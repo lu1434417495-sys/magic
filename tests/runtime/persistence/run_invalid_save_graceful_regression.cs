@@ -12,6 +12,11 @@ public partial class run_invalid_save_graceful_regression : LifecycleTestSceneTr
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
+    {
         TestCreateNewSaveRejectsInvalidGenerationConfigWithoutQuit();
         TestLoadSaveRejectsBadWorldDataWithoutQuit();
         TestCreateNewSaveRejectsBadCreationIdentityWithoutCreatingSlot();

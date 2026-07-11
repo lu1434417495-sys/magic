@@ -14,12 +14,6 @@ internal enum GodotWrapperOwnershipKind
     TestQuarantine,
 }
 
-internal static class GodotLifecycleLegacyDebtManifest
-{
-    internal static bool IsDeclared(LifecycleLegacyDebtSnapshot debt) =>
-        debt == LegacyEnemyContentDebt.Record;
-}
-
 internal static class GodotWrapperOwnershipRegistry
 {
     private sealed class Entry
@@ -687,7 +681,6 @@ internal sealed class GodotTransientResourceScope : IDisposable
     private enum QuarantineMode
     {
         None = 0,
-        Legacy,
         Test,
     }
 
@@ -704,22 +697,6 @@ internal sealed class GodotTransientResourceScope : IDisposable
     {
         Name = string.IsNullOrEmpty(name) ? "unnamed" : name;
         QuarantineOnDrain = quarantineMode != QuarantineMode.None;
-    }
-
-    internal static GodotTransientResourceScope CreateLegacyQuarantine(
-        string name,
-        LifecycleLegacyDebtSnapshot legacyDebt
-    )
-    {
-        ArgumentNullException.ThrowIfNull(legacyDebt);
-        if (!GodotLifecycleLegacyDebtManifest.IsDeclared(legacyDebt))
-        {
-            throw new ArgumentException(
-                $"Undeclared lifecycle debt cannot authorize quarantine. debt_id={legacyDebt.DebtId}",
-                nameof(legacyDebt)
-            );
-        }
-        return new GodotTransientResourceScope(name, QuarantineMode.Legacy);
     }
 
     internal static GodotTransientResourceScope CreateTestQuarantine(string name) =>

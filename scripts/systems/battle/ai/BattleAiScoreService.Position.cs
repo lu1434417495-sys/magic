@@ -126,16 +126,16 @@ public partial class BattleAiScoreService
 
         int multiplierBasisPoints =
             ThreatMultiplierBasisPointsDenominator
-            + healSkillCount * Math.Max(_scoreProfile.threat_healer_bias_basis_points, 0)
-            + controlSkillCount * Math.Max(_scoreProfile.threat_control_bias_basis_points, 0);
+            + healSkillCount * Math.Max(_scoreProfile.ThreatHealerBiasBasisPoints, 0)
+            + controlSkillCount * Math.Max(_scoreProfile.ThreatControlBiasBasisPoints, 0);
         if (bestRangedAttackRange >= MinRangedThreatRange)
         {
-            multiplierBasisPoints += Math.Max(_scoreProfile.threat_ranged_bias_basis_points, 0);
+            multiplierBasisPoints += Math.Max(_scoreProfile.ThreatRangedBiasBasisPoints, 0);
             multiplierBasisPoints +=
                 (bestRangedAttackRange - (MinRangedThreatRange - 1))
-                * Math.Max(_scoreProfile.threat_range_step_bias_basis_points, 0);
+                * Math.Max(_scoreProfile.ThreatRangeStepBiasBasisPoints, 0);
         }
-        int capBasisPoints = _scoreProfile.threat_multiplier_cap_basis_points;
+        int capBasisPoints = _scoreProfile.ThreatMultiplierCapBasisPoints;
         if (capBasisPoints > ThreatMultiplierBasisPointsDenominator)
         {
             multiplierBasisPoints = Math.Min(multiplierBasisPoints, capBasisPoints);
@@ -377,8 +377,8 @@ public partial class BattleAiScoreService
         IEnumerable<CombatEffectDefinition> effectDefinitions
     )
     {
-        int terrainWeight = _scoreProfile?.terrain_weight ?? 0;
-        int heightWeight = _scoreProfile?.height_weight ?? 0;
+        int terrainWeight = _scoreProfile?.TerrainWeight ?? 0;
+        int heightWeight = _scoreProfile?.HeightWeight ?? 0;
         int score = 0;
         var seenTerrainControls = new HashSet<string>();
         foreach (
@@ -463,11 +463,11 @@ public partial class BattleAiScoreService
         scoreInput.aura_cost = Math.Max(costs.AuraCost, 0);
         scoreInput.cooldown_tu = Math.Max(costs.CooldownTu, 0);
         scoreInput.resource_cost_score =
-            scoreInput.ap_cost * _scoreProfile.ap_cost_weight
-            + scoreInput.mp_cost * _scoreProfile.mp_cost_weight
-            + scoreInput.stamina_cost * _scoreProfile.stamina_cost_weight
-            + scoreInput.aura_cost * _scoreProfile.aura_cost_weight
-            + scoreInput.cooldown_tu * _scoreProfile.cooldown_weight;
+            scoreInput.ap_cost * _scoreProfile.ApCostWeight
+            + scoreInput.mp_cost * _scoreProfile.MpCostWeight
+            + scoreInput.stamina_cost * _scoreProfile.StaminaCostWeight
+            + scoreInput.aura_cost * _scoreProfile.AuraCostWeight
+            + scoreInput.cooldown_tu * _scoreProfile.CooldownWeight;
         scoreInput.resource_cost_score += BuildReserveResourceCost(
             ContextUnitState(context),
             scoreInput
@@ -488,9 +488,9 @@ public partial class BattleAiScoreService
                 actor.current_mp,
                 GetActorResourceMax(actor, AttributeService.ToStringName(AttributeIdKind.MpMax)),
                 scoreInput.mp_cost,
-                _scoreProfile.mp_reserve_floor_bp,
-                _scoreProfile.mp_reserve_pressure_weight,
-                _scoreProfile.mp_reserve_breach_penalty
+                _scoreProfile.MpReserveFloorBp,
+                _scoreProfile.MpReservePressureWeight,
+                _scoreProfile.MpReserveBreachPenalty
             )
             + BuildSingleReserveResourceCost(
                 actor.current_stamina,
@@ -499,23 +499,23 @@ public partial class BattleAiScoreService
                     AttributeService.ToStringName(AttributeIdKind.StaminaMax)
                 ),
                 scoreInput.stamina_cost,
-                _scoreProfile.stamina_reserve_floor_bp,
-                _scoreProfile.stamina_reserve_pressure_weight,
-                _scoreProfile.stamina_reserve_breach_penalty
+                _scoreProfile.StaminaReserveFloorBp,
+                _scoreProfile.StaminaReservePressureWeight,
+                _scoreProfile.StaminaReserveBreachPenalty
             )
             + BuildSingleReserveResourceCost(
                 actor.current_aura,
                 Math.Max(actor.GetAuraMax(), actor.current_aura),
                 scoreInput.aura_cost,
-                _scoreProfile.aura_reserve_floor_bp,
-                _scoreProfile.aura_reserve_pressure_weight,
-                _scoreProfile.aura_reserve_breach_penalty
+                _scoreProfile.AuraReserveFloorBp,
+                _scoreProfile.AuraReservePressureWeight,
+                _scoreProfile.AuraReserveBreachPenalty
             );
         if (sustainCost == 0)
         {
             return 0;
         }
-        return ScaleByPercent(sustainCost, _scoreProfile.resource_conservation_weight);
+        return ScaleByPercent(sustainCost, _scoreProfile.ResourceConservationWeight);
     }
 
     private static int BuildSingleReserveResourceCost(

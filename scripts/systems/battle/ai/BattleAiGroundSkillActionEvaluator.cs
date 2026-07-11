@@ -7,9 +7,8 @@ internal sealed class BattleAiGroundSkillActionEvaluator
     private static readonly StringName EmptyStringName = "";
 
     private readonly BattleAiTypedActionHelper _helper = new();
-    private readonly BattleAiDecisionEngine _scoreOrdering = new();
     private readonly Dictionary<StringName, CombatCastVariantDefinition> _implicitGroundOptionDefinitionsBySkillId = new();
-    private BattleAiGroundSkillActionSpec _action;
+    private UseGroundSkillActionDefinition _action;
 
     private sealed class GroundCandidatePrefilter
     {
@@ -70,12 +69,10 @@ internal sealed class BattleAiGroundSkillActionEvaluator
     }
 
 
-    internal BattleAiDecision Evaluate(UseGroundSkillAction action, BattleAiContext context)
-    {
-        return Evaluate(BattleAiGroundSkillActionSpec.FromAction(action), context);
-    }
-
-    internal BattleAiDecision Evaluate(BattleAiGroundSkillActionSpec action, BattleAiContext context)
+    internal BattleAiDecision Evaluate(
+        UseGroundSkillActionDefinition action,
+        BattleAiContext context
+    )
     {
         _action = action;
         if (_action == null || context == null)
@@ -96,7 +93,7 @@ internal sealed class BattleAiGroundSkillActionEvaluator
     }
 
     internal bool PassesMinimumEffectiveTargetOrGroundControl(
-        BattleAiGroundSkillActionSpec action,
+        UseGroundSkillActionDefinition action,
         BattleAiScoreInput scoreInput
     )
     {
@@ -112,7 +109,7 @@ internal sealed class BattleAiGroundSkillActionEvaluator
     }
 
     internal bool PassesFriendlyFireLimits(
-        BattleAiGroundSkillActionSpec action,
+        UseGroundSkillActionDefinition action,
         BattleAiScoreInput scoreInput
     )
     {
@@ -1084,7 +1081,8 @@ internal sealed class BattleAiGroundSkillActionEvaluator
         }
     }
 
-    private List<StringName> skill_ids => _action?.SkillIds ?? new List<StringName>();
+    private IReadOnlyList<StringName> skill_ids =>
+        _action?.SkillIds ?? System.Array.Empty<StringName>();
     private int minimum_hit_count => _action?.MinimumHitCount ?? 1;
     private bool allow_empty_ground_control => _action?.AllowEmptyGroundControl ?? false;
     private bool allow_ground_control_supplement_partial_hits =>
@@ -1120,7 +1118,7 @@ internal sealed class BattleAiGroundSkillActionEvaluator
         SkillDefinition skillDefinition
     ) => _helper.GetSkillCastBlockReason(context, skillDefinition);
 
-    private static BattleCommand BuildTypedGroundSkillCommand(
+    internal static BattleCommand BuildTypedGroundSkillCommand(
         BattleAiContext context,
         BattleAvailableSkillEntry skillEntry,
         StringName skillVariantId,
@@ -1148,7 +1146,7 @@ internal sealed class BattleAiGroundSkillActionEvaluator
         return command;
     }
 
-    private static BattlePreview BuildFastGroundSkillPreview(
+    internal static BattlePreview BuildFastGroundSkillPreview(
         BattleAiContext context,
         BattleCommand command,
         IEnumerable<Vector2I> previewCoords,
@@ -1276,7 +1274,7 @@ internal sealed class BattleAiGroundSkillActionEvaluator
         );
 
     private bool IsBetterSkillScoreInput(BattleAiScoreInput candidate, BattleAiScoreInput best) =>
-        _scoreOrdering.IsBetterScoreInput(candidate, best);
+        BattleAiDecisionEngine.IsBetterScoreInputTyped(candidate, best);
 
     private List<BattleUnitState> SortTargetUnitsTyped(
         BattleAiContext context,
@@ -1466,7 +1464,7 @@ internal sealed class BattleAiGroundSkillActionEvaluator
         return false;
     }
 
-    private List<CombatCastVariantDefinition> GetGroundOptionDefinitions(
+    internal List<CombatCastVariantDefinition> GetGroundOptionDefinitions(
         BattleAiContext context,
         SkillDefinition skillDefinition,
         int skillLevel
@@ -1530,7 +1528,7 @@ internal sealed class BattleAiGroundSkillActionEvaluator
         return option;
     }
 
-    private static bool IsChargeOption(CombatCastVariantDefinition castVariant)
+    internal static bool IsChargeOption(CombatCastVariantDefinition castVariant)
     {
         if (castVariant == null)
             return false;
@@ -1542,7 +1540,7 @@ internal sealed class BattleAiGroundSkillActionEvaluator
         return false;
     }
 
-    private List<List<Vector2I>> EnumerateGroundTargetCoordSetsTyped(
+    internal List<List<Vector2I>> EnumerateGroundTargetCoordSetsTyped(
         BattleAiContext context,
         CombatCastVariantDefinition castVariant
     )

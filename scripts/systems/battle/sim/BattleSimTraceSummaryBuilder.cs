@@ -74,7 +74,7 @@ public sealed class BattleSimTraceSummaryBuilder
             {
                 if (profileEntry == null)
                     continue;
-                string profileId = profileEntry.Profile?.profile_id.ToString() ?? "";
+                string profileId = profileEntry.Profile?.ProfileId.ToString() ?? "";
                 foreach (BattleSimRunReport run in profileEntry.Runs)
                 {
                     if (run == null)

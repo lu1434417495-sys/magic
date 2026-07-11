@@ -34,8 +34,11 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
             }
         );
         builder.Setup(
-            new Dictionary<StringName, WildEncounterRosterDef>(),
-            new Dictionary<StringName, EnemyTemplateDef> { [template.template_id] = template }
+            new Dictionary<StringName, WildEncounterRosterDefinition>(),
+            new Dictionary<StringName, EnemyTemplateDefinition>
+            {
+                [template.template_id] = ProjectTemplate(template),
+            }
         );
 
         IReadOnlyList<IReadOnlyDictionary<string, object>> lootEntries = builder.BuildLootEntriesPlain(
@@ -115,8 +118,11 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
             }
         );
         builder.Setup(
-            new Dictionary<StringName, WildEncounterRosterDef>(),
-            new Dictionary<StringName, EnemyTemplateDef> { [template.template_id] = template }
+            new Dictionary<StringName, WildEncounterRosterDefinition>(),
+            new Dictionary<StringName, EnemyTemplateDefinition>
+            {
+                [template.template_id] = ProjectTemplate(template),
+            }
         );
 
         IReadOnlyList<IReadOnlyDictionary<string, object>> lootEntries = builder.BuildLootEntriesPlain(
@@ -164,11 +170,14 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
             new WildEncounterRosterUnitEntryDef { template_id = "wolf_b", count = 1 }
         );
         builder.Setup(
-            new Dictionary<StringName, WildEncounterRosterDef> { [roster.profile_id] = roster },
-            new Dictionary<StringName, EnemyTemplateDef>
+            new Dictionary<StringName, WildEncounterRosterDefinition>
             {
-                [wolfA.template_id] = wolfA,
-                [wolfB.template_id] = wolfB,
+                [roster.profile_id] = roster.ToDefinition(),
+            },
+            new Dictionary<StringName, EnemyTemplateDefinition>
+            {
+                [wolfA.template_id] = ProjectTemplate(wolfA),
+                [wolfB.template_id] = ProjectTemplate(wolfB),
             }
         );
 
@@ -256,6 +265,9 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
         roster.stages.Add(stageDef);
         return roster;
     }
+
+    private static EnemyTemplateDefinition ProjectTemplate(EnemyTemplateDef template) =>
+        template.ToDefinition(new Dictionary<StringName, ItemDefinition>());
 
     private static EncounterAnchorData BuildTemplateEncounterAnchor(
         StringName entityId,

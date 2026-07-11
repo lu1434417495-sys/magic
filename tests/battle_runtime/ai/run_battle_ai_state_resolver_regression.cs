@@ -20,7 +20,7 @@ public partial class run_battle_ai_state_resolver_regression : LifecycleTestScen
     private void TestResolvesCustomStateNamesWithoutMutatingUnitState()
     {
         Fixture fixture = BuildFixture();
-        EnemyAiBrainDef brain = BuildBrain(
+        EnemyAiBrainDefinition brain = BuildBrain(
             "hold",
             Rule("recover_low_hp", 10, "recover", Condition("self_hp_at_or_below_basis_points", basisPoints: 3000)),
             Rule("hold_default", 20, "hold", Condition("always"))
@@ -43,7 +43,7 @@ public partial class run_battle_ai_state_resolver_regression : LifecycleTestScen
     private void TestAllyLowHpExcludesSelf()
     {
         Fixture fixture = BuildFixture();
-        EnemyAiBrainDef brain = BuildBrain(
+        EnemyAiBrainDefinition brain = BuildBrain(
             "hold",
             Rule("aid_low_ally", 10, "aid_ally", Condition("ally_hp_at_or_below_basis_points", basisPoints: 5000)),
             Rule("hold_default", 20, "hold", Condition("always"))
@@ -69,7 +69,7 @@ public partial class run_battle_ai_state_resolver_regression : LifecycleTestScen
     private void TestNearestEnemyDistanceAndStickyRuleAreDataDriven()
     {
         Fixture fixture = BuildFixture();
-        EnemyAiBrainDef brain = BuildBrain(
+        EnemyAiBrainDefinition brain = BuildBrain(
             "hold",
             Rule(
                 "stay_close_range",
@@ -118,7 +118,7 @@ public partial class run_battle_ai_state_resolver_regression : LifecycleTestScen
             supportSkill.SkillId,
         };
         fixture.Actor.known_skill_level_map[supportSkill.SkillId] = 1;
-        EnemyAiBrainDef brain = BuildBrain(
+        EnemyAiBrainDefinition brain = BuildBrain(
             "hold",
             Rule("aid_skill_available", 10, "aid_ally", Condition("has_skill_affordance", affordances: new[] { new StringName("ally_heal") })),
             Rule("hold_default", 20, "hold", Condition("always"))
@@ -160,7 +160,7 @@ public partial class run_battle_ai_state_resolver_regression : LifecycleTestScen
             supportSkill.SkillId,
         };
         fixture.Actor.known_skill_level_map[supportSkill.SkillId] = 1;
-        EnemyAiBrainDef brain = BuildBrain(
+        EnemyAiBrainDefinition brain = BuildBrain(
             "hold",
             Rule("aid_skill_available", 10, "aid_ally", Condition("has_skill_affordance", affordances: new[] { new StringName("ally_heal") })),
             Rule("hold_default", 20, "hold", Condition("always"))
@@ -231,7 +231,10 @@ public partial class run_battle_ai_state_resolver_regression : LifecycleTestScen
         };
     }
 
-    private static EnemyAiBrainDef BuildBrain(StringName defaultStateId, params EnemyAiTransitionRuleDef[] rules)
+    private static EnemyAiBrainDefinition BuildBrain(
+        StringName defaultStateId,
+        params EnemyAiTransitionRuleDef[] rules
+    )
     {
         var brain = TestResourceOwnership.Own(
             new EnemyAiBrainDef
@@ -253,7 +256,7 @@ public partial class run_battle_ai_state_resolver_regression : LifecycleTestScen
         {
             brain.transition_rules.Add(rule);
         }
-        return TestResourceOwnership.Own(brain, "BattleAiStateResolver.BuildBrain");
+        return brain.ToDefinition();
     }
 
     private static EnemyAiStateDef State(StringName stateId)

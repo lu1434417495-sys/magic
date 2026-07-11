@@ -31,8 +31,8 @@ public partial class run_quest_config_validation : LifecycleTestSceneTree
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = itemRegistry.GetItemDefsTyped();
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             skillRegistry.GetSkillDefinitionsTyped();
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
-            enemyRegistry.GetEnemyTemplatesTyped();
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates =
+            enemyRegistry.ProjectDefinitions(itemDefs).EnemyTemplates;
 
         List<string> validatorErrors = QuestContentValidator.ValidateTyped(
             questDefs,

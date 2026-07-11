@@ -3,11 +3,11 @@ using System.Collections.Generic;
 
 public sealed class WildEncounterGrowthSystem
 {
-    public bool ApplyStepAdvance(
+    internal bool ApplyStepAdvance(
         IEnumerable<EncounterAnchorData> encounterAnchors,
         int old_step,
         int new_step,
-        IReadOnlyDictionary<StringName, WildEncounterRosterDef> encounterRosters
+        IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> encounterRosters
     )
     {
         if (encounterAnchors == null || encounterRosters == null || encounterRosters.Count == 0)
@@ -36,7 +36,7 @@ public sealed class WildEncounterGrowthSystem
                 continue;
             }
 
-            var interval = Mathf.Max(roster.growth_step_interval, 1);
+            var interval = Mathf.Max(roster.GrowthStepInterval, 1);
             var relativeOldStep = Mathf.Max(old_step - encounter.suppressed_until_step, 0);
             var relativeNewStep = Mathf.Max(new_step - encounter.suppressed_until_step, 0);
             var oldCycles = relativeOldStep / interval;
@@ -59,10 +59,10 @@ public sealed class WildEncounterGrowthSystem
         return changed;
     }
 
-    public bool ApplyBattleVictory(
+    internal bool ApplyBattleVictory(
         EncounterAnchorData encounter_anchor,
         int world_step,
-        IReadOnlyDictionary<StringName, WildEncounterRosterDef> encounterRosters
+        IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> encounterRosters
     )
     {
         if (
@@ -83,18 +83,18 @@ public sealed class WildEncounterGrowthSystem
             return false;
         }
 
-        var initialStage = Mathf.Max(roster.initial_stage, 0);
+        var initialStage = Mathf.Max(roster.InitialStage, 0);
         encounter_anchor.growth_stage = Mathf.Max(encounter_anchor.growth_stage - 1, initialStage);
         encounter_anchor.suppressed_until_step = Mathf.Max(
             encounter_anchor.suppressed_until_step,
             Mathf.Max(world_step, 0)
-                + Mathf.Max(roster.suppression_steps_on_victory, 0)
+                + Mathf.Max(roster.SuppressionStepsOnVictory, 0)
         );
         return true;
     }
 
-    private static WildEncounterRosterDef GetRoster(
-        IReadOnlyDictionary<StringName, WildEncounterRosterDef> encounterRosters,
+    private static WildEncounterRosterDefinition GetRoster(
+        IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> encounterRosters,
         StringName encounterProfileId
     )
     {

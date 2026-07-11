@@ -11,6 +11,11 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
+    {
         try
         {
             TestTemplateStartBattleStableIds();
@@ -129,9 +134,10 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
             runtime.setup(
                 null,
                 gameSession.Session.GetSkillDefinitionsTyped(),
-                new Dictionary<StringName, EnemyTemplateDef>(),
-                new Dictionary<StringName, EnemyAiBrainDef>(),
-                null
+                new Dictionary<StringName, EnemyTemplateDefinition>(),
+                new Dictionary<StringName, EnemyAiBrainDefinition>(),
+                null,
+                item_defs: gameSession.Session.GetItemDefsTyped()
             );
             var enemyUnits = runtime._unit_factory.BuildEnemyUnits(
                 BuildEncounterAnchor(
@@ -397,9 +403,10 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
         runtime.setup(
             null,
             gameSession.GetSkillDefinitionsTyped(),
-            gameSession.GetEnemyTemplatesTyped(),
-            gameSession.GetEnemyAiBrainsTyped(),
-            null
+            gameSession.GetEnemyTemplateDefinitions(),
+            gameSession.GetEnemyAiBrainDefinitions(),
+            null,
+            item_defs: gameSession.GetItemDefsTyped()
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         var damageResolver = new FixedSuccessOneDamageResolver();
@@ -446,7 +453,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
     {
         using var gameSession = new GameSessionScope();
         var results = new List<StringName>();
-        results.AddRange(gameSession.Session.GetEnemyTemplatesTyped().Keys);
+        results.AddRange(gameSession.Session.GetEnemyTemplateDefinitions().Keys);
         results.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
         return results;
     }
@@ -494,22 +501,28 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
             return 1;
         }
         if (
-            !runtime.GetEnemyAiBrainIndexTyped().TryGetValue(enemyUnit.ai_brain_id, out EnemyAiBrainDef brain)
+            !runtime
+                .GetEnemyAiBrainIndexTyped()
+                .TryGetValue(enemyUnit.ai_brain_id, out EnemyAiBrainDefinition brain)
         )
         {
             return 1;
         }
-        foreach (EnemyAiTransitionRuleDef rule in brain.transition_rules)
+        foreach (EnemyAiTransitionRuleDefinition rule in brain.TransitionRules)
         {
-            if (rule == null || rule.rule_id != (StringName)"pressure_enter")
+            if (rule == null || rule.RuleId != (StringName)"pressure_enter")
             {
                 continue;
             }
-            foreach (EnemyAiTransitionConditionDef condition in rule.GetTypedConditions())
+            foreach (EnemyAiTransitionConditionDefinition condition in rule.Conditions)
             {
-                if (condition != null && condition.predicate == (StringName)"nearest_enemy_distance_at_or_below")
+                if (
+                    condition != null
+                    && condition.Predicate
+                        == (StringName)"nearest_enemy_distance_at_or_below"
+                )
                 {
-                    return Math.Clamp(condition.max_distance, 1, 7);
+                    return Math.Clamp(condition.MaxDistance, 1, 7);
                 }
             }
         }

@@ -135,7 +135,7 @@ internal class BattleRuntimeLootResolver
         }
     }
 
-    private EnemyTemplateDef _ResolveEnemyTemplateForUnit(BattleUnitState unitState)
+    private EnemyTemplateDefinition _ResolveEnemyTemplateForUnit(BattleUnitState unitState)
     {
         if (unitState == null || _runtime == null)
             return null;
@@ -147,7 +147,7 @@ internal class BattleRuntimeLootResolver
 
     private List<BattleLootEntry> _BuildDefeatedUnitLootEntries(
         BattleUnitState unitState,
-        EnemyTemplateDef enemyTemplate,
+        EnemyTemplateDefinition enemyTemplate,
         int dropLuck
     )
     {
@@ -158,7 +158,7 @@ internal class BattleRuntimeLootResolver
             ? unitState.display_name
             : unitState.unit_id.ToString();
         var normalizedDropLuck = Mathf.Clamp(dropLuck, -6, 5);
-        foreach (DropEntryDef dropEntry in enemyTemplate.drop_entries)
+        foreach (DropEntryDefinition dropEntry in enemyTemplate.DropEntries)
         {
             ParsedDropDefinition parsedDropEntry = _ParseDropDefinition(dropEntry);
             if (!parsedDropEntry.IsValid)
@@ -220,19 +220,19 @@ internal class BattleRuntimeLootResolver
         return lootEntries;
     }
 
-    private ParsedDropDefinition _ParseDropDefinition(DropEntryDef entryData)
+    private ParsedDropDefinition _ParseDropDefinition(DropEntryDefinition entryData)
     {
         if (entryData == null)
             return default;
-        StringName dropEntryId = ProgressionDataUtils.to_string_name(entryData.drop_entry_id);
-        StringName dropType = ProgressionDataUtils.to_string_name(entryData.drop_type);
-        StringName itemId = ProgressionDataUtils.to_string_name(entryData.item_id);
+        StringName dropEntryId = ProgressionDataUtils.to_string_name(entryData.DropEntryId);
+        StringName dropType = ProgressionDataUtils.to_string_name(entryData.DropType);
+        StringName itemId = ProgressionDataUtils.to_string_name(entryData.ItemId);
         if (dropEntryId == "" || itemId == "")
             return default;
         BattleLootDropKind dropKind = BattleLootIds.ToDropKind(dropType);
         if (dropKind != BattleLootDropKind.Item && dropKind != BattleLootDropKind.RandomEquipment)
             return default;
-        int quantity = entryData.quantity;
+        int quantity = entryData.Quantity;
         if (quantity <= 0)
             return default;
         return new ParsedDropDefinition(dropEntryId, dropKind, dropType, itemId, quantity);

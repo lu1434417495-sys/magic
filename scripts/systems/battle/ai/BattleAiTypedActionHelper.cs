@@ -218,7 +218,7 @@ internal sealed class BattleAiTypedActionHelper
     }
 
     public Dictionary<string, object> BuildPositionMetadata(
-        BattleAiUnitSkillActionSpec action,
+        UseUnitSkillActionDefinition action,
         BattleAiContext context,
         BattleUnitState targetUnit,
         SkillDefinition skillDefinition
@@ -354,7 +354,7 @@ internal sealed class BattleAiTypedActionHelper
     }
 
     public BattleAiDecision CreateDecision(
-        BattleAiUnitSkillActionSpec action,
+        UseUnitSkillActionDefinition action,
         BattleCommand command,
         string reasonText
     )
@@ -369,7 +369,7 @@ internal sealed class BattleAiTypedActionHelper
     }
 
     public BattleAiDecision CreateScoredDecision(
-        BattleAiUnitSkillActionSpec action,
+        UseUnitSkillActionDefinition action,
         BattleCommand command,
         BattleAiScoreInput scoreInput,
         string reasonText
@@ -541,7 +541,7 @@ internal sealed class BattleAiTypedActionHelper
     }
 
     private static Dictionary<string, object> ResolveDesiredDistanceContract(
-        BattleAiUnitSkillActionSpec action,
+        UseUnitSkillActionDefinition action,
         BattleAiContext context,
         SkillDefinition skillDefinition
     )
@@ -586,7 +586,7 @@ internal sealed class BattleAiTypedActionHelper
         return targets.Count > 0 ? targets[0] : null;
     }
 
-    private static bool IsHostileThreatSkill(SkillDefinition skillDefinition)
+    internal static bool IsHostileThreatSkill(SkillDefinition skillDefinition)
     {
         CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (combatProfile == null)

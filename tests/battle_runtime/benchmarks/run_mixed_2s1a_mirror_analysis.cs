@@ -13,6 +13,11 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(RunDeferred));
+    }
+
+    private void RunDeferred()
+    {
         int exitCode = Run();
         RequestTestExit(_test.Finish("Mixed 2s1a mirror analysis", exitCode));
     }
@@ -35,7 +40,9 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
         }
 
         var contentLoader = new TestContentResourceLoader();
-        var contentProvider = new BattleSimContentProvider(contentLoader);
+        var contentProvider = new BattleSimContentProvider(
+            GameSessionTestFactory.GetProcessSnapshot()
+        );
         var overrideApplier = new BattleSimOverrideApplier();
         var terrainGenerator = new BattleTerrainGenerator();
         var progressionRegistry = new ProgressionContentRegistry(contentLoader);
@@ -45,19 +52,15 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
         {
             IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
                 contentProvider.GetSkillDefinitionsTyped();
-            IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
+            IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates =
                 contentProvider.GetEnemyTemplatesTyped();
-            IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains =
+            IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyAiBrains =
                 contentProvider.GetEnemyAiBrainsTyped();
 
             BattleSimOverrideApplyResult overrides = overrideApplier.ApplyProfileTyped(
                 skillDefinitions,
                 enemyAiBrains,
-                new BattleSimProfileDef
-                {
-                    profile_id = "baseline",
-                    display_name = "Baseline",
-                }
+                contentProvider.GetBattleSimProfilesTyped()["baseline"]
             );
             BattleSimFormalRosterOptionsData rosterOptions = BuildRosterOptionsFromEnvironment();
             var rng = new RuntimeRandom(Math.Max(startSeed, 1L));
@@ -274,7 +277,7 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
     private static GDictionary RunSingleSimulation(
         BattleSimScenarioDef scenarioDef,
         BattleSimOverrideApplyResult overrides,
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates,
         BattleTerrainGenerator terrainGenerator,
         BattleSimFormalCombatFixture fixture,
         long seed

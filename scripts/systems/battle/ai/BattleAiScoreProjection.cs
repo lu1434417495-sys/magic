@@ -33,7 +33,7 @@ internal static class BattleAiScoreProjection
 
     internal static GDictionary WriteProfile<TLeaseRoot>(
         GodotProjectionLease<TLeaseRoot> lease,
-        BattleAiScoreProfile profile,
+        BattleAiScoreProfileDefinition profile,
         string reason
     )
         where TLeaseRoot : class, IDisposable
@@ -48,7 +48,9 @@ internal static class BattleAiScoreProjection
     internal static Dictionary<string, object> BuildPlain(BattleAiScoreInput input) =>
         ToPlainDictionary(input);
 
-    internal static Dictionary<string, object> BuildProfilePlain(BattleAiScoreProfile profile) =>
+    internal static Dictionary<string, object> BuildProfilePlain(
+        BattleAiScoreProfileDefinition profile
+    ) =>
         ToPlainDictionary(profile);
 
     private static Dictionary<string, object> ToPlainDictionary(BattleAiScoreInput input)
@@ -85,93 +87,95 @@ internal static class BattleAiScoreProjection
         return result;
     }
 
-    private static Dictionary<string, object> ToPlainDictionary(BattleAiScoreProfile profile)
+    private static Dictionary<string, object> ToPlainDictionary(
+        BattleAiScoreProfileDefinition profile
+    )
     {
         if (profile == null)
             return new Dictionary<string, object>(StringComparer.Ordinal);
 
         return new Dictionary<string, object>(StringComparer.Ordinal)
         {
-            ["damage_weight"] = profile.damage_weight,
-            ["heal_weight"] = profile.heal_weight,
-            ["status_weight"] = profile.status_weight,
-            ["terrain_weight"] = profile.terrain_weight,
-            ["height_weight"] = profile.height_weight,
-            ["lethal_target_weight"] = profile.lethal_target_weight,
-            ["lethal_threat_target_weight"] = profile.lethal_threat_target_weight,
-            ["target_count_weight"] = profile.target_count_weight,
-            ["friendly_fire_damage_weight"] = profile.friendly_fire_damage_weight,
-            ["friendly_fire_target_weight"] = profile.friendly_fire_target_weight,
-            ["friendly_control_target_weight"] = profile.friendly_control_target_weight,
-            ["friendly_lethal_target_weight"] = profile.friendly_lethal_target_weight,
-            ["ap_cost_weight"] = profile.ap_cost_weight,
-            ["mp_cost_weight"] = profile.mp_cost_weight,
-            ["stamina_cost_weight"] = profile.stamina_cost_weight,
-            ["aura_cost_weight"] = profile.aura_cost_weight,
-            ["cooldown_weight"] = profile.cooldown_weight,
-            ["movement_cost_weight"] = profile.movement_cost_weight,
-            ["mp_reserve_floor_bp"] = profile.mp_reserve_floor_bp,
-            ["mp_reserve_pressure_weight"] = profile.mp_reserve_pressure_weight,
-            ["mp_reserve_breach_penalty"] = profile.mp_reserve_breach_penalty,
-            ["stamina_reserve_floor_bp"] = profile.stamina_reserve_floor_bp,
-            ["stamina_reserve_pressure_weight"] = profile.stamina_reserve_pressure_weight,
-            ["stamina_reserve_breach_penalty"] = profile.stamina_reserve_breach_penalty,
-            ["aura_reserve_floor_bp"] = profile.aura_reserve_floor_bp,
-            ["aura_reserve_pressure_weight"] = profile.aura_reserve_pressure_weight,
-            ["aura_reserve_breach_penalty"] = profile.aura_reserve_breach_penalty,
-            ["resource_conservation_weight"] = profile.resource_conservation_weight,
-            ["position_base_score"] = profile.position_base_score,
-            ["position_distance_step"] = profile.position_distance_step,
-            ["position_undershoot_penalty"] = profile.position_undershoot_penalty,
-            ["position_overshoot_penalty"] = profile.position_overshoot_penalty,
-            ["survival_margin_gain_weight"] = profile.survival_margin_gain_weight,
-            ["post_action_threat_damage_weight"] = profile.post_action_threat_damage_weight,
-            ["post_action_threat_count_weight"] = profile.post_action_threat_count_weight,
-            ["lethal_survival_risk_penalty"] = profile.lethal_survival_risk_penalty,
-            ["incoming_threat_relief_weight"] = profile.incoming_threat_relief_weight,
-            ["low_hp_urgency_threshold_bp"] = profile.low_hp_urgency_threshold_bp,
-            ["low_hp_urgency_weight"] = profile.low_hp_urgency_weight,
-            ["execute_target_hp_threshold_bp"] = profile.execute_target_hp_threshold_bp,
-            ["execute_bonus_weight"] = profile.execute_bonus_weight,
-            ["overkill_damage_penalty_weight"] = profile.overkill_damage_penalty_weight,
-            ["role_threat_min_effective_range"] = profile.role_threat_min_effective_range,
-            ["role_threat_distance_window"] = profile.role_threat_distance_window,
-            ["role_threat_max_approach_distance"] = profile.role_threat_max_approach_distance,
-            ["role_threat_max_contact_range"] = profile.role_threat_max_contact_range,
-            ["role_threat_in_range_score_step"] = profile.role_threat_in_range_score_step,
-            ["enemy_target_count_weight"] = profile.enemy_target_count_weight,
-            ["chain_enemy_target_weight"] = profile.chain_enemy_target_weight,
-            ["focus_fire_wounded_target_weight"] = profile.focus_fire_wounded_target_weight,
-            ["hit_rate_reliability_weight"] = profile.hit_rate_reliability_weight,
-            ["save_reliable_damage_weight"] = profile.save_reliable_damage_weight,
-            ["shield_absorbed_weight"] = profile.shield_absorbed_weight,
-            ["control_weight"] = profile.control_weight,
-            ["ground_control_weight"] = profile.ground_control_weight,
-            ["status_redundancy_penalty"] = profile.status_redundancy_penalty,
-            ["position_objective_weight"] = profile.position_objective_weight,
-            ["safe_distance_adherence_weight"] = profile.safe_distance_adherence_weight,
-            ["threat_healer_bias_basis_points"] = profile.threat_healer_bias_basis_points,
-            ["threat_control_bias_basis_points"] = profile.threat_control_bias_basis_points,
-            ["threat_ranged_bias_basis_points"] = profile.threat_ranged_bias_basis_points,
-            ["threat_range_step_bias_basis_points"] = profile.threat_range_step_bias_basis_points,
-            ["threat_multiplier_cap_basis_points"] = profile.threat_multiplier_cap_basis_points,
+            ["damage_weight"] = profile.DamageWeight,
+            ["heal_weight"] = profile.HealWeight,
+            ["status_weight"] = profile.StatusWeight,
+            ["terrain_weight"] = profile.TerrainWeight,
+            ["height_weight"] = profile.HeightWeight,
+            ["lethal_target_weight"] = profile.LethalTargetWeight,
+            ["lethal_threat_target_weight"] = profile.LethalThreatTargetWeight,
+            ["target_count_weight"] = profile.TargetCountWeight,
+            ["friendly_fire_damage_weight"] = profile.FriendlyFireDamageWeight,
+            ["friendly_fire_target_weight"] = profile.FriendlyFireTargetWeight,
+            ["friendly_control_target_weight"] = profile.FriendlyControlTargetWeight,
+            ["friendly_lethal_target_weight"] = profile.FriendlyLethalTargetWeight,
+            ["ap_cost_weight"] = profile.ApCostWeight,
+            ["mp_cost_weight"] = profile.MpCostWeight,
+            ["stamina_cost_weight"] = profile.StaminaCostWeight,
+            ["aura_cost_weight"] = profile.AuraCostWeight,
+            ["cooldown_weight"] = profile.CooldownWeight,
+            ["movement_cost_weight"] = profile.MovementCostWeight,
+            ["mp_reserve_floor_bp"] = profile.MpReserveFloorBp,
+            ["mp_reserve_pressure_weight"] = profile.MpReservePressureWeight,
+            ["mp_reserve_breach_penalty"] = profile.MpReserveBreachPenalty,
+            ["stamina_reserve_floor_bp"] = profile.StaminaReserveFloorBp,
+            ["stamina_reserve_pressure_weight"] = profile.StaminaReservePressureWeight,
+            ["stamina_reserve_breach_penalty"] = profile.StaminaReserveBreachPenalty,
+            ["aura_reserve_floor_bp"] = profile.AuraReserveFloorBp,
+            ["aura_reserve_pressure_weight"] = profile.AuraReservePressureWeight,
+            ["aura_reserve_breach_penalty"] = profile.AuraReserveBreachPenalty,
+            ["resource_conservation_weight"] = profile.ResourceConservationWeight,
+            ["position_base_score"] = profile.PositionBaseScore,
+            ["position_distance_step"] = profile.PositionDistanceStep,
+            ["position_undershoot_penalty"] = profile.PositionUndershootPenalty,
+            ["position_overshoot_penalty"] = profile.PositionOvershootPenalty,
+            ["survival_margin_gain_weight"] = profile.SurvivalMarginGainWeight,
+            ["post_action_threat_damage_weight"] = profile.PostActionThreatDamageWeight,
+            ["post_action_threat_count_weight"] = profile.PostActionThreatCountWeight,
+            ["lethal_survival_risk_penalty"] = profile.LethalSurvivalRiskPenalty,
+            ["incoming_threat_relief_weight"] = profile.IncomingThreatReliefWeight,
+            ["low_hp_urgency_threshold_bp"] = profile.LowHpUrgencyThresholdBp,
+            ["low_hp_urgency_weight"] = profile.LowHpUrgencyWeight,
+            ["execute_target_hp_threshold_bp"] = profile.ExecuteTargetHpThresholdBp,
+            ["execute_bonus_weight"] = profile.ExecuteBonusWeight,
+            ["overkill_damage_penalty_weight"] = profile.OverkillDamagePenaltyWeight,
+            ["role_threat_min_effective_range"] = profile.RoleThreatMinEffectiveRange,
+            ["role_threat_distance_window"] = profile.RoleThreatDistanceWindow,
+            ["role_threat_max_approach_distance"] = profile.RoleThreatMaxApproachDistance,
+            ["role_threat_max_contact_range"] = profile.RoleThreatMaxContactRange,
+            ["role_threat_in_range_score_step"] = profile.RoleThreatInRangeScoreStep,
+            ["enemy_target_count_weight"] = profile.EnemyTargetCountWeight,
+            ["chain_enemy_target_weight"] = profile.ChainEnemyTargetWeight,
+            ["focus_fire_wounded_target_weight"] = profile.FocusFireWoundedTargetWeight,
+            ["hit_rate_reliability_weight"] = profile.HitRateReliabilityWeight,
+            ["save_reliable_damage_weight"] = profile.SaveReliableDamageWeight,
+            ["shield_absorbed_weight"] = profile.ShieldAbsorbedWeight,
+            ["control_weight"] = profile.ControlWeight,
+            ["ground_control_weight"] = profile.GroundControlWeight,
+            ["status_redundancy_penalty"] = profile.StatusRedundancyPenalty,
+            ["position_objective_weight"] = profile.PositionObjectiveWeight,
+            ["safe_distance_adherence_weight"] = profile.SafeDistanceAdherenceWeight,
+            ["threat_healer_bias_basis_points"] = profile.ThreatHealerBiasBasisPoints,
+            ["threat_control_bias_basis_points"] = profile.ThreatControlBiasBasisPoints,
+            ["threat_ranged_bias_basis_points"] = profile.ThreatRangedBiasBasisPoints,
+            ["threat_range_step_bias_basis_points"] = profile.ThreatRangeStepBiasBasisPoints,
+            ["threat_multiplier_cap_basis_points"] = profile.ThreatMultiplierCapBasisPoints,
             ["meteor_high_priority_threat_multiplier_bp"] =
-                profile.meteor_high_priority_threat_multiplier_bp,
+                profile.MeteorHighPriorityThreatMultiplierBp,
             ["meteor_high_priority_damage_hp_percent"] =
-                profile.meteor_high_priority_damage_hp_percent,
+                profile.MeteorHighPriorityDamageHpPercent,
             ["meteor_high_priority_target_priority_score"] =
-                profile.meteor_high_priority_target_priority_score,
-            ["meteor_top_threat_rank"] = profile.meteor_top_threat_rank,
-            ["meteor_friendly_fire_profile"] = profile.meteor_friendly_fire_profile.ToString(),
+                profile.MeteorHighPriorityTargetPriorityScore,
+            ["meteor_top_threat_rank"] = profile.MeteorTopThreatRank,
+            ["meteor_friendly_fire_profile"] = profile.MeteorFriendlyFireProfile.ToString(),
             ["meteor_friendly_fire_soft_expected_hp_percent"] =
-                profile.meteor_friendly_fire_soft_expected_hp_percent,
+                profile.MeteorFriendlyFireSoftExpectedHpPercent,
             ["meteor_friendly_fire_hard_expected_hp_percent"] =
-                profile.meteor_friendly_fire_hard_expected_hp_percent,
+                profile.MeteorFriendlyFireHardExpectedHpPercent,
             ["meteor_friendly_fire_hard_worst_case_hp_percent"] =
-                profile.meteor_friendly_fire_hard_worst_case_hp_percent,
-            ["action_base_scores"] = CloneStringNameIntMap(profile.ActionBaseScoresTyped),
-            ["default_bucket_priority"] = profile.default_bucket_priority,
-            ["bucket_priorities"] = CloneStringNameIntMap(profile.BucketPrioritiesTyped),
+                profile.MeteorFriendlyFireHardWorstCaseHpPercent,
+            ["action_base_scores"] = CloneStringNameIntMap(profile.ActionBaseScores),
+            ["default_bucket_priority"] = profile.DefaultBucketPriority,
+            ["bucket_priorities"] = CloneStringNameIntMap(profile.BucketPriorities),
         };
     }
 

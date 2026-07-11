@@ -11,6 +11,11 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
+    {
         TestCandidateRequestTypedValidation();
         TestCandidateProbeActionBuildsTypedSections();
         TestMoveToRangePrefersProgressOverWaitWhenFarFromBand();
@@ -53,12 +58,7 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
 
     private void TestCandidateProbeActionBuildsTypedSections()
     {
-        var action = TestResourceOwnership.Own(
-            new BattleAiCandidateProbeTestAction(),
-            "MoveToRangeProgress.CandidateProbeAction"
-        );
-        BattleAiCandidateRequest request = action.BuildCandidateRequest(null);
-        request.ActorUnitId = "probe_actor";
+        BattleAiCandidateRequest request = BuildProbeRequest();
 
         _test.True(
             request.TryValidateMoveToRange(out string error),
@@ -86,25 +86,26 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         try
         {
+            var moveAction = new MoveToRangeAction
+            {
+                action_id = "far_gap_close_in",
+                action_intent = BattleAiActionIntent.Positioning,
+                score_bucket_id = "positioning",
+                target_selector = "nearest_enemy",
+                desired_min_distance = 4,
+                desired_max_distance = 5,
+            };
             EnemyAiBrainDef brain = BuildBrain(
                 "far_gap_mover_brain",
                 "engage",
-                new MoveToRangeAction
-                {
-                    action_id = "far_gap_close_in",
-                    action_intent = BattleAiActionIntent.Positioning,
-                    score_bucket_id = "positioning",
-                    ai_evaluation_mode = MoveToRangeAction.ToStringName(
-                        MoveToRangeAction.MoveToRangeAiEvaluationMode.CandidateRequest
-                    ),
-                    target_selector = "nearest_enemy",
-                    desired_min_distance = 4,
-                    desired_max_distance = 5,
-                },
+                moveAction,
                 new WaitAction { action_id = "far_gap_wait" }
             );
             runtime.ReplaceEnemyAiBrainsTyped(
-                new Dictionary<StringName, EnemyAiBrainDef> { [brain.brain_id] = brain }
+                new Dictionary<StringName, EnemyAiBrainDefinition>
+                {
+                    [brain.brain_id] = brain.ToDefinition(),
+                }
             );
 
             BattleState state = BuildFlatState(new Vector2I(31, 3));
@@ -129,6 +130,11 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
             decision = runtime._ai_service
                 .ChooseCommand(BuildAiContext(runtime, mover), captureTrace: false)
                 ?.Decision;
+            _test.Eq(
+                moveAction.ai_evaluation_mode,
+                new StringName("inline_decide"),
+                "authored move should retain its default inline mode; runtime metadata owns the forced dispatch."
+            );
             _test.True(decision?.command != null, "far move_to_range should produce a legal command.");
             _test.Eq(
                 decision?.command?.command_type ?? new StringName(""),
@@ -139,6 +145,10 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
                 decision?.command?.target_coord ?? new Vector2I(-1, -1),
                 new Vector2I(3, 1),
                 "far move_to_range should choose the farthest reachable progress tile."
+            );
+            _test.True(
+                decision?.reason_text?.Contains("战术位置", StringComparison.Ordinal) == true,
+                "authored default-mode no-screening move should dispatch through candidate request metadata."
             );
         }
         finally
@@ -162,9 +172,7 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
                     action_id = "detour_close_in",
                     action_intent = BattleAiActionIntent.Positioning,
                     score_bucket_id = "positioning",
-                    ai_evaluation_mode = MoveToRangeAction.ToStringName(
-                        MoveToRangeAction.MoveToRangeAiEvaluationMode.CandidateRequest
-                    ),
+                    ai_evaluation_mode = "candidate_request",
                     target_selector = "nearest_enemy",
                     desired_min_distance = 1,
                     desired_max_distance = 1,
@@ -172,7 +180,10 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
                 new WaitAction { action_id = "detour_wait" }
             );
             runtime.ReplaceEnemyAiBrainsTyped(
-                new Dictionary<StringName, EnemyAiBrainDef> { [brain.brain_id] = brain }
+                new Dictionary<StringName, EnemyAiBrainDefinition>
+                {
+                    [brain.brain_id] = brain.ToDefinition(),
+                }
             );
 
             BattleState state = BuildFlatState(new Vector2I(7, 3));
@@ -241,9 +252,7 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
                 target_selector = "nearest_enemy",
                 desired_min_distance = 1,
                 desired_max_distance = 1,
-                screening_mode = MoveToRangeAction.ToStringName(
-                    MoveToRangeAction.MoveToRangeScreeningMode.RangedAlly
-                ),
+                screening_mode = "ranged_ally",
                 screening_ally_min_attack_range = 1,
                 screening_threat_distance_buffer = 99,
             };
@@ -254,7 +263,10 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
                 new WaitAction { action_id = "screening_detour_wait" }
             );
             runtime.ReplaceEnemyAiBrainsTyped(
-                new Dictionary<StringName, EnemyAiBrainDef> { [brain.brain_id] = brain }
+                new Dictionary<StringName, EnemyAiBrainDefinition>
+                {
+                    [brain.brain_id] = brain.ToDefinition(),
+                }
             );
 
             BattleState state = BuildFlatState(new Vector2I(9, 5));
@@ -290,7 +302,10 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
             AddUnitToState(runtime, state, player, isEnemy: false);
             runtime.SetupStateForTests(state);
 
-            decision = moveAction.Decide(BuildAiContext(runtime, mover));
+            decision = new BattleAiMoveToRangeActionEvaluator().Evaluate(
+                (MoveToRangeActionDefinition)moveAction.ToDefinition(),
+                BuildAiContext(runtime, mover)
+            );
             _test.True(decision?.command != null, "screening move_to_range should produce a legal command.");
             _test.Eq(
                 decision?.command?.command_type ?? new StringName(""),
@@ -395,7 +410,10 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
             AddUnitToStateStatic(runtime, state, player, isEnemy: false);
             runtime.SetupStateForTests(state);
 
-            return action.Decide(BuildAiContext(runtime, mover));
+            return new BattleAiMoveToAdvantageActionEvaluator().Evaluate(
+                (MoveToAdvantagePositionActionDefinition)action.ToDefinition(),
+                BuildAiContext(runtime, mover)
+            );
         }
         finally
         {
@@ -423,6 +441,43 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
             {
                 MaxCost = 2,
                 MaxDestinations = 3,
+                PreferProgress = true,
+            },
+            new MoveToRangeTacticalParams
+            {
+                TargetSelector = "nearest_enemy",
+                PositionObjectiveKind = "distance_band_progress",
+            },
+            new MoveToRangeRuntimeMetadata
+            {
+                ConfiguredDesiredMinDistance = 1,
+                ConfiguredDesiredMaxDistance = 2,
+                EffectiveAttackRange = -1,
+            }
+        );
+        return request;
+    }
+
+    private static BattleAiCandidateRequest BuildProbeRequest()
+    {
+        var request = new BattleAiCandidateRequest
+        {
+            FamilyId = BattleAiCandidateRequest.FamilyMoveToRange,
+            ActionId = "candidate_probe",
+            ActionLabel = "candidate probe",
+            ActionIntent = BattleAiActionIntent.Positioning,
+            ScoreBucketId = "positioning",
+            ActorUnitId = "probe_actor",
+            FocusTargetUnitId = "hero",
+            DesiredMinDistance = 1,
+            DesiredMaxDistance = 2,
+            MaxCandidateCount = 4,
+        };
+        request.SetMoveToRangeSections(
+            new MoveToRangePathSearchBudget
+            {
+                MaxCost = 2,
+                MaxDestinations = 4,
                 PreferProgress = true,
             },
             new MoveToRangeTacticalParams
@@ -470,8 +525,8 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
         runtime.setup(
             null,
             gameSession.GetSkillDefinitionsTyped(),
-            gameSession.GetEnemyTemplatesTyped(),
-            gameSession.GetEnemyAiBrainsTyped(),
+            gameSession.GetEnemyTemplateDefinitions(),
+            gameSession.GetEnemyAiBrainDefinitions(),
             null
         );
         return new BattleRuntimeScope(runtime, gameSession);
@@ -531,12 +586,17 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
 
     private static BattleAiContext BuildAiContext(BattleRuntimeModule runtime, BattleUnitState unitState)
     {
+        runtime._ensure_ai_action_plan_for_unit(unitState);
+        runtime._ai_action_plans_by_unit_id.TryGetValue(
+            unitState.unit_id,
+            out BattleAiRuntimeActionPlan actionPlan
+        );
         var aiContext = new BattleAiContext
         {
             state = runtime._state,
             unit_state = unitState,
             grid_service = runtime._grid_service,
-            allow_authored_action_fallback_for_tests = true,
+            runtime_action_plan = actionPlan,
         };
         aiContext.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime._bind_ai_helper_services_for_decision(unitState, aiContext);

@@ -9,6 +9,11 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(RunDeferred));
+    }
+
+    private void RunDeferred()
+    {
         TestResult exitCode = Run();
         RequestTestExit(exitCode);
     }
@@ -31,11 +36,11 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
     private void TestReadyQueueDoesNotConsumeTimelineTicks()
     {
         var runner = new BattleSimRunner(
-            new BattleSimContentProvider(new TestContentResourceLoader())
+            new BattleSimContentProvider(GameSessionTestFactory.GetProcessSnapshot())
         );
         BattleSimScenarioReport report = runner.RunScenario(
             BuildReadyQueueScenario(),
-            new List<BattleSimProfileDef> { BuildBaselineProfile() }
+            new List<BattleSimProfileDefinition> { BuildBaselineProfile() }
         );
         _test.Eq(report.ProfileEntries.Count, 1, "ready queue regression 应产出单 profile entry。");
         if (report.ProfileEntries.Count == 0)
@@ -70,11 +75,11 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
     private void TestSimulationReportIncludesTraceAndPatchedSkillFallback()
     {
         var runner = new BattleSimRunner(
-            new BattleSimContentProvider(new TestContentResourceLoader())
+            new BattleSimContentProvider(GameSessionTestFactory.GetProcessSnapshot())
         );
         BattleSimScenarioReport report = runner.RunScenario(
             BuildScenario(),
-            new List<BattleSimProfileDef>
+            new List<BattleSimProfileDefinition>
             {
                 BuildBaselineProfile(),
                 BuildSuppressiveFireBlockedProfile(),
@@ -302,16 +307,16 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
         };
     }
 
-    private static BattleSimProfileDef BuildBaselineProfile()
+    private static BattleSimProfileDefinition BuildBaselineProfile()
     {
         return new BattleSimProfileDef
         {
             profile_id = "baseline",
             display_name = "Baseline",
-        };
+        }.ToDefinition();
     }
 
-    private static BattleSimProfileDef BuildSuppressiveFireBlockedProfile()
+    private static BattleSimProfileDefinition BuildSuppressiveFireBlockedProfile()
     {
         return new BattleSimProfileDef
         {
@@ -327,7 +332,7 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
                     ["value"] = 999,
                 },
             },
-        };
+        }.ToDefinition();
     }
 
     private static GArray GetArray(GDictionary source, string key)

@@ -4,45 +4,43 @@ using Godot;
 
 public sealed class BattleSimContentProvider : IDisposable
 {
-    private ProgressionContentRegistry _progression_content_registry;
-    private BarrierContentRegistry _barrier_content_registry;
-    private EnemyContentRegistry _enemy_content_registry;
+    private ContentSnapshot _snapshot;
 
-    internal BattleSimContentProvider(IContentResourceLoader loader)
+    internal BattleSimContentProvider(ContentSnapshot snapshot)
     {
-        ArgumentNullException.ThrowIfNull(loader);
-        _progression_content_registry = new ProgressionContentRegistry(loader);
-        _barrier_content_registry = new BarrierContentRegistry(loader);
-        _enemy_content_registry = new EnemyContentRegistry(loader);
+        _snapshot = snapshot ?? throw new ArgumentNullException(nameof(snapshot));
     }
 
     public void Dispose()
     {
-        _progression_content_registry?.Dispose();
-        _barrier_content_registry?.Dispose();
-        _enemy_content_registry?.Dispose();
-        _progression_content_registry = null;
-        _barrier_content_registry = null;
-        _enemy_content_registry = null;
+        _snapshot = null;
     }
 
     internal IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionsTyped()
     {
-        return _progression_content_registry.GetSkillDefinitionsTyped();
+        return RequireSnapshot().Skills;
     }
 
     internal IReadOnlyDictionary<StringName, BarrierProfileDefinition> GetBarrierProfileDefinitionsTyped()
     {
-        return _barrier_content_registry.GetProfileDefsTyped();
+        return RequireSnapshot().BarrierProfiles;
     }
 
-    internal IReadOnlyDictionary<StringName, EnemyTemplateDef> GetEnemyTemplatesTyped()
+    internal IReadOnlyDictionary<StringName, EnemyTemplateDefinition> GetEnemyTemplatesTyped()
     {
-        return _enemy_content_registry.GetEnemyTemplatesTyped();
+        return RequireSnapshot().EnemyTemplates;
     }
 
-    internal IReadOnlyDictionary<StringName, EnemyAiBrainDef> GetEnemyAiBrainsTyped()
+    internal IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> GetEnemyAiBrainsTyped()
     {
-        return _enemy_content_registry.GetEnemyAiBrainsTyped();
+        return RequireSnapshot().EnemyBrains;
     }
+
+    internal IReadOnlyDictionary<StringName, BattleSimProfileDefinition> GetBattleSimProfilesTyped()
+    {
+        return RequireSnapshot().BattleSimProfiles;
+    }
+
+    private ContentSnapshot RequireSnapshot() =>
+        _snapshot ?? throw new ObjectDisposedException(nameof(BattleSimContentProvider));
 }

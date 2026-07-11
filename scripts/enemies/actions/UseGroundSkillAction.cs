@@ -48,29 +48,6 @@ public partial class UseGroundSkillAction : EnemyAiAction
         set => distance_reference = EnemyAiDistanceReferences.ToStringName(value);
     }
 
-    private readonly BattleAiGroundSkillActionEvaluator _groundSkillEvaluator = new();
-
-    internal override BattleAiDecision Decide(BattleAiContext context)
-    {
-        return _groundSkillEvaluator.Evaluate(this, context);
-    }
-
-    internal bool PassesMinimumEffectiveTargetOrGroundControl(BattleAiScoreInput scoreInput)
-    {
-        return _groundSkillEvaluator.PassesMinimumEffectiveTargetOrGroundControl(
-            BattleAiGroundSkillActionSpec.FromAction(this),
-            scoreInput
-        );
-    }
-
-    internal bool PassesFriendlyFireLimits(BattleAiScoreInput scoreInput)
-    {
-        return _groundSkillEvaluator.PassesFriendlyFireLimits(
-            BattleAiGroundSkillActionSpec.FromAction(this),
-            scoreInput
-        );
-    }
-
     public override Godot.Collections.Array<string> ValidateSchema()
     {
         Godot.Collections.Array<string> errors = _collect_base_validation_errors();

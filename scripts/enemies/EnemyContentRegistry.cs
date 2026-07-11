@@ -1,5 +1,12 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Godot;
+
+internal sealed record EnemyContentDefinitionGraph(
+    IReadOnlyDictionary<StringName, EnemyTemplateDefinition> EnemyTemplates,
+    IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> EnemyBrains,
+    IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> EncounterRosters
+);
 
 public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
 {
@@ -140,6 +147,53 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
 
     internal IReadOnlyDictionary<StringName, WildEncounterRosterDef> GetWildEncounterRostersTyped()
         => _wild_encounter_rosters;
+
+    internal EnemyContentDefinitionGraph ProjectDefinitions(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
+    )
+    {
+        if (_validation_errors.Count != 0)
+        {
+            throw new System.IO.InvalidDataException(
+                "Enemy content must validate before immutable definition projection: "
+                    + string.Join(" | ", _validation_errors)
+            );
+        }
+
+        var brains = new Dictionary<StringName, EnemyAiBrainDefinition>();
+        foreach (StringName brainId in SortedKeys(_enemy_ai_brains.Keys))
+        {
+            EnemyAiBrainDef source = _enemy_ai_brains[brainId];
+            if (!brains.TryAdd(brainId, source.ToDefinition()))
+                throw new System.IO.InvalidDataException($"Duplicate enemy brain_id projected: {brainId}");
+        }
+
+        var templates = new Dictionary<StringName, EnemyTemplateDefinition>();
+        foreach (StringName templateId in SortedKeys(_enemy_templates.Keys))
+        {
+            EnemyTemplateDef source = _enemy_templates[templateId];
+            if (!templates.TryAdd(templateId, source.ToDefinition(itemDefinitions)))
+                throw new System.IO.InvalidDataException(
+                    $"Duplicate enemy template_id projected: {templateId}"
+                );
+        }
+
+        var rosters = new Dictionary<StringName, WildEncounterRosterDefinition>();
+        foreach (StringName rosterId in SortedKeys(_wild_encounter_rosters.Keys))
+        {
+            WildEncounterRosterDef source = _wild_encounter_rosters[rosterId];
+            if (!rosters.TryAdd(rosterId, source.ToDefinition()))
+                throw new System.IO.InvalidDataException(
+                    $"Duplicate encounter roster profile_id projected: {rosterId}"
+                );
+        }
+
+        return new EnemyContentDefinitionGraph(
+            new ReadOnlyDictionary<StringName, EnemyTemplateDefinition>(templates),
+            new ReadOnlyDictionary<StringName, EnemyAiBrainDefinition>(brains),
+            new ReadOnlyDictionary<StringName, WildEncounterRosterDefinition>(rosters)
+        );
+    }
 
     public IReadOnlyList<string> ValidateTyped() => _validation_errors;
 

@@ -28,14 +28,14 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
         using EncounterRosterBuilder builder = new();
         using BattleRuntimeModule runtime = new();
         builder.Setup(
-            gameSession.GetWildEncounterRostersTyped(),
-            gameSession.GetEnemyTemplatesTyped()
+            gameSession.GetEncounterRosterDefinitions(),
+            gameSession.GetEnemyTemplateDefinitions()
         );
         runtime.setup(
             null,
             gameSession.GetSkillDefinitionsTyped(),
-            gameSession.GetEnemyTemplatesTyped(),
-            gameSession.GetEnemyAiBrainsTyped(),
+            gameSession.GetEnemyTemplateDefinitions(),
+            gameSession.GetEnemyAiBrainDefinitions(),
             builder,
             null,
             gameSession.GetItemDefsTyped()
@@ -66,8 +66,8 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
         GArray sessionUnits = builder.BuildEnemyUnitsTyped(
             encounterAnchor,
             gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
-            gameSession.GetEnemyTemplatesTyped(),
-            gameSession.GetEnemyAiBrainsTyped(),
+            gameSession.GetEnemyTemplateDefinitions(),
+            gameSession.GetEnemyAiBrainDefinitions(),
             gameSession.GetItemDefsTyped()
         );
 
@@ -84,8 +84,8 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
         using GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         using EncounterRosterBuilder builder = new();
         builder.Setup(
-            gameSession.GetWildEncounterRostersTyped(),
-            gameSession.GetEnemyTemplatesTyped()
+            gameSession.GetEncounterRosterDefinitions(),
+            gameSession.GetEnemyTemplateDefinitions()
         );
 
         foreach (StringName templateId in new[] { new StringName("mist_beast"), new StringName("mist_weaver"), new StringName("wolf_shaman") })
@@ -168,16 +168,16 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
         };
         EnemyTemplateDef template = BuildEnemyTemplate("flame_enemy", weapon.item_id);
         template.tags = new GStringNameArray { "undead" };
-        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDef>
+        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>
         {
-            [template.template_id] = template,
+            [template.template_id] = template.ToDefinition(itemDefinitions),
         };
 
         GArray enemyUnits = builder.BuildEnemyUnitsFromDefinitionsTyped(
             BuildEncounterAnchor("flame_enemy_encounter", template.template_id),
             new Dictionary<StringName, SkillDefinition>(),
             enemyTemplates,
-            new Dictionary<StringName, EnemyAiBrainDef>(),
+            new Dictionary<StringName, EnemyAiBrainDefinition>(),
             itemDefinitions,
             traitDefs: traitDefs,
             equipmentAbilityBindings: bindings
@@ -294,8 +294,8 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
         using GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         using EncounterRosterBuilder builder = new();
         builder.Setup(
-            gameSession.GetWildEncounterRostersTyped(),
-            gameSession.GetEnemyTemplatesTyped()
+            gameSession.GetEncounterRosterDefinitions(),
+            gameSession.GetEnemyTemplateDefinitions()
         );
 
         EncounterAnchorData encounterAnchor = new()
@@ -319,8 +319,8 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
             builder.BuildLootEntriesPlain(
             encounterAnchor,
             gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
-            gameSession.GetEnemyTemplatesTyped(),
-            gameSession.GetEnemyAiBrainsTyped(),
+            gameSession.GetEnemyTemplateDefinitions(),
+            gameSession.GetEnemyAiBrainDefinitions(),
             gameSession.GetItemDefsTyped()
         );
 
@@ -447,8 +447,8 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
         GArray enemyUnits = builder.BuildEnemyUnitsTyped(
             encounterAnchor,
             gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
-            gameSession.GetEnemyTemplatesTyped(),
-            gameSession.GetEnemyAiBrainsTyped(),
+            gameSession.GetEnemyTemplateDefinitions(),
+            gameSession.GetEnemyAiBrainDefinitions(),
             gameSession.GetItemDefsTyped()
         );
         return enemyUnits.Count > 0
@@ -528,30 +528,6 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
                 },
             },
         };
-    }
-
-    private static GDictionary ProjectEnemyTemplates(
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates
-    )
-    {
-        GDictionary result = new();
-        if (enemyTemplates == null)
-            return result;
-        foreach ((StringName templateId, EnemyTemplateDef template) in enemyTemplates)
-            result[templateId] = template;
-        return result;
-    }
-
-    private static GDictionary ProjectEnemyAiBrains(
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains
-    )
-    {
-        GDictionary result = new();
-        if (enemyAiBrains == null)
-            return result;
-        foreach ((StringName brainId, EnemyAiBrainDef brain) in enemyAiBrains)
-            result[brainId] = brain;
-        return result;
     }
 
     private static int DictInt(GDictionary dictionary, string key, int fallback)

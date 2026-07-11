@@ -427,8 +427,8 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
         runtime.setup(
             null,
             GetSkillDefinitionsForTests(),
-            new Dictionary<StringName, EnemyTemplateDef>(),
-            new Dictionary<StringName, EnemyAiBrainDef>()
+            new Dictionary<StringName, EnemyTemplateDefinition>(),
+            new Dictionary<StringName, EnemyAiBrainDefinition>()
         );
         BattleTestFixture.ConfigureDamageResolverForTests(runtime, new DeterministicBattleDamageResolver());
         BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));

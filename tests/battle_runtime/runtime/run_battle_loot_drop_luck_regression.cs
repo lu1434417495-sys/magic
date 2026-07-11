@@ -412,8 +412,8 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
             ?.setup(
                 facade.GetCharacterManagement(),
                 catalog?.GetSkillDefinitionsTyped(),
-                catalog?.GetEnemyTemplatesTyped(),
-                catalog?.GetEnemyAiBrainsTyped(),
+                catalog?.GetEnemyTemplateDefinitions(),
+                catalog?.GetEnemyAiBrainDefinitions(),
                 null,
                 dropService,
                 facade.GetItemDefsTyped(),
@@ -430,9 +430,11 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
         if (battleRuntime == null || enemyTemplate == null || enemyTemplate.template_id == "")
             return;
         battleRuntime.ReplaceEnemyTemplatesTyped(
-            new Dictionary<StringName, EnemyTemplateDef>
+            new Dictionary<StringName, EnemyTemplateDefinition>
             {
-                [enemyTemplate.template_id] = enemyTemplate,
+                [enemyTemplate.template_id] = enemyTemplate.ToDefinition(
+                    facade.GetItemDefsTyped()
+                ),
             }
         );
     }
@@ -444,12 +446,14 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
         string message
     )
     {
-        EnemyTemplateDef runtimeTemplate = facade?.GetBattleRuntime()?.GetEnemyTemplateTyped(templateId);
+        EnemyTemplateDefinition runtimeTemplate = facade
+            ?.GetBattleRuntime()
+            ?.GetEnemyTemplateTyped(templateId);
         _test.True(runtimeTemplate != null, message);
         if (runtimeTemplate == null)
             return;
         _test.Eq(
-            runtimeTemplate.drop_entries.Count,
+            runtimeTemplate.DropEntries.Count,
             expectedDropEntryCount,
             $"{message} drop_entries count 应与测试注入一致。"
         );

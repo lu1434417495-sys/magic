@@ -325,8 +325,8 @@ public partial class run_crown_break_regression : LifecycleTestSceneTree
             runtime.setup(
                 null,
                 registry.GetSkillDefinitionsTyped(),
-                new Dictionary<StringName, EnemyTemplateDef>(),
-                new Dictionary<StringName, EnemyAiBrainDef>()
+                new Dictionary<StringName, EnemyTemplateDefinition>(),
+                new Dictionary<StringName, EnemyAiBrainDefinition>()
             );
             BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
             var damageResolver = new DeterministicBattleDamageResolver();

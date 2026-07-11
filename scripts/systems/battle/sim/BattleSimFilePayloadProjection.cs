@@ -59,18 +59,20 @@ internal static class BattleSimFilePayloadProjection
         return result;
     }
 
-    internal static Dictionary<string, object> BuildProfileFacts(BattleSimProfileDef profile)
+    internal static Dictionary<string, object> BuildProfileFacts(
+        BattleSimProfileDefinition profile
+    )
     {
         var result = NewMap();
         if (profile == null)
             return result;
-        result["profile_id"] = profile.profile_id.ToString();
-        result["display_name"] = profile.display_name ?? "";
-        result["description"] = profile.description ?? "";
+        result["profile_id"] = profile.ProfileId.ToString();
+        result["display_name"] = profile.DisplayName ?? "";
+        result["description"] = profile.Description ?? "";
         result["ai_score_profile"] = BattleAiScoreProjection.BuildProfilePlain(
-            profile.ai_score_profile
+            profile.AiScoreProfile
         );
-        result["override_patch_count"] = profile.override_patches.Count;
+        result["override_patch_count"] = profile.OverridePatches.Count;
         return result;
     }
 

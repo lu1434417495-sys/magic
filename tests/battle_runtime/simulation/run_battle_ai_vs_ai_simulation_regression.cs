@@ -7,12 +7,14 @@ public partial class run_battle_ai_vs_ai_simulation_regression : LifecycleTestSc
 {
     private const string AiVsAiScenarioPath =
         "res://data/configs/battle_sim/scenarios/ai_vs_ai_duel_example.tres";
-    private const string BaselineProfilePath =
-        "res://data/configs/battle_sim/profiles/baseline.tres";
-
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
+    {
+        CallDeferred(nameof(RunDeferred));
+    }
+
+    private void RunDeferred()
     {
         TestResult exitCode = Run();
         RequestTestExit(exitCode);
@@ -21,9 +23,9 @@ public partial class run_battle_ai_vs_ai_simulation_regression : LifecycleTestSc
     private TestResult Run()
     {
         BattleSimScenarioDef scenario = ResourceLoader.Load<BattleSimScenarioDef>(AiVsAiScenarioPath);
-        BattleSimProfileDef baselineProfile = ResourceLoader.Load<BattleSimProfileDef>(
-            BaselineProfilePath
-        );
+        BattleSimProfileDefinition baselineProfile = GameSessionTestFactory
+            .GetProcessSnapshot()
+            .BattleSimProfiles["baseline"];
         _test.True(
             scenario != null && scenario.BuildStartContext() != null,
             "AI vs AI 示例场景资源应能被 BattleSimScenarioDef 正常加载。"
@@ -36,11 +38,11 @@ public partial class run_battle_ai_vs_ai_simulation_regression : LifecycleTestSc
             return _test.Finish("Battle AI vs AI simulation regression");
 
         var runner = new BattleSimRunner(
-            new BattleSimContentProvider(new TestContentResourceLoader())
+            new BattleSimContentProvider(GameSessionTestFactory.GetProcessSnapshot())
         );
         BattleSimScenarioReport report = runner.RunScenario(
             scenario,
-            new List<BattleSimProfileDef> { baselineProfile }
+            new List<BattleSimProfileDefinition> { baselineProfile }
         );
         _test.Eq(report.ProfileEntries.Count, 1, "单 profile 的 AI vs AI 示例应只产出 1 个 profile entry。");
         _test.Eq(report.Comparisons.Count, 0, "单 profile 的 AI vs AI 示例不应生成 comparison。");

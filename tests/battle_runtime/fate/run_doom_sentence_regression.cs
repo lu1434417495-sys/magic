@@ -246,8 +246,8 @@ public partial class run_doom_sentence_regression : LifecycleTestSceneTree
         runtime.setup(
             null,
             registry.GetSkillDefinitionsTyped(),
-            new Dictionary<StringName, EnemyTemplateDef>(),
-            new Dictionary<StringName, EnemyAiBrainDef>()
+            new Dictionary<StringName, EnemyTemplateDefinition>(),
+            new Dictionary<StringName, EnemyAiBrainDefinition>()
         );
         runtime.ConfigureDamageResolverForTests(new DeterministicBattleDamageResolver());
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));

@@ -14,15 +14,9 @@ internal sealed class BattleAiRandomChainSkillEvaluator
     private static readonly StringName ScoreEstimatePolicyExpectedValue = "expected_value";
 
     private readonly BattleAiTypedActionHelper _helper = new();
-    private readonly BattleAiDecisionEngine _scoreOrdering = new();
-
-    internal BattleAiDecision Evaluate(UseRandomChainSkillAction action, BattleAiContext context)
-    {
-        return Evaluate(BattleAiRandomChainSkillActionSpec.FromAction(action), context);
-    }
 
     internal BattleAiDecision Evaluate(
-        BattleAiRandomChainSkillActionSpec action,
+        UseRandomChainSkillActionDefinition action,
         BattleAiContext context
     )
     {
@@ -172,7 +166,7 @@ internal sealed class BattleAiRandomChainSkillEvaluator
                         scoreMetadata.ToCandidateSummaryMetadata(skillId)
                     )
                 );
-                if (!_scoreOrdering.IsBetterScoreInput(scoreInput, bestScoreInput))
+                if (!BattleAiDecisionEngine.IsBetterScoreInputTyped(scoreInput, bestScoreInput))
                     continue;
 
                 bestScoreInput = scoreInput;
@@ -191,7 +185,7 @@ internal sealed class BattleAiRandomChainSkillEvaluator
         return resolvedDecision;
     }
 
-    private static bool HasExplicitDistanceContract(BattleAiRandomChainSkillActionSpec action)
+    private static bool HasExplicitDistanceContract(UseRandomChainSkillActionDefinition action)
     {
         return action.DesiredMinDistance >= 0
             && action.DesiredMaxDistance >= action.DesiredMinDistance
@@ -294,7 +288,7 @@ internal sealed class BattleAiRandomChainSkillEvaluator
 
     private List<BattleUnitState> ResolveCandidateUnits(
         BattleAiContext context,
-        BattleAiRandomChainSkillActionSpec action,
+        UseRandomChainSkillActionDefinition action,
         BattlePreview preview,
         SkillDefinition skillDefinition
     )
@@ -364,7 +358,7 @@ internal sealed class BattleAiRandomChainSkillEvaluator
 
     private RandomChainScoreMetadata BuildRandomChainScoreMetadata(
         BattleAiContext context,
-        BattleAiRandomChainSkillActionSpec action,
+        UseRandomChainSkillActionDefinition action,
         IReadOnlyList<BattleUnitState> candidates,
         SkillDefinition skillDefinition,
         string actionLabel
@@ -418,7 +412,7 @@ internal sealed class BattleAiRandomChainSkillEvaluator
 
     private RandomChainDistanceContract ResolveRandomChainDistanceContract(
         BattleAiContext context,
-        BattleAiRandomChainSkillActionSpec action,
+        UseRandomChainSkillActionDefinition action,
         SkillDefinition skillDefinition
     )
     {
@@ -521,7 +515,7 @@ internal sealed class BattleAiRandomChainSkillEvaluator
     }
 
     private static BattleAiScoreInput BuildSkillScoreInput(
-        BattleAiRandomChainSkillActionSpec action,
+        UseRandomChainSkillActionDefinition action,
         BattleAiContext context,
         SkillDefinition skillDefinition,
         BattleCommand command,
@@ -573,7 +567,7 @@ internal sealed class BattleAiRandomChainSkillEvaluator
     }
 
     private static AiActionTrace BeginActionTrace(
-        BattleAiRandomChainSkillActionSpec action,
+        UseRandomChainSkillActionDefinition action,
         BattleAiContext context,
         IReadOnlyDictionary<string, object> metadata
     )

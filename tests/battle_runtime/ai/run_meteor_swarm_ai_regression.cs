@@ -106,7 +106,10 @@ public partial class run_meteor_swarm_ai_regression : LifecycleTestSceneTree
                 "meteor_swarm_ai.friendly_fire_action"
             );
             _test.True(
-                !action.PassesFriendlyFireLimits(scoreInput),
+                !new BattleAiGroundSkillActionEvaluator().PassesFriendlyFireLimits(
+                    (UseGroundSkillActionDefinition)action.ToDefinition(),
+                    scoreInput
+                ),
                 "UseGroundSkillAction 应优先遵守 meteor hard reject，而不是粗略友伤数量。"
             );
         }
@@ -210,7 +213,10 @@ public partial class run_meteor_swarm_ai_regression : LifecycleTestSceneTree
                     "meteor_swarm_ai.default_ground_action"
                 );
                 _test.True(
-                    defaultAction.PassesFriendlyFireLimits(softScore),
+                    new BattleAiGroundSkillActionEvaluator().PassesFriendlyFireLimits(
+                        (UseGroundSkillActionDefinition)defaultAction.ToDefinition(),
+                        softScore
+                    ),
                     "Meteor soft 友伤不应被默认 friendly_fire_target_count=0 的通用上限挡掉。"
                 );
             }
@@ -250,8 +256,8 @@ public partial class run_meteor_swarm_ai_regression : LifecycleTestSceneTree
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             skill_definitions: typedSkillDefinitions,
-            enemy_templates: new Dictionary<StringName, EnemyTemplateDef>(),
-            enemy_ai_brains: new Dictionary<StringName, EnemyAiBrainDef>(),
+            enemy_templates: new Dictionary<StringName, EnemyTemplateDefinition>(),
+            enemy_ai_brains: new Dictionary<StringName, EnemyAiBrainDefinition>(),
             item_defs: new Dictionary<StringName, ItemDefinition>(),
             battle_special_profile_view: specialRegistry.BuildRuntimeProfileView()
         );

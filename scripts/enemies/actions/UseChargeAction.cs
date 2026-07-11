@@ -12,14 +12,6 @@ public partial class UseChargeAction : EnemyAiAction
     [Export]
     public int minimum_charge_move_distance { get; set; } = 3;
 
-    internal override BattleAiDecision Decide(BattleAiContext context)
-    {
-        AiTraceRecorder.Enter("decide:charge");
-        BattleAiDecision decision = new BattleAiChargeActionEvaluator().Evaluate(this, context);
-        AiTraceRecorder.Exit("decide:charge");
-        return decision;
-    }
-
     public override Godot.Collections.Array<string> ValidateSchema()
     {
         Godot.Collections.Array<string> errors = _collect_base_validation_errors();

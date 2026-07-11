@@ -225,29 +225,39 @@ public partial class run_phantasmal_kill_ai_regression : LifecycleTestSceneTree
             effective_target_count = 1,
             enemy_target_count = 1,
         };
+        var evaluator = new BattleAiGroundSkillActionEvaluator();
+        var defaultDefinition =
+            (UseGroundSkillActionDefinition)defaultAction.ToDefinition();
+        var softConfiguredDefinition =
+            (UseGroundSkillActionDefinition)softConfiguredAction.ToDefinition();
+        var lethalConfiguredDefinition =
+            (UseGroundSkillActionDefinition)lethalConfiguredAction.ToDefinition();
 
         _test.False(
-            defaultAction.PassesFriendlyFireLimits(exposedAlly),
+            evaluator.PassesFriendlyFireLimits(defaultDefinition, exposedAlly),
             "Default UseGroundSkillAction should reject locations exposing any ally."
         );
         _test.False(
-            defaultAction.PassesFriendlyFireLimits(lethalAlly),
+            evaluator.PassesFriendlyFireLimits(defaultDefinition, lethalAlly),
             "Default UseGroundSkillAction should reject locations with friendly lethal risk."
         );
         _test.True(
-            softConfiguredAction.PassesFriendlyFireLimits(exposedAlly),
+            evaluator.PassesFriendlyFireLimits(softConfiguredDefinition, exposedAlly),
             "maximum_friendly_fire_target_count should allow configured non-lethal ally exposure."
         );
         _test.True(
-            lethalConfiguredAction.PassesFriendlyFireLimits(lethalAlly),
+            evaluator.PassesFriendlyFireLimits(lethalConfiguredDefinition, lethalAlly),
             "allow_friendly_lethal should allow friendly lethal risk when count limits pass."
         );
         _test.True(
-            defaultAction.PassesFriendlyFireLimits(enemyOnly),
+            evaluator.PassesFriendlyFireLimits(defaultDefinition, enemyOnly),
             "Enemy-only Phantasmal Kill location should remain selectable."
         );
         _test.True(
-            defaultAction.PassesMinimumEffectiveTargetOrGroundControl(enemyOnly),
+            evaluator.PassesMinimumEffectiveTargetOrGroundControl(
+                defaultDefinition,
+                enemyOnly
+            ),
             "Enemy-only Phantasmal Kill location should satisfy minimum effective target limits."
         );
     }

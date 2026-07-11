@@ -12,15 +12,7 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
     private readonly BattleAiTypedActionHelper _helper = new();
 
     internal BattleAiDecision Evaluate(
-        MoveToMultiUnitSkillPositionAction action,
-        BattleAiContext context
-    )
-    {
-        return Evaluate(BattleAiMoveToMultiUnitSkillPositionActionSpec.FromAction(action), context);
-    }
-
-    internal BattleAiDecision Evaluate(
-        BattleAiMoveToMultiUnitSkillPositionActionSpec action,
+        MoveToMultiUnitSkillPositionActionDefinition action,
         BattleAiContext context
     )
     {
@@ -208,7 +200,7 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
 
     private List<BattleUnitState> BuildAnchorTargetGroup(
         BattleAiContext context,
-        BattleAiMoveToMultiUnitSkillPositionActionSpec action,
+        MoveToMultiUnitSkillPositionActionDefinition action,
         int skillLevel,
         SkillDefinition skillDefinition,
         IReadOnlyList<BattleUnitState> sortedTargets,
@@ -271,7 +263,7 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
 
     private static List<Vector2I> CollectReachableMoveCandidates(
         BattleAiContext context,
-        BattleAiMoveToMultiUnitSkillPositionActionSpec action
+        MoveToMultiUnitSkillPositionActionDefinition action
     )
     {
         var candidates = new List<Vector2I>();
@@ -334,7 +326,7 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
 
     private static int DistanceFromAnchorToNearestTarget(
         BattleAiContext context,
-        BattleAiMoveToMultiUnitSkillPositionActionSpec action,
+        MoveToMultiUnitSkillPositionActionDefinition action,
         Vector2I anchor
     )
     {
@@ -350,7 +342,7 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
 
     private Dictionary<string, object> BuildPositionMetadata(
         BattleAiContext context,
-        BattleAiMoveToMultiUnitSkillPositionActionSpec action,
+        MoveToMultiUnitSkillPositionActionDefinition action,
         IReadOnlyList<BattleUnitState> targetGroup,
         SkillDefinition skillDefinition
     )
@@ -385,7 +377,7 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
 
     private static Dictionary<string, object> ResolveDesiredDistanceContract(
         BattleAiContext context,
-        BattleAiMoveToMultiUnitSkillPositionActionSpec action,
+        MoveToMultiUnitSkillPositionActionDefinition action,
         SkillDefinition skillDefinition
     )
     {
@@ -418,7 +410,7 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
     }
 
     private static BattleAiScoreInput BuildActionScoreInput(
-        BattleAiMoveToMultiUnitSkillPositionActionSpec action,
+        MoveToMultiUnitSkillPositionActionDefinition action,
         BattleAiContext context,
         StringName actionKind,
         string actionLabel,
@@ -477,7 +469,7 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
     }
 
     private static void ApplyTargetGroupScore(
-        BattleAiMoveToMultiUnitSkillPositionActionSpec action,
+        MoveToMultiUnitSkillPositionActionDefinition action,
         BattleAiScoreInput scoreInput,
         IEnumerable<BattleUnitState> targetGroup
     )
@@ -524,7 +516,7 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
             == BattleTargetSelectionMode.MultiUnit;
 
     private static bool HasExplicitDistanceContract(
-        BattleAiMoveToMultiUnitSkillPositionActionSpec action
+        MoveToMultiUnitSkillPositionActionDefinition action
     )
     {
         return action.DesiredMinDistance >= 0
@@ -666,7 +658,7 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
     }
 
     private static StringName ResolveDefaultActionIntent(
-        BattleAiMoveToMultiUnitSkillPositionActionSpec action,
+        MoveToMultiUnitSkillPositionActionDefinition action,
         StringName actionKind
     )
     {
@@ -693,7 +685,7 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
     }
 
     private static AiActionTrace BeginActionTrace(
-        BattleAiMoveToMultiUnitSkillPositionActionSpec action,
+        MoveToMultiUnitSkillPositionActionDefinition action,
         BattleAiContext context,
         IReadOnlyDictionary<string, object> metadata
     )

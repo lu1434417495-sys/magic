@@ -164,8 +164,8 @@ public partial class run_titan_colossus_form_regression : LifecycleTestSceneTree
         runtime.setup(
             null,
             registry.GetSkillDefinitionsTyped(),
-            new Dictionary<StringName, EnemyTemplateDef>(),
-            new Dictionary<StringName, EnemyAiBrainDef>()
+            new Dictionary<StringName, EnemyTemplateDefinition>(),
+            new Dictionary<StringName, EnemyAiBrainDefinition>()
         );
         registry.Dispose();
         return runtime;

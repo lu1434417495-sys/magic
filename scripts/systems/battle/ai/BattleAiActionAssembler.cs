@@ -4,11 +4,13 @@ using Godot;
 
 internal sealed class BattleAiActionAssembler
 {
+    private static readonly StringName CandidateRequestMode = "candidate_request";
+    private static readonly StringName NoScreeningMode = "none";
     private readonly BattleAiSkillAffordanceClassifier _classifier = new();
 
     public BattleAiRuntimeActionPlan BuildUnitActionPlan(
         BattleUnitState unitState,
-        EnemyAiBrainDef brain,
+        EnemyAiBrainDefinition brain,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
@@ -16,480 +18,96 @@ internal sealed class BattleAiActionAssembler
         try
         {
             if (unitState == null || brain == null)
-            {
                 return plan;
-            }
 
-        using BattleAiTraceSpan trace = new("build_unit_action_plan");
-        skillDefinitions ??= new Dictionary<StringName, SkillDefinition>();
-        plan.SetSource(unitState, brain);
-        List<BattleAiSkillAffordanceRecord> skillRecords = ClassifyKnownActiveSkills(
-            unitState,
-            skillDefinitions
-        );
-        foreach (BattleAiSkillAffordanceRecord record in skillRecords)
-        {
-            plan.SetSkillAffordanceRecordTyped(record);
-        }
+            using BattleAiTraceSpan trace = new("build_unit_action_plan");
+            skillDefinitions ??= new Dictionary<StringName, SkillDefinition>();
+            plan.SetSource(unitState, brain);
 
-        foreach (EnemyAiStateDef stateDef in GetBrainStates(brain))
-        {
-            if (stateDef == null)
+            List<BattleAiSkillAffordanceRecord> skillRecords = ClassifyKnownActiveSkills(
+                unitState,
+                skillDefinitions
+            );
+            foreach (BattleAiSkillAffordanceRecord record in skillRecords)
+                plan.SetSkillAffordanceRecordTyped(record);
+
+            foreach (EnemyAiStateDefinition state in brain.StateOrder)
             {
-                continue;
-            }
-
-            StringName stateId = stateDef.state_id;
-            List<EnemyAiAction> authoredActions = GetActions(stateDef);
-            List<EnemyAiAction> runtimeActions = CloneRuntimeActions(plan, authoredActions);
-            plan.AddStateActions(stateId, runtimeActions);
-
-            List<EnemyAiGenerationSlotDef> generationSlots = GetGenerationSlots(stateDef);
-            foreach (EnemyAiGenerationSlotDef slot in generationSlots)
-            {
-                if (slot == null)
-                {
+                if (state == null)
                     continue;
-                }
 
-                foreach (BattleAiSkillAffordanceRecord record in skillRecords)
+                StringName stateId = state.StateId;
+                IReadOnlyList<EnemyAiActionDefinition> authoredActions = state.Actions;
+                plan.AddStateActions(stateId, authoredActions);
+
+                foreach (EnemyAiGenerationSlotDefinition slot in SortGenerationSlots(state.GenerationSlots))
                 {
-                    if (!record.is_generatable)
-                    {
+                    if (slot == null)
                         continue;
-                    }
+
+                    foreach (BattleAiSkillAffordanceRecord record in skillRecords)
+                    {
+                        if (record?.is_generatable != true)
+                            continue;
 
                         StringName skillId = record.skill_id;
-                    SkillDefinition skillDefinition = GetSkillDefinition(
-                        skillDefinitions,
-                        skillId
-                    );
-                    if (skillDefinition == null)
-                    {
-                        continue;
-                    }
-
-                    foreach (StringName actionFamily in record.action_families)
-                    {
-                        if (
-                            actionFamily == ""
-                            || !SlotMatchesAffordance(slot, record, actionFamily)
-                        )
-                        {
+                        SkillDefinition skillDefinition = GetSkillDefinition(
+                            skillDefinitions,
+                            skillId
+                        );
+                        if (skillDefinition == null)
                             continue;
-                        }
-                        if (
-                            IsGenerationSuppressed(
-                                plan,
-                                stateDef,
-                                runtimeActions,
-                                slot,
-                                skillId,
-                                actionFamily
+
+                        foreach (StringName actionFamily in record.action_families)
+                        {
+                            if (
+                                actionFamily == ""
+                                || !slot.MatchesAffordance(record, actionFamily)
+                                || IsGenerationSuppressed(
+                                    plan,
+                                    state,
+                                    authoredActions,
+                                    slot,
+                                    skillId,
+                                    actionFamily
+                                )
                             )
-                        )
-                        {
-                            continue;
-                        }
-
-                        EnemyAiActionFamily actionFamilyKind =
-                            EnemyAiGenerationSlotDef.ToActionFamily(actionFamily);
-                        if (actionFamilyKind == EnemyAiActionFamily.UseUnitSkill)
-                        {
-                            BattleAiUnitSkillActionSpec generatedUnitAction =
-                                BuildUnitRuntimeAction(
-                                    unitState,
-                                    stateDef,
-                                    runtimeActions,
-                                    skillDefinition
-                                );
-                            if (generatedUnitAction == null)
                             {
                                 continue;
                             }
-                            generatedUnitAction.ActionIntent = ResolveGeneratedActionIntent(
+
+                            EnemyAiActionDefinition generatedAction = BuildGeneratedAction(
+                                unitState,
+                                state,
+                                authoredActions,
                                 slot,
                                 skillDefinition,
                                 actionFamily
                             );
-                            ApplySlotOverrides(generatedUnitAction, slot, runtimeActions);
-                            generatedUnitAction.ActionId = BuildRuntimeActionId(
-                                stateId,
-                                slot.slot_id,
-                                skillId,
-                                actionFamily
-                            );
-                            string generatedUnitIdentityKey = BuildIdentityKey(
-                                stateId,
-                                slot.slot_id,
-                                skillId,
-                                actionFamily
-                            );
-                            plan.AddGeneratedUseUnitSkillActionTyped(
-                                stateId,
-                                generatedUnitAction,
-                                slot.slot_id,
-                                slot.slot_role,
-                                skillId,
-                                actionFamily,
-                                slot.style_template_action_id,
-                                generatedUnitIdentityKey
-                            );
-                            continue;
-                        }
-
-                        if (actionFamilyKind == EnemyAiActionFamily.MoveToRange)
-                        {
-                            BattleAiGeneratedMoveToRangeAction generatedMoveAction =
-                                BuildMoveToRangeRuntimeAction(
-                                    unitState,
-                                    stateDef,
-                                    runtimeActions,
-                                    skillDefinition
-                                );
-                            if (generatedMoveAction == null)
-                            {
+                            if (generatedAction == null)
                                 continue;
-                            }
-                            generatedMoveAction.ActionIntent = ResolveGeneratedActionIntent(
-                                slot,
-                                skillDefinition,
-                                actionFamily
-                            );
-                            ApplySlotOverrides(generatedMoveAction, slot, runtimeActions);
-                            generatedMoveAction.ActionId = BuildRuntimeActionId(
+
+                            string identityKey = BuildIdentityKey(
                                 stateId,
-                                slot.slot_id,
+                                slot.SlotId,
                                 skillId,
                                 actionFamily
                             );
-                            string generatedMoveIdentityKey = BuildIdentityKey(
+                            plan.AddGeneratedAction(
                                 stateId,
-                                slot.slot_id,
-                                skillId,
-                                actionFamily
-                            );
-                            plan.AddGeneratedMoveToRangeActionTyped(
-                                stateId,
-                                generatedMoveAction,
-                                slot.slot_id,
-                                slot.slot_role,
+                                generatedAction,
+                                slot.SlotId,
+                                slot.SlotRole,
                                 skillId,
                                 actionFamily,
-                                slot.style_template_action_id,
-                                generatedMoveIdentityKey
+                                slot.StyleTemplateActionId,
+                                identityKey
                             );
-                            continue;
                         }
-
-                        if (actionFamilyKind == EnemyAiActionFamily.UseRandomChainSkill)
-                        {
-                            BattleAiRandomChainSkillActionSpec generatedRandomChainAction =
-                                BuildRandomChainRuntimeAction(
-                                    unitState,
-                                    stateDef,
-                                    runtimeActions,
-                                    skillDefinition
-                                );
-                            if (generatedRandomChainAction == null)
-                            {
-                                continue;
-                            }
-                            generatedRandomChainAction.ActionIntent =
-                                ResolveGeneratedActionIntent(slot, skillDefinition, actionFamily);
-                            ApplySlotOverrides(generatedRandomChainAction, slot, runtimeActions);
-                            generatedRandomChainAction.ActionId = BuildRuntimeActionId(
-                                stateId,
-                                slot.slot_id,
-                                skillId,
-                                actionFamily
-                            );
-                            string generatedRandomChainIdentityKey = BuildIdentityKey(
-                                stateId,
-                                slot.slot_id,
-                                skillId,
-                                actionFamily
-                            );
-                            plan.AddGeneratedRandomChainSkillActionTyped(
-                                stateId,
-                                generatedRandomChainAction,
-                                slot.slot_id,
-                                slot.slot_role,
-                                skillId,
-                                actionFamily,
-                                slot.style_template_action_id,
-                                generatedRandomChainIdentityKey
-                            );
-                            continue;
-                        }
-
-                        if (actionFamilyKind == EnemyAiActionFamily.UseMultiUnitSkill)
-                        {
-                            BattleAiMultiUnitSkillActionSpec generatedMultiUnitAction =
-                                BuildMultiUnitRuntimeAction(
-                                    unitState,
-                                    stateDef,
-                                    runtimeActions,
-                                    skillDefinition
-                                );
-                            if (generatedMultiUnitAction == null)
-                            {
-                                continue;
-                            }
-                            generatedMultiUnitAction.ActionIntent =
-                                ResolveGeneratedActionIntent(slot, skillDefinition, actionFamily);
-                            ApplySlotOverrides(generatedMultiUnitAction, slot, runtimeActions);
-                            generatedMultiUnitAction.ActionId = BuildRuntimeActionId(
-                                stateId,
-                                slot.slot_id,
-                                skillId,
-                                actionFamily
-                            );
-                            string generatedMultiUnitIdentityKey = BuildIdentityKey(
-                                stateId,
-                                slot.slot_id,
-                                skillId,
-                                actionFamily
-                            );
-                            plan.AddGeneratedMultiUnitSkillActionTyped(
-                                stateId,
-                                generatedMultiUnitAction,
-                                slot.slot_id,
-                                slot.slot_role,
-                                skillId,
-                                actionFamily,
-                                slot.style_template_action_id,
-                                generatedMultiUnitIdentityKey
-                            );
-                            continue;
-                        }
-
-                        if (
-                            actionFamilyKind
-                            == EnemyAiActionFamily.MoveToMultiUnitSkillPosition
-                        )
-                        {
-                            BattleAiMoveToMultiUnitSkillPositionActionSpec generatedMoveToMultiUnitAction =
-                                BuildMoveToMultiUnitRuntimeAction(
-                                    unitState,
-                                    stateDef,
-                                    runtimeActions,
-                                    skillDefinition
-                                );
-                            if (generatedMoveToMultiUnitAction == null)
-                            {
-                                continue;
-                            }
-                            generatedMoveToMultiUnitAction.ActionIntent =
-                                ResolveGeneratedActionIntent(slot, skillDefinition, actionFamily);
-                            ApplySlotOverrides(
-                                generatedMoveToMultiUnitAction,
-                                slot,
-                                runtimeActions
-                            );
-                            generatedMoveToMultiUnitAction.ActionId = BuildRuntimeActionId(
-                                stateId,
-                                slot.slot_id,
-                                skillId,
-                                actionFamily
-                            );
-                            string generatedMoveToMultiUnitIdentityKey = BuildIdentityKey(
-                                stateId,
-                                slot.slot_id,
-                                skillId,
-                                actionFamily
-                            );
-                            plan.AddGeneratedMoveToMultiUnitSkillPositionActionTyped(
-                                stateId,
-                                generatedMoveToMultiUnitAction,
-                                slot.slot_id,
-                                slot.slot_role,
-                                skillId,
-                                actionFamily,
-                                slot.style_template_action_id,
-                                generatedMoveToMultiUnitIdentityKey
-                            );
-                            continue;
-                        }
-
-                        if (actionFamilyKind == EnemyAiActionFamily.UseCharge)
-                        {
-                            BattleAiChargeActionSpec generatedChargeAction =
-                                BuildChargeRuntimeAction(
-                                    stateDef,
-                                    runtimeActions,
-                                    skillDefinition
-                                );
-                            if (generatedChargeAction == null)
-                            {
-                                continue;
-                            }
-                            generatedChargeAction.ActionIntent =
-                                ResolveGeneratedActionIntent(slot, skillDefinition, actionFamily);
-                            ApplySlotOverrides(generatedChargeAction, slot, runtimeActions);
-                            generatedChargeAction.ActionId = BuildRuntimeActionId(
-                                stateId,
-                                slot.slot_id,
-                                skillId,
-                                actionFamily
-                            );
-                            string generatedChargeIdentityKey = BuildIdentityKey(
-                                stateId,
-                                slot.slot_id,
-                                skillId,
-                                actionFamily
-                            );
-                            plan.AddGeneratedChargeActionTyped(
-                                stateId,
-                                generatedChargeAction,
-                                slot.slot_id,
-                                slot.slot_role,
-                                skillId,
-                                actionFamily,
-                                slot.style_template_action_id,
-                                generatedChargeIdentityKey
-                            );
-                            continue;
-                        }
-
-                        if (actionFamilyKind == EnemyAiActionFamily.UseChargePathAoe)
-                        {
-                            BattleAiChargePathAoeActionSpec generatedChargePathAoeAction =
-                                BuildChargePathAoeRuntimeAction(
-                                    stateDef,
-                                    runtimeActions,
-                                    skillDefinition
-                                );
-                            if (generatedChargePathAoeAction == null)
-                            {
-                                continue;
-                            }
-                            generatedChargePathAoeAction.ActionIntent =
-                                ResolveGeneratedActionIntent(slot, skillDefinition, actionFamily);
-                            ApplySlotOverrides(
-                                generatedChargePathAoeAction,
-                                slot,
-                                runtimeActions
-                            );
-                            generatedChargePathAoeAction.ActionId = BuildRuntimeActionId(
-                                stateId,
-                                slot.slot_id,
-                                skillId,
-                                actionFamily
-                            );
-                            string generatedChargePathAoeIdentityKey = BuildIdentityKey(
-                                stateId,
-                                slot.slot_id,
-                                skillId,
-                                actionFamily
-                            );
-                            plan.AddGeneratedChargePathAoeActionTyped(
-                                stateId,
-                                generatedChargePathAoeAction,
-                                slot.slot_id,
-                                slot.slot_role,
-                                skillId,
-                                actionFamily,
-                                slot.style_template_action_id,
-                                generatedChargePathAoeIdentityKey
-                            );
-                            continue;
-                        }
-
-                        if (actionFamilyKind == EnemyAiActionFamily.UseGroundSkill)
-                        {
-                            BattleAiGroundSkillActionSpec generatedGroundAction =
-                                BuildGroundRuntimeAction(
-                                    unitState,
-                                    stateDef,
-                                    runtimeActions,
-                                    skillDefinition
-                                );
-                            if (generatedGroundAction == null)
-                            {
-                                continue;
-                            }
-                            generatedGroundAction.ActionIntent =
-                                ResolveGeneratedActionIntent(slot, skillDefinition, actionFamily);
-                            ApplySlotOverrides(generatedGroundAction, slot, runtimeActions);
-                            generatedGroundAction.ActionId = BuildRuntimeActionId(
-                                stateId,
-                                slot.slot_id,
-                                skillId,
-                                actionFamily
-                            );
-                            string generatedGroundIdentityKey = BuildIdentityKey(
-                                stateId,
-                                slot.slot_id,
-                                skillId,
-                                actionFamily
-                            );
-                            plan.AddGeneratedGroundSkillActionTyped(
-                                stateId,
-                                generatedGroundAction,
-                                slot.slot_id,
-                                slot.slot_role,
-                                skillId,
-                                actionFamily,
-                                slot.style_template_action_id,
-                                generatedGroundIdentityKey
-                            );
-                            continue;
-                        }
-
-                        EnemyAiAction generatedAction = BuildSkillActionForFamily(
-                            plan,
-                            unitState,
-                            stateDef,
-                            runtimeActions,
-                            skillDefinition,
-                            actionFamily
-                        );
-                        if (generatedAction == null)
-                        {
-                            continue;
-                        }
-                        generatedAction = plan.OwnRuntimeAction(
-                            generatedAction,
-                            $"generated_action:{stateId}:{slot.slot_id}:{skillId}:{actionFamily}"
-                        );
-
-                        SetActionIntent(
-                            generatedAction,
-                            ResolveGeneratedActionIntent(slot, skillDefinition, actionFamily)
-                        );
-                        ApplySlotOverrides(generatedAction, slot, runtimeActions);
-                        SetActionId(
-                            generatedAction,
-                            BuildRuntimeActionId(
-                                stateId,
-                                slot.slot_id,
-                                skillId,
-                                actionFamily
-                            )
-                        );
-                        string identityKey = BuildIdentityKey(
-                            stateId,
-                            slot.slot_id,
-                            skillId,
-                            actionFamily
-                        );
-                        plan.AddGeneratedActionTyped(
-                            stateId,
-                            generatedAction,
-                            slot.slot_id,
-                            slot.slot_role,
-                            skillId,
-                            actionFamily,
-                            slot.style_template_action_id,
-                            identityKey
-                        );
                     }
                 }
             }
-        }
-
-        return plan;
+            return plan;
         }
         catch (Exception buildFailure)
         {
@@ -509,22 +127,15 @@ internal sealed class BattleAiActionAssembler
         }
     }
 
-    private static IEnumerable<EnemyAiStateDef> GetBrainStates(EnemyAiBrainDef brain)
-    {
-        if (brain == null)
-            return System.Array.Empty<EnemyAiStateDef>();
-        Godot.Collections.Array<EnemyAiStateDef> states = brain.GetResolvedStates();
-        return states != null ? states : System.Array.Empty<EnemyAiStateDef>();
-    }
-
     private List<BattleAiSkillAffordanceRecord> ClassifyKnownActiveSkills(
         BattleUnitState unitState,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
         var records = new List<BattleAiSkillAffordanceRecord>();
-        BattleSkillAvailabilityService availabilityService = new(skillDefinitions);
-        BattleSkillAvailabilityView availabilityView = availabilityService.BuildView(
+        BattleSkillAvailabilityView availabilityView = new BattleSkillAvailabilityService(
+            skillDefinitions
+        ).BuildView(
             new BattleSkillAvailabilityQuery
             {
                 User = unitState,
@@ -537,164 +148,77 @@ internal sealed class BattleAiActionAssembler
         foreach (BattleAvailableSkillEntry entry in availabilityView.SkillEntries)
         {
             StringName skillId = entry.EntryRef.SkillId;
-            if (skillId == "")
-            {
+            SkillDefinition definition =
+                entry.SkillDefinition ?? GetSkillDefinition(skillDefinitions, skillId);
+            if (skillId == "" || definition == null)
                 continue;
-            }
-            SkillDefinition skillDefinition = entry.SkillDefinition ?? GetSkillDefinition(skillDefinitions, skillId);
-            if (skillDefinition == null)
-            {
-                continue;
-            }
+
             BattleAiSkillAffordanceRecord record = _classifier.ClassifySkill(
-                skillDefinition,
+                definition,
                 entry.SkillLevel
             );
             if (record.skill_id == "")
-            {
                 record.skill_id = skillId;
-            }
             records.Add(record);
         }
         return records;
     }
 
-    private static List<EnemyAiAction> GetActions(EnemyAiStateDef stateDef)
-    {
-        return stateDef?.GetTypedActions() ?? new List<EnemyAiAction>();
-    }
-
-    private static List<EnemyAiGenerationSlotDef> GetGenerationSlots(EnemyAiStateDef stateDef)
-    {
-        return SortGenerationSlots(
-            stateDef?.GetTypedGenerationSlots() ?? new List<EnemyAiGenerationSlotDef>()
-        );
-    }
-
-    private static List<EnemyAiGenerationSlotDef> SortGenerationSlots(
-        List<EnemyAiGenerationSlotDef> slots
+    private static List<EnemyAiGenerationSlotDefinition> SortGenerationSlots(
+        IReadOnlyList<EnemyAiGenerationSlotDefinition> slots
     )
     {
-        slots ??= new List<EnemyAiGenerationSlotDef>();
-        slots.Sort(
+        var result = new List<EnemyAiGenerationSlotDefinition>();
+        foreach (EnemyAiGenerationSlotDefinition slot in slots ?? Array.Empty<EnemyAiGenerationSlotDefinition>())
+        {
+            if (slot != null)
+                result.Add(slot);
+        }
+        result.Sort(
             (left, right) =>
             {
-                int leftOrder = left.order;
-                int rightOrder = right.order;
-                if (leftOrder != rightOrder)
-                {
-                    return leftOrder.CompareTo(rightOrder);
-                }
-                return left.slot_id.ToString().CompareTo(right.slot_id.ToString());
+                int orderComparison = left.Order.CompareTo(right.Order);
+                return orderComparison != 0
+                    ? orderComparison
+                    : string.Compare(
+                        left.SlotId.ToString(),
+                        right.SlotId.ToString(),
+                        StringComparison.Ordinal
+                    );
             }
         );
-        return slots;
-    }
-
-    private static List<EnemyAiAction> CloneRuntimeActions(
-        BattleAiRuntimeActionPlan plan,
-        List<EnemyAiAction> authoredActions
-    )
-    {
-        var runtimeActions = new List<EnemyAiAction>();
-        foreach (EnemyAiAction action in authoredActions ?? new List<EnemyAiAction>())
-        {
-            if (action == null)
-            {
-                continue;
-            }
-            if (plan == null)
-            {
-                LifecycleViolation.Report(
-                    "BattleAiActionAssembler.CloneRuntimeActions requires a runtime action plan owner."
-                );
-            }
-            runtimeActions.Add(action);
-        }
-        return runtimeActions;
-    }
-
-    private static bool SlotMatchesAffordance(
-        EnemyAiGenerationSlotDef slot,
-        BattleAiSkillAffordanceRecord record,
-        StringName actionFamily
-    )
-    {
-        if (
-            slot == null
-            || record == null
-        )
-        {
-            return false;
-        }
-        return slot.MatchesAffordance(record, actionFamily);
-    }
-
-    private static EnemyAiAction BuildSkillActionForFamily(
-        BattleAiRuntimeActionPlan plan,
-        BattleUnitState unitState,
-        EnemyAiStateDef stateDef,
-        IReadOnlyList<EnemyAiAction> stateActions,
-        SkillDefinition skillDefinition,
-        StringName actionFamily
-    )
-    {
-        if (unitState == null || stateDef == null || skillDefinition?.CombatProfile == null)
-        {
-            return null;
-        }
-        return EnemyAiGenerationSlotDef.ToActionFamily(actionFamily) switch
-        {
-            _ => null,
-        };
+        return result;
     }
 
     private static bool IsGenerationSuppressed(
         BattleAiRuntimeActionPlan plan,
-        EnemyAiStateDef stateDef,
-        IReadOnlyList<EnemyAiAction> stateActions,
-        EnemyAiGenerationSlotDef slot,
+        EnemyAiStateDefinition state,
+        IReadOnlyList<EnemyAiActionDefinition> authoredActions,
+        EnemyAiGenerationSlotDefinition slot,
         StringName skillId,
         StringName actionFamily
     )
     {
         if (slot.SuppressionPolicyKind == EnemyAiGenerationSuppressionPolicy.ManualOnly)
-        {
             return true;
-        }
 
-        StringName stateId = stateDef.state_id;
-        EnemyAiActionFamily actionFamilyKind = EnemyAiGenerationSlotDef.ToActionFamily(
+        string identityKey = BuildIdentityKey(
+            state.StateId,
+            slot.SlotId,
+            skillId,
             actionFamily
         );
-        string identityKey = BuildIdentityKey(stateId, slot.slot_id, skillId, actionFamily);
         if (plan.HasActionIdentityKey(identityKey))
-        {
             return true;
-        }
-        foreach (EnemyAiAction existingAction in plan.GetActions(stateId))
-        {
-            if (existingAction == null)
-            {
-                continue;
-            }
-            if (plan.HasActionIdentityKey(existingAction, identityKey))
-            {
-                return true;
-            }
-        }
 
-        foreach (EnemyAiAction authoredAction in stateActions)
+        EnemyAiActionFamily family = ToActionFamily(actionFamily);
+        foreach (EnemyAiActionDefinition authoredAction in authoredActions)
         {
-            if (authoredAction == null)
-            {
-                continue;
-            }
-            if (!authoredAction.GetDeclaredSkillIds().Contains(skillId))
-            {
-                continue;
-            }
-            if (GetActionFamilyForAction(authoredAction) == actionFamilyKind)
+            if (
+                authoredAction != null
+                && Contains(authoredAction.DeclaredSkillIds, skillId)
+                && GetActionFamily(authoredAction) == family
+            )
             {
                 return true;
             }
@@ -702,1230 +226,820 @@ internal sealed class BattleAiActionAssembler
         return false;
     }
 
-    private static EnemyAiActionFamily GetActionFamilyForAction(EnemyAiAction action)
+    private static EnemyAiActionDefinition BuildGeneratedAction(
+        BattleUnitState unitState,
+        EnemyAiStateDefinition state,
+        IReadOnlyList<EnemyAiActionDefinition> stateActions,
+        EnemyAiGenerationSlotDefinition slot,
+        SkillDefinition skillDefinition,
+        StringName actionFamily
+    )
     {
-        return action switch
+        EnemyAiActionFamily family = ToActionFamily(actionFamily);
+        StringName actionId = BuildRuntimeActionId(
+            state.StateId,
+            slot.SlotId,
+            skillDefinition.SkillId,
+            actionFamily
+        );
+        StringName actionIntent = ResolveGeneratedActionIntent(
+            slot,
+            skillDefinition,
+            family
+        );
+
+        EnemyAiActionDefinition action = family switch
         {
-            UseUnitSkillAction => EnemyAiActionFamily.UseUnitSkill,
-            UseGroundSkillAction => EnemyAiActionFamily.UseGroundSkill,
-            MoveToMultiUnitSkillPositionAction =>
-                EnemyAiActionFamily.MoveToMultiUnitSkillPosition,
-            UseMultiUnitSkillAction => EnemyAiActionFamily.UseMultiUnitSkill,
-            UseRandomChainSkillAction => EnemyAiActionFamily.UseRandomChainSkill,
-            UseChargePathAoeAction => EnemyAiActionFamily.UseChargePathAoe,
-            UseChargeAction => EnemyAiActionFamily.UseCharge,
-            MoveToRangeAction => EnemyAiActionFamily.MoveToRange,
-            _ => EnemyAiActionFamily.Unknown,
+            EnemyAiActionFamily.UseUnitSkill => BuildUnitAction(
+                unitState,
+                stateActions,
+                skillDefinition,
+                actionId,
+                actionIntent
+            ),
+            EnemyAiActionFamily.UseGroundSkill => BuildGroundAction(
+                unitState,
+                stateActions,
+                skillDefinition,
+                actionId,
+                actionIntent
+            ),
+            EnemyAiActionFamily.UseMultiUnitSkill => BuildMultiUnitAction(
+                unitState,
+                stateActions,
+                skillDefinition,
+                actionId,
+                actionIntent
+            ),
+            EnemyAiActionFamily.UseRandomChainSkill => BuildRandomChainAction(
+                unitState,
+                stateActions,
+                skillDefinition,
+                actionId,
+                actionIntent
+            ),
+            EnemyAiActionFamily.UseCharge => BuildChargeAction(
+                stateActions,
+                skillDefinition,
+                actionId,
+                actionIntent
+            ),
+            EnemyAiActionFamily.UseChargePathAoe => BuildChargePathAoeAction(
+                stateActions,
+                skillDefinition,
+                actionId,
+                actionIntent
+            ),
+            EnemyAiActionFamily.MoveToRange => BuildMoveToRangeAction(
+                unitState,
+                stateActions,
+                skillDefinition,
+                actionId,
+                actionIntent
+            ),
+            EnemyAiActionFamily.MoveToMultiUnitSkillPosition => BuildMoveToMultiUnitAction(
+                unitState,
+                stateActions,
+                skillDefinition,
+                actionId,
+                actionIntent
+            ),
+            _ => null,
+        };
+        return ApplySlotOverrides(action, slot, stateActions);
+    }
+
+    private static UseUnitSkillActionDefinition BuildUnitAction(
+        BattleUnitState unitState,
+        IReadOnlyList<EnemyAiActionDefinition> stateActions,
+        SkillDefinition skillDefinition,
+        StringName actionId,
+        StringName actionIntent
+    )
+    {
+        DistanceStyle style = ResolveUnitDistanceStyle(
+            unitState,
+            stateActions,
+            skillDefinition,
+            EnemyAiActionFamily.UseUnitSkill,
+            EnemyAiActionFamily.UseMultiUnitSkill,
+            EnemyAiDistanceReference.TargetUnit
+        );
+        return new UseUnitSkillActionDefinition(
+            actionId,
+            ResolveGeneratedScoreBucketId(stateActions, EnemyAiActionFamily.UseUnitSkill),
+            actionIntent,
+            new[] { skillDefinition.SkillId },
+            ResolveTargetSelector(stateActions, EnemyAiTargetSelectorRules.NearestEnemy),
+            1,
+            0,
+            false,
+            style.Minimum,
+            style.Maximum,
+            EnemyAiDistanceReferences.ToStringName(style.Reference)
+        );
+    }
+
+    private static UseGroundSkillActionDefinition BuildGroundAction(
+        BattleUnitState unitState,
+        IReadOnlyList<EnemyAiActionDefinition> stateActions,
+        SkillDefinition skillDefinition,
+        StringName actionId,
+        StringName actionIntent
+    )
+    {
+        DistanceStyle style = ResolveGroundDistanceStyle(
+            unitState,
+            stateActions,
+            skillDefinition
+        );
+        return new UseGroundSkillActionDefinition(
+            actionId,
+            ResolveGeneratedScoreBucketId(stateActions, EnemyAiActionFamily.UseGroundSkill),
+            actionIntent,
+            new[] { skillDefinition.SkillId },
+            Math.Max(skillDefinition.CombatProfile?.MinTargetCount ?? 0, 1),
+            false,
+            false,
+            1,
+            0,
+            0,
+            false,
+            0,
+            0,
+            style.Minimum,
+            style.Maximum,
+            EnemyAiDistanceReferences.ToStringName(style.Reference)
+        );
+    }
+
+    private static UseMultiUnitSkillActionDefinition BuildMultiUnitAction(
+        BattleUnitState unitState,
+        IReadOnlyList<EnemyAiActionDefinition> stateActions,
+        SkillDefinition skillDefinition,
+        StringName actionId,
+        StringName actionIntent
+    )
+    {
+        DistanceStyle style = ResolveUnitDistanceStyle(
+            unitState,
+            stateActions,
+            skillDefinition,
+            EnemyAiActionFamily.UseMultiUnitSkill,
+            EnemyAiActionFamily.UseUnitSkill,
+            EnemyAiDistanceReference.TargetUnit
+        );
+        return new UseMultiUnitSkillActionDefinition(
+            actionId,
+            ResolveGeneratedScoreBucketId(stateActions, EnemyAiActionFamily.UseMultiUnitSkill),
+            actionIntent,
+            new[] { skillDefinition.SkillId },
+            ResolveTargetSelector(stateActions, EnemyAiTargetSelectorRules.NearestEnemy),
+            style.Minimum,
+            style.Maximum,
+            EnemyAiDistanceReferences.ToStringName(style.Reference),
+            6,
+            12
+        );
+    }
+
+    private static MoveToMultiUnitSkillPositionActionDefinition BuildMoveToMultiUnitAction(
+        BattleUnitState unitState,
+        IReadOnlyList<EnemyAiActionDefinition> stateActions,
+        SkillDefinition skillDefinition,
+        StringName actionId,
+        StringName actionIntent
+    )
+    {
+        DistanceStyle style = ResolveUnitDistanceStyle(
+            unitState,
+            stateActions,
+            skillDefinition,
+            EnemyAiActionFamily.UseMultiUnitSkill,
+            EnemyAiActionFamily.UseUnitSkill,
+            EnemyAiDistanceReference.TargetUnit
+        );
+        return new MoveToMultiUnitSkillPositionActionDefinition(
+            actionId,
+            ResolveGeneratedScoreBucketId(
+                stateActions,
+                EnemyAiActionFamily.MoveToMultiUnitSkillPosition
+            ),
+            actionIntent,
+            new[] { skillDefinition.SkillId },
+            ResolveTargetSelector(stateActions, EnemyAiTargetSelectorRules.NearestEnemy),
+            style.Minimum,
+            style.Maximum,
+            EnemyAiDistanceReferences.ToStringName(style.Reference),
+            6,
+            12,
+            40
+        );
+    }
+
+    private static UseRandomChainSkillActionDefinition BuildRandomChainAction(
+        BattleUnitState unitState,
+        IReadOnlyList<EnemyAiActionDefinition> stateActions,
+        SkillDefinition skillDefinition,
+        StringName actionId,
+        StringName actionIntent
+    )
+    {
+        EnemyAiActionDefinition template =
+            FindActionByFamily(stateActions, EnemyAiActionFamily.UseRandomChainSkill)
+            ?? FindActionByFamily(stateActions, EnemyAiActionFamily.UseUnitSkill)
+            ?? FindActionByFamily(stateActions, EnemyAiActionFamily.UseMultiUnitSkill);
+        DistanceStyle style;
+        if (template != null)
+        {
+            EnemyAiDistanceReference reference = GetDistanceReference(template);
+            style = new DistanceStyle(
+                GetDesiredMinDistance(template),
+                GetDesiredMaxDistance(template),
+                reference is EnemyAiDistanceReference.CandidatePool
+                    or EnemyAiDistanceReference.EnemyFrontline
+                    ? reference
+                    : EnemyAiDistanceReference.CandidatePool
+            );
+        }
+        else
+        {
+            int effectiveRange = BattleRangeService.GetEffectiveSkillDistanceContractRange(
+                unitState,
+                skillDefinition
+            );
+            int minimum = effectiveRange > 0 ? Math.Min(1, effectiveRange) : 0;
+            style = new DistanceStyle(
+                minimum,
+                Math.Max(effectiveRange, minimum),
+                EnemyAiDistanceReference.CandidatePool
+            );
+        }
+        return new UseRandomChainSkillActionDefinition(
+            actionId,
+            ResolveGeneratedScoreBucketId(stateActions, EnemyAiActionFamily.UseUnitSkill),
+            actionIntent,
+            new[] { skillDefinition.SkillId },
+            ResolveTargetSelector(stateActions, EnemyAiTargetSelectorRules.NearestEnemy),
+            style.Minimum,
+            style.Maximum,
+            EnemyAiDistanceReferences.ToStringName(style.Reference),
+            1
+        );
+    }
+
+    private static UseChargeActionDefinition BuildChargeAction(
+        IReadOnlyList<EnemyAiActionDefinition> stateActions,
+        SkillDefinition skillDefinition,
+        StringName actionId,
+        StringName actionIntent
+    ) =>
+        new(
+            actionId,
+            ResolveGeneratedScoreBucketId(stateActions, EnemyAiActionFamily.UseCharge),
+            actionIntent,
+            skillDefinition.SkillId,
+            ResolveTargetSelector(stateActions, EnemyAiTargetSelectorRules.NearestEnemy),
+            3
+        );
+
+    private static UseChargePathAoeActionDefinition BuildChargePathAoeAction(
+        IReadOnlyList<EnemyAiActionDefinition> stateActions,
+        SkillDefinition skillDefinition,
+        StringName actionId,
+        StringName actionIntent
+    ) =>
+        new(
+            actionId,
+            ResolveGeneratedScoreBucketId(stateActions, EnemyAiActionFamily.UseCharge),
+            actionIntent,
+            new[] { skillDefinition.SkillId },
+            ResolveTargetSelector(stateActions, EnemyAiTargetSelectorRules.NearestEnemy),
+            1,
+            1,
+            1
+        );
+
+    private static MoveToRangeActionDefinition BuildMoveToRangeAction(
+        BattleUnitState unitState,
+        IReadOnlyList<EnemyAiActionDefinition> stateActions,
+        SkillDefinition skillDefinition,
+        StringName actionId,
+        StringName actionIntent
+    )
+    {
+        int effectiveRange = BattleRangeService.GetEffectiveSkillDistanceContractRange(
+            unitState,
+            skillDefinition
+        );
+        int minimum = effectiveRange > 0 ? Math.Min(1, effectiveRange) : 0;
+        return new MoveToRangeActionDefinition(
+            actionId,
+            ResolveGeneratedScoreBucketId(stateActions, EnemyAiActionFamily.MoveToRange),
+            actionIntent,
+            CandidateRequestMode,
+            ResolveTargetSelector(stateActions, EnemyAiTargetSelectorRules.NearestEnemy),
+            minimum,
+            Math.Max(effectiveRange, minimum),
+            new[] { skillDefinition.SkillId },
+            NoScreeningMode,
+            true,
+            2,
+            140,
+            220,
+            1000,
+            4000,
+            4,
+            2,
+            2,
+            45
+        );
+    }
+
+    private static DistanceStyle ResolveUnitDistanceStyle(
+        BattleUnitState unitState,
+        IReadOnlyList<EnemyAiActionDefinition> stateActions,
+        SkillDefinition skillDefinition,
+        EnemyAiActionFamily primaryFamily,
+        EnemyAiActionFamily secondaryFamily,
+        EnemyAiDistanceReference fallbackReference
+    )
+    {
+        EnemyAiActionDefinition template =
+            FindActionByFamily(stateActions, primaryFamily)
+            ?? FindActionByFamily(stateActions, secondaryFamily);
+        if (template != null)
+        {
+            return new DistanceStyle(
+                GetDesiredMinDistance(template),
+                GetDesiredMaxDistance(template),
+                GetDistanceReference(template)
+            );
+        }
+        int effectiveRange = BattleRangeService.GetEffectiveSkillDistanceContractRange(
+            unitState,
+            skillDefinition
+        );
+        int minimum = effectiveRange > 0 ? Math.Min(1, effectiveRange) : 0;
+        return new DistanceStyle(
+            minimum,
+            Math.Max(effectiveRange, minimum),
+            fallbackReference
+        );
+    }
+
+    private static DistanceStyle ResolveGroundDistanceStyle(
+        BattleUnitState unitState,
+        IReadOnlyList<EnemyAiActionDefinition> stateActions,
+        SkillDefinition skillDefinition
+    )
+    {
+        EnemyAiActionDefinition template = FindActionByFamily(
+            stateActions,
+            EnemyAiActionFamily.UseGroundSkill
+        );
+        if (template != null)
+        {
+            return new DistanceStyle(
+                GetDesiredMinDistance(template),
+                GetDesiredMaxDistance(template),
+                GetDistanceReference(template)
+            );
+        }
+        int effectiveRange = BattleRangeService.GetEffectiveSkillDistanceContractRange(
+            unitState,
+            skillDefinition
+        );
+        return new DistanceStyle(
+            0,
+            Math.Max(effectiveRange, 0),
+            EnemyAiDistanceReference.TargetCoord
+        );
+    }
+
+    private static EnemyAiActionDefinition ApplySlotOverrides(
+        EnemyAiActionDefinition action,
+        EnemyAiGenerationSlotDefinition slot,
+        IReadOnlyList<EnemyAiActionDefinition> stateActions
+    )
+    {
+        if (action == null || slot == null)
+            return action;
+
+        EnemyAiActionDefinition template = FindActionById(
+            stateActions,
+            slot.StyleTemplateActionId
+        );
+        StringName scoreBucketId = slot.ScoreBucketId != ""
+            ? slot.ScoreBucketId
+            : action.ScoreBucketId == "" && template != null
+                ? template.ScoreBucketId
+                : action.ScoreBucketId;
+
+        StringName actionIntent = action.ActionIntent;
+        StringName slotIntent = BattleAiActionIntent.DefaultFromSlotRole(slot.SlotRole);
+        if (BattleAiActionIntent.IsValid(slotIntent))
+            actionIntent = slotIntent;
+        else if (
+            template != null
+            && BattleAiActionIntent.IsValid(template.ActionIntent)
+            && template.ActionIntent != BattleAiActionIntent.Positioning
+        )
+            actionIntent = template.ActionIntent;
+
+        StringName targetSelector = GetTargetSelector(action);
+        if (slot.TargetSelector != "")
+            targetSelector = slot.TargetSelector;
+        else if (template != null && GetTargetSelector(template) != "")
+            targetSelector = GetTargetSelector(template);
+
+        int desiredMinDistance = GetDesiredMinDistance(action, -1);
+        int desiredMaxDistance = GetDesiredMaxDistance(action, -1);
+        if (slot.DesiredMinDistance >= 0)
+            desiredMinDistance = slot.DesiredMinDistance;
+        if (slot.DesiredMaxDistance >= 0)
+            desiredMaxDistance = slot.DesiredMaxDistance;
+
+        EnemyAiDistanceReference distanceReference = GetDistanceReference(action);
+        if (
+            slot.DistanceReferenceKind is not EnemyAiDistanceReference.None
+            and not EnemyAiDistanceReference.Unknown
+        )
+            distanceReference = slot.DistanceReferenceKind;
+        if (action.Kind == EnemyAiActionKind.UseRandomChainSkill)
+        {
+            distanceReference = distanceReference is EnemyAiDistanceReference.CandidatePool
+                or EnemyAiDistanceReference.EnemyFrontline
+                ? distanceReference
+                : EnemyAiDistanceReference.CandidatePool;
+        }
+
+        return CopyWithOverrides(
+            action,
+            scoreBucketId,
+            actionIntent,
+            targetSelector,
+            desiredMinDistance,
+            desiredMaxDistance,
+            EnemyAiDistanceReferences.ToStringName(distanceReference)
+        );
+    }
+
+    private static EnemyAiActionDefinition CopyWithOverrides(
+        EnemyAiActionDefinition action,
+        StringName scoreBucketId,
+        StringName actionIntent,
+        StringName targetSelector,
+        int desiredMinDistance,
+        int desiredMaxDistance,
+        StringName distanceReference
+    ) =>
+        action switch
+        {
+            UseUnitSkillActionDefinition value => new UseUnitSkillActionDefinition(
+                value.ActionId,
+                scoreBucketId,
+                actionIntent,
+                value.SkillIds,
+                targetSelector,
+                value.MinimumEffectiveTargetCount,
+                value.MaximumFriendlyFireTargetCount,
+                value.AllowFriendlyLethal,
+                desiredMinDistance,
+                desiredMaxDistance,
+                distanceReference
+            ),
+            UseGroundSkillActionDefinition value => new UseGroundSkillActionDefinition(
+                value.ActionId,
+                scoreBucketId,
+                actionIntent,
+                value.SkillIds,
+                value.MinimumHitCount,
+                value.AllowEmptyGroundControl,
+                value.AllowGroundControlSupplementPartialHits,
+                value.MinimumGroundControlScore,
+                value.MinimumAllyThreatHitCount,
+                value.MaximumFriendlyFireTargetCount,
+                value.AllowFriendlyLethal,
+                value.ThreatMinimumSafeDistance,
+                value.ThreatSafeDistanceMargin,
+                desiredMinDistance,
+                desiredMaxDistance,
+                distanceReference
+            ),
+            UseMultiUnitSkillActionDefinition value => new UseMultiUnitSkillActionDefinition(
+                value.ActionId,
+                scoreBucketId,
+                actionIntent,
+                value.SkillIds,
+                targetSelector,
+                desiredMinDistance,
+                desiredMaxDistance,
+                distanceReference,
+                value.CandidatePoolLimit,
+                value.CandidateGroupLimit
+            ),
+            MoveToMultiUnitSkillPositionActionDefinition value =>
+                new MoveToMultiUnitSkillPositionActionDefinition(
+                    value.ActionId,
+                    scoreBucketId,
+                    actionIntent,
+                    value.SkillIds,
+                    targetSelector,
+                    desiredMinDistance,
+                    desiredMaxDistance,
+                    distanceReference,
+                    value.CandidatePoolLimit,
+                    value.CandidateGroupLimit,
+                    value.TargetCountWeight
+                ),
+            UseRandomChainSkillActionDefinition value =>
+                new UseRandomChainSkillActionDefinition(
+                    value.ActionId,
+                    scoreBucketId,
+                    actionIntent,
+                    value.SkillIds,
+                    targetSelector,
+                    desiredMinDistance,
+                    desiredMaxDistance,
+                    distanceReference,
+                    value.MinimumCandidateCount
+                ),
+            UseChargeActionDefinition value => new UseChargeActionDefinition(
+                value.ActionId,
+                scoreBucketId,
+                actionIntent,
+                value.SkillId,
+                targetSelector,
+                value.MinimumChargeMoveDistance
+            ),
+            UseChargePathAoeActionDefinition value =>
+                new UseChargePathAoeActionDefinition(
+                    value.ActionId,
+                    scoreBucketId,
+                    actionIntent,
+                    value.SkillIds,
+                    targetSelector,
+                    value.MinimumHitCount,
+                    desiredMinDistance,
+                    desiredMaxDistance
+                ),
+            MoveToRangeActionDefinition value => new MoveToRangeActionDefinition(
+                value.ActionId,
+                scoreBucketId,
+                actionIntent,
+                value.AiEvaluationMode,
+                targetSelector,
+                desiredMinDistance,
+                desiredMaxDistance,
+                value.RangeSkillIds,
+                value.ScreeningMode,
+                value.EnableAoeSetupPositioning,
+                value.AoeSetupMinTargetCount,
+                value.AoeSetupTargetCountWeight,
+                value.AoeSetupImprovementWeight,
+                value.AoeSetupFriendlyFirePenalty,
+                value.ScreeningMinHpBasisPoints,
+                value.ScreeningAllyMinAttackRange,
+                value.ScreeningEnemyMaxContactRange,
+                value.ScreeningThreatDistanceBuffer,
+                value.ScreeningPathBonus
+            ),
+            _ => action,
+        };
+
+    private static StringName ResolveGeneratedScoreBucketId(
+        IReadOnlyList<EnemyAiActionDefinition> stateActions,
+        EnemyAiActionFamily preferredFamily
+    )
+    {
+        EnemyAiActionDefinition preferred = FindActionByFamily(
+            stateActions,
+            preferredFamily
+        );
+        if (preferred != null && preferred.ScoreBucketId != "")
+            return preferred.ScoreBucketId;
+        foreach (EnemyAiActionDefinition action in stateActions)
+        {
+            if (
+                action != null
+                && action.ScoreBucketId != ""
+                && action.DeclaredSkillIds.Count > 0
+            )
+                return action.ScoreBucketId;
+        }
+        return "";
+    }
+
+    private static StringName ResolveTargetSelector(
+        IReadOnlyList<EnemyAiActionDefinition> stateActions,
+        StringName fallback
+    )
+    {
+        foreach (EnemyAiActionDefinition action in stateActions)
+        {
+            StringName selector = GetTargetSelector(action);
+            if (selector != "")
+                return selector;
+        }
+        return fallback;
+    }
+
+    private static StringName ResolveGeneratedActionIntent(
+        EnemyAiGenerationSlotDefinition slot,
+        SkillDefinition skillDefinition,
+        EnemyAiActionFamily family
+    )
+    {
+        if (slot.SlotRoleKind == EnemyAiGenerationSlotRole.Support)
+            return BattleAiActionIntent.InferForSkill(skillDefinition);
+        if (slot.SlotRoleKind == EnemyAiGenerationSlotRole.Engage)
+            return BattleAiActionIntent.Offense;
+        StringName slotIntent = BattleAiActionIntent.DefaultFromSlotRole(slot.SlotRole);
+        if (BattleAiActionIntent.IsValid(slotIntent))
+            return slotIntent;
+        return family switch
+        {
+            EnemyAiActionFamily.MoveToRange
+            or EnemyAiActionFamily.MoveToMultiUnitSkillPosition =>
+                BattleAiActionIntent.Positioning,
+            EnemyAiActionFamily.UseCharge or EnemyAiActionFamily.UseChargePathAoe =>
+                BattleAiActionIntent.Offense,
+            _ => BattleAiActionIntent.InferForSkill(skillDefinition),
         };
     }
 
-    private static void ApplySlotOverrides(
-        EnemyAiAction action,
-        EnemyAiGenerationSlotDef slot,
-        IReadOnlyList<EnemyAiAction> stateActions
-    )
-    {
-        if (action == null || slot == null)
-        {
-            return;
-        }
-
-        EnemyAiAction templateAction = FindActionById(
-            stateActions,
-            slot.style_template_action_id
-        );
-        StringName slotBucket = slot.score_bucket_id;
-        if (slotBucket != "")
-        {
-            SetScoreBucket(action, slotBucket);
-        }
-        else if (GetScoreBucket(action) == "" && templateAction != null)
-        {
-            SetScoreBucket(action, GetScoreBucket(templateAction));
-        }
-        StringName slotIntent = BattleAiActionIntent.DefaultFromSlotRole(slot.slot_role);
-        if (BattleAiActionIntent.IsValid(slotIntent))
-        {
-            SetActionIntent(action, slotIntent);
-        }
-        else if (
-            templateAction != null
-            && BattleAiActionIntent.IsValid(GetActionIntent(templateAction))
-            && GetActionIntent(templateAction) != BattleAiActionIntent.Positioning
-        )
-        {
-            SetActionIntent(action, GetActionIntent(templateAction));
-        }
-
-        StringName slotSelector = slot.target_selector;
-        if (slotSelector != "")
-        {
-            SetTargetSelectorIfSupported(action, slotSelector);
-        }
-        else if (templateAction != null)
-        {
-            StringName templateSelector = GetTargetSelector(templateAction);
-            if (templateSelector != "")
-            {
-                SetTargetSelectorIfSupported(action, templateSelector);
-            }
-        }
-
-        int minDistance = slot.desired_min_distance;
-        if (minDistance >= 0)
-        {
-            SetIntIfSupported(action, "desired_min_distance", minDistance);
-        }
-        int maxDistance = slot.desired_max_distance;
-        if (maxDistance >= 0)
-        {
-            SetIntIfSupported(action, "desired_max_distance", maxDistance);
-        }
-        EnemyAiDistanceReference distanceReference = slot.DistanceReferenceKind;
-        if (
-            distanceReference != EnemyAiDistanceReference.None
-            && distanceReference != EnemyAiDistanceReference.Unknown
-        )
-        {
-            SetDistanceReferenceIfSupported(action, distanceReference);
-        }
-    }
-
-    private static void ApplySlotOverrides(
-        BattleAiGeneratedMoveToRangeAction action,
-        EnemyAiGenerationSlotDef slot,
-        IReadOnlyList<EnemyAiAction> stateActions
-    )
-    {
-        if (action == null || slot == null)
-        {
-            return;
-        }
-
-        EnemyAiAction templateAction = FindActionById(
-            stateActions,
-            slot.style_template_action_id
-        );
-        StringName slotBucket = slot.score_bucket_id;
-        if (slotBucket != "")
-        {
-            action.ScoreBucketId = slotBucket;
-        }
-        else if (action.ScoreBucketId == "" && templateAction != null)
-        {
-            action.ScoreBucketId = GetScoreBucket(templateAction);
-        }
-
-        StringName slotIntent = BattleAiActionIntent.DefaultFromSlotRole(slot.slot_role);
-        if (BattleAiActionIntent.IsValid(slotIntent))
-        {
-            action.ActionIntent = slotIntent;
-        }
-        else if (
-            templateAction != null
-            && BattleAiActionIntent.IsValid(GetActionIntent(templateAction))
-            && GetActionIntent(templateAction) != BattleAiActionIntent.Positioning
-        )
-        {
-            action.ActionIntent = GetActionIntent(templateAction);
-        }
-
-        StringName slotSelector = slot.target_selector;
-        if (slotSelector != "")
-        {
-            action.TargetSelector = slotSelector;
-        }
-        else if (templateAction != null)
-        {
-            StringName templateSelector = GetTargetSelector(templateAction);
-            if (templateSelector != "")
-            {
-                action.TargetSelector = templateSelector;
-            }
-        }
-
-        int minDistance = slot.desired_min_distance;
-        if (minDistance >= 0)
-        {
-            action.DesiredMinDistance = minDistance;
-        }
-        int maxDistance = slot.desired_max_distance;
-        if (maxDistance >= 0)
-        {
-            action.DesiredMaxDistance = maxDistance;
-        }
-    }
-
-    private static void ApplySlotOverrides(
-        BattleAiUnitSkillActionSpec action,
-        EnemyAiGenerationSlotDef slot,
-        IReadOnlyList<EnemyAiAction> stateActions
-    )
-    {
-        if (action == null || slot == null)
-        {
-            return;
-        }
-
-        EnemyAiAction templateAction = FindActionById(
-            stateActions,
-            slot.style_template_action_id
-        );
-        StringName slotBucket = slot.score_bucket_id;
-        if (slotBucket != "")
-        {
-            action.ScoreBucketId = slotBucket;
-        }
-        else if (action.ScoreBucketId == "" && templateAction != null)
-        {
-            action.ScoreBucketId = GetScoreBucket(templateAction);
-        }
-
-        StringName slotIntent = BattleAiActionIntent.DefaultFromSlotRole(slot.slot_role);
-        if (BattleAiActionIntent.IsValid(slotIntent))
-        {
-            action.ActionIntent = slotIntent;
-        }
-        else if (
-            templateAction != null
-            && BattleAiActionIntent.IsValid(GetActionIntent(templateAction))
-            && GetActionIntent(templateAction) != BattleAiActionIntent.Positioning
-        )
-        {
-            action.ActionIntent = GetActionIntent(templateAction);
-        }
-
-        StringName slotSelector = slot.target_selector;
-        if (slotSelector != "")
-        {
-            action.TargetSelector = slotSelector;
-        }
-        else if (templateAction != null)
-        {
-            StringName templateSelector = GetTargetSelector(templateAction);
-            if (templateSelector != "")
-            {
-                action.TargetSelector = templateSelector;
-            }
-        }
-
-        int minDistance = slot.desired_min_distance;
-        if (minDistance >= 0)
-        {
-            action.DesiredMinDistance = minDistance;
-        }
-        int maxDistance = slot.desired_max_distance;
-        if (maxDistance >= 0)
-        {
-            action.DesiredMaxDistance = maxDistance;
-        }
-        EnemyAiDistanceReference distanceReference = slot.DistanceReferenceKind;
-        if (
-            distanceReference != EnemyAiDistanceReference.None
-            && distanceReference != EnemyAiDistanceReference.Unknown
-        )
-        {
-            action.DistanceReferenceKind = distanceReference;
-        }
-    }
-
-    private static void ApplySlotOverrides(
-        BattleAiRandomChainSkillActionSpec action,
-        EnemyAiGenerationSlotDef slot,
-        IReadOnlyList<EnemyAiAction> stateActions
-    )
-    {
-        if (action == null || slot == null)
-        {
-            return;
-        }
-
-        EnemyAiAction templateAction = FindActionById(
-            stateActions,
-            slot.style_template_action_id
-        );
-        StringName slotBucket = slot.score_bucket_id;
-        if (slotBucket != "")
-        {
-            action.ScoreBucketId = slotBucket;
-        }
-        else if (action.ScoreBucketId == "" && templateAction != null)
-        {
-            action.ScoreBucketId = GetScoreBucket(templateAction);
-        }
-
-        StringName slotIntent = BattleAiActionIntent.DefaultFromSlotRole(slot.slot_role);
-        if (BattleAiActionIntent.IsValid(slotIntent))
-        {
-            action.ActionIntent = slotIntent;
-        }
-        else if (
-            templateAction != null
-            && BattleAiActionIntent.IsValid(GetActionIntent(templateAction))
-            && GetActionIntent(templateAction) != BattleAiActionIntent.Positioning
-        )
-        {
-            action.ActionIntent = GetActionIntent(templateAction);
-        }
-
-        StringName slotSelector = slot.target_selector;
-        if (slotSelector != "")
-        {
-            action.TargetSelector = slotSelector;
-        }
-        else if (templateAction != null)
-        {
-            StringName templateSelector = GetTargetSelector(templateAction);
-            if (templateSelector != "")
-            {
-                action.TargetSelector = templateSelector;
-            }
-        }
-
-        int minDistance = slot.desired_min_distance;
-        if (minDistance >= 0)
-        {
-            action.DesiredMinDistance = minDistance;
-        }
-        int maxDistance = slot.desired_max_distance;
-        if (maxDistance >= 0)
-        {
-            action.DesiredMaxDistance = maxDistance;
-        }
-        EnemyAiDistanceReference distanceReference = slot.DistanceReferenceKind;
-        if (
-            distanceReference != EnemyAiDistanceReference.None
-            && distanceReference != EnemyAiDistanceReference.Unknown
-        )
-        {
-            action.DistanceReferenceKind =
-                distanceReference == EnemyAiDistanceReference.CandidatePool
-                || distanceReference == EnemyAiDistanceReference.EnemyFrontline
-                    ? distanceReference
-                    : EnemyAiDistanceReference.CandidatePool;
-        }
-    }
-
-    private static void ApplySlotOverrides(
-        BattleAiMultiUnitSkillActionSpec action,
-        EnemyAiGenerationSlotDef slot,
-        IReadOnlyList<EnemyAiAction> stateActions
-    )
-    {
-        if (action == null || slot == null)
-        {
-            return;
-        }
-
-        EnemyAiAction templateAction = FindActionById(
-            stateActions,
-            slot.style_template_action_id
-        );
-        StringName slotBucket = slot.score_bucket_id;
-        if (slotBucket != "")
-        {
-            action.ScoreBucketId = slotBucket;
-        }
-        else if (action.ScoreBucketId == "" && templateAction != null)
-        {
-            action.ScoreBucketId = GetScoreBucket(templateAction);
-        }
-
-        StringName slotIntent = BattleAiActionIntent.DefaultFromSlotRole(slot.slot_role);
-        if (BattleAiActionIntent.IsValid(slotIntent))
-        {
-            action.ActionIntent = slotIntent;
-        }
-        else if (
-            templateAction != null
-            && BattleAiActionIntent.IsValid(GetActionIntent(templateAction))
-            && GetActionIntent(templateAction) != BattleAiActionIntent.Positioning
-        )
-        {
-            action.ActionIntent = GetActionIntent(templateAction);
-        }
-
-        StringName slotSelector = slot.target_selector;
-        if (slotSelector != "")
-        {
-            action.TargetSelector = slotSelector;
-        }
-        else if (templateAction != null)
-        {
-            StringName templateSelector = GetTargetSelector(templateAction);
-            if (templateSelector != "")
-            {
-                action.TargetSelector = templateSelector;
-            }
-        }
-
-        int minDistance = slot.desired_min_distance;
-        if (minDistance >= 0)
-        {
-            action.DesiredMinDistance = minDistance;
-        }
-        int maxDistance = slot.desired_max_distance;
-        if (maxDistance >= 0)
-        {
-            action.DesiredMaxDistance = maxDistance;
-        }
-        EnemyAiDistanceReference distanceReference = slot.DistanceReferenceKind;
-        if (
-            distanceReference != EnemyAiDistanceReference.None
-            && distanceReference != EnemyAiDistanceReference.Unknown
-        )
-        {
-            action.DistanceReferenceKind = distanceReference;
-        }
-    }
-
-    private static void ApplySlotOverrides(
-        BattleAiMoveToMultiUnitSkillPositionActionSpec action,
-        EnemyAiGenerationSlotDef slot,
-        IReadOnlyList<EnemyAiAction> stateActions
-    )
-    {
-        if (action == null || slot == null)
-        {
-            return;
-        }
-
-        EnemyAiAction templateAction = FindActionById(
-            stateActions,
-            slot.style_template_action_id
-        );
-        StringName slotBucket = slot.score_bucket_id;
-        if (slotBucket != "")
-        {
-            action.ScoreBucketId = slotBucket;
-        }
-        else if (action.ScoreBucketId == "" && templateAction != null)
-        {
-            action.ScoreBucketId = GetScoreBucket(templateAction);
-        }
-
-        StringName slotIntent = BattleAiActionIntent.DefaultFromSlotRole(slot.slot_role);
-        if (BattleAiActionIntent.IsValid(slotIntent))
-        {
-            action.ActionIntent = slotIntent;
-        }
-        else if (
-            templateAction != null
-            && BattleAiActionIntent.IsValid(GetActionIntent(templateAction))
-            && GetActionIntent(templateAction) != BattleAiActionIntent.Positioning
-        )
-        {
-            action.ActionIntent = GetActionIntent(templateAction);
-        }
-
-        StringName slotSelector = slot.target_selector;
-        if (slotSelector != "")
-        {
-            action.TargetSelector = slotSelector;
-        }
-        else if (templateAction != null)
-        {
-            StringName templateSelector = GetTargetSelector(templateAction);
-            if (templateSelector != "")
-            {
-                action.TargetSelector = templateSelector;
-            }
-        }
-
-        int minDistance = slot.desired_min_distance;
-        if (minDistance >= 0)
-        {
-            action.DesiredMinDistance = minDistance;
-        }
-        int maxDistance = slot.desired_max_distance;
-        if (maxDistance >= 0)
-        {
-            action.DesiredMaxDistance = maxDistance;
-        }
-        EnemyAiDistanceReference distanceReference = slot.DistanceReferenceKind;
-        if (
-            distanceReference != EnemyAiDistanceReference.None
-            && distanceReference != EnemyAiDistanceReference.Unknown
-        )
-        {
-            action.DistanceReferenceKind = distanceReference;
-        }
-    }
-
-    private static void ApplySlotOverrides(
-        BattleAiChargeActionSpec action,
-        EnemyAiGenerationSlotDef slot,
-        IReadOnlyList<EnemyAiAction> stateActions
-    )
-    {
-        if (action == null || slot == null)
-        {
-            return;
-        }
-
-        EnemyAiAction templateAction = FindActionById(
-            stateActions,
-            slot.style_template_action_id
-        );
-        StringName slotBucket = slot.score_bucket_id;
-        if (slotBucket != "")
-        {
-            action.ScoreBucketId = slotBucket;
-        }
-        else if (action.ScoreBucketId == "" && templateAction != null)
-        {
-            action.ScoreBucketId = GetScoreBucket(templateAction);
-        }
-
-        StringName slotIntent = BattleAiActionIntent.DefaultFromSlotRole(slot.slot_role);
-        if (BattleAiActionIntent.IsValid(slotIntent))
-        {
-            action.ActionIntent = slotIntent;
-        }
-        else if (
-            templateAction != null
-            && BattleAiActionIntent.IsValid(GetActionIntent(templateAction))
-            && GetActionIntent(templateAction) != BattleAiActionIntent.Positioning
-        )
-        {
-            action.ActionIntent = GetActionIntent(templateAction);
-        }
-
-        StringName slotSelector = slot.target_selector;
-        if (slotSelector != "")
-        {
-            action.TargetSelector = slotSelector;
-        }
-        else if (templateAction != null)
-        {
-            StringName templateSelector = GetTargetSelector(templateAction);
-            if (templateSelector != "")
-            {
-                action.TargetSelector = templateSelector;
-            }
-        }
-    }
-
-    private static void ApplySlotOverrides(
-        BattleAiChargePathAoeActionSpec action,
-        EnemyAiGenerationSlotDef slot,
-        IReadOnlyList<EnemyAiAction> stateActions
-    )
-    {
-        if (action == null || slot == null)
-        {
-            return;
-        }
-
-        EnemyAiAction templateAction = FindActionById(
-            stateActions,
-            slot.style_template_action_id
-        );
-        StringName slotBucket = slot.score_bucket_id;
-        if (slotBucket != "")
-        {
-            action.ScoreBucketId = slotBucket;
-        }
-        else if (action.ScoreBucketId == "" && templateAction != null)
-        {
-            action.ScoreBucketId = GetScoreBucket(templateAction);
-        }
-
-        StringName slotIntent = BattleAiActionIntent.DefaultFromSlotRole(slot.slot_role);
-        if (BattleAiActionIntent.IsValid(slotIntent))
-        {
-            action.ActionIntent = slotIntent;
-        }
-        else if (
-            templateAction != null
-            && BattleAiActionIntent.IsValid(GetActionIntent(templateAction))
-            && GetActionIntent(templateAction) != BattleAiActionIntent.Positioning
-        )
-        {
-            action.ActionIntent = GetActionIntent(templateAction);
-        }
-
-        StringName slotSelector = slot.target_selector;
-        if (slotSelector != "")
-        {
-            action.TargetSelector = slotSelector;
-        }
-        else if (templateAction != null)
-        {
-            StringName templateSelector = GetTargetSelector(templateAction);
-            if (templateSelector != "")
-            {
-                action.TargetSelector = templateSelector;
-            }
-        }
-
-        int minDistance = slot.desired_min_distance;
-        if (minDistance >= 0)
-        {
-            action.DesiredMinDistance = minDistance;
-        }
-        int maxDistance = slot.desired_max_distance;
-        if (maxDistance >= 0)
-        {
-            action.DesiredMaxDistance = maxDistance;
-        }
-    }
-
-    private static void ApplySlotOverrides(
-        BattleAiGroundSkillActionSpec action,
-        EnemyAiGenerationSlotDef slot,
-        IReadOnlyList<EnemyAiAction> stateActions
-    )
-    {
-        if (action == null || slot == null)
-        {
-            return;
-        }
-
-        EnemyAiAction templateAction = FindActionById(
-            stateActions,
-            slot.style_template_action_id
-        );
-        StringName slotBucket = slot.score_bucket_id;
-        if (slotBucket != "")
-        {
-            action.ScoreBucketId = slotBucket;
-        }
-        else if (action.ScoreBucketId == "" && templateAction != null)
-        {
-            action.ScoreBucketId = GetScoreBucket(templateAction);
-        }
-
-        StringName slotIntent = BattleAiActionIntent.DefaultFromSlotRole(slot.slot_role);
-        if (BattleAiActionIntent.IsValid(slotIntent))
-        {
-            action.ActionIntent = slotIntent;
-        }
-        else if (
-            templateAction != null
-            && BattleAiActionIntent.IsValid(GetActionIntent(templateAction))
-            && GetActionIntent(templateAction) != BattleAiActionIntent.Positioning
-        )
-        {
-            action.ActionIntent = GetActionIntent(templateAction);
-        }
-
-        int minDistance = slot.desired_min_distance;
-        if (minDistance >= 0)
-        {
-            action.DesiredMinDistance = minDistance;
-        }
-        int maxDistance = slot.desired_max_distance;
-        if (maxDistance >= 0)
-        {
-            action.DesiredMaxDistance = maxDistance;
-        }
-        EnemyAiDistanceReference distanceReference = slot.DistanceReferenceKind;
-        if (
-            distanceReference != EnemyAiDistanceReference.None
-            && distanceReference != EnemyAiDistanceReference.Unknown
-        )
-        {
-            action.DistanceReferenceKind = distanceReference;
-        }
-    }
-
-    private static EnemyAiAction FindActionById(
-        IReadOnlyList<EnemyAiAction> stateActions,
+    private static EnemyAiActionDefinition FindActionById(
+        IReadOnlyList<EnemyAiActionDefinition> actions,
         StringName actionId
     )
     {
-        foreach (EnemyAiAction action in stateActions ?? System.Array.Empty<EnemyAiAction>())
+        foreach (EnemyAiActionDefinition action in actions ?? Array.Empty<EnemyAiActionDefinition>())
         {
-            if (action != null && GetActionId(action) == actionId)
-            {
+            if (action?.ActionId == actionId)
                 return action;
-            }
         }
         return null;
     }
 
-    private static EnemyAiAction FindActionByFamily(
-        IReadOnlyList<EnemyAiAction> stateActions,
-        EnemyAiActionFamily actionFamily
+    private static EnemyAiActionDefinition FindActionByFamily(
+        IReadOnlyList<EnemyAiActionDefinition> actions,
+        EnemyAiActionFamily family
     )
     {
-        foreach (EnemyAiAction action in stateActions ?? System.Array.Empty<EnemyAiAction>())
+        foreach (EnemyAiActionDefinition action in actions ?? Array.Empty<EnemyAiActionDefinition>())
         {
-            if (action != null && GetActionFamilyForAction(action) == actionFamily)
-            {
+            if (action != null && GetActionFamily(action) == family)
                 return action;
-            }
         }
         return null;
     }
+
+    private static EnemyAiActionFamily GetActionFamily(EnemyAiActionDefinition action) =>
+        action?.Kind switch
+        {
+            EnemyAiActionKind.UseUnitSkill => EnemyAiActionFamily.UseUnitSkill,
+            EnemyAiActionKind.UseGroundSkill => EnemyAiActionFamily.UseGroundSkill,
+            EnemyAiActionKind.UseMultiUnitSkill => EnemyAiActionFamily.UseMultiUnitSkill,
+            EnemyAiActionKind.MoveToMultiUnitSkillPosition =>
+                EnemyAiActionFamily.MoveToMultiUnitSkillPosition,
+            EnemyAiActionKind.UseRandomChainSkill => EnemyAiActionFamily.UseRandomChainSkill,
+            EnemyAiActionKind.UseCharge => EnemyAiActionFamily.UseCharge,
+            EnemyAiActionKind.UseChargePathAoe => EnemyAiActionFamily.UseChargePathAoe,
+            EnemyAiActionKind.MoveToRange => EnemyAiActionFamily.MoveToRange,
+            _ => EnemyAiActionFamily.Unknown,
+        };
+
+    private static EnemyAiActionFamily ToActionFamily(StringName value) =>
+        value.ToString() switch
+        {
+            "use_unit_skill" => EnemyAiActionFamily.UseUnitSkill,
+            "use_ground_skill" => EnemyAiActionFamily.UseGroundSkill,
+            "use_multi_unit_skill" => EnemyAiActionFamily.UseMultiUnitSkill,
+            "use_random_chain_skill" => EnemyAiActionFamily.UseRandomChainSkill,
+            "use_charge" => EnemyAiActionFamily.UseCharge,
+            "use_charge_path_aoe" => EnemyAiActionFamily.UseChargePathAoe,
+            "move_to_range" => EnemyAiActionFamily.MoveToRange,
+            "move_to_multi_unit_skill_position" =>
+                EnemyAiActionFamily.MoveToMultiUnitSkillPosition,
+            _ => EnemyAiActionFamily.Unknown,
+        };
+
+    private static StringName GetTargetSelector(EnemyAiActionDefinition action) =>
+        action switch
+        {
+            UseUnitSkillActionDefinition value => value.TargetSelector,
+            UseMultiUnitSkillActionDefinition value => value.TargetSelector,
+            MoveToMultiUnitSkillPositionActionDefinition value => value.TargetSelector,
+            UseRandomChainSkillActionDefinition value => value.TargetSelector,
+            UseGroundRepositionSkillActionDefinition value => value.TargetSelector,
+            RetreatActionDefinition value => value.TargetSelector,
+            UseChargePathAoeActionDefinition value => value.TargetSelector,
+            UseChargeActionDefinition value => value.TargetSelector,
+            MoveToRangeActionDefinition value => value.TargetSelector,
+            MoveToAdvantagePositionActionDefinition value => value.TargetSelector,
+            _ => "",
+        };
+
+    private static int GetDesiredMinDistance(
+        EnemyAiActionDefinition action,
+        int fallback = 0
+    ) =>
+        action switch
+        {
+            UseUnitSkillActionDefinition value => value.DesiredMinDistance,
+            UseGroundSkillActionDefinition value => value.DesiredMinDistance,
+            UseMultiUnitSkillActionDefinition value => value.DesiredMinDistance,
+            MoveToMultiUnitSkillPositionActionDefinition value => value.DesiredMinDistance,
+            UseRandomChainSkillActionDefinition value => value.DesiredMinDistance,
+            MoveToRangeActionDefinition value => value.DesiredMinDistance,
+            UseChargePathAoeActionDefinition value => value.DesiredMinDistance,
+            MoveToAdvantagePositionActionDefinition value => value.DesiredMinDistance,
+            _ => fallback,
+        };
+
+    private static int GetDesiredMaxDistance(
+        EnemyAiActionDefinition action,
+        int fallback = 0
+    ) =>
+        action switch
+        {
+            UseUnitSkillActionDefinition value => value.DesiredMaxDistance,
+            UseGroundSkillActionDefinition value => value.DesiredMaxDistance,
+            UseMultiUnitSkillActionDefinition value => value.DesiredMaxDistance,
+            MoveToMultiUnitSkillPositionActionDefinition value => value.DesiredMaxDistance,
+            UseRandomChainSkillActionDefinition value => value.DesiredMaxDistance,
+            MoveToRangeActionDefinition value => value.DesiredMaxDistance,
+            UseChargePathAoeActionDefinition value => value.DesiredMaxDistance,
+            MoveToAdvantagePositionActionDefinition value => value.DesiredMaxDistance,
+            _ => fallback,
+        };
+
+    private static EnemyAiDistanceReference GetDistanceReference(
+        EnemyAiActionDefinition action
+    ) =>
+        action switch
+        {
+            UseUnitSkillActionDefinition value =>
+                EnemyAiDistanceReferences.ToKind(value.DistanceReference),
+            UseGroundSkillActionDefinition value =>
+                EnemyAiDistanceReferences.ToKind(value.DistanceReference),
+            UseMultiUnitSkillActionDefinition value =>
+                EnemyAiDistanceReferences.ToKind(value.DistanceReference),
+            MoveToMultiUnitSkillPositionActionDefinition value =>
+                EnemyAiDistanceReferences.ToKind(value.DistanceReference),
+            UseRandomChainSkillActionDefinition value =>
+                EnemyAiDistanceReferences.ToKind(value.DistanceReference),
+            _ => EnemyAiDistanceReference.None,
+        };
 
     private static StringName BuildRuntimeActionId(
         StringName stateId,
         StringName slotId,
         StringName skillId,
         StringName actionFamily
-    )
-    {
-        return new StringName($"auto_{stateId}_{slotId}_{skillId}_{actionFamily}");
-    }
+    ) => new($"auto_{stateId}_{slotId}_{skillId}_{actionFamily}");
 
     private static string BuildIdentityKey(
         StringName stateId,
         StringName slotId,
         StringName skillId,
         StringName actionFamily
-    )
-    {
-        return $"{stateId}/{slotId}/{skillId}/{actionFamily}";
-    }
+    ) => $"{stateId}/{slotId}/{skillId}/{actionFamily}";
 
-    private static StringName ResolveGeneratedActionIntent(
-        EnemyAiGenerationSlotDef slot,
-        SkillDefinition skillDefinition,
-        StringName actionFamily
-    )
+    private static bool Contains(IReadOnlyList<StringName> values, StringName expected)
     {
-        EnemyAiGenerationSlotRole slotRole = slot?.SlotRoleKind ?? EnemyAiGenerationSlotRole.Unknown;
-        if (slotRole == EnemyAiGenerationSlotRole.Support)
+        foreach (StringName value in values ?? Array.Empty<StringName>())
         {
-            return BattleAiActionIntent.InferForSkill(skillDefinition);
+            if (value == expected)
+                return true;
         }
-        if (slotRole == EnemyAiGenerationSlotRole.Engage)
-        {
-            return BattleAiActionIntent.Offense;
-        }
-        StringName slotIntent = BattleAiActionIntent.DefaultFromSlotRole(slot?.slot_role ?? "");
-        if (BattleAiActionIntent.IsValid(slotIntent))
-        {
-            return slotIntent;
-        }
-        return EnemyAiGenerationSlotDef.ToActionFamily(actionFamily) switch
-        {
-            EnemyAiActionFamily.MoveToRange
-            or EnemyAiActionFamily.MoveToMultiUnitSkillPosition =>
-                BattleAiActionIntent.Positioning,
-            EnemyAiActionFamily.UseCharge
-            or EnemyAiActionFamily.UseChargePathAoe => BattleAiActionIntent.Offense,
-            _ => BattleAiActionIntent.InferForSkill(skillDefinition),
-        };
-    }
-
-    private static BattleAiChargePathAoeActionSpec BuildChargePathAoeRuntimeAction(
-        EnemyAiStateDef stateDef,
-        IReadOnlyList<EnemyAiAction> stateActions,
-        SkillDefinition skillDefinition
-    )
-    {
-        return new BattleAiChargePathAoeActionSpec
-        {
-            ActionId = BuildActionId(
-                stateDef.state_id,
-                skillDefinition.SkillId,
-                "path_aoe"
-            ),
-            ScoreBucketId = ResolveGeneratedScoreBucketId(
-                stateActions,
-                EnemyAiActionFamily.UseCharge
-            ),
-            TargetSelector = ResolveTargetSelector(
-                stateActions,
-                EnemyAiTargetSelectorRules.NearestEnemy
-            ),
-            SkillIds = new List<StringName> { skillDefinition.SkillId },
-            MinimumHitCount = 1,
-            DesiredMinDistance = 1,
-            DesiredMaxDistance = 1,
-        };
-    }
-
-    private static BattleAiChargeActionSpec BuildChargeRuntimeAction(
-        EnemyAiStateDef stateDef,
-        IReadOnlyList<EnemyAiAction> stateActions,
-        SkillDefinition skillDefinition
-    )
-    {
-        return new BattleAiChargeActionSpec
-        {
-            ActionId = BuildActionId(
-                stateDef.state_id,
-                skillDefinition.SkillId,
-                "charge"
-            ),
-            ScoreBucketId = ResolveGeneratedScoreBucketId(
-                stateActions,
-                EnemyAiActionFamily.UseCharge
-            ),
-            SkillId = skillDefinition.SkillId,
-            TargetSelector = ResolveTargetSelector(
-                stateActions,
-                EnemyAiTargetSelectorRules.NearestEnemy
-            ),
-            MinimumChargeMoveDistance = 3,
-        };
-    }
-
-    private static BattleAiGroundSkillActionSpec BuildGroundRuntimeAction(
-        BattleUnitState unitState,
-        EnemyAiStateDef stateDef,
-        IReadOnlyList<EnemyAiAction> stateActions,
-        SkillDefinition skillDefinition
-    )
-    {
-        var action = new BattleAiGroundSkillActionSpec
-        {
-            ActionId = BuildActionId(
-                stateDef.state_id,
-                skillDefinition.SkillId,
-                "ground"
-            ),
-            ScoreBucketId = ResolveGeneratedScoreBucketId(
-                stateActions,
-                EnemyAiActionFamily.UseGroundSkill
-            ),
-            SkillIds = new List<StringName> { skillDefinition.SkillId },
-            MinimumHitCount = Mathf.Max(skillDefinition.CombatProfile?.MinTargetCount ?? 0, 1),
-        };
-        ApplyGroundDistanceStyle(action, unitState, stateActions, skillDefinition);
-        return action;
-    }
-
-    private static BattleAiUnitSkillActionSpec BuildUnitRuntimeAction(
-        BattleUnitState unitState,
-        EnemyAiStateDef stateDef,
-        IReadOnlyList<EnemyAiAction> stateActions,
-        SkillDefinition skillDefinition
-    )
-    {
-        var action = new BattleAiUnitSkillActionSpec
-        {
-            ActionId = BuildActionId(
-                stateDef.state_id,
-                skillDefinition.SkillId,
-                "unit"
-            ),
-            ScoreBucketId = ResolveGeneratedScoreBucketId(
-                stateActions,
-                EnemyAiActionFamily.UseUnitSkill
-            ),
-            TargetSelector = ResolveTargetSelector(
-                stateActions,
-                EnemyAiTargetSelectorRules.NearestEnemy
-            ),
-            SkillIds = new List<StringName> { skillDefinition.SkillId },
-            MinimumEffectiveTargetCount = 1,
-            MaximumFriendlyFireTargetCount = 0,
-            AllowFriendlyLethal = false,
-        };
-        ApplyUnitDistanceStyle(action, unitState, stateActions, skillDefinition);
-        return action;
-    }
-
-    private static BattleAiMultiUnitSkillActionSpec BuildMultiUnitRuntimeAction(
-        BattleUnitState unitState,
-        EnemyAiStateDef stateDef,
-        IReadOnlyList<EnemyAiAction> stateActions,
-        SkillDefinition skillDefinition
-    )
-    {
-        var action = new BattleAiMultiUnitSkillActionSpec
-        {
-            ActionId = BuildActionId(
-                stateDef.state_id,
-                skillDefinition.SkillId,
-                "multi"
-            ),
-            ScoreBucketId = ResolveGeneratedScoreBucketId(
-                stateActions,
-                EnemyAiActionFamily.UseMultiUnitSkill
-            ),
-            TargetSelector = ResolveTargetSelector(
-                stateActions,
-                EnemyAiTargetSelectorRules.NearestEnemy
-            ),
-            SkillIds = new List<StringName> { skillDefinition.SkillId },
-        };
-        ApplyUnitDistanceStyle(action, unitState, stateActions, skillDefinition);
-        return action;
-    }
-
-    private static BattleAiRandomChainSkillActionSpec BuildRandomChainRuntimeAction(
-        BattleUnitState unitState,
-        EnemyAiStateDef stateDef,
-        IReadOnlyList<EnemyAiAction> stateActions,
-        SkillDefinition skillDefinition
-    )
-    {
-        var action = new BattleAiRandomChainSkillActionSpec
-        {
-            ActionId = BuildActionId(
-                stateDef.state_id,
-                skillDefinition.SkillId,
-                "random_chain"
-            ),
-            ScoreBucketId = ResolveGeneratedScoreBucketId(
-                stateActions,
-                EnemyAiActionFamily.UseUnitSkill
-            ),
-            TargetSelector = ResolveTargetSelector(
-                stateActions,
-                EnemyAiTargetSelectorRules.NearestEnemy
-            ),
-            SkillIds = new List<StringName> { skillDefinition.SkillId },
-        };
-        ApplyRandomChainDistanceStyle(action, unitState, stateActions, skillDefinition);
-        return action;
-    }
-
-    private static BattleAiGeneratedMoveToRangeAction BuildMoveToRangeRuntimeAction(
-        BattleUnitState unitState,
-        EnemyAiStateDef stateDef,
-        IReadOnlyList<EnemyAiAction> stateActions,
-        SkillDefinition skillDefinition
-    )
-    {
-        int effectiveRange = BattleRangeService.GetEffectiveSkillDistanceContractRange(
-            unitState,
-            skillDefinition
-        );
-        int minDistance = effectiveRange > 0 ? Math.Min(1, effectiveRange) : 0;
-        return new BattleAiGeneratedMoveToRangeAction
-        {
-            ActionId = BuildActionId(
-                stateDef.state_id,
-                skillDefinition.SkillId,
-                "range_move"
-            ),
-            ScoreBucketId = ResolveGeneratedScoreBucketId(
-                stateActions,
-                EnemyAiActionFamily.MoveToRange
-            ),
-            TargetSelector = ResolveTargetSelector(
-                stateActions,
-                EnemyAiTargetSelectorRules.NearestEnemy
-            ),
-            RangeSkillIds = new List<StringName> { skillDefinition.SkillId },
-            DesiredMinDistance = minDistance,
-            DesiredMaxDistance = Math.Max(effectiveRange, minDistance),
-        };
-    }
-
-    private static BattleAiMoveToMultiUnitSkillPositionActionSpec BuildMoveToMultiUnitRuntimeAction(
-        BattleUnitState unitState,
-        EnemyAiStateDef stateDef,
-        IReadOnlyList<EnemyAiAction> stateActions,
-        SkillDefinition skillDefinition
-    )
-    {
-        var action = new BattleAiMoveToMultiUnitSkillPositionActionSpec
-        {
-            ActionId = BuildActionId(
-                stateDef.state_id,
-                skillDefinition.SkillId,
-                "multi_move"
-            ),
-            ScoreBucketId = ResolveGeneratedScoreBucketId(
-                stateActions,
-                EnemyAiActionFamily.MoveToMultiUnitSkillPosition
-            ),
-            TargetSelector = ResolveTargetSelector(
-                stateActions,
-                EnemyAiTargetSelectorRules.NearestEnemy
-            ),
-            SkillIds = new List<StringName> { skillDefinition.SkillId },
-        };
-        ApplyUnitDistanceStyle(action, unitState, stateActions, skillDefinition);
-        return action;
-    }
-
-    private static void ApplyUnitDistanceStyle(
-        EnemyAiAction action,
-        BattleUnitState unitState,
-        IReadOnlyList<EnemyAiAction> stateActions,
-        SkillDefinition skillDefinition
-    )
-    {
-        EnemyAiAction templateAction =
-            FindActionByFamily(stateActions, EnemyAiActionFamily.UseUnitSkill)
-            ?? FindActionByFamily(stateActions, EnemyAiActionFamily.UseMultiUnitSkill);
-        if (templateAction != null)
-        {
-            SetIntIfSupported(
-                action,
-                "desired_min_distance",
-                GetDesiredMinDistance(templateAction)
-            );
-            SetIntIfSupported(
-                action,
-                "desired_max_distance",
-                GetDesiredMaxDistance(templateAction)
-            );
-            SetDistanceReferenceIfSupported(
-                action,
-                GetDistanceReferenceKind(templateAction)
-            );
-            return;
-        }
-        int effectiveRange = BattleRangeService.GetEffectiveSkillDistanceContractRange(
-            unitState,
-            skillDefinition
-        );
-        SetIntIfSupported(
-            action,
-            "desired_min_distance",
-            effectiveRange > 0 ? Math.Min(1, effectiveRange) : 0
-        );
-        SetIntIfSupported(
-            action,
-            "desired_max_distance",
-            Math.Max(effectiveRange, effectiveRange > 0 ? Math.Min(1, effectiveRange) : 0)
-        );
-        SetDistanceReferenceIfSupported(action, EnemyAiDistanceReference.TargetUnit);
-    }
-
-    private static void ApplyUnitDistanceStyle(
-        BattleAiUnitSkillActionSpec action,
-        BattleUnitState unitState,
-        IReadOnlyList<EnemyAiAction> stateActions,
-        SkillDefinition skillDefinition
-    )
-    {
-        if (action == null)
-        {
-            return;
-        }
-        EnemyAiAction templateAction =
-            FindActionByFamily(stateActions, EnemyAiActionFamily.UseUnitSkill)
-            ?? FindActionByFamily(stateActions, EnemyAiActionFamily.UseMultiUnitSkill);
-        if (templateAction != null)
-        {
-            action.DesiredMinDistance = GetDesiredMinDistance(templateAction);
-            action.DesiredMaxDistance = GetDesiredMaxDistance(templateAction);
-            action.DistanceReferenceKind = GetDistanceReferenceKind(templateAction);
-            return;
-        }
-        int effectiveRange = BattleRangeService.GetEffectiveSkillDistanceContractRange(
-            unitState,
-            skillDefinition
-        );
-        action.DesiredMinDistance = effectiveRange > 0 ? Math.Min(1, effectiveRange) : 0;
-        action.DesiredMaxDistance = Math.Max(
-            effectiveRange,
-            effectiveRange > 0 ? Math.Min(1, effectiveRange) : 0
-        );
-        action.DistanceReferenceKind = EnemyAiDistanceReference.TargetUnit;
-    }
-
-    private static void ApplyUnitDistanceStyle(
-        BattleAiMultiUnitSkillActionSpec action,
-        BattleUnitState unitState,
-        IReadOnlyList<EnemyAiAction> stateActions,
-        SkillDefinition skillDefinition
-    )
-    {
-        if (action == null)
-        {
-            return;
-        }
-        EnemyAiAction templateAction =
-            FindActionByFamily(stateActions, EnemyAiActionFamily.UseMultiUnitSkill)
-            ?? FindActionByFamily(stateActions, EnemyAiActionFamily.UseUnitSkill);
-        if (templateAction != null)
-        {
-            action.DesiredMinDistance = GetDesiredMinDistance(templateAction);
-            action.DesiredMaxDistance = GetDesiredMaxDistance(templateAction);
-            action.DistanceReferenceKind = GetDistanceReferenceKind(templateAction);
-            return;
-        }
-        int effectiveRange = BattleRangeService.GetEffectiveSkillDistanceContractRange(
-            unitState,
-            skillDefinition
-        );
-        action.DesiredMinDistance = effectiveRange > 0 ? Math.Min(1, effectiveRange) : 0;
-        action.DesiredMaxDistance = Math.Max(
-            effectiveRange,
-            effectiveRange > 0 ? Math.Min(1, effectiveRange) : 0
-        );
-        action.DistanceReferenceKind = EnemyAiDistanceReference.TargetUnit;
-    }
-
-    private static void ApplyUnitDistanceStyle(
-        BattleAiMoveToMultiUnitSkillPositionActionSpec action,
-        BattleUnitState unitState,
-        IReadOnlyList<EnemyAiAction> stateActions,
-        SkillDefinition skillDefinition
-    )
-    {
-        if (action == null)
-        {
-            return;
-        }
-        EnemyAiAction templateAction =
-            FindActionByFamily(stateActions, EnemyAiActionFamily.UseMultiUnitSkill)
-            ?? FindActionByFamily(stateActions, EnemyAiActionFamily.UseUnitSkill);
-        if (templateAction != null)
-        {
-            action.DesiredMinDistance = GetDesiredMinDistance(templateAction);
-            action.DesiredMaxDistance = GetDesiredMaxDistance(templateAction);
-            action.DistanceReferenceKind = GetDistanceReferenceKind(templateAction);
-            return;
-        }
-        int effectiveRange = BattleRangeService.GetEffectiveSkillDistanceContractRange(
-            unitState,
-            skillDefinition
-        );
-        action.DesiredMinDistance = effectiveRange > 0 ? Math.Min(1, effectiveRange) : 0;
-        action.DesiredMaxDistance = Math.Max(
-            effectiveRange,
-            effectiveRange > 0 ? Math.Min(1, effectiveRange) : 0
-        );
-        action.DistanceReferenceKind = EnemyAiDistanceReference.TargetUnit;
-    }
-
-    private static void ApplyRandomChainDistanceStyle(
-        BattleAiRandomChainSkillActionSpec action,
-        BattleUnitState unitState,
-        IReadOnlyList<EnemyAiAction> stateActions,
-        SkillDefinition skillDefinition
-    )
-    {
-        EnemyAiAction templateAction =
-            FindActionByFamily(stateActions, EnemyAiActionFamily.UseRandomChainSkill)
-            ?? FindActionByFamily(stateActions, EnemyAiActionFamily.UseUnitSkill)
-            ?? FindActionByFamily(stateActions, EnemyAiActionFamily.UseMultiUnitSkill);
-        if (templateAction != null)
-        {
-            action.DesiredMinDistance = GetDesiredMinDistance(templateAction);
-            action.DesiredMaxDistance = GetDesiredMaxDistance(templateAction);
-            EnemyAiDistanceReference reference = GetDistanceReferenceKind(templateAction);
-            action.DistanceReferenceKind =
-                reference == EnemyAiDistanceReference.CandidatePool
-                || reference == EnemyAiDistanceReference.EnemyFrontline
-                    ? reference
-                    : EnemyAiDistanceReference.CandidatePool;
-            return;
-        }
-        int effectiveRange = BattleRangeService.GetEffectiveSkillDistanceContractRange(
-            unitState,
-            skillDefinition
-        );
-        action.DesiredMinDistance = effectiveRange > 0 ? Math.Min(1, effectiveRange) : 0;
-        action.DesiredMaxDistance = Math.Max(effectiveRange, action.DesiredMinDistance);
-        action.DistanceReferenceKind = EnemyAiDistanceReference.CandidatePool;
-    }
-
-    private static void ApplyGroundDistanceStyle(
-        BattleAiGroundSkillActionSpec action,
-        BattleUnitState unitState,
-        IReadOnlyList<EnemyAiAction> stateActions,
-        SkillDefinition skillDefinition
-    )
-    {
-        EnemyAiAction templateAction = FindActionByFamily(
-            stateActions,
-            EnemyAiActionFamily.UseGroundSkill
-        );
-        if (templateAction != null)
-        {
-            action.DesiredMinDistance = GetDesiredMinDistance(templateAction);
-            action.DesiredMaxDistance = GetDesiredMaxDistance(templateAction);
-            action.DistanceReferenceKind = GetDistanceReferenceKind(templateAction);
-            return;
-        }
-        int effectiveRange = BattleRangeService.GetEffectiveSkillDistanceContractRange(
-            unitState,
-            skillDefinition
-        );
-        action.DesiredMinDistance = 0;
-        action.DesiredMaxDistance = Math.Max(effectiveRange, 0);
-        action.DistanceReferenceKind = EnemyAiDistanceReference.TargetCoord;
-    }
-
-    private static StringName ResolveGeneratedScoreBucketId(
-        IReadOnlyList<EnemyAiAction> stateActions,
-        EnemyAiActionFamily preferredFamily
-    )
-    {
-        EnemyAiAction preferredAction = FindActionByFamily(stateActions, preferredFamily);
-        if (preferredAction != null && GetScoreBucket(preferredAction) != "")
-        {
-            return GetScoreBucket(preferredAction);
-        }
-        foreach (EnemyAiAction action in stateActions)
-        {
-            if (action == null)
-            {
-                continue;
-            }
-            StringName bucketId = GetScoreBucket(action);
-            if (bucketId != "" && action.GetDeclaredSkillIds().Count > 0)
-            {
-                return bucketId;
-            }
-        }
-        return "";
-    }
-
-    private static StringName ResolveTargetSelector(
-        IReadOnlyList<EnemyAiAction> stateActions,
-        StringName fallback
-    )
-    {
-        foreach (EnemyAiAction action in stateActions)
-        {
-            StringName selector = GetTargetSelector(action);
-            if (selector != "")
-            {
-                return selector;
-            }
-        }
-        return fallback;
-    }
-
-    private static StringName BuildActionId(
-        StringName stateId,
-        StringName skillId,
-        StringName suffix
-    )
-    {
-        return new StringName($"auto_{stateId}_{skillId}_{suffix}");
+        return false;
     }
 
     public bool IsOffensiveOrEnemySkill(SkillDefinition skillDefinition)
     {
         CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (combatProfile == null)
-        {
             return false;
-        }
-        if (ProgressionDataUtils.to_string_name(combatProfile.SpecialResolutionProfileId) == "meteor_swarm")
-        {
+        if (combatProfile.SpecialResolutionProfileId == (StringName)"meteor_swarm")
             return true;
-        }
-        StringName targetFilter = ProgressionDataUtils.to_string_name(combatProfile.TargetTeamFilter);
-        if (BattleTargetTeamRules.IsEnemyFilter(targetFilter))
-        {
+        if (BattleTargetTeamRules.IsEnemyFilter(combatProfile.TargetTeamFilter))
             return true;
-        }
-        foreach (CombatEffectDefinition effectDefinition in combatProfile.EffectDefinitions)
+
+        foreach (CombatEffectDefinition effect in combatProfile.EffectDefinitions)
         {
-            if (IsOffensiveEffect(skillDefinition, effectDefinition))
-            {
+            if (IsOffensiveEffect(skillDefinition, effect))
                 return true;
-            }
         }
-        foreach (CombatCastVariantDefinition castVariant in combatProfile.CastVariants)
+        foreach (CombatCastVariantDefinition variant in combatProfile.CastVariants)
         {
-            if (castVariant == null)
-            {
+            if (variant == null)
                 continue;
-            }
-            foreach (CombatEffectDefinition effectDefinition in castVariant.EffectDefinitions)
+            foreach (CombatEffectDefinition effect in variant.EffectDefinitions)
             {
-                if (IsOffensiveEffect(skillDefinition, effectDefinition))
-                {
+                if (IsOffensiveEffect(skillDefinition, effect))
                     return true;
-                }
             }
         }
         return false;
@@ -1933,47 +1047,31 @@ internal sealed class BattleAiActionAssembler
 
     private static bool IsOffensiveEffect(
         SkillDefinition skillDefinition,
-        CombatEffectDefinition effectDefinition
+        CombatEffectDefinition effect
     )
     {
-        if (effectDefinition == null)
-        {
+        if (effect == null)
             return false;
-        }
-        StringName effectFilter = ProgressionDataUtils.to_string_name(effectDefinition.EffectTargetTeamFilter);
-        StringName skillFilter = ProgressionDataUtils.to_string_name(
-            skillDefinition?.CombatProfile?.TargetTeamFilter ?? ""
-        );
+        StringName effectFilter = effect.EffectTargetTeamFilter;
+        StringName skillFilter = skillDefinition?.CombatProfile?.TargetTeamFilter ?? "";
         if (BattleTargetTeamRules.IsEnemyFilter(effectFilter))
-        {
             return true;
-        }
         if (BattleTargetTeamRules.IsBeneficialFilter(effectFilter))
-        {
             return false;
-        }
         if (effectFilter == "" && BattleTargetTeamRules.IsBeneficialFilter(skillFilter))
-        {
             return false;
-        }
-        BattleEffectKind effectKind = effectDefinition.EffectKind;
-        if (effectKind == BattleEffectKind.Damage || effectKind == BattleEffectKind.PathStepAoe)
-        {
-            return !BattleTargetTeamRules.IsBeneficialFilter(skillFilter);
-        }
         if (
-            effectKind == BattleEffectKind.Status
-            || effectKind == BattleEffectKind.ApplyStatus
-            || effectKind == BattleEffectKind.ForcedMove
+            effect.EffectKind is BattleEffectKind.Damage or BattleEffectKind.PathStepAoe
         )
-        {
+            return !BattleTargetTeamRules.IsBeneficialFilter(skillFilter);
+        if (
+            effect.EffectKind
+                is BattleEffectKind.Status
+                    or BattleEffectKind.ApplyStatus
+                    or BattleEffectKind.ForcedMove
+        )
             return true;
-        }
-        if (effectDefinition.StatusId != "" || effectDefinition.SaveFailureStatusId != "")
-        {
-            return true;
-        }
-        return false;
+        return effect.StatusId != "" || effect.SaveFailureStatusId != "";
     }
 
     private static SkillDefinition GetSkillDefinition(
@@ -1982,259 +1080,15 @@ internal sealed class BattleAiActionAssembler
     )
     {
         if (skillDefinitions == null || skillId == "")
-        {
             return null;
-        }
-        return skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
-            ? skillDefinition
+        return skillDefinitions.TryGetValue(skillId, out SkillDefinition definition)
+            ? definition
             : null;
     }
 
-    private static int GetSkillLevel(BattleUnitState unitState, StringName skillId)
-    {
-        if (unitState == null || skillId == "")
-        {
-            return 0;
-        }
-        int knownSkillLevel = unitState.GetKnownSkillLevelTyped(skillId);
-        return knownSkillLevel > 0
-            ? knownSkillLevel
-            : unitState.known_active_skill_ids.Contains(skillId)
-                ? 1
-                : 0;
-    }
-
-    private static StringName GetActionId(EnemyAiAction action)
-    {
-        return action != null ? ProgressionDataUtils.to_string_name(action.action_id) : "";
-    }
-
-    private static void SetActionId(EnemyAiAction action, StringName actionId)
-    {
-        if (action != null)
-        {
-            action.action_id = actionId;
-        }
-    }
-
-    private static StringName GetScoreBucket(EnemyAiAction action)
-    {
-        return action != null ? ProgressionDataUtils.to_string_name(action.score_bucket_id) : "";
-    }
-
-    private static StringName GetActionIntent(EnemyAiAction action)
-    {
-        return action != null ? ProgressionDataUtils.to_string_name(action.action_intent) : "";
-    }
-
-    private static StringName GetTargetSelector(EnemyAiAction action)
-    {
-        return action switch
-        {
-            UseUnitSkillAction unitAction => unitAction.target_selector,
-            UseMultiUnitSkillAction multiUnitAction => multiUnitAction.target_selector,
-            UseRandomChainSkillAction chainAction => chainAction.target_selector,
-            UseGroundRepositionSkillAction repositionAction => repositionAction.target_selector,
-            RetreatAction retreatAction => retreatAction.target_selector,
-            UseChargePathAoeAction chargePathAction => chargePathAction.target_selector,
-            UseChargeAction chargeAction => chargeAction.target_selector,
-            MoveToRangeAction moveAction => moveAction.target_selector,
-            MoveToAdvantagePositionAction advantageAction => advantageAction.target_selector,
-            _ => "",
-        };
-    }
-
-    private static int GetDesiredMinDistance(EnemyAiAction action, int fallback = 0)
-    {
-        return action switch
-        {
-            UseUnitSkillAction unitAction => unitAction.desired_min_distance,
-            UseGroundSkillAction groundAction => groundAction.desired_min_distance,
-            UseMultiUnitSkillAction multiUnitAction => multiUnitAction.desired_min_distance,
-            UseRandomChainSkillAction chainAction => chainAction.desired_min_distance,
-            MoveToRangeAction moveAction => moveAction.desired_min_distance,
-            UseChargePathAoeAction chargePathAction => chargePathAction.desired_min_distance,
-            MoveToAdvantagePositionAction advantageAction => advantageAction.desired_min_distance,
-            _ => fallback,
-        };
-    }
-
-    private static int GetDesiredMaxDistance(EnemyAiAction action, int fallback = 0)
-    {
-        return action switch
-        {
-            UseUnitSkillAction unitAction => unitAction.desired_max_distance,
-            UseGroundSkillAction groundAction => groundAction.desired_max_distance,
-            UseMultiUnitSkillAction multiUnitAction => multiUnitAction.desired_max_distance,
-            UseRandomChainSkillAction chainAction => chainAction.desired_max_distance,
-            MoveToRangeAction moveAction => moveAction.desired_max_distance,
-            UseChargePathAoeAction chargePathAction => chargePathAction.desired_max_distance,
-            MoveToAdvantagePositionAction advantageAction => advantageAction.desired_max_distance,
-            _ => fallback,
-        };
-    }
-
-    private static EnemyAiDistanceReference GetDistanceReferenceKind(EnemyAiAction action)
-    {
-        return action switch
-        {
-            UseUnitSkillAction unitAction => unitAction.DistanceReferenceKind,
-            UseGroundSkillAction groundAction => groundAction.DistanceReferenceKind,
-            UseMultiUnitSkillAction multiUnitAction => multiUnitAction.DistanceReferenceKind,
-            UseRandomChainSkillAction chainAction => chainAction.DistanceReferenceKind,
-            _ => EnemyAiDistanceReference.None,
-        };
-    }
-
-    private static void SetScoreBucket(EnemyAiAction action, StringName scoreBucketId)
-    {
-        if (action != null)
-        {
-            action.score_bucket_id = scoreBucketId;
-        }
-    }
-
-    private static void SetActionIntent(EnemyAiAction action, StringName actionIntent)
-    {
-        if (action != null && BattleAiActionIntent.IsValid(actionIntent))
-        {
-            action.action_intent = actionIntent;
-        }
-    }
-
-    private static void SetTargetSelectorIfSupported(EnemyAiAction action, StringName selector)
-    {
-        switch (action)
-        {
-            case UseUnitSkillAction unitAction:
-                unitAction.target_selector = selector;
-                break;
-            case UseMultiUnitSkillAction multiUnitAction:
-                multiUnitAction.target_selector = selector;
-                break;
-            case UseRandomChainSkillAction chainAction:
-                chainAction.target_selector = selector;
-                break;
-            case UseGroundRepositionSkillAction repositionAction:
-                repositionAction.target_selector = selector;
-                break;
-            case RetreatAction retreatAction:
-                retreatAction.target_selector = selector;
-                break;
-            case UseChargePathAoeAction chargePathAction:
-                chargePathAction.target_selector = selector;
-                break;
-            case UseChargeAction chargeAction:
-                chargeAction.target_selector = selector;
-                break;
-            case MoveToRangeAction moveAction:
-                moveAction.target_selector = selector;
-                break;
-            case MoveToAdvantagePositionAction advantageAction:
-                advantageAction.target_selector = selector;
-                break;
-        }
-    }
-
-    private static void SetDistanceReferenceIfSupported(
-        EnemyAiAction action,
-        EnemyAiDistanceReference distanceReference
-    )
-    {
-        switch (action)
-        {
-            case UseUnitSkillAction unitAction:
-                unitAction.DistanceReferenceKind = distanceReference;
-                break;
-            case UseGroundSkillAction groundAction:
-                groundAction.DistanceReferenceKind = distanceReference;
-                break;
-            case UseMultiUnitSkillAction multiUnitAction:
-                multiUnitAction.DistanceReferenceKind = distanceReference;
-                break;
-            case UseRandomChainSkillAction chainAction:
-                chainAction.DistanceReferenceKind = distanceReference;
-                break;
-        }
-    }
-
-    private static void SetIntIfSupported(EnemyAiAction action, string propertyName, int value)
-    {
-        switch (action)
-        {
-            case UseUnitSkillAction unitAction:
-                SetDistanceInt(
-                    value,
-                    propertyName,
-                    v => unitAction.desired_min_distance = v,
-                    v => unitAction.desired_max_distance = v
-                );
-                break;
-            case UseGroundSkillAction groundAction:
-                SetDistanceInt(
-                    value,
-                    propertyName,
-                    v => groundAction.desired_min_distance = v,
-                    v => groundAction.desired_max_distance = v
-                );
-                break;
-            case UseMultiUnitSkillAction multiUnitAction:
-                SetDistanceInt(
-                    value,
-                    propertyName,
-                    v => multiUnitAction.desired_min_distance = v,
-                    v => multiUnitAction.desired_max_distance = v
-                );
-                break;
-            case UseRandomChainSkillAction chainAction:
-                SetDistanceInt(
-                    value,
-                    propertyName,
-                    v => chainAction.desired_min_distance = v,
-                    v => chainAction.desired_max_distance = v
-                );
-                break;
-            case MoveToRangeAction moveAction:
-                SetDistanceInt(
-                    value,
-                    propertyName,
-                    v => moveAction.desired_min_distance = v,
-                    v => moveAction.desired_max_distance = v
-                );
-                break;
-            case UseChargePathAoeAction chargePathAction:
-                SetDistanceInt(
-                    value,
-                    propertyName,
-                    v => chargePathAction.desired_min_distance = v,
-                    v => chargePathAction.desired_max_distance = v
-                );
-                break;
-            case MoveToAdvantagePositionAction advantageAction:
-                SetDistanceInt(
-                    value,
-                    propertyName,
-                    v => advantageAction.desired_min_distance = v,
-                    v => advantageAction.desired_max_distance = v
-                );
-                break;
-        }
-    }
-
-    private static void SetDistanceInt(
-        int value,
-        string propertyName,
-        Action<int> setMinDistance,
-        Action<int> setMaxDistance
-    )
-    {
-        if (propertyName == "desired_min_distance")
-        {
-            setMinDistance?.Invoke(value);
-        }
-        else if (propertyName == "desired_max_distance")
-        {
-            setMaxDistance?.Invoke(value);
-        }
-    }
+    private readonly record struct DistanceStyle(
+        int Minimum,
+        int Maximum,
+        EnemyAiDistanceReference Reference
+    );
 }

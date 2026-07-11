@@ -13,14 +13,14 @@ internal sealed class AiServiceProbe : IDisposable
     public GDictionary StatsActionInput { get; private set; } = AiProbeStats.NewStats();
 
     public void Setup(
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains = null,
+        IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyAiBrains = null,
         BattleDamageResolver damageResolver = null
     )
     {
         _service.Setup(enemyAiBrains, damageResolver);
     }
 
-    public void SetScoreProfile(BattleAiScoreProfile profile)
+    public void SetScoreProfile(BattleAiScoreProfileDefinition profile)
     {
         _service.SetScoreProfile(profile);
     }

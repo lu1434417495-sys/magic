@@ -122,7 +122,7 @@ internal sealed class BattleAiMutationGuard
     internal BattleAiMutationViolationReport ValidateAndRestoreReportTyped(
         BattleAiContext context,
         string stage,
-        EnemyAiAction action = null,
+        BattleAiRuntimeActionEntry actionEntry = null,
         int actionIndex = -1,
         string callSite = null
     )
@@ -134,7 +134,7 @@ internal sealed class BattleAiMutationGuard
                 context,
                 violations,
                 stage,
-                action,
+                actionEntry,
                 actionIndex,
                 callSite
             );

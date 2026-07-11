@@ -29,43 +29,38 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
 
     private void TestBrainScoreProfileFeedsDecisionScopeAndFactionOverrideWins()
     {
-        BattleAiScoreProfile brainProfile = new() { damage_weight = 77 };
-        EnemyAiBrainDef brain = TestResourceOwnership.Own(
-            new EnemyAiBrainDef
-            {
-                brain_id = "score_profile_brain",
-                default_state_id = "pressure",
-                score_profile = brainProfile,
-            },
-            "BattleAiScoreSelection.scoreProfileBrain"
+        BattleAiScoreProfileDefinition brainProfile = new() { DamageWeight = 77 };
+        EnemyAiBrainDefinition brain = new(
+            "score_profile_brain",
+            "pressure",
+            brainProfile,
+            Array.Empty<EnemyAiStateDefinition>(),
+            Array.Empty<EnemyAiTransitionRuleDefinition>()
         );
         using BattleAiService aiService = new() { EnableMutationGuard = false };
         aiService.Setup(BuildBrainMap(brain));
 
         BattleUnitState actor = BuildUnit("score_profile_actor", "hostile", Vector2I.Zero);
-        actor.ai_brain_id = brain.brain_id;
+        actor.ai_brain_id = brain.BrainId;
         BattleAiScoreService scoreService = aiService.GetScoreService();
         scoreService.BeginDecisionScope(new BattleState(), actor);
         _test.Eq(
-            scoreService.GetProfile()?.damage_weight ?? -1,
+            scoreService.GetProfile()?.DamageWeight ?? -1,
             77,
             "brain.score_profile 应在 AI decision scope 内成为当前评分 profile。"
         );
         scoreService.EndDecisionScope();
 
-        BattleAiScoreProfile factionProfile = TestResourceOwnership.Own(
-            new BattleAiScoreProfile { damage_weight = 12 },
-            "BattleAiScoreSelection.factionScoreProfile"
-        );
+        BattleAiScoreProfileDefinition factionProfile = new() { DamageWeight = 12 };
         aiService.SetFactionScoreProfiles(
-            new Dictionary<StringName, BattleAiScoreProfile>
+            new Dictionary<StringName, BattleAiScoreProfileDefinition>
             {
                 ["hostile"] = factionProfile,
             }
         );
         scoreService.BeginDecisionScope(new BattleState(), actor);
         _test.Eq(
-            scoreService.GetProfile()?.damage_weight ?? -1,
+            scoreService.GetProfile()?.DamageWeight ?? -1,
             12,
             "simulation faction score profile 应优先于 brain.score_profile。"
         );
@@ -100,7 +95,6 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
         fixture.AddUnit(player);
 
         BattleAiContext context = fixture.BuildContext(wolf);
-        context.allow_authored_action_fallback_for_tests = true;
         BattleAiScoreInput heavyScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
             heavySkill,
@@ -129,7 +123,22 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
         );
 
         using BattleAiService aiService = new() { EnableMutationGuard = false };
-        aiService.Setup(BuildBrainMap(BuildTwoUnitSkillActionBrain(wolf.ai_brain_id, heavySkill.SkillId, executeSkill.SkillId)));
+        EnemyAiBrainDefinition brain = BuildTwoUnitSkillActionBrain(
+            wolf.ai_brain_id,
+            heavySkill.SkillId,
+            executeSkill.SkillId
+        );
+        aiService.Setup(BuildBrainMap(brain));
+        using BattleAiRuntimeActionPlan actionPlan = new BattleAiActionAssembler().BuildUnitActionPlan(
+            wolf,
+            brain,
+            new Dictionary<StringName, SkillDefinition>
+            {
+                [heavySkill.SkillId] = heavySkill,
+                [executeSkill.SkillId] = executeSkill,
+            }
+        );
+        context.runtime_action_plan = actionPlan;
         BattleAiDecision decision = aiService
             .ChooseCommand(context, captureTrace: false)
             ?.Decision;
@@ -264,7 +273,10 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
             DistanceReferenceKind = EnemyAiDistanceReference.TargetUnit,
         };
         action.skill_ids.Add(skill.SkillId);
-        BattleAiDecision decision = action.Decide(context);
+        BattleAiDecision decision = new BattleAiUnitSkillCandidateEvaluator().Evaluate(
+            (UseUnitSkillActionDefinition)action.ToDefinition(),
+            context
+        );
         _test.True(decision != null && decision.command != null, "共享 unit score input 后应仍能生成合法指令。");
         _test.Eq(
             decision?.command?.target_unit_id ?? new StringName(""),
@@ -299,10 +311,13 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
             DistanceReferenceKind = EnemyAiDistanceReference.TargetUnit,
         };
         action.skill_ids.Add(multishot.SkillId);
+        MoveToMultiUnitSkillPositionActionDefinition actionDefinition =
+            (MoveToMultiUnitSkillPositionActionDefinition)action.ToDefinition();
 
         BattleAiContext lockedContext = fixture.BuildContext(archer);
         InstallSimpleActionScoreInput(lockedContext);
-        BattleAiDecision lockedDecision = action.Decide(lockedContext);
+        var evaluator = new BattleAiMoveToMultiUnitSkillPositionEvaluator();
+        BattleAiDecision lockedDecision = evaluator.Evaluate(actionDefinition, lockedContext);
         _test.True(
             lockedDecision == null,
             "已移动且未获准使用锁定移动力时，multi-unit 站位动作不应继续产出移动指令。"
@@ -311,7 +326,7 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
         archer.can_use_locked_move_points_this_turn = true;
         BattleAiContext allowedContext = fixture.BuildContext(archer);
         InstallSimpleActionScoreInput(allowedContext);
-        BattleAiDecision allowedDecision = action.Decide(allowedContext);
+        BattleAiDecision allowedDecision = evaluator.Evaluate(actionDefinition, allowedContext);
         _test.True(
             allowedDecision?.command?.IsMove() == true,
             "获得锁定移动力许可时，multi-unit 站位动作仍应能产出移动指令。"
@@ -340,10 +355,13 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
             target_selector = "nearest_enemy",
             minimum_safe_distance = 3,
         };
+        RetreatActionDefinition actionDefinition =
+            (RetreatActionDefinition)action.ToDefinition();
 
         BattleAiContext lockedContext = fixture.BuildContext(archer);
         InstallSimpleActionScoreInput(lockedContext);
-        BattleAiDecision lockedDecision = action.Decide(lockedContext);
+        var evaluator = new BattleAiRetreatActionEvaluator();
+        BattleAiDecision lockedDecision = evaluator.Evaluate(actionDefinition, lockedContext);
         _test.True(
             lockedDecision == null,
             "已移动且未获准使用锁定移动力时，retreat 动作不应继续产出移动指令。"
@@ -352,7 +370,7 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
         archer.can_use_locked_move_points_this_turn = true;
         BattleAiContext allowedContext = fixture.BuildContext(archer);
         InstallSimpleActionScoreInput(allowedContext);
-        BattleAiDecision allowedDecision = action.Decide(allowedContext);
+        BattleAiDecision allowedDecision = evaluator.Evaluate(actionDefinition, allowedContext);
         _test.True(
             allowedDecision?.command?.IsMove() == true,
             "获得锁定移动力许可时，retreat 动作仍应能产出移动指令。"
@@ -362,53 +380,61 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
     private static Fixture BuildFixture(string battleId, Vector2I mapSize) =>
         new(battleId, mapSize);
 
-    private static Dictionary<StringName, EnemyAiBrainDef> BuildBrainMap(EnemyAiBrainDef brain) =>
+    private static Dictionary<StringName, EnemyAiBrainDefinition> BuildBrainMap(
+        EnemyAiBrainDefinition brain
+    ) =>
         new()
         {
-            [brain.brain_id] = brain,
+            [brain.BrainId] = brain,
         };
 
-    private static EnemyAiBrainDef BuildTwoUnitSkillActionBrain(
+    private static EnemyAiBrainDefinition BuildTwoUnitSkillActionBrain(
         StringName brainId,
         StringName lowerSkillId,
         StringName higherSkillId
     )
     {
-        var lowerAction = new UseUnitSkillAction
-        {
-            action_id = "score_probe_lower",
-            target_selector = "nearest_enemy",
-            desired_min_distance = 1,
-            desired_max_distance = 1,
-            DistanceReferenceKind = EnemyAiDistanceReference.TargetUnit,
-        };
-        lowerAction.skill_ids.Add(lowerSkillId);
-        var higherAction = new UseUnitSkillAction
-        {
-            action_id = "score_probe_higher",
-            target_selector = "nearest_enemy",
-            desired_min_distance = 1,
-            desired_max_distance = 1,
-            DistanceReferenceKind = EnemyAiDistanceReference.TargetUnit,
-        };
-        higherAction.skill_ids.Add(higherSkillId);
-
-        var state = new EnemyAiStateDef
-        {
-            state_id = "pressure",
-        };
-        state.actions.Add(lowerAction);
-        state.actions.Add(higherAction);
-        var brain = TestResourceOwnership.Own(
-            new EnemyAiBrainDef
-            {
-                brain_id = brainId,
-                default_state_id = state.state_id,
-            },
-            "BattleAiScoreSelection.BuildTwoUnitSkillActionBrain"
+        StringName distanceReference = EnemyAiDistanceReferences.ToStringName(
+            EnemyAiDistanceReference.TargetUnit
         );
-        brain.states.Add(state);
-        return brain;
+        var lowerAction = new UseUnitSkillActionDefinition(
+            "score_probe_lower",
+            "",
+            BattleAiActionIntent.Offense,
+            new[] { lowerSkillId },
+            "nearest_enemy",
+            0,
+            0,
+            false,
+            1,
+            1,
+            distanceReference
+        );
+        var higherAction = new UseUnitSkillActionDefinition(
+            "score_probe_higher",
+            "",
+            BattleAiActionIntent.Offense,
+            new[] { higherSkillId },
+            "nearest_enemy",
+            0,
+            0,
+            false,
+            1,
+            1,
+            distanceReference
+        );
+        var state = new EnemyAiStateDefinition(
+            "pressure",
+            new EnemyAiActionDefinition[] { lowerAction, higherAction },
+            Array.Empty<EnemyAiGenerationSlotDefinition>()
+        );
+        return new EnemyAiBrainDefinition(
+            brainId,
+            state.StateId,
+            BattleAiScoreProfileDefinition.Default,
+            new[] { state },
+            Array.Empty<EnemyAiTransitionRuleDefinition>()
+        );
     }
 
     private static BattleState BuildFlatState(string battleId, Vector2I mapSize)

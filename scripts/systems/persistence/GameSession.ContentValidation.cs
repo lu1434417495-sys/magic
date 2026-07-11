@@ -23,7 +23,6 @@ public partial class GameSession
     private ContentValidationDomainSnapshotData BuildWorldContentValidationDomainSnapshot()
     {
         ContentSnapshot snapshot = RequireContentSnapshot();
-        ILegacyEnemyContentCatalog legacyEnemyContent = RequireLegacyEnemyContent();
         var errors = new List<string>();
         var validator = new WorldMapContentValidator();
         foreach ((string path, WorldGenerationDefinition definition) in snapshot.WorldGenerations)
@@ -33,8 +32,8 @@ public partial class GameSession
                 validator.ValidateGenerationConfigTyped(
                     definition,
                     path,
-                    legacyEnemyContent.EnemyTemplates.Keys,
-                    legacyEnemyContent.EncounterRosters.Keys
+                    snapshot.EnemyTemplates.Keys,
+                    snapshot.EncounterRosters.Keys
                 )
             );
         }
@@ -66,7 +65,7 @@ public partial class GameSession
                 snapshot.Quests,
                 snapshot.Items,
                 snapshot.Skills,
-                RequireLegacyEnemyContent().EnemyTemplates,
+                snapshot.EnemyTemplates,
                 Array.Empty<string>()
             )
         );
@@ -83,7 +82,7 @@ public partial class GameSession
 
     private int RequireContentValidationForRuntime(StringName operationId)
     {
-        if (_contentSnapshot == null || _legacyEnemyContent == null)
+        if (_contentSnapshot == null)
         {
             PushSessionError(
                 "session.content.unbound",

@@ -96,13 +96,13 @@ public partial class run_game_root_content_catalog_regression : LifecycleTestSce
                 "content catalog item defs 应与 GameSession 正式内容缓存一致。"
             );
             _test.Eq(
-                gameSession.GetEnemyTemplatesTyped().Count,
-                catalog.GetEnemyTemplatesTyped().Count,
+                gameSession.GetEnemyTemplateDefinitions().Count,
+                catalog.GetEnemyTemplateDefinitions().Count,
                 "content catalog enemy templates 应与 GameSession 正式内容缓存一致。"
             );
             _test.Eq(
-                gameSession.GetWildEncounterRostersTyped().Count,
-                catalog.GetWildEncounterRostersTyped().Count,
+                gameSession.GetEncounterRosterDefinitions().Count,
+                catalog.GetEncounterRosterDefinitions().Count,
                 "content catalog wild encounter rosters 应与 GameSession 正式内容缓存一致。"
             );
             _test.True(

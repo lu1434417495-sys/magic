@@ -164,6 +164,15 @@ public partial class EnemyAiTransitionConditionDef : Resource
         return $"{predicate}(bp={basis_points},dist={max_distance},states={string.Join(",", StringNameArrayToStrings(state_ids))},affordances={string.Join(",", StringNameArrayToStrings(affordances))})";
     }
 
+    internal EnemyAiTransitionConditionDefinition ToDefinition() =>
+        new(
+            predicate,
+            basis_points,
+            max_distance,
+            new List<StringName>(state_ids),
+            new List<StringName>(affordances)
+        );
+
     private static List<string> StringNameArrayToStrings(GStringNameArray values)
     {
         var results = new List<string>();

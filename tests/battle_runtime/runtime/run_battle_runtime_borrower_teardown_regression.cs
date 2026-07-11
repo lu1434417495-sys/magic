@@ -77,8 +77,8 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
                 "equipment binding rebind drops old definitions"
             );
 
-            runtime.ReplaceEnemyTemplatesTyped(new Dictionary<StringName, EnemyTemplateDef>());
-            runtime.ReplaceEnemyAiBrainsTyped(new Dictionary<StringName, EnemyAiBrainDef>());
+            runtime.ReplaceEnemyTemplatesTyped(new Dictionary<StringName, EnemyTemplateDefinition>());
+            runtime.ReplaceEnemyAiBrainsTyped(new Dictionary<StringName, EnemyAiBrainDefinition>());
             _test.Eq(runtime.GetEnemyTemplateIndexTyped().Count, 0, "enemy template rebind drops old definitions");
             _test.Eq(runtime.GetEnemyAiBrainIndexTyped().Count, 0, "enemy brain rebind drops old definitions");
         }
@@ -241,11 +241,19 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
             {
                 [equipmentBinding.BindingId] = equipmentBinding,
             },
-            new Dictionary<StringName, EnemyTemplateDef>
+            new Dictionary<StringName, EnemyTemplateDefinition>
             {
-                [enemyTemplate.template_id] = enemyTemplate,
+                [enemyTemplate.template_id] = enemyTemplate.ToDefinition(
+                    new Dictionary<StringName, ItemDefinition>
+                    {
+                        [itemDefinition.ItemId] = itemDefinition,
+                    }
+                ),
             },
-            new Dictionary<StringName, EnemyAiBrainDef> { [enemyBrain.brain_id] = enemyBrain }
+            new Dictionary<StringName, EnemyAiBrainDefinition>
+            {
+                [enemyBrain.brain_id] = enemyBrain.ToDefinition(),
+            }
         );
     }
 
@@ -303,7 +311,7 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         IReadOnlyDictionary<StringName, ItemDefinition> ItemDefs,
         IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> EquipmentBindings,
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> EnemyTemplates,
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> EnemyBrains
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> EnemyTemplates,
+        IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> EnemyBrains
     );
 }

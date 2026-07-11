@@ -887,10 +887,10 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
             return false;
         }
 
-        IReadOnlyDictionary<StringName, WildEncounterRosterDef> wildEncounterRosters =
-            _gameSession.GetWildEncounterRostersTyped();
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
-            _gameSession.GetEnemyTemplatesTyped();
+        IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> wildEncounterRosters =
+            _gameSession.GetEncounterRosterDefinitions();
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates =
+            _gameSession.GetEnemyTemplateDefinitions();
         using var builder = new EncounterRosterBuilder();
         builder.Setup(wildEncounterRosters, enemyTemplates);
         IReadOnlyList<IReadOnlyDictionary<string, object>> lootEntries =
@@ -909,8 +909,8 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
             return null;
         }
 
-        IReadOnlyDictionary<StringName, WildEncounterRosterDef> rosters =
-            _gameSession.GetWildEncounterRostersTyped();
+        IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> rosters =
+            _gameSession.GetEncounterRosterDefinitions();
         if (!rosters.ContainsKey(HeadlessSettlementLootProfileId))
         {
             return null;
@@ -1025,10 +1025,10 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
             return;
         }
 
-        IReadOnlyDictionary<StringName, WildEncounterRosterDef> wildEncounterRosters =
-            _gameSession.GetWildEncounterRostersTyped();
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
-            _gameSession.GetEnemyTemplatesTyped();
+        IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> wildEncounterRosters =
+            _gameSession.GetEncounterRosterDefinitions();
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates =
+            _gameSession.GetEnemyTemplateDefinitions();
         using var rosterBuilder = new EncounterRosterBuilder();
         rosterBuilder.Setup(wildEncounterRosters, enemyTemplates);
         IReadOnlyList<IReadOnlyDictionary<string, object>> previewLootEntries =

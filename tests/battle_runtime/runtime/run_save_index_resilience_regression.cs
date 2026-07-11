@@ -15,6 +15,11 @@ public partial class run_save_index_resilience_regression : LifecycleTestSceneTr
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
+    {
         TestCorruptSaveIndexRecoversCleanly();
         TestSaveIndexSchemaRejectsOldEntryShapes();
         RequestTestExit(_test.Finish("Save index resilience regression"));

@@ -52,25 +52,25 @@ public sealed partial class BattleRuntimeModule
         CompleteContentCatalogRebind();
     }
 
-    internal IReadOnlyDictionary<StringName, EnemyTemplateDef> GetEnemyTemplateIndexTyped() =>
+    internal IReadOnlyDictionary<StringName, EnemyTemplateDefinition> GetEnemyTemplateIndexTyped() =>
         _enemyTemplateIndex;
 
     internal IBattleSpecialProfileView GetSpecialProfileView() =>
         _special_profile_view ?? BattleSpecialProfileRuntimeView.Empty;
 
-    internal EnemyTemplateDef GetEnemyTemplateTyped(StringName templateId)
+    internal EnemyTemplateDefinition GetEnemyTemplateTyped(StringName templateId)
     {
         if (IsEmpty(templateId))
         {
             return null;
         }
-        return _enemyTemplateIndex.TryGetValue(templateId, out EnemyTemplateDef template)
+        return _enemyTemplateIndex.TryGetValue(templateId, out EnemyTemplateDefinition template)
             ? template
             : null;
     }
 
     internal void ReplaceEnemyTemplatesTyped(
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates
     )
     {
         BeginContentCatalogRebind();
@@ -98,7 +98,7 @@ public sealed partial class BattleRuntimeModule
     }
 
     private void ApplyEnemyTemplatesTyped(
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates
     )
     {
         _enemyTemplateIndex.Clear();
@@ -106,18 +106,18 @@ public sealed partial class BattleRuntimeModule
         {
             return;
         }
-        foreach ((StringName templateId, EnemyTemplateDef template) in enemyTemplates)
+        foreach ((StringName templateId, EnemyTemplateDefinition template) in enemyTemplates)
         {
-            if (templateId == "" || template == null || template.template_id == "")
+            if (templateId == "" || template == null || template.TemplateId == "")
             {
                 continue;
             }
-            _enemyTemplateIndex[template.template_id] = template;
+            _enemyTemplateIndex[template.TemplateId] = template;
         }
     }
 
     private void ApplyEnemyAiBrainsTyped(
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains
+        IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyAiBrains
     )
     {
         _enemyAiBrainIndex.Clear();
@@ -125,18 +125,18 @@ public sealed partial class BattleRuntimeModule
         {
             return;
         }
-        foreach ((StringName brainId, EnemyAiBrainDef brain) in enemyAiBrains)
+        foreach ((StringName brainId, EnemyAiBrainDefinition brain) in enemyAiBrains)
         {
-            if (brainId == "" || brain == null || brain.brain_id == "")
+            if (brainId == "" || brain == null || brain.BrainId == "")
             {
                 continue;
             }
-            _enemyAiBrainIndex[brain.brain_id] = brain;
+            _enemyAiBrainIndex[brain.BrainId] = brain;
         }
     }
 
     internal void ReplaceEnemyAiBrainsTyped(
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains
+        IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyAiBrains
     )
     {
         BeginContentCatalogRebind();
@@ -292,18 +292,18 @@ public sealed partial class BattleRuntimeModule
         }
     }
 
-    private EnemyAiBrainDef GetEnemyAiBrainTyped(StringName brainId)
+    private EnemyAiBrainDefinition GetEnemyAiBrainTyped(StringName brainId)
     {
         if (IsEmpty(brainId))
         {
             return null;
         }
-        return _enemyAiBrainIndex.TryGetValue(brainId, out EnemyAiBrainDef brain)
+        return _enemyAiBrainIndex.TryGetValue(brainId, out EnemyAiBrainDefinition brain)
             ? brain
             : null;
     }
 
-    internal IReadOnlyDictionary<StringName, EnemyAiBrainDef> GetEnemyAiBrainIndexTyped() =>
+    internal IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> GetEnemyAiBrainIndexTyped() =>
         _enemyAiBrainIndex;
 
     internal IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefIndexTyped() =>

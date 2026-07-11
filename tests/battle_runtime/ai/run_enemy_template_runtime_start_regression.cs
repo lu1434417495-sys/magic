@@ -166,20 +166,21 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
         );
         itemDefs[customWeapon.ItemId] = customWeapon;
 
-        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDef>(
-            gameSession.GetEnemyTemplatesTyped()
+        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>(
+            gameSession.GetEnemyTemplateDefinitions()
         );
-        enemyTemplates[templateId] = BuildCustomEnemyTemplate(
+        EnemyTemplateDef customTemplate = BuildCustomEnemyTemplate(
             templateId,
             customWeapon.ItemId
         );
+        enemyTemplates[templateId] = customTemplate.ToDefinition(itemDefs);
 
         using var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
             gameSession.GetSkillDefinitionsTyped(),
             enemyTemplates,
-            gameSession.GetEnemyAiBrainsTyped(),
+            gameSession.GetEnemyAiBrainDefinitions(),
             null,
             null,
             itemDefs
@@ -258,9 +259,9 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
 
         EnemyTemplateDef template = BuildCustomEnemyTemplate(templateId, customWeapon.ItemId);
         SetSaveAdvantageTags(template, "illusion_immunity");
-        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDef>
+        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>
         {
-            [templateId] = template,
+            [templateId] = template.ToDefinition(itemDefs),
         };
         using var builder = new EncounterRosterBuilder();
         EncounterAnchorData anchor = BuildEncounterAnchor(
@@ -275,7 +276,7 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
                 anchor,
                 gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
                 enemyTemplates,
-                gameSession.GetEnemyAiBrainsTyped(),
+                gameSession.GetEnemyAiBrainDefinitions(),
                 itemDefs
             );
             _test.Eq(enemyUnits.Count, 1, "自定义敌方模板应生成一个敌方单位。");
@@ -355,9 +356,9 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
             },
             "EnemyTemplateRuntimeStart.BuildFormulaDragonling"
         );
-        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDef>
+        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>
         {
-            [templateId] = template,
+            [templateId] = template.ToDefinition(itemDefs),
         };
         using var builder = new EncounterRosterBuilder();
         EncounterAnchorData anchor = BuildEncounterAnchor(
@@ -372,7 +373,7 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
                 anchor,
                 gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
                 enemyTemplates,
-                gameSession.GetEnemyAiBrainsTyped(),
+                gameSession.GetEnemyAiBrainDefinitions(),
                 itemDefs
             );
             _test.Eq(enemyUnits.Count, 1, "公式幼龙模板应生成一个敌方单位。");
@@ -446,9 +447,9 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
             [new StringName("physical_pierce")] = new StringName("half"),
             [new StringName("fire")] = new StringName("double"),
         };
-        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDef>
+        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>
         {
-            [templateId] = template,
+            [templateId] = template.ToDefinition(itemDefs),
         };
         using var builder = new EncounterRosterBuilder();
         EncounterAnchorData anchor = BuildEncounterAnchor(
@@ -463,7 +464,7 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
                 anchor,
                 gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
                 enemyTemplates,
-                gameSession.GetEnemyAiBrainsTyped(),
+                gameSession.GetEnemyAiBrainDefinitions(),
                 itemDefs
             );
             _test.Eq(enemyUnits.Count, 1, "自定义抗性敌方模板应生成一个敌方单位。");
@@ -576,8 +577,8 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
         runtime.setup(
             null,
             gameSession.GetSkillDefinitionsTyped(),
-            gameSession.GetEnemyTemplatesTyped(),
-            gameSession.GetEnemyAiBrainsTyped(),
+            gameSession.GetEnemyTemplateDefinitions(),
+            gameSession.GetEnemyAiBrainDefinitions(),
             null
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));

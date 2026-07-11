@@ -31,7 +31,7 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
     {
         using TestContentResourceLoader loader = new();
         WorldMapContentValidator validator = new();
-        ILegacyEnemyContentCatalog enemyContent = GetProcessLegacyEnemyContent();
+        ContentSnapshot enemyContent = GameSessionTestFactory.GetProcessSnapshot();
 
         HashSet<StringName> enemyTemplateIds = new(enemyContent.EnemyTemplates.Keys);
         HashSet<StringName> wildEncounterRosterIds = new(
@@ -51,7 +51,7 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
     {
         using TestContentResourceLoader loader = new();
         WorldMapContentValidator validator = new();
-        ILegacyEnemyContentCatalog enemyContent = GetProcessLegacyEnemyContent();
+        ContentSnapshot enemyContent = GameSessionTestFactory.GetProcessSnapshot();
 
         using WorldMapGenerationConfig config = BuildInvalidGenerationConfig();
         WorldGenerationDefinition definition = ProjectSyntheticGeneration(
@@ -81,7 +81,7 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
     {
         using TestContentResourceLoader loader = new();
         WorldMapContentValidator validator = new();
-        ILegacyEnemyContentCatalog enemyContent = GetProcessLegacyEnemyContent();
+        ContentSnapshot enemyContent = GameSessionTestFactory.GetProcessSnapshot();
 
         using WorldMapGenerationConfig config = new()
         {
@@ -487,19 +487,6 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
             );
         }
         return errors;
-    }
-
-    private static ILegacyEnemyContentCatalog GetProcessLegacyEnemyContent()
-    {
-        if (Engine.GetMainLoop() is not SceneTree tree)
-        {
-            throw new InvalidOperationException(
-                "A running SceneTree is required to borrow process enemy content."
-            );
-        }
-        return tree.Root
-            .GetNode<ApplicationLifetimeCoordinator>("ApplicationLifetimeCoordinator")
-            .ContentHost.LegacyEnemyContent;
     }
 
     private static WorldGenerationDefinition ProjectSyntheticGeneration(

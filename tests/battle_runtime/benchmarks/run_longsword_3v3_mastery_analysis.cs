@@ -15,6 +15,11 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(RunDeferred));
+    }
+
+    private void RunDeferred()
+    {
         int exitCode = Run();
         RequestTestExit(_test.Finish("Longsword 3v3 mastery analysis", exitCode));
     }
@@ -33,7 +38,9 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
             return 1;
         }
 
-        var contentProvider = new BattleSimContentProvider(new TestContentResourceLoader());
+        var contentProvider = new BattleSimContentProvider(
+            GameSessionTestFactory.GetProcessSnapshot()
+        );
         var overrideApplier = new BattleSimOverrideApplier();
         var terrainGenerator = new BattleTerrainGenerator();
 
@@ -42,11 +49,7 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
             BattleSimOverrideApplyResult overrides = overrideApplier.ApplyProfileTyped(
                 contentProvider.GetSkillDefinitionsTyped(),
                 contentProvider.GetEnemyAiBrainsTyped(),
-                new BattleSimProfileDef
-                {
-                    profile_id = "baseline",
-                    display_name = "Baseline",
-                }
+                contentProvider.GetBattleSimProfilesTyped()["baseline"]
             );
             var rng = new RuntimeRandom(Math.Max(startSeed, 1));
 

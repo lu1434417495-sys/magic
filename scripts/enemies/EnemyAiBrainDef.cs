@@ -44,6 +44,26 @@ public partial class EnemyAiBrainDef : Resource
 
     internal bool HasState(StringName stateId) => GetState(stateId) != null;
 
+    internal EnemyAiBrainDefinition ToDefinition()
+    {
+        var stateDefinitions = new List<EnemyAiStateDefinition>();
+        foreach (EnemyAiStateDef state in GetResolvedStates())
+            stateDefinitions.Add(state.ToDefinition());
+        var transitionDefinitions = new List<EnemyAiTransitionRuleDefinition>();
+        foreach (EnemyAiTransitionRuleDef rule in transition_rules)
+        {
+            if (rule != null)
+                transitionDefinitions.Add(rule.ToDefinition());
+        }
+        return new EnemyAiBrainDefinition(
+            brain_id,
+            default_state_id,
+            BattleAiScoreProfileDefinition.FromResource(score_profile),
+            stateDefinitions,
+            transitionDefinitions
+        );
+    }
+
     public Godot.Collections.Array<string> ValidateSchema(
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null
     )

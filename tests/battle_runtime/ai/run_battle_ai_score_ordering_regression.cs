@@ -108,7 +108,7 @@ public partial class run_battle_ai_score_ordering_regression : LifecycleTestScen
     private void TestDecisionEngineOrderingMigratedFromGdRunner()
     {
         var engine = new BattleAiDecisionEngine();
-        var actionProbe = new ScoreComparisonProbeAction();
+        var actionProbe = new BattleAiDecisionEngine();
 
         BattleAiScoreInput lethalThreatOffense = ScoreForDecisionOrdering(
             "mist_offense",
@@ -271,7 +271,7 @@ public partial class run_battle_ai_score_ordering_regression : LifecycleTestScen
         MarkNonfatalSurvivalProjection(zeroDamageSafe, 0, 0, 24);
         MarkNonfatalSurvivalProjection(zeroDamageRisky, 1, 0, 24);
         _test.True(
-            actionProbe.IsBetter(zeroDamageSafe, zeroDamageRisky),
+            actionProbe.IsBetterScoreInput(zeroDamageSafe, zeroDamageRisky),
             "闪现候选同等收益且预期伤害同为 0 时，仍应优先无威胁落点。"
         );
 
@@ -316,7 +316,7 @@ public partial class run_battle_ai_score_ordering_regression : LifecycleTestScen
             "跨 action 比较中，更高收益的非致死风险换位仍应允许胜出。"
         );
         _test.True(
-            actionProbe.IsBetter(higherValueRiskyEscape, riskFreeEscape),
+            actionProbe.IsBetterScoreInput(higherValueRiskyEscape, riskFreeEscape),
             "闪现候选中，更高收益的非致死风险落点仍应允许胜出。"
         );
 
@@ -333,7 +333,7 @@ public partial class run_battle_ai_score_ordering_regression : LifecycleTestScen
             "击杀候选中，更高收益的非致死风险动作仍应允许胜出。"
         );
         _test.True(
-            actionProbe.IsBetter(higherValueLethalRisky, lethalSafe),
+            actionProbe.IsBetterScoreInput(higherValueLethalRisky, lethalSafe),
             "单个 action 内击杀候选中，更高收益的非致死风险动作仍应允许胜出。"
         );
     }
@@ -356,14 +356,21 @@ public partial class run_battle_ai_score_ordering_regression : LifecycleTestScen
             estimated_ground_control_cell_count = 3,
             ground_control_score = 999,
         };
+        var evaluator = new BattleAiGroundSkillActionEvaluator();
         _test.True(
-            !action.PassesMinimumEffectiveTargetOrGroundControl(scoreInput),
+            !evaluator.PassesMinimumEffectiveTargetOrGroundControl(
+                (UseGroundSkillActionDefinition)action.ToDefinition(),
+                scoreInput
+            ),
             "已有有效命中但未达到 minimum_hit_count 时，空地控场豁免不能绕过命中门槛。"
         );
 
         action.allow_ground_control_supplement_partial_hits = true;
         _test.True(
-            action.PassesMinimumEffectiveTargetOrGroundControl(scoreInput),
+            evaluator.PassesMinimumEffectiveTargetOrGroundControl(
+                (UseGroundSkillActionDefinition)action.ToDefinition(),
+                scoreInput
+            ),
             "显式开启地格控制补足时，部分命中且地格控制分达标的候选应能通过。"
         );
     }
@@ -476,19 +483,16 @@ public partial class run_battle_ai_score_ordering_regression : LifecycleTestScen
     }
 
     private void AssertActionBetter(
-        ScoreComparisonProbeAction action,
+        BattleAiDecisionEngine action,
         BattleAiScoreInput candidate,
         BattleAiScoreInput best,
         string message
     )
     {
-        _test.True(action.IsBetter(candidate, best), message);
-        _test.True(!action.IsBetter(best, candidate), $"{message} 反向比较不应成立。");
-    }
-
-    private sealed partial class ScoreComparisonProbeAction : EnemyAiAction
-    {
-        public bool IsBetter(BattleAiScoreInput candidate, BattleAiScoreInput best) =>
-            _is_better_skill_score_input(candidate, best);
+        _test.True(action.IsBetterScoreInput(candidate, best), message);
+        _test.True(
+            !action.IsBetterScoreInput(best, candidate),
+            $"{message} 反向比较不应成立。"
+        );
     }
 }

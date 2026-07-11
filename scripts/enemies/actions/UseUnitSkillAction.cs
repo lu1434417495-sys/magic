@@ -32,21 +32,6 @@ public partial class UseUnitSkillAction : EnemyAiAction
         set => distance_reference = EnemyAiDistanceReferences.ToStringName(value);
     }
 
-    private readonly BattleAiUnitSkillCandidateEvaluator _unitSkillCandidateEvaluator = new();
-
-    internal override BattleAiDecision Decide(BattleAiContext context)
-    {
-        AiTraceRecorder.Enter("decide:unit_skill");
-        try
-        {
-            return _unitSkillCandidateEvaluator.Evaluate(this, context as BattleAiContext);
-        }
-        finally
-        {
-            AiTraceRecorder.Exit("decide:unit_skill");
-        }
-    }
-
     public override Godot.Collections.Array<string> ValidateSchema()
     {
         var errors = _collect_base_validation_errors();

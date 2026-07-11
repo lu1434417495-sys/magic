@@ -5,10 +5,7 @@ using System.Linq;
 using System.Threading;
 using Godot;
 
-internal sealed record ContentSnapshotBuildArtifact(
-    ContentSnapshot Snapshot,
-    ILegacyEnemyContentCatalog LegacyEnemyContent
-);
+internal sealed record ContentSnapshotBuildArtifact(ContentSnapshot Snapshot);
 
 /// <summary>
 /// Pure publication state used by the process host. Keeping projection commit
@@ -18,7 +15,6 @@ internal sealed record ContentSnapshotBuildArtifact(
 internal sealed class ContentSnapshotPublication
 {
     private ContentSnapshot _snapshot;
-    private ILegacyEnemyContentCatalog _legacyEnemyContent;
 
     internal long Epoch { get; private set; }
     internal bool IsSealed { get; private set; }
@@ -47,10 +43,6 @@ internal sealed class ContentSnapshotPublication
                 ?? throw new InvalidOperationException("Content snapshot builder returned no artifact.");
             ContentSnapshot snapshot = artifact.Snapshot
                 ?? throw new InvalidOperationException("Content snapshot builder returned no snapshot.");
-            ILegacyEnemyContentCatalog legacyEnemyContent = artifact.LegacyEnemyContent
-                ?? throw new InvalidOperationException(
-                    "Content snapshot builder returned no legacy enemy boundary."
-                );
             if (snapshot.Epoch != candidateEpoch)
             {
                 throw new InvalidOperationException(
@@ -61,7 +53,6 @@ internal sealed class ContentSnapshotPublication
             publishEpoch(candidateEpoch);
             Epoch = candidateEpoch;
             _snapshot = snapshot;
-            _legacyEnemyContent = legacyEnemyContent;
             IsSealed = true;
             onPublished(candidateEpoch);
             return snapshot;
@@ -71,7 +62,6 @@ internal sealed class ContentSnapshotPublication
             rollBackAttempt();
             Epoch = 0;
             _snapshot = null;
-            _legacyEnemyContent = null;
             IsSealed = false;
             throw;
         }
@@ -81,14 +71,9 @@ internal sealed class ContentSnapshotPublication
         _snapshot
         ?? throw new InvalidOperationException("No process content snapshot is active.");
 
-    internal ILegacyEnemyContentCatalog GetLegacyEnemyContent() =>
-        _legacyEnemyContent
-        ?? throw new InvalidOperationException("Process content has not been built.");
-
     internal void Release()
     {
         _snapshot = null;
-        _legacyEnemyContent = null;
     }
 }
 
@@ -135,15 +120,6 @@ internal sealed class ProcessContentHost : IContentResourceLoader, IDisposable
     internal bool IsSealed => _publication.IsSealed;
     internal int CanonicalRootCount => _roots.Count;
     internal EngineAssetResolver EngineAssets { get; }
-    internal ILegacyEnemyContentCatalog LegacyEnemyContent
-    {
-        get
-        {
-            ThrowIfDisposed();
-            return _publication.GetLegacyEnemyContent();
-        }
-    }
-
     public T LoadCanonical<T>(string resourcePath)
         where T : Resource
     {
@@ -331,7 +307,7 @@ internal sealed class ProcessContentHost : IContentResourceLoader, IDisposable
     {
         var builder = new ContentSnapshotBuilder(loader);
         ContentSnapshot snapshot = builder.Build(epoch);
-        return new ContentSnapshotBuildArtifact(snapshot, builder.LegacyEnemyContent);
+        return new ContentSnapshotBuildArtifact(snapshot);
     }
 
     private void RollBackAttemptRoots(HashSet<string> baselinePaths)

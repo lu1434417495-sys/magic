@@ -27,9 +27,6 @@ public partial class UseRandomChainSkillAction : EnemyAiAction
     [Export]
     public int minimum_candidate_count { get; set; } = 1;
 
-    internal override BattleAiDecision Decide(BattleAiContext context) =>
-        new BattleAiRandomChainSkillEvaluator().Evaluate(this, context);
-
     public override Godot.Collections.Array<string> ValidateSchema()
     {
         Godot.Collections.Array<string> errors = _collect_base_validation_errors();

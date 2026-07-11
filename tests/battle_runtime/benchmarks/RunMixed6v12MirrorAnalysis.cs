@@ -14,6 +14,11 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(RunDeferred));
+    }
+
+    private void RunDeferred()
+    {
         int exitCode = Run();
         RequestTestExit(_test.Finish("Mixed 6v12 mirror analysis", exitCode));
     }
@@ -73,7 +78,9 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
         }
 
         var contentLoader = new TestContentResourceLoader();
-        var contentProvider = new BattleSimContentProvider(contentLoader);
+        var contentProvider = new BattleSimContentProvider(
+            GameSessionTestFactory.GetProcessSnapshot()
+        );
         var overrideApplier = new BattleSimOverrideApplier();
         var terrainGenerator = new BattleTerrainGenerator();
         var progressionRegistry = new ProgressionContentRegistry(contentLoader);
@@ -81,9 +88,9 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
 
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             contentProvider.GetSkillDefinitionsTyped();
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates =
             contentProvider.GetEnemyTemplatesTyped();
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains =
+        IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyAiBrains =
             contentProvider.GetEnemyAiBrainsTyped();
         if (skillDefinitions.Count == 0 || enemyAiBrains.Count == 0)
         {
@@ -92,14 +99,12 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
             return 1;
         }
 
-        // Opt-in tuning hook: when AI_PROFILE_OVERRIDE_FILE points to a BattleSimProfileDef,
+        // Opt-in tuning hook: when AI_PROFILE_OVERRIDE_FILE points to an authored profile,
         // its override_patches (incl. faction_ai_score_profile) are applied. Unset = the
         // immutable empty baseline, so the standard 6v12 matchup is unchanged.
-        var baseline = LoadOverrideProfile() ?? new BattleSimProfileDef
-        {
-            profile_id = "baseline",
-            display_name = "Baseline",
-        };
+        BattleSimProfileDefinition baseline =
+            LoadOverrideProfile()
+            ?? contentProvider.GetBattleSimProfilesTyped()["baseline"];
         var traceSummaryReport = new BattleSimScenarioReport
         {
             ScenarioDef = scenario,
@@ -331,7 +336,7 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
     private MixedSimulationRunResult RunSingleSimulation(
         BattleSimScenarioDef scenario,
         BattleSimOverrideApplyResult overrides,
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates,
         BattleTerrainGenerator terrainGenerator,
         BattleSimFormalCombatFixture fixture,
         long seed,
@@ -745,14 +750,15 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
             GameLog.Info(message, "bench.summary", "bench");
     }
 
-    private static BattleSimProfileDef LoadOverrideProfile()
+    private static BattleSimProfileDefinition LoadOverrideProfile()
     {
         if (!OS.HasEnvironment("AI_PROFILE_OVERRIDE_FILE"))
             return null;
         string path = OS.GetEnvironment("AI_PROFILE_OVERRIDE_FILE").StripEdges();
         if (string.IsNullOrEmpty(path))
             return null;
-        var profile = ResourceLoader.Load<BattleSimProfileDef>(path);
+        BattleSimProfileDef authoredProfile = ResourceLoader.Load<BattleSimProfileDef>(path);
+        BattleSimProfileDefinition profile = authoredProfile?.ToDefinition();
         if (profile == null)
             GameLog.Error(
                 $"AI_PROFILE_OVERRIDE_FILE could not be loaded: {path}",

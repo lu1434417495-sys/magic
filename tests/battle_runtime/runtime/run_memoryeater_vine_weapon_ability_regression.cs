@@ -584,7 +584,7 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
             runtime.setup(
                 characterManagement,
                 progressionRegistry.GetSkillDefinitionsTyped(),
-                enemy_templates: new Dictionary<StringName, EnemyTemplateDef>(),
+                enemy_templates: new Dictionary<StringName, EnemyTemplateDefinition>(),
                 item_defs: itemRegistry.GetItemDefsTyped(),
                 trait_defs: progressionRegistry.GetTraitDefsTyped(),
                 equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()

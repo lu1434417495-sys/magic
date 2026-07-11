@@ -30,6 +30,11 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(RunDeferred));
+    }
+
+    private void RunDeferred()
+    {
         int exitCode = Run();
         RequestTestExit(_test.Finish("AI performance baseline", exitCode));
     }
@@ -337,8 +342,8 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
             _runtimeKeepAlive.Add(runtime);
             runtime.setup(
                 skill_definitions: catalog.GetSkillDefinitionsTyped(),
-                enemy_templates: catalog.GetEnemyTemplatesTyped(),
-                enemy_ai_brains: catalog.GetEnemyAiBrainsTyped(),
+                enemy_templates: catalog.GetEnemyTemplateDefinitions(),
+                enemy_ai_brains: catalog.GetEnemyAiBrainDefinitions(),
                 item_defs: catalog.GetItemDefsTyped(),
                 skill_catalog: catalog.GetSkillCatalogTyped(),
                 battle_special_profile_view: catalog.GetBattleSpecialProfileView()

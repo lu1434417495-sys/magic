@@ -414,8 +414,8 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
         runtime._battle_runtime.setup(
             runtime._character_management,
             gameSession.GetSkillDefinitionsTyped(),
-            gameSession.GetEnemyTemplatesTyped(),
-            gameSession.GetEnemyAiBrainsTyped(),
+            gameSession.GetEnemyTemplateDefinitions(),
+            gameSession.GetEnemyAiBrainDefinitions(),
             runtime._encounter_roster_builder,
             runtime._equipment_drop_service,
             gameSession.GetItemDefsTyped(),

@@ -236,7 +236,6 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
     internal StringNameList _post_decode_save_reasons = new();
 
     private ContentSnapshot _contentSnapshot;
-    private ILegacyEnemyContentCatalog _legacyEnemyContent;
     private ProcessContentHost _contentBorrowerHost;
     private string _contentBorrowerId = "";
     internal GameRoot _game_root = new();
@@ -271,23 +270,18 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         GameLog.AddSink(_log_sink);
     }
 
-    internal void BindContent(
-        ContentSnapshot snapshot,
-        ILegacyEnemyContentCatalog legacyEnemyContent
-    )
+    internal void BindContent(ContentSnapshot snapshot)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(snapshot);
-        ArgumentNullException.ThrowIfNull(legacyEnemyContent);
         if (_contentBindingEstablished)
             throw new InvalidOperationException("GameSession content is already bound.");
 
         GameRoot gameRoot = EnsureGameRoot();
         try
         {
-            gameRoot.BindSnapshot(this, snapshot, legacyEnemyContent);
+            gameRoot.BindSnapshot(this, snapshot);
             _contentSnapshot = snapshot;
-            _legacyEnemyContent = legacyEnemyContent;
             _contentBindingEstablished = true;
             RefreshContentValidationSnapshotState();
             ReportContentValidationErrors();
@@ -349,7 +343,6 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
 
         _game_root?.ClearSnapshotBindingForRetry();
         _contentSnapshot = null;
-        _legacyEnemyContent = null;
         _contentBindingEstablished = false;
         _contentValidationSnapshotData = new ContentValidationSnapshotData();
     }
@@ -379,12 +372,6 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         _contentSnapshot
         ?? throw new InvalidOperationException(
             "GameSession content must be explicitly bound before runtime use."
-        );
-
-    private ILegacyEnemyContentCatalog RequireLegacyEnemyContent() =>
-        _legacyEnemyContent
-        ?? throw new InvalidOperationException(
-            "GameSession legacy enemy content must be explicitly bound before runtime use."
         );
 
     private void ReleaseContentBorrower()
@@ -506,7 +493,6 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         _game_root = null;
         ClearSessionGodotObjectReferences();
         _contentSnapshot = null;
-        _legacyEnemyContent = null;
         ReleaseContentBorrower();
     }
 
@@ -1208,19 +1194,19 @@ public partial class GameSession : Node, IApplicationShutdownParticipant
         return RequireContentSnapshot().Recipes;
     }
 
-    public IReadOnlyDictionary<StringName, EnemyTemplateDef> GetEnemyTemplatesTyped()
+    internal IReadOnlyDictionary<StringName, EnemyTemplateDefinition> GetEnemyTemplateDefinitions()
     {
-        return RequireLegacyEnemyContent().EnemyTemplates;
+        return RequireContentSnapshot().EnemyTemplates;
     }
 
-    public IReadOnlyDictionary<StringName, EnemyAiBrainDef> GetEnemyAiBrainsTyped()
+    internal IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> GetEnemyAiBrainDefinitions()
     {
-        return RequireLegacyEnemyContent().EnemyBrains;
+        return RequireContentSnapshot().EnemyBrains;
     }
 
-    public IReadOnlyDictionary<StringName, WildEncounterRosterDef> GetWildEncounterRostersTyped()
+    internal IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> GetEncounterRosterDefinitions()
     {
-        return RequireLegacyEnemyContent().EncounterRosters;
+        return RequireContentSnapshot().EncounterRosters;
     }
 
     public int SaveWorldState() => SaveGameState();

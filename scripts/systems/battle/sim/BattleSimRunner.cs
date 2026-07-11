@@ -46,12 +46,13 @@ public sealed class BattleSimRunner
         progress_log_path = path;
     }
 
-    public BattleSimScenarioReport RunScenario(
+    internal BattleSimScenarioReport RunScenario(
         BattleSimScenarioDef scenarioDef,
-        IReadOnlyList<BattleSimProfileDef> profileDefs = null
+        IReadOnlyList<BattleSimProfileDefinition> profileDefs = null
     )
     {
-        List<BattleSimProfileDef> resolvedProfiles = _ResolveProfiles(profileDefs);
+        List<BattleSimProfileDefinition> resolvedProfiles = _ResolveProfiles(profileDefs);
+        ValidateProfileOverrides(resolvedProfiles);
         var resolvedSeeds = scenarioDef.ResolveSeeds();
         var report = new BattleSimScenarioReport
         {
@@ -73,7 +74,7 @@ public sealed class BattleSimRunner
 
             for (int profileIndex = 0; profileIndex < resolvedProfiles.Count; profileIndex++)
             {
-                BattleSimProfileDef profile = resolvedProfiles[profileIndex];
+                BattleSimProfileDefinition profile = resolvedProfiles[profileIndex];
                 var runs = new List<BattleSimRunReport>();
                 for (int seedIndex = 0; seedIndex < resolvedSeeds.Count; seedIndex++)
                 {
@@ -81,7 +82,7 @@ public sealed class BattleSimRunner
                     if (progress_logging_enabled)
                     {
                         _LogProgress(
-                            $"[BattleSim] run-start profile={profile.profile_id} profile_index={profileIndex + 1}/{resolvedProfiles.Count} seed={seed} seed_index={seedIndex + 1}/{resolvedSeeds.Count}"
+                            $"[BattleSim] run-start profile={profile.ProfileId} profile_index={profileIndex + 1}/{resolvedProfiles.Count} seed={seed} seed_index={seedIndex + 1}/{resolvedSeeds.Count}"
                         );
                     }
 
@@ -95,7 +96,7 @@ public sealed class BattleSimRunner
                     if (progress_logging_enabled)
                     {
                         _LogProgress(
-                            $"[BattleSim] run-done profile={profile.profile_id} seed={seed} ended={runResult.BattleEnded} winner={runResult.WinnerFactionId} final_tu={runResult.FinalTu} iterations={runResult.Iterations} timeline_steps={runResult.TimelineSteps} idle_loops={runResult.IdleLoops} ally_alive={runResult.AllyAlive} enemy_alive={runResult.EnemyAlive}"
+                            $"[BattleSim] run-done profile={profile.ProfileId} seed={seed} ended={runResult.BattleEnded} winner={runResult.WinnerFactionId} final_tu={runResult.FinalTu} iterations={runResult.Iterations} timeline_steps={runResult.TimelineSteps} idle_loops={runResult.IdleLoops} ally_alive={runResult.AllyAlive} enemy_alive={runResult.EnemyAlive}"
                         );
                     }
                 }
@@ -141,12 +142,14 @@ public sealed class BattleSimRunner
         }
     }
 
-    private List<BattleSimProfileDef> _ResolveProfiles(IReadOnlyList<BattleSimProfileDef> profileDefs)
+    private List<BattleSimProfileDefinition> _ResolveProfiles(
+        IReadOnlyList<BattleSimProfileDefinition> profileDefs
+    )
     {
-        var resolved = new List<BattleSimProfileDef>();
+        var resolved = new List<BattleSimProfileDefinition>();
         if (profileDefs != null)
         {
-            foreach (BattleSimProfileDef profile in profileDefs)
+            foreach (BattleSimProfileDefinition profile in profileDefs)
             {
                 if (profile != null)
                     resolved.Add(profile);
@@ -154,26 +157,67 @@ public sealed class BattleSimRunner
         }
         if (resolved.Count == 0)
         {
-            var baseline = new BattleSimProfileDef();
-            baseline.profile_id = "baseline";
-            baseline.display_name = "Baseline";
-            resolved.Add(baseline);
+            IReadOnlyDictionary<StringName, BattleSimProfileDefinition> formalProfiles =
+                _contentProvider.GetBattleSimProfilesTyped();
+            if (formalProfiles.TryGetValue("baseline", out BattleSimProfileDefinition baseline))
+                resolved.Add(baseline);
+            else
+                resolved.Add(
+                    new BattleSimProfileDefinition(
+                        "baseline",
+                        "Baseline",
+                        "",
+                        BattleAiScoreProfileDefinition.Default,
+                        System.Array.Empty<BattleSimOverridePatchDefinition>()
+                    )
+                );
         }
         return resolved;
     }
 
+    private void ValidateProfileOverrides(
+        IReadOnlyList<BattleSimProfileDefinition> profiles
+    )
+    {
+        IReadOnlyDictionary<StringName, SkillDefinition> skills =
+            _contentProvider.GetSkillDefinitionsTyped();
+        IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> brains =
+            _contentProvider.GetEnemyAiBrainsTyped();
+        foreach (BattleSimProfileDefinition profile in profiles)
+        {
+            BattleSimOverrideApplyResult result = _overrideApplier.ApplyProfileTyped(
+                skills,
+                brains,
+                profile
+            );
+            ThrowIfOverrideErrors(profile, result);
+        }
+    }
+
+    private static void ThrowIfOverrideErrors(
+        BattleSimProfileDefinition profile,
+        BattleSimOverrideApplyResult result
+    )
+    {
+        if (result?.Errors == null || result.Errors.Count == 0)
+            return;
+        string profileId = profile?.ProfileId.ToString() ?? "<null>";
+        throw new System.InvalidOperationException(
+            $"Battle sim profile {profileId} override validation failed: {string.Join(" | ", result.Errors)}"
+        );
+    }
+
     private BattleSimRunReport _RunSingleSimulation(
         BattleSimScenarioDef scenarioDef,
-        BattleSimProfileDef profile,
+        BattleSimProfileDefinition profile,
         int seed
     )
     {
-        var runtime = new BattleRuntimeModule();
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             _contentProvider.GetSkillDefinitionsTyped();
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates =
             _contentProvider.GetEnemyTemplatesTyped();
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains =
+        IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyAiBrains =
             _contentProvider.GetEnemyAiBrainsTyped();
         IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions =
             _contentProvider.GetBarrierProfileDefinitionsTyped();
@@ -182,6 +226,8 @@ public sealed class BattleSimRunner
             enemyAiBrains,
             profile
         );
+        ThrowIfOverrideErrors(profile, overrides);
+        var runtime = new BattleRuntimeModule();
         bool useFormalTerrain = scenarioDef != null && scenarioDef.use_formal_terrain_generation;
 
         runtime.setup(
@@ -211,7 +257,7 @@ public sealed class BattleSimRunner
         var runResult = new BattleSimRunReport
         {
             ScenarioId = scenarioDef != null ? scenarioDef.scenario_id.ToString() : "",
-            ProfileId = profile.profile_id.ToString(),
+            ProfileId = profile.ProfileId.ToString(),
             Seed = seed,
             BattleId = state != null ? state.battle_id.ToString() : "",
             BattleEnded = state != null && state.PhaseKind == BattlePhaseKind.BattleEnded,
@@ -377,7 +423,7 @@ public sealed class BattleSimRunner
                     );
                     foreach (BattleSimProfileReportEntry profileEntry in report.ProfileEntries)
                     {
-                        string profileId = profileEntry?.Profile?.profile_id.ToString() ?? "";
+                        string profileId = profileEntry?.Profile?.ProfileId.ToString() ?? "";
                         if (profileEntry == null)
                             continue;
 

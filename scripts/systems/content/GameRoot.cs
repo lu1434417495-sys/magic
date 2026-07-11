@@ -14,18 +14,16 @@ public sealed class GameRoot : IDisposable
 
     internal void BindSnapshot(
         GameSession session,
-        ContentSnapshot snapshot,
-        ILegacyEnemyContentCatalog legacyEnemyContent
+        ContentSnapshot snapshot
     )
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(snapshot);
-        ArgumentNullException.ThrowIfNull(legacyEnemyContent);
         _sessionRef = new System.WeakReference<GameSession>(session);
         try
         {
-            _contentCatalog.BindSnapshot(session, snapshot, legacyEnemyContent);
+            _contentCatalog.BindSnapshot(session, snapshot);
         }
         catch
         {

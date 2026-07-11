@@ -34,8 +34,8 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = itemRegistry.GetItemDefsTyped();
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             progressionRegistry.GetSkillDefinitionsTyped();
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
-            enemyRegistry.GetEnemyTemplatesTyped();
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates =
+            enemyRegistry.ProjectDefinitions(itemDefs).EnemyTemplates;
         IReadOnlyList<string> registrationErrors =
             progressionRegistry.GetQuestRegistrationErrorsTyped();
 
@@ -67,8 +67,8 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = itemRegistry.GetItemDefsTyped();
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             skillRegistry.GetSkillDefinitionsTyped();
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
-            enemyRegistry.GetEnemyTemplatesTyped();
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates =
+            enemyRegistry.ProjectDefinitions(itemDefs).EnemyTemplates;
         List<string> registrationErrors = new() { "typed registration error" };
 
         List<string> typedErrors = QuestContentValidator.ValidateTyped(
@@ -103,8 +103,8 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = itemRegistry.GetItemDefsTyped();
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             skillRegistry.GetSkillDefinitionsTyped();
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
-            enemyRegistry.GetEnemyTemplatesTyped();
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates =
+            enemyRegistry.ProjectDefinitions(itemDefs).EnemyTemplates;
 
         List<string> typedErrors = QuestContentValidator.ValidateTyped(
             typedQuestDefs,

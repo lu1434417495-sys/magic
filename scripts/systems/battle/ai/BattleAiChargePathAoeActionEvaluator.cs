@@ -7,7 +7,6 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
     private static readonly StringName EmptyStringName = "";
 
     private readonly BattleAiTypedActionHelper _helper = new();
-    private readonly BattleAiDecisionEngine _scoreOrdering = new();
 
     private readonly struct ChargeTargetInfo
     {
@@ -65,13 +64,8 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
         }
     }
 
-    internal BattleAiDecision Evaluate(UseChargePathAoeAction action, BattleAiContext context)
-    {
-        return Evaluate(BattleAiChargePathAoeActionSpec.FromAction(action), context);
-    }
-
     internal BattleAiDecision Evaluate(
-        BattleAiChargePathAoeActionSpec action,
+        UseChargePathAoeActionDefinition action,
         BattleAiContext context
     )
     {
@@ -257,7 +251,7 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
                         );
                         continue;
                     }
-                    if (!_scoreOrdering.IsBetterScoreInput(scoreInput, bestScoreInput))
+                    if (!BattleAiDecisionEngine.IsBetterScoreInputTyped(scoreInput, bestScoreInput))
                         continue;
                     bestScoreInput = scoreInput;
                     bestDecision = EnemyAiActionHelper.CreateScoredDecision(
@@ -575,7 +569,7 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
     }
 
     private static BattleAiScoreInput BuildSkillScoreInput(
-        BattleAiChargePathAoeActionSpec action,
+        UseChargePathAoeActionDefinition action,
         BattleAiContext context,
         SkillDefinition skillDefinition,
         BattleCommand command,
@@ -621,7 +615,7 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
     }
 
     private static StringName ResolveDefaultSkillActionIntent(
-        BattleAiChargePathAoeActionSpec action,
+        UseChargePathAoeActionDefinition action,
         SkillDefinition skillDefinition,
         IEnumerable<CombatEffectDefinition> effectDefinitions
     )
@@ -694,7 +688,7 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
     }
 
     private static AiActionTrace BeginActionTrace(
-        BattleAiChargePathAoeActionSpec action,
+        UseChargePathAoeActionDefinition action,
         BattleAiContext context,
         IReadOnlyDictionary<string, object> metadata
     )

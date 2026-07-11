@@ -57,8 +57,8 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
             runtime.setup(
                 null,
                 skillDefinitions,
-                new Dictionary<StringName, EnemyTemplateDef>(),
-                new Dictionary<StringName, EnemyAiBrainDef>(),
+                new Dictionary<StringName, EnemyTemplateDefinition>(),
+                new Dictionary<StringName, EnemyAiBrainDefinition>(),
                 null
             );
             state = _BuildState("preview_contract_force_hit");
@@ -148,8 +148,8 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
             runtime.setup(
                 null,
                 skillDefinitions,
-                new Dictionary<StringName, EnemyTemplateDef>(),
-                new Dictionary<StringName, EnemyAiBrainDef>(),
+                new Dictionary<StringName, EnemyTemplateDefinition>(),
+                new Dictionary<StringName, EnemyAiBrainDefinition>(),
                 null
             );
             var trapDamageResolver = new TrapDamageResolver();

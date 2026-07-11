@@ -6,6 +6,11 @@ public partial class run_battle_balance_simulation : LifecycleTestSceneTree
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(RunDeferred));
+    }
+
+    private void RunDeferred()
+    {
         int exitCode = Run();
         RequestTestExit(_test.Finish("Battle balance simulation", exitCode));
     }
@@ -28,10 +33,13 @@ public partial class run_battle_balance_simulation : LifecycleTestSceneTree
             return 1;
         }
 
-        var profiles = new List<BattleSimProfileDef>();
+        var profiles = new List<BattleSimProfileDefinition>();
         for (int index = 1; index < args.Length; index++)
         {
-            BattleSimProfileDef profile = ResourceLoader.Load<BattleSimProfileDef>(args[index]);
+            BattleSimProfileDef authoredProfile = ResourceLoader.Load<BattleSimProfileDef>(
+                args[index]
+            );
+            BattleSimProfileDefinition profile = authoredProfile?.ToDefinition();
             if (profile == null)
             {
                 GD.PushError($"Failed to load BattleSimProfileDef from {args[index]}.");
@@ -41,7 +49,7 @@ public partial class run_battle_balance_simulation : LifecycleTestSceneTree
         }
 
         var runner = new BattleSimRunner(
-            new BattleSimContentProvider(new TestContentResourceLoader())
+            new BattleSimContentProvider(GameSessionTestFactory.GetProcessSnapshot())
         );
         runner.SetProgressLoggingEnabled(true);
         runner.SetProgressLogPath("res://battle_sim_progress.log");

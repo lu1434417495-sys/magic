@@ -15,7 +15,6 @@ internal sealed class BattleAiChargeActionEvaluator
     };
 
     private readonly BattleAiTypedActionHelper _helper = new();
-    private readonly BattleAiDecisionEngine _scoreOrdering = new();
 
     private readonly struct ChargeTargetInfo
     {
@@ -50,12 +49,10 @@ internal sealed class BattleAiChargeActionEvaluator
         }
     }
 
-    internal BattleAiDecision Evaluate(UseChargeAction action, BattleAiContext context)
-    {
-        return Evaluate(BattleAiChargeActionSpec.FromAction(action), context);
-    }
-
-    internal BattleAiDecision Evaluate(BattleAiChargeActionSpec action, BattleAiContext context)
+    internal BattleAiDecision Evaluate(
+        UseChargeActionDefinition action,
+        BattleAiContext context
+    )
     {
         if (action == null || context?.unit_state == null)
             return null;
@@ -254,7 +251,7 @@ internal sealed class BattleAiChargeActionEvaluator
 
                 if (scoreInput != null)
                 {
-                    if (!_scoreOrdering.IsBetterScoreInput(scoreInput, bestScoreInput))
+                    if (!BattleAiDecisionEngine.IsBetterScoreInputTyped(scoreInput, bestScoreInput))
                         continue;
                     bestScoreInput = scoreInput;
                     bestDecision = EnemyAiActionHelper.CreateScoredDecision(
@@ -456,7 +453,7 @@ internal sealed class BattleAiChargeActionEvaluator
     }
 
     private static BattleAiScoreInput BuildChargeScoreInput(
-        BattleAiChargeActionSpec action,
+        UseChargeActionDefinition action,
         BattleAiContext context,
         SkillDefinition skillDefinition,
         BattleCommand command,
@@ -490,7 +487,7 @@ internal sealed class BattleAiChargeActionEvaluator
     }
 
     private static string ResolveShortChargeBlockReason(
-        BattleAiChargeActionSpec action,
+        UseChargeActionDefinition action,
         BattleAiContext context,
         Vector2I resolvedAnchor,
         int resolvedMoveDistance,
@@ -614,7 +611,7 @@ internal sealed class BattleAiChargeActionEvaluator
     }
 
     private static BattleAiScoreInput BuildSkillScoreInput(
-        BattleAiChargeActionSpec action,
+        UseChargeActionDefinition action,
         BattleAiContext context,
         SkillDefinition skillDefinition,
         BattleCommand command,
@@ -660,7 +657,7 @@ internal sealed class BattleAiChargeActionEvaluator
     }
 
     private static StringName ResolveDefaultSkillActionIntent(
-        BattleAiChargeActionSpec action,
+        UseChargeActionDefinition action,
         SkillDefinition skillDefinition,
         IEnumerable<CombatEffectDefinition> effectDefinitions
     )
@@ -729,7 +726,7 @@ internal sealed class BattleAiChargeActionEvaluator
     }
 
     private static AiActionTrace BeginActionTrace(
-        BattleAiChargeActionSpec action,
+        UseChargeActionDefinition action,
         BattleAiContext context,
         IReadOnlyDictionary<string, object> metadata
     )

@@ -24,13 +24,16 @@ public partial class run_enemy_template_attribute_projection_regression : Lifecy
         using EnemyTemplateDef template = BuildTemplate();
         using EncounterRosterBuilder builder = new();
 
-        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDef>(
-            gameSession.GetEnemyTemplatesTyped()
+        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>(
+            gameSession.GetEnemyTemplateDefinitions()
         )
         {
-            [template.template_id] = template
+            [template.template_id] = template.ToDefinition(gameSession.GetItemDefsTyped())
         };
-        builder.Setup(new Dictionary<StringName, WildEncounterRosterDef>(), enemyTemplates);
+        builder.Setup(
+            new Dictionary<StringName, WildEncounterRosterDefinition>(),
+            enemyTemplates
+        );
 
         IReadOnlyDictionary<StringName, int> typedBaseAttributes =
             template.GetBaseAttributeOverridesResolvedTyped();
@@ -63,7 +66,7 @@ public partial class run_enemy_template_attribute_projection_regression : Lifecy
             BuildEncounterAnchor(template.template_id),
             gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             enemyTemplates,
-            gameSession.GetEnemyAiBrainsTyped(),
+            gameSession.GetEnemyAiBrainDefinitions(),
             gameSession.GetItemDefsTyped()
         );
 
@@ -207,40 +210,6 @@ public partial class run_enemy_template_attribute_projection_regression : Lifecy
             }
         }
         return fallback;
-    }
-
-    private static GDictionary ProjectEnemyTemplates(
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates
-    )
-    {
-        GDictionary result = new();
-        if (enemyTemplates == null)
-            return result;
-        foreach ((StringName templateId, EnemyTemplateDef template) in enemyTemplates)
-            result[templateId] = template;
-        return result;
-    }
-
-    private static GDictionary ProjectEnemyAiBrains(
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains
-    )
-    {
-        GDictionary result = new();
-        if (enemyAiBrains == null)
-            return result;
-        foreach ((StringName brainId, EnemyAiBrainDef brain) in enemyAiBrains)
-            result[brainId] = brain;
-        return result;
-    }
-
-    private static GDictionary ProjectItemDefs(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
-    {
-        GDictionary result = new();
-        if (itemDefs == null)
-            return result;
-        foreach ((StringName itemId, ItemDef itemDef) in itemDefs)
-            result[itemId] = itemDef;
-        return result;
     }
 
 }

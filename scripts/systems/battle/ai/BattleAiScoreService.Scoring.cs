@@ -467,11 +467,11 @@ public partial class BattleAiScoreService
             scoreInput.estimated_shield_absorbed += estimatedShieldAbsorbed;
             if (targetUnit.faction_id == actor.faction_id)
             {
-                rawPayoff -= estimatedDamage * _scoreProfile.damage_weight;
+                rawPayoff -= estimatedDamage * _scoreProfile.DamageWeight;
                 continue;
             }
-            rawPayoff += estimatedDamage * _scoreProfile.damage_weight;
-            rawPayoff += estimatedShieldAbsorbed * Math.Max(_scoreProfile.shield_absorbed_weight, 0);
+            rawPayoff += estimatedDamage * _scoreProfile.DamageWeight;
+            rawPayoff += estimatedShieldAbsorbed * Math.Max(_scoreProfile.ShieldAbsorbedWeight, 0);
             int targetPriorityBonus = ResolveTargetRoleThreatBonus(
                 context,
                 targetUnit,
@@ -497,7 +497,7 @@ public partial class BattleAiScoreService
                 )
             )
             {
-                rawStatusPayoff += _scoreProfile.status_weight;
+                rawStatusPayoff += _scoreProfile.StatusWeight;
             }
         }
         rawPayoff += rawStatusPayoff;
@@ -1081,10 +1081,10 @@ public partial class BattleAiScoreService
             return 0;
         }
         int basePayoff =
-            Math.Max(estimatedDamage, 0) * _scoreProfile.damage_weight
-            + Math.Max(estimatedStatusCount, 0) * _scoreProfile.status_weight
-            + Math.Max(estimatedTerrainEffectCount, 0) * _scoreProfile.terrain_weight
-            + Math.Max(estimatedHeightDelta, 0) * _scoreProfile.height_weight;
+            Math.Max(estimatedDamage, 0) * _scoreProfile.DamageWeight
+            + Math.Max(estimatedStatusCount, 0) * _scoreProfile.StatusWeight
+            + Math.Max(estimatedTerrainEffectCount, 0) * _scoreProfile.TerrainWeight
+            + Math.Max(estimatedHeightDelta, 0) * _scoreProfile.HeightWeight;
         if (basePayoff <= 0)
         {
             return 0;
@@ -1113,7 +1113,7 @@ public partial class BattleAiScoreService
         }
         scoreInput.estimated_lethal_target_count += 1;
         AppendUniqueStringName(scoreInput.estimated_lethal_target_ids, targetUnit.unit_id);
-        int bonus = Math.Max(_scoreProfile.lethal_target_weight, 0);
+        int bonus = Math.Max(_scoreProfile.LethalTargetWeight, 0);
         if (IsPriorityThreatTarget(context, targetUnit))
         {
             scoreInput.estimated_lethal_threat_target_count += 1;
@@ -1121,7 +1121,7 @@ public partial class BattleAiScoreService
                 scoreInput.estimated_lethal_threat_target_ids,
                 targetUnit.unit_id
             );
-            bonus += Math.Max(_scoreProfile.lethal_threat_target_weight, 0);
+            bonus += Math.Max(_scoreProfile.LethalThreatTargetWeight, 0);
         }
         return bonus;
     }
@@ -1143,12 +1143,12 @@ public partial class BattleAiScoreService
             return 0;
         }
 
-        int baseBonus = Math.Max(_scoreProfile.lethal_target_weight, 0);
+        int baseBonus = Math.Max(_scoreProfile.LethalTargetWeight, 0);
         int threatBonus = 0;
         bool isPriorityThreat = IsPriorityThreatTarget(context, targetUnit);
         if (isPriorityThreat)
         {
-            threatBonus = Math.Max(_scoreProfile.lethal_threat_target_weight, 0);
+            threatBonus = Math.Max(_scoreProfile.LethalThreatTargetWeight, 0);
         }
 
         if (killBps >= 10000)

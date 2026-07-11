@@ -179,8 +179,7 @@ public partial class run_validation_text_surface_regression : LifecycleTestScene
         var runner = new GameTextCommandRunner();
         GameSessionTestFactory.CreateSynthetic(
             runner.GetSession(),
-            configure,
-            GameSessionTestFactory.CreateLoadedLegacyEnemyContent()
+            configure
         );
         runner.initialize();
         return runner;

@@ -8,6 +8,11 @@ public partial class run_battle_ai_ground_reposition_behavior_regression : Lifec
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
+    {
         try
         {
             TestBlinkRepositionChoosesSaferGroundCoord();
@@ -59,7 +64,10 @@ public partial class run_battle_ai_ground_reposition_behavior_regression : Lifec
         );
         action.skill_ids.Add("mage_blink");
 
-        BattleAiDecision decision = action.Decide(BuildAiContext(runtime, mage));
+        BattleAiDecision decision = new BattleAiGroundRepositionActionEvaluator().Evaluate(
+            (UseGroundRepositionSkillActionDefinition)action.ToDefinition(),
+            BuildAiContext(runtime, mage)
+        );
         _test.True(decision?.command != null, "blink reposition should produce a skill command.");
         _test.Eq(
             decision?.command?.skill_id ?? new StringName(""),
@@ -100,8 +108,8 @@ public partial class run_battle_ai_ground_reposition_behavior_regression : Lifec
         runtime.setup(
             null,
             gameSession.GetSkillDefinitionsTyped(),
-            gameSession.GetEnemyTemplatesTyped(),
-            gameSession.GetEnemyAiBrainsTyped(),
+            gameSession.GetEnemyTemplateDefinitions(),
+            gameSession.GetEnemyAiBrainDefinitions(),
             null
         );
         return new BattleRuntimeScope(runtime, gameSession);

@@ -8,6 +8,11 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
+    {
         try
         {
             TestAssemblerAddsWhirlwindChargePathAction();
@@ -26,7 +31,7 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
     {
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
         BattleRuntimeModule runtime = runtimeScope.Runtime;
-        EnemyAiBrainDef brain = GetEnemyBrain(runtime, "melee_aggressor");
+        EnemyAiBrainDefinition brain = GetEnemyBrain(runtime, "melee_aggressor");
         BattleUnitState spinner = BuildAiUnit(
             "whirlwind_assembler",
             "自动旋风狼",
@@ -49,15 +54,16 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
         bool foundPathAction = false;
         foreach (BattleAiRuntimeActionEntry entry in plan.GetActionEntries("engage"))
         {
-            BattleAiChargePathAoeActionSpec chargePathAction = entry?.GeneratedChargePathAoe;
+            UseChargePathAoeActionDefinition chargePathAction =
+                entry?.Action as UseChargePathAoeActionDefinition;
             if (chargePathAction == null)
             {
                 continue;
             }
             foundPathAction = ContainsSkillId(
-                chargePathAction.GetDeclaredSkillIds(),
+                chargePathAction.DeclaredSkillIds,
                 "warrior_whirlwind_slash"
-            ) && entry.ResourceAction == null;
+            );
             if (foundPathAction)
             {
                 break;
@@ -122,7 +128,10 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
         );
         action.skill_ids.Add("warrior_whirlwind_slash");
 
-        BattleAiDecision decision = action.Decide(BuildAiContext(runtime, spinner));
+        BattleAiDecision decision = new BattleAiChargePathAoeActionEvaluator().Evaluate(
+            (UseChargePathAoeActionDefinition)action.ToDefinition(),
+            BuildAiContext(runtime, spinner)
+        );
         _test.True(decision?.command != null, "旋风斩路径 AOE Action 应能产出合法候选。");
         _test.True(
             decision?.score_input != null && decision.score_input.path_step_hit_count >= 2,
@@ -190,8 +199,8 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
         runtime.setup(
             null,
             gameSession.GetSkillDefinitionsTyped(),
-            gameSession.GetEnemyTemplatesTyped(),
-            gameSession.GetEnemyAiBrainsTyped(),
+            gameSession.GetEnemyTemplateDefinitions(),
+            gameSession.GetEnemyAiBrainDefinitions(),
             null
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
@@ -201,11 +210,17 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
         return new BattleRuntimeScope(runtime, gameSession);
     }
 
-    private static EnemyAiBrainDef GetEnemyBrain(BattleRuntimeModule runtime, StringName brainId)
+    private static EnemyAiBrainDefinition GetEnemyBrain(
+        BattleRuntimeModule runtime,
+        StringName brainId
+    )
     {
         if (
             runtime == null
-            || !runtime.GetEnemyAiBrainIndexTyped().TryGetValue(brainId, out EnemyAiBrainDef brain)
+            || !runtime.GetEnemyAiBrainIndexTyped().TryGetValue(
+                brainId,
+                out EnemyAiBrainDefinition brain
+            )
         )
         {
             return null;

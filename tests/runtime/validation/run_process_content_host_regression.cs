@@ -66,13 +66,13 @@ public partial class run_process_content_host_regression : LifecycleTestSceneTre
             "path-backed content roots should be diagnosed as borrowed"
         );
         _test.True(
-            host.LegacyEnemyContent.EnemyTemplates.Count > 0,
-            "the exact phase-4 enemy boundary should be available separately"
+            first.EnemyTemplates.Count > 0,
+            "the process snapshot should expose typed enemy definitions"
         );
         _test.Eq(
-            host.LegacyEnemyContent.SimulationProfiles.Count,
+            first.BattleSimProfiles.Count,
             4,
-            "the exact phase-4 boundary should expose every formal BattleSim profile"
+            "the process snapshot should expose every formal BattleSim profile definition"
         );
         foreach (
             StringName profileId in new StringName[]
@@ -85,8 +85,8 @@ public partial class run_process_content_host_regression : LifecycleTestSceneTre
         )
         {
             _test.True(
-                host.LegacyEnemyContent.SimulationProfiles.ContainsKey(profileId),
-                $"formal BattleSim profile is exposed: {profileId}"
+                first.BattleSimProfiles.ContainsKey(profileId),
+                $"formal BattleSim profile definition is exposed: {profileId}"
             );
         }
 
@@ -193,11 +193,9 @@ public partial class run_process_content_host_regression : LifecycleTestSceneTre
         );
 
         ContentSnapshot snapshot = SyntheticContentSnapshotFactory.CreateEmpty(41);
-        ILegacyEnemyContentCatalog legacyEnemyContent =
-            SyntheticContentSnapshotFactory.CreateEmptyLegacyEnemyContent();
         ContentSnapshot published = publication.BuildAndSeal(
             41,
-            () => new ContentSnapshotBuildArtifact(snapshot, legacyEnemyContent),
+            () => new ContentSnapshotBuildArtifact(snapshot),
             () => rootCount = baselineRootCount,
             _ => { },
             _ => { }

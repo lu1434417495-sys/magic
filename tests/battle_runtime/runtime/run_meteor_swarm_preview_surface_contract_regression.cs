@@ -189,8 +189,8 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Life
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             skill_definitions: typedSkillDefinitions,
-            enemy_templates: new Dictionary<StringName, EnemyTemplateDef>(),
-            enemy_ai_brains: new Dictionary<StringName, EnemyAiBrainDef>(),
+            enemy_templates: new Dictionary<StringName, EnemyTemplateDefinition>(),
+            enemy_ai_brains: new Dictionary<StringName, EnemyAiBrainDefinition>(),
             item_defs: new Dictionary<StringName, ItemDefinition>(),
             battle_special_profile_view: specialRegistry.BuildRuntimeProfileView()
         );

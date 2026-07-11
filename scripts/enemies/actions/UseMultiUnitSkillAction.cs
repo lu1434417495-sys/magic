@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Godot;
 
 [GlobalClass]
@@ -29,80 +28,6 @@ public partial class UseMultiUnitSkillAction : EnemyAiAction
 
     [Export]
     public int candidate_group_limit { get; set; } = 12;
-
-    internal override BattleAiDecision Decide(BattleAiContext context) =>
-        new BattleAiMultiUnitSkillEvaluator().Evaluate(this, context);
-
-    protected List<CombatCastVariantDefinition> _get_multi_unit_cast_variants(
-        BattleAiContext context,
-        SkillDefinition skillDefinition
-    )
-    {
-        var result = new List<CombatCastVariantDefinition>();
-        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
-        if (combatProfile == null)
-            return result;
-        if (combatProfile.CastVariants.Count == 0)
-        {
-            result.Add(null);
-            return result;
-        }
-        int skillLevel = context?.unit_state != null
-            ? _get_skill_level(context.unit_state, skillDefinition.SkillId)
-            : 0;
-        SkillEffectiveCombatDefinition effectiveDefinition =
-            context?.skill_catalog?.GetEffectiveCombatDefinition(skillDefinition.SkillId, skillLevel)
-            ?? SkillEffectiveCombatDefinition.BuildUncached(skillDefinition, skillLevel);
-        foreach (CombatCastVariantDefinition castVariant in effectiveDefinition.UnlockedCastVariants)
-        {
-            if (castVariant != null)
-                result.Add(castVariant);
-        }
-        return result;
-    }
-
-    protected Dictionary<string, object> _build_position_metadata(
-        BattleAiContext context,
-        IReadOnlyList<BattleUnitState> targetGroup,
-        SkillDefinition skillDefinition
-    )
-    {
-        Dictionary<string, object> metadata = _resolve_desired_distance_contract_typed(
-            context,
-            skillDefinition
-        );
-        if (DistanceReferenceKind == EnemyAiDistanceReference.TargetUnit)
-        {
-            BattleUnitState primaryTarget = targetGroup.Count > 0 ? targetGroup[0] : null;
-            if (primaryTarget != null)
-                metadata["position_target_unit_id"] = primaryTarget.unit_id;
-            else
-                metadata["position_objective_kind"] = "none";
-        }
-        else if (DistanceReferenceKind == EnemyAiDistanceReference.EnemyFrontline)
-        {
-            BattleUnitState frontline = _resolve_enemy_frontline_unit(context);
-            if (frontline != null)
-                metadata["position_target_unit_id"] = frontline.unit_id;
-            else
-                metadata["position_objective_kind"] = "none";
-        }
-        else
-        {
-            metadata["position_objective_kind"] = "none";
-        }
-        return metadata;
-    }
-
-    private BattleUnitState _resolve_enemy_frontline_unit(BattleAiContext context)
-    {
-        List<BattleUnitState> targets = _sort_target_units_typed(
-            context,
-            "enemy",
-            "nearest_enemy"
-        );
-        return targets.Count > 0 ? targets[0] : null;
-    }
 
     public override Godot.Collections.Array<string> ValidateSchema()
     {

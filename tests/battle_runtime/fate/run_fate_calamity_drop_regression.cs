@@ -13,6 +13,11 @@ public partial class run_fate_calamity_drop_regression : LifecycleTestSceneTree
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
+    {
         TestOrdinaryBattleCalamityConversionRespectsChapterCap();
         TestEliteBossLootPathsBypassOrdinaryChapterCap();
         TestBrandedEliteGrantsFixedCalamityShard();

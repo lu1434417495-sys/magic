@@ -22,7 +22,7 @@ public partial class run_battle_sim_report_builder_regression : LifecycleTestSce
     private void TestProfileSummaryExposesSkillAttemptAndFailureTotals()
     {
         var builder = new BattleSimReportBuilder();
-        BattleSimProfileDef profile = BuildProfile("baseline", "Baseline");
+        BattleSimProfileDefinition profile = BuildProfile("baseline", "Baseline");
         BattleSimProfileSummary summary = builder.BuildProfileSummary(
             profile,
             new List<BattleSimRunReport> { BuildRunA(), BuildRunB() }
@@ -77,9 +77,18 @@ public partial class run_battle_sim_report_builder_regression : LifecycleTestSce
         _test.Eq(comparison.AverageTimelineStepsDelta, -1.0f, "candidate 的平均 timeline_steps 应比 baseline 少 1。");
     }
 
-    private static BattleSimProfileDef BuildProfile(StringName profileId, string displayName)
+    private static BattleSimProfileDefinition BuildProfile(
+        StringName profileId,
+        string displayName
+    )
     {
-        return new BattleSimProfileDef { profile_id = profileId, display_name = displayName };
+        return new BattleSimProfileDefinition(
+            profileId,
+            displayName,
+            "",
+            BattleAiScoreProfileDefinition.Default,
+            System.Array.Empty<BattleSimOverridePatchDefinition>()
+        );
     }
 
     private static BattleSimRunReport BuildRunA()

@@ -61,8 +61,7 @@ public partial class run_content_snapshot_session_recreate_regression : Lifecycl
         ContentSnapshot synthetic = SyntheticContentSnapshotFactory.Create(syntheticSeed);
         using (
             GameSession syntheticSession = GameSessionTestFactory.CreateSynthetic(
-                synthetic,
-                host.LegacyEnemyContent
+                synthetic
             )
         )
         {

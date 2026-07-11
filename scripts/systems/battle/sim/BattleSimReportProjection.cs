@@ -40,7 +40,7 @@ internal static class BattleSimReportProjection
         );
 
     internal static GodotProjectionLease<GDictionary> BuildProfileLease(
-        BattleSimProfileDef profile
+        BattleSimProfileDefinition profile
     ) =>
         BuildRootLease(
             "battle_sim_profile",
@@ -216,7 +216,7 @@ internal static class BattleSimReportProjection
 
     internal static GDictionary WriteProfile<TLeaseRoot>(
         GodotProjectionLease<TLeaseRoot> lease,
-        BattleSimProfileDef profile,
+        BattleSimProfileDefinition profile,
         string reason
     )
         where TLeaseRoot : class, IDisposable
@@ -505,22 +505,22 @@ internal static class BattleSimReportProjection
     private static void WriteProfileInto<TLeaseRoot>(
         GodotProjectionLease<TLeaseRoot> lease,
         GDictionary target,
-        BattleSimProfileDef profile,
+        BattleSimProfileDefinition profile,
         string reason
     )
         where TLeaseRoot : class, IDisposable
     {
         if (profile == null)
             return;
-        target["profile_id"] = profile.profile_id.ToString();
-        target["display_name"] = profile.display_name;
-        target["description"] = profile.description;
+        target["profile_id"] = profile.ProfileId.ToString();
+        target["display_name"] = profile.DisplayName;
+        target["description"] = profile.Description;
         target["ai_score_profile"] = BattleAiScoreProjection.WriteProfile(
             lease,
-            profile.ai_score_profile,
+            profile.AiScoreProfile,
             $"{reason}.ai_score_profile"
         );
-        target["override_patch_count"] = profile.override_patches.Count;
+        target["override_patch_count"] = profile.OverridePatches.Count;
     }
 
     private static void WriteScenarioInto<TLeaseRoot>(

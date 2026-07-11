@@ -556,11 +556,16 @@ public partial class run_butcher_weapon_ability_regression : LifecycleTestSceneT
         {
             ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
             ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
-            Dictionary<StringName, EnemyTemplateDef> enemyTemplates = new()
+            IReadOnlyDictionary<StringName, ItemDefinition> itemDefs =
+                itemRegistry.GetItemDefsTyped();
+            Dictionary<StringName, EnemyTemplateDefinition> enemyTemplates = new()
             {
-                ["butcher_loot_beast"] = BuildEnemyTemplate("butcher_loot_beast"),
-                ["plain_loot_beast"] = BuildEnemyTemplate("plain_loot_beast"),
-                ["butcher_loot_humanoid"] = BuildEnemyTemplate("butcher_loot_humanoid"),
+                ["butcher_loot_beast"] = BuildEnemyTemplate("butcher_loot_beast")
+                    .ToDefinition(itemDefs),
+                ["plain_loot_beast"] = BuildEnemyTemplate("plain_loot_beast")
+                    .ToDefinition(itemDefs),
+                ["butcher_loot_humanoid"] = BuildEnemyTemplate("butcher_loot_humanoid")
+                    .ToDefinition(itemDefs),
             };
             PartyState partyState = BuildPartyState("hero");
             CharacterManagementModule characterManagement = new();
@@ -569,7 +574,7 @@ public partial class run_butcher_weapon_ability_regression : LifecycleTestSceneT
                 progressionRegistry.GetSkillDefinitionsTyped(),
                 progressionRegistry.GetProfessionDefsTyped(),
                 progressionRegistry.GetAchievementDefsTyped(),
-                itemRegistry.GetItemDefsTyped(),
+                itemDefs,
                 progressionRegistry.GetQuestDefsTyped(),
                 progressionRegistry.GetTraitDefsTyped(),
                 null,
@@ -581,7 +586,7 @@ public partial class run_butcher_weapon_ability_regression : LifecycleTestSceneT
                 characterManagement,
                 progressionRegistry.GetSkillDefinitionsTyped(),
                 enemy_templates: enemyTemplates,
-                item_defs: itemRegistry.GetItemDefsTyped(),
+                item_defs: itemDefs,
                 trait_defs: progressionRegistry.GetTraitDefsTyped(),
                 equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
             );

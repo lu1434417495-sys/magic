@@ -114,7 +114,7 @@ public partial class BattleAiScoreService
             return "zone_denial";
         }
         scoreInput.low_value_penalty_reason = "no_cluster_decapitation_or_zone_denial";
-        scoreInput.hit_payoff_score -= Math.Max(_scoreProfile.target_count_weight, 0);
+        scoreInput.hit_payoff_score -= Math.Max(_scoreProfile.TargetCountWeight, 0);
         return "impact";
     }
 
@@ -164,7 +164,7 @@ public partial class BattleAiScoreService
         int threatMultiplier = roleSummary.ThreatMultiplierBasisPoints;
         if (
             roleSummary.HasHighThreatRole
-            && threatMultiplier >= _scoreProfile.meteor_high_priority_threat_multiplier_bp
+            && threatMultiplier >= _scoreProfile.MeteorHighPriorityThreatMultiplierBp
         )
         {
             reasons.Add("role_threat_multiplier");
@@ -178,18 +178,18 @@ public partial class BattleAiScoreService
             (double)centerDirectExpected * 100.0 / Math.Max(maxHp, 1)
         );
         if (
-            centerDirectHpPercent >= _scoreProfile.meteor_high_priority_damage_hp_percent
+            centerDirectHpPercent >= _scoreProfile.MeteorHighPriorityDamageHpPercent
             && roleSummary.HasHighThreatRole
         )
         {
             reasons.Add("center_direct_high_role_damage");
         }
-        if (targetPriorityScore >= _scoreProfile.meteor_high_priority_target_priority_score)
+        if (targetPriorityScore >= _scoreProfile.MeteorHighPriorityTargetPriorityScore)
         {
             reasons.Add("target_priority_score");
         }
         int threatRank = ResolveMeteorThreatRank(context, targetUnit);
-        if (threatRank > 0 && threatRank <= Math.Max(_scoreProfile.meteor_top_threat_rank, 0))
+        if (threatRank > 0 && threatRank <= Math.Max(_scoreProfile.MeteorTopThreatRank, 0))
         {
             reasons.Add("top_threat_rank");
         }
@@ -439,14 +439,14 @@ public partial class BattleAiScoreService
         {
             if (
                 summary.ExpectedDamageHpPercent
-                >= _scoreProfile.meteor_friendly_fire_hard_expected_hp_percent
+                >= _scoreProfile.MeteorFriendlyFireHardExpectedHpPercent
             )
             {
                 return $"meteor_swarm_friendly_fire_expected_threshold:{targetLabel}";
             }
             if (
                 summary.WorstCaseDamageHpPercent
-                >= _scoreProfile.meteor_friendly_fire_hard_worst_case_hp_percent
+                >= _scoreProfile.MeteorFriendlyFireHardWorstCaseHpPercent
             )
             {
                 return $"meteor_swarm_friendly_fire_worst_threshold:{targetLabel}";
@@ -546,14 +546,14 @@ public partial class BattleAiScoreService
         {
             scoreInput.effective_target_count += 1;
         }
-        scoreInput.hit_payoff_score += estimatedDamage * _scoreProfile.damage_weight;
-        scoreInput.hit_payoff_score -= estimatedHealing * _scoreProfile.heal_weight;
-        scoreInput.hit_payoff_score += harmfulControlCount * _scoreProfile.status_weight;
+        scoreInput.hit_payoff_score += estimatedDamage * _scoreProfile.DamageWeight;
+        scoreInput.hit_payoff_score -= estimatedHealing * _scoreProfile.HealWeight;
+        scoreInput.hit_payoff_score += harmfulControlCount * _scoreProfile.StatusWeight;
         scoreInput.hit_payoff_score +=
-            estimatedShieldAbsorbed * Math.Max(_scoreProfile.shield_absorbed_weight, 0);
-        scoreInput.hit_payoff_score -= beneficialControlCount * _scoreProfile.status_weight;
-        scoreInput.hit_payoff_score += estimatedTerrainEffectCount * _scoreProfile.terrain_weight;
-        scoreInput.hit_payoff_score += estimatedHeightDelta * _scoreProfile.height_weight;
+            estimatedShieldAbsorbed * Math.Max(_scoreProfile.ShieldAbsorbedWeight, 0);
+        scoreInput.hit_payoff_score -= beneficialControlCount * _scoreProfile.StatusWeight;
+        scoreInput.hit_payoff_score += estimatedTerrainEffectCount * _scoreProfile.TerrainWeight;
+        scoreInput.hit_payoff_score += estimatedHeightDelta * _scoreProfile.HeightWeight;
         int targetPriorityBonus = ResolveTargetRoleThreatBonus(
             context,
             targetUnit,
@@ -739,8 +739,8 @@ public partial class BattleAiScoreService
         if (hasAllyBenefit)
         {
             scoreInput.effective_target_count += 1;
-            scoreInput.hit_payoff_score += estimatedHealing * _scoreProfile.heal_weight;
-            scoreInput.hit_payoff_score += beneficialControlCount * _scoreProfile.status_weight;
+            scoreInput.hit_payoff_score += estimatedHealing * _scoreProfile.HealWeight;
+            scoreInput.hit_payoff_score += beneficialControlCount * _scoreProfile.StatusWeight;
         }
         if (estimatedDamage <= 0 && harmfulControlCount <= 0)
         {
@@ -753,9 +753,9 @@ public partial class BattleAiScoreService
             scoreInput.estimated_friendly_control_target_count += 1;
         }
         int penalty =
-            estimatedDamage * _scoreProfile.friendly_fire_damage_weight
-            + _scoreProfile.friendly_fire_target_weight
-            + harmfulControlCount * _scoreProfile.friendly_control_target_weight;
+            estimatedDamage * _scoreProfile.FriendlyFireDamageWeight
+            + _scoreProfile.FriendlyFireTargetWeight
+            + harmfulControlCount * _scoreProfile.FriendlyControlTargetWeight;
         bool isFriendlyLethal =
             isExecute
                 ? Mathf.Clamp(executeKillProbabilityBasisPoints, 0, 10000) > 0
@@ -763,7 +763,7 @@ public partial class BattleAiScoreService
         if (isFriendlyLethal)
         {
             scoreInput.estimated_friendly_lethal_target_count += 1;
-            penalty += _scoreProfile.friendly_lethal_target_weight;
+            penalty += _scoreProfile.FriendlyLethalTargetWeight;
         }
         scoreInput.friendly_fire_penalty_score += penalty;
         scoreInput.hit_payoff_score -= penalty;

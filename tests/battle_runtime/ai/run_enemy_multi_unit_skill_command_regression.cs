@@ -72,7 +72,10 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
             );
             action.skill_ids.Add(skillId);
 
-            BattleAiDecision decision = action.Decide(context);
+            BattleAiDecision decision = new BattleAiMultiUnitSkillEvaluator().Evaluate(
+                (UseMultiUnitSkillActionDefinition)action.ToDefinition(),
+                context
+            );
             BattleCommand command = decision?.command;
             _test.True(command != null, "command was null");
             if (command != null)

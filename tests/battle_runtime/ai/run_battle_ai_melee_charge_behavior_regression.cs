@@ -9,6 +9,11 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
+    {
         try
         {
             TestNaturalWeaponMeleeAggressorFallsBackToBasicAttack();
@@ -268,7 +273,10 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
             },
             "battle_ai_melee_charge.action"
         );
-        BattleAiDecision decision = action.Decide(BuildAiContext(runtime, wolf));
+        BattleAiDecision decision = new BattleAiChargeActionEvaluator().Evaluate(
+            (UseChargeActionDefinition)action.ToDefinition(),
+            BuildAiContext(runtime, wolf)
+        );
         _test.True(decision?.command != null, "charge 评分回归应能产出合法冲锋指令。");
         _test.True(
             decision?.command?.target_coord != new Vector2I(-1, -1),
@@ -290,8 +298,8 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
         runtime.setup(
             null,
             gameSession.GetSkillDefinitionsTyped(),
-            gameSession.GetEnemyTemplatesTyped(),
-            gameSession.GetEnemyAiBrainsTyped(),
+            gameSession.GetEnemyTemplateDefinitions(),
+            gameSession.GetEnemyAiBrainDefinitions(),
             null
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));

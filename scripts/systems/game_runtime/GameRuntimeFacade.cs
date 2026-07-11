@@ -208,7 +208,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     internal StringName _party_selected_member_id = "";
     private ContingencySetupMutationResult _last_contingency_command_result =
         ContingencySetupMutationResult.Failure("", "", "");
-    private readonly Dictionary<StringName, WildEncounterRosterDef> _wild_encounter_roster_defs = new();
+    private readonly Dictionary<StringName, WildEncounterRosterDefinition> _wild_encounter_roster_definitions = new();
     private bool _disposed;
 
     internal Vector2I _battle_selected_coord
@@ -282,10 +282,12 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         _world_map_data_context.BindRootWorldData(
             _game_session.GetWorldData()
         );
-        RebuildWildEncounterRosterDefIndex(_content_catalog.GetWildEncounterRostersTyped());
+        RebuildWildEncounterRosterDefinitionIndex(
+            _content_catalog.GetEncounterRosterDefinitions()
+        );
         _encounter_roster_builder.Setup(
-            _content_catalog.GetWildEncounterRostersTyped(),
-            _content_catalog.GetEnemyTemplatesTyped()
+            _content_catalog.GetEncounterRosterDefinitions(),
+            _content_catalog.GetEnemyTemplateDefinitions()
         );
         _party_state = _game_session.GetPartyState();
         _player_coord = _game_session.GetPlayerCoord();
@@ -322,8 +324,8 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         );
         _battle_runtime.setup(
             character_gateway: _character_management,
-            enemy_templates: _content_catalog.GetEnemyTemplatesTyped(),
-            enemy_ai_brains: _content_catalog.GetEnemyAiBrainsTyped(),
+            enemy_templates: _content_catalog.GetEnemyTemplateDefinitions(),
+            enemy_ai_brains: _content_catalog.GetEnemyAiBrainDefinitions(),
             encounter_builder: _encounter_roster_builder,
             equipment_drop_service: _equipment_drop_service,
             item_defs: _content_catalog.GetItemDefsTyped(),
@@ -399,20 +401,22 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         );
     }
 
-    private void RebuildWildEncounterRosterDefIndex(
-        IReadOnlyDictionary<StringName, WildEncounterRosterDef> wildEncounterRosters
+    private void RebuildWildEncounterRosterDefinitionIndex(
+        IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> wildEncounterRosters
     )
     {
-        _wild_encounter_roster_defs.Clear();
+        _wild_encounter_roster_definitions.Clear();
         if (wildEncounterRosters == null)
         {
             return;
         }
-        foreach ((StringName rosterId, WildEncounterRosterDef roster) in wildEncounterRosters)
+        foreach (
+            (StringName rosterId, WildEncounterRosterDefinition roster) in wildEncounterRosters
+        )
         {
-            if (rosterId == "" || roster == null || roster.profile_id == "")
+            if (rosterId == "" || roster == null || roster.ProfileId == "")
                 continue;
-            _wild_encounter_roster_defs[roster.profile_id] = roster;
+            _wild_encounter_roster_definitions[roster.ProfileId] = roster;
         }
     }
 
@@ -455,7 +459,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         _pending_submap_prompt.Clear();
         _pending_battle_start_prompt.Clear();
         _pending_battle_generation_request.Clear();
-        _wild_encounter_roster_defs.Clear();
+        _wild_encounter_roster_definitions.Clear();
         _party_state = null;
         ClearRuntimeBattleStateReference();
         _pending_promotion_prompt.Clear();
@@ -1691,7 +1695,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             _world_map_data_context.GetActiveEncounterAnchors(),
             advanceResult.old_step,
             advanceResult.new_step,
-            _wild_encounter_roster_defs
+            _wild_encounter_roster_definitions
         );
         if (encounterGrowthChanged)
             // Growth only changed anchor growth_stage (positions unchanged), so skip
@@ -1723,7 +1727,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             if (_wild_encounter_growth_system.ApplyBattleVictory(
                 encounterAnchor,
                 _world_map_data_context.GetWorldStep(),
-                _wild_encounter_roster_defs
+                _wild_encounter_roster_definitions
             ))
                 _world_map_data_context.SyncActiveWorldPayloadFromTypedState();
             return;

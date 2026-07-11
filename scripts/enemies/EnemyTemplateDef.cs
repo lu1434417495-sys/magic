@@ -203,6 +203,10 @@ public partial class EnemyTemplateDef : Resource
     internal IReadOnlyDictionary<StringName, int> GetAttributeOverridesTyped() =>
         BuildIntDictionary(attribute_overrides);
 
+    internal EnemyTemplateDefinition ToDefinition(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
+    ) => EnemyTemplateDefinition.FromResource(this, itemDefinitions);
+
     internal int GetFootprintCellCountTyped()
     {
         Vector2I footprint = BattleUnitState.GetFootprintSizeForBodySize(

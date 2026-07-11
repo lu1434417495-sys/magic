@@ -3,11 +3,11 @@ using Godot;
 
 public static class QuestContentValidator
 {
-    public static List<string> ValidateTyped(
+    internal static List<string> ValidateTyped(
         IReadOnlyDictionary<StringName, QuestDefinition> questDefs,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates,
         IEnumerable<string> registrationErrors = null
     )
     {
@@ -176,7 +176,7 @@ public static class QuestContentValidator
         ICollection<string> errors,
         QuestDefinition questDef,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates
     )
     {
         foreach (QuestObjectiveDefinition objective in questDef.Objectives)

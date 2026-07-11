@@ -38,9 +38,10 @@ public partial class run_enemy_ai_generation_slots_content_regression : Lifecycl
 
     private void TestFormalBrainsDeclareGenerationSlots()
     {
+        using var loader = new TestContentResourceLoader();
         foreach (string brainPath in BrainPaths)
         {
-            EnemyAiBrainDef brain = ResourceLoader.Load<EnemyAiBrainDef>(brainPath);
+            EnemyAiBrainDef brain = loader.LoadCanonical<EnemyAiBrainDef>(brainPath);
             _test.True(brain != null, $"{brainPath} 应能加载。");
             if (brain == null)
             {
@@ -66,6 +67,20 @@ public partial class run_enemy_ai_generation_slots_content_regression : Lifecycl
                     stateDef.generation_slots != null && stateDef.generation_slots.Count > 0,
                     $"{brainPath} state {stateDef.state_id} 应声明 generation_slots。"
                 );
+                EnemyAiStateDefinition stateDefinition = stateDef.ToDefinition();
+                _test.Eq(
+                    stateDefinition.GenerationSlots.Count,
+                    stateDef.generation_slots?.Count ?? 0,
+                    $"{brainPath} state {stateDef.state_id} generation slots 应完整投影。"
+                );
+                foreach (EnemyAiActionDefinition action in stateDefinition.Actions)
+                {
+                    _test.True(
+                        action != null
+                            && !typeof(Resource).IsAssignableFrom(action.GetType()),
+                        $"{brainPath} state {stateDef.state_id} runtime action 应是 plain definition。"
+                    );
+                }
                 if (stateDef.generation_slots == null)
                 {
                     continue;
@@ -93,9 +108,10 @@ public partial class run_enemy_ai_generation_slots_content_regression : Lifecycl
 
     private void TestFormalBrainsDeclareTransitionRules()
     {
+        using var loader = new TestContentResourceLoader();
         foreach (string brainPath in BrainPaths)
         {
-            EnemyAiBrainDef brain = ResourceLoader.Load<EnemyAiBrainDef>(brainPath);
+            EnemyAiBrainDef brain = loader.LoadCanonical<EnemyAiBrainDef>(brainPath);
             _test.True(brain != null, $"{brainPath} 应能加载。");
             if (brain == null)
             {
@@ -110,6 +126,12 @@ public partial class run_enemy_ai_generation_slots_content_regression : Lifecycl
             _test.True(
                 brainErrors.Count == 0,
                 $"{brainPath} transition/full schema 应合法: {FormatErrors(brainErrors)}"
+            );
+            EnemyAiBrainDefinition definition = brain.ToDefinition();
+            _test.Eq(
+                definition.TransitionRules.Count,
+                brain.transition_rules.Count,
+                $"{brainPath} transition rules 应完整投影到 immutable brain definition。"
             );
         }
     }

@@ -14,14 +14,11 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
     private const string FastPreviewRejectOutOfRange = "fast_preview_reject_out_of_range";
 
     private readonly BattleAiTypedActionHelper _helper = new();
-    private readonly BattleAiDecisionEngine _scoreOrdering = new();
 
-    internal BattleAiDecision Evaluate(UseUnitSkillAction action, BattleAiContext context)
-    {
-        return Evaluate(BattleAiUnitSkillActionSpec.FromAction(action), context);
-    }
-
-    internal BattleAiDecision Evaluate(BattleAiUnitSkillActionSpec action, BattleAiContext context)
+    internal BattleAiDecision Evaluate(
+        UseUnitSkillActionDefinition action,
+        BattleAiContext context
+    )
     {
         if (action == null || context == null)
             return null;
@@ -213,7 +210,7 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
                         scoreInput,
                         candidateExtra
                     );
-                    if (!_scoreOrdering.IsBetterScoreInput(scoreInput, bestScoreInput))
+                    if (!BattleAiDecisionEngine.IsBetterScoreInputTyped(scoreInput, bestScoreInput))
                         continue;
 
                     bestScoreInput = scoreInput;
@@ -260,7 +257,7 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
     }
 
     private static BattleAiScoreInput BuildSkillScoreInput(
-        BattleAiUnitSkillActionSpec action,
+        UseUnitSkillActionDefinition action,
         BattleAiContext context,
         SkillDefinition skillDefinition,
         BattleCommand command,
@@ -339,7 +336,7 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
     }
 
     private static bool PassesFriendlyFireLimits(
-        BattleAiUnitSkillActionSpec action,
+        UseUnitSkillActionDefinition action,
         BattleAiScoreInput scoreInput
     )
     {
@@ -356,7 +353,7 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
             || scoreInput.estimated_friendly_lethal_target_count <= 0;
     }
 
-    private static BattlePreview BuildFastUnitSkillPreview(
+    internal static BattlePreview BuildFastUnitSkillPreview(
         BattleAiContext context,
         SkillDefinition skillDefinition,
         BattleCommand command,
@@ -422,7 +419,7 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
     }
 
     private static AiActionTrace BeginActionTrace(
-        BattleAiUnitSkillActionSpec action,
+        UseUnitSkillActionDefinition action,
         BattleAiContext context,
         bool traceEnabled,
         IReadOnlyDictionary<string, object> metadata

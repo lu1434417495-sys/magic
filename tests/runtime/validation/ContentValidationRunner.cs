@@ -354,7 +354,7 @@ internal static class ContentValidationRunner
         IReadOnlyList<QuestValidationEntry> questEntries,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates
     )
     {
         List<string> errors = new();
@@ -390,7 +390,7 @@ internal static class ContentValidationRunner
                 questDefs,
                 itemDefinitions ?? new Dictionary<StringName, ItemDefinition>(),
                 skillDefinitions ?? new Dictionary<StringName, SkillDefinition>(),
-                enemyTemplates ?? new Dictionary<StringName, EnemyTemplateDef>(),
+                enemyTemplates ?? new Dictionary<StringName, EnemyTemplateDefinition>(),
                 Array.Empty<string>()
             )
         );

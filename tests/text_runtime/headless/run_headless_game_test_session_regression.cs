@@ -22,8 +22,8 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
         await TestDisposeClearsBattleSaveLockOnSharedGameSession();
         await TestOwnedGameSessionDisposeRemovesLogSink();
         await TestBuildSnapshotDoesNotRebuildMissingSaveIndex();
-        TestSyntheticLegacyEnemyCatalogUsesTypedKeys();
-        await TestFacadeBattleSetupUsesSyntheticLegacyEnemyCatalogs();
+        TestSyntheticEnemyDefinitionsUseTypedKeys();
+        await TestFacadeBattleSetupUsesSyntheticEnemyDefinitions();
 
         RequestTestExit(_test.Finish("Headless game test session regression"));
     }
@@ -47,8 +47,7 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
         var session = new HeadlessGameTestSession();
         GameSession ownedGameSession = GameSessionTestFactory.CreateSynthetic(
             session,
-            null,
-            SyntheticContentSnapshotFactory.CreateEmptyLegacyEnemyContent()
+            null
         );
         try
         {
@@ -395,7 +394,7 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
         await CleanupSharedGameSession(sharedGameSession);
     }
 
-    private void TestSyntheticLegacyEnemyCatalogUsesTypedKeys()
+    private void TestSyntheticEnemyDefinitionsUseTypedKeys()
     {
         StringName templateId = "headless_synthetic_enemy_template";
         StringName rosterId = "headless_synthetic_enemy_roster";
@@ -433,17 +432,11 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
             },
             "headless.synthetic_legacy.roster"
         );
-        ILegacyEnemyContentCatalog legacy =
-            SyntheticContentSnapshotFactory.CreateLegacyEnemyContent(
-                enemyTemplates: new Dictionary<StringName, EnemyTemplateDef>
-                {
-                    [templateId] = template,
-                },
-                encounterRosters: new Dictionary<StringName, WildEncounterRosterDef>
-                {
-                    [rosterId] = roster,
-                }
-            );
+        ContentSnapshot processSnapshot = GameSessionTestFactory.GetProcessSnapshot();
+        EnemyTemplateDefinition templateDefinition = template.ToDefinition(
+            processSnapshot.Items
+        );
+        WildEncounterRosterDefinition rosterDefinition = roster.ToDefinition();
         using GameSession session = GameSessionTestFactory.CreateSyntheticFromProcessSnapshot(
             seed =>
             {
@@ -451,21 +444,33 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
                 seed.WorldGenerations = new Dictionary<string, WorldGenerationDefinition>(
                     StringComparer.Ordinal
                 );
-            },
-            legacy
+                seed.EnemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>(
+                    seed.EnemyTemplates
+                )
+                {
+                    [templateId] = templateDefinition,
+                };
+                seed.EncounterRosters =
+                    new Dictionary<StringName, WildEncounterRosterDefinition>(
+                        seed.EncounterRosters
+                    )
+                    {
+                        [rosterId] = rosterDefinition,
+                    };
+            }
         );
 
         _test.True(
-            session.GetEnemyTemplatesTyped().ContainsKey(templateId),
-            "synthetic legacy enemy template 应通过 typed StringName key 暴露。"
+            session.GetEnemyTemplateDefinitions().ContainsKey(templateId),
+            "synthetic enemy template definition 应通过 typed StringName key 暴露。"
         );
         _test.True(
-            session.GetWildEncounterRostersTyped().ContainsKey(rosterId),
-            "synthetic legacy encounter roster 应通过 typed StringName key 暴露。"
+            session.GetEncounterRosterDefinitions().ContainsKey(rosterId),
+            "synthetic encounter roster definition 应通过 typed StringName key 暴露。"
         );
     }
 
-    private async Task TestFacadeBattleSetupUsesSyntheticLegacyEnemyCatalogs()
+    private async Task TestFacadeBattleSetupUsesSyntheticEnemyDefinitions()
     {
         StringName templateId = "synthetic_facade_template";
         StringName brainId = "synthetic_facade_brain";
@@ -486,28 +491,31 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
             enemy_count = 1,
         }, "headless.synthetic_facade.template");
 
-        ILegacyEnemyContentCatalog officialLegacy =
-            GameSessionTestFactory.CreateLoadedLegacyEnemyContent();
-        var brains = new Dictionary<StringName, EnemyAiBrainDef>(officialLegacy.EnemyBrains)
-        {
-            [brainId] = brain,
-        };
-        var templates = new Dictionary<StringName, EnemyTemplateDef>(
-            officialLegacy.EnemyTemplates
-        )
-        {
-            [templateId] = template,
-        };
-        ILegacyEnemyContentCatalog legacy =
-            SyntheticContentSnapshotFactory.CreateLegacyEnemyContent(
-                templates,
-                brains,
-                officialLegacy.EncounterRosters,
-                officialLegacy.SimulationProfiles
-            );
+        ContentSnapshot processSnapshot = GameSessionTestFactory.GetProcessSnapshot();
+        EnemyAiBrainDefinition brainDefinition = brain.ToDefinition();
+        EnemyTemplateDefinition templateDefinition = template.ToDefinition(
+            processSnapshot.Items
+        );
 
         HeadlessGameTestSession session = new();
-        GameSessionTestFactory.CreateSynthetic(session, null, legacy);
+        GameSessionTestFactory.CreateSynthetic(
+            session,
+            seed =>
+            {
+                seed.EnemyBrains = new Dictionary<StringName, EnemyAiBrainDefinition>(
+                    seed.EnemyBrains
+                )
+                {
+                    [brainId] = brainDefinition,
+                };
+                seed.EnemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>(
+                    seed.EnemyTemplates
+                )
+                {
+                    [templateId] = templateDefinition,
+                };
+            }
+        );
         session.initialize();
         try
         {
@@ -535,11 +543,11 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
             );
             _test.True(
                 runtime._battle_runtime.GetEnemyTemplateIndexTyped().ContainsKey(templateId),
-                "GameRuntimeFacade.setup 应消费 synthetic legacy enemy template typed index。"
+                "GameRuntimeFacade.setup 应消费 synthetic enemy template definition index。"
             );
             _test.True(
                 runtime._battle_runtime.GetEnemyAiBrainIndexTyped().ContainsKey(brainId),
-                "GameRuntimeFacade.setup 应消费 synthetic legacy enemy brain typed index。"
+                "GameRuntimeFacade.setup 应消费 synthetic enemy brain definition index。"
             );
         }
         finally

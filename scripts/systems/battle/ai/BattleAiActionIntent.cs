@@ -134,12 +134,12 @@ internal static class BattleAiActionIntent
 
     internal static StringName DefaultFromSlotRole(StringName slotRole)
     {
-        return EnemyAiGenerationSlotDef.ToSlotRole(slotRole) switch
+        return slotRole.ToString() switch
         {
-            EnemyAiGenerationSlotRole.Offense => IntentOffense,
-            EnemyAiGenerationSlotRole.Control => IntentControl,
-            EnemyAiGenerationSlotRole.Survival => IntentSurvival,
-            EnemyAiGenerationSlotRole.Positioning => IntentPositioning,
+            "offense" => IntentOffense,
+            "control" => IntentControl,
+            "survival" => IntentSurvival,
+            "positioning" => IntentPositioning,
             _ => "",
         };
     }

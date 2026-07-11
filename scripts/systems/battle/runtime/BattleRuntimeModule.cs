@@ -243,8 +243,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
     private ISkillCatalog _skillCatalog;
 
     private readonly Dictionary<StringName, SkillDefinition> _skillDefinitionIndex = new();
-    private readonly Dictionary<StringName, EnemyTemplateDef> _enemyTemplateIndex = new();
-    private readonly Dictionary<StringName, EnemyAiBrainDef> _enemyAiBrainIndex = new();
+    private readonly Dictionary<StringName, EnemyTemplateDefinition> _enemyTemplateIndex = new();
+    private readonly Dictionary<StringName, EnemyAiBrainDefinition> _enemyAiBrainIndex = new();
     private readonly Dictionary<StringName, ItemDefinition> _itemDefIndex = new();
     private readonly Dictionary<StringName, TraitDefinition> _traitDefIndex = new();
     private readonly Dictionary<StringName, BarrierProfileDefinition> _barrierProfileIndex = new();
@@ -363,11 +363,11 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _ai_skill_cast_block_reason_callback = GetSkillCastBlockReason;
     }
 
-    public void setup(
+    internal void setup(
         IBattleRuntimeCharacterGateway character_gateway = null,
         IReadOnlyDictionary<StringName, SkillDefinition> skill_definitions = null,
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemy_templates = null,
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemy_ai_brains = null,
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemy_templates = null,
+        IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemy_ai_brains = null,
         EncounterRosterBuilder encounter_builder = null,
         EquipmentDropService equipment_drop_service = null,
         IReadOnlyDictionary<StringName, ItemDefinition> item_defs = null,
@@ -847,7 +847,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
                 || IsEmpty(unitState.ai_brain_id)
             )
                 continue;
-            EnemyAiBrainDef brain = GetEnemyAiBrainTyped(unitState.ai_brain_id);
+            EnemyAiBrainDefinition brain = GetEnemyAiBrainTyped(unitState.ai_brain_id);
             if (brain == null)
                 continue;
             BattleAiRuntimeActionPlan actionPlan = _ai_action_assembler.BuildUnitActionPlan(
@@ -883,7 +883,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
             return;
         if (unit_state.ControlModeKind == BattleUnitControlMode.Manual || IsEmpty(unit_state.ai_brain_id))
             return;
-        EnemyAiBrainDef brain = GetEnemyAiBrainTyped(unit_state.ai_brain_id);
+        EnemyAiBrainDefinition brain = GetEnemyAiBrainTyped(unit_state.ai_brain_id);
         if (brain == null)
             return;
         BattleAiRuntimeActionPlan actionPlan = _ai_action_assembler.BuildUnitActionPlan(
@@ -2390,14 +2390,18 @@ public sealed partial class BattleRuntimeModule : IDisposable
             terrainGenerator.Dispose();
     }
 
-    internal void SetAiScoreProfile(BattleAiScoreProfile profile) =>
+    internal void SetAiScoreProfile(BattleAiScoreProfileDefinition profile) =>
         _ai_service.SetScoreProfile(profile);
 
     internal void SetFactionAiScoreProfiles(
-        System.Collections.Generic.IReadOnlyDictionary<StringName, BattleAiScoreProfile> profiles
+        System.Collections.Generic.IReadOnlyDictionary<
+            StringName,
+            BattleAiScoreProfileDefinition
+        > profiles
     ) => _ai_service.SetFactionScoreProfiles(profiles);
 
-    internal BattleAiScoreProfile GetAiScoreProfile() => _ai_service.GetScoreProfile();
+    internal BattleAiScoreProfileDefinition GetAiScoreProfile() =>
+        _ai_service.GetScoreProfile();
 
     internal int GetTerrainEffectNonce() => _terrain_effect_nonce;
 
@@ -4152,9 +4156,9 @@ public sealed partial class BattleRuntimeModule : IDisposable
             _state?.timeline != null ? _state.timeline.current_tu : 0
         );
         unit_state.ai_blackboard.SetInt("turn_decision_count", 0);
-        EnemyAiBrainDef brain = GetEnemyAiBrainTyped(unit_state.ai_brain_id);
+        EnemyAiBrainDefinition brain = GetEnemyAiBrainTyped(unit_state.ai_brain_id);
         if (brain != null && !brain.HasState(unit_state.ai_state_id))
-            unit_state.ai_state_id = brain.default_state_id;
+            unit_state.ai_state_id = brain.DefaultStateId;
     }
 
     internal void _cleanup_ai_turn(BattleUnitState unit_state)

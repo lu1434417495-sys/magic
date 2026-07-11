@@ -7,7 +7,7 @@ using Godot;
 
 internal sealed class ContentSnapshotBuilder
 {
-    private static readonly string[] LegacyBattleSimProfilePaths =
+    private static readonly string[] BattleSimProfilePaths =
     {
         "res://data/configs/battle_sim/profiles/baseline.tres",
         "res://data/configs/battle_sim/profiles/mist_controller_aggressive.tres",
@@ -21,8 +21,6 @@ internal sealed class ContentSnapshotBuilder
     {
         _loader = loader ?? throw new ArgumentNullException(nameof(loader));
     }
-
-    internal ILegacyEnemyContentCatalog LegacyEnemyContent { get; private set; }
 
     internal ContentSnapshot Build(long epoch)
     {
@@ -58,12 +56,11 @@ internal sealed class ContentSnapshotBuilder
         }
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions =
             new ReadOnlyDictionary<StringName, ItemDefinition>(itemDefinitionIndex);
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
-            enemies.GetEnemyTemplatesTyped();
-        IReadOnlyDictionary<StringName, WildEncounterRosterDef> encounterRosters =
-            enemies.GetWildEncounterRostersTyped();
-        IReadOnlyDictionary<StringName, BattleSimProfileDef> simulationProfiles =
-            BuildLegacyBattleSimProfiles();
+        EnemyContentDefinitionGraph enemyDefinitions = enemies.ProjectDefinitions(
+            itemDefinitions
+        );
+        IReadOnlyDictionary<StringName, BattleSimProfileDefinition> simulationProfileDefinitions =
+            BattleSimProfileAuthoringLoader.LoadDefinitions(_loader, BattleSimProfilePaths);
         IReadOnlyDictionary<string, WorldGenerationDefinition> worldGenerations =
             BuildWorldGenerations();
 
@@ -89,24 +86,17 @@ internal sealed class ContentSnapshotBuilder
                 progression.GetQuestDefsTyped(),
                 itemDefinitions,
                 skillDefinitions,
-                enemyTemplates,
+                enemyDefinitions.EnemyTemplates,
                 progression.GetQuestRegistrationErrorsTyped()
             )
         );
         AppendWorldValidationErrors(
             validationErrors,
             worldGenerations,
-            enemyTemplates.Keys.ToArray(),
-            encounterRosters.Keys.ToArray()
+            enemyDefinitions.EnemyTemplates.Keys.ToArray(),
+            enemyDefinitions.EncounterRosters.Keys.ToArray()
         );
         ThrowIfInvalid(validationErrors);
-
-        LegacyEnemyContent = new LegacyEnemyContentCatalogSnapshot(
-            enemyTemplates,
-            enemies.GetEnemyAiBrainsTyped(),
-            encounterRosters,
-            simulationProfiles
-        );
 
         return new ContentSnapshot(
             epoch,
@@ -131,30 +121,12 @@ internal sealed class ContentSnapshotBuilder
             progression.GetEquipmentAbilityPackDefinitionsTyped(),
             progression.GetEquipmentAbilityBindingDefinitionsTyped(),
             worldGenerations,
-            specialProfiles.BuildRuntimeProfileView()
+            specialProfiles.BuildRuntimeProfileView(),
+            enemyDefinitions.EnemyTemplates,
+            enemyDefinitions.EnemyBrains,
+            enemyDefinitions.EncounterRosters,
+            simulationProfileDefinitions
         );
-    }
-
-    private IReadOnlyDictionary<StringName, BattleSimProfileDef> BuildLegacyBattleSimProfiles()
-    {
-        var profiles = new Dictionary<StringName, BattleSimProfileDef>();
-        foreach (string path in LegacyBattleSimProfilePaths)
-        {
-            BattleSimProfileDef profile = _loader.LoadCanonical<BattleSimProfileDef>(path);
-            if (profile.profile_id == "")
-            {
-                throw new InvalidDataException(
-                    $"BattleSim profile {path} must declare a non-empty profile_id."
-                );
-            }
-            if (!profiles.TryAdd(profile.profile_id, profile))
-            {
-                throw new InvalidDataException(
-                    $"Duplicate BattleSim profile_id registered: {profile.profile_id}"
-                );
-            }
-        }
-        return new ReadOnlyDictionary<StringName, BattleSimProfileDef>(profiles);
     }
 
     private IReadOnlyDictionary<string, WorldGenerationDefinition> BuildWorldGenerations()
@@ -246,36 +218,4 @@ internal sealed class ContentSnapshotBuilder
         );
     }
 
-    private sealed class LegacyEnemyContentCatalogSnapshot : ILegacyEnemyContentCatalog
-    {
-        internal LegacyEnemyContentCatalogSnapshot(
-            IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
-            IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyBrains,
-            IReadOnlyDictionary<StringName, WildEncounterRosterDef> encounterRosters,
-            IReadOnlyDictionary<StringName, BattleSimProfileDef> simulationProfiles
-        )
-        {
-            EnemyTemplates = Freeze(enemyTemplates);
-            EnemyBrains = Freeze(enemyBrains);
-            EncounterRosters = Freeze(encounterRosters);
-            SimulationProfiles = Freeze(simulationProfiles);
-        }
-
-        public IReadOnlyDictionary<StringName, EnemyTemplateDef> EnemyTemplates { get; }
-        public IReadOnlyDictionary<StringName, EnemyAiBrainDef> EnemyBrains { get; }
-        public IReadOnlyDictionary<StringName, WildEncounterRosterDef> EncounterRosters { get; }
-        public IReadOnlyDictionary<StringName, BattleSimProfileDef> SimulationProfiles { get; }
-
-        private static IReadOnlyDictionary<StringName, T> Freeze<T>(
-            IReadOnlyDictionary<StringName, T> source
-        )
-            where T : class
-        {
-            return new ReadOnlyDictionary<StringName, T>(
-                source == null
-                    ? new Dictionary<StringName, T>()
-                    : new Dictionary<StringName, T>(source)
-            );
-        }
-    }
 }

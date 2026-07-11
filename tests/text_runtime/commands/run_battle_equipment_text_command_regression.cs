@@ -235,8 +235,7 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
                 foreach (ItemDefinition definition in definitions)
                     items[definition.ItemId] = definition;
                 seed.Items = items;
-            },
-            GameSessionTestFactory.CreateLoadedLegacyEnemyContent()
+            }
         );
         runner.initialize();
         foreach (ItemDefinition definition in definitions)

@@ -240,8 +240,8 @@ public partial class run_battle_validation_result_projection_regression : Lifecy
         runtime.setup(
             null,
             skillDefinitions,
-            new Dictionary<StringName, EnemyTemplateDef>(),
-            new Dictionary<StringName, EnemyAiBrainDef>(),
+            new Dictionary<StringName, EnemyTemplateDefinition>(),
+            new Dictionary<StringName, EnemyAiBrainDefinition>(),
             null,
             null,
             new Dictionary<StringName, ItemDefinition>(),

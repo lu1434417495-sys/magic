@@ -84,7 +84,7 @@ internal static class BattleEquipmentAbilityProjectionService
 
     internal static List<BattleEquipmentAbilitySourceState> ProjectEnemyBattleOnlySources(
         BattleUnitState unit,
-        EnemyTemplateDef template,
+        EnemyTemplateDefinition template,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindings,
         IReadOnlyDictionary<StringName, TraitDefinition> traitDefs,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
@@ -97,7 +97,7 @@ internal static class BattleEquipmentAbilityProjectionService
             return result;
 
         StringName attackEquipmentItemId = ProgressionDataUtils.to_string_name(
-            template.attack_equipment_item_id
+            template.AttackEquipmentItemId
         );
         if (attackEquipmentItemId == "")
             return result;
@@ -143,13 +143,13 @@ internal static class BattleEquipmentAbilityProjectionService
         return result;
     }
 
-    internal static StringNameList ProjectCreatureTypeTags(EnemyTemplateDef template)
+    internal static StringNameList ProjectCreatureTypeTags(EnemyTemplateDefinition template)
     {
         StringNameList result = new();
         HashSet<StringName> seen = new();
-        if (template?.tags == null)
+        if (template?.Tags == null)
             return result;
-        foreach (StringName tag in template.tags)
+        foreach (StringName tag in template.Tags)
         {
             StringName normalized = ProgressionDataUtils.to_string_name(tag);
             if (normalized != "" && seen.Add(normalized))

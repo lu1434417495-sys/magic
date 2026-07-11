@@ -4,7 +4,7 @@ using System.Collections.ObjectModel;
 using Godot;
 
 /// <summary>
-/// Process-scoped, immutable projection of authored non-AI content. Runtime owners may
+/// Process-scoped, immutable projection of authored content. Runtime owners may
 /// borrow this graph, but they never receive the raw Resource roots used to build it.
 /// </summary>
 internal sealed class ContentSnapshot
@@ -32,7 +32,11 @@ internal sealed class ContentSnapshot
         IReadOnlyDictionary<StringName, EquipmentAbilityContentPackDefinition> equipmentAbilityPacks,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings,
         IReadOnlyDictionary<string, WorldGenerationDefinition> worldGenerations,
-        IBattleSpecialProfileView battleSpecialProfiles
+        IBattleSpecialProfileView battleSpecialProfiles,
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates = null,
+        IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyBrains = null,
+        IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> encounterRosters = null,
+        IReadOnlyDictionary<StringName, BattleSimProfileDefinition> battleSimProfiles = null
     )
     {
         if (epoch <= 0)
@@ -71,6 +75,10 @@ internal sealed class ContentSnapshot
         EquipmentAbilityBindings = Freeze(equipmentAbilityBindings);
         WorldGenerations = Freeze(worldGenerations, StringComparer.Ordinal);
         BattleSpecialProfiles = battleSpecialProfiles ?? BattleSpecialProfileRuntimeView.Empty;
+        EnemyTemplates = Freeze(enemyTemplates);
+        EnemyBrains = Freeze(enemyBrains);
+        EncounterRosters = Freeze(encounterRosters);
+        BattleSimProfiles = Freeze(battleSimProfiles);
     }
 
     internal long Epoch { get; }
@@ -97,6 +105,10 @@ internal sealed class ContentSnapshot
     internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> EquipmentAbilityBindings { get; }
     internal IReadOnlyDictionary<string, WorldGenerationDefinition> WorldGenerations { get; }
     internal IBattleSpecialProfileView BattleSpecialProfiles { get; }
+    internal IReadOnlyDictionary<StringName, EnemyTemplateDefinition> EnemyTemplates { get; }
+    internal IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> EnemyBrains { get; }
+    internal IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> EncounterRosters { get; }
+    internal IReadOnlyDictionary<StringName, BattleSimProfileDefinition> BattleSimProfiles { get; }
 
     private static IReadOnlyDictionary<TKey, TValue> Freeze<TKey, TValue>(
         IReadOnlyDictionary<TKey, TValue> source,

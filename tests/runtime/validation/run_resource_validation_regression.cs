@@ -74,9 +74,12 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
         GDictionary skillDefs = progressionRegistry.DuplicateSkillResourceBucketForValidation();
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs =
             itemRegistry.GetItemDefsTyped();
-        HashSet<StringName> enemyTemplateIds = new(enemyRegistry.GetEnemyTemplatesTyped().Keys);
+        EnemyContentDefinitionGraph enemyDefinitions = enemyRegistry.ProjectDefinitions(
+            itemDefs
+        );
+        HashSet<StringName> enemyTemplateIds = new(enemyDefinitions.EnemyTemplates.Keys);
         HashSet<StringName> wildEncounterRosterIds = new(
-            enemyRegistry.GetWildEncounterRostersTyped().Keys
+            enemyDefinitions.EncounterRosters.Keys
         );
         IReadOnlyDictionary<StringName, ItemDefinition> typedItemDefs = itemDefs;
         IReadOnlyDictionary<StringName, SkillDefinition> typedSkillDefinitions =
@@ -120,7 +123,7 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
                     ),
                     typedItemDefs,
                     typedSkillDefinitions,
-                    enemyRegistry.GetEnemyTemplatesTyped()
+                    enemyDefinitions.EnemyTemplates
                 ),
             }
         );
@@ -348,7 +351,7 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             BuildInvalidQuestEntries(),
             typedItemDefs,
             typedSkillDefinitions,
-            enemyRegistry.GetEnemyTemplatesTyped()
+            enemyDefinitions.EnemyTemplates
         );
         ValidationRunReport invalidFixtureReport = ContentValidationRunner.BuildRunReport(
             "invalid_fixture_coverage",

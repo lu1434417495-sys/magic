@@ -89,7 +89,9 @@ public partial class run_enemy_ai_transition_schema_regression : LifecycleTestSc
             affordances: new[] { new StringName("ally_heal"), new StringName("self_or_ally_buff") }
         );
         BattleAiStateResolver.TransitionConditionTrace trace =
-            BattleAiStateResolver.TransitionConditionTrace.FromCondition(condition);
+            BattleAiStateResolver.TransitionConditionTrace.FromCondition(
+                condition.ToDefinition()
+            );
 
         _test.Eq(trace.Predicate, new StringName("has_skill_affordance"), "trace 应输出 predicate。");
         _test.Eq(trace.BasisPoints, -1, "未使用的 basis_points 应固定为 -1。");

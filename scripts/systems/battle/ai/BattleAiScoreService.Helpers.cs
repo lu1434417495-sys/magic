@@ -123,27 +123,27 @@ public partial class BattleAiScoreService
             if (distanceValue < desiredMinDistance)
             {
                 return -(
-                    (desiredMinDistance - distanceValue) * _scoreProfile.position_undershoot_penalty
+                    (desiredMinDistance - distanceValue) * _scoreProfile.PositionUndershootPenalty
                 );
             }
-            return _scoreProfile.position_base_score
-                + (distanceValue - desiredMinDistance) * _scoreProfile.position_distance_step;
+            return _scoreProfile.PositionBaseScore
+                + (distanceValue - desiredMinDistance) * _scoreProfile.PositionDistanceStep;
         }
         if (distanceValue >= desiredMinDistance && distanceValue <= desiredMaxDistance)
         {
             return Math.Max(
-                _scoreProfile.position_base_score
-                    - distanceValue * _scoreProfile.position_distance_step,
+                _scoreProfile.PositionBaseScore
+                    - distanceValue * _scoreProfile.PositionDistanceStep,
                 0
             );
         }
         if (distanceValue < desiredMinDistance)
         {
             return -(
-                (desiredMinDistance - distanceValue) * _scoreProfile.position_undershoot_penalty
+                (desiredMinDistance - distanceValue) * _scoreProfile.PositionUndershootPenalty
             );
         }
-        return -((distanceValue - desiredMaxDistance) * _scoreProfile.position_overshoot_penalty);
+        return -((distanceValue - desiredMaxDistance) * _scoreProfile.PositionOvershootPenalty);
     }
 
     private int BuildDistanceBandProgressScore(
@@ -182,14 +182,14 @@ public partial class BattleAiScoreService
         if (candidateGap < currentGap)
         {
             int progressSteps = currentGap - candidateGap;
-            return _scoreProfile.position_base_score
-                + progressSteps * _scoreProfile.position_distance_step;
+            return _scoreProfile.PositionBaseScore
+                + progressSteps * _scoreProfile.PositionDistanceStep;
         }
         if (candidateGap == currentGap)
         {
-            return -_scoreProfile.position_distance_step;
+            return -_scoreProfile.PositionDistanceStep;
         }
-        return -((candidateGap - currentGap) * _scoreProfile.position_overshoot_penalty);
+        return -((candidateGap - currentGap) * _scoreProfile.PositionOvershootPenalty);
     }
 
     private static int BuildDistanceGap(
@@ -222,18 +222,18 @@ public partial class BattleAiScoreService
         if (distanceValue >= desiredMinDistance && distanceValue <= desiredMaxDistance)
         {
             return Math.Max(
-                _scoreProfile.position_base_score
-                    - distanceValue * _scoreProfile.position_distance_step,
+                _scoreProfile.PositionBaseScore
+                    - distanceValue * _scoreProfile.PositionDistanceStep,
                 0
             );
         }
         if (distanceValue < desiredMinDistance)
         {
             return -(
-                (desiredMinDistance - distanceValue) * _scoreProfile.position_undershoot_penalty
+                (desiredMinDistance - distanceValue) * _scoreProfile.PositionUndershootPenalty
             );
         }
-        return -((distanceValue - desiredMaxDistance) * _scoreProfile.position_overshoot_penalty);
+        return -((distanceValue - desiredMaxDistance) * _scoreProfile.PositionOvershootPenalty);
     }
 
     private int ResolveActionBaseScore(StringName actionKind, ScoreBuildMetadata metadata)

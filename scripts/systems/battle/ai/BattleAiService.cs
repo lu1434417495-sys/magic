@@ -4,7 +4,7 @@ using Godot;
 
 internal sealed class BattleAiService : IDisposable
 {
-    private readonly Dictionary<StringName, EnemyAiBrainDef> _enemyAiBrains = new();
+    private readonly Dictionary<StringName, EnemyAiBrainDefinition> _enemyAiBrains = new();
     private readonly BattleAiScoreService _scoreService = new();
     private readonly BattleAiStateResolver _stateResolver = new();
     private readonly BattleAiDecisionEngine _decisionEngine = new();
@@ -13,29 +13,25 @@ internal sealed class BattleAiService : IDisposable
     internal bool EnableMutationGuard { get; set; } = true;
 
     internal void Setup(
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains = null,
+        IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyAiBrains = null,
         BattleDamageResolver damageResolver = null
     )
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         _enemyAiBrains.Clear();
-        Dictionary<StringName, BattleAiScoreProfile> brainProfiles = new();
+        Dictionary<StringName, BattleAiScoreProfileDefinition> brainProfiles = new();
         if (enemyAiBrains != null)
         {
-            foreach (KeyValuePair<StringName, EnemyAiBrainDef> entry in enemyAiBrains)
+            foreach (KeyValuePair<StringName, EnemyAiBrainDefinition> entry in enemyAiBrains)
             {
                 if (IsEmpty(entry.Key) || entry.Value == null)
                 {
                     continue;
                 }
-                GodotObjectOwnershipRegistry.AssertBorrowedOrOwnedKnown(
-                    entry.Value,
-                    "BattleAiService.Setup"
-                );
                 _enemyAiBrains[entry.Key] = entry.Value;
-                if (entry.Value.score_profile != null)
+                if (entry.Value.ScoreProfile != null)
                 {
-                    brainProfiles[entry.Key] = entry.Value.score_profile;
+                    brainProfiles[entry.Key] = entry.Value.ScoreProfile;
                 }
             }
         }
@@ -43,19 +39,19 @@ internal sealed class BattleAiService : IDisposable
         _scoreService.SetBrainProfiles(brainProfiles);
     }
 
-    internal void SetScoreProfile(BattleAiScoreProfile profile)
+    internal void SetScoreProfile(BattleAiScoreProfileDefinition profile)
     {
         _scoreService.SetProfile(profile);
     }
 
     internal void SetFactionScoreProfiles(
-        IReadOnlyDictionary<StringName, BattleAiScoreProfile> profiles
+        IReadOnlyDictionary<StringName, BattleAiScoreProfileDefinition> profiles
     )
     {
         _scoreService.SetFactionProfiles(profiles);
     }
 
-    internal BattleAiScoreProfile GetScoreProfile()
+    internal BattleAiScoreProfileDefinition GetScoreProfile()
     {
         return _scoreService.GetProfile();
     }
@@ -107,7 +103,7 @@ internal sealed class BattleAiService : IDisposable
 
             BattleAiDecision decision;
             using (new BattleAiTraceSpan("choose:impl"))
-                decision = ChooseCommandImpl(context, BuildActionMutationCheckpoint());
+                decision = ChooseCommandImpl(context);
 
             BattleAiMutationViolationReport report;
             using (new BattleAiTraceSpan("choose:mutation_guard_validate"))
@@ -138,10 +134,7 @@ internal sealed class BattleAiService : IDisposable
         }
     }
 
-    private BattleAiDecision ChooseCommandImpl(
-        BattleAiContext context,
-        BattleAiActionMutationCheckpoint mutationCheckpoint = null
-    )
+    private BattleAiDecision ChooseCommandImpl(BattleAiContext context)
     {
         context.skill_score_input_callback ??=
             (aiContext, skillDefinition, command, preview, effectDefs, metadata) =>
@@ -178,42 +171,9 @@ internal sealed class BattleAiService : IDisposable
             _enemyAiBrains,
             _stateResolver,
             BuildWaitDecision,
-            _scoreService,
-            mutationCheckpoint
+            _scoreService
         );
         return decision;
-    }
-
-    private BattleAiActionMutationCheckpoint BuildActionMutationCheckpoint()
-    {
-        BattleAiMutationGuard actionMutationGuard = null;
-        return (context, action, actionIndex, stage) =>
-        {
-            if (stage == "before_action")
-            {
-                actionMutationGuard = new BattleAiMutationGuard();
-                actionMutationGuard.Capture(context);
-                return;
-            }
-            if (stage != "after_action" || actionMutationGuard == null)
-            {
-                return;
-            }
-
-            BattleAiMutationViolationReport report =
-                actionMutationGuard.ValidateAndRestoreReportTyped(
-                    context,
-                    "action",
-                    action,
-                    actionIndex,
-                    BattleAiMutationViolationReport.BuildActionCallSite(action, actionIndex)
-                );
-            actionMutationGuard = null;
-            if (report != null)
-            {
-                AbortMutationViolation(context, report);
-            }
-        };
     }
 
     private static void AbortMutationViolation(

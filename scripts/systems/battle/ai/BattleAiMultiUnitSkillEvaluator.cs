@@ -7,14 +7,11 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
     private static readonly StringName EmptyStringName = "";
 
     private readonly BattleAiTypedActionHelper _helper = new();
-    private readonly BattleAiDecisionEngine _scoreOrdering = new();
 
-    internal BattleAiDecision Evaluate(UseMultiUnitSkillAction action, BattleAiContext context)
-    {
-        return Evaluate(BattleAiMultiUnitSkillActionSpec.FromAction(action), context);
-    }
-
-    internal BattleAiDecision Evaluate(BattleAiMultiUnitSkillActionSpec action, BattleAiContext context)
+    internal BattleAiDecision Evaluate(
+        UseMultiUnitSkillActionDefinition action,
+        BattleAiContext context
+    )
     {
         if (action == null || context == null || !HasExplicitDistanceContract(action))
             return null;
@@ -179,7 +176,7 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
                             candidateExtra
                         )
                     );
-                    if (!_scoreOrdering.IsBetterScoreInput(scoreInput, bestScoreInput))
+                    if (!BattleAiDecisionEngine.IsBetterScoreInputTyped(scoreInput, bestScoreInput))
                         continue;
 
                     bestScoreInput = scoreInput;
@@ -204,7 +201,7 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
         && skillDefinition.CombatProfile.TargetSelectionModeKind
             == BattleTargetSelectionMode.MultiUnit;
 
-    private static bool HasExplicitDistanceContract(BattleAiMultiUnitSkillActionSpec action)
+    private static bool HasExplicitDistanceContract(UseMultiUnitSkillActionDefinition action)
     {
         return action.DesiredMinDistance >= 0
             && action.DesiredMaxDistance >= action.DesiredMinDistance
@@ -254,7 +251,7 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
 
     private List<List<BattleUnitState>> BuildTargetGroups(
         BattleAiContext context,
-        BattleAiMultiUnitSkillActionSpec action,
+        UseMultiUnitSkillActionDefinition action,
         BattleAvailableSkillEntry skillEntry,
         SkillDefinition skillDefinition,
         CombatCastVariantDefinition castVariant,
@@ -312,7 +309,7 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
 
     private List<BattleUnitState> BuildCandidatePool(
         BattleAiContext context,
-        BattleAiMultiUnitSkillActionSpec action,
+        UseMultiUnitSkillActionDefinition action,
         BattleAvailableSkillEntry skillEntry,
         SkillDefinition skillDefinition,
         CombatCastVariantDefinition castVariant,
@@ -460,7 +457,7 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
 
     private Dictionary<string, object> BuildPositionMetadata(
         BattleAiContext context,
-        BattleAiMultiUnitSkillActionSpec action,
+        UseMultiUnitSkillActionDefinition action,
         IReadOnlyList<BattleUnitState> targetGroup,
         SkillDefinition skillDefinition
     )
@@ -495,7 +492,7 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
 
     private static Dictionary<string, object> ResolveDesiredDistanceContract(
         BattleAiContext context,
-        BattleAiMultiUnitSkillActionSpec action,
+        UseMultiUnitSkillActionDefinition action,
         SkillDefinition skillDefinition
     )
     {
@@ -561,7 +558,7 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
     }
 
     private static BattleAiScoreInput BuildSkillScoreInput(
-        BattleAiMultiUnitSkillActionSpec action,
+        UseMultiUnitSkillActionDefinition action,
         BattleAiContext context,
         SkillDefinition skillDefinition,
         BattleCommand command,
@@ -669,7 +666,7 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
     }
 
     private static AiActionTrace BeginActionTrace(
-        BattleAiMultiUnitSkillActionSpec action,
+        UseMultiUnitSkillActionDefinition action,
         BattleAiContext context,
         IReadOnlyDictionary<string, object> metadata
     )

@@ -8,6 +8,11 @@ public partial class run_battle_ai_random_chain_behavior_regression : LifecycleT
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
+    {
         try
         {
             TestRandomChainActionUsesCandidatePoolNotTargetIds();
@@ -68,7 +73,10 @@ public partial class run_battle_ai_random_chain_behavior_regression : LifecycleT
         };
         action.skill_ids.Add(randomChainSkill.SkillId);
 
-        BattleAiDecision decision = action.Decide(aiContext);
+        BattleAiDecision decision = new BattleAiRandomChainSkillEvaluator().Evaluate(
+            (UseRandomChainSkillActionDefinition)action.ToDefinition(),
+            aiContext
+        );
         _test.True(decision?.command != null, "Random-chain action should produce a legal command.");
         if (decision?.command == null)
         {
@@ -203,8 +211,8 @@ public partial class run_battle_ai_random_chain_behavior_regression : LifecycleT
         runtime.setup(
             null,
             skillDefinitions,
-            gameSession.GetEnemyTemplatesTyped(),
-            gameSession.GetEnemyAiBrainsTyped(),
+            gameSession.GetEnemyTemplateDefinitions(),
+            gameSession.GetEnemyAiBrainDefinitions(),
             null
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));

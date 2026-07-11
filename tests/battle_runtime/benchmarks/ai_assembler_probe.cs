@@ -10,7 +10,7 @@ internal sealed class AiAssemblerProbe
 
     public BattleAiRuntimeActionPlan BuildUnitActionPlan(
         BattleUnitState unitState,
-        EnemyAiBrainDef brain,
+        EnemyAiBrainDefinition brain,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {

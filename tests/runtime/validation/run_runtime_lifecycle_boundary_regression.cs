@@ -70,7 +70,6 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
     {
         "scripts/utils/NativeLeaseScope.cs",
         "scripts/utils/GodotProjectionLease.cs",
-        "scripts/utils/RuntimeResourceFactories.cs",
         "scripts/player/progression/AttributeModifierDefinition.cs",
         "scripts/player/progression/AttributeModifier.cs",
         "scripts/player/progression/SkillDefinition.cs",
@@ -161,7 +160,7 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
         AssertNoDynamicAttributeModifierConstruction();
         AssertPhaseTwoRuntimeStateFreeSurfaces();
         AssertExactLegacyDebt();
-        AssertLegacyEnemyBorrowerInventory();
+        AssertRawEnemyAuthoringInventory();
         AssertExactProductionQuarantine();
         AssertDeferredProcessContentPoolIsIsolated();
         AssertQuarantineFactorySurface();
@@ -247,67 +246,33 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
     {
         IReadOnlyList<LifecycleLegacyDebtSnapshot> debt =
             LifecycleAuditRegistry.Shared.CaptureSnapshot().LegacyDebt;
-
-        _test.Eq(debt.Count, 1, "Phase 3 permits exactly one legacy Enemy/AI debt record");
-        if (debt.Count == 1)
-        {
-            _test.Eq(
-                debt[0].DebtId,
-                LegacyEnemyContentDebt.OwnerId,
-                "legacy Enemy/AI debt owner id is exact"
-            );
-            _test.Eq(
-                debt[0].Source,
-                "scripts/systems/content/ILegacyEnemyContentCatalog.cs",
-                "legacy Enemy/AI debt source is exact"
-            );
-            _test.Eq(
-                debt[0].OwnerDomain,
-                LegacyEnemyContentDebt.OwnerDomain,
-                "legacy Enemy/AI debt domain is exact"
-            );
-            _test.Eq(
-                debt[0].DeletePhase,
-                LegacyEnemyContentDebt.DeletePhase,
-                "legacy Enemy/AI debt deletion phase is exact"
-            );
-        }
-        _test.True(
-            GodotLifecycleLegacyDebtManifest.IsDeclared(LegacyEnemyContentDebt.Record),
-            "the manifest declares the exact Phase 3 legacy Enemy/AI debt"
-        );
-        _test.False(
-            GodotLifecycleLegacyDebtManifest.IsDeclared(
-                new LifecycleLegacyDebtSnapshot(
-                    "undeclared-probe",
-                    "tests/runtime/validation/run_runtime_lifecycle_boundary_regression.cs",
-                    "Request",
-                    5
-                )
-            ),
-            "the legacy debt manifest cannot authorize a new quarantine"
-        );
+        _test.Eq(debt.Count, 0, "Phase 4 removes every legacy Enemy/AI debt record");
     }
 
-    private void AssertLegacyEnemyBorrowerInventory()
+    private void AssertRawEnemyAuthoringInventory()
     {
         var borrowerOwners = new HashSet<string>(
-            LegacyEnemyContentDebt.BorrowerOwners,
+            Array.Empty<string>(),
             StringComparer.Ordinal
         );
         var authoringAndProjectionOwners = new HashSet<string>(
-            LegacyEnemyContentDebt.AuthoringAndProjectionOwners,
+            new[]
+            {
+                "scripts/systems/battle/ai/BattleAiScoreProfile.cs",
+                "scripts/systems/battle/sim/BattleSimProfileDef.cs",
+                "scripts/systems/content/ProcessContentHost.cs",
+            },
             StringComparer.Ordinal
         );
         _test.Eq(
             borrowerOwners.Count,
-            LegacyEnemyContentDebt.BorrowerOwners.Count,
-            "legacy Enemy/AI borrower inventory contains no duplicates"
+            0,
+            "runtime Enemy/AI borrower inventory is empty"
         );
         _test.Eq(
             authoringAndProjectionOwners.Count,
-            LegacyEnemyContentDebt.AuthoringAndProjectionOwners.Count,
-            "legacy Enemy/AI authoring/projector inventory contains no duplicates"
+            3,
+            "raw Enemy/AI authoring/projector inventory contains no duplicates"
         );
         foreach (string borrowerPath in borrowerOwners)
         {
@@ -318,7 +283,7 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
         }
 
         string projectRoot = ProjectSettings.GlobalizePath("res://");
-        string scriptsRoot = ProjectSettings.GlobalizePath("res://scripts");
+        string scriptsRoot = ProjectSettings.GlobalizePath("res://scripts/systems");
         var discoveredRawOwners = new HashSet<string>(StringComparer.Ordinal);
         foreach (string filePath in Directory.GetFiles(scriptsRoot, "*.cs", SearchOption.AllDirectories))
         {
@@ -332,7 +297,7 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
             _test.True(
                 borrowerOwners.Contains(relativePath)
                     || authoringAndProjectionOwners.Contains(relativePath),
-                $"raw Enemy/AI runtime reference must be declared by the Phase 3 debt inventory: {relativePath}"
+                $"raw Enemy/AI runtime reference must be an exact Phase 4 authoring owner: {relativePath}"
             );
         }
 
@@ -356,37 +321,6 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
             "reverse scan covers every raw Enemy/AI owner exactly once"
         );
 
-        PropertyInfo[] rootProperties = typeof(ILegacyEnemyContentCatalog).GetProperties();
-        var remainingRootTypes = new HashSet<Type>
-        {
-            typeof(EnemyTemplateDef),
-            typeof(EnemyAiBrainDef),
-            typeof(WildEncounterRosterDef),
-            typeof(BattleSimProfileDef),
-        };
-        _test.Eq(
-            rootProperties.Length,
-            remainingRootTypes.Count,
-            "legacy catalog exposes only the four approved raw graph roots"
-        );
-        foreach (PropertyInfo property in rootProperties)
-        {
-            Type propertyType = property.PropertyType;
-            bool isApprovedDictionary =
-                propertyType.IsGenericType
-                && propertyType.GetGenericTypeDefinition() == typeof(IReadOnlyDictionary<,>)
-                && propertyType.GetGenericArguments()[0] == typeof(StringName)
-                && remainingRootTypes.Remove(propertyType.GetGenericArguments()[1]);
-            _test.True(
-                isApprovedDictionary,
-                $"legacy catalog property remains an approved StringName-to-Resource root: {property.Name}"
-            );
-        }
-        _test.Eq(
-            remainingRootTypes.Count,
-            0,
-            "legacy catalog includes every approved Enemy/AI and BattleSim root exactly once"
-        );
     }
 
     private void AssertExactProductionQuarantine()

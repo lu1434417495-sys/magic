@@ -227,7 +227,10 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : L
         };
         action.skill_ids.Add(skillId);
 
-        BattleAiDecision decision = new BattleAiUnitSkillCandidateEvaluator().Evaluate(action, context);
+        BattleAiDecision decision = new BattleAiUnitSkillCandidateEvaluator().Evaluate(
+            (UseUnitSkillActionDefinition)action.ToDefinition(),
+            context
+        );
         BattleCommand command = decision?.command;
         _test.True(command != null, "Available unit skill should produce a command.");
         if (command == null)
@@ -285,7 +288,10 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : L
         };
         action.skill_ids.Add(skillId);
 
-        BattleAiDecision decision = new BattleAiUnitSkillCandidateEvaluator().Evaluate(action, context);
+        BattleAiDecision decision = new BattleAiUnitSkillCandidateEvaluator().Evaluate(
+            (UseUnitSkillActionDefinition)action.ToDefinition(),
+            context
+        );
         _test.True(decision == null, "超出 fast preview 射程时不应生成 unit-skill 决策。");
 
         IReadOnlyList<AiActionTrace> traces = context.GetActionTracesTyped();

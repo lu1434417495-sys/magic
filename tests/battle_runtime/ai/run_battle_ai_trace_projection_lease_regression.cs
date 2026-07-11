@@ -624,7 +624,7 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
         {
             GDictionary payload = BattleAiScoreProjection.WriteProfile(
                 lease,
-                profile,
+                BattleAiScoreProfileDefinition.FromResource(profile),
                 "profile-map-test.payload"
             );
             using GDictionary actionScores = payload["action_base_scores"].AsGodotDictionary();
@@ -990,7 +990,7 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
     {
         const string path = "user://battle_sim_progress_scope_exception_regression.log";
         var runner = new BattleSimRunner(
-            new BattleSimContentProvider(new TestContentResourceLoader())
+            new BattleSimContentProvider(GameSessionTestFactory.GetProcessSnapshot())
         );
         runner.SetProgressLoggingEnabled(true);
         runner.SetProgressLogPath(path);

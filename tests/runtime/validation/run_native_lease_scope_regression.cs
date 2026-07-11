@@ -24,16 +24,6 @@ public partial class run_native_lease_scope_regression : LifecycleTestSceneTree
         }
     }
 
-    private sealed partial class FactoryProbeAction : EnemyAiAction
-    {
-        internal static int ConstructionCount { get; private set; }
-
-        public FactoryProbeAction()
-        {
-            ConstructionCount++;
-        }
-    }
-
     private readonly TestHarness _test = new();
 
     public override void _Initialize() => CallDeferred(nameof(Run));
@@ -121,156 +111,12 @@ public partial class run_native_lease_scope_regression : LifecycleTestSceneTree
         );
         rejectionScope.Dispose();
 
-        AssertNativeFactoryFailureCleanup(baseline);
-
         LifecycleAuditSnapshot after = LifecycleAuditRegistry.Shared.CaptureSnapshot();
         _test.Eq(after.ActiveOwnerCount, baseline.ActiveOwnerCount, "owner audit returns to baseline");
         _test.Eq(after.ActiveScopeCount, baseline.ActiveScopeCount, "scope audit returns to baseline");
         _test.Eq(after.ActiveLeaseCount, baseline.ActiveLeaseCount, "lease audit remains at baseline");
         _test.True(after.TransferredCount > baseline.TransferredCount, "transfer is recorded");
         RequestTestExit(_test.Finish("Native lease scope regression"));
-    }
-
-    private void AssertNativeFactoryFailureCleanup(LifecycleAuditSnapshot baseline)
-    {
-        var configureFailureScope = new NativeLeaseScope(
-            "native-factory-configure-failure",
-            LifetimeDomain.Request
-        );
-        var configureFailureFactory = new RuntimeEnemyAiResourceFactory(
-            configureFailureScope,
-            "native-factory-regression"
-        );
-        FactoryProbeAction configuredAction = null;
-        _test.True(
-            Throws<InvalidOperationException>(
-                () =>
-                    configureFailureFactory.NewAction<FactoryProbeAction>(
-                        action =>
-                        {
-                            configuredAction = action;
-                            throw new InvalidOperationException("expected configure failure");
-                        },
-                        "configure-failure"
-                    )
-            ),
-            "native factory propagates configure failures"
-        );
-        _test.True(
-            configuredAction != null && !GodotObject.IsInstanceValid(configuredAction),
-            "native factory disposes a newly created Resource when configuration fails"
-        );
-        configureFailureScope.Dispose();
-
-        var configureCloseScope = new NativeLeaseScope(
-            "native-factory-configure-close",
-            LifetimeDomain.Request
-        );
-        var configureCloseFactory = new RuntimeEnemyAiResourceFactory(
-            configureCloseScope,
-            "native-factory-regression"
-        );
-        FactoryProbeAction closeRaceAction = null;
-        _test.True(
-            Throws<ObjectDisposedException>(
-                () =>
-                    configureCloseFactory.NewAction<FactoryProbeAction>(
-                        action =>
-                        {
-                            closeRaceAction = action;
-                            configureCloseScope.Dispose();
-                        },
-                        "configure-close"
-                    )
-            ),
-            "native factory reports a scope closed during configuration"
-        );
-        _test.True(
-            closeRaceAction != null && !GodotObject.IsInstanceValid(closeRaceAction),
-            "native factory disposes an unclaimed Resource when its scope closes during configuration"
-        );
-
-        var selfDisposedScope = new NativeLeaseScope(
-            "native-factory-self-disposed",
-            LifetimeDomain.Request
-        );
-        var selfDisposedFactory = new RuntimeEnemyAiResourceFactory(
-            selfDisposedScope,
-            "native-factory-regression"
-        );
-        FactoryProbeAction selfDisposedAction = null;
-        _test.True(
-            Throws<InvalidOperationException>(
-                () =>
-                    selfDisposedFactory.NewAction<FactoryProbeAction>(
-                        action =>
-                        {
-                            selfDisposedAction = action;
-                            action.Dispose();
-                            throw new InvalidOperationException("expected self-dispose failure");
-                        },
-                        "self-disposed"
-                    )
-            ),
-            "native factory preserves a configure failure after the Resource was already disposed"
-        );
-        _test.True(
-            selfDisposedAction != null && !GodotObject.IsInstanceValid(selfDisposedAction),
-            "native factory does not revive or re-own a Resource disposed during configuration"
-        );
-        selfDisposedScope.Dispose();
-
-        var closedScope = new NativeLeaseScope(
-            "native-factory-closed",
-            LifetimeDomain.Request
-        );
-        var closedFactory = new RuntimeEnemyAiResourceFactory(
-            closedScope,
-            "native-factory-regression"
-        );
-        closedScope.Dispose();
-        int constructionsBeforeClosedCall = FactoryProbeAction.ConstructionCount;
-        _test.True(
-            Throws<ObjectDisposedException>(
-                () =>
-                    closedFactory.NewAction<FactoryProbeAction>(
-                        configure: null,
-                        reason: "closed"
-                    )
-            ),
-            "native factory rejects creation after its scope closes"
-        );
-        _test.Eq(
-            FactoryProbeAction.ConstructionCount,
-            constructionsBeforeClosedCall,
-            "closed native factory rejects before allocating a Resource"
-        );
-
-        var externalAction = new FactoryProbeAction();
-        _test.True(
-            Throws<ObjectDisposedException>(
-                () => closedFactory.OwnAction(externalAction, "closed-external")
-            ),
-            "closed native factory rejects an externally supplied action"
-        );
-        _test.True(
-            GodotObject.IsInstanceValid(externalAction),
-            "failed OwnAction leaves the externally supplied action alive"
-        );
-        externalAction.Dispose();
-
-        LifecycleAuditSnapshot afterFactoryFailures =
-            LifecycleAuditRegistry.Shared.CaptureSnapshot();
-        _test.Eq(
-            afterFactoryFailures.ActiveOwnerCount,
-            baseline.ActiveOwnerCount,
-            "failed native factory creation leaves no active owner"
-        );
-        _test.Eq(
-            afterFactoryFailures.ActiveScopeCount,
-            baseline.ActiveScopeCount,
-            "failed native factory creation returns scope audit to baseline"
-        );
     }
 
     private static bool Throws<TException>(Action action)

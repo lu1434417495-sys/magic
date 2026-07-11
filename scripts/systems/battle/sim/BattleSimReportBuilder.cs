@@ -3,15 +3,15 @@ using Godot;
 
 public sealed class BattleSimReportBuilder
 {
-    public BattleSimProfileSummary BuildProfileSummary(
-        BattleSimProfileDef profile,
+    internal BattleSimProfileSummary BuildProfileSummary(
+        BattleSimProfileDefinition profile,
         IReadOnlyList<BattleSimRunReport> runs
     )
     {
         var summary = new BattleSimProfileSummary
         {
-            ProfileId = profile?.profile_id.ToString() ?? "",
-            DisplayName = profile?.display_name ?? "",
+            ProfileId = profile?.ProfileId.ToString() ?? "",
+            DisplayName = profile?.DisplayName ?? "",
             RunCount = runs?.Count ?? 0,
         };
 

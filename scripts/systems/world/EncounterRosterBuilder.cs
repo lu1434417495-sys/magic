@@ -95,8 +95,8 @@ public sealed class EncounterRosterBuilder : IDisposable
     {
         public EncounterBuildContextData(
             IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
-            IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
-            IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains,
+            IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates,
+            IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyAiBrains,
             IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
             IReadOnlyDictionary<StringName, TraitDefinition> traitDefs,
             IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings,
@@ -106,8 +106,8 @@ public sealed class EncounterRosterBuilder : IDisposable
         {
             SkillDefinitions =
                 skillDefinitions ?? new Dictionary<StringName, SkillDefinition>();
-            EnemyTemplates = enemyTemplates ?? new Dictionary<StringName, EnemyTemplateDef>();
-            EnemyAiBrains = enemyAiBrains ?? new Dictionary<StringName, EnemyAiBrainDef>();
+            EnemyTemplates = enemyTemplates ?? new Dictionary<StringName, EnemyTemplateDefinition>();
+            EnemyAiBrains = enemyAiBrains ?? new Dictionary<StringName, EnemyAiBrainDefinition>();
             ItemDefs = itemDefs ?? new Dictionary<StringName, ItemDefinition>();
             TraitDefs = traitDefs ?? new Dictionary<StringName, TraitDefinition>();
             EquipmentAbilityBindings =
@@ -118,8 +118,8 @@ public sealed class EncounterRosterBuilder : IDisposable
         }
 
         public IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions { get; }
-        public IReadOnlyDictionary<StringName, EnemyTemplateDef> EnemyTemplates { get; }
-        public IReadOnlyDictionary<StringName, EnemyAiBrainDef> EnemyAiBrains { get; }
+        public IReadOnlyDictionary<StringName, EnemyTemplateDefinition> EnemyTemplates { get; }
+        public IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> EnemyAiBrains { get; }
         public IReadOnlyDictionary<StringName, ItemDefinition> ItemDefs { get; }
         public IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs { get; }
         public IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> EquipmentAbilityBindings { get; }
@@ -127,27 +127,27 @@ public sealed class EncounterRosterBuilder : IDisposable
         public int? EnemyUnitCountOverride { get; }
     }
 
-    private Dictionary<StringName, WildEncounterRosterDef> _wildEncounterRosterIndex = new();
-    private Dictionary<StringName, EnemyTemplateDef> _enemyTemplateIndex = new();
+    private Dictionary<StringName, WildEncounterRosterDefinition> _wildEncounterRosterIndex = new();
+    private Dictionary<StringName, EnemyTemplateDefinition> _enemyTemplateIndex = new();
 
     internal void Setup(
-        IReadOnlyDictionary<StringName, WildEncounterRosterDef> wildEncounterRosters,
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates
+        IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> wildEncounterRosters,
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates
     )
     {
-        _wildEncounterRosterIndex = new Dictionary<StringName, WildEncounterRosterDef>(
-            wildEncounterRosters ?? new Dictionary<StringName, WildEncounterRosterDef>()
+        _wildEncounterRosterIndex = new Dictionary<StringName, WildEncounterRosterDefinition>(
+            wildEncounterRosters ?? new Dictionary<StringName, WildEncounterRosterDefinition>()
         );
-        _enemyTemplateIndex = new Dictionary<StringName, EnemyTemplateDef>(
-            enemyTemplates ?? new Dictionary<StringName, EnemyTemplateDef>()
+        _enemyTemplateIndex = new Dictionary<StringName, EnemyTemplateDefinition>(
+            enemyTemplates ?? new Dictionary<StringName, EnemyTemplateDefinition>()
         );
     }
 
     internal GArray BuildEnemyUnitsTyped(
         EncounterAnchorData encounterAnchor,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains,
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates,
+        IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyAiBrains,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         IReadOnlyDictionary<StringName, TraitDefinition> traitDefs = null,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null,
@@ -171,8 +171,8 @@ public sealed class EncounterRosterBuilder : IDisposable
     internal GArray BuildEnemyUnitsFromDefinitionsTyped(
         EncounterAnchorData encounterAnchor,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains,
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates,
+        IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyAiBrains,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         IReadOnlyDictionary<StringName, TraitDefinition> traitDefs = null,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null,
@@ -198,8 +198,8 @@ public sealed class EncounterRosterBuilder : IDisposable
     internal IReadOnlyList<IReadOnlyDictionary<string, object>> BuildLootEntriesPlain(
         EncounterAnchorData encounterAnchor,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null,
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates = null,
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains = null,
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates = null,
+        IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyAiBrains = null,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = null,
         int? growthStageOverride = null,
         int? enemyUnitCountOverride = null
@@ -219,8 +219,8 @@ public sealed class EncounterRosterBuilder : IDisposable
     internal IReadOnlyList<IReadOnlyDictionary<string, object>> BuildLootEntriesFromDefinitionsPlain(
         EncounterAnchorData encounterAnchor,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null,
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates = null,
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains = null,
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates = null,
+        IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyAiBrains = null,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = null,
         int? growthStageOverride = null,
         int? enemyUnitCountOverride = null
@@ -241,9 +241,9 @@ public sealed class EncounterRosterBuilder : IDisposable
         return BuildLootEntriesWithContextPlain(encounterAnchor, buildContext);
     }
 
-    private static EnemyTemplateDef ResolveEnemyTemplate(
+    private static EnemyTemplateDefinition ResolveEnemyTemplate(
         EncounterAnchorData encounterAnchor,
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates
     )
     {
         if (enemyTemplates == null || enemyTemplates.Count == 0)
@@ -251,13 +251,18 @@ public sealed class EncounterRosterBuilder : IDisposable
         if (
             encounterAnchor != null
             && encounterAnchor.enemy_roster_template_id != ""
-            && enemyTemplates.TryGetValue(encounterAnchor.enemy_roster_template_id, out EnemyTemplateDef template)
+            && enemyTemplates.TryGetValue(
+                encounterAnchor.enemy_roster_template_id,
+                out EnemyTemplateDefinition template
+            )
         )
             return template;
         return null;
     }
 
-    private WildEncounterRosterDef ResolveWildEncounterRoster(EncounterAnchorData encounterAnchor)
+    private WildEncounterRosterDefinition ResolveWildEncounterRoster(
+        EncounterAnchorData encounterAnchor
+    )
     {
         if (_wildEncounterRosterIndex == null || _wildEncounterRosterIndex.Count == 0)
             return null;
@@ -267,7 +272,7 @@ public sealed class EncounterRosterBuilder : IDisposable
             && anchor.encounter_profile_id != ""
             && _wildEncounterRosterIndex.TryGetValue(
                 anchor.encounter_profile_id,
-                out WildEncounterRosterDef roster
+                out WildEncounterRosterDefinition roster
             )
         )
         {
@@ -278,7 +283,7 @@ public sealed class EncounterRosterBuilder : IDisposable
 
     private IReadOnlyList<IReadOnlyDictionary<string, object>> BuildPreviewLootFactsFromRoster(
         EncounterAnchorData encounterAnchor,
-        WildEncounterRosterDef encounterRoster,
+        WildEncounterRosterDefinition encounterRoster,
         EncounterBuildContextData buildContext
     )
     {
@@ -294,26 +299,29 @@ public sealed class EncounterRosterBuilder : IDisposable
         var aggregatedEntries = new Dictionary<string, PreviewLootEntryData>();
         var orderedKeys = new List<string>();
         foreach (
-            WildEncounterRosterUnitEntryDef unitEntry in encounterRoster.GetStageUnitEntriesTyped(
+            WildEncounterRosterUnitEntryDefinition unitEntry in encounterRoster.GetStageUnitEntries(
                 buildContext.GrowthStage
             )
         )
         {
-            StringName templateId = unitEntry.template_id;
+            StringName templateId = unitEntry.TemplateId;
             if (
                 templateId == ""
-                || !buildContext.EnemyTemplates.TryGetValue(templateId, out EnemyTemplateDef template)
+                || !buildContext.EnemyTemplates.TryGetValue(
+                    templateId,
+                    out EnemyTemplateDefinition template
+                )
             )
             {
                 continue;
             }
-            int unitCount = Mathf.Max(unitEntry.count, 1);
+            int unitCount = Mathf.Max(unitEntry.Count, 1);
             List<PreviewLootEntryData> previewEntries = BuildPreviewLootEntriesFromTemplate(
                 template,
                 unitCount,
                 "encounter_roster",
-                encounterRoster.profile_id,
-                encounterRoster.display_name
+                encounterRoster.ProfileId,
+                encounterRoster.DisplayName
             );
             MergePreviewLootEntries(aggregatedEntries, orderedKeys, previewEntries);
         }
@@ -321,7 +329,7 @@ public sealed class EncounterRosterBuilder : IDisposable
     }
 
     private static List<PreviewLootEntryData> BuildPreviewLootEntriesFromTemplate(
-        EnemyTemplateDef template,
+        EnemyTemplateDefinition template,
         int unitCount,
         StringName dropSourceKind,
         StringName dropSourceId,
@@ -333,7 +341,7 @@ public sealed class EncounterRosterBuilder : IDisposable
             return new List<PreviewLootEntryData>();
         }
         List<PreviewLootEntryData> formalEntries = BuildFormalLootEntries(
-            template.drop_entries,
+            template.DropEntries,
             dropSourceKind,
             dropSourceId,
             dropSourceLabel
@@ -348,7 +356,7 @@ public sealed class EncounterRosterBuilder : IDisposable
     }
 
     private static List<PreviewLootEntryData> BuildFormalLootEntries(
-        IEnumerable<DropEntryDef> dropEntries,
+        IEnumerable<DropEntryDefinition> dropEntries,
         StringName dropSourceKind,
         StringName dropSourceId,
         string dropSourceLabel
@@ -370,7 +378,7 @@ public sealed class EncounterRosterBuilder : IDisposable
         {
             return lootEntries;
         }
-        foreach (DropEntryDef entryData in dropEntries)
+        foreach (DropEntryDefinition entryData in dropEntries)
         {
             ParsedDropDefinition parsedEntry = ParseDropDefinition(entryData);
             if (parsedEntry == null)
@@ -392,15 +400,15 @@ public sealed class EncounterRosterBuilder : IDisposable
         return lootEntries;
     }
 
-    private static ParsedDropDefinition ParseDropDefinition(DropEntryDef entryData)
+    private static ParsedDropDefinition ParseDropDefinition(DropEntryDefinition entryData)
     {
         if (entryData == null)
         {
             return null;
         }
-        StringName dropEntryId = StrictStringNameValue(entryData.drop_entry_id);
-        StringName dropType = StrictStringNameValue(entryData.drop_type);
-        StringName itemId = StrictStringNameValue(entryData.item_id);
+        StringName dropEntryId = StrictStringNameValue(entryData.DropEntryId);
+        StringName dropType = StrictStringNameValue(entryData.DropType);
+        StringName itemId = StrictStringNameValue(entryData.ItemId);
         if (dropEntryId == "" || itemId == "")
         {
             return null;
@@ -410,7 +418,7 @@ public sealed class EncounterRosterBuilder : IDisposable
         {
             return null;
         }
-        int quantity = entryData.quantity;
+        int quantity = entryData.Quantity;
         if (quantity <= 0)
         {
             return null;
@@ -503,35 +511,40 @@ public sealed class EncounterRosterBuilder : IDisposable
 
     private GArray BuildProfileEnemyUnits(
         EncounterAnchorData encounterAnchor,
-        WildEncounterRosterDef encounterRoster,
+        WildEncounterRosterDefinition encounterRoster,
         EncounterBuildContextData buildContext,
         int nextUnitIndex
     )
     {
         var enemyUnits = new GArray();
         foreach (
-            WildEncounterRosterUnitEntryDef unitEntry in encounterRoster.GetStageUnitEntriesTyped(
+            WildEncounterRosterUnitEntryDefinition unitEntry in encounterRoster.GetStageUnitEntries(
                 buildContext.GrowthStage
             )
         )
         {
-            StringName templateId = unitEntry.template_id;
+            StringName templateId = unitEntry.TemplateId;
             if (templateId == "")
             {
                 continue;
             }
-            if (!buildContext.EnemyTemplates.TryGetValue(templateId, out EnemyTemplateDef template))
+            if (
+                !buildContext.EnemyTemplates.TryGetValue(
+                    templateId,
+                    out EnemyTemplateDefinition template
+                )
+            )
             {
                 continue;
             }
-            int unitCount = Mathf.Max(unitEntry.count, 1);
+            int unitCount = Mathf.Max(unitEntry.Count, 1);
             GArray builtUnits = BuildUnitsFromTemplate(
                 encounterAnchor,
                 template,
                 buildContext,
                 nextUnitIndex,
                 unitCount,
-                unitEntry.display_name,
+                unitEntry.DisplayName,
                 true
             );
             nextUnitIndex += builtUnits.Count;
@@ -559,18 +572,18 @@ public sealed class EncounterRosterBuilder : IDisposable
 
     private GArray BuildTemplateEnemyUnits(
         EncounterAnchorData encounterAnchor,
-        EnemyTemplateDef template,
+        EnemyTemplateDefinition template,
         EncounterBuildContextData buildContext
     )
     {
         int enemyCount = Mathf.Max(
-            buildContext.EnemyUnitCountOverride ?? template.enemy_count,
+            buildContext.EnemyUnitCountOverride ?? template.EnemyCount,
             1
         );
         string fallbackDisplayName = "敌人";
-        if (template != null && !string.IsNullOrEmpty(template.display_name))
+        if (template != null && !string.IsNullOrEmpty(template.DisplayName))
         {
-            fallbackDisplayName = template.display_name;
+            fallbackDisplayName = template.DisplayName;
         }
         else if (encounterAnchor != null && !string.IsNullOrEmpty(encounterAnchor.display_name))
         {
@@ -589,7 +602,7 @@ public sealed class EncounterRosterBuilder : IDisposable
 
     private GArray BuildUnitsFromTemplate(
         EncounterAnchorData encounterAnchor,
-        EnemyTemplateDef template,
+        EnemyTemplateDefinition template,
         EncounterBuildContextData buildContext,
         int startIndex,
         int unitCount,
@@ -602,15 +615,18 @@ public sealed class EncounterRosterBuilder : IDisposable
         string baseDisplayName = displayNameOverride ?? "";
         if (string.IsNullOrEmpty(baseDisplayName))
         {
-            baseDisplayName = template != null ? template.display_name : "";
+            baseDisplayName = template != null ? template.DisplayName : "";
         }
         if (string.IsNullOrEmpty(baseDisplayName))
         {
             baseDisplayName = encounterAnchor != null ? encounterAnchor.display_name : "敌人";
         }
-        EnemyAiBrainDef brain =
+        EnemyAiBrainDefinition brain =
             template != null
-            && buildContext.EnemyAiBrains.TryGetValue(template.brain_id, out EnemyAiBrainDef resolvedBrain)
+            && buildContext.EnemyAiBrains.TryGetValue(
+                template.BrainId,
+                out EnemyAiBrainDefinition resolvedBrain
+            )
                 ? resolvedBrain
                 : null;
         for (int localIndex = 0; localIndex < resolvedUnitCount; localIndex++)
@@ -619,20 +635,20 @@ public sealed class EncounterRosterBuilder : IDisposable
             var unitState = new BattleUnitState
             {
                 unit_id = BuildEnemyUnitId(encounterAnchor, globalIndex),
-                enemy_template_id = template != null ? template.template_id : new StringName(""),
+                enemy_template_id = template != null ? template.TemplateId : new StringName(""),
                 display_name = ResolveEnemyUnitDisplayName(
                     baseDisplayName,
                     localIndex,
                     resolvedUnitCount,
                     useNumericSuffix
                 ),
-                battle_sprite_texture_path = GetTextureResourcePath(template?.battle_sprite_texture),
+                battle_sprite_texture_path = template?.BattleSpriteTexturePath ?? "",
                 faction_id =
                     encounterAnchor != null && encounterAnchor.faction_id != ""
                         ? encounterAnchor.faction_id
                         : new StringName("hostile"),
                 control_mode = "ai",
-                ai_brain_id = template != null ? template.brain_id : new StringName(""),
+                ai_brain_id = template != null ? template.BrainId : new StringName(""),
                 ai_state_id =
                     template != null
                         ? template.GetInitialStateId(brain)
@@ -640,10 +656,10 @@ public sealed class EncounterRosterBuilder : IDisposable
                 ai_blackboard = new BattleAiBlackboard(),
                 action_threshold =
                     template != null
-                        ? template.action_threshold
+                        ? template.ActionThreshold
                         : BattleUnitState.DefaultActionThreshold,
             };
-            unitState.SetBodySizeProjection(Mathf.Max(template != null ? template.body_size : 1, 1));
+            unitState.SetBodySizeProjection(Mathf.Max(template != null ? template.BodySize : 1, 1));
             ApplyEnemyWeaponProjection(unitState, template, buildContext.ItemDefs);
             unitState.creature_type_tags =
                 BattleEquipmentAbilityProjectionService.ProjectCreatureTypeTags(template);
@@ -672,12 +688,12 @@ public sealed class EncounterRosterBuilder : IDisposable
             if (template != null)
             {
                 unitState.damage_resistances.ReplaceWithTyped(
-                    template.GetDamageResistancesTyped()
+                    template.DamageResistances
                 );
             }
             unitState.SetKnownActiveSkillIds(
                 template != null
-                    ? new GStringNameArray(template.skill_ids)
+                    ? new GStringNameArray(template.SkillIds)
                     : new GStringNameArray()
             );
             if (unitState.known_active_skill_ids.Count == 0)
@@ -716,10 +732,12 @@ public sealed class EncounterRosterBuilder : IDisposable
         }
     }
 
-    private static GStringNameArray CopyTemplateSaveAdvantageTags(EnemyTemplateDef template)
+    private static GStringNameArray CopyTemplateSaveAdvantageTags(
+        EnemyTemplateDefinition template
+    )
     {
-        return template?.save_advantage_tags != null
-            ? new GStringNameArray(template.save_advantage_tags)
+        return template?.SaveAdvantageTags != null
+            ? new GStringNameArray(template.SaveAdvantageTags)
             : new GStringNameArray();
     }
 
@@ -748,12 +766,12 @@ public sealed class EncounterRosterBuilder : IDisposable
     }
 
     private AttributeSnapshot BuildEnemySnapshotFromTemplate(
-        EnemyTemplateDef template,
+        EnemyTemplateDefinition template,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs
     )
     {
         IReadOnlyDictionary<StringName, int> baseAttributes =
-            template?.GetBaseAttributeOverridesResolvedTyped() ?? EmptyIntMap;
+            template?.BaseAttributeOverrides ?? EmptyIntMap;
         var unitProgress = new UnitProgress();
         foreach (StringName attributeId in UnitBaseAttributes.GetBaseAttributeIdsTyped())
         {
@@ -763,7 +781,7 @@ public sealed class EncounterRosterBuilder : IDisposable
             );
         }
         IReadOnlyDictionary<StringName, int> stats =
-            template?.GetAttributeOverridesTyped() ?? EmptyIntMap;
+            template?.AttributeOverrides ?? EmptyIntMap;
         ApplyEnemyAcComponentOverridesToProgress(unitProgress, stats);
         var attributeService = new AttributeService();
         attributeService.Setup(unitProgress);
@@ -779,7 +797,7 @@ public sealed class EncounterRosterBuilder : IDisposable
 
     private static void ApplyEnemyDerivedCombatStats(
         AttributeSnapshot snapshot,
-        EnemyTemplateDef template,
+        EnemyTemplateDefinition template,
         IReadOnlyDictionary<StringName, int> declaredStats,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs
     )
@@ -791,12 +809,12 @@ public sealed class EncounterRosterBuilder : IDisposable
         StringName hpMaxId = AttributeService.ToStringName(AttributeIdKind.HpMax);
         if (!declaredStats.ContainsKey(hpMaxId))
         {
-            snapshot.SetValue(hpMaxId, template.GetDerivedHpMaxTyped());
+            snapshot.SetValue(hpMaxId, template.DerivedHpMax);
         }
         StringName attackBonusId = AttributeService.ToStringName(AttributeIdKind.AttackBonus);
         if (!declaredStats.ContainsKey(attackBonusId))
         {
-            snapshot.SetValue(attackBonusId, template.GetDerivedAttackBonusTyped(itemDefs));
+            snapshot.SetValue(attackBonusId, template.DerivedAttackBonus);
         }
     }
 
@@ -828,7 +846,7 @@ public sealed class EncounterRosterBuilder : IDisposable
 
     private static void ApplyEnemyWeaponProjection(
         BattleUnitState unitState,
-        EnemyTemplateDef template,
+        EnemyTemplateDefinition template,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs
     )
     {
@@ -836,7 +854,7 @@ public sealed class EncounterRosterBuilder : IDisposable
         {
             return;
         }
-        WeaponProjection projection = template?.GetWeaponProjectionTyped(itemDefs);
+        WeaponProjection projection = template?.Weapon?.ToRuntimeProjection();
         if (projection == null || projection.IsEmpty())
         {
             unitState.ClearWeaponProjection();
@@ -1086,7 +1104,7 @@ public sealed class EncounterRosterBuilder : IDisposable
                 return System.Array.Empty<IReadOnlyDictionary<string, object>>();
             }
             int enemyCount = Mathf.Max(
-                buildContext.EnemyUnitCountOverride ?? template.enemy_count,
+                buildContext.EnemyUnitCountOverride ?? template.EnemyCount,
                 1
             );
             return PreviewEntriesToFacts(
@@ -1094,8 +1112,8 @@ public sealed class EncounterRosterBuilder : IDisposable
                     template,
                     enemyCount,
                     "enemy_template",
-                    template.template_id,
-                    template.display_name
+                    template.TemplateId,
+                    template.DisplayName
                 )
             );
         }
@@ -1109,8 +1127,8 @@ public sealed class EncounterRosterBuilder : IDisposable
     private EncounterBuildContextData BuildEncounterBuildContextFromTyped(
         EncounterAnchorData encounterAnchor,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains,
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates,
+        IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyAiBrains,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         IReadOnlyDictionary<StringName, TraitDefinition> traitDefs,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings,
@@ -1131,79 +1149,6 @@ public sealed class EncounterRosterBuilder : IDisposable
             growthStage,
             enemyUnitCountOverride
         );
-    }
-
-    private static Dictionary<StringName, EnemyTemplateDef> BuildEnemyTemplateIndex(
-        GDictionary enemyTemplates
-    )
-    {
-        return BuildResourceIndex<EnemyTemplateDef>(enemyTemplates);
-    }
-
-    private static IReadOnlyDictionary<StringName, EnemyTemplateDef> ResolveEnemyTemplateIndex(
-        GDictionary buildContext,
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> fallback
-    )
-    {
-        if (
-            TryGetValue(buildContext, "enemy_templates", out object rawTemplates)
-            && TryAsDictionary(rawTemplates, out GDictionary enemyTemplates)
-        )
-        {
-            return BuildEnemyTemplateIndex(enemyTemplates);
-        }
-        return fallback ?? new Dictionary<StringName, EnemyTemplateDef>();
-    }
-
-    private static Dictionary<StringName, WildEncounterRosterDef> BuildWildEncounterRosterIndex(
-        GDictionary wildEncounterRosters
-    )
-    {
-        return BuildResourceIndex<WildEncounterRosterDef>(wildEncounterRosters);
-    }
-
-    private static Dictionary<StringName, EnemyAiBrainDef> BuildEnemyAiBrainIndex(
-        GDictionary enemyAiBrains
-    )
-    {
-        return BuildResourceIndex<EnemyAiBrainDef>(enemyAiBrains);
-    }
-
-    private static Dictionary<StringName, T> BuildResourceIndex<T>(GDictionary values)
-        where T : Resource
-    {
-        var result = new Dictionary<StringName, T>();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (Variant rawKey in values.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-            {
-                continue;
-            }
-            if (!TryGetExactValue(values, rawKey, out object rawValue) || !TryAsObject(rawValue, out T value))
-            {
-                continue;
-            }
-            AddIndexedValue(result, rawKey.AsStringName(), value);
-        }
-        return result;
-    }
-
-    private static void AddIndexedValue<T>(
-        Dictionary<StringName, T> index,
-        StringName key,
-        T value
-    )
-        where T : Resource
-    {
-        if (index == null || key == "" || value == null)
-        {
-            return;
-        }
-        index[key] = value;
     }
 
     private static IEnumerable<StringName> SortedIndexKeys<T>(
@@ -1272,12 +1217,6 @@ public sealed class EncounterRosterBuilder : IDisposable
             return fallback;
         }
         return value.ToString();
-    }
-
-    private static string GetTextureResourcePath(Texture2D texture)
-    {
-        string path = texture?.ResourcePath ?? "";
-        return string.IsNullOrEmpty(path) ? "" : path;
     }
 
     private static IEnumerable<T> Objects<T>(GArray values)

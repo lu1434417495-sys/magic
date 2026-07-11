@@ -108,7 +108,7 @@ public partial class ApplicationLifetimeCoordinator : Node, IApplicationShutdown
         bool participantRegistered = false;
         try
         {
-            session.BindContent(snapshot, host.LegacyEnemyContent);
+            session.BindContent(snapshot);
             contentBound = true;
             host.RegisterSnapshotBorrower(borrowerId, session);
             borrowerRegistered = true;

@@ -3,70 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using Godot;
 
-public partial class BattleAiDecisionLifetimeTestAction : EnemyAiAction
-{
-    public bool ThrowOnDecide { get; set; }
-
-    internal override BattleAiDecision Decide(BattleAiContext context)
-    {
-        if (ThrowOnDecide)
-        {
-            context.BuildActionScoreInputTyped(
-                "wait",
-                "decision lifetime score probe",
-                "",
-                new BattleCommand
-                {
-                    CommandKind = BattleCommandKind.Wait,
-                    unit_id = context?.unit_state?.unit_id ?? new StringName(""),
-                },
-                new BattlePreview(),
-                new BattleAiThrowingScoreMetadata()
-            );
-            throw new InvalidOperationException("decision lifetime score probe did not throw");
-        }
-
-        return new BattleAiDecision
-        {
-            command = new BattleCommand
-            {
-                CommandKind = BattleCommandKind.Wait,
-                unit_id = context?.unit_state?.unit_id ?? new StringName(""),
-            },
-            action_id = action_id,
-            reason_text = "decision lifetime success",
-        };
-    }
-}
-
-internal sealed class BattleAiThrowingScoreMetadata : IReadOnlyDictionary<string, object>
-{
-    public int Count => 0;
-
-    public IEnumerable<string> Keys => Array.Empty<string>();
-
-    public IEnumerable<object> Values => Array.Empty<object>();
-
-    public object this[string key] => throw BuildException();
-
-    public bool ContainsKey(string key) => throw BuildException();
-
-    public bool TryGetValue(string key, out object value)
-    {
-        value = null;
-        throw BuildException();
-    }
-
-    public IEnumerator<KeyValuePair<string, object>> GetEnumerator() =>
-        ((IEnumerable<KeyValuePair<string, object>>)Array.Empty<KeyValuePair<string, object>>())
-            .GetEnumerator();
-
-    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-
-    private static InvalidOperationException BuildException() =>
-        new("decision lifetime score probe");
-}
-
 public partial class run_battle_ai_decision_lifetime_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
@@ -451,10 +387,6 @@ public partial class run_battle_ai_decision_lifetime_regression : LifecycleTestS
 
     private Fixture BuildFixture(bool includeBrain, bool throwOnDecide)
     {
-        var resourceScope = new NativeLeaseScope(
-            "BattleAiDecisionLifetime.BuildFixture",
-            LifetimeDomain.Request
-        );
         var state = new BattleState
         {
             battle_id = "ai_decision_lifetime",
@@ -495,45 +427,44 @@ public partial class run_battle_ai_decision_lifetime_regression : LifecycleTestS
         context.preview_command_callback = _ => new BattlePreview();
         context.move_cost_callback = (_, _) => 1;
         context.skill_score_input_callback = (_, _, _, _, _, _) => null;
+        if (throwOnDecide)
+        {
+            context.action_score_input_callback = (_, _, _, _, _, _, _) =>
+                throw new InvalidOperationException("decision lifetime score probe");
+        }
         context.skill_cast_block_reason_callback = (_, _) =>
             BattleSkillCastBlockReasonKind.None;
 
-        var brains = new Dictionary<StringName, EnemyAiBrainDef>();
+        var brains = new Dictionary<StringName, EnemyAiBrainDefinition>();
         if (includeBrain)
         {
-            var action = resourceScope.Own(
-                new BattleAiDecisionLifetimeTestAction
-                {
-                    action_id = "lifetime_success",
-                    ThrowOnDecide = throwOnDecide,
-                },
-                "BattleAiDecisionLifetime.BuildFixture.action"
+            var action = new WaitActionDefinition(
+                "lifetime_success",
+                "",
+                BattleAiActionIntent.Wait,
+                0,
+                0
             );
-            var brainState = resourceScope.Own(
-                new EnemyAiStateDef
-                {
-                    state_id = "engage",
-                    actions = new Godot.Collections.Array<EnemyAiAction> { action },
-                },
-                "BattleAiDecisionLifetime.BuildFixture.state"
+            var brainState = new EnemyAiStateDefinition(
+                "engage",
+                new EnemyAiActionDefinition[] { action },
+                Array.Empty<EnemyAiGenerationSlotDefinition>()
             );
-            var brain = resourceScope.Own(
-                new EnemyAiBrainDef
-                {
-                    brain_id = "lifetime_brain",
-                    default_state_id = "engage",
-                    states = new Godot.Collections.Array<EnemyAiStateDef> { brainState },
-                },
-                "BattleAiDecisionLifetime.BuildFixture.brain"
+            var brain = new EnemyAiBrainDefinition(
+                "lifetime_brain",
+                "engage",
+                BattleAiScoreProfileDefinition.Default,
+                new[] { brainState },
+                Array.Empty<EnemyAiTransitionRuleDefinition>()
             );
-            brains[brain.brain_id] = brain;
+            brains[brain.BrainId] = brain;
             plan.SetSource(actor, brain);
-            plan.AddStateActions(brainState.state_id, brainState.actions);
+            plan.AddStateActions(brainState.StateId, brainState.Actions);
         }
 
         var service = new BattleAiService();
         service.Setup(brains, null);
-        return new Fixture(service, context, plan, resourceScope);
+        return new Fixture(service, context, plan);
     }
 
     private void AssertDecisionBorrowersCleared(Fixture fixture, string label)
@@ -563,14 +494,12 @@ public partial class run_battle_ai_decision_lifetime_regression : LifecycleTestS
         internal Fixture(
             BattleAiService service,
             BattleAiContext context,
-            BattleAiRuntimeActionPlan plan,
-            NativeLeaseScope resourceScope
+            BattleAiRuntimeActionPlan plan
         )
         {
             Service = service;
             Context = context;
             Plan = plan;
-            ResourceScope = resourceScope;
         }
 
         internal BattleAiService Service { get; }
@@ -579,14 +508,11 @@ public partial class run_battle_ai_decision_lifetime_regression : LifecycleTestS
 
         internal BattleAiRuntimeActionPlan Plan { get; }
 
-        private NativeLeaseScope ResourceScope { get; }
-
         public void Dispose()
         {
             Context.ClearRuntimeBindings();
             Plan.Dispose();
             Service.Dispose();
-            ResourceScope.Dispose();
         }
     }
 }

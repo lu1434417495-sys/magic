@@ -115,8 +115,7 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
                     [gemDefinition.ItemId] = gemDefinition,
                 };
                 seed.Items = items;
-            },
-            GameSessionTestFactory.CreateLoadedLegacyEnemyContent()
+            }
         );
         runner.initialize();
         _test.True(
