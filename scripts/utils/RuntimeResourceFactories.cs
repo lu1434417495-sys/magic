@@ -87,7 +87,7 @@ internal sealed class RuntimeEnemyAiResourceFactory
             }
             catch (Exception creationFailure)
             {
-                if (resource == null)
+                if (resource == null || !GodotObject.IsInstanceValid(resource))
                     throw;
 
                 try

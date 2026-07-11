@@ -162,6 +162,64 @@ public partial class run_native_lease_scope_regression : LifecycleTestSceneTree
         );
         configureFailureScope.Dispose();
 
+        var configureCloseScope = new NativeLeaseScope(
+            "native-factory-configure-close",
+            LifetimeDomain.Request
+        );
+        var configureCloseFactory = new RuntimeEnemyAiResourceFactory(
+            configureCloseScope,
+            "native-factory-regression"
+        );
+        FactoryProbeAction closeRaceAction = null;
+        _test.True(
+            Throws<ObjectDisposedException>(
+                () =>
+                    configureCloseFactory.NewAction<FactoryProbeAction>(
+                        action =>
+                        {
+                            closeRaceAction = action;
+                            configureCloseScope.Dispose();
+                        },
+                        "configure-close"
+                    )
+            ),
+            "native factory reports a scope closed during configuration"
+        );
+        _test.True(
+            closeRaceAction != null && !GodotObject.IsInstanceValid(closeRaceAction),
+            "native factory disposes an unclaimed Resource when its scope closes during configuration"
+        );
+
+        var selfDisposedScope = new NativeLeaseScope(
+            "native-factory-self-disposed",
+            LifetimeDomain.Request
+        );
+        var selfDisposedFactory = new RuntimeEnemyAiResourceFactory(
+            selfDisposedScope,
+            "native-factory-regression"
+        );
+        FactoryProbeAction selfDisposedAction = null;
+        _test.True(
+            Throws<InvalidOperationException>(
+                () =>
+                    selfDisposedFactory.NewAction<FactoryProbeAction>(
+                        action =>
+                        {
+                            selfDisposedAction = action;
+                            action.Dispose();
+                            throw new InvalidOperationException("expected self-dispose failure");
+                        },
+                        "self-disposed"
+                    )
+            ),
+            "native factory preserves a configure failure after the Resource was already disposed"
+        );
+        _test.True(
+            selfDisposedAction != null && !GodotObject.IsInstanceValid(selfDisposedAction),
+            "native factory does not revive or re-own a Resource disposed during configuration"
+        );
+        selfDisposedScope.Dispose();
+
         var closedScope = new NativeLeaseScope(
             "native-factory-closed",
             LifetimeDomain.Request
@@ -187,6 +245,19 @@ public partial class run_native_lease_scope_regression : LifecycleTestSceneTree
             constructionsBeforeClosedCall,
             "closed native factory rejects before allocating a Resource"
         );
+
+        var externalAction = new FactoryProbeAction();
+        _test.True(
+            Throws<ObjectDisposedException>(
+                () => closedFactory.OwnAction(externalAction, "closed-external")
+            ),
+            "closed native factory rejects an externally supplied action"
+        );
+        _test.True(
+            GodotObject.IsInstanceValid(externalAction),
+            "failed OwnAction leaves the externally supplied action alive"
+        );
+        externalAction.Dispose();
 
         LifecycleAuditSnapshot afterFactoryFailures =
             LifecycleAuditRegistry.Shared.CaptureSnapshot();
