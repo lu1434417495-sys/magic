@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_battle_ai_wait_behavior_regression : LifecycleTestSceneTree
 {
@@ -30,7 +29,7 @@ public partial class run_battle_ai_wait_behavior_regression : LifecycleTestScene
 
     private void TestWaitActionMarksActiveRestWhenStaminaStarved()
     {
-        EnemyAiBrainDef brain = BuildActiveRestProbeBrain();
+        EnemyAiBrainDefinition brain = BuildActiveRestProbeBrain();
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent(brain);
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(3, 1));
@@ -39,7 +38,7 @@ public partial class run_battle_ai_wait_behavior_regression : LifecycleTestScene
             "体力耗尽战士",
             "hostile",
             new Vector2I(0, 0),
-            brain.brain_id,
+            brain.BrainId,
             "pressure",
             new[] { "basic_attack" },
             28,
@@ -81,7 +80,7 @@ public partial class run_battle_ai_wait_behavior_regression : LifecycleTestScene
 
     private void TestWaitActionReportsRestWhenNoActionIsAvailable()
     {
-        EnemyAiBrainDef brain = BuildFallbackRestProbeBrain();
+        EnemyAiBrainDefinition brain = BuildFallbackRestProbeBrain();
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent(brain);
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(3, 1));
@@ -90,7 +89,7 @@ public partial class run_battle_ai_wait_behavior_regression : LifecycleTestScene
             "无动作战士",
             "hostile",
             new Vector2I(0, 0),
-            brain.brain_id,
+            brain.BrainId,
             "engage",
             Array.Empty<string>(),
             28,
@@ -185,61 +184,83 @@ public partial class run_battle_ai_wait_behavior_regression : LifecycleTestScene
         );
     }
 
-    private static EnemyAiBrainDef BuildActiveRestProbeBrain()
+    private static EnemyAiBrainDefinition BuildActiveRestProbeBrain()
     {
-        var basicAction = new UseUnitSkillAction
-        {
-            action_id = "active_rest_basic",
-            target_selector = "nearest_enemy",
-            desired_min_distance = 1,
-            desired_max_distance = 1,
-            DistanceReferenceKind = EnemyAiDistanceReference.TargetUnit,
-        };
-        basicAction.skill_ids.Add("basic_attack");
-        var waitAction = new WaitAction { action_id = "active_rest_wait" };
-        var pressureState = new EnemyAiStateDef { state_id = "pressure" };
-        pressureState.actions.Add(basicAction);
-        pressureState.actions.Add(waitAction);
-        var brain = new EnemyAiBrainDef
-        {
-            brain_id = "active_rest_probe_brain",
-            default_state_id = "pressure",
-        };
-        brain.states.Add(pressureState);
-        return TestResourceOwnership.Own(
-            brain,
-            "BattleAiWaitBehavior.BuildActiveRestProbeBrain"
+        var basicAction = new UseUnitSkillActionDefinition(
+            actionId: "active_rest_basic",
+            scoreBucketId: "",
+            actionIntent: BattleAiActionIntent.Positioning,
+            skillIds: new[] { (StringName)"basic_attack" },
+            targetSelector: "nearest_enemy",
+            minimumEffectiveTargetCount: 1,
+            maximumFriendlyFireTargetCount: 0,
+            allowFriendlyLethal: false,
+            desiredMinDistance: 1,
+            desiredMaxDistance: 1,
+            distanceReference: EnemyAiDistanceReferences.ToStringName(
+                EnemyAiDistanceReference.TargetUnit
+            )
+        );
+        var pressureState = new EnemyAiStateDefinition(
+            "pressure",
+            new EnemyAiActionDefinition[]
+            {
+                basicAction,
+                BuildWaitAction("active_rest_wait"),
+            },
+            Array.Empty<EnemyAiGenerationSlotDefinition>()
+        );
+        return new EnemyAiBrainDefinition(
+            "active_rest_probe_brain",
+            "pressure",
+            BattleAiScoreProfileDefinition.Default,
+            new[] { pressureState },
+            Array.Empty<EnemyAiTransitionRuleDefinition>()
         );
     }
 
-    private static EnemyAiBrainDef BuildFallbackRestProbeBrain()
+    private static EnemyAiBrainDefinition BuildFallbackRestProbeBrain()
     {
-        var engageState = new EnemyAiStateDef { state_id = "engage" };
-        engageState.actions.Add(new WaitAction { action_id = "fallback_rest_wait" });
-        var brain = new EnemyAiBrainDef
-        {
-            brain_id = "fallback_rest_probe_brain",
-            default_state_id = "engage",
-        };
-        brain.states.Add(engageState);
-        return TestResourceOwnership.Own(
-            brain,
-            "BattleAiWaitBehavior.BuildFallbackRestProbeBrain"
+        var engageState = new EnemyAiStateDefinition(
+            "engage",
+            new EnemyAiActionDefinition[] { BuildWaitAction("fallback_rest_wait") },
+            Array.Empty<EnemyAiGenerationSlotDefinition>()
+        );
+        return new EnemyAiBrainDefinition(
+            "fallback_rest_probe_brain",
+            "engage",
+            BattleAiScoreProfileDefinition.Default,
+            new[] { engageState },
+            Array.Empty<EnemyAiTransitionRuleDefinition>()
         );
     }
 
-    private static BattleRuntimeScope BuildRuntimeWithEnemyContent(params EnemyAiBrainDef[] extraBrains)
+    private static WaitActionDefinition BuildWaitAction(StringName actionId) =>
+        new(
+            actionId: actionId,
+            scoreBucketId: "",
+            actionIntent: BattleAiActionIntent.Positioning,
+            activeRestActionBaseScore: 10,
+            activeRestMinStaminaResidue: 1
+        );
+
+    private static BattleRuntimeScope BuildRuntimeWithEnemyContent(
+        params EnemyAiBrainDefinition[] extraBrains
+    )
     {
         var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         var runtime = new BattleRuntimeModule();
         var enemyAiBrains = new Dictionary<StringName, EnemyAiBrainDefinition>(
             gameSession.GetEnemyAiBrainDefinitions()
         );
-        foreach (EnemyAiBrainDef brain in extraBrains ?? Array.Empty<EnemyAiBrainDef>())
+        foreach (
+            EnemyAiBrainDefinition brain in extraBrains
+                ?? Array.Empty<EnemyAiBrainDefinition>()
+        )
         {
-            if (brain != null && brain.brain_id != (StringName)"")
+            if (brain != null && brain.BrainId != (StringName)"")
             {
-                enemyAiBrains[brain.brain_id] = brain.ToDefinition();
+                enemyAiBrains[brain.BrainId] = brain;
             }
         }
         runtime.setup(

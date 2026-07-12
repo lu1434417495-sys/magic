@@ -233,120 +233,88 @@ public partial class run_battle_ai_state_resolver_regression : LifecycleTestScen
 
     private static EnemyAiBrainDefinition BuildBrain(
         StringName defaultStateId,
-        params EnemyAiTransitionRuleDef[] rules
+        params EnemyAiTransitionRuleDefinition[] rules
     )
     {
-        var brain = TestResourceOwnership.Own(
-            new EnemyAiBrainDef
+        return new EnemyAiBrainDefinition(
+            "resolver_brain",
+            defaultStateId,
+            BattleAiScoreProfileDefinition.Default,
+            new[]
             {
-                brain_id = "resolver_brain",
-                default_state_id = defaultStateId,
-                states = new Godot.Collections.Array<EnemyAiStateDef>
-                {
-                    State("hold"),
-                    State("recover"),
-                    State("aid_ally"),
-                    State("close_range"),
-                },
-                transition_rules = new Godot.Collections.Array<EnemyAiTransitionRuleDef>(),
+                State("hold"),
+                State("recover"),
+                State("aid_ally"),
+                State("close_range"),
             },
-            "BattleAiStateResolver.BuildBrain"
+            rules ?? Array.Empty<EnemyAiTransitionRuleDefinition>()
         );
-        foreach (EnemyAiTransitionRuleDef rule in rules)
-        {
-            brain.transition_rules.Add(rule);
-        }
-        return brain.ToDefinition();
     }
 
-    private static EnemyAiStateDef State(StringName stateId)
-    {
-        return new EnemyAiStateDef
-        {
-            state_id = stateId,
-            actions = new Godot.Collections.Array<EnemyAiAction>
-            {
-                Wait(new StringName($"{stateId}_wait")),
-            },
-        };
-    }
+    private static EnemyAiStateDefinition State(StringName stateId) =>
+        new(
+            stateId,
+            new EnemyAiActionDefinition[] { Wait(new StringName($"{stateId}_wait")) },
+            Array.Empty<EnemyAiGenerationSlotDefinition>()
+        );
 
-    private static WaitAction Wait(StringName actionId)
-    {
-        return new WaitAction { action_id = actionId };
-    }
+    private static WaitActionDefinition Wait(StringName actionId) =>
+        new(
+            actionId,
+            "",
+            BattleAiActionIntent.Positioning,
+            activeRestActionBaseScore: 10,
+            activeRestMinStaminaResidue: 1
+        );
 
-    private static EnemyAiTransitionRuleDef Rule(
+    private static EnemyAiTransitionRuleDefinition Rule(
         StringName ruleId,
         int order,
         StringName targetStateId,
-        params EnemyAiTransitionConditionDef[] conditions
+        params EnemyAiTransitionConditionDefinition[] conditions
     ) =>
         Rule(ruleId, order, targetStateId, conditions, Array.Empty<StringName>());
 
-    private static EnemyAiTransitionRuleDef Rule(
+    private static EnemyAiTransitionRuleDefinition Rule(
         StringName ruleId,
         int order,
         StringName targetStateId,
-        EnemyAiTransitionConditionDef firstCondition,
-        EnemyAiTransitionConditionDef secondCondition,
+        EnemyAiTransitionConditionDefinition firstCondition,
+        EnemyAiTransitionConditionDefinition secondCondition,
         StringName[] fromStateIds
     ) =>
         Rule(ruleId, order, targetStateId, new[] { firstCondition, secondCondition }, fromStateIds);
 
-    private static EnemyAiTransitionRuleDef Rule(
+    private static EnemyAiTransitionRuleDefinition Rule(
         StringName ruleId,
         int order,
         StringName targetStateId,
-        EnemyAiTransitionConditionDef[] conditions,
+        EnemyAiTransitionConditionDefinition[] conditions,
         StringName[] fromStateIds
-    )
-    {
-        var rule = new EnemyAiTransitionRuleDef
-        {
-            rule_id = ruleId,
-            order = order,
-            target_state_id = targetStateId,
-            conditions = new Godot.Collections.Array<EnemyAiTransitionConditionDef>(),
-            from_state_ids = new Godot.Collections.Array<Godot.StringName>(),
-        };
-        foreach (EnemyAiTransitionConditionDef condition in conditions ?? Array.Empty<EnemyAiTransitionConditionDef>())
-        {
-            rule.conditions.Add(condition);
-        }
-        foreach (StringName stateId in fromStateIds ?? Array.Empty<StringName>())
-        {
-            rule.from_state_ids.Add(stateId);
-        }
-        return rule;
-    }
+    ) =>
+        new(
+            ruleId,
+            order,
+            fromStateIds ?? Array.Empty<StringName>(),
+            targetStateId,
+            conditions ?? Array.Empty<EnemyAiTransitionConditionDefinition>(),
+            ""
+        );
 
-    private static EnemyAiTransitionConditionDef Condition(
+    private static EnemyAiTransitionConditionDefinition Condition(
         StringName predicate,
         int basisPoints = -1,
         int maxDistance = -1,
         StringName[] stateIds = null,
         StringName[] affordances = null
-    )
-    {
-        var condition = new EnemyAiTransitionConditionDef
-        {
-            predicate = predicate,
-            basis_points = basisPoints,
-            max_distance = maxDistance,
-            state_ids = new Godot.Collections.Array<Godot.StringName>(),
-            affordances = new Godot.Collections.Array<Godot.StringName>(),
-        };
-        foreach (StringName stateId in stateIds ?? Array.Empty<StringName>())
-        {
-            condition.state_ids.Add(stateId);
-        }
-        foreach (StringName affordance in affordances ?? Array.Empty<StringName>())
-        {
-            condition.affordances.Add(affordance);
-        }
-        return condition;
-    }
+    ) =>
+        new(
+            predicate,
+            basisPoints,
+            maxDistance,
+            stateIds ?? Array.Empty<StringName>(),
+            affordances ?? Array.Empty<StringName>()
+        );
 
     private static BattleUnitState Unit(StringName unitId, StringName factionId, Vector2I coord)
     {
