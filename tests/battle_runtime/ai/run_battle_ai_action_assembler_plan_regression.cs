@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_battle_ai_action_assembler_plan_regression : LifecycleTestSceneTree
 {
@@ -191,13 +190,9 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
             },
             "BattleAiActionAssemblerPlan.BuildFixture.move_template"
         );
-        stateResource.actions = new Godot.Collections.Array<EnemyAiAction>
-        {
-            unitTemplate,
-            moveTemplate,
-        };
-        stateResource.generation_slots = new Godot.Collections.Array<EnemyAiGenerationSlotDef>
-        {
+        stateResource.actions.Add(unitTemplate);
+        stateResource.actions.Add(moveTemplate);
+        stateResource.generation_slots.Add(
             Slot(
                 "offense",
                 10,
@@ -205,7 +200,9 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
                 new[] { new StringName("use_unit_skill") },
                 "template_unit",
                 "harrier_pressure"
-            ),
+            )
+        );
+        stateResource.generation_slots.Add(
             Slot(
                 "chain_cast",
                 20,
@@ -213,7 +210,9 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
                 new[] { new StringName("use_random_chain_skill") },
                 "template_unit",
                 "frontline_pressure"
-            ),
+            )
+        );
+        stateResource.generation_slots.Add(
             Slot(
                 "chain_move",
                 30,
@@ -221,7 +220,9 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
                 new[] { new StringName("move_to_range") },
                 "template_move",
                 "archer_survival"
-            ),
+            )
+        );
+        stateResource.generation_slots.Add(
             Slot(
                 "multi_move",
                 40,
@@ -229,7 +230,9 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
                 new[] { new StringName("move_to_multi_unit_skill_position") },
                 "template_move",
                 "archer_survival"
-            ),
+            )
+        );
+        stateResource.generation_slots.Add(
             Slot(
                 "ground_cast",
                 50,
@@ -237,20 +240,21 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
                 new[] { new StringName("use_ground_skill") },
                 "template_unit",
                 "frontline_pressure"
-            ),
-        };
+            )
+        );
         TestResourceOwnership.Own(
             stateResource,
             "BattleAiActionAssemblerPlan.BuildFixture.state"
         );
 
-        var brainResource = TestResourceOwnership.Own(
-            new EnemyAiBrainDef
-            {
-                brain_id = "plan_brain",
-                default_state_id = "engage",
-                states = new Godot.Collections.Array<EnemyAiStateDef> { stateResource },
-            },
+        var brainResource = new EnemyAiBrainDef
+        {
+            brain_id = "plan_brain",
+            default_state_id = "engage",
+        };
+        brainResource.states.Add(stateResource);
+        TestResourceOwnership.Own(
+            brainResource,
             "BattleAiActionAssemblerPlan.BuildFixture.brain"
         );
         EnemyAiBrainDefinition brain = brainResource.ToDefinition();
@@ -258,14 +262,10 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
         {
             unit_id = "actor",
             ai_brain_id = brain.BrainId,
-            known_active_skill_ids = new GStringNameArray
-            {
-                "bolt",
-                "chain_arc",
-                "wide_arc",
-                "ground_burst",
-            },
         };
+        unit.SetKnownActiveSkillIds(
+            new StringName[] { "bolt", "chain_arc", "wide_arc", "ground_burst" }
+        );
         unit.SetKnownSkillLevelsTyped(
             new Dictionary<StringName, int>
             {

@@ -326,18 +326,23 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         try
         {
-            MoveToAdvantagePositionAction action = TestResourceOwnership.Own(
-                new MoveToAdvantagePositionAction
-                {
-                    action_id = "high_ground_progress_gate",
-                    score_bucket_id = "archer_positioning",
-                    target_selector = "nearest_enemy",
-                    desired_min_distance = 3,
-                    desired_max_distance = 5,
-                    positioning_mode = "high_ground",
-                    min_distance_progress_when_beyond_band = 1,
-                },
-                "MoveToRangeProgress.HighGroundAction"
+            var action = new MoveToAdvantagePositionActionDefinition(
+                actionId: "high_ground_progress_gate",
+                scoreBucketId: "archer_positioning",
+                actionIntent: BattleAiActionIntent.Positioning,
+                targetSelector: "nearest_enemy",
+                desiredMinDistance: 3,
+                desiredMaxDistance: 5,
+                rangeSkillIds: Array.Empty<StringName>(),
+                minimumSafeDistance: 3,
+                safeDistanceMargin: 1,
+                minSurvivalMarginGainToEscape: 1,
+                minDistanceProgressWhenBeyondBand: 1,
+                positioningMode: "high_ground",
+                highGroundWeight: 60,
+                safetyWeight: 50,
+                distanceBandWeight: 20,
+                candidateLimit: 96
             );
 
             stalledDecision = DecideHighGroundProgressCase(
@@ -370,7 +375,7 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
 
     private static BattleAiDecision DecideHighGroundProgressCase(
         BattleRuntimeModule runtime,
-        MoveToAdvantagePositionAction action,
+        MoveToAdvantagePositionActionDefinition action,
         Vector2I highGroundCoord
     )
     {
@@ -400,7 +405,7 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
             runtime.SetupStateForTests(state);
 
             return new BattleAiMoveToAdvantageActionEvaluator().Evaluate(
-                (MoveToAdvantagePositionActionDefinition)action.ToDefinition(),
+                action,
                 BuildAiContext(runtime, mover)
             );
         }

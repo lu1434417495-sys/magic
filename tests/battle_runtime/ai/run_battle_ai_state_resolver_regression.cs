@@ -113,10 +113,7 @@ public partial class run_battle_ai_state_resolver_regression : LifecycleTestScen
                 [supportSkill.SkillId] = supportSkill,
             }
         );
-        fixture.Actor.known_active_skill_ids = new Godot.Collections.Array<Godot.StringName>
-        {
-            supportSkill.SkillId,
-        };
+        fixture.Actor.SetKnownActiveSkillIds(new[] { supportSkill.SkillId });
         fixture.Actor.known_skill_level_map[supportSkill.SkillId] = 1;
         EnemyAiBrainDefinition brain = BuildBrain(
             "hold",
@@ -155,10 +152,7 @@ public partial class run_battle_ai_state_resolver_regression : LifecycleTestScen
     {
         Fixture fixture = BuildFixture();
         SkillDefinition supportSkill = BuildSupportSkill("aid_spell");
-        fixture.Actor.known_active_skill_ids = new Godot.Collections.Array<Godot.StringName>
-        {
-            supportSkill.SkillId,
-        };
+        fixture.Actor.SetKnownActiveSkillIds(new[] { supportSkill.SkillId });
         fixture.Actor.known_skill_level_map[supportSkill.SkillId] = 1;
         EnemyAiBrainDefinition brain = BuildBrain(
             "hold",

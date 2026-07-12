@@ -1,7 +1,5 @@
 using Godot;
 using System.Collections.Generic;
-using GEnemyAiActionArray = Godot.Collections.Array<EnemyAiAction>;
-using GGenerationSlotArray = Godot.Collections.Array<EnemyAiGenerationSlotDef>;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
@@ -51,51 +49,63 @@ public partial class run_enemy_ai_generation_slots_schema_regression : Lifecycle
     private void TestValidGenerationSlotsPassSchema()
     {
         EnemyAiStateDef state = BuildState();
-        state.generation_slots = new GGenerationSlotArray
-        {
-            Slot("offense", 10, new[] { "unit_hostile.damage" }, new[] { "use_unit_skill" }, "template_attack"),
-            Slot("close", 20, new[] { "random_chain" }, new[] { "move_to_range" }, "template_move"),
-        };
+        state.generation_slots.Add(
+            Slot("offense", 10, new[] { "unit_hostile.damage" }, new[] { "use_unit_skill" }, "template_attack")
+        );
+        state.generation_slots.Add(
+            Slot("close", 20, new[] { "random_chain" }, new[] { "move_to_range" }, "template_move")
+        );
         TestResourceOwnership.Own(
             state,
             "enemy_ai_generation_slots_schema.valid_state"
         );
 
-        GStringArray errors = state.ValidateSchema("schema_brain", SkillDefinitions());
+        GStringArray errors = TestResourceOwnership.OwnWrapper(
+            state.ValidateSchema("schema_brain", SkillDefinitions()),
+            "enemy_ai_generation_slots_schema.valid_errors"
+        );
         _test.True(errors.Count == 0, $"合法 generation slots 不应产生 schema error: {FormatErrors(errors)}");
     }
 
     private void TestDuplicateSlotIdsAndOrdersAreRejected()
     {
         EnemyAiStateDef state = BuildState();
-        state.generation_slots = new GGenerationSlotArray
-        {
-            Slot("dup", 10, new[] { "unit_hostile.damage" }, new[] { "use_unit_skill" }, "template_attack"),
-            Slot("dup", 10, new[] { "ground_control" }, new[] { "use_ground_skill" }, "template_attack"),
-        };
+        state.generation_slots.Add(
+            Slot("dup", 10, new[] { "unit_hostile.damage" }, new[] { "use_unit_skill" }, "template_attack")
+        );
+        state.generation_slots.Add(
+            Slot("dup", 10, new[] { "ground_control" }, new[] { "use_ground_skill" }, "template_attack")
+        );
         TestResourceOwnership.Own(
             state,
             "enemy_ai_generation_slots_schema.duplicate_state"
         );
 
-        GStringArray errors = state.ValidateSchema("schema_brain", SkillDefinitions());
+        GStringArray errors = TestResourceOwnership.OwnWrapper(
+            state.ValidateSchema("schema_brain", SkillDefinitions()),
+            "enemy_ai_generation_slots_schema.duplicate_errors"
+        );
         _test.True(errors.Count >= 2, $"重复 slot id/order 应被拒绝: {FormatErrors(errors)}");
     }
 
     private void TestInvalidFamilyAndTemplateAreRejected()
     {
         EnemyAiStateDef state = BuildState();
-        state.generation_slots = new GGenerationSlotArray
-        {
-            Slot("bad_family", 10, new[] { "unit_hostile.damage" }, new[] { "old_use_skill" }, "template_attack"),
-            Slot("missing_template", 20, new[] { "unit_hostile.damage" }, new[] { "use_unit_skill" }, "does_not_exist"),
-        };
+        state.generation_slots.Add(
+            Slot("bad_family", 10, new[] { "unit_hostile.damage" }, new[] { "old_use_skill" }, "template_attack")
+        );
+        state.generation_slots.Add(
+            Slot("missing_template", 20, new[] { "unit_hostile.damage" }, new[] { "use_unit_skill" }, "does_not_exist")
+        );
         TestResourceOwnership.Own(
             state,
             "enemy_ai_generation_slots_schema.invalid_family_state"
         );
 
-        GStringArray errors = state.ValidateSchema("schema_brain", SkillDefinitions());
+        GStringArray errors = TestResourceOwnership.OwnWrapper(
+            state.ValidateSchema("schema_brain", SkillDefinitions()),
+            "enemy_ai_generation_slots_schema.invalid_family_errors"
+        );
         _test.True(errors.Count >= 2, $"旧 alias/未知 family 与缺失 template action 应被拒绝: {FormatErrors(errors)}");
     }
 
@@ -119,13 +129,17 @@ public partial class run_enemy_ai_generation_slots_schema_regression : Lifecycle
         );
         badDistance.desired_min_distance = 6;
         badDistance.desired_max_distance = 2;
-        state.generation_slots = new GGenerationSlotArray { badSelector, badDistance };
+        state.generation_slots.Add(badSelector);
+        state.generation_slots.Add(badDistance);
         TestResourceOwnership.Own(
             state,
             "enemy_ai_generation_slots_schema.selector_distance_state"
         );
 
-        GStringArray errors = state.ValidateSchema("schema_brain", SkillDefinitions());
+        GStringArray errors = TestResourceOwnership.OwnWrapper(
+            state.ValidateSchema("schema_brain", SkillDefinitions()),
+            "enemy_ai_generation_slots_schema.selector_distance_errors"
+        );
         _test.True(errors.Count >= 2, $"未知 selector 与距离契约 min > max 应被拒绝: {FormatErrors(errors)}");
     }
 
@@ -153,7 +167,8 @@ public partial class run_enemy_ai_generation_slots_schema_regression : Lifecycle
             },
             "enemy_ai_generation_slots_schema.move_action"
         );
-        state.actions = new GEnemyAiActionArray { attack, move };
+        state.actions.Add(attack);
+        state.actions.Add(move);
         return state;
     }
 
