@@ -77,7 +77,8 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
             "月蚀影步应落成真实 SkillDef，而不是 trait 文本。"
         );
 
-        using ItemDef rawItem = ResourceLoader.Load<ItemDef>(
+        using TestContentResourceLoader contentLoader = new();
+        ItemDef rawItem = contentLoader.LoadCanonical<ItemDef>(
             "res://data/configs/items/weapon_unique_battleaxe_lunareclipse.tres"
         );
         _test.True(rawItem != null, "月蚀原始资源应能加载。");
@@ -579,8 +580,11 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
                 trait_defs: progressionRegistry.GetTraitDefsTyped(),
                 equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
             );
-            runtime.ConfigureDamageResolverForTests(new FixedRollDamageResolver(damageRolls));
-            runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
+            BattleTestFixture.ConfigureDamageResolverForTests(
+                runtime,
+                new FixedRollDamageResolver(damageRolls)
+            );
+            BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
             return new LunareclipseFixture(
                 itemRegistry,
                 progressionRegistry,
@@ -626,7 +630,7 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
 
         public void Dispose()
         {
-            Runtime?.dispose();
+            BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?.GetState());
             _itemDefs?.Clear();
             _itemRegistry?.Dispose();
             _progressionRegistry?.Dispose();

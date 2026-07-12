@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSceneTree
 {
@@ -46,7 +44,7 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
 
     private void TestStormsEyeProjectsContentAndGrantsCloudsplitter()
     {
-        using StormsEyeFixture fixture = StormsEyeFixture.Build(new GArray());
+        using StormsEyeFixture fixture = StormsEyeFixture.Build(Array.Empty<int>());
         _test.True(fixture.ItemDefs.ContainsKey(StormsEyeItemId), "真实物品内容应包含风暴之眼。");
         _test.True(fixture.TraitDefs.ContainsKey(LightningEdgeTraitId), "真实 trait 应包含雷刃。");
         _test.True(fixture.TraitDefs.ContainsKey(ThunderRiftTraitId), "真实 trait 应包含雷鸣裂击。");
@@ -68,7 +66,8 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
             "裂云重劈应落成真实 SkillDef，而不是 trait 文本。"
         );
 
-        using ItemDef rawItem = ResourceLoader.Load<ItemDef>(
+        using TestContentResourceLoader contentLoader = new();
+        ItemDef rawItem = contentLoader.LoadCanonical<ItemDef>(
             "res://data/configs/items/weapon_unique_battleaxe_storms_eye.tres"
         );
         _test.True(rawItem != null, "风暴之眼原始资源应能加载。");
@@ -145,11 +144,13 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
         _test.False(equipped.effective_trait_ids.Contains(LightningEdgeTraitId), "移除后雷刃不应残留。");
         _test.False(equipped.effective_trait_ids.Contains(ThunderRiftTraitId), "移除后雷鸣裂击不应残留。");
         _test.False(equipped.effective_trait_ids.Contains(CloudsplitterTraitId), "移除后裂云重劈不应残留。");
+        BattleTestFixture.DisposeBattleUnit(equipped);
+        BattleTestFixture.DisposeBattleUnit(baseline);
     }
 
     private void TestStormsEyeAddsLightningOnHitAndThunderOnCritical()
     {
-        using StormsEyeFixture fixture = StormsEyeFixture.Build(new GArray { 4, 3 });
+        using StormsEyeFixture fixture = StormsEyeFixture.Build(new[] { 4, 3 });
         BattleUnitState attacker = fixture.BuildStormsEyeUnit("hit");
         BattleUnitState target = BuildEnemy("storms_eye_hit_target", new Vector2I(1, 0), hp: 100);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
@@ -161,7 +162,7 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
         );
         int lightningDamage = 100 - target.current_hp;
 
-        using StormsEyeFixture plainFixture = StormsEyeFixture.Build(new GArray { 4, 3 });
+        using StormsEyeFixture plainFixture = StormsEyeFixture.Build(new[] { 4, 3 });
         BattleUnitState plainAttacker = plainFixture.BuildStormsEyeUnit("plain_hit");
         plainAttacker.equipment_ability_sources.Clear();
         BattleUnitState plainTarget = BuildEnemy("storms_eye_plain_hit_target", new Vector2I(1, 0), hp: 100);
@@ -180,7 +181,10 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
             "雷刃应在真实武器命中后额外造成固定骰 3 的 1D6 lightning。"
         );
 
-        fixture.Runtime.ConfigureHitResolverForTests(new FixedCriticalHitResolver());
+        BattleTestFixture.ConfigureHitResolverForTests(
+            fixture.Runtime,
+            new FixedCriticalHitResolver()
+        );
         BattleState state = WeaponAbilityCommandTestSupport.BuildFlatState(
             "storms_eye_critical_bonus_dice",
             attacker,
@@ -212,7 +216,7 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
     {
         // 固定骰顺序：武器4、基础雷鸣3+3、雷刃2、未推动雷鸣5+5。
         using StormsEyeFixture movedFixture =
-            StormsEyeFixture.Build(new GArray { 4, 3, 3, 2, 5, 5 });
+            StormsEyeFixture.Build(new[] { 4, 3, 3, 2, 5, 5 });
         BattleUnitState movedHolder = movedFixture.BuildStormsEyeUnit("cloudsplitter_moved");
         BattleUnitState movedTarget = BuildEnemy("cloudsplitter_moved_target", new Vector2I(1, 0), hp: 150);
         int movedDamage = IssueCloudsplitter(
@@ -229,7 +233,7 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
         );
 
         using StormsEyeFixture blockedFixture =
-            StormsEyeFixture.Build(new GArray { 4, 3, 3, 2, 5, 5 });
+            StormsEyeFixture.Build(new[] { 4, 3, 3, 2, 5, 5 });
         BattleUnitState blockedHolder = blockedFixture.BuildStormsEyeUnit("cloudsplitter_blocked");
         BattleUnitState blockedTarget = BuildEnemy("cloudsplitter_blocked_target", new Vector2I(1, 0), hp: 150);
         int blockedDamage = IssueCloudsplitter(
@@ -521,19 +525,26 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
 
     private sealed class StormsEyeFixture : IDisposable
     {
+        private readonly TestContentResourceLoader _contentLoader;
         private readonly ItemContentRegistry _itemRegistry;
         private readonly ProgressionContentRegistry _progressionRegistry;
+        private readonly CharacterManagementModule _characterManagement;
         private readonly PartyState _partyState;
+        private bool _disposed;
 
         private StormsEyeFixture(
+            TestContentResourceLoader contentLoader,
             ItemContentRegistry itemRegistry,
             ProgressionContentRegistry progressionRegistry,
+            CharacterManagementModule characterManagement,
             PartyState partyState,
             BattleRuntimeModule runtime
         )
         {
+            _contentLoader = contentLoader;
             _itemRegistry = itemRegistry;
             _progressionRegistry = progressionRegistry;
+            _characterManagement = characterManagement;
             _partyState = partyState;
             Runtime = runtime;
             ItemDefs = itemRegistry.GetItemDefsTyped();
@@ -548,35 +559,65 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
         internal IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs { get; }
         internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> Bindings { get; }
 
-        internal static StormsEyeFixture Build(GArray damageRolls)
+        internal static StormsEyeFixture Build(IEnumerable<int> damageRolls)
         {
-            ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
-            ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
-            PartyState partyState = BuildPartyState("hero");
-            CharacterManagementModule characterManagement = new();
-            characterManagement.setup(
-                partyState,
-                progressionRegistry.GetSkillDefinitionsTyped(),
-                progressionRegistry.GetProfessionDefsTyped(),
-                progressionRegistry.GetAchievementDefsTyped(),
-                itemRegistry.GetItemDefsTyped(),
-                progressionRegistry.GetQuestDefsTyped(),
-                progressionRegistry.GetTraitDefsTyped(),
-                null,
-                new ProgressionIdentityCatalogData()
-            );
+            TestContentResourceLoader contentLoader = new();
+            ItemContentRegistry itemRegistry = null;
+            ProgressionContentRegistry progressionRegistry = null;
+            CharacterManagementModule characterManagement = null;
+            BattleRuntimeModule runtime = null;
+            try
+            {
+                itemRegistry = new ItemContentRegistry(contentLoader);
+                progressionRegistry = new ProgressionContentRegistry(contentLoader);
+                PartyState partyState = BuildPartyState("hero");
+                characterManagement = new CharacterManagementModule();
+                characterManagement.setup(
+                    partyState,
+                    progressionRegistry.GetSkillDefinitionsTyped(),
+                    progressionRegistry.GetProfessionDefsTyped(),
+                    progressionRegistry.GetAchievementDefsTyped(),
+                    itemRegistry.GetItemDefsTyped(),
+                    progressionRegistry.GetQuestDefsTyped(),
+                    progressionRegistry.GetTraitDefsTyped(),
+                    null,
+                    new ProgressionIdentityCatalogData()
+                );
 
-            BattleRuntimeModule runtime = new();
-            runtime.setup(
-                characterManagement,
-                progressionRegistry.GetSkillDefinitionsTyped(),
-                item_defs: itemRegistry.GetItemDefsTyped(),
-                trait_defs: progressionRegistry.GetTraitDefsTyped(),
-                equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
-            );
-            runtime.ConfigureDamageResolverForTests(new FixedRollDamageResolver(damageRolls));
-            runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
-            return new StormsEyeFixture(itemRegistry, progressionRegistry, partyState, runtime);
+                runtime = new BattleRuntimeModule();
+                runtime.setup(
+                    characterManagement,
+                    progressionRegistry.GetSkillDefinitionsTyped(),
+                    item_defs: itemRegistry.GetItemDefsTyped(),
+                    trait_defs: progressionRegistry.GetTraitDefsTyped(),
+                    equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
+                );
+                using GArray damageRollPayload = new();
+                foreach (int roll in damageRolls ?? Array.Empty<int>())
+                    damageRollPayload.Add(roll);
+                BattleTestFixture.ConfigureDamageResolverForTests(
+                    runtime,
+                    new FixedRollDamageResolver(damageRollPayload)
+                );
+                BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
+                return new StormsEyeFixture(
+                    contentLoader,
+                    itemRegistry,
+                    progressionRegistry,
+                    characterManagement,
+                    partyState,
+                    runtime
+                );
+            }
+            catch
+            {
+                BattleTestFixture.DisposeRuntime(runtime);
+                characterManagement?.Dispose();
+                itemRegistry?.Dispose();
+                progressionRegistry?.Dispose();
+                contentLoader.Dispose();
+                throw;
+            }
         }
 
         internal BattleUnitState BuildUnitWithoutWeapon(string label)
@@ -593,7 +634,7 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
             member.equipment_state.SetEquippedEntry(
                 "main_hand",
                 StormsEyeItemId,
-                new GStringNameArray { "main_hand" },
+                new StringName[] { "main_hand" },
                 EquipmentInstanceState.CreateInstance(
                     StormsEyeItemId,
                     $"eq_storms_eye_{label}"
@@ -608,15 +649,20 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
 
         public void Dispose()
         {
-            Runtime?.dispose();
+            if (_disposed)
+                return;
+            _disposed = true;
+            BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?.GetState());
+            _characterManagement?.Dispose();
             _itemRegistry?.Dispose();
             _progressionRegistry?.Dispose();
+            _contentLoader?.Dispose();
         }
 
         private BattleUnitState BuildSingleAllyUnit(string label)
         {
             IReadOnlyList<BattleUnitState> units =
-                Runtime._unit_factory.BuildAllyUnits(_partyState, new GDictionary());
+                Runtime._unit_factory.BuildAllyUnits(_partyState, null);
             if (units.Count != 1)
             {
                 throw new InvalidOperationException(

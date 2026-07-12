@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_courage_weapon_ability_regression : LifecycleTestSceneTree
 {
@@ -68,7 +67,8 @@ public partial class run_courage_weapon_ability_regression : LifecycleTestSceneT
         );
         _test.True(fixture.SkillDefs.ContainsKey(InspireSkillId), "鼓舞应落成真实 SkillDef。");
 
-        using ItemDef rawItem = ResourceLoader.Load<ItemDef>(
+        using TestContentResourceLoader loader = new();
+        ItemDef rawItem = loader.LoadCanonical<ItemDef>(
             "res://data/configs/items/weapon_unique_longsword_courage.tres"
         );
         _test.True(rawItem != null, "勇气之刃原始资源应能加载。");
@@ -595,8 +595,11 @@ public partial class run_courage_weapon_ability_regression : LifecycleTestSceneT
                 trait_defs: progressionRegistry.GetTraitDefsTyped(),
                 equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
             );
-            runtime.ConfigureDamageResolverForTests(new FixedRollDamageResolver(damageRolls));
-            runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
+            BattleTestFixture.ConfigureDamageResolverForTests(
+                runtime,
+                new FixedRollDamageResolver(damageRolls)
+            );
+            BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
             return new CourageFixture(itemRegistry, progressionRegistry, partyState, runtime);
         }
 
@@ -607,11 +610,11 @@ public partial class run_courage_weapon_ability_regression : LifecycleTestSceneT
             member.equipment_state.SetEquippedEntry(
                 "main_hand",
                 ItemId,
-                new GStringNameArray { "main_hand" },
+                new StringName[] { "main_hand" },
                 EquipmentInstanceState.CreateInstance(ItemId, $"eq_courage_{label}")
             );
             IReadOnlyList<BattleUnitState> units =
-                Runtime._unit_factory.BuildAllyUnits(_partyState, new GDictionary());
+                Runtime._unit_factory.BuildAllyUnits(_partyState, null);
             if (units.Count != 1)
                 throw new InvalidOperationException($"{label} scenario should build exactly one ally unit.");
             BattleUnitState unit = units[0];
@@ -627,7 +630,7 @@ public partial class run_courage_weapon_ability_regression : LifecycleTestSceneT
             PartyMemberState member = _partyState.GetMemberState("hero");
             member.equipment_state = new EquipmentState();
             IReadOnlyList<BattleUnitState> units =
-                Runtime._unit_factory.BuildAllyUnits(_partyState, new GDictionary());
+                Runtime._unit_factory.BuildAllyUnits(_partyState, null);
             if (units.Count != 1)
                 throw new InvalidOperationException($"{label} baseline should build exactly one ally unit.");
             BattleUnitState unit = units[0];
@@ -637,7 +640,7 @@ public partial class run_courage_weapon_ability_regression : LifecycleTestSceneT
 
         public void Dispose()
         {
-            Runtime?.dispose();
+            BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?.GetState());
             _itemRegistry?.Dispose();
             _progressionRegistry?.Dispose();
         }

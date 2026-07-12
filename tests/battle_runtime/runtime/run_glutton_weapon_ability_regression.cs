@@ -63,7 +63,8 @@ public partial class run_glutton_weapon_ability_regression : LifecycleTestSceneT
             "真实装备能力内容应包含吞食斩 binding。"
         );
 
-        using ItemDef rawItem = ResourceLoader.Load<ItemDef>(
+        using TestContentResourceLoader contentLoader = new();
+        ItemDef rawItem = contentLoader.LoadCanonical<ItemDef>(
             "res://data/configs/items/weapon_unique_greataxe_glutton.tres"
         );
         _test.True(rawItem != null, "贪食者原始资源应能加载。");
@@ -367,10 +368,11 @@ public partial class run_glutton_weapon_ability_regression : LifecycleTestSceneT
                 trait_defs: progressionRegistry.GetTraitDefsTyped(),
                 equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
             );
-            runtime.ConfigureDamageResolverForTests(
+            BattleTestFixture.ConfigureDamageResolverForTests(
+                runtime,
                 new FixedRollDamageResolver(damageRolls ?? new GArray { 10, 4 })
             );
-            runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
+            BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
             return new GluttonFixture(itemRegistry, progressionRegistry, partyState, runtime);
         }
 
@@ -400,7 +402,7 @@ public partial class run_glutton_weapon_ability_regression : LifecycleTestSceneT
 
         public void Dispose()
         {
-            Runtime?.dispose();
+            BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?.GetState());
             _itemRegistry?.Dispose();
             _progressionRegistry?.Dispose();
         }

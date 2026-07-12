@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleTestSceneTree
 {
@@ -54,7 +52,7 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
 
     private void TestContentLoadsProjectsLegendaryNameAndSixTraits()
     {
-        using MemoryeaterFixture fixture = MemoryeaterFixture.Build(new GArray());
+        using MemoryeaterFixture fixture = MemoryeaterFixture.Build(Array.Empty<int>());
         _test.True(fixture.ItemDefs.ContainsKey(ItemId), "真实物品内容应包含噬忆血蔓。");
         _test.True(fixture.TraitDefs.ContainsKey(LifebloodLedgerTraitId), "应包含生命簿血计 trait。");
         _test.True(fixture.TraitDefs.ContainsKey(SymbioticSiphonTraitId), "应包含共生虹吸 trait。");
@@ -71,7 +69,8 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
         if (!fixture.ItemDefs.ContainsKey(ItemId))
             return;
 
-        using ItemDef rawItem = ResourceLoader.Load<ItemDef>(
+        using TestContentResourceLoader contentLoader = new();
+        ItemDef rawItem = contentLoader.LoadCanonical<ItemDef>(
             "res://data/configs/items/weapon_unique_rapier_memoryeater_vine.tres"
         );
         _test.True(rawItem != null, "噬忆血蔓原始资源应能加载。");
@@ -145,11 +144,13 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
             baseline.effective_trait_instances.Count,
             "移除后装备 trait 实例应回到装备前状态。"
         );
+        BattleTestFixture.DisposeBattleUnit(equipped);
+        BattleTestFixture.DisposeBattleUnit(baseline);
     }
 
     private void TestLifebloodCounterIncrementsOnlyForThisWeaponAttackAgainstLivingKinds()
     {
-        using MemoryeaterFixture humanoidFixture = MemoryeaterFixture.Build(new GArray { 8 });
+        using MemoryeaterFixture humanoidFixture = MemoryeaterFixture.Build(new[] { 8 });
         ModifyAbilityStateActionPayloadDefinition humanoidAction =
             FindLifebloodModifyStatePayload(humanoidFixture.Bindings[LifebloodLedgerBindingId]);
         BattleUnitState humanoidAttacker = humanoidFixture.BuildMemoryeaterUnit("counter_humanoid");
@@ -180,7 +181,7 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
             "第 10 次合格击杀应同步保存血阶为 1。"
         );
 
-        using MemoryeaterFixture constructFixture = MemoryeaterFixture.Build(new GArray { 8 });
+        using MemoryeaterFixture constructFixture = MemoryeaterFixture.Build(new[] { 8 });
         ModifyAbilityStateActionPayloadDefinition constructAction =
             FindLifebloodModifyStatePayload(constructFixture.Bindings[LifebloodLedgerBindingId]);
         StringName constructTierStateKey = FindSyncedStateKey(
@@ -201,7 +202,7 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
         _test.Eq(GetPersistentCounterValue(constructInstance, LifebloodLedgerBindingId, constructAction.StateKey), 0L, "构装体击杀不应增加生命簿。");
         _test.Eq(GetPersistentCounterValue(constructInstance, LifebloodLedgerBindingId, constructTierStateKey), 0L, "构装体击杀不应改变保存血阶。");
 
-        using MemoryeaterFixture undeadFixture = MemoryeaterFixture.Build(new GArray { 8 });
+        using MemoryeaterFixture undeadFixture = MemoryeaterFixture.Build(new[] { 8 });
         ModifyAbilityStateActionPayloadDefinition undeadAction =
             FindLifebloodModifyStatePayload(undeadFixture.Bindings[LifebloodLedgerBindingId]);
         StringName undeadTierStateKey = FindSyncedStateKey(
@@ -222,7 +223,7 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
         _test.Eq(GetPersistentCounterValue(undeadInstance, LifebloodLedgerBindingId, undeadAction.StateKey), 0L, "亡灵击杀不应增加生命簿。");
         _test.Eq(GetPersistentCounterValue(undeadInstance, LifebloodLedgerBindingId, undeadTierStateKey), 0L, "亡灵击杀不应改变保存血阶。");
 
-        using MemoryeaterFixture directFixture = MemoryeaterFixture.Build(new GArray());
+        using MemoryeaterFixture directFixture = MemoryeaterFixture.Build(Array.Empty<int>());
         ModifyAbilityStateActionPayloadDefinition directAction =
             FindLifebloodModifyStatePayload(directFixture.Bindings[LifebloodLedgerBindingId]);
         StringName directTierStateKey = FindSyncedStateKey(
@@ -242,7 +243,7 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
 
     private void TestLifebloodTierScalesDamageFromPersistentEquipmentConfig()
     {
-        using MemoryeaterFixture fixture = MemoryeaterFixture.Build(new GArray { 4, 4, 4, 4, 4, 4, 4, 4 });
+        using MemoryeaterFixture fixture = MemoryeaterFixture.Build(new[] { 4, 4, 4, 4, 4, 4, 4, 4 });
         ModifyAbilityStateActionPayloadDefinition lifebloodAction =
             FindLifebloodModifyStatePayload(fixture.Bindings[LifebloodLedgerBindingId]);
         StringName stateKey = lifebloodAction.StateKey;
@@ -308,7 +309,7 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
 
     private void TestImmediateWeaponAttackKillAlsoAddsLifeblood()
     {
-        using MemoryeaterFixture fixture = MemoryeaterFixture.Build(new GArray { 8, 8, 8, 8 });
+        using MemoryeaterFixture fixture = MemoryeaterFixture.Build(new[] { 8, 8, 8, 8 });
         ModifyAbilityStateActionPayloadDefinition lifebloodAction =
             FindLifebloodModifyStatePayload(fixture.Bindings[LifebloodLedgerBindingId]);
         StringName stateKey = lifebloodAction.StateKey;
@@ -334,13 +335,14 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
         state.enemy_unit_ids.Add(followupTarget.unit_id);
         fixture.Runtime.SetupStateForTests(state);
 
+        using BattleEventBatch batch = new();
         fixture.Runtime.GetEquipmentAbilityRuntimeService().ResolveOnKill(
             new BattleEquipmentAbilityOnKillContext
             {
                 SourceUnit = attacker,
                 DefeatedUnit = firstDefeated,
                 BattleState = state,
-                Batch = new BattleEventBatch(),
+                Batch = batch,
                 KillProvenance = BattleKillProvenance.ForEquipmentAttack(
                     FindSource(attacker, LifebloodLedgerBindingId)?.SourceEquipmentInstanceId ?? "",
                     LifebloodLedgerBindingId,
@@ -537,19 +539,26 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
 
     private sealed class MemoryeaterFixture : IDisposable
     {
+        private readonly TestContentResourceLoader _contentLoader;
         private readonly ItemContentRegistry _itemRegistry;
         private readonly ProgressionContentRegistry _progressionRegistry;
+        private readonly CharacterManagementModule _characterManagement;
         private readonly PartyState _partyState;
+        private bool _disposed;
 
         private MemoryeaterFixture(
+            TestContentResourceLoader contentLoader,
             ItemContentRegistry itemRegistry,
             ProgressionContentRegistry progressionRegistry,
+            CharacterManagementModule characterManagement,
             PartyState partyState,
             BattleRuntimeModule runtime
         )
         {
+            _contentLoader = contentLoader;
             _itemRegistry = itemRegistry;
             _progressionRegistry = progressionRegistry;
+            _characterManagement = characterManagement;
             _partyState = partyState;
             Runtime = runtime;
             ItemDefs = itemRegistry.GetItemDefsTyped();
@@ -562,38 +571,66 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
         internal IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs { get; }
         internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> Bindings { get; }
 
-        internal static MemoryeaterFixture Build(GArray damageRolls)
+        internal static MemoryeaterFixture Build(IEnumerable<int> damageRolls)
         {
-            ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
-            ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
-            PartyState partyState = BuildPartyState("hero");
-            CharacterManagementModule characterManagement = new();
-            characterManagement.setup(
-                partyState,
-                progressionRegistry.GetSkillDefinitionsTyped(),
-                progressionRegistry.GetProfessionDefsTyped(),
-                progressionRegistry.GetAchievementDefsTyped(),
-                itemRegistry.GetItemDefsTyped(),
-                progressionRegistry.GetQuestDefsTyped(),
-                progressionRegistry.GetTraitDefsTyped(),
-                null,
-                new ProgressionIdentityCatalogData()
-            );
+            TestContentResourceLoader contentLoader = new();
+            ItemContentRegistry itemRegistry = null;
+            ProgressionContentRegistry progressionRegistry = null;
+            CharacterManagementModule characterManagement = null;
+            BattleRuntimeModule runtime = null;
+            try
+            {
+                itemRegistry = new ItemContentRegistry(contentLoader);
+                progressionRegistry = new ProgressionContentRegistry(contentLoader);
+                PartyState partyState = BuildPartyState("hero");
+                characterManagement = new CharacterManagementModule();
+                characterManagement.setup(
+                    partyState,
+                    progressionRegistry.GetSkillDefinitionsTyped(),
+                    progressionRegistry.GetProfessionDefsTyped(),
+                    progressionRegistry.GetAchievementDefsTyped(),
+                    itemRegistry.GetItemDefsTyped(),
+                    progressionRegistry.GetQuestDefsTyped(),
+                    progressionRegistry.GetTraitDefsTyped(),
+                    null,
+                    new ProgressionIdentityCatalogData()
+                );
 
-            BattleRuntimeModule runtime = new();
-            runtime.setup(
-                characterManagement,
-                progressionRegistry.GetSkillDefinitionsTyped(),
-                enemy_templates: new Dictionary<StringName, EnemyTemplateDefinition>(),
-                item_defs: itemRegistry.GetItemDefsTyped(),
-                trait_defs: progressionRegistry.GetTraitDefsTyped(),
-                equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
-            );
-            runtime.ConfigureDamageResolverForTests(
-                new FixedRollDamageResolver(damageRolls ?? new GArray { 4, 4, 4, 4 })
-            );
-            runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
-            return new MemoryeaterFixture(itemRegistry, progressionRegistry, partyState, runtime);
+                runtime = new BattleRuntimeModule();
+                runtime.setup(
+                    characterManagement,
+                    progressionRegistry.GetSkillDefinitionsTyped(),
+                    enemy_templates: new Dictionary<StringName, EnemyTemplateDefinition>(),
+                    item_defs: itemRegistry.GetItemDefsTyped(),
+                    trait_defs: progressionRegistry.GetTraitDefsTyped(),
+                    equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
+                );
+                using GArray damageRollPayload = new();
+                foreach (int roll in damageRolls ?? new[] { 4, 4, 4, 4 })
+                    damageRollPayload.Add(roll);
+                BattleTestFixture.ConfigureDamageResolverForTests(
+                    runtime,
+                    new FixedRollDamageResolver(damageRollPayload)
+                );
+                BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
+                return new MemoryeaterFixture(
+                    contentLoader,
+                    itemRegistry,
+                    progressionRegistry,
+                    characterManagement,
+                    partyState,
+                    runtime
+                );
+            }
+            catch
+            {
+                BattleTestFixture.DisposeRuntime(runtime);
+                characterManagement?.Dispose();
+                itemRegistry?.Dispose();
+                progressionRegistry?.Dispose();
+                contentLoader.Dispose();
+                throw;
+            }
         }
 
         internal BattleUnitState BuildUnitWithoutWeapon(string label)
@@ -610,7 +647,7 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
             member.equipment_state.SetEquippedEntry(
                 "main_hand",
                 ItemId,
-                new GStringNameArray { "main_hand" },
+                new StringName[] { "main_hand" },
                 EquipmentInstanceState.CreateInstance(ItemId, $"eq_memoryeater_{label}")
             );
             BattleUnitState unit = BuildSingleAllyUnit(label);
@@ -624,15 +661,20 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
 
         public void Dispose()
         {
-            Runtime?.dispose();
+            if (_disposed)
+                return;
+            _disposed = true;
+            BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?.GetState());
+            _characterManagement?.Dispose();
             _itemRegistry?.Dispose();
             _progressionRegistry?.Dispose();
+            _contentLoader?.Dispose();
         }
 
         private BattleUnitState BuildSingleAllyUnit(string label)
         {
             IReadOnlyList<BattleUnitState> units =
-                Runtime._unit_factory.BuildAllyUnits(_partyState, new GDictionary());
+                Runtime._unit_factory.BuildAllyUnits(_partyState, null);
             if (units.Count != 1)
             {
                 throw new InvalidOperationException(

@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSceneTree
 {
@@ -78,7 +76,8 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
         if (!fixture.ItemDefs.ContainsKey(BonecrusherItemId))
             return;
 
-        using ItemDef rawItem = ResourceLoader.Load<ItemDef>(
+        using TestContentResourceLoader loader = new();
+        ItemDef rawItem = loader.LoadCanonical<ItemDef>(
             "res://data/configs/items/weapon_unique_greataxe_bonecrusher.tres"
         );
         _test.True(rawItem != null, "碎骨者原始资源应能加载。");
@@ -562,10 +561,11 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
                 trait_defs: progressionRegistry.GetTraitDefsTyped(),
                 equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
             );
-            runtime.ConfigureDamageResolverForTests(
+            BattleTestFixture.ConfigureDamageResolverForTests(
+                runtime,
                 new FixedRollDamageResolver(damageRolls ?? new GArray { 3, 4 })
             );
-            runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
+            BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
             return new BonecrusherFixture(itemRegistry, progressionRegistry, partyState, runtime);
         }
 
@@ -588,7 +588,7 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
 
         public void Dispose()
         {
-            Runtime?.dispose();
+            BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?.GetState());
             _itemRegistry?.Dispose();
             _progressionRegistry?.Dispose();
         }
@@ -604,7 +604,7 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
             member.equipment_state.SetEquippedEntry(
                 "main_hand",
                 itemId,
-                new GStringNameArray { "main_hand", "off_hand" },
+                new StringName[] { "main_hand", "off_hand" },
                 EquipmentInstanceState.CreateInstance(itemId, instanceId)
             );
             BattleUnitState unit = BuildSingleAllyUnit(label);
@@ -617,7 +617,7 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
         private BattleUnitState BuildSingleAllyUnit(string label)
         {
             IReadOnlyList<BattleUnitState> units =
-                Runtime._unit_factory.BuildAllyUnits(_partyState, new GDictionary());
+                Runtime._unit_factory.BuildAllyUnits(_partyState, null);
             if (units.Count != 1)
             {
                 throw new InvalidOperationException(

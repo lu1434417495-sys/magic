@@ -73,7 +73,8 @@ public partial class run_frostbite_weapon_ability_regression : LifecycleTestScen
         );
         _test.Eq(BattleTerrainRules.GetDisplayName("ice"), "冰层", "ice 地形应显示为冰层。");
 
-        using ItemDef rawItem = ResourceLoader.Load<ItemDef>(
+        using TestContentResourceLoader contentLoader = new();
+        ItemDef rawItem = contentLoader.LoadCanonical<ItemDef>(
             "res://data/configs/items/weapon_unique_battleaxe_frostbite.tres"
         );
         _test.True(rawItem != null, "霜咬原始资源应能加载。");
@@ -531,8 +532,11 @@ public partial class run_frostbite_weapon_ability_regression : LifecycleTestScen
                 trait_defs: progressionRegistry.GetTraitDefsTyped(),
                 equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
             );
-            runtime.ConfigureDamageResolverForTests(new FixedRollDamageResolver(damageRolls));
-            runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
+            BattleTestFixture.ConfigureDamageResolverForTests(
+                runtime,
+                new FixedRollDamageResolver(damageRolls)
+            );
+            BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
             return new FrostbiteFixture(itemRegistry, progressionRegistry, partyState, runtime);
         }
 
@@ -562,7 +566,7 @@ public partial class run_frostbite_weapon_ability_regression : LifecycleTestScen
 
         public void Dispose()
         {
-            Runtime?.dispose();
+            BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?.GetState());
             _itemRegistry?.Dispose();
             _progressionRegistry?.Dispose();
         }

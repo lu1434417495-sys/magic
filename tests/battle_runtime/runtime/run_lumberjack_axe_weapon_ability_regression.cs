@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTestSceneTree
 {
@@ -46,7 +44,7 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
 
     private void TestRealContentProjectsAndClearsOnUnequip()
     {
-        using LumberjackFixture fixture = LumberjackFixture.Build(new GArray(), hitRoll: 10);
+        using LumberjackFixture fixture = LumberjackFixture.Build(Array.Empty<int>(), hitRoll: 10);
         _test.True(fixture.ItemDefs.ContainsKey(ItemId), "真实物品内容应包含伐木工之斧。");
         _test.True(fixture.TraitDefs.ContainsKey(ChoppingRhythmTraitId), "真实 trait 内容应包含顺纹连斩。");
         _test.True(fixture.TraitDefs.ContainsKey(PlantSlayerTraitId), "真实 trait 内容应包含植物杀手。");
@@ -55,7 +53,8 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
         _test.True(fixture.Bindings.ContainsKey(PlantSlayerBindingId), "真实装备能力内容应包含植物杀手 binding。");
         _test.True(fixture.Bindings.ContainsKey(FellingMomentumBindingId), "真实装备能力内容应包含倒木回势 binding。");
 
-        using ItemDef rawItem = ResourceLoader.Load<ItemDef>(
+        using TestContentResourceLoader contentLoader = new();
+        ItemDef rawItem = contentLoader.LoadCanonical<ItemDef>(
             "res://data/configs/items/weapon_unique_battleaxe_lumberjack.tres"
         );
         _test.True(rawItem != null, "伐木工之斧原始资源应能加载。");
@@ -97,11 +96,13 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
         _test.False(equipped.effective_trait_ids.Contains(ChoppingRhythmTraitId), "卸装后顺纹连斩不应残留。");
         _test.False(equipped.effective_trait_ids.Contains(PlantSlayerTraitId), "卸装后植物杀手不应残留。");
         _test.False(equipped.effective_trait_ids.Contains(FellingMomentumTraitId), "卸装后倒木回势不应残留。");
+        BattleTestFixture.DisposeBattleUnit(equipped);
+        BattleTestFixture.DisposeBattleUnit(baseline);
     }
 
     private void TestFirstHitMarksAndFollowUpGetsAccuracyAndDamage()
     {
-        using LumberjackFixture fixture = LumberjackFixture.Build(new GArray { 4, 4, 3 }, hitRoll: 10);
+        using LumberjackFixture fixture = LumberjackFixture.Build(new[] { 4, 4, 3 }, hitRoll: 10);
         BattleUnitState holder = fixture.BuildLumberjackUnit("rhythm");
         BattleUnitState target = BuildEnemy("rhythm_target", new Vector2I(1, 0), hp: 100, "humanoid");
 
@@ -150,7 +151,7 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
     private void TestPlantSlayerStacksWithFollowUpDamage()
     {
         using LumberjackFixture fixture = LumberjackFixture.Build(
-            new GArray { 4, 3, 4, 4, 2, 3, 4 },
+            new[] { 4, 3, 4, 4, 2, 3, 4 },
             hitRoll: 10
         );
         BattleUnitState holder = fixture.BuildLumberjackUnit("plant");
@@ -179,8 +180,11 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
 
     private void TestMissAndWrongSourceDoNotBorrowNotch()
     {
-        using LumberjackFixture missFixture = LumberjackFixture.Build(new GArray(), hitRoll: 1);
-        missFixture.Runtime.ConfigureHitResolverForTests(new FixedMissResolver());
+        using LumberjackFixture missFixture = LumberjackFixture.Build(Array.Empty<int>(), hitRoll: 1);
+        BattleTestFixture.ConfigureHitResolverForTests(
+            missFixture.Runtime,
+            new FixedMissResolver()
+        );
         BattleUnitState missHolder = missFixture.BuildLumberjackUnit("miss");
         BattleUnitState missTarget = BuildEnemy("miss_target", new Vector2I(1, 0), hp: 40, "humanoid");
         SetNotch(missTarget, missHolder.unit_id, durationTu: 20);
@@ -194,7 +198,7 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
         _test.Eq(missTarget.current_hp, 40, "自然 1 未命中不应造成伤害。");
         AssertNotch(missTarget, missHolder.unit_id, 20, "未命中不应刷新已有劈痕。");
 
-        using LumberjackFixture sourceFixture = LumberjackFixture.Build(new GArray { 4 }, hitRoll: 10);
+        using LumberjackFixture sourceFixture = LumberjackFixture.Build(new[] { 4 }, hitRoll: 10);
         BattleUnitState holder = sourceFixture.BuildLumberjackUnit("takeover");
         BattleUnitState target = BuildEnemy("takeover_target", new Vector2I(1, 0), hp: 40, "humanoid");
         SetNotch(target, "other_holder", durationTu: 60);
@@ -222,7 +226,7 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
 
     private void TestFirstHitKillDoesNotMarkOrRefundAp()
     {
-        using LumberjackFixture fixture = LumberjackFixture.Build(new GArray { 4 }, hitRoll: 10);
+        using LumberjackFixture fixture = LumberjackFixture.Build(new[] { 4 }, hitRoll: 10);
         BattleUnitState holder = fixture.BuildLumberjackUnit("first_kill");
         holder.attribute_snapshot.SetValue(AttributeService.ACTION_POINTS, 2);
         holder.SetCurrentAp(2);
@@ -242,7 +246,7 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
 
     private void TestMarkedKillsRestoreApWithoutPerTurnLimitAndRespectCap()
     {
-        using LumberjackFixture fixture = LumberjackFixture.Build(new GArray(), hitRoll: 10);
+        using LumberjackFixture fixture = LumberjackFixture.Build(Array.Empty<int>(), hitRoll: 10);
         BattleUnitState holder = fixture.BuildLumberjackUnit("ap_chain");
         holder.attribute_snapshot.SetValue(AttributeService.ACTION_POINTS, 2);
         holder.SetCurrentAp(0);
@@ -292,7 +296,7 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
 
     private void TestRealMarkedKillCommandRefundsApButNotStamina()
     {
-        using LumberjackFixture fixture = LumberjackFixture.Build(new GArray { 4, 1 }, hitRoll: 10);
+        using LumberjackFixture fixture = LumberjackFixture.Build(new[] { 4, 1 }, hitRoll: 10);
         BattleUnitState holder = fixture.BuildLumberjackUnit("real_kill");
         holder.attribute_snapshot.SetValue(AttributeService.ACTION_POINTS, 2);
         holder.SetCurrentAp(2);
@@ -321,13 +325,14 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
         BattleKillProvenance provenance
     )
     {
+        using BattleEventBatch batch = new();
         fixture.Runtime.GetEquipmentAbilityRuntimeService().ResolveOnKill(
             new BattleEquipmentAbilityOnKillContext
             {
                 SourceUnit = holder,
                 DefeatedUnit = target,
                 BattleState = state,
-                Batch = new BattleEventBatch(),
+                Batch = batch,
                 KillProvenance = provenance,
             }
         );
@@ -479,19 +484,26 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
 
     private sealed class LumberjackFixture : IDisposable
     {
+        private readonly TestContentResourceLoader _contentLoader;
         private readonly ItemContentRegistry _itemRegistry;
         private readonly ProgressionContentRegistry _progressionRegistry;
+        private readonly CharacterManagementModule _characterManagement;
         private readonly PartyState _partyState;
+        private bool _disposed;
 
         private LumberjackFixture(
+            TestContentResourceLoader contentLoader,
             ItemContentRegistry itemRegistry,
             ProgressionContentRegistry progressionRegistry,
+            CharacterManagementModule characterManagement,
             PartyState partyState,
             BattleRuntimeModule runtime
         )
         {
+            _contentLoader = contentLoader;
             _itemRegistry = itemRegistry;
             _progressionRegistry = progressionRegistry;
+            _characterManagement = characterManagement;
             _partyState = partyState;
             Runtime = runtime;
             ItemDefs = itemRegistry.GetItemDefsTyped();
@@ -506,35 +518,68 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
         internal IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs { get; }
         internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> Bindings { get; }
 
-        internal static LumberjackFixture Build(GArray damageRolls, int hitRoll)
+        internal static LumberjackFixture Build(IEnumerable<int> damageRolls, int hitRoll)
         {
-            ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
-            ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
-            PartyState partyState = BuildPartyState("hero");
-            CharacterManagementModule characterManagement = new();
-            characterManagement.setup(
-                partyState,
-                progressionRegistry.GetSkillDefinitionsTyped(),
-                progressionRegistry.GetProfessionDefsTyped(),
-                progressionRegistry.GetAchievementDefsTyped(),
-                itemRegistry.GetItemDefsTyped(),
-                progressionRegistry.GetQuestDefsTyped(),
-                progressionRegistry.GetTraitDefsTyped(),
-                null,
-                new ProgressionIdentityCatalogData()
-            );
+            TestContentResourceLoader contentLoader = new();
+            ItemContentRegistry itemRegistry = null;
+            ProgressionContentRegistry progressionRegistry = null;
+            CharacterManagementModule characterManagement = null;
+            BattleRuntimeModule runtime = null;
+            try
+            {
+                itemRegistry = new ItemContentRegistry(contentLoader);
+                progressionRegistry = new ProgressionContentRegistry(contentLoader);
+                PartyState partyState = BuildPartyState("hero");
+                characterManagement = new CharacterManagementModule();
+                characterManagement.setup(
+                    partyState,
+                    progressionRegistry.GetSkillDefinitionsTyped(),
+                    progressionRegistry.GetProfessionDefsTyped(),
+                    progressionRegistry.GetAchievementDefsTyped(),
+                    itemRegistry.GetItemDefsTyped(),
+                    progressionRegistry.GetQuestDefsTyped(),
+                    progressionRegistry.GetTraitDefsTyped(),
+                    null,
+                    new ProgressionIdentityCatalogData()
+                );
 
-            BattleRuntimeModule runtime = new();
-            runtime.setup(
-                characterManagement,
-                progressionRegistry.GetSkillDefinitionsTyped(),
-                item_defs: itemRegistry.GetItemDefsTyped(),
-                trait_defs: progressionRegistry.GetTraitDefsTyped(),
-                equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
-            );
-            runtime.ConfigureDamageResolverForTests(new FixedRollDamageResolver(damageRolls));
-            runtime.ConfigureHitResolverForTests(new FixedHitResolver(hitRoll));
-            return new LumberjackFixture(itemRegistry, progressionRegistry, partyState, runtime);
+                runtime = new BattleRuntimeModule();
+                runtime.setup(
+                    characterManagement,
+                    progressionRegistry.GetSkillDefinitionsTyped(),
+                    item_defs: itemRegistry.GetItemDefsTyped(),
+                    trait_defs: progressionRegistry.GetTraitDefsTyped(),
+                    equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
+                );
+                using GArray damageRollPayload = new();
+                foreach (int roll in damageRolls ?? Array.Empty<int>())
+                    damageRollPayload.Add(roll);
+                BattleTestFixture.ConfigureDamageResolverForTests(
+                    runtime,
+                    new FixedRollDamageResolver(damageRollPayload)
+                );
+                BattleTestFixture.ConfigureHitResolverForTests(
+                    runtime,
+                    new FixedHitResolver(hitRoll)
+                );
+                return new LumberjackFixture(
+                    contentLoader,
+                    itemRegistry,
+                    progressionRegistry,
+                    characterManagement,
+                    partyState,
+                    runtime
+                );
+            }
+            catch
+            {
+                BattleTestFixture.DisposeRuntime(runtime);
+                characterManagement?.Dispose();
+                itemRegistry?.Dispose();
+                progressionRegistry?.Dispose();
+                contentLoader.Dispose();
+                throw;
+            }
         }
 
         internal BattleUnitState BuildUnitWithoutWeapon(string label)
@@ -551,7 +596,7 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
             member.equipment_state.SetEquippedEntry(
                 "main_hand",
                 ItemId,
-                new GStringNameArray { "main_hand" },
+                new StringName[] { "main_hand" },
                 EquipmentInstanceState.CreateInstance(ItemId, $"eq_lumberjack_{label}")
             );
             BattleUnitState unit = BuildSingleAllyUnit(label);
@@ -563,15 +608,20 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
 
         public void Dispose()
         {
-            Runtime?.dispose();
+            if (_disposed)
+                return;
+            _disposed = true;
+            BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?.GetState());
+            _characterManagement?.Dispose();
             _itemRegistry?.Dispose();
             _progressionRegistry?.Dispose();
+            _contentLoader?.Dispose();
         }
 
         private BattleUnitState BuildSingleAllyUnit(string label)
         {
             IReadOnlyList<BattleUnitState> units =
-                Runtime._unit_factory.BuildAllyUnits(_partyState, new GDictionary());
+                Runtime._unit_factory.BuildAllyUnits(_partyState, null);
             if (units.Count != 1)
             {
                 throw new InvalidOperationException(

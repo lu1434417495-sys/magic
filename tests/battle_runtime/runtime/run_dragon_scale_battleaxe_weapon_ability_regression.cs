@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_dragon_scale_battleaxe_weapon_ability_regression : LifecycleTestSceneTree
 {
@@ -64,7 +63,8 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
         if (!fixture.ItemDefs.ContainsKey(ItemId))
             return;
 
-        using ItemDef rawItem = ResourceLoader.Load<ItemDef>(
+        using TestContentResourceLoader loader = new();
+        ItemDef rawItem = loader.LoadCanonical<ItemDef>(
             "res://data/configs/items/weapon_unique_battleaxe_dragon_scale.tres"
         );
         _test.True(rawItem != null, "龙鳞之斧原始资源应能加载。");
@@ -658,8 +658,11 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
                 trait_defs: progressionRegistry.GetTraitDefsTyped(),
                 equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
             );
-            runtime.ConfigureDamageResolverForTests(new FixedRollDamageResolver(damageRolls));
-            runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
+            BattleTestFixture.ConfigureDamageResolverForTests(
+                runtime,
+                new FixedRollDamageResolver(damageRolls)
+            );
+            BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
             return new DragonScaleFixture(
                 itemRegistry,
                 progressionRegistry,
@@ -682,7 +685,7 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
             member.equipment_state.SetEquippedEntry(
                 "main_hand",
                 ItemId,
-                new GStringNameArray { "main_hand" },
+                new StringName[] { "main_hand" },
                 EquipmentInstanceState.CreateInstance(ItemId, $"eq_dragon_scale_{label}")
             );
             BattleUnitState unit = BuildSingleAllyUnit(label);
@@ -694,7 +697,7 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
 
         public void Dispose()
         {
-            Runtime?.dispose();
+            BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?.GetState());
             _itemRegistry?.Dispose();
             _progressionRegistry?.Dispose();
         }
@@ -702,7 +705,7 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
         private BattleUnitState BuildSingleAllyUnit(string label)
         {
             IReadOnlyList<BattleUnitState> units =
-                Runtime._unit_factory.BuildAllyUnits(_partyState, new GDictionary());
+                Runtime._unit_factory.BuildAllyUnits(_partyState, null);
             if (units.Count != 1)
             {
                 throw new InvalidOperationException(

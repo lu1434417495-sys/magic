@@ -98,7 +98,8 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
     private void TestContentProjectionAndInternalSkillVisibility()
     {
         using ExecutionerFixture fixture = ExecutionerFixture.Build();
-        using ItemDef rawItem = ResourceLoader.Load<ItemDef>(
+        using TestContentResourceLoader contentLoader = new();
+        ItemDef rawItem = contentLoader.LoadCanonical<ItemDef>(
             "res://data/configs/items/weapon_unique_greataxe_executioner.tres"
         );
         _test.True(rawItem != null, "处刑者之斧物品资源应能加载。");
@@ -1569,13 +1570,16 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
 
         internal void UseFixedDamageAndHit(BattleHitResolver hitResolver)
         {
-            Runtime.ConfigureDamageResolverForTests(new FixedTenSaveOneDamageResolver());
-            Runtime.ConfigureHitResolverForTests(hitResolver);
+            BattleTestFixture.ConfigureDamageResolverForTests(
+                Runtime,
+                new FixedTenSaveOneDamageResolver()
+            );
+            BattleTestFixture.ConfigureHitResolverForTests(Runtime, hitResolver);
         }
 
         public void Dispose()
         {
-            Runtime?.dispose();
+            BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?.GetState());
             _itemRegistry?.Dispose();
             _progressionRegistry?.Dispose();
         }

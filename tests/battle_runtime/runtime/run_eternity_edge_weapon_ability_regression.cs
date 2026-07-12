@@ -83,7 +83,8 @@ public partial class run_eternity_edge_weapon_ability_regression : LifecycleTest
             _test.True(fixture.Bindings.ContainsKey(bindingId), $"永恒之刃应包含 binding {bindingId}。");
         }
 
-        using ItemDef rawItem = ResourceLoader.Load<ItemDef>(
+        using TestContentResourceLoader contentLoader = new();
+        ItemDef rawItem = contentLoader.LoadCanonical<ItemDef>(
             "res://data/configs/items/weapon_unique_longsword_eternity_edge.tres"
         );
         _test.True(rawItem != null, "永恒之刃原始资源应能加载。");
@@ -598,8 +599,11 @@ public partial class run_eternity_edge_weapon_ability_regression : LifecycleTest
                 trait_defs: progressionRegistry.GetTraitDefsTyped(),
                 equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
             );
-            runtime.ConfigureDamageResolverForTests(new FixedRollDamageResolver(damageRolls));
-            runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
+            BattleTestFixture.ConfigureDamageResolverForTests(
+                runtime,
+                new FixedRollDamageResolver(damageRolls)
+            );
+            BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
             return new EternityEdgeFixture(itemRegistry, progressionRegistry, partyState, runtime);
         }
 
@@ -631,7 +635,7 @@ public partial class run_eternity_edge_weapon_ability_regression : LifecycleTest
 
         public void Dispose()
         {
-            Runtime?.dispose();
+            BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?.GetState());
             _itemRegistry?.Dispose();
             _progressionRegistry?.Dispose();
         }

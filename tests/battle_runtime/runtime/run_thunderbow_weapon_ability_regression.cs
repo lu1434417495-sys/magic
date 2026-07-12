@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_thunderbow_weapon_ability_regression : LifecycleTestSceneTree
 {
@@ -45,7 +43,7 @@ public partial class run_thunderbow_weapon_ability_regression : LifecycleTestSce
 
     private void TestThunderbowContentProjectsWeaponTraitsAndEquipmentSkill()
     {
-        using ThunderbowFixture fixture = ThunderbowFixture.Build(new GArray());
+        using ThunderbowFixture fixture = ThunderbowFixture.Build(Array.Empty<int>());
         _test.True(fixture.ItemDefs.ContainsKey(ThunderbowItemId), "真实物品内容应包含雷鸣弓。");
         _test.True(fixture.TraitDefs.ContainsKey(ThunderArrowTraitId), "真实 trait 应包含雷鸣矢。");
         _test.True(fixture.TraitDefs.ContainsKey(StoredThunderShotTraitId), "真实 trait 应包含蓄雷矢。");
@@ -60,7 +58,8 @@ public partial class run_thunderbow_weapon_ability_regression : LifecycleTestSce
             "蓄雷矢应落成真实 SkillDef，而不是 trait 文本。"
         );
 
-        using ItemDef rawItem = ResourceLoader.Load<ItemDef>(
+        using TestContentResourceLoader contentLoader = new();
+        ItemDef rawItem = contentLoader.LoadCanonical<ItemDef>(
             "res://data/configs/items/weapon_unique_longbow_thunderbow.tres"
         );
         _test.True(rawItem != null, "雷鸣弓原始资源应能加载。");
@@ -165,11 +164,13 @@ public partial class run_thunderbow_weapon_ability_regression : LifecycleTestSce
         );
         _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除雷鸣弓后装备能力源应清空。");
         _test.False(HasDamageMitigation(equipped, "thunder"), "移除雷鸣弓后 thunder immune 不应残留。");
+        BattleTestFixture.DisposeBattleUnit(equipped);
+        BattleTestFixture.DisposeBattleUnit(baseline);
     }
 
     private void TestThunderArrowAddsThunderDamageOnRealWeaponHit()
     {
-        using ThunderbowFixture fixture = ThunderbowFixture.Build(new GArray { 4, 3 });
+        using ThunderbowFixture fixture = ThunderbowFixture.Build(new[] { 4, 3 });
         BattleUnitState attacker = fixture.BuildThunderbowUnit("thunder_damage");
         BattleUnitState target = BuildEnemy("thunder_damage_target", new Vector2I(1, 0), hp: 100);
         target.attribute_snapshot.SetValue(AttributeService.CONSTITUTION_MODIFIER, 100);
@@ -183,7 +184,7 @@ public partial class run_thunderbow_weapon_ability_regression : LifecycleTestSce
         );
         int thunderDamage = 100 - target.current_hp;
 
-        using ThunderbowFixture plainFixture = ThunderbowFixture.Build(new GArray { 4, 3 });
+        using ThunderbowFixture plainFixture = ThunderbowFixture.Build(new[] { 4, 3 });
         BattleUnitState plainAttacker = plainFixture.BuildThunderbowUnit("plain_damage");
         plainAttacker.equipment_ability_sources.Clear();
         BattleUnitState plainTarget = BuildEnemy("plain_thunder_damage_target", new Vector2I(1, 0), hp: 100);
@@ -207,7 +208,7 @@ public partial class run_thunderbow_weapon_ability_regression : LifecycleTestSce
 
     private void TestThunderArrowStunsOnFailedConSaveAndSkipsOnSuccess()
     {
-        using ThunderbowFixture fixture = ThunderbowFixture.Build(new GArray());
+        using ThunderbowFixture fixture = ThunderbowFixture.Build(Array.Empty<int>());
         BattleUnitState attacker = fixture.BuildThunderbowUnit("stun");
 
         BattleUnitState failedTarget = BuildEnemy("thunder_stun_failed", new Vector2I(1, 0), hp: 30);
@@ -257,7 +258,7 @@ public partial class run_thunderbow_weapon_ability_regression : LifecycleTestSce
 
     private void TestStoredThunderShotExecutesWeaponAttackAndUsesLongCooldown()
     {
-        using ThunderbowFixture fixture = ThunderbowFixture.Build(new GArray { 4, 2, 2, 2, 3 });
+        using ThunderbowFixture fixture = ThunderbowFixture.Build(new[] { 4, 2, 2, 2, 3 });
         BattleUnitState holder = fixture.BuildThunderbowUnit("stored_shot");
         holder.SetAnchorCoord(Vector2I.Zero);
         PrimeStoredThunderResources(holder);
@@ -524,19 +525,26 @@ public partial class run_thunderbow_weapon_ability_regression : LifecycleTestSce
 
     private sealed class ThunderbowFixture : IDisposable
     {
+        private readonly TestContentResourceLoader _contentLoader;
         private readonly ItemContentRegistry _itemRegistry;
         private readonly ProgressionContentRegistry _progressionRegistry;
+        private readonly CharacterManagementModule _characterManagement;
         private readonly PartyState _partyState;
+        private bool _disposed;
 
         private ThunderbowFixture(
+            TestContentResourceLoader contentLoader,
             ItemContentRegistry itemRegistry,
             ProgressionContentRegistry progressionRegistry,
+            CharacterManagementModule characterManagement,
             PartyState partyState,
             BattleRuntimeModule runtime
         )
         {
+            _contentLoader = contentLoader;
             _itemRegistry = itemRegistry;
             _progressionRegistry = progressionRegistry;
+            _characterManagement = characterManagement;
             _partyState = partyState;
             Runtime = runtime;
             ItemDefs = itemRegistry.GetItemDefsTyped();
@@ -551,35 +559,65 @@ public partial class run_thunderbow_weapon_ability_regression : LifecycleTestSce
         internal IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs { get; }
         internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> Bindings { get; }
 
-        internal static ThunderbowFixture Build(GArray damageRolls)
+        internal static ThunderbowFixture Build(IEnumerable<int> damageRolls)
         {
-            ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
-            ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
-            PartyState partyState = BuildPartyState("hero");
-            CharacterManagementModule characterManagement = new();
-            characterManagement.setup(
-                partyState,
-                progressionRegistry.GetSkillDefinitionsTyped(),
-                progressionRegistry.GetProfessionDefsTyped(),
-                progressionRegistry.GetAchievementDefsTyped(),
-                itemRegistry.GetItemDefsTyped(),
-                progressionRegistry.GetQuestDefsTyped(),
-                progressionRegistry.GetTraitDefsTyped(),
-                null,
-                new ProgressionIdentityCatalogData()
-            );
+            TestContentResourceLoader contentLoader = new();
+            ItemContentRegistry itemRegistry = null;
+            ProgressionContentRegistry progressionRegistry = null;
+            CharacterManagementModule characterManagement = null;
+            BattleRuntimeModule runtime = null;
+            try
+            {
+                itemRegistry = new ItemContentRegistry(contentLoader);
+                progressionRegistry = new ProgressionContentRegistry(contentLoader);
+                PartyState partyState = BuildPartyState("hero");
+                characterManagement = new CharacterManagementModule();
+                characterManagement.setup(
+                    partyState,
+                    progressionRegistry.GetSkillDefinitionsTyped(),
+                    progressionRegistry.GetProfessionDefsTyped(),
+                    progressionRegistry.GetAchievementDefsTyped(),
+                    itemRegistry.GetItemDefsTyped(),
+                    progressionRegistry.GetQuestDefsTyped(),
+                    progressionRegistry.GetTraitDefsTyped(),
+                    null,
+                    new ProgressionIdentityCatalogData()
+                );
 
-            BattleRuntimeModule runtime = new();
-            runtime.setup(
-                characterManagement,
-                progressionRegistry.GetSkillDefinitionsTyped(),
-                item_defs: itemRegistry.GetItemDefsTyped(),
-                trait_defs: progressionRegistry.GetTraitDefsTyped(),
-                equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
-            );
-            runtime.ConfigureDamageResolverForTests(new FixedRollDamageResolver(damageRolls));
-            runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
-            return new ThunderbowFixture(itemRegistry, progressionRegistry, partyState, runtime);
+                runtime = new BattleRuntimeModule();
+                runtime.setup(
+                    characterManagement,
+                    progressionRegistry.GetSkillDefinitionsTyped(),
+                    item_defs: itemRegistry.GetItemDefsTyped(),
+                    trait_defs: progressionRegistry.GetTraitDefsTyped(),
+                    equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
+                );
+                using GArray damageRollPayload = new();
+                foreach (int roll in damageRolls ?? Array.Empty<int>())
+                    damageRollPayload.Add(roll);
+                BattleTestFixture.ConfigureDamageResolverForTests(
+                    runtime,
+                    new FixedRollDamageResolver(damageRollPayload)
+                );
+                BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
+                return new ThunderbowFixture(
+                    contentLoader,
+                    itemRegistry,
+                    progressionRegistry,
+                    characterManagement,
+                    partyState,
+                    runtime
+                );
+            }
+            catch
+            {
+                BattleTestFixture.DisposeRuntime(runtime);
+                characterManagement?.Dispose();
+                itemRegistry?.Dispose();
+                progressionRegistry?.Dispose();
+                contentLoader.Dispose();
+                throw;
+            }
         }
 
         internal BattleUnitState BuildUnitWithoutWeapon(string label)
@@ -596,7 +634,7 @@ public partial class run_thunderbow_weapon_ability_regression : LifecycleTestSce
             member.equipment_state.SetEquippedEntry(
                 "main_hand",
                 ThunderbowItemId,
-                new GStringNameArray { "main_hand", "off_hand" },
+                new StringName[] { "main_hand", "off_hand" },
                 EquipmentInstanceState.CreateInstance(
                     ThunderbowItemId,
                     $"eq_thunderbow_{label}"
@@ -614,15 +652,20 @@ public partial class run_thunderbow_weapon_ability_regression : LifecycleTestSce
 
         public void Dispose()
         {
-            Runtime?.dispose();
+            if (_disposed)
+                return;
+            _disposed = true;
+            BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?.GetState());
+            _characterManagement?.Dispose();
             _itemRegistry?.Dispose();
             _progressionRegistry?.Dispose();
+            _contentLoader?.Dispose();
         }
 
         private BattleUnitState BuildSingleAllyUnit(string label)
         {
             IReadOnlyList<BattleUnitState> units =
-                Runtime._unit_factory.BuildAllyUnits(_partyState, new GDictionary());
+                Runtime._unit_factory.BuildAllyUnits(_partyState, null);
             if (units.Count != 1)
             {
                 throw new InvalidOperationException(
