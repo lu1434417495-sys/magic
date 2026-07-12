@@ -14,12 +14,11 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
     private const int DefaultRepeatCount = 2;
     private const int DefaultMaxIterations = 100000;
     private const int MaxIdleLoops = 25;
+    private const int FixtureVersion = 2;
     private const string BaselinePath = "res://tests/battle_runtime/benchmarks/baselines/ai_baseline.json";
     private const string MutationGuardAbortProcessSetting = "battle_ai/fail_loud_abort_process";
 
     private readonly TestHarness _test = new();
-    private readonly List<GameSession> _sessionKeepAlive = new();
-    private readonly List<BattleRuntimeModule> _runtimeKeepAlive = new();
     private readonly Dictionary<string, ScenarioSpec> _scenarios =
         new()
         {
@@ -121,6 +120,8 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
             );
             scenariosDoc[scenarioId] = scenarioResult;
             GD.Print(FormatScenarioSummary(scenarioId, scenarioResult));
+            if (_test.Failures.Count > 0)
+                break;
         }
 
         if (_test.Failures.Count > 0)
@@ -135,6 +136,11 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
         currentDoc["max_iterations"] = maxIterations;
         currentDoc["repeat_total"] = repeatCount;
         currentDoc["repeat_measured"] = repeatCount - 1;
+        currentDoc["baseline_aggregation_policy"] =
+            "The first run is warmup-only. Profiler samples from every measured run are merged before avg/p50/p95 are calculated.";
+        currentDoc["fixture_version"] = FixtureVersion;
+        currentDoc["fixture_contract"] =
+            "Manual allies wait. Melee AI uses a steel_longsword-equivalent equipped weapon; ranged AI uses an ash_longbow-equivalent equipped weapon. warrior_heavy_strike and archer_pinning_shot must pass their runtime weapon/cast preflight before measurement.";
         currentDoc["ai_mutation_guard_enabled"] = aiMutationGuardEnabled;
         currentDoc["ai_mutation_guard_abort_process"] = aiMutationGuardAbortProcess;
         var compareMetricsArray = new GArray();
@@ -211,10 +217,12 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
     )
     {
         var perRunChoose = new GArray();
+        var perRunBindAiHelpers = new GArray();
         var perRunSkill = new GArray();
         var perRunAction = new GArray();
         var perRunAssemble = new GArray();
         var perRunMovementDistanceBand = new GArray();
+        var perRunMovementSnapshotRebuild = new GArray();
         var perRunMeta = new GArray();
 
         for (int runIndex = 0; runIndex < repeatCount; runIndex++)
@@ -229,13 +237,16 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
             );
             string phase = measured ? "measured" : "warmup";
             GD.Print(
-                $"[AiBaseline]   run {runIndex + 1}/{repeatCount} ({phase}): ai_turns={runResult.AiTurns} manual_turns={runResult.ManualTurns} final_tu={runResult.FinalTu} iterations={runResult.Iterations} ended={runResult.BattleEnded} winner={runResult.WinnerFactionId} elapsed={runResult.ElapsedSeconds:F2}s"
+                $"[AiBaseline]   run {runIndex + 1}/{repeatCount} ({phase}): ai_turns={runResult.AiTurns} manual_turns={runResult.ManualTurns} final_tu={runResult.FinalTu} iterations={runResult.Iterations} ended={runResult.BattleEnded} termination={runResult.TerminationReason} winner={runResult.WinnerFactionId} movement_rebuilds={runResult.MovementCacheDiagnostics.SnapshotRebuildCount} path_cache={runResult.MovementCacheDiagnostics.PathTargetCacheHitCount}/{runResult.MovementCacheDiagnostics.PathTargetCacheMissCount} elapsed={runResult.ElapsedSeconds:F2}s"
             );
+
+            if (runResult.TerminationReason == "fixture_contract_invalid")
+                break;
 
             if (requireCompleted && !runResult.BattleEnded)
             {
                 _test.Fail(
-                    $"{scenarioId} {phase} run did not finish before max_iterations={maxIterations} (final_tu={runResult.FinalTu}, iterations={runResult.Iterations})."
+                    $"{scenarioId} {phase} run did not finish: termination={runResult.TerminationReason} max_iterations={maxIterations} final_tu={runResult.FinalTu} iterations={runResult.Iterations} movement_rebuilds={runResult.MovementCacheDiagnostics.SnapshotRebuildCount} path_cache_hits={runResult.MovementCacheDiagnostics.PathTargetCacheHitCount} path_cache_misses={runResult.MovementCacheDiagnostics.PathTargetCacheMissCount}."
                 );
             }
 
@@ -243,10 +254,12 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
                 continue;
 
             perRunChoose.Add(runResult.ChooseStats);
+            perRunBindAiHelpers.Add(runResult.BindAiHelpersStats);
             perRunSkill.Add(runResult.SkillScoreStats);
             perRunAction.Add(runResult.ActionScoreStats);
             perRunAssemble.Add(runResult.AssemblerStats);
             perRunMovementDistanceBand.Add(runResult.MovementDistanceBandStats);
+            perRunMovementSnapshotRebuild.Add(runResult.MovementSnapshotRebuildStats);
             perRunMeta.Add(
                 new GDictionary
                 {
@@ -256,28 +269,43 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
                     ["timeline_steps"] = runResult.TimelineSteps,
                     ["final_tu"] = runResult.FinalTu,
                     ["battle_ended"] = runResult.BattleEnded,
+                    ["termination_reason"] = runResult.TerminationReason,
                     ["winner"] = runResult.WinnerFactionId,
                     ["elapsed_seconds"] = runResult.ElapsedSeconds,
                     ["trace_balanced"] = runResult.TraceBalanced,
                     ["trace_truncated"] = runResult.TraceTruncated,
+                    ["movement_snapshot_rebuild_count"] =
+                        runResult.MovementCacheDiagnostics.SnapshotRebuildCount,
+                    ["movement_path_cache_hit_count"] =
+                        runResult.MovementCacheDiagnostics.PathTargetCacheHitCount,
+                    ["movement_path_cache_miss_count"] =
+                        runResult.MovementCacheDiagnostics.PathTargetCacheMissCount,
+                    ["movement_path_cache_entry_count"] =
+                        runResult.MovementCacheDiagnostics.PathTargetCacheEntryCount,
                     ["hotspots"] = runResult.Hotspots,
                 }
             );
         }
 
         GDictionary mergedChoose = AiBaselineDiff.MergeRuns(perRunChoose);
+        GDictionary mergedBindAiHelpers = AiBaselineDiff.MergeRuns(perRunBindAiHelpers);
         GDictionary mergedSkill = AiBaselineDiff.MergeRuns(perRunSkill);
         GDictionary mergedAction = AiBaselineDiff.MergeRuns(perRunAction);
         GDictionary mergedAssemble = AiBaselineDiff.MergeRuns(perRunAssemble);
         GDictionary mergedMovementDistanceBand =
             AiBaselineDiff.MergeRuns(perRunMovementDistanceBand);
+        GDictionary mergedMovementSnapshotRebuild =
+            AiBaselineDiff.MergeRuns(perRunMovementSnapshotRebuild);
 
         GDictionary summaryChoose = AiBaselineDiff.SummarizeStats(mergedChoose);
+        GDictionary summaryBindAiHelpers = AiBaselineDiff.SummarizeStats(mergedBindAiHelpers);
         GDictionary summarySkill = AiBaselineDiff.SummarizeStats(mergedSkill);
         GDictionary summaryAction = AiBaselineDiff.SummarizeStats(mergedAction);
         GDictionary summaryAssemble = AiBaselineDiff.SummarizeStats(mergedAssemble);
         GDictionary summaryMovementDistanceBand =
             AiBaselineDiff.SummarizeStats(mergedMovementDistanceBand);
+        GDictionary summaryMovementSnapshotRebuild =
+            AiBaselineDiff.SummarizeStats(mergedMovementSnapshotRebuild);
 
         long chooseInclusiveUsec = DictLong(mergedChoose, "total_usec");
         long skillTotalUsec = DictLong(mergedSkill, "total_usec");
@@ -313,10 +341,12 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
             ["layers"] = new GDictionary
             {
                 ["choose_command"] = summaryChoose,
+                ["bind_ai_helpers"] = summaryBindAiHelpers,
                 ["build_skill_score_input"] = summarySkill,
                 ["build_action_score_input"] = summaryAction,
                 ["build_unit_action_plan"] = summaryAssemble,
                 ["movement_distance_band_path_targets"] = summaryMovementDistanceBand,
+                ["movement_query_setup_rebuild_snapshot"] = summaryMovementSnapshotRebuild,
             },
         };
     }
@@ -332,14 +362,14 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
         ulong startMsec = Time.GetTicksMsec();
         AiTraceRecorder recorder = null;
         BattleState state = null;
+        GameSession gameSession = null;
+        BattleRuntimeModule runtime = null;
 
         try
         {
-            GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
-            _sessionKeepAlive.Add(gameSession);
+            gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
             GameContentCatalog catalog = gameSession.GetContentCatalogTyped();
-            BattleRuntimeModule runtime = new();
-            _runtimeKeepAlive.Add(runtime);
+            runtime = new BattleRuntimeModule();
             runtime.setup(
                 skill_definitions: catalog.GetSkillDefinitionsTyped(),
                 enemy_templates: catalog.GetEnemyTemplateDefinitions(),
@@ -353,7 +383,14 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
                 : BattleAiMutationGuardMode.Disabled;
 
             state = BuildFlatState(spec.MapSize, scenarioId);
-            PopulateUnits(runtime, state, spec);
+            if (!PopulateUnits(runtime, state, spec))
+            {
+                return new RunResult
+                {
+                    TerminationReason = "fixture_contract_invalid",
+                    ElapsedSeconds = (Time.GetTicksMsec() - startMsec) / 1000.0,
+                };
+            }
             runtime.SetupStateForTests(state);
             runtime._initialize_unit_trait_hooks();
             runtime._initialize_unit_action_thresholds();
@@ -437,9 +474,18 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
             AiTraceRecorder.SetInstance(null);
             using GodotProjectionLease<GDictionary> statsLease = recorder?.GetFuncStatsLease();
             GDictionary stats = statsLease?.Value;
+            bool battleEnded = state.PhaseKind == BattlePhaseKind.BattleEnded;
+            string terminationReason = battleEnded
+                ? "battle_ended"
+                : idleLoops >= MaxIdleLoops
+                    ? "idle_stall"
+                    : "iteration_budget";
+            BattleMovementQueryService.CacheDiagnostics movementCacheDiagnostics =
+                runtime.GetAiMovementQueryCacheDiagnostics();
             return new RunResult
             {
                 ChooseStats = ExtractStats(stats, "advance:choose_command"),
+                BindAiHelpersStats = ExtractStats(stats, "advance:bind_ai_helpers"),
                 SkillScoreStats = ExtractStats(stats, "build_skill_score_input"),
                 ActionScoreStats = ExtractStats(stats, "build_action_score_input"),
                 AssemblerStats = ExtractStats(stats, "build_unit_action_plan"),
@@ -447,14 +493,20 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
                     stats,
                     "movement:distance_band_path_targets"
                 ),
+                MovementSnapshotRebuildStats = ExtractStats(
+                    stats,
+                    "movement_query_setup:rebuild_snapshot"
+                ),
                 Hotspots = BuildHotspotSummary(stats),
                 AiTurns = aiTurns,
                 ManualTurns = manualTurns,
                 Iterations = iterations,
                 TimelineSteps = timelineSteps,
                 FinalTu = state.timeline.current_tu,
-                BattleEnded = state.PhaseKind == BattlePhaseKind.BattleEnded,
+                BattleEnded = battleEnded,
+                TerminationReason = terminationReason,
                 WinnerFactionId = state.winner_faction_id.ToString(),
+                MovementCacheDiagnostics = movementCacheDiagnostics,
                 TraceBalanced = recorder == null || recorder.AssertBalanced(),
                 TraceTruncated = recorder != null && recorder.IsTruncated(),
                 ElapsedSeconds = (Time.GetTicksMsec() - startMsec) / 1000.0,
@@ -463,6 +515,8 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
         finally
         {
             AiTraceRecorder.SetInstance(null);
+            BattleTestFixture.DisposeBattleFixture(runtime, state);
+            gameSession?.Dispose();
         }
     }
 
@@ -501,8 +555,10 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
         return state;
     }
 
-    private void PopulateUnits(BattleRuntimeModule runtime, BattleState state, ScenarioSpec spec)
+    private bool PopulateUnits(BattleRuntimeModule runtime, BattleState state, ScenarioSpec spec)
     {
+        int failureCountBeforeSetup = _test.Failures.Count;
+        bool fixtureContractsValid = true;
         for (int index = 0; index < spec.AllyCount; index++)
         {
             int allyY = 3 + (index % 6);
@@ -536,28 +592,49 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
         for (int index = 0; index < spec.EnemyCount; index++)
         {
             Vector2I coord = enemyPositions[index];
-            BattleUnitState enemy =
-                index % 2 == 0
-                    ? BuildAiUnit(
-                        new StringName($"ai_baseline_enemy_{index + 1:00}"),
-                        $"Wolf {index + 1:00}",
-                        coord,
-                        "melee_aggressor",
-                        new[] { new StringName("charge"), new StringName("warrior_heavy_strike") }
-                    )
-                    : BuildAiUnit(
-                        new StringName($"ai_baseline_enemy_{index + 1:00}"),
-                        $"Suppressor {index + 1:00}",
-                        coord,
-                        "ranged_suppressor",
-                        new[]
-                        {
-                            new StringName("archer_suppressive_fire"),
-                            new StringName("archer_pinning_shot"),
-                        }
-                    );
+            bool isMelee = index % 2 == 0;
+            BattleUnitState enemy;
+            StringName finisherSkillId;
+            if (isMelee)
+            {
+                enemy = BuildAiUnit(
+                    new StringName($"ai_baseline_enemy_{index + 1:00}"),
+                    $"Melee {index + 1:00}",
+                    coord,
+                    "melee_aggressor",
+                    new[] { new StringName("charge"), new StringName("warrior_heavy_strike") }
+                );
+                ApplyBaselineMeleeWeapon(enemy);
+                finisherSkillId = "warrior_heavy_strike";
+            }
+            else
+            {
+                enemy = BuildAiUnit(
+                    new StringName($"ai_baseline_enemy_{index + 1:00}"),
+                    $"Suppressor {index + 1:00}",
+                    coord,
+                    "ranged_suppressor",
+                    new[]
+                    {
+                        new StringName("archer_suppressive_fire"),
+                        new StringName("archer_pinning_shot"),
+                    }
+                );
+                ApplyBaselineRangedWeapon(enemy);
+                finisherSkillId = "archer_pinning_shot";
+            }
+            if (index < 2)
+            {
+                fixtureContractsValid &= ValidateFinisherContract(
+                    runtime,
+                    enemy,
+                    finisherSkillId,
+                    isMelee ? new StringName("sword") : new StringName("bow")
+                );
+            }
             AddUnitToState(runtime, state, enemy, isEnemy: true);
         }
+        return fixtureContractsValid && _test.Failures.Count == failureCountBeforeSetup;
     }
 
     private static BattleUnitState BuildManualUnit(StringName unitId, string displayName, Vector2I coord)
@@ -614,6 +691,137 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
             unit.known_skill_level_map[skillId] = 1;
         }
         return unit;
+    }
+
+    private static void ApplyBaselineMeleeWeapon(BattleUnitState unit)
+    {
+        unit?.ApplyWeaponProjectionTyped(
+            new WeaponProjection
+            {
+                weapon_profile_kind = BattleUnitState.ToStringName(
+                    BattleWeaponProfileKind.Equipped
+                ),
+                weapon_item_id = "steel_longsword",
+                weapon_profile_type_id = "longsword",
+                weapon_range_type = "melee",
+                weapon_family = "sword",
+                weapon_current_grip = BattleUnitState.ToStringName(
+                    BattleWeaponGripKind.OneHanded
+                ),
+                weapon_attack_range = 1,
+                weapon_one_handed_dice = new WeaponDice { dice_count = 1, dice_sides = 8 },
+                weapon_two_handed_dice = new WeaponDice { dice_count = 1, dice_sides = 10 },
+                weapon_is_versatile = true,
+                weapon_uses_two_hands = false,
+                weapon_physical_damage_tag = "physical_slash",
+            }
+        );
+    }
+
+    private static void ApplyBaselineRangedWeapon(BattleUnitState unit)
+    {
+        unit?.ApplyWeaponProjectionTyped(
+            new WeaponProjection
+            {
+                weapon_profile_kind = BattleUnitState.ToStringName(
+                    BattleWeaponProfileKind.Equipped
+                ),
+                weapon_item_id = "ash_longbow",
+                weapon_profile_type_id = "longbow",
+                weapon_range_type = "ranged",
+                weapon_family = "bow",
+                weapon_current_grip = BattleUnitState.ToStringName(
+                    BattleWeaponGripKind.TwoHanded
+                ),
+                weapon_attack_range = 4,
+                weapon_two_handed_dice = new WeaponDice { dice_count = 1, dice_sides = 8 },
+                weapon_uses_two_hands = true,
+                weapon_physical_damage_tag = "physical_pierce",
+            }
+        );
+    }
+
+    private bool ValidateFinisherContract(
+        BattleRuntimeModule runtime,
+        BattleUnitState unit,
+        StringName skillId,
+        StringName expectedWeaponFamily
+    )
+    {
+        SkillDefinition skillDefinition = runtime?.GetSkillDefinitionTyped(skillId);
+        if (skillDefinition?.CombatProfile == null)
+        {
+            _test.Fail($"AI baseline finisher {skillId} is missing its runtime definition.");
+            return false;
+        }
+
+        bool valid = true;
+        if (unit.weapon_family != expectedWeaponFamily)
+        {
+            _test.Fail(
+                $"AI baseline finisher {skillId} expects weapon family {expectedWeaponFamily}, but {unit.unit_id} has {unit.weapon_family}."
+            );
+            valid = false;
+        }
+        WeaponDice activeWeaponDice = unit.GetActiveWeaponDiceTyped();
+        if (activeWeaponDice == null || activeWeaponDice.IsEmpty())
+        {
+            _test.Fail(
+                $"AI baseline finisher {skillId} has no active weapon dice on {unit.unit_id}."
+            );
+            valid = false;
+        }
+        if (
+            BattleRangeService.RequiresCurrentMeleeWeapon(skillDefinition)
+            && !BattleRangeService.UnitHasMeleeWeapon(unit)
+        )
+        {
+            _test.Fail(
+                $"AI baseline finisher {skillId} requires an equipped weapon, but {unit.unit_id} has no valid weapon projection."
+            );
+            valid = false;
+        }
+        if (
+            !BattleRangeService.UnitMatchesRequiredWeaponFamilies(
+                unit,
+                skillDefinition.CombatProfile.RequiredWeaponFamilies
+            )
+        )
+        {
+            _test.Fail(
+                $"AI baseline finisher {skillId} rejects weapon family {unit.weapon_family} on {unit.unit_id}."
+            );
+            valid = false;
+        }
+
+        BattleAiSkillAffordanceRecord affordance = new BattleAiSkillAffordanceClassifier()
+            .ClassifySkill(skillDefinition, skill_level: 1);
+        if (
+            !affordance.is_generatable
+            || affordance.target_mode != BattleTargetMode.Unit
+            || affordance.selection_mode != BattleTargetSelectionMode.SingleUnit
+            || !affordance.affordances.Contains(new StringName("unit_hostile.damage"))
+            || !affordance.action_families.Contains(new StringName("use_unit_skill"))
+        )
+        {
+            _test.Fail(
+                $"AI baseline finisher {skillId} must remain a generatable single-target hostile damage skill."
+            );
+            valid = false;
+        }
+
+        BattleSkillCastBlockReasonKind blockReason = runtime._get_skill_cast_block_reason(
+            unit,
+            skillDefinition
+        );
+        if (BattleSkillCastBlockReasonKinds.IsBlocked(blockReason))
+        {
+            _test.Fail(
+                $"AI baseline finisher {skillId} is blocked for {unit.unit_id}: {BattleSkillCastBlockReasonKinds.ToTraceKey(blockReason)}."
+            );
+            valid = false;
+        }
+        return valid;
     }
 
     private static void SetCoreAttributes(BattleUnitState unit, int hpMax, int attackBonus, int armorClass)
@@ -715,17 +923,24 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
     {
         GDictionary layers = DictDict(scenario, "layers");
         GDictionary choose = DictDict(layers, "choose_command");
+        GDictionary bindAiHelpers = DictDict(layers, "bind_ai_helpers");
         GDictionary skill = DictDict(layers, "build_skill_score_input");
         GDictionary action = DictDict(layers, "build_action_score_input");
         GDictionary assemble = DictDict(layers, "build_unit_action_plan");
         GDictionary movementDistanceBand = DictDict(layers, "movement_distance_band_path_targets");
+        GDictionary movementSnapshotRebuild = DictDict(
+            layers,
+            "movement_query_setup_rebuild_snapshot"
+        );
         return "[AiBaseline] "
             + $"{scenarioId} measured={DictInt(scenario, "repeat_measured")} ai_turns={DictInt(scenario, "ai_turns_total")} "
             + $"choose avg={DictInt(choose, "avg_usec")}us p50={DictInt(choose, "p50_usec")}us p95={DictInt(choose, "p95_usec")}us max={DictInt(choose, "max_usec")}us "
+            + $"bind avg={DictInt(bindAiHelpers, "avg_usec")}us p95={DictInt(bindAiHelpers, "p95_usec")}us "
             + $"skill avg={DictInt(skill, "avg_usec")}us p95={DictInt(skill, "p95_usec")}us "
             + $"action avg={DictInt(action, "avg_usec")}us p95={DictInt(action, "p95_usec")}us "
             + $"assemble avg={DictInt(assemble, "avg_usec")}us "
-            + $"move_band avg={DictInt(movementDistanceBand, "avg_usec")}us p95={DictInt(movementDistanceBand, "p95_usec")}us";
+            + $"move_band avg={DictInt(movementDistanceBand, "avg_usec")}us p95={DictInt(movementDistanceBand, "p95_usec")}us "
+            + $"rebuild calls={DictInt(movementSnapshotRebuild, "call_count")}";
     }
 
     private static List<string> ResolveScenarioFilter()
@@ -822,10 +1037,12 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
     private sealed class RunResult
     {
         public GDictionary ChooseStats { get; init; } = new();
+        public GDictionary BindAiHelpersStats { get; init; } = new();
         public GDictionary SkillScoreStats { get; init; } = new();
         public GDictionary ActionScoreStats { get; init; } = new();
         public GDictionary AssemblerStats { get; init; } = new();
         public GDictionary MovementDistanceBandStats { get; init; } = new();
+        public GDictionary MovementSnapshotRebuildStats { get; init; } = new();
         public GArray Hotspots { get; init; } = new();
         public int AiTurns { get; init; }
         public int ManualTurns { get; init; }
@@ -833,7 +1050,9 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
         public int TimelineSteps { get; init; }
         public int FinalTu { get; init; }
         public bool BattleEnded { get; init; }
+        public string TerminationReason { get; init; } = "invalid_runtime";
         public string WinnerFactionId { get; init; } = "";
+        public BattleMovementQueryService.CacheDiagnostics MovementCacheDiagnostics { get; init; }
         public bool TraceBalanced { get; init; }
         public bool TraceTruncated { get; init; }
         public double ElapsedSeconds { get; init; }

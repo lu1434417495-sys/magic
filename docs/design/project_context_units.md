@@ -545,6 +545,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 ### CU-20 敌方模板、AI brain/action、roster 与 BattleSim 内容
 
 - 文件：
+- 性能回归边界：performance baseline/benchmark 是 opt-in 诊断入口，不进入 routine full suite；正式比较必须区分完整战斗基线与 bounded diagnostic，不能用 iteration-budget 提前结束的样本覆盖 formal baseline。
   - `scripts/enemies/*.cs`
   - `scripts/enemies/actions/*.cs`
   - `scripts/enemies/definitions/*.cs`
