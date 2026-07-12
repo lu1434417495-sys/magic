@@ -173,18 +173,24 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
     private static Fixture BuildFixture()
     {
         var stateResource = new EnemyAiStateDef { state_id = "engage" };
-        var unitTemplate = new UseUnitSkillAction
-        {
-            action_id = "template_unit",
-            score_bucket_id = "frontline_pressure",
-            target_selector = "nearest_enemy",
-        };
-        var moveTemplate = new MoveToRangeAction
-        {
-            action_id = "template_move",
-            score_bucket_id = "archer_survival",
-            target_selector = "nearest_enemy",
-        };
+        var unitTemplate = TestResourceOwnership.Own(
+            new UseUnitSkillAction
+            {
+                action_id = "template_unit",
+                score_bucket_id = "frontline_pressure",
+                target_selector = "nearest_enemy",
+            },
+            "BattleAiActionAssemblerPlan.BuildFixture.unit_template"
+        );
+        var moveTemplate = TestResourceOwnership.Own(
+            new MoveToRangeAction
+            {
+                action_id = "template_move",
+                score_bucket_id = "archer_survival",
+                target_selector = "nearest_enemy",
+            },
+            "BattleAiActionAssemblerPlan.BuildFixture.move_template"
+        );
         stateResource.actions = new Godot.Collections.Array<EnemyAiAction>
         {
             unitTemplate,
@@ -233,6 +239,10 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
                 "frontline_pressure"
             ),
         };
+        TestResourceOwnership.Own(
+            stateResource,
+            "BattleAiActionAssemblerPlan.BuildFixture.state"
+        );
 
         var brainResource = TestResourceOwnership.Own(
             new EnemyAiBrainDef
@@ -307,7 +317,10 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
             slot.allowed_affordances.Add(affordance);
         foreach (StringName family in families)
             slot.action_families.Add(family);
-        return slot;
+        return TestResourceOwnership.Own(
+            slot,
+            $"BattleAiActionAssemblerPlan.Slot.{slotId}"
+        );
     }
 
     private static SkillDefinition Skill(

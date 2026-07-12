@@ -43,6 +43,10 @@ public partial class run_enemy_ai_transition_schema_regression : LifecycleTestSc
             closeRangeRule,
             holdRule,
         };
+        TestResourceOwnership.Own(
+            brain,
+            "EnemyAiTransitionSchema.AcceptsDeclared.brain"
+        );
 
         Godot.Collections.Array<string> errors = brain.ValidateSchema();
         _test.True(errors.Count == 0, $"custom state transition schema 应合法: {FormatErrors(errors)}");
@@ -56,6 +60,10 @@ public partial class run_enemy_ai_transition_schema_regression : LifecycleTestSc
             Rule("duplicate", 10, "recover", Condition("always")),
             Rule("duplicate", 10, "hold", Condition("always")),
         };
+        TestResourceOwnership.Own(
+            brain,
+            "EnemyAiTransitionSchema.RejectsAmbiguous.brain"
+        );
 
         Godot.Collections.Array<string> errors = brain.ValidateSchema();
         _test.True(errors.Count >= 2, $"应拒绝重复 rule_id/order: {FormatErrors(errors)}");
@@ -77,6 +85,10 @@ public partial class run_enemy_ai_transition_schema_regression : LifecycleTestSc
                 Condition("always")
             ),
         };
+        TestResourceOwnership.Own(
+            brain,
+            "EnemyAiTransitionSchema.RejectsInvalidConditions.brain"
+        );
 
         Godot.Collections.Array<string> errors = brain.ValidateSchema();
         _test.True(errors.Count >= 4, $"应拒绝空 conditions、未知 predicate 和不存在的 state 引用: {FormatErrors(errors)}");
@@ -103,32 +115,37 @@ public partial class run_enemy_ai_transition_schema_regression : LifecycleTestSc
 
     private static EnemyAiBrainDef BuildBrain()
     {
-        return TestResourceOwnership.Own(
-            new EnemyAiBrainDef
+        return new EnemyAiBrainDef
+        {
+            brain_id = "custom_transition_brain",
+            default_state_id = "hold",
+            states = new Godot.Collections.Array<EnemyAiStateDef>
             {
-                brain_id = "custom_transition_brain",
-                default_state_id = "hold",
-                states = new Godot.Collections.Array<EnemyAiStateDef>
-                {
-                    State("hold"),
-                    State("recover"),
-                    State("close_range"),
-                },
+                State("hold"),
+                State("recover"),
+                State("close_range"),
             },
-            "EnemyAiTransitionSchema.BuildBrain"
-        );
+        };
     }
 
     private static EnemyAiStateDef State(StringName stateId)
     {
-        return new EnemyAiStateDef
+        WaitAction waitAction = TestResourceOwnership.Own(
+            new WaitAction { action_id = $"{stateId}_wait" },
+            $"EnemyAiTransitionSchema.State.{stateId}.wait_action"
+        );
+        var state = new EnemyAiStateDef
         {
             state_id = stateId,
             actions = new Godot.Collections.Array<EnemyAiAction>
             {
-                new WaitAction { action_id = $"{stateId}_wait" },
+                waitAction,
             },
         };
+        return TestResourceOwnership.Own(
+            state,
+            $"EnemyAiTransitionSchema.State.{stateId}"
+        );
     }
 
     private static EnemyAiTransitionRuleDef Rule(
@@ -163,7 +180,10 @@ public partial class run_enemy_ai_transition_schema_regression : LifecycleTestSc
         {
             rule.conditions.Add(condition);
         }
-        return rule;
+        return TestResourceOwnership.Own(
+            rule,
+            $"EnemyAiTransitionSchema.Rule.{ruleId}"
+        );
     }
 
     private static EnemyAiTransitionConditionDef Condition(
@@ -188,7 +208,10 @@ public partial class run_enemy_ai_transition_schema_regression : LifecycleTestSc
         {
             condition.affordances.Add(affordance);
         }
-        return condition;
+        return TestResourceOwnership.Own(
+            condition,
+            $"EnemyAiTransitionSchema.Condition.{predicate}"
+        );
     }
 
     private static string FormatErrors(IEnumerable<string> errors) => string.Join("; ", errors);
