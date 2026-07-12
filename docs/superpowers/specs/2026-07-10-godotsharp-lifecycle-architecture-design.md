@@ -1,25 +1,25 @@
 # GodotSharp 生命周期架构设计
 
 日期：2026-07-10
-状态：已批准，待分阶段实施
+状态：已完成实施与 Phase 6 累计验收
 决策：采用方案 B——进程内容根、plain C# 内容快照、短生命周期投影租约与显式退出屏障
 
 ## 问题
 
-当前项目已经把大部分核心 runtime/save 状态从 `RefCounted` 迁为 plain C#，并建立了
+设计启动时，项目已经把大部分核心 runtime/save 状态从 `RefCounted` 迁为 plain C#，并建立了
 Godot wrapper 分类、静态内容强引用池、transient scope、test quarantine 和退出前 GC drain。
-这些机制已显著降低 `gchandle.is_released()` / `GodotObject.Finalize()` 崩溃概率，但当前
+这些机制在当时已显著降低 `gchandle.is_released()` / `GodotObject.Finalize()` 崩溃概率，但当时
 稳定性主要依赖两类止血行为：
 
 1. 对 Godot wrapper 调用 `GC.SuppressFinalize`；
 2. 把大量 static、derived 或 quarantine wrapper 强引用到进程结束。
 
 这两类行为都不是释放。前者可能让 wrapper 跳过 GodotSharp 的正常 native 解绑路径，后者则
-让旧 catalog generation、临时 projection 和生产 UI wrapper 无法回收。现有 `TestHarness.Finish`
+让旧 catalog generation、临时 projection 和生产 UI wrapper 无法回收。当时的 `TestHarness.Finish`
 又在 SceneTree/autoload owner 真正离树之前执行 GC，因此不能证明“所有 owner 已关闭后才进入
 finalizer drain”。
 
-2026-07-10 的当前快照基线如下：
+2026-07-10 的迁移前快照基线如下：
 
 - `dotnet build magic.csproj` 为 0 warning、0 error；
 - AI 子集 35/35 通过，`finalizer-crash-retries=0`；
@@ -27,7 +27,7 @@ finalizer drain”。
 - headless session regression 首轮登记约 18,938 个 runtime wrapper，最终 static wrapper 达
   75,258，并报告 3 个 unsafe Resource reference。
 
-因此当前状态定义为“已稳定已知崩溃路径，但生命周期尚未闭环”，不能以测试重试、日志豁免、
+因此当时状态定义为“已稳定已知崩溃路径，但生命周期尚未闭环”，不能以测试重试、日志豁免、
 全局 quarantine 或 wrapper 数持续增长作为最终成功条件。
 
 ## 技术依据
@@ -84,9 +84,9 @@ finalizer drain”。
 - 不要求清除 Godot/CLR 自身的全部 engine-internal tracker 项；验收针对项目拥有或项目创建的
   wrapper，并禁止用宽泛日志字符串豁免隐藏来源。
 
-## 现有 ownership
+## 设计时 ownership 基线
 
-### 已经正确的边界
+### 迁移前已经正确的边界
 
 - `PartyState`、`PartyMemberState`、`BattleState`、`BattleUnitState`、`BattleCommand`、
   `BattlePreview` 等核心状态已经是 plain C#。
@@ -95,7 +95,7 @@ finalizer drain”。
 - `GameRoot.Dispose()` 会使当前 session 的 catalog view 失效。
 - `SkillDefinition` 和 equipment ability definition 已经有 plain typed projection。
 
-### 必须替换的边界
+### 迁移前必须替换的边界（现已完成）
 
 - `GodotContentOwnership.StaticStrongWrappers` 同时持有 borrowed、derived 和 projection wrapper，
   不能按 session/catalog generation 释放。
@@ -499,6 +499,7 @@ exit code 交给 production
 ```text
 test body completes
 → dispose test-owned runner/facade/session
+→ TestResourceOwnership closes explicitly owned fixture wrappers
 → TestExitCoordinator submits ShutdownRequest/ShutdownCallerResult
 → ApplicationLifetimeCoordinator closes SceneTree owners
 → coordinator asserts owner counters
@@ -508,12 +509,13 @@ test body completes
 ```
 
 Test mode 只改变 report 标签和 effective exit code 合并规则，不改变 owner teardown/barrier/Quit 的
-唯一执行者。
+唯一执行者。`LifecycleMeasurementBarrier` 只用于单进程 lifecycle soak 的周期间量测，不是第二个
+process shutdown barrier，也不能由普通测试 runner 调用来替代 coordinator。
 
 最终 lifecycle correctness lane 固定配置：
 
 - `MAGIC_LIFECYCLE_STRICT=1`；
-- `finalizer-crash-retries=0`；
+- runner 不再暴露 finalizer retry 参数或实现，有效重试数恒为 0；
 - quarantine disabled；
 - `NoGCRegion` disabled；
 - unsafe reference、ObjectDB/resource-in-use、gchandle/finalizer fatal 不做宽泛豁免；
@@ -622,6 +624,34 @@ Resource；阶段 5 才执行本 spec 的全部静态、行为和稳定性合同
 | 4 | Enemy/AI catalog 与 plan/decision 全 typed、热路径无 authored Resource/Godot collection 中转 | 现有 full-suite retry=1/output baseline，阶段 5 删除 | Enemy/AI/BattleSim raw debt、Resource action fallback、instance-id metadata |
 | 5 | 本 spec 全部静态/行为/稳定性合同 | 无 | 剩余 suppress、reflection walker、quarantine、retry 与宽泛日志豁免 |
 
+## 实施状态（2026-07-12）
+
+方案 B 的阶段 1–5 与 Phase 6 累计验收均已完成。最终验证代码 HEAD 为 `b3f617d6`；本节之后创建的文档 closure 提交只记录结果，不改变已验证代码 HEAD。完整实施范围是 `9c0f4c40^..b3f617d6`，共 67 个提交：
+
+- shutdown contract、pipeline、state machine 与 coordinator：`9c0f4c40`、`d613c5ee`、`531f4f0b`、`453f5fad`、`f8b68551`、`5a91af52`、`da9390ec`、`5c99f9f3`、`55e779f3`；
+- 统一测试退出、LegacyDebt、runner 与 CI correctness profile：`56e9720c`、`1f5a202f`、`13e2cdf5`、`cdf41647`、`4dee0e4d`、`14c20d99`、`09a9e6d9`、`792f505f`；
+- native/projection lease、attribute/save/battle 投影与 borrower 边界：`3b8e91b2`、`d067f36f`、`adb27ec1`、`c701299d`、`98351bb3`、`f25ae938`、`333bcb79`、`eee6d23f`、`89291d27`、`c896ff6d`、`815c9dbb`；
+- plain content snapshot 与 typed Enemy/AI 内容：`067dd062`、`6b4b88ff`、`f597cea8`、`f9c25077`、`299cbfe5`、`392f8f1f`、`3a32e08e`；
+- retry-free gate、止血设施删除、coordinator-owned exit 与 deterministic soak：`939225c0`、`0766c40f`、`f223a5a0`、`a6c255d1`、`ff106281`、`76b181f0`；
+- BattleSim scenario/unit、settlement/writeback payload 与 opaque storage 收口：`425068a5`、`8556fdc0`、`9d25c4a7`、`094804b9`、`6d4f2cee`、`4789538d`；
+- persistence、world、damage、presentation 与 authored fixture ownership：`485be3c4`、`bedb595d`、`358c64a5`、`e5a7613c`、`eb64a3d2`、`0a17b02b`、`b81dd8b6`、`2d6b23a4`、`3c3fdb05`、`3f40911b`、`a68b1e06`；
+- AI fixture plain projection 与显式 wrapper ownership：`8222dc77`、`28b203b5`、`138b351f`、`cc125f0b`、`0224a2be`、`9ab7dfb7`、`c7603906`；
+- promotion prompt、UI/command log 与 progression selection 最终 plain 化：`8a445459`、`b3f617d6`。
+
+验证在 `b3f617d6` 加已保留的用户工作树 overlay 上执行，并非纯净 HEAD；生命周期实现、测试和 runner 在累计验收期间保持冻结。任何后续代码/测试/runner 修改都必须重跑累计验收，文档-only closure 不触发重跑。
+
+| 验收项 | 验证代码 HEAD | 精确命令/参数 | 规模/轮次 | 结果与生命周期证据 |
+|---|---|---|---|---|
+| build | `b3f617d6` | `dotnet build magic.csproj` | 1 次 | PASS：0 warning / 0 error |
+| runner tooling | `b3f617d6` | `python -m unittest tests.tooling.test_run_regression_suite -v` | 18 tests | PASS：18/18；retry option/implementation 已删除，strict output/exit/fatal gate 通过 |
+| cumulative cleanup/boundary gates | `b3f617d6` | `python tests/run_regression_suite.py --pattern runtime/validation/run_runtime_lifecycle_ --jobs 2 --fail-on-output-error --lifecycle-correctness` | 2 tests | PASS：2/2；`legacy_debt=0`，raw/opaque storage violation=0，shutdown failures=0 |
+| deterministic lifecycle soak | `b3f617d6` | `python tests/run_regression_suite.py --pattern run_application_lifecycle_soak_regression --jobs 1 --fail-on-output-error --lifecycle-correctness` | 1 test / 110 samples | PASS：managed `28,262,152 → 28,286,752 B`，delta `24,600 B`，slope `272.77 B/轮`；private `189,321,216 → 187,443,200 B`，delta `-1,878,016 B`，slope `-13,914.11 B/轮`；每轮 owner/borrower/job/scope/lease、四类 violation、suppression 与 quarantine 全为 0，activity created/closed 成对 |
+| focused runtime/lifecycle | `b3f617d6` | `python tests/run_regression_suite.py --pattern runtime/lifecycle --jobs 8 --fail-on-output-error --lifecycle-correctness` | 8 tests | PASS：8/8；lane 内 soak managed `28,262,304 → 28,287,000 B`，delta `24,696 B`，slope `274.71 B/轮`；private `185,604,096 → 181,284,864 B`，delta `-4,319,232 B`，slope `-5,368.35 B/轮`；fatal marker、shutdown failure、`legacy_debt` 为 0 |
+| AI subset 10 rounds | `b3f617d6` | `for ($i = 1; $i -le 10; $i++) { python tests/run_regression_suite.py --pattern battle_runtime/ai --jobs 16 --fail-on-output-error --lifecycle-correctness; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }` | 10 × 39 | PASS：每轮 39/39，累计 390/390；零失败、零 retry |
+| routine full suite 10 rounds | `b3f617d6` | `for ($i = 1; $i -le 10; $i++) { python tests/run_regression_suite.py --jobs 16 --fail-on-output-error --lifecycle-correctness; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }` | 10 × 383 | PASS：每轮 383/383，累计 3830/3830；routine discovery 保持排除 numeric battle simulation/balance、benchmark/analysis 与 tools，零失败、零 retry |
+
+正式 10 轮 full suite 之前有一轮被外层工具的 300 秒命令超时终止，未生成测试汇总、未计入验收，也没有触发单测试重跑；提高外层工具超时后顺序完成了上表 10 个独立完整轮次。
+
 ## 验收合同
 
 ### 静态检查
@@ -667,43 +697,62 @@ Resource；阶段 5 才执行本 spec 的全部静态、行为和稳定性合同
    相对该 baseline，managed heap 增量不得超过 `max(8 MiB, baseline × 5%)`，process-private 增量
    不得超过 `max(32 MiB, baseline × 10%)`；后 100 轮最小二乘趋势斜率分别不得高于 64 KiB/轮
    和 256 KiB/轮。
-4. AI 子集与完整回归各运行 10 轮、`jobs=16`、`finalizer-crash-retries=0`；`jobs=16` 指 16 个
+4. AI 子集与完整回归各运行 10 轮、`jobs=16`，runner 无 finalizer retry 参数或实现；`jobs=16` 指 16 个
    独立 Godot 进程，不代表单进程 AI worker。
 5. save version 12 golden payload、text/headless snapshot、AI fingerprint 和战斗结果保持一致。
 
-## 预计文件边界
+## 落地文件边界
 
-新增的 owner 文件应保持职责单一：
+落地后的 owner/helper 文件职责如下：
 
 - `scripts/systems/lifecycle/ApplicationLifetimeCoordinator.cs`：autoload adapter、close notification、
-  process shutdown state machine；
+  participant 注册与最终 Quit 入口；
+- `scripts/systems/lifecycle/ApplicationShutdownPipeline.cs`：固定 shutdown 编排、owner/content drain、
+  finalizer gate/barrier 与 report 归并；
+- `scripts/systems/lifecycle/ApplicationShutdownStateMachine.cs`：单向 phase transition、重复请求与完成态；
 - `scripts/systems/lifecycle/ApplicationShutdownPhase.cs`：关闭 phase enum；
+- `scripts/systems/lifecycle/ApplicationShutdownParticipantStage.cs`：Runtime/Session participant 阶段；
+- `scripts/systems/lifecycle/LifecycleAuditRegistry.cs`：弱引用 owner/borrower/job/scope/lease 活动与 violation 计数；
 - `scripts/systems/lifecycle/ShutdownRequest.cs`：production/test 共用的退出请求与 caller result DTO；
 - `scripts/systems/lifecycle/ShutdownReport.cs`：结构化退出结果；
 - `scripts/systems/content/ProcessContentHost.cs`：canonical raw content roots 与 sealed load phase；
+- `scripts/systems/content/ContentSnapshotBuilder.cs`：同步 registry 校验、typed 投影与 immutable snapshot seal；
+- `scripts/systems/content/IContentResourceLoader.cs`：production/test authored Resource 加载边界；
 - `scripts/systems/content/EngineAssetResolver.cs`：process-shared path-backed 引擎资产的 canonical
   load/borrow 边界；
 - `scripts/systems/content/ContentSnapshot.cs`：immutable typed catalog root；
 - `scripts/utils/NativeLeaseScope.cs`：显式 runtime-native owner；
 - `scripts/utils/GodotProjectionLease.cs`：短期 Godot projection owner；
-- `tests/shared/TestExitCoordinator.cs`：测试关闭适配器。
+- `tests/shared/LifecycleTestSceneTree.cs`：统一测试退出入口并先关闭 fixture owner；
+- `tests/shared/TestExitCoordinator.cs`：`TestResult` 到 production shutdown request 的适配器；
+- `tests/shared/LifecycleMeasurementBarrier.cs`：仅用于单进程 soak 周期量测的 GC/finalizer drain；
+- `tests/shared/TestResourceOwnership.cs`：pathless authored/test wrapper 的显式 fixture owner；
+- `tests/shared/TestContentResourceLoader.cs`：`CacheMode.IgnoreDeep` path-backed test content loader；
+- `tests/shared/TestWorldGenerationDefinitionFactory.cs`：world authored fixture 到 definition 的同步边界；
+- `tests/shared/TestSkillDefinitionProjection.cs`：skill authored fixture 到 plain definition 的同步边界。
 
-现有 `GodotObjectOwnership.cs` 在迁移期只保留 audit/bridge，并最终缩减为弱引用诊断 registry；不把
-新 coordinator、content host、lease 和 report 再合并进这个文件。
+现有 `GodotObjectOwnership.cs` 最终只保留 direct-wrapper ownership bridge/audit，并以 wrapper-keyed
+`ConditionalWeakTable` 保存随 wrapper 生命周期消失的诊断项；不保留可枚举历史、strong sink 或持续增长
+的 wrapper catalog，也不把 coordinator、content host、lease 和 report 合并进这个文件。
 
 ## 项目上下文单元影响
 
-实施会改变以下 owner/read-set：
+实施已经改变以下 owner/read-set：
 
 - CU-02：新增 application/process content owner；`GameSession` 从内容 owner 改为 snapshot borrower；
-- CU-06：`GameRuntimeFacade` shutdown 由 coordinator 调度，但仍不拥有生命周期总状态；
+- CU-04：world build/spawn 先形成 plain snapshot，Godot collection 只在同步 lease 投影；
+- CU-05：fog faction/grid persistent state 改由 CLR Dictionary/HashSet 与 plain snapshot 持有；
+- CU-06：`GameRuntimeFacade` shutdown 由 coordinator 调度但不拥有生命周期总状态，promotion prompt/runtime snapshot/command log 以 plain graph 跨模块；
+- CU-09：promotion window 长期只持有 plain prompt/choice/selection，card/signal 只做同步 Request projection；
+- CU-14：promotion selection、tag deficit、dedupe 与 rollback 快照由 CLR collection/`StringNameList` 持有；
 - CU-15/CU-16：battle 与 AI decision 获得显式 lifetime/lease；
-- CU-18：跨帧展示 wrapper 由 UI Node lease 拥有；
-- CU-19：`TestHarness.Finish` 不再被描述为完整 barrier，测试退出改由 `TestExitCoordinator`；
-- CU-21：headless runner 必须委托同一 shutdown pipeline。
+- CU-18：跨帧展示 wrapper 与 `BattleBoardProp` interaction shape 由 SceneTree-domain lease 拥有；
+- CU-19：`TestHarness.Finish` 不再被描述为完整 barrier，测试退出改由 `LifecycleTestSceneTree` / `TestResourceOwnership` / `TestExitCoordinator`；
+- CU-20：BattleSim scenario/unit Resource 只留在同步 authoring/import 边界，runtime/report 只持有 definition；
+- CU-21：headless runner 已委托同一 shutdown pipeline，并只保存 detached plain snapshot/assertion facts。
 
-`docs/design/project_context_units.md` 在 spec 提交时只增加本设计的推荐读入口并纠正当前 TestHarness
-边界；未来 owner 链在对应实施阶段落地后再同步更新，不能提前把尚未实现的结构写成当前事实。
+`docs/design/project_context_units.md` 已按落地后的 owner 链同步 CU-02/04/05/06/09/14/15/16/18/19/20/21，并补齐
+coordinator participant、测试退出/量测 helper 与累计 lifecycle gate 的推荐读集。
 
 ## 已决策事项
 
@@ -713,4 +762,4 @@ Resource；阶段 5 才执行本 spec 的全部静态、行为和稳定性合同
 - save version 12 和当前 payload shape 不变。
 - raw `.tres` 是 immutable authoring source，runtime 只消费 plain snapshot。
 - process shutdown 必须在 Godot 存活时完成 owner drain 与 GC barrier。
-- 完整实施拆成五个顺序阶段，每阶段单独计划、TDD、验证和提交。
+- 完整实施拆成五个顺序阶段，每阶段单独计划、直接实现、验证和提交；本轮生命周期整改不要求 TDD。
