@@ -711,7 +711,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             return RuntimeCommandError("当前商店上下文缺失。");
         }
         string settlementId = ReadString(context, "settlement_id");
-        SettlementCommandRollbackSnapshot rollbackSnapshot = CaptureRollbackSnapshot();
+        SettlementCommandRollbackSnapshot rollbackSnapshot = CaptureRollbackSnapshot(
+            new RuntimeTransaction().MarkPartyChanged().MarkWorldChanged()
+        );
         using GodotProjectionLease<GDictionary> settlementStateLease =
             _get_or_create_settlement_state(settlementId);
         GDictionary settlementState = settlementStateLease.Value;
@@ -767,7 +769,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             return RuntimeCommandError("当前商店上下文缺失。");
         }
         string settlementId = ReadString(context, "settlement_id");
-        SettlementCommandRollbackSnapshot rollbackSnapshot = CaptureRollbackSnapshot();
+        SettlementCommandRollbackSnapshot rollbackSnapshot = CaptureRollbackSnapshot(
+            new RuntimeTransaction().MarkPartyChanged().MarkWorldChanged()
+        );
         using GodotProjectionLease<GDictionary> settlementStateLease =
             _get_or_create_settlement_state(settlementId);
         GDictionary settlementState = settlementStateLease.Value;
@@ -842,7 +846,12 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             return RuntimeCommandError("当前不存在队伍数据。");
         }
-        SettlementCommandRollbackSnapshot rollbackSnapshot = CaptureRollbackSnapshot();
+        SettlementCommandRollbackSnapshot rollbackSnapshot = CaptureRollbackSnapshot(
+            new RuntimeTransaction()
+                .MarkPartyChanged()
+                .MarkWorldChanged()
+                .MarkPlayerCoordChanged()
+        );
         int travelCost = destination.TravelCost;
         if (!partyState.SpendGold(travelCost))
         {
@@ -961,7 +970,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             string warehouseMessage = "已从据点服务打开共享仓库。";
             SettlementCommandRollbackSnapshot warehouseRollbackSnapshot =
-                CaptureRollbackSnapshot();
+                CaptureRollbackSnapshot(new RuntimeTransaction().MarkPartyChanged());
             var warehouseResult = new SettlementServiceResult
             {
                 Success = true,
@@ -1032,7 +1041,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                 $"已打开 {ReadString(payload, "facility_name", "驿站")} 的驿站路线。"
             );
         }
-        SettlementCommandRollbackSnapshot rollbackSnapshot = CaptureRollbackSnapshot();
+        SettlementCommandRollbackSnapshot rollbackSnapshot = CaptureRollbackSnapshot(
+            BuildSettlementActionRollbackScope(interactionScriptId)
+        );
         SettlementServiceResult serviceResult = ExecuteSettlementActionTyped(
             settlement_id,
             action_id,
@@ -3510,8 +3521,13 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             );
         }
         SyncPartyStateFromCharacterManagement();
+        bool partyStateChanged =
+            result.PersistPartyState
+            || result.PendingCharacterRewards.Count > 0
+            || result.QuestProgressEvents.Count > 0
+            || memberId != "";
         return PersistChangesTyped(
-            result.PersistPartyState,
+            partyStateChanged,
             result.PersistWorldData,
             result.PersistPlayerCoord,
             rollbackSnapshot
@@ -3624,13 +3640,34 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         Runtime.ApplyQuestProgressEventsToPartyTyped(event_options, "settlement");
     }
 
-    private SettlementCommandRollbackSnapshot CaptureRollbackSnapshot()
+    private static RuntimeTransaction BuildSettlementActionRollbackScope(
+        string interactionScriptId
+    )
+    {
+        RuntimeTransaction scope = new RuntimeTransaction().MarkPartyChanged();
+        if (
+            interactionScriptId == "service_rest_full"
+            || interactionScriptId == "service_village_rumor"
+            || interactionScriptId == "service_intel_network"
+        )
+        {
+            scope.MarkWorldChanged();
+        }
+        return scope;
+    }
+
+    private SettlementCommandRollbackSnapshot CaptureRollbackSnapshot(
+        RuntimeTransaction rollbackScope
+    )
     {
         if (!_has_runtime())
             return null;
 
         return new SettlementCommandRollbackSnapshot(
-            RuntimeTransactionRollbackState.Capture(Runtime),
+            RuntimeTransactionRollbackState.Capture(
+                Runtime,
+                rollbackScope ?? throw new ArgumentNullException(nameof(rollbackScope))
+            ),
             GetActiveModalKind(),
             GetActiveSettlementId(),
             GetSettlementFeedbackText(),

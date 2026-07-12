@@ -75,9 +75,20 @@ public partial class run_game_session_transaction_regression : LifecycleTestScen
                 gameSession.GetWorldDataLease();
             GDictionary stagedWorldData = stagedWorldDataLease.Value;
             stagedWorldData["world_step"] = originalWorldStep + 7;
+            WorldRuntimeData stagedWorldRuntimeData = WorldRuntimeData.FromDictionary(
+                stagedWorldData
+            );
+            _test.True(
+                stagedWorldRuntimeData != null,
+                "事务 commit 回归前置：typed world_data 应能从合法 staging payload 构建。"
+            );
 
             _test.Eq((Error)gameSession.SetPlayerCoord(stagedCoord), Error.Ok, "事务 commit 回归前置：坐标 staging 应成功。");
-            _test.Eq((Error)gameSession.SetWorldData(stagedWorldData), Error.Ok, "事务 commit 回归前置：world_data staging 应成功。");
+            _test.Eq(
+                (Error)gameSession.SetWorldData(stagedWorldRuntimeData),
+                Error.Ok,
+                "事务 commit 回归前置：trusted typed world_data staging 应成功。"
+            );
 
             Error commitError = (Error)gameSession.CommitRuntimeState(new StringName("test.full_snapshot"));
             _test.Eq(commitError, Error.Ok, "commit_runtime_state 应一次性持久化完整运行时快照。");

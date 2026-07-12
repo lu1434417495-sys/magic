@@ -351,9 +351,10 @@ public sealed partial class GameRuntimeFacade
                 return false;
             }
             _resolve_world_encounter_after_battle(winnerFactionId);
-            using GodotProjectionLease<GDictionary> rootWorldDataLease =
-                _world_map_data_context.GetRootWorldDataLease();
-            worldPersistError = _game_session.SetWorldData(rootWorldDataLease.Value);
+            _materialize_active_world_state_to_root();
+            worldPersistError = _game_session.SetWorldData(
+                _world_map_data_context.RootRuntimeData
+            );
             if (worldPersistError != (int)Error.Ok)
             {
                 UpdateStatusInternal(

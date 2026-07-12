@@ -973,6 +973,15 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         ReplacePlainPayload(_worldData, payload);
     }
 
+    private void ReplaceWorldDataOwnedPlain(Dictionary<string, object> payload)
+    {
+        _worldData.Clear();
+        if (payload == null)
+            return;
+        foreach (KeyValuePair<string, object> entry in payload)
+            _worldData[entry.Key] = entry.Value;
+    }
+
     private void ClearWorldDataPayload() => _worldData.Clear();
 
     private static void ReplacePlainPayload(
@@ -1049,6 +1058,15 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
             return (int)Error.InvalidData;
         }
         ReplaceWorldDataPlain(normalizedWorldData);
+        MarkRuntimeStateDirty(SaveDirtyScopeWorldData);
+        return (int)Error.Ok;
+    }
+
+    internal int SetWorldData(WorldRuntimeData worldData)
+    {
+        if (worldData == null)
+            return (int)Error.InvalidData;
+        ReplaceWorldDataOwnedPlain(worldData.BuildSaveSnapshotPlain());
         MarkRuntimeStateDirty(SaveDirtyScopeWorldData);
         return (int)Error.Ok;
     }
@@ -1662,7 +1680,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         int saved_at_unix_time
     )
     {
-        return _save_serializer.BuildSavePayloadLease(
+        return _save_serializer.BuildTrustedSavePayloadLease(
             _active_save_id,
             _generation_config_path,
             _activeSaveMeta,

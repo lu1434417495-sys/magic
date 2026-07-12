@@ -20,6 +20,8 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
         TestMountedSubmapSerializerContract();
         TestSubmapReturnBlocksWhileBattleActive();
         TestSubmapReturnBlocksWhileModalOpen();
+        TestSubmapEntryRollsBackOnPersistFailure();
+        TestSubmapReturnRollsBackOnPersistFailure();
         TestSubmapEntryReturnAndReload();
 
         DisposeWorldDataLeases();
@@ -275,6 +277,96 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
         }
         finally
         {
+            context.Dispose();
+        }
+    }
+
+    private void TestSubmapEntryRollsBackOnPersistFailure()
+    {
+        RuntimeContext context = CreateAshenRuntimeContext();
+        if (context == null)
+            return;
+
+        try
+        {
+            GameRuntimeFacade.RuntimeCommandResult moveResult =
+                context.Facade.CommandWorldMoveTyped(Vector2I.Right, 3);
+            _test.True(moveResult.Ok, "进入失败回归前置：应能走到灰烬入口。");
+            Vector2I expectedCoord = context.Facade.GetPlayerCoord();
+            string expectedMapId = context.Facade.GetActiveMapId();
+            string expectedPromptTarget = DictString(
+                context.Facade.GetPendingSubmapPrompt(),
+                "target_submap_id"
+            );
+
+            context.GameSession.fail_payload_write = true;
+            GameRuntimeFacade.RuntimeCommandResult confirmResult =
+                context.Facade.CommandConfirmSubmapEntryTyped();
+
+            _test.True(!confirmResult.Ok, "子地图 entry payload 写入失败时命令应失败。");
+            _test.True(!context.Facade.IsSubmapActive(), "entry 持久化失败后应回滚到主世界。");
+            _test.Eq(context.Facade.GetActiveMapId(), expectedMapId, "entry 回滚应恢复 active map。");
+            _test.Eq(context.Facade.GetPlayerCoord(), expectedCoord, "entry 回滚应恢复运行时坐标。");
+            _test.Eq(context.GameSession.GetPlayerCoord(), expectedCoord, "entry 回滚应恢复 session 坐标。");
+            _test.Eq(
+                DictString(ProjectWorldData(context.GameSession), "active_submap_id"),
+                "",
+                "entry 回滚后 session root 不应残留 active_submap_id。"
+            );
+            _test.Eq(
+                context.Facade.GetActiveModalId(),
+                "submap_confirm",
+                "entry 回滚后原确认窗口应保持可重试。"
+            );
+            _test.Eq(
+                DictString(context.Facade.GetPendingSubmapPrompt(), "target_submap_id"),
+                expectedPromptTarget,
+                "entry 回滚后原 prompt 应保持可重试。"
+            );
+        }
+        finally
+        {
+            context.GameSession.fail_payload_write = false;
+            context.Dispose();
+        }
+    }
+
+    private void TestSubmapReturnRollsBackOnPersistFailure()
+    {
+        RuntimeContext context = CreateAshenRuntimeContext();
+        if (context == null)
+            return;
+
+        try
+        {
+            if (!EnterAshenSubmap(context.Facade))
+                return;
+
+            Vector2I expectedCoord = context.Facade.GetPlayerCoord();
+            string expectedMapId = context.Facade.GetActiveMapId();
+            string expectedActiveSubmapId = DictString(
+                ProjectWorldData(context.GameSession),
+                "active_submap_id"
+            );
+
+            context.GameSession.fail_payload_write = true;
+            GameRuntimeFacade.RuntimeCommandResult returnResult =
+                context.Facade.CommandReturnFromSubmapTyped();
+
+            _test.True(!returnResult.Ok, "子地图 return payload 写入失败时命令应失败。");
+            _test.True(context.Facade.IsSubmapActive(), "return 持久化失败后应恢复子地图状态。");
+            _test.Eq(context.Facade.GetActiveMapId(), expectedMapId, "return 回滚应恢复 active map。");
+            _test.Eq(context.Facade.GetPlayerCoord(), expectedCoord, "return 回滚应恢复运行时坐标。");
+            _test.Eq(context.GameSession.GetPlayerCoord(), expectedCoord, "return 回滚应恢复 session 坐标。");
+            _test.Eq(
+                DictString(ProjectWorldData(context.GameSession), "active_submap_id"),
+                expectedActiveSubmapId,
+                "return 回滚后 session root 应保留 active_submap_id。"
+            );
+        }
+        finally
+        {
+            context.GameSession.fail_payload_write = false;
             context.Dispose();
         }
     }

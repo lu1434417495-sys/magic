@@ -1,6 +1,5 @@
 using System;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 internal sealed class RuntimeStateSource
 {
@@ -102,6 +101,9 @@ internal sealed class RuntimeTransactionRollbackState
     private readonly bool _capturedPartyState;
     private readonly bool _capturedWorldData;
 
+    internal bool CapturedPartyState => _capturedPartyState;
+    internal bool CapturedWorldData => _capturedWorldData;
+
     private RuntimeTransactionRollbackState(
         PartyState partyState,
         WorldRuntimeData worldData,
@@ -124,7 +126,7 @@ internal sealed class RuntimeTransactionRollbackState
     // multi-hundred-ms cost on large maps (see world-move perf history).
     internal static RuntimeTransactionRollbackState Capture(
         GameRuntimeFacade runtime,
-        RuntimeTransaction scopes = null
+        RuntimeTransaction scopes
     )
     {
         if (runtime == null)
@@ -138,12 +140,17 @@ internal sealed class RuntimeTransactionRollbackState
             );
         bool captureParty = scopes == null || scopes.PersistPartyState;
         bool captureWorld = scopes == null || scopes.PersistWorldData;
+        WorldRuntimeData worldSnapshot = WorldRuntimeData.Empty();
+        if (captureWorld)
+        {
+            runtime.MaterializeActiveWorldStateToRoot();
+            worldSnapshot =
+                runtime._world_map_data_context?.RootRuntimeData?.DuplicateState()
+                ?? WorldRuntimeData.Empty();
+        }
         return new RuntimeTransactionRollbackState(
             captureParty ? runtime.GetPartyState() : null,
-            captureWorld
-                ? runtime._world_map_data_context?.ActiveRuntimeData?.DuplicateState()
-                    ?? WorldRuntimeData.Empty()
-                : WorldRuntimeData.Empty(),
+            worldSnapshot,
             runtime.GetPlayerCoord(),
             runtime._game_session,
             captureParty,
@@ -183,11 +190,7 @@ internal sealed class RuntimeTransactionRollbackState
             if (restoreParty)
                 session._party_state = _partyState?.DuplicateState() ?? new PartyState();
             if (restoreWorld)
-            {
-                using GodotProjectionLease<GDictionary> worldDataLease =
-                    WorldMapDataProjection.ProjectLease(_worldData);
-                session.ReplaceWorldDataPayloadForRuntimeRestore(worldDataLease.Value);
-            }
+                session.SetWorldData(_worldData);
             if (transaction.PersistPlayerCoord)
                 session._player_coord = _playerCoord;
             _sessionSnapshot?.Restore(session);
@@ -204,13 +207,7 @@ internal sealed class RuntimeTransactionRollbackState
         bool worldOrCoordRestored = false;
         if (restoreWorld)
         {
-            using GodotProjectionLease<GDictionary> restoredWorldDataLease =
-                session != null
-                    ? session.GetWorldDataLease()
-                    : WorldMapDataProjection.ProjectLease(_worldData);
-            GDictionary restoredWorldData = restoredWorldDataLease.Value;
-            runtime._world_map_data_context.BindRootWorldData(restoredWorldData);
-            runtime._world_map_data_context.SetActiveWorldData(restoredWorldData);
+            runtime._world_map_data_context.BindRootWorldData(_worldData);
             worldOrCoordRestored = true;
         }
 
@@ -222,15 +219,7 @@ internal sealed class RuntimeTransactionRollbackState
         }
 
         if (worldOrCoordRestored)
-        {
-            runtime._world_map_data_context.SyncActiveWorldContext(
-                runtime.GetGenerationDefinition(),
-                runtime.GetGridSystem(),
-                runtime.GetPlayerCoord(),
-                runtime.GetSelectedCoord()
-            );
-            runtime.RefreshWorldVisibility();
-        }
+            runtime.RestoreWorldContextAfterRollback();
     }
 }
 
@@ -274,28 +263,20 @@ internal sealed class RuntimeTransaction
             int unavailable = (int)Error.Unavailable;
             return new RuntimeCommitResult
             {
-                PartyError = PersistPartyState ? unavailable : (int)Error.Ok,
-                WorldError = PersistWorldData ? unavailable : (int)Error.Ok,
-                PlayerError = PersistPlayerCoord ? unavailable : (int)Error.Ok,
+                PartyError = unavailable,
+                WorldError = unavailable,
+                PlayerError = unavailable,
                 CommitError = unavailable,
                 Message = "runtime transaction requires an active session and state source.",
             };
         }
 
-        int partyError = (int)Error.Ok;
-        int worldError = (int)Error.Ok;
-        int playerError = (int)Error.Ok;
-
-        if (PersistPartyState)
-            partyError = session.SetPartyState(source.GetPartyStateForCommit());
-        if (PersistWorldData)
-        {
-            using GodotProjectionLease<GDictionary> worldDataLease =
-                WorldMapDataProjection.ProjectLease(source.GetWorldDataForCommit());
-            worldError = session.SetWorldData(worldDataLease.Value);
-        }
-        if (PersistPlayerCoord)
-            playerError = session.SetPlayerCoord(source.GetPlayerCoordForCommit());
+        // SaveSerializer writes a total snapshot. Even a party-only mutation must stage
+        // every canonical owner first, otherwise a delayed world/fog update in the runtime
+        // would be overwritten by the session's older total-save payload.
+        int partyError = session.SetPartyState(source.GetPartyStateForCommit());
+        int worldError = session.SetWorldData(source.GetWorldDataForCommit());
+        int playerError = session.SetPlayerCoord(source.GetPlayerCoordForCommit());
 
         bool staged =
             partyError == (int)Error.Ok

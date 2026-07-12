@@ -24,6 +24,7 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
         TestEncounterAnchorTypedQueries();
         TestActiveWorldFogStateRoundTrip();
         TestSubmapEntryAndReturnTypedResults();
+        TestSubmapRollbackRestoresRootOwnerAndFog();
         TestEnsureSubmapGeneratedBuildsTypedWorldData();
         TestWorldEventTypedQueries();
         TestStaleSubmapIdFallsBackToRootWorld();
@@ -371,7 +372,19 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
             fogSystem.Setup(new Vector2I(4, 4));
             fogSystem.RevealDiamond(new Vector2I(1, 1), 1, "player");
 
+            _test.True(
+                context.NeedsActiveWorldFogSave(fogSystem),
+                "新 fog revision 应在 save 边界前标记为尚未物化。"
+            );
             _test.True(context.SaveActiveWorldFogState(fogSystem), "Context should save active fog state into active world data.");
+            _test.False(
+                context.NeedsActiveWorldFogSave(fogSystem),
+                "fog revision 物化后重复 save 应命中 revision gate。"
+            );
+            _test.True(
+                context.SaveActiveWorldFogState(fogSystem),
+                "未变化 fog 的重复 save 应作为 no-op 成功。"
+            );
             GDictionary savedFogState = ProjectActiveFogState(context);
             _test.Eq(
                 savedFogState["version"].AsInt32(),
@@ -383,6 +396,12 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
             _test.True(
                 restoredFogSystem.IsExplored(new Vector2I(1, 1), "player"),
                 "Saved active fog state should restore explored player cells."
+            );
+
+            fogSystem.RevealDiamond(new Vector2I(3, 3), 0, "player");
+            _test.True(
+                context.NeedsActiveWorldFogSave(fogSystem),
+                "后续新增 revealed 坐标应使 materialized revision 失效。"
             );
         }
         finally
@@ -456,8 +475,21 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
                 enterResult.PlayerCoord
             );
             fogSystem.Setup(new Vector2I(4, 4));
+            context.SetWorldStep(23);
             context.SaveActiveWorldFogState(fogSystem);
+            context.SyncActiveWorldPayloadFromTypedState(rebuildLookups: false);
             GDictionary savedRootWorldData = ProjectRootWorldData(context);
+            using GDictionary savedMountedSubmaps = savedRootWorldData["mounted_submaps"]
+                .AsGodotDictionary();
+            using GDictionary savedSubmap = savedMountedSubmaps["ash_submap"]
+                .AsGodotDictionary();
+            using GDictionary savedSubmapWorldData = savedSubmap["world_data"]
+                .AsGodotDictionary();
+            _test.Eq(
+                savedSubmapWorldData["world_step"].AsInt32(),
+                23,
+                "commit materialization 应把 active submap 的非 fog typed 状态写回 root mounted entry。"
+            );
             _test.Eq(
                 serializer.GetWorldDataNestedSchemaValidationError(savedRootWorldData),
                 "",
@@ -482,6 +514,108 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
         {
             context.Dispose();
         }
+    }
+
+    private void TestSubmapRollbackRestoresRootOwnerAndFog()
+    {
+        var runtime = new GameRuntimeFacade();
+        try
+        {
+            GDictionary rootWorldData = BuildRootWorldData();
+            rootWorldData["active_submap_id"] = "ash_submap";
+            rootWorldData["submap_return_stack"] = new GArray();
+            rootWorldData["mounted_submaps"] = new GDictionary
+            {
+                ["ash_submap"] = new GDictionary
+                {
+                    ["display_name"] = "Ash Map",
+                    ["is_generated"] = true,
+                    ["player_coord"] = new Vector2I(1, 1),
+                    ["world_data"] = new GDictionary
+                    {
+                        ["world_step"] = 7,
+                        ["player_start_coord"] = new Vector2I(1, 1),
+                        ["settlements"] = new GArray(),
+                        ["world_npcs"] = new GArray(),
+                        ["encounter_anchors"] = new GArray(),
+                        ["world_events"] = new GArray(),
+                    },
+                },
+            };
+            WorldGenerationDefinition rootDefinition = BuildConfig(
+                "ash_submap",
+                TestWorldConfig
+            );
+            runtime._generation_definition = rootDefinition;
+            runtime._player_coord = new Vector2I(1, 1);
+            runtime._selected_coord = runtime._player_coord;
+            runtime._world_map_data_context.BindRootWorldData(rootWorldData);
+            runtime._world_map_data_context.SyncActiveWorldContext(
+                rootDefinition,
+                runtime._grid_system,
+                runtime._player_coord,
+                runtime._selected_coord
+            );
+            runtime._fog_system.Setup(new Vector2I(4, 4));
+
+            var transaction = new RuntimeTransaction().MarkWorldChanged();
+            RuntimeTransactionRollbackState rollbackState =
+                RuntimeTransactionRollbackState.Capture(runtime, transaction);
+
+            runtime._world_map_data_context.SetWorldStep(99);
+            runtime._fog_system.RevealDiamond(new Vector2I(3, 3), 0, "player");
+            _test.Eq(
+                CountPersistentRevealedCoords(runtime._fog_system, "player"),
+                1,
+                "submap rollback 回归前置：事务内 paid reveal 应已写入 persistent sidecar。"
+            );
+
+            transaction.Rollback(runtime, rollbackState);
+
+            _test.Eq(
+                runtime._world_map_data_context.GetActiveMapId(),
+                "ash_submap",
+                "world rollback 不得把 active submap payload 当成 root。"
+            );
+            _test.Eq(runtime.GetWorldStep(), 7, "world rollback 应恢复 submap world_step。");
+            GDictionary restoredRoot = ProjectRootWorldData(runtime._world_map_data_context);
+            using GDictionary restoredMountedSubmaps = restoredRoot["mounted_submaps"]
+                .AsGodotDictionary();
+            _test.True(
+                restoredRoot.ContainsKey("mounted_submaps")
+                    && restoredMountedSubmaps.ContainsKey("ash_submap"),
+                "world rollback 应保留 root mounted_submaps owner。"
+            );
+            _test.Eq(
+                CountPersistentRevealedCoords(runtime._fog_system, "player"),
+                0,
+                "world rollback 应从 restored persistent fog 重建，不能泄漏事务内 paid reveal。"
+            );
+        }
+        finally
+        {
+            runtime.Dispose();
+        }
+    }
+
+    private static int CountPersistentRevealedCoords(
+        WorldMapFogSystem fogSystem,
+        string factionId
+    )
+    {
+        Dictionary<string, object> persistent = fogSystem.BuildPersistentStatePlain();
+        if (
+            !persistent.TryGetValue("factions", out object factionsValue)
+            || factionsValue is not IReadOnlyDictionary<string, object> factions
+            || !factions.TryGetValue(factionId, out object factionValue)
+            || factionValue is not IReadOnlyDictionary<string, object> faction
+            || !faction.TryGetValue("revealed", out object revealedValue)
+            || revealedValue is not IReadOnlyList<object> revealed
+        )
+        {
+            return 0;
+        }
+        return revealed.Count;
     }
 
     private void TestEnsureSubmapGeneratedBuildsTypedWorldData()

@@ -10,9 +10,19 @@ using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 // Pure physical split: same class, no behavior change. See GameRuntimeFacade.cs.
 public sealed partial class GameRuntimeFacade
 {
-    private void _sync_active_world_context()
+    private void _sync_active_world_context() =>
+        _sync_active_world_context(materializeCurrentState: true);
+
+    internal void RestoreWorldContextAfterRollback()
     {
-        _save_active_fog_state_to_world_data();
+        _sync_active_world_context(materializeCurrentState: false);
+        _RefreshFog();
+    }
+
+    private void _sync_active_world_context(bool materializeCurrentState)
+    {
+        if (materializeCurrentState)
+            _materialize_active_world_state_to_root();
         WorldMapContextSyncResult syncResult = _world_map_data_context.SyncActiveWorldContext(
             _generation_definition,
             _grid_system,
@@ -36,9 +46,13 @@ public sealed partial class GameRuntimeFacade
         }
     }
 
-    private void _save_active_fog_state_to_world_data()
+    internal void MaterializeActiveWorldStateToRoot() =>
+        _materialize_active_world_state_to_root();
+
+    private void _materialize_active_world_state_to_root()
     {
         _world_map_data_context.SaveActiveWorldFogState(_fog_system);
+        _world_map_data_context.SyncActiveWorldPayloadFromTypedState(rebuildLookups: false);
     }
 
     private WorldMapEventData GetTriggerableWorldEventAt(Vector2I coord)
@@ -141,6 +155,11 @@ public sealed partial class GameRuntimeFacade
             return BuildCommandErrorResult("游戏会话不可用，无法进入子地图。");
         if (submap_id.Length == 0)
             return BuildCommandErrorResult("子地图标识不能为空。");
+        RuntimeTransaction transaction = new RuntimeTransaction()
+            .MarkWorldChanged()
+            .MarkPlayerCoordChanged();
+        RuntimeTransactionRollbackState rollbackState =
+            RuntimeTransactionRollbackState.Capture(this, transaction);
         WorldMapSubmapEnterResult enterResult = _world_map_data_context.EnterSubmap(
             submap_id,
             source_map_id,
@@ -150,28 +169,20 @@ public sealed partial class GameRuntimeFacade
             return BuildCommandErrorResult(enterResult.Message);
         _player_coord = enterResult.PlayerCoord;
         _selected_coord = _player_coord;
+        _sync_active_world_context();
+        _RefreshFog();
+        RuntimeCommitResult commitResult = CommitRuntimeTransaction(transaction, "submap_entry");
+        string targetName = enterResult.TargetDisplayName;
+        if (!commitResult.Ok)
+        {
+            transaction.Rollback(this, rollbackState);
+            _selected_coord = _player_coord;
+            UpdateStatusInternal($"进入 {targetName} 失败：世界状态持久化失败，已恢复原位置。");
+            return BuildCommandErrorResult(_current_status_message);
+        }
         _active_settlement_id = "";
         _active_settlement_feedback_text = "";
         _active_character_info_context.Clear();
-        _sync_active_world_context();
-        _RefreshFog();
-        int playerPersistError = _game_session.SetPlayerCoord(_player_coord);
-        using GodotProjectionLease<GDictionary> rootWorldDataLease =
-            _world_map_data_context.GetRootWorldDataLease();
-        int worldPersistError = _game_session.SetWorldData(rootWorldDataLease.Value);
-        int commitError = (int)Error.Ok;
-        if (playerPersistError == (int)Error.Ok && worldPersistError == (int)Error.Ok)
-            commitError = CommitRuntimeStateInternal("submap_entry");
-        string targetName = enterResult.TargetDisplayName;
-        if (
-            playerPersistError != (int)Error.Ok
-            || worldPersistError != (int)Error.Ok
-            || commitError != (int)Error.Ok
-        )
-        {
-            UpdateStatusInternal($"已进入 {targetName}，但世界状态持久化失败。");
-            return BuildCommandErrorResult(_current_status_message);
-        }
         UpdateStatusInternal($"已进入 {targetName}。{GetSubmapReturnHintText()}");
         return BuildCommandOkResult();
     }
@@ -187,35 +198,32 @@ public sealed partial class GameRuntimeFacade
             return BuildCommandErrorResult("游戏会话不可用，无法返回主地图。");
         if (!IsSubmapActive())
             return BuildCommandErrorResult("当前不在子地图中。");
+        RuntimeTransaction transaction = new RuntimeTransaction()
+            .MarkWorldChanged()
+            .MarkPlayerCoordChanged();
+        RuntimeTransactionRollbackState rollbackState =
+            RuntimeTransactionRollbackState.Capture(this, transaction);
         WorldMapSubmapReturnResult returnResult =
             _world_map_data_context.ReturnFromActiveSubmap(_player_coord);
         if (!returnResult.Ok)
             return BuildCommandErrorResult(returnResult.Message);
         _player_coord = returnResult.PlayerCoord;
         _selected_coord = _player_coord;
+        _sync_active_world_context();
+        _RefreshFog();
+        RuntimeCommitResult commitResult = CommitRuntimeTransaction(transaction, "submap_return");
+        if (!commitResult.Ok)
+        {
+            transaction.Rollback(this, rollbackState);
+            _selected_coord = _player_coord;
+            UpdateStatusInternal("返回失败：世界状态持久化失败，已恢复子地图状态。");
+            return BuildCommandErrorResult(_current_status_message);
+        }
         _active_settlement_id = "";
         _active_settlement_feedback_text = "";
         _active_character_info_context.Clear();
         _pending_submap_prompt.Clear();
         _active_modal_kind = RuntimeModalKind.None;
-        _sync_active_world_context();
-        _RefreshFog();
-        int playerPersistError = _game_session.SetPlayerCoord(_player_coord);
-        using GodotProjectionLease<GDictionary> rootWorldDataLease =
-            _world_map_data_context.GetRootWorldDataLease();
-        int worldPersistError = _game_session.SetWorldData(rootWorldDataLease.Value);
-        int commitError = (int)Error.Ok;
-        if (playerPersistError == (int)Error.Ok && worldPersistError == (int)Error.Ok)
-            commitError = CommitRuntimeStateInternal("submap_return");
-        if (
-            playerPersistError != (int)Error.Ok
-            || worldPersistError != (int)Error.Ok
-            || commitError != (int)Error.Ok
-        )
-        {
-            UpdateStatusInternal("已返回原位置，但世界状态持久化失败。");
-            return BuildCommandErrorResult(_current_status_message);
-        }
         UpdateStatusInternal($"已返回原位置 {FormatCoordInternal(_player_coord)}。");
         return BuildCommandOkResult();
     }

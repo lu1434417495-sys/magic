@@ -81,6 +81,57 @@ public sealed class SaveSerializer
             playerCoord,
             playerFactionId
         );
+        return BuildSavePayloadFromWorldStateLease(
+            activeSaveId,
+            generationConfigPath,
+            activeSaveMeta,
+            worldState,
+            partyState,
+            savedAtUnixTime,
+            "SaveSerializer.BuildSavePayloadLease"
+        );
+    }
+
+    internal GodotProjectionLease<GDictionary> BuildTrustedSavePayloadLease(
+        string activeSaveId,
+        string generationConfigPath,
+        IReadOnlyDictionary<string, object> activeSaveMeta,
+        IReadOnlyDictionary<string, object> worldData,
+        Vector2I playerCoord,
+        string playerFactionId,
+        PartyState partyState,
+        int savedAtUnixTime
+    )
+    {
+        if (worldData == null)
+            throw new ArgumentNullException(nameof(worldData));
+        Dictionary<string, object> worldState = new(StringComparer.Ordinal)
+        {
+            ["world_data"] = worldData,
+            ["player_coord"] = playerCoord,
+            ["player_faction_id"] = playerFactionId,
+        };
+        return BuildSavePayloadFromWorldStateLease(
+            activeSaveId,
+            generationConfigPath,
+            activeSaveMeta,
+            worldState,
+            partyState,
+            savedAtUnixTime,
+            "SaveSerializer.BuildTrustedSavePayloadLease"
+        );
+    }
+
+    private GodotProjectionLease<GDictionary> BuildSavePayloadFromWorldStateLease(
+        string activeSaveId,
+        string generationConfigPath,
+        IReadOnlyDictionary<string, object> activeSaveMeta,
+        Dictionary<string, object> worldState,
+        PartyState partyState,
+        int savedAtUnixTime,
+        string reason
+    )
+    {
         Dictionary<string, object> payload = new(StringComparer.Ordinal)
         {
             ["version"] = _save_version,
@@ -95,7 +146,7 @@ public sealed class SaveSerializer
             payload,
             "save-payload",
             LifetimeDomain.Request,
-            "SaveSerializer.BuildSavePayloadLease",
+            reason,
             minimizeStrings: true
         );
     }

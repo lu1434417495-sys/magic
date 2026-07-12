@@ -24,7 +24,11 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
         await TestShopBuyRollbackOnPersistFailure();
         await TestShopSellRollbackOnPersistFailure();
         await TestSettlementServiceRollbackOnPersistFailure();
+        await TestWorldOnlyServiceRollsBackQuestSideEffectsOnPersistFailure();
         await TestWarehouseSettlementServiceRollbackOnPersistFailure();
+        await TestPartyOnlyCommitStagesDelayedWorldOwner();
+        await TestRuntimeDisposeStagesCanonicalWorldWithoutPriorSessionDirty();
+        await TestPartyOnlyRollbackScopeSkipsWorldSnapshot();
         TestRuntimeTransactionRollbackStateUsesTypedSessionSnapshot();
 
         RequestTestExit(_test.Finish("Settlement persist failure rollback regression"));
@@ -38,7 +42,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
             new[]
             {
                 BuildSettlementRecord("spring_village_01", "春泉村", Vector2I.Zero, BuildShopAndStagecoachServices()),
-                BuildSettlementRecord("graystone_town_01", "灰石镇", new Vector2I(2, 1), new GArray()),
+                BuildSettlementRecord("graystone_town_01", "灰石镇", new Vector2I(7, 7), new GArray()),
             }
         );
         try
@@ -65,6 +69,10 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
 
             int goldBefore = runtime._party_state.GetGold();
             Vector2I playerCoordBefore = runtime.GetPlayerCoord();
+            _test.False(
+                runtime._fog_system.IsExplored(new Vector2I(7, 7), "player"),
+                "驿站回滚测试前置：远端目的地不应已探索。"
+            );
 
             GameRuntimeFacade.RuntimeCommandResult result =
                 handler.CommandStagecoachTravelTyped("graystone_town_01");
@@ -72,6 +80,10 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
             _test.False(result.Ok, "驿站持久化失败时命令应返回失败。");
             _test.Eq(runtime._party_state.gold, goldBefore, "驿站失败后金币应回滚。");
             _test.Eq(runtime.GetPlayerCoord(), playerCoordBefore, "驿站失败后玩家坐标应回滚。");
+            _test.False(
+                runtime._fog_system.IsExplored(new Vector2I(7, 7), "player"),
+                "驿站失败后应从 rollback persistent fog 重建，不能保留目的地视野。"
+            );
             _test.True(
                 runtime._settlement_entry_active,
                 "驿站持久化失败后应恢复 settlement entry 激活状态。"
@@ -416,6 +428,201 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
         }
     }
 
+    private async Task TestWorldOnlyServiceRollsBackQuestSideEffectsOnPersistFailure()
+    {
+        RuntimeFixture fixture = await BuildRuntimeFixture(
+            "world_only_quest_side_effect",
+            BuildPartyState(12, 200),
+            new[]
+            {
+                BuildSettlementRecord(
+                    "spring_village_01",
+                    "春泉村",
+                    Vector2I.Zero,
+                    BuildRumorServices()
+                ),
+            },
+            BuildRumorQuestDefs()
+        );
+        try
+        {
+            var rumorQuest = new QuestState { quest_id = "contract_rumor_visit" };
+            rumorQuest.MarkAccepted(fixture.Runtime.GetWorldStep());
+            fixture.Runtime._party_state.SetActiveQuestState(rumorQuest);
+            fixture.Runtime._character_management.SetPartyState(
+                fixture.Runtime._party_state
+            );
+            fixture.GameSession.fail_payload_write = true;
+
+            GameRuntimeFacade.RuntimeCommandResult result =
+                fixture.Handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:rumor",
+                    new GDictionary()
+                );
+
+            _test.False(result.Ok, "world-only rumor 持久化失败时命令应返回失败。");
+            _test.False(
+                fixture.Runtime._party_state.HasClaimableQuest("contract_rumor_visit"),
+                "world-only 服务附带的 quest side effect 必须纳入 party rollback scope。"
+            );
+        }
+        finally
+        {
+            fixture.GameSession.fail_payload_write = false;
+            await DisposeFixture(fixture);
+        }
+    }
+
+    private async Task TestPartyOnlyRollbackScopeSkipsWorldSnapshot()
+    {
+        RuntimeFixture fixture = await BuildRuntimeFixture(
+            "party_only_rollback_scope",
+            BuildPartyState(12, 100),
+            new[]
+            {
+                BuildSettlementRecord(
+                    "spring_village_01",
+                    "春泉村",
+                    Vector2I.Zero,
+                    BuildShopAndStagecoachServices()
+                ),
+            }
+        );
+        try
+        {
+            RuntimeTransactionRollbackState rollbackState =
+                RuntimeTransactionRollbackState.Capture(
+                    fixture.Runtime,
+                    new RuntimeTransaction().MarkPartyChanged()
+                );
+            _test.True(
+                rollbackState.CapturedPartyState,
+                "party-only rollback scope 应捕获 party owner。"
+            );
+            _test.False(
+                rollbackState.CapturedWorldData,
+                "party-only rollback scope 不应复制整个 world owner。"
+            );
+        }
+        finally
+        {
+            await DisposeFixture(fixture);
+        }
+    }
+
+    private async Task TestPartyOnlyCommitStagesDelayedWorldOwner()
+    {
+        RuntimeFixture fixture = await BuildRuntimeFixture(
+            "party_only_total_save",
+            BuildPartyState(12, 200),
+            new[]
+            {
+                BuildSettlementRecord(
+                    "spring_village_01",
+                    "春泉村",
+                    Vector2I.Zero,
+                    BuildShopAndStagecoachServices(),
+                    BuildSettlementState(
+                        new GArray
+                        {
+                            new GDictionary
+                            {
+                                ["item_id"] = "healing_herb",
+                                ["quantity"] = 2,
+                                ["unit_price"] = 12,
+                                ["sold_out"] = false,
+                            },
+                        }
+                    )
+                ),
+            }
+        );
+        try
+        {
+            fixture.Runtime._world_map_data_context.SetWorldStep(37);
+            fixture.Runtime._fog_system.MarkExplored(new Vector2I(7, 7), "player");
+            GameRuntimeFacade.RuntimeCommandResult openResult =
+                fixture.Handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:basic_supply",
+                    new GDictionary()
+                );
+            _test.True(openResult.Ok, "party-only total-save 回归前置：应能打开商店。");
+
+            GameRuntimeFacade.RuntimeCommandResult buyResult =
+                fixture.Handler.CommandShopBuyTyped("healing_herb", 1);
+            _test.True(buyResult.Ok, "party-only 动作应成功提交 total-save。");
+
+            using GodotProjectionLease<GDictionary> worldDataLease =
+                fixture.GameSession.GetWorldDataLease();
+            GDictionary worldData = worldDataLease.Value;
+            _test.Eq(
+                worldData["world_step"].AsInt32(),
+                37,
+                "party-only commit 前必须 staging 延迟更新的 canonical world owner。"
+            );
+            using GDictionary fogState = worldData[WorldMapFogSystem.WorldDataFogStatesKey]
+                .AsGodotDictionary();
+            var restoredFog = new WorldMapFogSystem();
+            restoredFog.Setup(new Vector2I(8, 8), fogState);
+            _test.True(
+                restoredFog.IsExplored(new Vector2I(7, 7), "player"),
+                "party-only total-save 不得丢失尚未物化的 fog revision。"
+            );
+        }
+        finally
+        {
+            await DisposeFixture(fixture);
+        }
+    }
+
+    private async Task TestRuntimeDisposeStagesCanonicalWorldWithoutPriorSessionDirty()
+    {
+        RuntimeFixture fixture = await BuildRuntimeFixture(
+            "dispose_total_save",
+            BuildPartyState(12, 100),
+            new[]
+            {
+                BuildSettlementRecord(
+                    "spring_village_01",
+                    "春泉村",
+                    Vector2I.Zero,
+                    BuildShopAndStagecoachServices()
+                ),
+            }
+        );
+        try
+        {
+            fixture.Runtime._world_map_data_context.SetWorldStep(41);
+            fixture.Runtime._fog_system.MarkExplored(new Vector2I(7, 7), "player");
+            fixture.Runtime.Dispose();
+
+            using GodotProjectionLease<GDictionary> worldDataLease =
+                fixture.GameSession.GetWorldDataLease();
+            GDictionary worldData = worldDataLease.Value;
+            _test.Eq(
+                worldData["world_step"].AsInt32(),
+                41,
+                "runtime dispose 应无条件 staging canonical world，而非只提交 session pending。"
+            );
+            using GDictionary fogState = worldData[WorldMapFogSystem.WorldDataFogStatesKey]
+                .AsGodotDictionary();
+            var restoredFog = new WorldMapFogSystem();
+            restoredFog.Setup(new Vector2I(8, 8), fogState);
+            _test.True(
+                restoredFog.IsExplored(new Vector2I(7, 7), "player"),
+                "runtime dispose 不得丢失首次视野或未物化 fog revision。"
+            );
+            _test.False(
+                fixture.GameSession.HasPendingSave(),
+                "runtime dispose 成功写盘后不应残留 pending save。"
+            );
+        }
+        finally
+        {
+            await DisposeFixture(fixture);
+        }
+    }
+
     private void TestRuntimeTransactionRollbackStateUsesTypedSessionSnapshot()
     {
         Type rollbackType = typeof(RuntimeTransactionRollbackState);
@@ -562,14 +769,14 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
             _player_coord = Vector2I.Zero,
             _selected_coord = Vector2I.Zero,
             _player_faction_id = "player",
+            _generation_definition = gameSession._generation_definition,
         };
         runtime.SetActiveSettlementId(DictString(settlements[0], "settlement_id", ""));
         runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
         runtime._world_map_data_context.BindRootWorldData(worldData);
-        var contextGrid = new WorldMapGridSystem();
         runtime._world_map_data_context.SyncActiveWorldContext(
             gameSession._generation_definition,
-            contextGrid,
+            runtime._grid_system,
             Vector2I.Zero,
             Vector2I.Zero
         );
@@ -770,6 +977,19 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
         };
     }
 
+    private static GArray BuildRumorServices() =>
+        new()
+        {
+            new GDictionary
+            {
+                ["action_id"] = "service:rumor",
+                ["facility_name"] = "酒馆",
+                ["npc_name"] = "说书人",
+                ["service_type"] = "传闻",
+                ["interaction_script_id"] = "service_village_rumor",
+            },
+        };
+
     private static IReadOnlyDictionary<StringName, QuestDefinition> BuildWarehouseQuestDefs()
     {
         var questDefinitions = new Dictionary<StringName, QuestDefinition>();
@@ -786,6 +1006,31 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
                         "warehouse_visit",
                         "settlement_action",
                         "service:warehouse",
+                        1
+                    ),
+                },
+                new QuestRewardDefinition[] { BuildGoldReward(1) }
+            )
+        );
+        return questDefinitions;
+    }
+
+    private static IReadOnlyDictionary<StringName, QuestDefinition> BuildRumorQuestDefs()
+    {
+        var questDefinitions = new Dictionary<StringName, QuestDefinition>();
+        AddQuestDefinition(
+            questDefinitions,
+            BuildQuestDefinition(
+                "contract_rumor_visit",
+                "传闻追踪",
+                "据点 world-only 服务进度回滚测试。",
+                "service_rumor_hidden",
+                new QuestObjectiveDefinition[]
+                {
+                    BuildObjective(
+                        "rumor_visit",
+                        "settlement_action",
+                        "service:rumor",
                         1
                     ),
                 },

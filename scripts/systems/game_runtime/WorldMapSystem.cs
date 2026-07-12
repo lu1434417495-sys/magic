@@ -1286,6 +1286,17 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             GameLog.Error("WorldMapSystem 未配置 application/run/main_scene，不能返回标题。", "worldmap.return_title.no_main_scene", "worldmap");
             return;
         }
+        int flushError = _runtime?.FlushCanonicalRuntimeState("runtime.return_title")
+            ?? (int)Error.Ok;
+        if (flushError != (int)Error.Ok)
+        {
+            GameLog.Error(
+                $"WorldMapSystem 返回标题前保存运行时状态失败，错误码 {flushError}。",
+                "worldmap.return_title.save_failed",
+                "worldmap"
+            );
+            return;
+        }
         Error changeError = sceneTree.ChangeSceneToFile(startupScenePath);
         if (changeError != Error.Ok)
         {

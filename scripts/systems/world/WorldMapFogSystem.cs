@@ -21,6 +21,9 @@ public sealed class WorldMapFogSystem
         new(StringComparer.Ordinal);
     private readonly Dictionary<string, HashSet<Vector2I>> _revealedByFaction =
         new(StringComparer.Ordinal);
+    private long _persistentRevision;
+
+    internal long PersistentRevision => _persistentRevision;
 
     public void Setup(Vector2I world_size_cells)
     {
@@ -35,7 +38,9 @@ public sealed class WorldMapFogSystem
         if (persistent_state != null && persistent_state.Count > 0)
         {
             LoadPersistentState(persistent_state);
+            return;
         }
+        MarkPersistentStateChanged();
     }
 
     public Vector2I GetWorldSizeCells() => _world_size_cells;
@@ -52,6 +57,7 @@ public sealed class WorldMapFogSystem
             return;
         }
 
+        bool persistentStateChanged = false;
         foreach (VisionSourceData source in sources)
         {
             if (source == null || source.faction_id != factionId)
@@ -71,18 +77,21 @@ public sealed class WorldMapFogSystem
                     Vector2I coord = center + new Vector2I(offsetX, offsetY);
                     if (IsInsideWorld(coord))
                     {
-                        factionState.MarkVisible(coord);
+                        persistentStateChanged |= factionState.MarkVisible(coord);
                     }
                 }
             }
         }
+        if (persistentStateChanged)
+            MarkPersistentStateChanged();
     }
 
     public void MarkExplored(Vector2I coord, string faction_id)
     {
         if (IsInsideWorld(coord))
         {
-            GetOrCreateState(faction_id).MarkExplored(coord);
+            if (GetOrCreateState(faction_id).MarkExplored(coord))
+                MarkPersistentStateChanged();
         }
     }
 
@@ -96,6 +105,7 @@ public sealed class WorldMapFogSystem
         int radius = Math.Max(revealRange, 0);
         WorldMapFogFactionState factionState = GetOrCreateState(factionId);
         HashSet<Vector2I> revealedState = GetRevealedState(factionId);
+        bool persistentStateChanged = false;
         for (int offsetY = -radius; offsetY <= radius; offsetY += 1)
         {
             for (int offsetX = -radius; offsetX <= radius; offsetX += 1)
@@ -109,11 +119,13 @@ public sealed class WorldMapFogSystem
                 {
                     continue;
                 }
-                factionState.MarkExplored(coord);
-                revealedState.Add(coord);
+                persistentStateChanged |= factionState.MarkExplored(coord);
+                persistentStateChanged |= revealedState.Add(coord);
                 revealedCoords.Add(coord);
             }
         }
+        if (persistentStateChanged)
+            MarkPersistentStateChanged();
         return revealedCoords;
     }
 
@@ -173,6 +185,7 @@ public sealed class WorldMapFogSystem
     {
         _statesByFaction.Clear();
         _revealedByFaction.Clear();
+        MarkPersistentStateChanged();
         if (persistent_state == null || persistent_state.Count == 0)
         {
             return true;
@@ -289,6 +302,7 @@ public sealed class WorldMapFogSystem
         }
         state = new WorldMapFogFactionState();
         _statesByFaction[normalized] = state;
+        MarkPersistentStateChanged();
         return state;
     }
 
@@ -301,7 +315,16 @@ public sealed class WorldMapFogSystem
         }
         state = new HashSet<Vector2I>();
         _revealedByFaction[normalized] = state;
+        MarkPersistentStateChanged();
         return state;
+    }
+
+    private void MarkPersistentStateChanged()
+    {
+        unchecked
+        {
+            _persistentRevision += 1;
+        }
     }
 
     private List<string> CollectFactionIds()

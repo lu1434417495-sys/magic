@@ -1685,9 +1685,8 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     // deferring the per-move SetWorldData never persists stale world state.
     private int _flush_game_state_with_world_sync()
     {
-        using GodotProjectionLease<GDictionary> rootWorldDataLease =
-            _world_map_data_context.GetRootWorldDataLease();
-        _game_session.SetWorldData(rootWorldDataLease.Value);
+        _materialize_active_world_state_to_root();
+        _game_session.SetWorldData(_world_map_data_context.RootRuntimeData);
         return _game_session.FlushGameState();
     }
 
@@ -1777,7 +1776,6 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             faction_id = _player_faction_id,
         };
         _fog_system.RebuildVisibilityForFaction(_player_faction_id, new[] { visionSource });
-        _save_active_fog_state_to_world_data();
     }
 
     private void _on_world_map_cell_clicked(Vector2I coord)
@@ -1935,9 +1933,10 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         int worldPersistError = (int)Error.Unavailable;
         if (_game_session != null)
         {
-            using GodotProjectionLease<GDictionary> rootWorldDataLease =
-                _world_map_data_context.GetRootWorldDataLease();
-            worldPersistError = _game_session.SetWorldData(rootWorldDataLease.Value);
+            _materialize_active_world_state_to_root();
+            worldPersistError = _game_session.SetWorldData(
+                _world_map_data_context.RootRuntimeData
+            );
         }
         int partyPersistError = PersistPartyStateInternal();
         int commitError = (int)Error.Ok;
@@ -2389,7 +2388,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             () => _party_state,
             () =>
             {
-                _save_active_fog_state_to_world_data();
+                _materialize_active_world_state_to_root();
                 return _world_map_data_context.RootRuntimeData;
             },
             () => _player_coord
@@ -2400,15 +2399,32 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             ? _game_session.CommitRuntimeState(reason)
             : (int)Error.Unavailable;
 
+    internal int FlushCanonicalRuntimeState(StringName reason)
+    {
+        if (_game_session == null || !_game_session.HasActiveWorld())
+            return (int)Error.Ok;
+        if (_game_session.IsBattleSaveLocked())
+            return (int)Error.Busy;
+
+        RuntimeCommitResult result = new RuntimeTransaction()
+            .MarkPartyChanged()
+            .MarkWorldChanged()
+            .MarkPlayerCoordChanged()
+            .Commit(
+                _game_session,
+                BuildRuntimeStateSource(),
+                reason == "" ? new StringName("runtime.flush_canonical") : reason
+            );
+        return result.FirstError();
+    }
+
     private void CommitPendingRuntimeStateOnDispose()
     {
         if (_game_session == null)
             return;
-        if (!_game_session.HasPendingSave())
-            return;
         if (_game_session.IsBattleSaveLocked())
             return;
-        int commitError = CommitRuntimeStateInternal("runtime.dispose");
+        int commitError = FlushCanonicalRuntimeState("runtime.dispose");
         if (commitError == (int)Error.Ok)
             return;
         _log_runtime_event(

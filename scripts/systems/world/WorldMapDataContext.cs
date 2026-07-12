@@ -9,11 +9,15 @@ public sealed class WorldMapDataContext
     private WorldRuntimeData _rootRuntimeData = WorldRuntimeData.Empty();
     private WorldRuntimeData _activeRuntimeData = WorldRuntimeData.Empty();
     private bool _activeWorldUsesRoot = true;
+    private WorldMapFogSystem _materializedFogOwner;
+    private string _materializedFogMapId = "";
+    private long _materializedFogRevision = -1;
 
     internal void SetActiveWorldData(GDictionary value)
     {
         UseSeparateActiveWorldData();
         ReplaceActiveWorldDataPayload(value);
+        InvalidateFogMaterialization();
     }
     public string active_map_id = "";
     public string active_map_display_name = "";
@@ -39,6 +43,15 @@ public sealed class WorldMapDataContext
         _rootRuntimeData = WorldRuntimeData.FromDictionary(worldData) ?? WorldRuntimeData.Empty();
         _activeRuntimeData = _rootRuntimeData;
         UseRootWorldDataAsActive();
+        InvalidateFogMaterialization();
+    }
+
+    internal void BindRootWorldData(WorldRuntimeData worldData)
+    {
+        _rootRuntimeData = worldData?.DuplicateState() ?? WorldRuntimeData.Empty();
+        _activeRuntimeData = _rootRuntimeData;
+        UseRootWorldDataAsActive();
+        InvalidateFogMaterialization();
     }
 
     public void Reset()
@@ -59,6 +72,7 @@ public sealed class WorldMapDataContext
         _settlementsById.Clear();
         _encounterAnchorByCoord.Clear();
         _resourceNodeByCoord.Clear();
+        InvalidateFogMaterialization();
     }
 
     public void Dispose() => Reset();
@@ -114,6 +128,8 @@ public sealed class WorldMapDataContext
     {
         if (active_generation_definition == null || fogSystem == null || _activeRuntimeData == null)
             return false;
+        if (!NeedsActiveWorldFogSave(fogSystem))
+            return true;
         Dictionary<string, object> fogStates = fogSystem.BuildPersistentStatePlain();
         // Write fog directly into the typed active world data — no whole-world
         // ToDictionary/FromDictionary round-trip. On the root map _activeRuntimeData
@@ -146,7 +162,31 @@ public sealed class WorldMapDataContext
                 SetMountedSubmapEntry(active_map_id, submapEntry);
             }
         }
+        _materializedFogOwner = fogSystem;
+        _materializedFogMapId = active_map_id ?? "";
+        _materializedFogRevision = fogSystem.PersistentRevision;
         return true;
+    }
+
+    internal bool NeedsActiveWorldFogSave(WorldMapFogSystem fogSystem)
+    {
+        return fogSystem != null
+            && (
+                !ReferenceEquals(_materializedFogOwner, fogSystem)
+                || !string.Equals(
+                    _materializedFogMapId,
+                    active_map_id ?? "",
+                    StringComparison.Ordinal
+                )
+                || _materializedFogRevision != fogSystem.PersistentRevision
+            );
+    }
+
+    private void InvalidateFogMaterialization()
+    {
+        _materializedFogOwner = null;
+        _materializedFogMapId = "";
+        _materializedFogRevision = -1;
     }
 
     internal Vector2I GetActiveWorldSizeCells() =>

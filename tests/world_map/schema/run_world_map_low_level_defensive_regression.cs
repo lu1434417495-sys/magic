@@ -20,6 +20,7 @@ public partial class run_world_map_low_level_defensive_regression : LifecycleTes
         TestWorldPresetHelpersNoLongerRequireGodotRegistration();
         TestGridFootprintStateUsesPublicBehavior();
         TestVisibilityRebuildIgnoresForeignFactionSources();
+        TestFogPersistentRevisionOnlyTracksPersistentChanges();
         TestFogRevealExportLoadKeepsRevealedCells();
 
         return _test.Finish("World map low-level defensive regression");
@@ -144,6 +145,41 @@ public partial class run_world_map_low_level_defensive_regression : LifecycleTes
         _test.True(
             restoredFogSystem.IsExplored(new Vector2I(3, 3), "player"),
             "后续可见性刷新不应清除已持久化的 paid reveal。"
+        );
+    }
+
+    private void TestFogPersistentRevisionOnlyTracksPersistentChanges()
+    {
+        var fogSystem = new WorldMapFogSystem();
+        fogSystem.Setup(new Vector2I(8, 8));
+        long setupRevision = fogSystem.PersistentRevision;
+        var source = new VisionSourceData("scout", new Vector2I(2, 2), 1, "player");
+
+        fogSystem.RebuildVisibilityForFaction("player", new[] { source });
+        long exploredRevision = fogSystem.PersistentRevision;
+        _test.True(
+            exploredRevision > setupRevision,
+            "首次视野刷新写入 explored 坐标时应推进 fog persistent revision。"
+        );
+
+        fogSystem.RebuildVisibilityForFaction("player", new[] { source });
+        _test.Eq(
+            fogSystem.PersistentRevision,
+            exploredRevision,
+            "仅重建相同 visible 集合且没有新增 explored 时不应推进 persistent revision。"
+        );
+
+        fogSystem.RevealDiamond(new Vector2I(5, 5), 1, "player");
+        long revealRevision = fogSystem.PersistentRevision;
+        _test.True(
+            revealRevision > exploredRevision,
+            "新增 paid reveal 坐标时应推进 fog persistent revision。"
+        );
+        fogSystem.RevealDiamond(new Vector2I(5, 5), 1, "player");
+        _test.Eq(
+            fogSystem.PersistentRevision,
+            revealRevision,
+            "重复揭示同一区域不应制造虚假的 persistent revision。"
         );
     }
 
