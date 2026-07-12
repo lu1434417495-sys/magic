@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using Godot;
-using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : LifecycleTestSceneTree
 {
@@ -216,19 +215,22 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : L
             }
         );
 
-        UseUnitSkillAction action = new()
-        {
-            action_id = "entry_unit_action",
-            score_bucket_id = "test",
-            target_selector = "nearest_enemy",
-            desired_min_distance = 0,
-            desired_max_distance = 4,
-            distance_reference = "target_unit",
-        };
-        action.skill_ids.Add(skillId);
+        UseUnitSkillActionDefinition action = new(
+            "entry_unit_action",
+            "test",
+            BattleAiActionIntent.Positioning,
+            new[] { skillId },
+            "nearest_enemy",
+            1,
+            0,
+            false,
+            0,
+            4,
+            EnemyAiDistanceReferences.ToStringName(EnemyAiDistanceReference.TargetUnit)
+        );
 
         BattleAiDecision decision = new BattleAiUnitSkillCandidateEvaluator().Evaluate(
-            (UseUnitSkillActionDefinition)action.ToDefinition(),
+            action,
             context
         );
         BattleCommand command = decision?.command;
@@ -277,19 +279,22 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : L
             }
         );
 
-        UseUnitSkillAction action = new()
-        {
-            action_id = "preview_range_action",
-            score_bucket_id = "test",
-            target_selector = "nearest_enemy",
-            desired_min_distance = 0,
-            desired_max_distance = 1,
-            distance_reference = "target_unit",
-        };
-        action.skill_ids.Add(skillId);
+        UseUnitSkillActionDefinition action = new(
+            "preview_range_action",
+            "test",
+            BattleAiActionIntent.Positioning,
+            new[] { skillId },
+            "nearest_enemy",
+            1,
+            0,
+            false,
+            0,
+            1,
+            EnemyAiDistanceReferences.ToStringName(EnemyAiDistanceReference.TargetUnit)
+        );
 
         BattleAiDecision decision = new BattleAiUnitSkillCandidateEvaluator().Evaluate(
-            (UseUnitSkillActionDefinition)action.ToDefinition(),
+            action,
             context
         );
         _test.True(decision == null, "超出 fast preview 射程时不应生成 unit-skill 决策。");
