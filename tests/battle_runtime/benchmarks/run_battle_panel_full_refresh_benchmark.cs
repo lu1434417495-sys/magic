@@ -78,6 +78,7 @@ public partial class run_battle_panel_full_refresh_benchmark : LifecycleTestScen
             validTargetCoords,
             false
         );
+        GDictionary unitDelta = await RunUnitDeltaPass(panel, state);
 
         panel.QueueFree();
         await ProcessFrames(1);
@@ -90,8 +91,68 @@ public partial class run_battle_panel_full_refresh_benchmark : LifecycleTestScen
 
         GD.Print(FormatResult(fullRefresh));
         GD.Print(FormatResult(overlayOnly));
-        GD.Print(FormatComparison(fullRefresh, overlayOnly));
+        GD.Print(FormatResult(unitDelta));
+        GD.Print(FormatComparison(fullRefresh, overlayOnly, unitDelta));
         RequestTestExit(_test.Finish("Battle panel full refresh benchmark"));
+    }
+
+    private async Task<GDictionary> RunUnitDeltaPass(
+        BattleMapPanel panel,
+        BattleState state
+    )
+    {
+        const string passId = "unit_delta";
+        var unitIds = new List<StringName>();
+        foreach (StringName unitId in state.ally_unit_ids)
+            unitIds.Add(unitId);
+        foreach (StringName unitId in state.enemy_unit_ids)
+            unitIds.Add(unitId);
+        if (unitIds.Count == 0)
+        {
+            _test.Fail("BattlePanelRefreshBenchmark unit delta pass has no units.");
+            return EmptyResult(passId, false, 0, 0);
+        }
+
+        ulong callUsec = 0;
+        ulong frameUsec = 0;
+        for (int iteration = 0; iteration < Iterations; iteration++)
+        {
+            StringName unitId = unitIds[iteration % unitIds.Count];
+            BattleUnitState unit = state.GetUnit(unitId);
+            if (unit == null)
+            {
+                _test.Fail($"BattlePanelRefreshBenchmark unit delta missing {unitId}.");
+                break;
+            }
+            unit.SetCurrentHp(System.Math.Max(unit.current_hp - 1, 1));
+
+            ulong callStart = Time.GetTicksUsec();
+            panel.RefreshUnits(state, new[] { unitId });
+            callUsec += Time.GetTicksUsec() - callStart;
+
+            ulong frameStart = Time.GetTicksUsec();
+            bool ready = await WaitForPanelRenderReady(panel);
+            frameUsec += Time.GetTicksUsec() - frameStart;
+            if (!ready)
+            {
+                _test.Fail(
+                    $"BattlePanelRefreshBenchmark pass {passId} iteration {iteration} did not regain render-ready state."
+                );
+                break;
+            }
+        }
+
+        return new GDictionary
+        {
+            ["pass_id"] = passId,
+            ["iterations"] = Iterations,
+            ["redraw_board"] = false,
+            ["call_usec"] = (long)callUsec,
+            ["frame_usec"] = (long)frameUsec,
+            ["total_usec"] = (long)(callUsec + frameUsec),
+            ["valid_coord_count"] = 0,
+            ["selected_cycle_count"] = unitIds.Count,
+        };
     }
 
     private async Task<GDictionary> RunPanelPass(
@@ -394,7 +455,11 @@ public partial class run_battle_panel_full_refresh_benchmark : LifecycleTestScen
             + $"valid_coords={DictInt(result, "valid_coord_count")} selected_cycle={DictInt(result, "selected_cycle_count")}";
     }
 
-    private static string FormatComparison(GDictionary fullRefresh, GDictionary overlayOnly)
+    private static string FormatComparison(
+        GDictionary fullRefresh,
+        GDictionary overlayOnly,
+        GDictionary unitDelta
+    )
     {
         long redrawDeltaUsec = System.Math.Max(
             DictLong(fullRefresh, "total_usec") - DictLong(overlayOnly, "total_usec"),
@@ -404,7 +469,8 @@ public partial class run_battle_panel_full_refresh_benchmark : LifecycleTestScen
         return $"[BattlePanelRefreshBenchmark] comparison redraw_delta_ms={UsecToMsec(redrawDeltaUsec):F3} "
             + $"redraw_delta_ms_per_refresh={UsecToMsec(redrawDeltaUsec) / iterations:F3} "
             + $"full_refresh_ms_per_iter={UsecToMsec(DictLong(fullRefresh, "total_usec")) / iterations:F3} "
-            + $"overlay_ms_per_iter={UsecToMsec(DictLong(overlayOnly, "total_usec")) / iterations:F3}";
+            + $"overlay_ms_per_iter={UsecToMsec(DictLong(overlayOnly, "total_usec")) / iterations:F3} "
+            + $"unit_delta_ms_per_iter={UsecToMsec(DictLong(unitDelta, "total_usec")) / iterations:F3}";
     }
 
     private async Task ProcessFrames(int count)

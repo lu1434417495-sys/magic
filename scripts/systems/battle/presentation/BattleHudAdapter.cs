@@ -1773,7 +1773,7 @@ public sealed class BattleHudAdapter : IDisposable
     // Tail of the battle log, same source as RuntimeLogDock's battle view
     // (battle_state.log_entries), trimmed to the most recent N non-empty lines for
     // the in-panel LogLabel. Oldest-first so the panel can append top-to-bottom.
-    private static IReadOnlyList<string> BuildRecentBattleLogLines(BattleState battleState)
+    internal static IReadOnlyList<string> BuildRecentBattleLogLines(BattleState battleState)
     {
         var lines = new List<string>();
         StringList logEntries = battleState?.log_entries;

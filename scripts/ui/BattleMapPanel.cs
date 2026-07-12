@@ -170,6 +170,11 @@ public partial class BattleMapPanel : Control
     private StringName _hover_preview_selected_skill_id = "";
     private StringName _hover_preview_selected_skill_variant_id = "";
     private BattleState _hover_preview_battle_state;
+    private BattlePreview _selected_skill_preview_cache;
+    private StringName _selected_skill_preview_cache_battle_id = "";
+    private Vector2I _selected_skill_preview_cache_coord = InvalidHoverCoord;
+    private StringName _selected_skill_preview_cache_skill_id = "";
+    private StringName _selected_skill_preview_cache_variant_id = "";
 
     public static Vector2I INVALID_HOVER_COORD() => InvalidHoverCoord;
 
@@ -248,6 +253,7 @@ public partial class BattleMapPanel : Control
         _runtime_proxy = null;
         _hud_adapter.SetupRuntimeContext(null, null);
         _hud_adapter.Dispose();
+        ClearSelectedSkillPreviewCache();
         ClearSkillIconPresentationBindings();
         _skill_icon_cache.Clear();
         _battleEquipmentBackpackEntriesByIndex.Clear();
@@ -428,6 +434,98 @@ public partial class BattleMapPanel : Control
         );
     }
 
+    internal void RefreshOverlayWithPreview(
+        BattleState battle_state,
+        Vector2I selected_coord,
+        StringName selected_skill_id,
+        string selected_skill_name,
+        string selected_skill_variant_name,
+        IEnumerable<Vector2I> selected_skill_target_coords,
+        IEnumerable<Vector2I> selected_skill_valid_target_coords,
+        int selected_skill_required_coord_count,
+        IEnumerable<StringName> selected_skill_target_unit_ids,
+        StringName selected_skill_variant_id,
+        BattlePreview selected_skill_preview
+    )
+    {
+        _refresh_internal(
+            battle_state,
+            selected_coord,
+            selected_skill_id,
+            selected_skill_name,
+            selected_skill_variant_name,
+            selected_skill_target_coords,
+            selected_skill_valid_target_coords,
+            selected_skill_required_coord_count,
+            selected_skill_target_unit_ids,
+            selected_skill_variant_id,
+            false,
+            selected_skill_preview,
+            true
+        );
+    }
+
+    internal bool RefreshOverlayWithCachedPreview(
+        BattleState battle_state,
+        Vector2I selected_coord,
+        StringName selected_skill_id,
+        string selected_skill_name,
+        string selected_skill_variant_name,
+        IEnumerable<Vector2I> selected_skill_target_coords,
+        IEnumerable<Vector2I> selected_skill_valid_target_coords,
+        int selected_skill_required_coord_count,
+        IEnumerable<StringName> selected_skill_target_unit_ids,
+        StringName selected_skill_variant_id
+    )
+    {
+        if (
+            !HasCachedSelectedSkillPreview(
+                battle_state,
+                selected_coord,
+                selected_skill_id,
+                selected_skill_variant_id
+            )
+        )
+        {
+            return false;
+        }
+        RefreshOverlayWithPreview(
+            battle_state,
+            selected_coord,
+            selected_skill_id,
+            selected_skill_name,
+            selected_skill_variant_name,
+            selected_skill_target_coords,
+            selected_skill_valid_target_coords,
+            selected_skill_required_coord_count,
+            selected_skill_target_unit_ids,
+            selected_skill_variant_id,
+            _selected_skill_preview_cache
+        );
+        return true;
+    }
+
+    public void RefreshUnits(
+        BattleState battle_state,
+        IEnumerable<StringName> changed_unit_ids
+    )
+    {
+        if (_battle_board == null || battle_state == null || changed_unit_ids == null)
+            return;
+        _battle_board.RefreshUnits(battle_state, changed_unit_ids);
+        _request_map_viewport_update();
+    }
+
+    public void RefreshLogs(BattleState battle_state)
+    {
+        if (log_label == null)
+            return;
+        log_label.Text = BuildRecentLogText(battle_state);
+    }
+
+    internal static string BuildRecentLogText(BattleState battleState) =>
+        string.Join("\n", BattleHudAdapter.BuildRecentBattleLogLines(battleState));
+
     public void Refresh(
         BattleState battle_state,
         Vector2I selected_coord,
@@ -467,7 +565,9 @@ public partial class BattleMapPanel : Control
         int selected_skill_required_coord_count,
         IEnumerable<StringName> selected_skill_target_unit_ids,
         StringName selected_skill_variant_id,
-        bool redraw_board
+        bool redraw_board,
+        BattlePreview selected_skill_preview_override = null,
+        bool use_selected_skill_preview_override = false
     )
     {
         if (battle_state == null)
@@ -481,9 +581,21 @@ public partial class BattleMapPanel : Control
         List<StringName> targetUnitIds = CloneStringNameList(selected_skill_target_unit_ids);
         selected_skill_id = NormalizeStringName(selected_skill_id);
         selected_skill_variant_id = NormalizeStringName(selected_skill_variant_id);
-        BattlePreview selectedSkillPreview = !StringNameIsEmpty(selected_skill_id)
-            ? _runtime_proxy?.PreviewSelectedBattleSkillAtCoord(selected_coord)
-            : null;
+        BattlePreview selectedSkillPreview = use_selected_skill_preview_override
+            ? selected_skill_preview_override
+            : !StringNameIsEmpty(selected_skill_id)
+                ? _runtime_proxy?.PreviewSelectedBattleSkillAtCoord(selected_coord)
+                : null;
+        if (!use_selected_skill_preview_override)
+        {
+            CacheSelectedSkillPreview(
+                battle_state,
+                selected_coord,
+                selected_skill_id,
+                selected_skill_variant_id,
+                selectedSkillPreview
+            );
+        }
 
         BattleHudSnapshot snapshot = _hud_adapter.BuildSnapshot(
             battle_state,
@@ -577,6 +689,7 @@ public partial class BattleMapPanel : Control
         _has_pending_show_battle_payload = false;
         _close_battle_equipment_panel();
         ClearHoverPreview();
+        ClearSelectedSkillPreviewCache();
         _set_placeholder_state();
         Visible = false;
         _battle_board?.ClearBoard();
@@ -710,7 +823,7 @@ public partial class BattleMapPanel : Control
     public void _on_battle_board_cell_hovered(Vector2I coord) =>
         EmitSignal(SignalName.battle_cell_hovered, coord);
 
-    public void UpdateHoverPreview(
+    public BattlePreview UpdateHoverPreview(
         BattleState battle_state,
         Vector2I hover_coord,
         IEnumerable<Vector2I> valid_target_coords,
@@ -719,12 +832,12 @@ public partial class BattleMapPanel : Control
     )
     {
         if (hover_overlay == null)
-            return;
+            return null;
         if (battle_state == null || hover_coord == InvalidHoverCoord)
         {
             _clear_hover_preview_state();
             hover_overlay.Clear();
-            return;
+            return null;
         }
         List<Vector2I> validTargetCoords = CloneVector2IList(valid_target_coords);
         _hover_preview_battle_state = battle_state;
@@ -746,8 +859,9 @@ public partial class BattleMapPanel : Control
         );
         hover_overlay.ApplyPreview(preview);
         if (!hover_overlay.Visible)
-            return;
+            return hoverPreview;
         _position_hover_overlay(hover_coord);
+        return hoverPreview;
     }
 
     public void ClearHoverPreview()
@@ -763,6 +877,50 @@ public partial class BattleMapPanel : Control
         _hover_preview_valid_coords.Clear();
         _hover_preview_selected_skill_id = "";
         _hover_preview_selected_skill_variant_id = "";
+    }
+
+    private void CacheSelectedSkillPreview(
+        BattleState battleState,
+        Vector2I selectedCoord,
+        StringName selectedSkillId,
+        StringName selectedSkillVariantId,
+        BattlePreview preview
+    )
+    {
+        if (battleState == null || StringNameIsEmpty(selectedSkillId))
+        {
+            ClearSelectedSkillPreviewCache();
+            return;
+        }
+        _selected_skill_preview_cache = preview;
+        _selected_skill_preview_cache_battle_id = battleState.battle_id;
+        _selected_skill_preview_cache_coord = selectedCoord;
+        _selected_skill_preview_cache_skill_id = NormalizeStringName(selectedSkillId);
+        _selected_skill_preview_cache_variant_id = NormalizeStringName(selectedSkillVariantId);
+    }
+
+    private bool HasCachedSelectedSkillPreview(
+        BattleState battleState,
+        Vector2I selectedCoord,
+        StringName selectedSkillId,
+        StringName selectedSkillVariantId
+    )
+    {
+        return battleState != null
+            && _selected_skill_preview_cache_battle_id == battleState.battle_id
+            && _selected_skill_preview_cache_coord == selectedCoord
+            && _selected_skill_preview_cache_skill_id == NormalizeStringName(selectedSkillId)
+            && _selected_skill_preview_cache_variant_id
+                == NormalizeStringName(selectedSkillVariantId);
+    }
+
+    private void ClearSelectedSkillPreviewCache()
+    {
+        _selected_skill_preview_cache = null;
+        _selected_skill_preview_cache_battle_id = "";
+        _selected_skill_preview_cache_coord = InvalidHoverCoord;
+        _selected_skill_preview_cache_skill_id = "";
+        _selected_skill_preview_cache_variant_id = "";
     }
 
     public override void _Process(double delta)

@@ -148,6 +148,19 @@ public partial class BattleBoard2D : Node2D
         _apply_pending_marker_update();
     }
 
+    public void RefreshUnits(
+        BattleState battle_state,
+        IEnumerable<StringName> changed_unit_ids
+    )
+    {
+        _pending_battle_state = battle_state;
+        if (!_is_bound)
+            _bind_controller();
+        if (!_is_bound)
+            return;
+        _controller.RefreshUnits(battle_state, changed_unit_ids);
+    }
+
     public void SetViewportSize(Vector2 viewport_size)
     {
         _viewport_size = viewport_size;

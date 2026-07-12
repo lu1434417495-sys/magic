@@ -155,7 +155,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             _runtime_proxy.IsPlayerVisibleOnWorldMap(),
             _runtime_proxy.GetPlayerFactionId()
         );
-        RenderFromRuntime(true, new GDictionary());
+        RenderFromRuntime(true);
     }
 
     public override void _ExitTree() => CloseRuntimeOwner();
@@ -268,15 +268,32 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
 
     public void RenderFromRuntime()
     {
-        RenderFromRuntime(true, new GDictionary());
+        RenderFromRuntimeCore(true, null, null);
     }
 
     public void RenderFromRuntime(bool refresh_world)
     {
-        RenderFromRuntime(refresh_world, new GDictionary());
+        RenderFromRuntimeCore(refresh_world, null, null);
     }
 
     public void RenderFromRuntime(bool refresh_world, GDictionary command_result)
+    {
+        RenderFromRuntimeCore(refresh_world, command_result, null);
+    }
+
+    internal void RenderFromRuntime(
+        bool refresh_world,
+        BattlePresentationDelta battle_presentation_delta
+    )
+    {
+        RenderFromRuntimeCore(refresh_world, null, battle_presentation_delta);
+    }
+
+    private void RenderFromRuntimeCore(
+        bool refresh_world,
+        GDictionary command_result,
+        BattlePresentationDelta battle_presentation_delta
+    )
     {
         if (_runtime == null)
             return;
@@ -306,56 +323,100 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             world_map_view.Visible = false;
             if (submap_hint_panel != null)
                 submap_hint_panel.Visible = false;
-            string refreshMode = DictString(command_result, "battle_refresh_mode", "full");
+            bool battlePanelWasVisible = battle_map_panel.Visible;
             BattleState battleState = _runtime_proxy.GetBattleState();
-            Vector2I selectedCoord = _runtime_proxy.GetBattleSelectedCoord();
-            StringName selectedSkillId = _runtime_proxy.GetSelectedBattleSkillId();
-            string selectedSkillName = _runtime_proxy.GetSelectedBattleSkillName();
-            string selectedSkillVariantName = _runtime_proxy.GetSelectedBattleSkillVariantName();
-            StringName selectedSkillVariantId = _runtime_proxy.GetSelectedBattleSkillVariantId();
-            IReadOnlyList<Vector2I> selectedTargetCoords =
-                _runtime_proxy.GetSelectedBattleSkillTargetCoords();
-            IReadOnlyList<StringName> selectedTargetUnitIds =
-                _runtime_proxy.GetSelectedBattleSkillTargetUnitIds();
-            IReadOnlyList<Vector2I> validTargetCoords =
-                _runtime_proxy.GetBattleOverlayTargetCoords();
-            int requiredCoordCount = _runtime_proxy.GetSelectedBattleSkillRequiredCoordCount();
-
-            if (battle_map_panel.Visible && refreshMode == "overlay")
+            bool skipBattlePanelRefresh =
+                battle_map_panel.Visible
+                && battle_presentation_delta != null
+                && !battle_presentation_delta.RequiresPanelRefresh;
+            if (skipBattlePanelRefresh)
             {
-                battle_map_panel.RefreshOverlay(
-                    battleState,
-                    selectedCoord,
-                    selectedSkillId,
-                    selectedSkillName,
-                    selectedSkillVariantName,
-                    selectedTargetCoords,
-                    validTargetCoords,
-                    requiredCoordCount,
-                    selectedTargetUnitIds,
-                    selectedSkillVariantId
-                );
+                if (
+                    (
+                        battle_presentation_delta.DirtyFlags
+                        & BattlePresentationDirtyFlags.Log
+                    ) != 0
+                )
+                {
+                    // Keep the compact command-dock log current without touching board/HUD state.
+                    battle_map_panel.RefreshLogs(battleState);
+                }
             }
             else
             {
-                battle_map_panel.ShowBattle(
-                    battleState,
-                    selectedCoord,
-                    selectedSkillId,
-                    selectedSkillName,
-                    selectedSkillVariantName,
-                    selectedTargetCoords,
-                    validTargetCoords,
-                    requiredCoordCount,
-                    selectedTargetUnitIds,
-                    selectedSkillVariantId
-                );
+                string refreshMode = DictString(command_result, "battle_refresh_mode", "full");
+                Vector2I selectedCoord = _runtime_proxy.GetBattleSelectedCoord();
+                StringName selectedSkillId = _runtime_proxy.GetSelectedBattleSkillId();
+                string selectedSkillName = _runtime_proxy.GetSelectedBattleSkillName();
+                string selectedSkillVariantName =
+                    _runtime_proxy.GetSelectedBattleSkillVariantName();
+                StringName selectedSkillVariantId =
+                    _runtime_proxy.GetSelectedBattleSkillVariantId();
+                IReadOnlyList<Vector2I> selectedTargetCoords =
+                    _runtime_proxy.GetSelectedBattleSkillTargetCoords();
+                IReadOnlyList<StringName> selectedTargetUnitIds =
+                    _runtime_proxy.GetSelectedBattleSkillTargetUnitIds();
+                IReadOnlyList<Vector2I> validTargetCoords =
+                    _runtime_proxy.GetBattleOverlayTargetCoords();
+                int requiredCoordCount =
+                    _runtime_proxy.GetSelectedBattleSkillRequiredCoordCount();
+                bool useTypedOverlayRefresh =
+                    battle_map_panel.Visible
+                    && battle_presentation_delta?.RequiresPanelRefresh == true
+                    && !battle_presentation_delta.RequiresFullBoardRefresh;
+                if (
+                    useTypedOverlayRefresh
+                    || (battle_map_panel.Visible && refreshMode == "overlay")
+                )
+                {
+                    battle_map_panel.RefreshOverlay(
+                        battleState,
+                        selectedCoord,
+                        selectedSkillId,
+                        selectedSkillName,
+                        selectedSkillVariantName,
+                        selectedTargetCoords,
+                        validTargetCoords,
+                        requiredCoordCount,
+                        selectedTargetUnitIds,
+                        selectedSkillVariantId
+                    );
+                    if (
+                        battle_presentation_delta != null
+                        && (
+                            battle_presentation_delta.DirtyFlags
+                            & BattlePresentationDirtyFlags.Units
+                        ) != 0
+                    )
+                    {
+                        battle_map_panel.RefreshUnits(
+                            battleState,
+                            battle_presentation_delta.ChangedUnitIds
+                        );
+                    }
+                }
+                else
+                {
+                    battle_map_panel.ShowBattle(
+                        battleState,
+                        selectedCoord,
+                        selectedSkillId,
+                        selectedSkillName,
+                        selectedSkillVariantName,
+                        selectedTargetCoords,
+                        validTargetCoords,
+                        requiredCoordCount,
+                        selectedTargetUnitIds,
+                        selectedSkillVariantId
+                    );
+                }
             }
             _set_battle_loading_overlay(
                 battle_map_panel.IsLoadingBattle(),
                 battle_map_panel.GetLoadingProgress()
             );
-            runtime_log_dock?.ShowBattleLogs(battleState);
+            if (ShouldRefreshBattleLogDock(battlePanelWasVisible, battle_presentation_delta))
+                runtime_log_dock?.ShowBattleLogs(battleState);
         }
         else
         {
@@ -385,6 +446,17 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         RenderWindows(modalId);
     }
 
+    internal static bool ShouldRefreshBattleLogDock(
+        bool battlePanelWasVisible,
+        BattlePresentationDelta battlePresentationDelta
+    ) =>
+        !battlePanelWasVisible
+        || battlePresentationDelta == null
+        || (
+            battlePresentationDelta.DirtyFlags
+            & (BattlePresentationDirtyFlags.Log | BattlePresentationDirtyFlags.FullBoard)
+        ) != 0;
+
     public override void _Process(double delta)
     {
         if (_runtime == null)
@@ -392,14 +464,17 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         bool changed = _runtime_proxy.Advance((float)delta);
         if (changed)
         {
-            var renderResult = new GDictionary();
             if (_runtime_proxy.IsBattleActive())
             {
-                string battleRefreshMode = _runtime_proxy.GetLastAdvanceBattleRefreshMode();
-                if (!string.IsNullOrEmpty(battleRefreshMode))
-                    renderResult["battle_refresh_mode"] = battleRefreshMode;
+                RenderFromRuntime(
+                    true,
+                    _runtime_proxy.GetLastAdvanceBattlePresentationDelta()
+                );
             }
-            RenderFromRuntime(true, renderResult);
+            else
+            {
+                RenderFromRuntime(true);
+            }
         }
         if (_runtime_proxy.IsBattleActive() || _runtime_proxy.IsModalWindowOpen())
         {
@@ -707,7 +782,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             _runtime_proxy.GetBattleOverlayTargetCoords();
         StringName selectedSkillVariantId = _runtime_proxy.GetSelectedBattleSkillVariantId();
         BattleState battleState = _runtime_proxy.GetBattleState();
-        battle_map_panel.UpdateHoverPreview(
+        BattlePreview hoverPreview = battle_map_panel.UpdateHoverPreview(
             battleState,
             coord,
             validTargetCoords,
@@ -716,21 +791,57 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         );
         if (selectedSkillId == "")
             return;
-        Vector2I selectedCoord = validTargetCoords.Contains(coord)
-            ? coord
-            : _runtime_proxy.GetBattleSelectedCoord();
-        battle_map_panel.RefreshOverlay(
+        string selectedSkillName = _runtime_proxy.GetSelectedBattleSkillName();
+        string selectedSkillVariantName = _runtime_proxy.GetSelectedBattleSkillVariantName();
+        IReadOnlyList<Vector2I> selectedTargetCoords =
+            _runtime_proxy.GetSelectedBattleSkillTargetCoords();
+        int requiredCoordCount = _runtime_proxy.GetSelectedBattleSkillRequiredCoordCount();
+        IReadOnlyList<StringName> selectedTargetUnitIds =
+            _runtime_proxy.GetSelectedBattleSkillTargetUnitIds();
+        if (validTargetCoords.Contains(coord))
+        {
+            battle_map_panel.RefreshOverlayWithPreview(
+                battleState,
+                coord,
+                selectedSkillId,
+                selectedSkillName,
+                selectedSkillVariantName,
+                selectedTargetCoords,
+                validTargetCoords,
+                requiredCoordCount,
+                selectedTargetUnitIds,
+                selectedSkillVariantId,
+                hoverPreview
+            );
+            return;
+        }
+        bool restoredCachedPreview = battle_map_panel.RefreshOverlayWithCachedPreview(
             battleState,
-            selectedCoord,
+            _runtime_proxy.GetBattleSelectedCoord(),
             selectedSkillId,
-            _runtime_proxy.GetSelectedBattleSkillName(),
-            _runtime_proxy.GetSelectedBattleSkillVariantName(),
-            _runtime_proxy.GetSelectedBattleSkillTargetCoords(),
+            selectedSkillName,
+            selectedSkillVariantName,
+            selectedTargetCoords,
             validTargetCoords,
-            _runtime_proxy.GetSelectedBattleSkillRequiredCoordCount(),
-            _runtime_proxy.GetSelectedBattleSkillTargetUnitIds(),
+            requiredCoordCount,
+            selectedTargetUnitIds,
             selectedSkillVariantId
         );
+        if (!restoredCachedPreview)
+        {
+            battle_map_panel.RefreshOverlay(
+                battleState,
+                _runtime_proxy.GetBattleSelectedCoord(),
+                selectedSkillId,
+                selectedSkillName,
+                selectedSkillVariantName,
+                selectedTargetCoords,
+                validTargetCoords,
+                requiredCoordCount,
+                selectedTargetUnitIds,
+                selectedSkillVariantId
+            );
+        }
     }
 
     public void _on_battle_skill_slot_selected(int index)
@@ -963,7 +1074,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
 
     private void RefreshAfterContingencyMutation(StringName memberId)
     {
-        RenderFromRuntime(true, new GDictionary());
+        RenderFromRuntime(true);
         ShowContingencySetupWindow(memberId);
         if (party_management_window != null && party_management_window.Visible)
         {

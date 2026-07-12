@@ -232,6 +232,10 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         new(StringComparer.Ordinal);
     internal string _current_status_message = "";
     internal BattleRefreshMode _last_advance_battle_refresh_mode = BattleRefreshMode.None;
+    internal BattlePresentationDelta _last_advance_battle_presentation_delta =
+        BattlePresentationDelta.None;
+    internal BattlePresentationDelta _last_command_battle_presentation_delta =
+        BattlePresentationDelta.None;
     internal readonly Dictionary<string, object> _last_battle_loot_snapshot =
         new(StringComparer.Ordinal);
     internal readonly List<Dictionary<string, object>> _pending_command_battle_batches = new();
@@ -390,6 +394,8 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         _active_forge_context.Clear();
         _active_stagecoach_context.Clear();
         _last_advance_battle_refresh_mode = BattleRefreshMode.None;
+        _last_advance_battle_presentation_delta = BattlePresentationDelta.None;
+        _last_command_battle_presentation_delta = BattlePresentationDelta.None;
         _last_battle_loot_snapshot.Clear();
         _active_character_info_context.Clear();
         _active_game_over_context.Clear();
@@ -498,6 +504,8 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         _active_forge_context.Clear();
         _active_stagecoach_context.Clear();
         _last_advance_battle_refresh_mode = BattleRefreshMode.None;
+        _last_advance_battle_presentation_delta = BattlePresentationDelta.None;
+        _last_command_battle_presentation_delta = BattlePresentationDelta.None;
         _last_battle_loot_snapshot.Clear();
         _battle_selection_state.ResetForBattleEnd();
         _active_reward = null;
@@ -1110,6 +1118,18 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     public string GetLastAdvanceBattleRefreshMode() =>
         BattleRefreshModes.ToPayloadValue(_last_advance_battle_refresh_mode);
 
+    internal BattlePresentationDelta GetLastAdvanceBattlePresentationDelta() =>
+        _last_advance_battle_presentation_delta;
+
+    internal BattlePresentationDelta GetLastCommandBattlePresentationDelta() =>
+        _last_command_battle_presentation_delta;
+
+    internal void ResetLastCommandBattlePresentationDelta() =>
+        _last_command_battle_presentation_delta = BattlePresentationDelta.None;
+
+    internal void CaptureLastCommandBattlePresentationDelta(BattleEventBatch batch) =>
+        _last_command_battle_presentation_delta = BattlePresentationDeltaFactory.Create(batch);
+
     public StringName GetSelectedBattleSkillId() => _selected_battle_skill_id;
 
     public StringName GetSelectedBattleSkillEntryId() => _selected_battle_skill_entry_id;
@@ -1454,11 +1474,13 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     public bool advance(float delta)
     {
         _last_advance_battle_refresh_mode = BattleRefreshMode.None;
+        _last_advance_battle_presentation_delta = BattlePresentationDelta.None;
         if (_generation_definition == null)
             return false;
         if (_try_complete_pending_battle_start())
         {
             _last_advance_battle_refresh_mode = BattleRefreshMode.Full;
+            _last_advance_battle_presentation_delta = BattlePresentationDelta.Full;
             return true;
         }
         if (HasPendingBattleGenerationRequest())
@@ -1473,10 +1495,11 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             var batch = _battle_runtime.advance(tickCount);
             if (BatchHasUpdatesInternal(batch))
             {
+                BattlePresentationDelta presentationDelta =
+                    BattlePresentationDeltaFactory.Create(batch);
                 ApplyBattleBatch(batch);
-                _last_advance_battle_refresh_mode = BatchRequiresFullBattleRefresh(batch)
-                    ? BattleRefreshMode.Full
-                    : BattleRefreshMode.Overlay;
+                _last_advance_battle_presentation_delta = presentationDelta;
+                _last_advance_battle_refresh_mode = presentationDelta.ToLegacyRefreshMode();
                 return true;
             }
             int currentTu =
@@ -1484,6 +1507,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             if (currentTu != previousTu)
             {
                 _last_advance_battle_refresh_mode = BattleRefreshMode.Overlay;
+                _last_advance_battle_presentation_delta = BattlePresentationDelta.Overlay;
                 return true;
             }
             return false;
@@ -2123,25 +2147,14 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     {
         if (batch == null)
             return false;
-        return batch.phase_changed
+        return batch.ChangeFlags != BattleChangeFlags.None
+            || batch.phase_changed
             || batch.battle_ended
             || batch.modal_requested
             || batch.ChangedUnitIdsTyped.Count > 0
             || batch.ChangedCoordsTyped.Count > 0
             || batch.LogLinesTyped.Count > 0
-            || batch.ProgressionDeltasTyped.Count > 0;
-    }
-
-    private bool BatchRequiresFullBattleRefresh(BattleEventBatch batch)
-    {
-        if (batch == null)
-            return false;
-        return batch.phase_changed
-            || batch.battle_ended
-            || batch.modal_requested
-            || batch.ChangedCoordsTyped.Count > 0
-            || batch.LogLinesTyped.Count > 0
-            || batch.ProgressionDeltasTyped.Count > 0;
+            || batch.ProgressionDeltaCount > 0;
     }
 
     internal void ApplyBattleBatch(BattleEventBatch batch)

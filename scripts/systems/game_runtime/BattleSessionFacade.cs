@@ -211,6 +211,7 @@ public sealed class BattleSessionFacade : IDisposable
         var battleRuntime = GetBattleRuntime();
         if (battleRuntime == null)
             return RuntimeUnavailableTypedResult();
+        var combinedBatch = new BattleEventBatch();
         for (int i = 0; i < Mathf.Max(tickCount, 0); i++)
         {
             if (!IsBattleActive())
@@ -220,8 +221,13 @@ public sealed class BattleSessionFacade : IDisposable
                 break;
             BattleEventBatch batch = battleRuntime.advance(1);
             if (BatchHasUpdates(batch))
+            {
+                combinedBatch.MergeFrom(batch);
                 ApplyBattleBatch(batch);
+            }
         }
+        if (BatchHasUpdates(combinedBatch))
+            _runtime?.CaptureLastCommandBattlePresentationDelta(combinedBatch);
         return CommandOkTyped();
     }
 
@@ -351,6 +357,7 @@ public sealed class BattleSessionFacade : IDisposable
         if (preview == null || !preview.allowed)
             return CommandErrorTyped(FirstPreviewLogLine(preview, "当前没有可取消的读条。"));
         BattleEventBatch batch = battleRuntime.IssueCommand(command);
+        _runtime?.CaptureLastCommandBattlePresentationDelta(batch);
         ApplyBattleBatch(batch);
         return CommandOkTyped("", BattleRefreshMode.Full);
     }
@@ -731,6 +738,7 @@ public sealed class BattleSessionFacade : IDisposable
             && DidSkillCommandExecute(command, batch)
         )
             ClearBattleSelectionTargets();
+        _runtime?.CaptureLastCommandBattlePresentationDelta(batch);
         ApplyBattleBatch(batch);
         return BattleRefreshMode.Full;
     }

@@ -120,6 +120,7 @@ public sealed class BattleBoardController : IDisposable
     private StyleBoxFlat _hitBadgeStyle;
     private NativeLeaseScope _renderLease;
     private bool _disposed;
+    private readonly Dictionary<StringName, Node2D> _unitNodesById = new();
     public BattleEdgeService _edge_service = new();
     public BattleState _battle_state;
     public Vector2I _selected_coord = new(-1, -1);
@@ -229,6 +230,57 @@ public sealed class BattleBoardController : IDisposable
         _draw_target_highlights();
     }
 
+    public void RefreshUnits(
+        BattleState battle_state,
+        IEnumerable<StringName> changed_unit_ids
+    )
+    {
+        ThrowIfDisposed();
+        if (_unit_layer == null || battle_state == null || changed_unit_ids == null)
+            return;
+
+        _battle_state = battle_state;
+        var requestedUnitIds = new HashSet<StringName>();
+        foreach (StringName unitId in changed_unit_ids)
+        {
+            if (unitId != "")
+                requestedUnitIds.Add(unitId);
+        }
+        if (requestedUnitIds.Count == 0)
+        {
+            foreach (StringName unitId in _unitNodesById.Keys)
+                requestedUnitIds.Add(unitId);
+            foreach (BattleUnitState unit in battle_state.Units())
+            {
+                if (unit?.unit_id != "")
+                    requestedUnitIds.Add(unit.unit_id);
+            }
+        }
+
+        foreach (StringName unitId in requestedUnitIds)
+        {
+            if (_unitNodesById.Remove(unitId, out Node2D existingNode))
+            {
+                if (GodotObject.IsInstanceValid(existingNode))
+                {
+                    if (existingNode.GetParent() == _unit_layer)
+                        _unit_layer.RemoveChild(existingNode);
+                    existingNode.Free();
+                }
+            }
+
+            BattleUnitState unitState = GetUnit(_battle_state, unitId);
+            if (unitState == null || !unitState.is_alive)
+                continue;
+            unitState.RefreshFootprint();
+            Node2D unitNode = _create_unit_token(unitState);
+            if (unitNode == null)
+                continue;
+            _unit_layer.AddChild(unitNode);
+            _unitNodesById[unitId] = unitNode;
+        }
+    }
+
     public void Clear()
     {
         ThrowIfDisposed();
@@ -291,6 +343,7 @@ public sealed class BattleBoardController : IDisposable
         _hitBadgeStyle = null;
         _texture_cache.Clear();
         _tileset_cache.Clear();
+        _unitNodesById.Clear();
         _input_layer = null;
         _top_layers.Clear();
         _edge_drop_east_layers.Clear();
@@ -579,7 +632,10 @@ public sealed class BattleBoardController : IDisposable
             unitState.RefreshFootprint();
             Node2D unitNode = _create_unit_token(unitState);
             if (unitNode != null)
+            {
                 _unit_layer.AddChild(unitNode);
+                _unitNodesById[unitIdValue] = unitNode;
+            }
         }
     }
 
@@ -933,6 +989,7 @@ public sealed class BattleBoardController : IDisposable
     private void _clear_dynamic_nodes(List<Exception> failures)
     {
         _clear_child_nodes(_prop_layer, failures);
+        _unitNodesById.Clear();
         _clear_child_nodes(_unit_layer, failures);
         _clear_child_nodes(_target_highlight_layer, failures);
     }

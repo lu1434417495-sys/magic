@@ -185,6 +185,16 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetLastAdvanceBattleRefreshMode() ?? "";
     }
 
+    internal BattlePresentationDelta GetLastAdvanceBattlePresentationDelta()
+    {
+        return _runtime?.GetLastAdvanceBattlePresentationDelta() ?? BattlePresentationDelta.None;
+    }
+
+    internal BattlePresentationDelta GetLastCommandBattlePresentationDelta()
+    {
+        return _runtime?.GetLastCommandBattlePresentationDelta() ?? BattlePresentationDelta.None;
+    }
+
     public StringName GetSelectedBattleSkillId()
     {
         return _runtime?.GetSelectedBattleSkillId() ?? new StringName("");
@@ -559,6 +569,7 @@ internal sealed class WorldMapRuntimeProxy
                 "战斗命令无效。",
                 GameRuntimeFacade.RuntimeCommandCode.InvalidArgument
             );
+        _runtime.ResetLastCommandBattlePresentationDelta();
         var refreshMode = _runtime.IssueBattleCommand(command);
         if (refreshMode == BattleRefreshMode.None)
             refreshMode = BattleRefreshMode.Full;
@@ -568,7 +579,7 @@ internal sealed class WorldMapRuntimeProxy
             GameRuntimeFacade.RuntimeCommandCode.Ok,
             refreshMode
         );
-        _renderTarget?.RenderFromRuntime(true, RuntimeCommandResultProjection.Project(result));
+        RenderRuntimeCommandResult(result);
         return result;
     }
 
@@ -677,8 +688,9 @@ internal sealed class WorldMapRuntimeProxy
     {
         if (_runtime == null)
             return RuntimeUnavailableError();
+        _runtime.ResetLastCommandBattlePresentationDelta();
         RuntimeCommandResult result = command?.Invoke() ?? RuntimeCommandResult.Failure("");
-        _renderTarget?.RenderFromRuntime(true, RuntimeCommandResultProjection.Project(result));
+        RenderRuntimeCommandResult(result);
         return result;
     }
 
@@ -686,9 +698,34 @@ internal sealed class WorldMapRuntimeProxy
     {
         if (_runtime == null)
             return RuntimeCommandResultProjection.Project(RuntimeUnavailableError());
+        _runtime.ResetLastCommandBattlePresentationDelta();
         Dictionary result = command?.Invoke() ?? new Dictionary();
-        _renderTarget?.RenderFromRuntime(true, result);
+        RenderCommandPayload(result);
         return result;
+    }
+
+    private void RenderRuntimeCommandResult(RuntimeCommandResult result)
+    {
+        if (TryRenderLastCommandPresentationDelta())
+            return;
+        using Dictionary payload = RuntimeCommandResultProjection.Project(result);
+        _renderTarget?.RenderFromRuntime(true, payload);
+    }
+
+    private void RenderCommandPayload(Dictionary commandResult)
+    {
+        if (TryRenderLastCommandPresentationDelta())
+            return;
+        _renderTarget?.RenderFromRuntime(true, commandResult);
+    }
+
+    private bool TryRenderLastCommandPresentationDelta()
+    {
+        BattlePresentationDelta delta = GetLastCommandBattlePresentationDelta();
+        if (_runtime?.IsBattleActive() != true || !delta.HasChanges)
+            return false;
+        _renderTarget?.RenderFromRuntime(true, delta);
+        return true;
     }
 
     private static RuntimeCommandResult RuntimeUnavailableError()

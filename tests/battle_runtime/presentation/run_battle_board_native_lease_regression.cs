@@ -61,6 +61,43 @@ public partial class run_battle_board_native_lease_regression : LifecycleTestSce
                 "style probe 应实际绘制 target hit badge。"
             );
             int styledOwnerCount = controller.RenderOwnerCount;
+            ulong firstUnitTokenId = board.unit_layer.GetChild<Node2D>(0).GetInstanceId();
+            int renderedTopCellCount = controller._count_rendered_top_cells();
+            BattleUnitState styledUnit = renderState.GetUnit(renderState.active_unit_id);
+            styledUnit.SetCurrentHp(17);
+            controller.RefreshUnits(renderState, new[] { styledUnit.unit_id });
+            _test.Eq(
+                board.unit_layer.GetChildCount(),
+                1,
+                "unit delta 应保持未增生的单位 token 数量。"
+            );
+            _test.Ne(
+                board.unit_layer.GetChild<Node2D>(0).GetInstanceId(),
+                firstUnitTokenId,
+                "unit delta 应只替换目标单位 token。"
+            );
+            _test.Eq(
+                controller._count_rendered_top_cells(),
+                renderedTopCellCount,
+                "unit delta 不得清空或重铺地形 TileMap。"
+            );
+            _test.Eq(
+                controller.RenderOwnerCount,
+                styledOwnerCount,
+                "unit delta 不得创建新的 render-generation native owner。"
+            );
+            ulong targetedUnitTokenId = board.unit_layer.GetChild<Node2D>(0).GetInstanceId();
+            controller.RefreshUnits(renderState, System.Array.Empty<StringName>());
+            _test.Ne(
+                board.unit_layer.GetChild<Node2D>(0).GetInstanceId(),
+                targetedUnitTokenId,
+                "空 changed ids 应按 contract 刷新全部单位 token 的 active styling。"
+            );
+            _test.Eq(
+                controller._count_rendered_top_cells(),
+                renderedTopCellCount,
+                "refresh-all-units 仍不得清空或重铺地形 TileMap。"
+            );
             AssertResourceOwnership(
                 controller,
                 baseline,

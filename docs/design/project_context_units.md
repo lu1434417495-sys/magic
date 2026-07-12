@@ -427,6 +427,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/battle/core/BattlePreviewProjection.cs`
   - `scripts/systems/battle/core/AutoCastRequest.cs`
   - `scripts/systems/battle/core/Contingency*.cs`
+  - `scripts/systems/battle/core/BattleChangeFlags.cs`
   - `scripts/systems/battle/core/BattleEventBatch.cs`
   - `scripts/systems/battle/core/BattleEventBatchProjection.cs`
   - `scripts/systems/battle/rules/Battle*.cs`
@@ -441,6 +442,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 - 强制暴击击杀归因边界：`BattleKillProvenance` 只在最终 `AttackEffectResolutionResult.CriticalHit` 为真时保留 forced-critical 的装备实例/binding/action；禁暴击或其他后续规则把结果降为普通命中时，击杀按实际主手攻击归因，不得误触发依赖 forced-critical binding 的 on-kill 反应。装备能力发起的立即武器攻击可以提供外层 provenance 作为 fallback：最终强制暴击来源优先覆盖它，未形成强制暴击时仍保留外层 binding/action 的 on-kill 语义。
 - 装备能力 AP 恢复边界：`ModifyActionPointsActionPayloadDef.mode = restore_current_action_points_capped` 可在 after-kill 等通用 action 阶段恢复指定单位的当前 AP，并以该单位 `attribute_snapshot[action_points]` 为正常上限；已达到或超过上限时不增加也不反向降低。触发次数限制若需要必须由内容显式声明，运行时不默认附加 once-per-turn。
 - 边界：`BattleEventBatch` / `BattlePreview` 的 canonical state 与 report facts 保持 plain C# 只读视图；只有同步 Godot 消费边界通过 Request-domain `BattleEventBatchProjection` / `BattlePreviewProjection` 构建短期 root lease，damage/range/save-branch 等 nested collection 由同一 lease 在创建时显式拥有。battle lifetime 内创建的 pathless native wrapper 由 Battle-domain `NativeLeaseScope` / projection lease 显式拥有，不能逃逸到 session 或下一场战斗。headless 等 caller 已持有 context projection lease 时，`BattleRuntimeModule.StartBattleBorrowingContext(...)` 只在同步 start 调用期间 borrow，不重复 claim 或保存 raw context；原有 `StartBattle(...)` 仍接管 unowned raw context，并由 start scope 关闭。`BattleRuntimeModule.Dispose()` 按 decision/context → action plan → AI/service sidecar → content borrower/index → state/topology → owned terrain 的顺序 best-effort 关闭，先断开 borrower 再释放 owner，首个异常保留堆栈重抛且重复关闭幂等；content rebind 也先清旧 borrower/action plan，失败时不保留半绑定状态。读条 / pending cast 是 runtime-only battle state（不进 save），由 `BattleCastingTimeService` / `BattleTimelineDriver` / `BattleRuntimeSkillTurnResolver` / `BattleSkillExecutionOrchestrator` 协作，manual cancel 走 typed command path。contingency 战斗侧由 `BattleContingencySystem` 从 persistent setup 初始化、经 `ContingencyTargetResolverService` 解析目标、排队执行 `AutoCastRequest`；consumed 单一真相是 `BattleUnitState.MarkContingencySetupConsumed`，写回契约是 `IBattleRuntimeCharacterGateway.Validate/CommitContingencyConsumedSetups`，失败随 finalization rollback。temporal 状态族（`time_stasis` / `time_slow` / `time_reverberation`）与装备投影出的时间进度倍率规则归属 `BattleTemporalStatusService`，由 timeline / casting / turn-resolver / grid 协作执行；下一回合 AP 清零这类 turn-start AP 规则归属 `BattleStatusSemanticTable` + `BattleRuntimeSkillTurnResolver`，不在具体武器技能里硬编码。
+- 事件增量边界：batch 在写入 changed units/coords/log/report、timeline、phase、modal 等事实时同步维护 typed `BattleChangeFlags`；多段命令通过 `MergeFrom(...)` 聚合后再生成一次 presentation delta，不能只靠集合是否为空判断是否有更新。
 - 适合：战斗流程、战斗结算、特殊技能流程、战斗内事务。
 - 邻接单元：CU-02、CU-10、CU-11、CU-12、CU-13、CU-14、CU-16、CU-17、CU-18、CU-20、CU-21。
 
@@ -500,6 +502,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/battle/presentation/BattleHudAdapter.cs`
   - `scripts/systems/battle/presentation/BattleHudSnapshot.cs`
   - `scripts/systems/battle/presentation/BattleHoverSnapshot.cs`
+  - `scripts/systems/game_runtime/BattlePresentationDelta*.cs`
   - `scenes/ui/battle_board_2d.tscn`
   - `scripts/ui/BattleBoard2D.cs`
   - `scripts/ui/BattleUiTheme.cs`
@@ -509,6 +512,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/ui/BattleBoardProp.cs`
 - 负责：battle HUD、棋盘绘制、单位/prop 渲染、相机、overlay、hover 展示。
 - 边界：`BattleHudAdapter` 把 runtime facts 转成 detached `BattleHudSnapshot` / `BattleHoverSnapshot`，UI 不解析或长期保存 Godot collection，也不拥有命中、伤害、射程或目标合法性计算。`BattleMapPanel` 对 pathless shader material 使用 scene-domain lease，并先清空 `TextureRect` 的 material/texture borrower 再关闭 owner；path-backed shader/texture/scene 始终借用。`BattleBoardController` 每次 bind 持有一个 render-generation `NativeLeaseScope`，只拥有 pathless `TileSet` / atlas / `Image` / `ImageTexture` / style box，`Clear()`、rebind 与 `BattleBoard2D._ExitTree()` 都先清 borrower 再幂等关闭该 lease。`BattleBoardProp` 为按需创建的 pathless `CircleShape2D` 建立独立 SceneTree-domain lease，离树时先禁用 area、清 `CollisionShape2D.Shape` borrower，再关闭 shape owner；展示主链不再启用 production quarantine，lease owner/scope 计数在 clear/rebind/exit 后回到调用前向量。
+- 展示增量边界：advance、命令、cancel 与多段 tick 统一生成 typed `BattlePresentationDelta`。log-only 只刷新日志文本；unit-state delta 只替换目标 token，并在没有 log/full-board fact 时跳过 runtime log 全表扫描；timeline 变化可刷新全部 unit token但不重建 TileMap；placement/full-board 才走保守全刷新。hover 每次输入最多计算一次 preview，并只在同一 selected-preview key 命中时复用缓存，cache miss 回退普通 overlay。
 - 适合：battle HUD、棋盘视觉、TileMap、相机、目标浮标。
 - 邻接单元：CU-06、CU-15、CU-16、CU-17、CU-19、CU-20。
 
