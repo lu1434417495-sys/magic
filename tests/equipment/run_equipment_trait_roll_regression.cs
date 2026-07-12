@@ -24,7 +24,7 @@ public partial class run_equipment_trait_roll_regression : LifecycleTestSceneTre
 
     private void TestMintRequiresStableInstanceId()
     {
-        EquipmentTraitRollService service = BuildService();
+        using EquipmentTraitRollService service = BuildService();
         EquipmentInstanceState instance = EquipmentInstanceState.CreateTransientInstance("iron_sword");
         ItemDefinition item = BuildItem();
 
@@ -35,7 +35,7 @@ public partial class run_equipment_trait_roll_regression : LifecycleTestSceneTre
 
     private void TestMintRollsWeightedEntriesAndRollValues()
     {
-        EquipmentTraitRollService service = BuildService();
+        using EquipmentTraitRollService service = BuildService();
         FixedRolls rolls = new(rangeRolls: new[] { 5 }, unitRolls: new[] { 0.0f });
         service.SetRollHooksForTesting(rolls.RollRange, rolls.RollUnit);
 
@@ -76,7 +76,7 @@ public partial class run_equipment_trait_roll_regression : LifecycleTestSceneTre
 
     private void TestDuplicateAndValidateRehydratedConsumeNoRng()
     {
-        EquipmentTraitRollService service = BuildService();
+        using EquipmentTraitRollService service = BuildService();
         FixedRolls rolls = new(rangeRolls: new[] { 4 }, unitRolls: new[] { 0.0f });
         service.SetRollHooksForTesting(rolls.RollRange, rolls.RollUnit);
 
@@ -102,12 +102,12 @@ public partial class run_equipment_trait_roll_regression : LifecycleTestSceneTre
 
     private void TestWarehouseAddItemMintsAfterStableInstanceId()
     {
-        EquipmentTraitRollService rollService = BuildService();
+        using EquipmentTraitRollService rollService = BuildService();
         FixedRolls rolls = new(new[] { 3 }, new[] { 0.0f });
         rollService.SetRollHooksForTesting(rolls.RollRange, rolls.RollUnit);
 
         PartyState party = BuildPartyWithCapacity(2);
-        PartyWarehouseService warehouse = new();
+        using PartyWarehouseService warehouse = new();
         warehouse.Setup(
             party,
             new Dictionary<StringName, ItemDefinition> { ["iron_sword"] = BuildItem() },
@@ -141,7 +141,7 @@ public partial class run_equipment_trait_roll_regression : LifecycleTestSceneTre
 
     private void TestWarehouseDepositingExistingInstanceDoesNotReroll()
     {
-        EquipmentTraitRollService rollService = BuildService();
+        using EquipmentTraitRollService rollService = BuildService();
         FixedRolls rolls = new(new[] { 3 }, new[] { 0.0f });
         rollService.SetRollHooksForTesting(rolls.RollRange, rolls.RollUnit);
 
@@ -160,7 +160,7 @@ public partial class run_equipment_trait_roll_regression : LifecycleTestSceneTre
         );
 
         PartyState party = BuildPartyWithCapacity(2);
-        PartyWarehouseService warehouse = new();
+        using PartyWarehouseService warehouse = new();
         warehouse.Setup(
             party,
             new Dictionary<StringName, ItemDefinition> { ["iron_sword"] = BuildItem() },
@@ -239,36 +239,43 @@ public partial class run_equipment_trait_roll_regression : LifecycleTestSceneTre
 
     private static ItemDefinition BuildItem()
     {
-        TraitRollGroupDef group = new()
-        {
-            group_id = "prefix",
-            roll_count = 1,
-            entries = new Godot.Collections.Array<TraitRollGroupEntryDef>
+        TraitRollGroupDefinition group = new(
+            "prefix",
+            1,
+            new TraitRollGroupEntryDefinition[]
             {
-                new()
-                {
-                    trait_id = "sharp_edge",
-                    weight = 1,
-                },
-                new()
-                {
-                    trait_id = "heavy_head",
-                    weight = 1,
-                },
-            },
-        };
+                new("sharp_edge", 1, ""),
+                new("heavy_head", 1, ""),
+            }
+        );
 
-        return new ItemDef
-        {
-            item_id = "iron_sword",
-            display_name = "Iron Sword",
-            item_category = "equipment",
-            equipment_type_id = "weapon",
-            is_stackable = false,
-            max_stack = 1,
-            equipment_slot_ids = new Godot.Collections.Array<string> { "main_hand" },
-            trait_roll_groups = new Godot.Collections.Array<TraitRollGroupDef> { group },
-        }.ToDefinition();
+        return new ItemDefinition(
+            itemId: "iron_sword",
+            baseItemId: "",
+            displayName: "Iron Sword",
+            description: "",
+            icon: "",
+            isStackable: false,
+            basePrice: 0,
+            buyPrice: 0,
+            sellPrice: 0,
+            sellable: true,
+            maxStack: 1,
+            itemCategory: "equipment",
+            tags: Array.Empty<StringName>(),
+            craftingGroups: Array.Empty<StringName>(),
+            questGroups: Array.Empty<StringName>(),
+            traitIds: Array.Empty<StringName>(),
+            traitRollGroups: new TraitRollGroupDefinition[] { group },
+            equipmentSlotIds: new string[] { "main_hand" },
+            attributeModifiers: Array.Empty<AttributeModifierDefinition>(),
+            grantedSkillId: "",
+            occupiedSlotIds: Array.Empty<string>(),
+            equipRequirement: null,
+            equipmentTypeId: "weapon",
+            weaponProfile: null,
+            maxDexBonus: -1
+        );
     }
 
     private static PartyState BuildPartyWithCapacity(int capacity)
@@ -277,7 +284,7 @@ public partial class run_equipment_trait_roll_regression : LifecycleTestSceneTre
         {
             leader_member_id = "hero",
             main_character_member_id = "hero",
-            active_member_ids = new Godot.Collections.Array<StringName> { "hero" },
+            active_member_ids = new StringNameList { "hero" },
             warehouse_state = new WarehouseState(),
         };
         PartyMemberState memberState = new()
