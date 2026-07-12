@@ -27,6 +27,25 @@ internal sealed class BattleMovementQueryService : IDisposable
     private readonly System.Collections.Generic.Dictionary<StringName, long> _moveCostSignatureCache =
         new();
     private long _snapshotRevision = long.MinValue;
+    private long _battleEpoch = long.MinValue;
+    private bool _decisionBound;
+    private long _snapshotRebuildCount;
+    private long _pathTargetCacheHitCount;
+    private long _pathTargetCacheMissCount;
+    private WeakReference<BattleState> _battleStateIdentity;
+    private WeakReference<BattleGridService> _gridServiceIdentity;
+    private WeakReference<Func<StringName, Vector2I, Vector2I, int>> _moveCostProviderIdentity;
+    private bool _disposed;
+
+    internal readonly record struct CacheDiagnostics(
+        long BattleEpoch,
+        long SnapshotRevision,
+        long SnapshotRebuildCount,
+        long PathTargetCacheHitCount,
+        long PathTargetCacheMissCount,
+        int PathTargetCacheEntryCount,
+        bool DecisionBound
+    );
 
     private readonly record struct PathTargetQueryCacheKey(
         StringName UnitId,
@@ -201,24 +220,43 @@ internal sealed class BattleMovementQueryService : IDisposable
         public bool InvalidMoveCost;
     }
 
+    internal void BeginBattle(long battleEpoch)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (battleEpoch == long.MinValue)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(battleEpoch),
+                "Battle movement query cache requires a concrete battle epoch."
+            );
+        }
+        if (_battleEpoch == battleEpoch)
+        {
+            return;
+        }
+
+        ClearRuntimeBindings();
+        ClearBattleCacheCore();
+        ClearBattleIdentity();
+        _battleEpoch = battleEpoch;
+    }
+
     internal void Setup(
+        long battleEpoch,
         BattleState state,
         BattleGridService grid_service,
         Func<StringName, Vector2I, Vector2I, int> move_cost_provider
-        )
+    )
     {
-        bool referencesChanged =
-            !ReferenceEquals(_state, state)
-            || !ReferenceEquals(_gridService, grid_service)
-            || !ReferenceEquals(_moveCostProvider, move_cost_provider);
+        BeginBattle(battleEpoch);
+        if (BattleIdentityChanged(state, grid_service, move_cost_provider))
+            ClearBattleCacheCore();
+        CaptureBattleIdentity(state, grid_service, move_cost_provider);
         _state = state;
         _gridService = grid_service;
         _moveCostProvider = move_cost_provider;
+        _decisionBound = state != null && grid_service != null && move_cost_provider != null;
         _moveCostSignatureCache.Clear();
-        if (referencesChanged)
-        {
-            _snapshotRevision = long.MinValue;
-        }
         using (new BattleAiTraceSpan("movement_query_setup:ensure_snapshot"))
         {
             EnsureSnapshotFresh();
@@ -227,9 +265,34 @@ internal sealed class BattleMovementQueryService : IDisposable
 
     internal void ClearRuntimeBindings()
     {
+        _decisionBound = false;
         _state = null;
         _gridService = null;
         _moveCostProvider = null;
+        _moveCostSignatureCache.Clear();
+    }
+
+    internal void EndBattle()
+    {
+        ClearRuntimeBindings();
+        ClearBattleCacheCore();
+        ClearBattleIdentity();
+        _battleEpoch = long.MinValue;
+    }
+
+    internal CacheDiagnostics CaptureCacheDiagnostics() =>
+        new(
+            _battleEpoch,
+            _snapshotRevision,
+            _snapshotRebuildCount,
+            _pathTargetCacheHitCount,
+            _pathTargetCacheMissCount,
+            _pathTargetQueryCache.Count,
+            _decisionBound
+        );
+
+    private void ClearBattleCacheCore()
+    {
         _mapSize = Vector2I.Zero;
         _cells = System.Array.Empty<CellInfo>();
         _units.Clear();
@@ -238,11 +301,77 @@ internal sealed class BattleMovementQueryService : IDisposable
         _pathTargetQueryCache.Clear();
         _moveCostSignatureCache.Clear();
         _snapshotRevision = long.MinValue;
+        _snapshotRebuildCount = 0;
+        _pathTargetCacheHitCount = 0;
+        _pathTargetCacheMissCount = 0;
     }
 
-    internal void DisposeRuntime() => ClearRuntimeBindings();
+    private bool BattleIdentityChanged(
+        BattleState state,
+        BattleGridService gridService,
+        Func<StringName, Vector2I, Vector2I, int> moveCostProvider
+    )
+    {
+        if (
+            _battleStateIdentity == null
+            && _gridServiceIdentity == null
+            && _moveCostProviderIdentity == null
+        )
+        {
+            return false;
+        }
+        return !WeakReferenceMatches(_battleStateIdentity, state)
+            || !WeakReferenceMatches(_gridServiceIdentity, gridService)
+            || !WeakDelegateMatches(_moveCostProviderIdentity, moveCostProvider);
+    }
 
-    public void Dispose() => ClearRuntimeBindings();
+    private void CaptureBattleIdentity(
+        BattleState state,
+        BattleGridService gridService,
+        Func<StringName, Vector2I, Vector2I, int> moveCostProvider
+    )
+    {
+        _battleStateIdentity = state != null ? new WeakReference<BattleState>(state) : null;
+        _gridServiceIdentity =
+            gridService != null ? new WeakReference<BattleGridService>(gridService) : null;
+        _moveCostProviderIdentity =
+            moveCostProvider != null
+                ? new WeakReference<Func<StringName, Vector2I, Vector2I, int>>(moveCostProvider)
+                : null;
+    }
+
+    private void ClearBattleIdentity()
+    {
+        _battleStateIdentity = null;
+        _gridServiceIdentity = null;
+        _moveCostProviderIdentity = null;
+    }
+
+    private static bool WeakReferenceMatches<T>(WeakReference<T> reference, T value)
+        where T : class
+    {
+        return reference == null
+            ? value == null
+            : reference.TryGetTarget(out T target) && ReferenceEquals(target, value);
+    }
+
+    private static bool WeakDelegateMatches<T>(WeakReference<T> reference, T value)
+        where T : Delegate
+    {
+        return reference == null
+            ? value == null
+            : reference.TryGetTarget(out T target) && target == value;
+    }
+
+    internal void DisposeRuntime() => EndBattle();
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        EndBattle();
+    }
 
     internal MovementReachabilityResult CollectReachableAnchors(
         StringName unit_id,
@@ -558,8 +687,10 @@ internal sealed class BattleMovementQueryService : IDisposable
             );
             if (_pathTargetQueryCache.TryGetValue(cacheKey, out MovementPathTargetResult cachedResult))
             {
+                _pathTargetCacheHitCount += 1;
                 return ClonePathTargetResult(cachedResult);
             }
+            _pathTargetCacheMissCount += 1;
         }
         MovementPathTargetResult result = CollectDistanceBandPathTargetsFromBudget(
             unit,
@@ -940,6 +1071,7 @@ internal sealed class BattleMovementQueryService : IDisposable
     private void RebuildSnapshot()
     {
         using BattleAiTraceSpan trace = new("movement_query_setup:rebuild_snapshot");
+        _snapshotRebuildCount += 1;
         _mapSize = _state != null ? _state.map_size : Vector2I.Zero;
         _cells =
             _mapSize.X > 0 && _mapSize.Y > 0
@@ -1012,6 +1144,10 @@ internal sealed class BattleMovementQueryService : IDisposable
 
     private void EnsureSnapshotFresh()
     {
+        if (!_decisionBound)
+        {
+            return;
+        }
         if (GetCurrentSnapshotRevision() != _snapshotRevision)
         {
             RebuildSnapshot();
@@ -2015,6 +2151,11 @@ internal sealed class BattleMovementQueryService : IDisposable
 
     private bool TryGetUnit(StringName unitId, out UnitInfo unit)
     {
+        if (!_decisionBound)
+        {
+            unit = null;
+            return false;
+        }
         return _units.TryGetValue(unitId, out unit);
     }
 

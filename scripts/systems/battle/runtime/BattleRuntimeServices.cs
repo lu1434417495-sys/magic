@@ -204,11 +204,34 @@ internal sealed class BattleRuntimeServices : IDisposable
     private bool _disposed;
     private bool _runtimeSidecarsBound;
     private bool _aiHelperBindingsActive;
+    private long _battleEpoch = long.MinValue;
 
     internal bool HasAiRuntimeBindings =>
         _aiHelperBindingsActive || AiDecisionContext.HasRuntimeBindings;
 
     internal bool HasRuntimeSidecarBindings => _runtimeSidecarsBound;
+
+    internal void BeginBattle(long battleEpoch)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_battleEpoch == battleEpoch)
+        {
+            return;
+        }
+
+        ClearRuntimeBindings();
+        AiMovementQuery.BeginBattle(battleEpoch);
+        _battleEpoch = battleEpoch;
+    }
+
+    internal void EndBattle()
+    {
+        Exception firstFailure = null;
+        RunTeardownStep(ref firstFailure, ClearRuntimeBindings);
+        RunTeardownStep(ref firstFailure, AiMovementQuery.EndBattle);
+        _battleEpoch = long.MinValue;
+        Rethrow(firstFailure);
+    }
 
     internal void SetupRuntimeSidecars(BattleRuntimeModule runtime)
     {
@@ -251,12 +274,19 @@ internal sealed class BattleRuntimeServices : IDisposable
         {
             return;
         }
+        if (_battleEpoch == long.MinValue)
+        {
+            throw new InvalidOperationException(
+                "AI helper services cannot bind before the battle cache epoch is initialized."
+            );
+        }
 
         BindContextCallbacks(aiContext, context);
 
         using (new BattleAiTraceSpan("bind_ai_helpers:movement_query_setup"))
         {
             AiMovementQuery.Setup(
+                _battleEpoch,
                 context.State,
                 context.GridService,
                 context.MoveQueryCostCallback
@@ -322,8 +352,8 @@ internal sealed class BattleRuntimeServices : IDisposable
 
     internal void ClearRuntimeBindings()
     {
-        // Clear in reverse borrower order: the decision context borrows query/candidate
-        // services, the query borrows movement, catalog, callbacks, and state.
+        // Clear in reverse borrower order. Movement query topology/path caches are plain
+        // battle-lifetime values; only its decision-scoped state/grid/callback bindings end here.
         _aiHelperBindingsActive = false;
         Exception firstFailure = null;
         RunTeardownStep(ref firstFailure, AiDecisionContext.ClearRuntimeBindings);
@@ -342,7 +372,7 @@ internal sealed class BattleRuntimeServices : IDisposable
         _disposed = true;
         _runtimeSidecarsBound = false;
         Exception firstFailure = null;
-        RunTeardownStep(ref firstFailure, ClearRuntimeBindings);
+        RunTeardownStep(ref firstFailure, EndBattle);
         RunTeardownStep(ref firstFailure, Contingencies.Dispose);
         RunTeardownStep(ref firstFailure, GroundEffects.Dispose);
         RunTeardownStep(ref firstFailure, SpecialSkills.Dispose);

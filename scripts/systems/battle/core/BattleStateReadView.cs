@@ -66,6 +66,10 @@ internal readonly struct BattleUnitReadView
         _unit = unit;
     }
 
+    // 规则层唯一读入口：State 隐式降级为只读视图（null → IsValid=false，与 unit==null 守卫等价）。
+    // 操作符必须声明在 view 侧：State 是 public，成员若暴露 internal 返回类型会编译错误。
+    public static implicit operator BattleUnitReadView(BattleUnitState unit) => new(unit);
+
     internal bool IsValid => _unit != null;
     internal BattleUnitState UnsafeUnitForReadOnlyRules => _unit;
     internal StringName UnitId => _unit?.unit_id ?? "";
@@ -259,15 +263,10 @@ internal readonly struct BattleUnitReadView
     internal bool HasMovementTag(StringName tag) =>
         _unit != null && tag != "" && _unit.movement_tags != null && _unit.movement_tags.Contains(tag);
 
-    internal IReadOnlyList<Vector2I> GetOccupiedCoords()
-    {
-        var result = new List<Vector2I>();
-        if (_unit?.occupied_coords == null)
-            return result;
-        foreach (Vector2I coord in _unit.occupied_coords)
-            result.Add(coord);
-        return result;
-    }
+    // 零拷贝：直接暴露底层列表。RefreshFootprint 是整体替换引用而非原地改，
+    // 持有者读到的是一致快照；规则层同帧只读，安全。
+    internal IReadOnlyList<Vector2I> GetOccupiedCoords() =>
+        (IReadOnlyList<Vector2I>)_unit?.occupied_coords ?? System.Array.Empty<Vector2I>();
 
     internal IReadOnlyList<Vector2I> GetTargetCoords(Vector2I anchorCoord)
     {
@@ -284,25 +283,15 @@ internal readonly struct BattleUnitReadView
         return result;
     }
 
-    internal IReadOnlyList<StringName> GetMovementTags()
-    {
-        var result = new List<StringName>();
-        if (_unit?.movement_tags == null)
-            return result;
-        foreach (StringName tag in _unit.movement_tags)
-            result.Add(tag);
-        return result;
-    }
+    internal IReadOnlyList<StringName> GetMovementTags() =>
+        (IReadOnlyList<StringName>)_unit?.movement_tags ?? System.Array.Empty<StringName>();
 
-    internal IReadOnlyList<StringName> GetSortedStatusEffectIds()
-    {
-        var result = new List<StringName>();
-        if (_unit == null)
-            return result;
-        foreach (StringName statusId in _unit.GetSortedStatusEffectIdsTyped())
-            result.Add(statusId);
-        return result;
-    }
+    internal IReadOnlyList<StringName> GetSortedStatusEffectIds() =>
+        (IReadOnlyList<StringName>)_unit?.GetSortedStatusEffectIdsTyped()
+            ?? System.Array.Empty<StringName>();
+
+    internal BattleStatusReadView GetStatus(StringName statusId) =>
+        new(_unit?.GetStatusEffect(statusId));
 
     internal IEnumerable<BattleStatusReadView> StatusEffects()
     {

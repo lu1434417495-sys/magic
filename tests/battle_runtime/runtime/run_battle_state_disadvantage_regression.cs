@@ -8,6 +8,7 @@ public partial class run_battle_state_disadvantage_regression : LifecycleTestSce
     public override void _Initialize()
     {
         TestAttackDisadvantageTriggersOnTwoAdjacentEnemies();
+        TestReadViewDisadvantageNormalizesStaleCandidateFootprints();
         TestAttackDisadvantageTriggersOnLowHp();
         TestAttackDisadvantageTriggersOnStrongAttackDebuff();
         TestAttackDisadvantageTriggersOnFrightenedAndKeepsFearFamilyStatuses();
@@ -18,6 +19,28 @@ public partial class run_battle_state_disadvantage_regression : LifecycleTestSce
         TestAttackDisadvantageDoesNotTriggerOnEconomicDelay();
         TestAttackDisadvantageDoesNotTriggerOnSoftDebuff();
         RequestTestExit(_test.Finish("Battle state disadvantage regression"));
+    }
+
+    private void TestReadViewDisadvantageNormalizesStaleCandidateFootprints()
+    {
+        var state = new BattleState();
+        BattleUnitState attacker = BuildUnit("read_view_attacker", "player", new Vector2I(2, 2));
+        BattleUnitState defender = BuildUnit("read_view_defender", "enemy", new Vector2I(8, 8));
+        BattleUnitState sideEnemy = BuildUnit("read_view_side_enemy", "enemy", new Vector2I(9, 8));
+        AddUnits(state, attacker, defender, sideEnemy);
+
+        // Simulate an external state writer that changed anchors without rebuilding the
+        // derived occupied-coord snapshot. The read-view route must preserve State-route parity.
+        defender.coord = new Vector2I(3, 2);
+        sideEnemy.coord = new Vector2I(2, 1);
+
+        _test.True(
+            state.IsAttackDisadvantage(
+                (BattleUnitReadView)attacker,
+                (BattleUnitReadView)defender
+            ),
+            "read-view 包夹判定应先归一化所有候选单位的 stale footprint。"
+        );
     }
 
     private void TestAttackDisadvantageTriggersOnTwoAdjacentEnemies()

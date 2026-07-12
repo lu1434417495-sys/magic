@@ -197,23 +197,6 @@ public class BattleHitResolver : IDisposable
         };
     }
 
-    public AttackPreviewData BuildSkillAttackPreview(
-        BattleState battle_state,
-        BattleUnitState active_unit,
-        BattleUnitState target_unit,
-        SkillDefinition skill_definition,
-        bool force_hit_no_crit = false
-    )
-    {
-        return BuildSkillDefinitionAttackPreview(
-            battle_state,
-            active_unit,
-            target_unit,
-            skill_definition,
-            force_hit_no_crit
-        );
-    }
-
     internal AttackPreviewData BuildSkillAttackPreview(
         BattleState battle_state,
         BattleUnitReadView active_unit,
@@ -229,52 +212,6 @@ public class BattleHitResolver : IDisposable
             skill_definition,
             force_hit_no_crit
         );
-    }
-
-    public AttackPreviewData BuildSkillDefinitionAttackPreview(
-        BattleState battle_state,
-        BattleUnitState active_unit,
-        BattleUnitState target_unit,
-        SkillDefinition skill_definition,
-        bool force_hit_no_crit
-    )
-    {
-        if (active_unit == null || target_unit == null || skill_definition == null)
-        {
-            return new AttackPreviewData();
-        }
-        if (force_hit_no_crit)
-        {
-            return BuildForceHitNoCritAttackPreview();
-        }
-        AttackCheckInput attackCheck = BuildFateAwareAttackCheckPreview(
-            battle_state,
-            active_unit,
-            target_unit,
-            BuildSkillDefinitionAttackCheck(active_unit, target_unit, skill_definition, 0, 0)
-        );
-        int successRate = attackCheck.SuccessRatePercent;
-        int baseHitRate = attackCheck.BaseHitRatePercent;
-        string previewText = attackCheck.PreviewText;
-        return new AttackPreviewData
-        {
-            SummaryText = $"预计命中率 {previewText}",
-            Stages = new List<AttackPreviewStage>
-            {
-                new AttackPreviewStage(
-                    hitRatePercent: successRate,
-                    successRatePercent: successRate,
-                    baseHitRatePercent: baseHitRate,
-                    requiredRoll: attackCheck.RequiredRoll,
-                    displayRequiredRoll: attackCheck.DisplayRequiredRoll,
-                    previewText: previewText
-                ),
-            },
-            HitRatePercent = successRate,
-            SuccessRatePercent = successRate,
-            BaseHitRatePercent = baseHitRate,
-            FatePreview = BattleFatePreviewData.FromAttackCheck(attackCheck),
-        };
     }
 
     internal AttackPreviewData BuildSkillDefinitionAttackPreview(
@@ -349,32 +286,6 @@ public class BattleHitResolver : IDisposable
         };
     }
 
-    public AttackCheckInput BuildSkillAttackCheck(
-        BattleUnitState active_unit,
-        BattleUnitState target_unit,
-        SkillDefinition skill_definition
-    )
-    {
-        return BuildSkillDefinitionAttackCheck(active_unit, target_unit, skill_definition, 0, 0);
-    }
-
-    public AttackCheckInput BuildSkillAttackCheck(
-        BattleUnitState active_unit,
-        BattleUnitState target_unit,
-        SkillDefinition skill_definition,
-        int flat_bonus = 0,
-        int flat_penalty = 0
-    )
-    {
-        return BuildSkillDefinitionAttackCheck(
-            active_unit,
-            target_unit,
-            skill_definition,
-            flat_bonus,
-            flat_penalty
-        );
-    }
-
     internal AttackCheckInput BuildSkillAttackCheck(
         BattleUnitReadView active_unit,
         BattleUnitReadView target_unit,
@@ -398,102 +309,6 @@ public class BattleHitResolver : IDisposable
             skill_definition,
             flat_bonus,
             flat_penalty
-        );
-    }
-
-    public AttackCheckInput BuildSkillDefinitionAttackCheck(
-        BattleUnitState active_unit,
-        BattleUnitState target_unit,
-        SkillDefinition skill_definition,
-        int flat_bonus,
-        int flat_penalty
-    )
-    {
-        return BuildSkillDefinitionAttackCheck(
-            active_unit,
-            target_unit,
-            skill_definition,
-            flat_bonus,
-            flat_penalty,
-            null
-        );
-    }
-
-    internal AttackCheckInput BuildSkillDefinitionAttackCheck(
-        BattleUnitState active_unit,
-        BattleUnitState target_unit,
-        SkillDefinition skill_definition,
-        int flat_bonus,
-        int flat_penalty,
-        EquipmentAttackDefenseAdjustment defense_adjustment
-    )
-    {
-        int attackerBaseAttackBonus = _get_unit_attribute_value(
-            active_unit,
-            AttributeService.ToStringName(AttributeIdKind.BaseAttackBonus),
-            0
-        );
-        int attackerAttackBonus = _get_unit_attribute_value(
-            active_unit,
-            AttributeService.ToStringName(AttributeIdKind.AttackBonus),
-            0
-        );
-        if (!_unit_has_attribute_value(target_unit, AttributeService.ToStringName(AttributeIdKind.ArmorClass)))
-        {
-            string errorMessage =
-                "BattleHitResolver cannot build attack check: target unit is missing armor_class.";
-            GameLog.Error(errorMessage, "battle.hit.resolve_failed", "battle");
-            return _build_invalid_attack_check(
-                ATTACK_CHECK_ERROR_MISSING_TARGET_ARMOR_CLASS,
-                errorMessage
-            );
-        }
-        int targetArmorClass = _get_target_armor_class(target_unit, defense_adjustment);
-        int skillLevel = 0;
-        StringName skillId = skill_definition?.SkillId ?? new StringName("");
-        if (active_unit != null && !IsEmpty(skillId))
-        {
-            if (active_unit.HasKnownSkillLevelTyped(skillId))
-            {
-                skillLevel = active_unit.GetKnownSkillLevelTyped(skillId);
-            }
-            else if (active_unit.known_active_skill_ids.Contains(skillId))
-            {
-                skillLevel = 1;
-            }
-        }
-        int skillAttackBonus =
-            SkillEffectiveCombatDefinition.BuildUncached(skill_definition, skillLevel).AttackRollBonus;
-        int lockedSkillHitBonus = _get_skill_lock_hit_bonus(active_unit, skillId);
-        int statusAttackBonusDelta = _get_attacker_status_attack_bonus_delta(active_unit);
-        int situationalAttackBonus = flat_bonus + Math.Max(statusAttackBonusDelta, 0);
-        int situationalAttackPenalty = flat_penalty + Math.Max(-statusAttackBonusDelta, 0);
-        int requiredRoll =
-            targetArmorClass
-            - attackerBaseAttackBonus
-            - attackerAttackBonus
-            - skillAttackBonus
-            - lockedSkillHitBonus
-            - situationalAttackBonus
-            + situationalAttackPenalty;
-        int hitRatePercent = _compute_hit_rate_percent(requiredRoll);
-        int displayRequiredRoll = _get_display_required_roll(requiredRoll);
-        return new AttackCheckInput(
-            attackerBaseAttackBonus: attackerBaseAttackBonus,
-            attackerAttackBonus: attackerAttackBonus,
-            attackerBab: attackerBaseAttackBonus,
-            targetArmorClass: targetArmorClass,
-            skillAttackBonus: skillAttackBonus,
-            lockedSkillHitBonus: lockedSkillHitBonus,
-            situationalAttackBonus: situationalAttackBonus,
-            situationalAttackPenalty: situationalAttackPenalty,
-            requiredRoll: requiredRoll,
-            displayRequiredRoll: displayRequiredRoll,
-            hitRatePercent: hitRatePercent,
-            successRatePercent: hitRatePercent,
-            naturalOneAutoMiss: true,
-            naturalTwentyAutoHit: true,
-            previewText: $"{hitRatePercent}%（{_format_required_roll_text(requiredRoll)}）"
         );
     }
 
@@ -594,24 +409,6 @@ public class BattleHitResolver : IDisposable
     }
 
     private int _get_unit_attribute_value(
-        BattleUnitState unit_state,
-        StringName attribute_id,
-        int fallback = 0
-    )
-    {
-        AttributeSnapshot snapshot = unit_state?.attribute_snapshot;
-        if (snapshot == null)
-        {
-            return fallback;
-        }
-        if (!snapshot.HasValue(attribute_id))
-        {
-            return fallback;
-        }
-        return snapshot.GetValue(attribute_id);
-    }
-
-    private int _get_unit_attribute_value(
         BattleUnitReadView unit_state,
         StringName attribute_id,
         int fallback = 0
@@ -620,52 +417,12 @@ public class BattleHitResolver : IDisposable
         return unit_state.GetAttributeValue(attribute_id, fallback);
     }
 
-    private bool _unit_has_attribute_value(BattleUnitState unit_state, StringName attribute_id)
-    {
-        AttributeSnapshot snapshot = unit_state?.attribute_snapshot;
-        return snapshot != null && snapshot.HasValue(attribute_id);
-    }
-
     private bool _unit_has_attribute_value(BattleUnitReadView unit_state, StringName attribute_id)
     {
         return unit_state.HasAttributeValue(attribute_id);
     }
 
     private int _get_target_armor_class(
-        BattleUnitState target_unit,
-        EquipmentAttackDefenseAdjustment defense_adjustment = null
-    )
-    {
-        int targetArmorClass = _get_unit_attribute_value(
-            target_unit,
-            AttributeService.ToStringName(AttributeIdKind.ArmorClass),
-            0
-        );
-        targetArmorClass -= _get_target_armor_break_penalty(target_unit);
-        targetArmorClass = _apply_attack_defense_adjustment(
-            targetArmorClass,
-            target_unit,
-            defense_adjustment
-        );
-        if (
-            _is_target_dodge_bonus_locked(target_unit)
-            || defense_adjustment?.LockDodgeBonus == true
-        )
-        {
-            targetArmorClass -= _get_remaining_ac_component_value(
-                target_unit,
-                AttributeService.ToStringName(AttributeIdKind.DodgeBonus),
-                defense_adjustment
-            );
-        }
-        else
-        {
-            targetArmorClass += _get_target_status_dodge_bonus(target_unit);
-        }
-        return Math.Max(targetArmorClass, 1);
-    }
-
-    private int _get_target_armor_class(
         BattleUnitReadView target_unit,
         EquipmentAttackDefenseAdjustment defense_adjustment = null
     )
@@ -701,26 +458,6 @@ public class BattleHitResolver : IDisposable
 
     private int _apply_attack_defense_adjustment(
         int targetArmorClass,
-        BattleUnitState target_unit,
-        EquipmentAttackDefenseAdjustment defense_adjustment
-    )
-    {
-        if (defense_adjustment == null || defense_adjustment.IsEmpty)
-            return targetArmorClass;
-        foreach (StringName componentId in AttributeService.AC_COMPONENT_ATTRIBUTE_IDS)
-        {
-            int componentValue = Math.Max(_get_unit_attribute_value(target_unit, componentId, 0), 0);
-            targetArmorClass -= componentValue - _get_remaining_ac_component_value(
-                componentValue,
-                componentId,
-                defense_adjustment
-            );
-        }
-        return targetArmorClass;
-    }
-
-    private int _apply_attack_defense_adjustment(
-        int targetArmorClass,
         BattleUnitReadView target_unit,
         EquipmentAttackDefenseAdjustment defense_adjustment
     )
@@ -737,16 +474,6 @@ public class BattleHitResolver : IDisposable
             );
         }
         return targetArmorClass;
-    }
-
-    private int _get_remaining_ac_component_value(
-        BattleUnitState target_unit,
-        StringName componentId,
-        EquipmentAttackDefenseAdjustment defense_adjustment
-    )
-    {
-        int componentValue = Math.Max(_get_unit_attribute_value(target_unit, componentId, 0), 0);
-        return _get_remaining_ac_component_value(componentValue, componentId, defense_adjustment);
     }
 
     private int _get_remaining_ac_component_value(
@@ -791,20 +518,6 @@ public class BattleHitResolver : IDisposable
         );
     }
 
-    private int _get_target_armor_break_penalty(BattleUnitState target_unit)
-    {
-        if (target_unit == null)
-        {
-            return 0;
-        }
-        var statusEntry = target_unit.GetStatusEffect(STATUS_ARMOR_BREAK);
-        if (statusEntry == null)
-        {
-            return 0;
-        }
-        return Math.Max(Math.Max(statusEntry.power, statusEntry.stacks), 1) * 2;
-    }
-
     private int _get_target_armor_break_penalty(BattleUnitReadView target_unit)
     {
         if (!target_unit.IsValid || !target_unit.HasStatusEffect(STATUS_ARMOR_BREAK))
@@ -820,20 +533,6 @@ public class BattleHitResolver : IDisposable
         ) * 2;
     }
 
-    private int _get_target_status_dodge_bonus(BattleUnitState target_unit)
-    {
-        if (target_unit == null)
-        {
-            return 0;
-        }
-        var statusEntry = target_unit.GetStatusEffect(STATUS_DODGE_BONUS_UP);
-        if (statusEntry == null)
-        {
-            return 0;
-        }
-        return Math.Max(Math.Max(statusEntry.power, statusEntry.stacks), 1) * 2;
-    }
-
     private int _get_target_status_dodge_bonus(BattleUnitReadView target_unit)
     {
         if (!target_unit.IsValid || !target_unit.HasStatusEffect(STATUS_DODGE_BONUS_UP))
@@ -847,34 +546,6 @@ public class BattleHitResolver : IDisposable
             ),
             1
         ) * 2;
-    }
-
-    private int _get_attacker_status_attack_bonus_delta(BattleUnitState active_unit)
-    {
-        if (active_unit == null)
-        {
-            return 0;
-        }
-        int attackDelta = 0;
-        if (active_unit.HasStatusEffect(STATUS_BLACK_STAR_BRAND_ELITE))
-        {
-            attackDelta = BLACK_STAR_BRAND_ATTACK_BONUS_DELTA;
-        }
-        else
-        {
-            var statusEntry = active_unit.GetStatusEffect(STATUS_ATTACK_ROLL_BONUS_UP);
-            if (statusEntry != null)
-            {
-                attackDelta = Math.Max(statusEntry.power, statusEntry.stacks);
-            }
-        }
-        foreach (StringName statusId in active_unit.GetSortedStatusEffectIdsTyped())
-        {
-            var statusEntry = active_unit.GetStatusEffect(statusId);
-            if (statusEntry?.attack_roll_bonus > 0)
-                attackDelta = Math.Max(attackDelta, statusEntry.attack_roll_bonus);
-        }
-        return attackDelta - _get_attacker_status_attack_penalty(active_unit);
     }
 
     private int _get_attacker_status_attack_bonus_delta(BattleUnitReadView active_unit)
@@ -903,40 +574,9 @@ public class BattleHitResolver : IDisposable
         return attackDelta - _get_attacker_status_attack_penalty(active_unit);
     }
 
-    private int _get_attacker_status_attack_penalty(BattleUnitState active_unit)
-    {
-        if (active_unit == null)
-        {
-            return 0;
-        }
-        int penalty = 0;
-        foreach (StringName statusId in active_unit.GetSortedStatusEffectIdsTyped())
-        {
-            var statusEntry = active_unit.GetStatusEffect(statusId);
-            if (statusEntry == null)
-            {
-                continue;
-            }
-            penalty = Math.Max(
-                penalty,
-                BattleStatusSemanticTable.GetAttackRollPenalty(statusEntry)
-            );
-        }
-        return penalty;
-    }
-
     private int _get_attacker_status_attack_penalty(BattleUnitReadView active_unit)
     {
         return active_unit.GetAttackRollPenalty();
-    }
-
-    private bool _is_target_dodge_bonus_locked(BattleUnitState target_unit)
-    {
-        return target_unit != null
-            && (
-                target_unit.HasStatusEffect(STATUS_CROWN_BREAK_BLINDED_EYE)
-                || _unit_has_lock_dodge_bonus_status(target_unit)
-            );
     }
 
     private bool _is_target_dodge_bonus_locked(BattleUnitReadView target_unit)
@@ -946,23 +586,6 @@ public class BattleHitResolver : IDisposable
                 target_unit.HasStatusEffect(STATUS_CROWN_BREAK_BLINDED_EYE)
                 || target_unit.HasLockDodgeBonusStatus()
             );
-    }
-
-    private bool _unit_has_lock_dodge_bonus_status(BattleUnitState unit_state)
-    {
-        if (unit_state == null)
-        {
-            return false;
-        }
-        foreach (StringName statusId in unit_state.GetSortedStatusEffectIdsTyped())
-        {
-            var statusEntry = unit_state.GetStatusEffect(statusId);
-            if (statusEntry?.lock_dodge_bonus == true)
-            {
-                return true;
-            }
-        }
-        return false;
     }
 
     public virtual AttackRollResult RollAttackCheck(BattleState battle_state, AttackCheckInput attack_check)
@@ -1281,15 +904,6 @@ public class BattleHitResolver : IDisposable
         }
 
         return metadata;
-    }
-
-    private int _get_skill_lock_hit_bonus(BattleUnitState unit_state, StringName skill_id)
-    {
-        if (unit_state == null || IsEmpty(skill_id))
-        {
-            return 0;
-        }
-        return Math.Max(unit_state.GetKnownSkillLockHitBonusTyped(skill_id), 0);
     }
 
     private int _get_skill_lock_hit_bonus(BattleUnitReadView unit_state, StringName skill_id)
@@ -1697,83 +1311,6 @@ public class BattleHitResolver : IDisposable
 
     internal AttackCheckInput BuildFateAwareAttackCheckPreview(
         BattleState battle_state,
-        BattleUnitState active_unit,
-        BattleUnitState target_unit,
-        AttackCheckInput attack_check
-    )
-    {
-        if (attack_check.Invalid)
-        {
-            return new AttackCheckInput(
-                requiredRoll: attack_check.RequiredRoll,
-                displayRequiredRoll: attack_check.DisplayRequiredRoll,
-                naturalOneAutoMiss: attack_check.NaturalOneAutoMiss,
-                naturalTwentyAutoHit: attack_check.NaturalTwentyAutoHit,
-                invalid: true,
-                errorId: attack_check.ErrorId,
-                errorMessage: attack_check.ErrorMessage,
-                previewText: string.IsNullOrEmpty(attack_check.PreviewText)
-                    ? "无效命中检定"
-                    : attack_check.PreviewText
-            );
-        }
-        int baseHitRatePercent = attack_check.HitRatePercent;
-        if (battle_state == null || active_unit == null || target_unit == null)
-        {
-            return CopyAttackCheck(
-                attack_check,
-                baseHitRatePercent: baseHitRatePercent,
-                previewText: FormatAttackCheckPreview(attack_check)
-            );
-        }
-
-        bool isDisadvantage = battle_state.IsAttackDisadvantage(active_unit, target_unit);
-        bool isAdvantage = attack_check.IsAdvantage;
-        NormalizeAdvantageState(ref isDisadvantage, ref isAdvantage);
-        int hiddenLuckAtBirth = _get_hidden_luck_at_birth(active_unit);
-        int faithLuckBonus = _get_faith_luck_bonus(active_unit);
-        int effectiveLuck = Math.Clamp(
-            hiddenLuckAtBirth + faithLuckBonus,
-            UnitBaseAttributes.EffectiveLuckMin,
-            UnitBaseAttributes.EffectiveLuckMax
-        );
-        int critGateDie = FateAttackFormula.CalcCritGateDieSize(effectiveLuck, isDisadvantage);
-        int critThreshold = FateAttackFormula.CalcCritThreshold(
-            hiddenLuckAtBirth,
-            faithLuckBonus
-        );
-        int fumbleLowEnd = FateAttackFormula.CalcFumbleLowEnd(effectiveLuck);
-        bool critLocked = BattleFateAttackRules.IsAttackCritLocked(active_unit);
-        int successRatePercent = _compute_fate_attack_success_rate_percent(
-            attack_check,
-            critLocked,
-            critGateDie,
-            critThreshold,
-            fumbleLowEnd,
-            isDisadvantage,
-            isAdvantage
-        );
-        AttackCheckInput resolvedCheck = CopyAttackCheck(
-            attack_check,
-            hitRatePercent: successRatePercent,
-            successRatePercent: successRatePercent,
-            baseHitRatePercent: baseHitRatePercent,
-            isDisadvantage: isDisadvantage,
-            isAdvantage: isAdvantage,
-            critGateDie: critGateDie,
-            critThreshold: critThreshold,
-            fumbleLowEnd: fumbleLowEnd,
-            effectiveLuck: effectiveLuck,
-            critLocked: critLocked
-        );
-        return CopyAttackCheck(
-            resolvedCheck,
-            previewText: FormatFateAwareAttackCheckPreview(resolvedCheck)
-        );
-    }
-
-    internal AttackCheckInput BuildFateAwareAttackCheckPreview(
-        BattleState battle_state,
         BattleUnitReadView active_unit,
         BattleUnitReadView target_unit,
         AttackCheckInput attack_check
@@ -2018,32 +1555,12 @@ public class BattleHitResolver : IDisposable
         return BattleFateAttackRules.DoesAttackRollHit(roll, attack_check);
     }
 
-    private int _get_hidden_luck_at_birth(BattleUnitState unit_state)
-    {
-        AttributeSnapshot snapshot = unit_state?.attribute_snapshot;
-        if (snapshot == null)
-        {
-            return 0;
-        }
-        return snapshot.GetValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.HiddenLuckAtBirth));
-    }
-
     private int _get_hidden_luck_at_birth(BattleUnitReadView unit_state)
     {
         return unit_state.GetAttributeValue(
             UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.HiddenLuckAtBirth),
             0
         );
-    }
-
-    private int _get_faith_luck_bonus(BattleUnitState unit_state)
-    {
-        AttributeSnapshot snapshot = unit_state?.attribute_snapshot;
-        if (snapshot == null)
-        {
-            return 0;
-        }
-        return snapshot.GetValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.FaithLuckBonus));
     }
 
     private int _get_faith_luck_bonus(BattleUnitReadView unit_state)
@@ -2054,7 +1571,7 @@ public class BattleHitResolver : IDisposable
         );
     }
 
-    private int _get_effective_luck(BattleUnitState unit_state)
+    private int _get_effective_luck(BattleUnitReadView unit_state)
     {
         return Math.Clamp(
             _get_hidden_luck_at_birth(unit_state) + _get_faith_luck_bonus(unit_state),

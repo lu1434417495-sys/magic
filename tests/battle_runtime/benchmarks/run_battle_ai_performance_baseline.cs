@@ -348,7 +348,9 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
                 skill_catalog: catalog.GetSkillCatalogTyped(),
                 battle_special_profile_view: catalog.GetBattleSpecialProfileView()
             );
-            runtime._ai_service.EnableMutationGuard = aiMutationGuardEnabled;
+            runtime._ai_service.MutationGuardMode = aiMutationGuardEnabled
+                ? BattleAiMutationGuardMode.FullSnapshotDiagnostic
+                : BattleAiMutationGuardMode.Disabled;
 
             state = BuildFlatState(spec.MapSize, scenarioId);
             PopulateUnits(runtime, state, spec);

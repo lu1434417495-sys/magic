@@ -10,7 +10,8 @@ internal sealed class BattleAiService : IDisposable
     private readonly BattleAiDecisionEngine _decisionEngine = new();
     private bool _disposed;
 
-    internal bool EnableMutationGuard { get; set; } = true;
+    internal BattleAiMutationGuardMode MutationGuardMode { get; set; } =
+        BattleAiMutationGuardMode.Disabled;
 
     internal void Setup(
         IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyAiBrains = null,
@@ -89,12 +90,19 @@ internal sealed class BattleAiService : IDisposable
             context.active_score_profile = _scoreService.GetProfile();
             context.ClearMutationGuardViolations();
 
-            if (!EnableMutationGuard)
+            if (MutationGuardMode == BattleAiMutationGuardMode.Disabled)
             {
                 BattleAiDecision decisionNoGuard;
                 using (new BattleAiTraceSpan("choose:impl"))
                     decisionNoGuard = ChooseCommandImpl(context);
                 return BattleAiDecisionResult.Capture(context, decisionNoGuard, captureTrace);
+            }
+
+            if (MutationGuardMode != BattleAiMutationGuardMode.FullSnapshotDiagnostic)
+            {
+                throw new InvalidOperationException(
+                    $"Unsupported AI mutation guard mode: {MutationGuardMode}."
+                );
             }
 
             BattleAiMutationGuard mutationGuard = new();

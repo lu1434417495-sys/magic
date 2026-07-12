@@ -312,6 +312,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
     private readonly List<BattleAiTurnTraceProjection> _ai_turn_traces = new();
     private int _contingencySourceEventOrdinal;
     internal Dictionary<StringName, BattleAiRuntimeActionPlan> _ai_action_plans_by_unit_id = new();
+    private readonly Func<StringName, Vector2I, Vector2I, int> _ai_move_query_cost_callback;
     private readonly Func<BattleUnitState, Vector2I, int> _ai_move_cost_callback;
     private readonly Func<BattleCommand, BattlePreview> _ai_preview_command_callback;
     private readonly Func<
@@ -349,11 +350,13 @@ public sealed partial class BattleRuntimeModule : IDisposable
     internal BattleMetricsState _battle_metrics = new();
     private BattleStartFailureSnapshot _last_start_failure = new();
     internal BattleCalamityStore calamity_by_member_id = new();
+    private long _battleCacheEpoch;
     private bool _disposed;
 
     public BattleRuntimeModule()
     {
         SetTerrainGenerator(new BattleTerrainGenerator(), true);
+        _ai_move_query_cost_callback = _get_ai_move_query_cost;
         _ai_move_cost_callback = _get_move_cost_for_unit_target;
         _ai_preview_command_callback = PreviewCommand;
         _ai_skill_score_input_callback = BuildAiSkillScoreInput;
@@ -662,7 +665,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
             if (string.IsNullOrEmpty(encounterDisplayName))
                 encounterDisplayName = GetString(context, "encounter_display_name", "未知遭遇");
 
-            _state = new BattleState
+            BindRuntimeBattleState(new BattleState
             {
                 battle_id = ProgressionDataUtils.to_string_name($"{battleIdPrefix}_{seed}"),
                 seed = seed,
@@ -673,7 +676,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
                 encounter_anchor_id = encounterAnchorId,
                 terrain_profile_id = terrainProfileId,
                 timeline = new BattleTimelineState(),
-            };
+            });
             _state.ReplaceEnvironmentSnapshot(
                 BattleEnvironmentSnapshot.FromBattleStartContext(context, terrainProfileId)
             );
@@ -909,7 +912,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
                 GetSkillDefinitionIndexTyped(),
                 _skillCatalog,
                 _ai_service.GetScoreService(),
-                _get_ai_move_query_cost,
+                _ai_move_query_cost_callback,
                 _ai_query_action_score_input_callback,
                 _ai_movement_blocked_callback,
                 _ai_move_cost_callback,
@@ -1818,8 +1821,10 @@ public sealed partial class BattleRuntimeModule : IDisposable
         if (state == null)
             _contingency_system.ClearBattleState();
         if (!ReferenceEquals(_state, state))
+        {
             _delayed_area_effect_system.Clear();
-        _state = state;
+            BindRuntimeBattleState(state);
+        }
         if (_state != null)
         {
             _ensure_sidecars_ready();
@@ -1832,6 +1837,9 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _ensure_sidecars_ready();
         return _contingency_system;
     }
+
+    internal BattleMovementQueryService.CacheDiagnostics GetAiMovementQueryCacheDiagnostics() =>
+        _runtime_services.AiMovementQuery.CaptureCacheDiagnostics();
 
     internal BattleEffectOrigin CurrentEffectOriginForContingency =>
         CurrentEffectOrigin ?? BattleEffectOrigin.PlayerCommand();
@@ -2741,7 +2749,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
         // Phase 1: release the most-derived decision borrowers before any service,
         // content catalog, state graph, or owned native resource can disappear.
-        RunTeardownStep(ref firstFailure, _runtime_services.ClearRuntimeBindings);
+        RunTeardownStep(ref firstFailure, _runtime_services.EndBattle);
         RunTeardownStep(ref firstFailure, ClearAiActionPlans);
         RunTeardownStep(ref firstFailure, _ai_turn_traces.Clear);
         RunTeardownStep(ref firstFailure, _contingency_system.ClearBattleState);
@@ -2824,6 +2832,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     private void ClearRuntimeBattleStateReference()
     {
+        if (!_disposed)
+            _runtime_services.EndBattle();
         BattleState state = _state;
         _state = null;
         if (state != null)
@@ -2838,6 +2848,24 @@ public sealed partial class BattleRuntimeModule : IDisposable
                 ExceptionDispatchInfo.Capture(firstFailure).Throw();
             }
         }
+    }
+
+    private void BindRuntimeBattleState(BattleState state)
+    {
+        if (ReferenceEquals(_state, state))
+        {
+            return;
+        }
+
+        _runtime_services.EndBattle();
+        _state = state;
+        if (state == null)
+        {
+            return;
+        }
+
+        _battleCacheEpoch = _battleCacheEpoch == long.MaxValue ? 1 : _battleCacheEpoch + 1;
+        _runtime_services.BeginBattle(_battleCacheEpoch);
     }
 
     private static void DisposeBattlePreview(BattlePreview preview)

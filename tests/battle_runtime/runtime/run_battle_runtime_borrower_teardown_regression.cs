@@ -54,7 +54,7 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         {
             SetupRuntime(runtime, content);
             BattleState state = BuildState(out BattleUnitState actor);
-            runtime._state = state;
+            runtime.SetupStateForTests(state);
             BindDecisionBorrowers(runtime, actor);
 
             _test.True(runtime.HasAiRuntimeBorrowers, "precondition: AI helper borrowers are bound");
@@ -96,7 +96,7 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         BattleTerrainGenerator ownedTerrainGenerator = runtime.GetTerrainGenerator();
         BattleState state = BuildState(out BattleUnitState actor);
         SetupRuntime(runtime, content);
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BindDecisionBorrowers(runtime, actor);
 
         _test.True(runtime.HasContentCatalogBorrowers, "precondition: all content borrowers are populated");
@@ -122,7 +122,7 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         runtime.ConfigureOwnedTerrainGeneratorForTests(throwingTerrainGenerator);
         BattleState state = BuildState(out BattleUnitState actor);
         SetupRuntime(runtime, content);
-        runtime._state = state;
+        runtime.SetupStateForTests(state);
         BindDecisionBorrowers(runtime, actor);
 
         bool threwExpectedFailure = false;

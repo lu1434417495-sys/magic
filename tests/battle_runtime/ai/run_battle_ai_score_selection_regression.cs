@@ -35,7 +35,12 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
             Array.Empty<EnemyAiStateDefinition>(),
             Array.Empty<EnemyAiTransitionRuleDefinition>()
         );
-        using BattleAiService aiService = new() { EnableMutationGuard = false };
+        using BattleAiService aiService = new()
+        {
+            // Routine correctness lane: production disables the full snapshot guard,
+            // so representative real action/scorer decisions must still run under it here.
+            MutationGuardMode = BattleAiMutationGuardMode.FullSnapshotDiagnostic,
+        };
         aiService.Setup(BuildBrainMap(brain));
 
         BattleUnitState actor = BuildUnit("score_profile_actor", "hostile", Vector2I.Zero);
@@ -120,7 +125,10 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
             "残血目标场景下，warrior_execution_cleave 的评分应高于 warrior_heavy_strike。"
         );
 
-        using BattleAiService aiService = new() { EnableMutationGuard = false };
+        using BattleAiService aiService = new()
+        {
+            MutationGuardMode = BattleAiMutationGuardMode.FullSnapshotDiagnostic,
+        };
         EnemyAiBrainDefinition brain = BuildTwoUnitSkillActionBrain(
             wolf.ai_brain_id,
             heavySkill.SkillId,

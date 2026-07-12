@@ -309,8 +309,16 @@ public partial class BattleUnitState
 
     public void RefreshFootprint()
     {
-        footprint_size = GetFootprintSizeForBodySize(body_size);
-        occupied_coords = BuildOccupiedCoords(coord, footprint_size);
+        Vector2I resolvedFootprint = GetFootprintSizeForBodySize(body_size);
+        if (
+            footprint_size == resolvedFootprint
+            && OccupiedCoordsMatch(coord, resolvedFootprint, occupied_coords)
+        )
+        {
+            return;
+        }
+        footprint_size = resolvedFootprint;
+        occupied_coords = BuildOccupiedCoords(coord, resolvedFootprint);
     }
 
     public bool OccupiesCoord(Vector2I target_coord)
@@ -1958,6 +1966,29 @@ public partial class BattleUnitState
             }
         }
         return results;
+    }
+
+    private static bool OccupiedCoordsMatch(
+        Vector2I anchorCoord,
+        Vector2I footprint,
+        IReadOnlyList<Vector2I> occupiedCoords
+    )
+    {
+        int width = Math.Max(footprint.X, 0);
+        int height = Math.Max(footprint.Y, 0);
+        if (occupiedCoords == null || occupiedCoords.Count != width * height)
+            return false;
+        int index = 0;
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                if (occupiedCoords[index] != anchorCoord + new Vector2I(x, y))
+                    return false;
+                index += 1;
+            }
+        }
+        return true;
     }
 
     private static bool HasExactFields(GDictionary data, string[] expected_fields)

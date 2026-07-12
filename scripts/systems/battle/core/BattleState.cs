@@ -405,9 +405,21 @@ public partial class BattleState
 
     public void NormalizeUnitIdArrays()
     {
-        ally_unit_ids = _normalize_string_name_array(ally_unit_ids);
-        enemy_unit_ids = _normalize_string_name_array(enemy_unit_ids);
-        MarkMovementGeometryChanged();
+        StringNameList normalizedAllyUnitIds = _normalize_string_name_array(ally_unit_ids);
+        StringNameList normalizedEnemyUnitIds = _normalize_string_name_array(enemy_unit_ids);
+        bool changed = false;
+        if (!_string_name_lists_equal(ally_unit_ids, normalizedAllyUnitIds))
+        {
+            ally_unit_ids = normalizedAllyUnitIds;
+            changed = true;
+        }
+        if (!_string_name_lists_equal(enemy_unit_ids, normalizedEnemyUnitIds))
+        {
+            enemy_unit_ids = normalizedEnemyUnitIds;
+            changed = true;
+        }
+        if (changed)
+            MarkMovementGeometryChanged();
     }
 
     public List<StringName> GetAllyUnitIdsTyped() =>
@@ -1289,6 +1301,23 @@ public partial class BattleState
         return results;
     }
 
+    private static bool _string_name_lists_equal(
+        IReadOnlyList<StringName> left,
+        IReadOnlyList<StringName> right
+    )
+    {
+        if (ReferenceEquals(left, right))
+            return true;
+        if (left == null || right == null || left.Count != right.Count)
+            return false;
+        for (int index = 0; index < left.Count; index++)
+        {
+            if (left[index] != right[index])
+                return false;
+        }
+        return true;
+    }
+
     private int _count_adjacent_enemy_units(BattleUnitState attacker)
     {
         if (attacker == null)
@@ -1315,10 +1344,13 @@ public partial class BattleState
         if (!attacker.IsValid)
             return 0;
 
+        attacker.UnsafeUnitForReadOnlyRules?.RefreshFootprint();
+
         var adjacentEnemyIds = new HashSet<StringName>();
 
         foreach (BattleUnitState candidateState in GetUnitsTyped())
         {
+            candidateState?.RefreshFootprint();
             BattleUnitReadView candidate = new(candidateState);
             if (!_is_enemy_unit(attacker, candidate))
                 continue;

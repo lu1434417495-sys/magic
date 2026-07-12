@@ -19,6 +19,7 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
         TestClonePreservesPendingCastRuntimeStateWithoutSerialization();
         TestTypedChargeAndFumbleHelpers();
         TestExtendedBodySizeCategoriesRoundtrip();
+        TestRefreshFootprintIsIdempotent();
         TestRejectsEmptyMissingAndExtraFields();
         TestRejectsWrongTopLevelTypes();
         TestRejectsStringNumericValues();
@@ -35,6 +36,33 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
 
         DisposePayloadLeases();
         RequestTestExit(_test.Finish("Battle unit state schema regression"));
+    }
+
+    private void TestRefreshFootprintIsIdempotent()
+    {
+        BattleUnitState unit = BuildMinimalUnit();
+        unit.SetAnchorCoord(new Vector2I(3, 4));
+        Vector2IList first = unit.occupied_coords;
+
+        unit.RefreshFootprint();
+        _test.True(
+            ReferenceEquals(first, unit.occupied_coords),
+            "footprint 输入未变化时应复用同一 occupied_coords 快照。"
+        );
+
+        unit.SetAnchorCoord(new Vector2I(4, 4));
+        _test.False(
+            ReferenceEquals(first, unit.occupied_coords),
+            "anchor coord 变化时应替换 occupied_coords 快照。"
+        );
+        _test.True(unit.occupied_coords.Contains(new Vector2I(4, 4)), "新 footprint 应包含新 anchor。");
+
+        Vector2IList moved = unit.occupied_coords;
+        _test.True(unit.SetBodySizeProjection(BattleUnitState.BodySizeLarge), "large body size 应合法。");
+        _test.False(
+            ReferenceEquals(moved, unit.occupied_coords),
+            "body size 变化时应替换 occupied_coords 快照。"
+        );
     }
 
     private void TestValidRoundtripPreservesCurrentPayload()

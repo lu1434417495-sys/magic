@@ -24,6 +24,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         {
             ConfigureRuntimeFaultMode();
 
+            TestProductionDefaultDisablesFullSnapshotGuard();
             TestTurnTraceProjectsTypedDecisionTransition();
             TestSnapshotIsPlainAndRestoresExactStateWithoutAuditGrowth();
             TestBenignAiBookkeepingIsAllowed();
@@ -56,6 +57,16 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         BattleAiFailurePolicy.Reset();
         ProjectSettings.SetSetting(AbortProcessSetting, false);
         ProjectSettings.SetSetting(FailureModeSetting, BattleAiFailurePolicy.ModeRuntimeFault.ToString());
+    }
+
+    private void TestProductionDefaultDisablesFullSnapshotGuard()
+    {
+        using var service = new BattleAiService();
+        _test.Eq(
+            service.MutationGuardMode,
+            BattleAiMutationGuardMode.Disabled,
+            "production AI service 默认不应执行 full-snapshot mutation guard。"
+        );
     }
 
     private void TestTurnTraceProjectsTypedDecisionTransition()
@@ -619,7 +630,10 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             }
         }
 
-        var service = new BattleAiService();
+        var service = new BattleAiService
+        {
+            MutationGuardMode = BattleAiMutationGuardMode.FullSnapshotDiagnostic,
+        };
         service.Setup(brainMap, null);
         var context = new BattleAiContext
         {

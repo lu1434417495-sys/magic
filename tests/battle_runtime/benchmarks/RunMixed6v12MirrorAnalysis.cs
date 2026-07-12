@@ -369,7 +369,9 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
             );
             PrintProgress($"[Progress] run seed={seed} runtime setup done");
             runtime.SetAiTraceEnabled(traceAi);
-            runtime._ai_service.EnableMutationGuard = aiMutationGuardEnabled;
+            runtime._ai_service.MutationGuardMode = aiMutationGuardEnabled
+                ? BattleAiMutationGuardMode.FullSnapshotDiagnostic
+                : BattleAiMutationGuardMode.Disabled;
             runtime.SetAiScoreProfile(overrides.AiScoreProfile);
             runtime.SetFactionAiScoreProfiles(overrides.FactionAiScoreProfiles);
 

@@ -124,35 +124,17 @@ internal class BattleAttackCheckPolicyService
         BattleAttackRollModifierBundle modifierBundle = BuildModifierBundle(context);
         EquipmentAttackDefenseAdjustment defenseAdjustment = BuildAttackDefenseAdjustment(context);
         bool hasAdvantage = modifierBundle.HasAdvantage;
-        AttackCheckInput attackCheck;
-        if (context.HasReadView)
-        {
-            attackCheck = CopyAttackCheckWithAdvantage(
-                _hitResolver.BuildSkillDefinitionAttackCheck(
-                    context.attacker_view,
-                    context.target_view,
-                    context.skill_definition,
-                    flat_bonus + modifierBundle.TotalBonus,
-                    flat_penalty + modifierBundle.TotalPenalty,
-                    defenseAdjustment
-                ),
-                hasAdvantage
-            );
-        }
-        else
-        {
-            attackCheck = CopyAttackCheckWithAdvantage(
-                _hitResolver.BuildSkillDefinitionAttackCheck(
-                    context.attacker,
-                    context.target,
-                    context.skill_definition,
-                    flat_bonus + modifierBundle.TotalBonus,
-                    flat_penalty + modifierBundle.TotalPenalty,
-                    defenseAdjustment
-                ),
-                hasAdvantage
-            );
-        }
+        AttackCheckInput attackCheck = CopyAttackCheckWithAdvantage(
+            _hitResolver.BuildSkillDefinitionAttackCheck(
+                context.attacker_view,
+                context.target_view,
+                context.skill_definition,
+                flat_bonus + modifierBundle.TotalBonus,
+                flat_penalty + modifierBundle.TotalPenalty,
+                defenseAdjustment
+            ),
+            hasAdvantage
+        );
         return CopyAttackCheckWithCriticalOverride(context, attackCheck);
     }
 
@@ -189,39 +171,22 @@ internal class BattleAttackCheckPolicyService
                 ?.ForceCriticalOnHit == true;
         if (modifierBundle.IsEmpty() && defenseAdjustment.IsEmpty && !hasCriticalOverride)
         {
-            if (context.HasReadView)
-            {
-                return _hitResolver.BuildSkillDefinitionAttackPreview(
-                    context.battle_state,
-                    context.attacker_view,
-                    context.target_view,
-                    context.skill_definition,
-                    false
-                );
-            }
             return _hitResolver.BuildSkillDefinitionAttackPreview(
                 context.battle_state,
-                context.attacker,
-                context.target,
+                context.attacker_view,
+                context.target_view,
                 context.skill_definition,
                 false
             );
         }
 
         AttackCheckInput attackCheck = BuildAttackCheck(context, 0, 0);
-        AttackCheckInput resolvedCheck = context.HasReadView
-            ? _hitResolver.BuildFateAwareAttackCheckPreview(
-                context.battle_state,
-                context.attacker_view,
-                context.target_view,
-                attackCheck
-            )
-            : _hitResolver.BuildFateAwareAttackCheckPreview(
-                context.battle_state,
-                context.attacker,
-                context.target,
-                attackCheck
-            );
+        AttackCheckInput resolvedCheck = _hitResolver.BuildFateAwareAttackCheckPreview(
+            context.battle_state,
+            context.attacker_view,
+            context.target_view,
+            attackCheck
+        );
         int successRate = resolvedCheck.SuccessRatePercent;
         int baseHitRate = resolvedCheck.BaseHitRatePercent;
         string previewText = resolvedCheck.PreviewText;
@@ -265,10 +230,8 @@ internal class BattleAttackCheckPolicyService
         if (
             _hitResolver == null
             || context == null
-            || (!context.HasReadView && context.attacker == null)
-            || (!context.HasReadView && context.target == null)
-            || (context.HasReadView && !context.attacker_view.IsValid)
-            || (context.HasReadView && !context.target_view.IsValid)
+            || !context.attacker_view.IsValid
+            || !context.target_view.IsValid
             || context.skill_definition == null
             || stage_specs == null
             || stage_specs.Count == 0
@@ -397,35 +360,17 @@ internal class BattleAttackCheckPolicyService
         BattleAttackRollModifierBundle modifierBundle = BuildModifierBundle(context);
         EquipmentAttackDefenseAdjustment defenseAdjustment = BuildAttackDefenseAdjustment(context);
         bool hasAdvantage = modifierBundle.HasAdvantage;
-        AttackCheckInput attackCheck;
-        if (context.HasReadView)
-        {
-            attackCheck = CopyAttackCheckWithAdvantage(
-                _hitResolver.BuildSkillDefinitionAttackCheck(
-                    context.attacker_view,
-                    context.target_view,
-                    context.skill_definition,
-                    resolvedStageSpec.stage_base_attack_bonus + modifierBundle.TotalBonus,
-                    resolvedStageSpec.ResolveStageAttackPenalty() + modifierBundle.TotalPenalty,
-                    defenseAdjustment
-                ),
-                hasAdvantage
-            );
-        }
-        else
-        {
-            attackCheck = CopyAttackCheckWithAdvantage(
-                _hitResolver.BuildSkillDefinitionAttackCheck(
-                    context.attacker,
-                    context.target,
-                    context.skill_definition,
-                    resolvedStageSpec.stage_base_attack_bonus + modifierBundle.TotalBonus,
-                    resolvedStageSpec.ResolveStageAttackPenalty() + modifierBundle.TotalPenalty,
-                    defenseAdjustment
-                ),
-                hasAdvantage
-            );
-        }
+        AttackCheckInput attackCheck = CopyAttackCheckWithAdvantage(
+            _hitResolver.BuildSkillDefinitionAttackCheck(
+                context.attacker_view,
+                context.target_view,
+                context.skill_definition,
+                resolvedStageSpec.stage_base_attack_bonus + modifierBundle.TotalBonus,
+                resolvedStageSpec.ResolveStageAttackPenalty() + modifierBundle.TotalPenalty,
+                defenseAdjustment
+            ),
+            hasAdvantage
+        );
         return CopyAttackCheckWithCriticalOverride(context, attackCheck);
     }
 
@@ -439,19 +384,12 @@ internal class BattleAttackCheckPolicyService
         }
         context.repeat_stage_spec = context.repeat_stage_spec.WithFateAware(true);
         AttackCheckInput baseAttackCheck = BuildRepeatAttackStageHitCheck(context);
-        return context.HasReadView
-            ? _hitResolver.BuildFateAwareAttackCheckPreview(
-                context.battle_state,
-                context.attacker_view,
-                context.target_view,
-                baseAttackCheck
-            )
-            : _hitResolver.BuildFateAwareAttackCheckPreview(
-                context.battle_state,
-                context.attacker,
-                context.target,
-                baseAttackCheck
-            );
+        return _hitResolver.BuildFateAwareAttackCheckPreview(
+            context.battle_state,
+            context.attacker_view,
+            context.target_view,
+            baseAttackCheck
+        );
     }
 
     public AttackRollResult RollAttackCheck(BattleState battle_state, AttackCheckInput attack_check)
@@ -515,19 +453,20 @@ internal class BattleAttackCheckPolicyService
         StringName traceSource
     )
     {
-        return new BattleAttackCheckPolicyContext
-        {
-            battle_state = battleState ?? ResolveBattleState(),
-            attacker = activeUnit,
-            target = targetUnit,
-            skill_definition = skillDefinition,
-            roll_kind = rollKind,
-            check_route = checkRoute,
-            trace_source = traceSource,
-            distance = ResolveDistance(activeUnit, targetUnit),
-            source_coord = activeUnit != null ? activeUnit.coord : new Vector2I(-1, -1),
-            target_coord = targetUnit != null ? targetUnit.coord : new Vector2I(-1, -1),
-        };
+        // 统一交给 read-view builder 归一化 footprint，再回填 State 引用供
+        // 不纯消费方（装备能力运行时）使用。
+        BattleAttackCheckPolicyContext context = BuildContext(
+            battleState,
+            (BattleUnitReadView)activeUnit,
+            (BattleUnitReadView)targetUnit,
+            skillDefinition,
+            rollKind,
+            checkRoute,
+            traceSource
+        );
+        context.attacker = activeUnit;
+        context.target = targetUnit;
+        return context;
     }
 
     private BattleAttackCheckPolicyContext BuildContext(
@@ -540,6 +479,8 @@ internal class BattleAttackCheckPolicyService
         StringName traceSource
     )
     {
+        activeUnit.UnsafeUnitForReadOnlyRules?.RefreshFootprint();
+        targetUnit.UnsafeUnitForReadOnlyRules?.RefreshFootprint();
         return new BattleAttackCheckPolicyContext
         {
             battle_state = battleState ?? ResolveBattleState(),
@@ -579,101 +520,9 @@ internal class BattleAttackCheckPolicyService
         BattleAttackCheckPolicyContext context
     )
     {
-        var candidates = new List<BattleAttackRollModifierSpec>();
-        if (context?.HasReadView == true)
-        {
-            return CollectStatusModifierCandidates(context.attacker_view, context.target_view);
-        }
-
-        BattleUnitState attacker = context?.attacker;
-        BattleUnitState target = context?.target;
-        if (attacker == null || target == null)
-            return candidates;
-
-        foreach (BattleStatusEffectState status in attacker.GetStatusEffectsTyped())
-        {
-            if (status?.attack_roll_advantage == true)
-            {
-                candidates.Add(
-                    new BattleAttackRollModifierSpec
-                    {
-                        source_domain = "status",
-                        source_id = status.status_id,
-                        source_instance_id = status.source_unit_id.ToString(),
-                        label = ResolveStatusModifierLabel(status),
-                        modifier_delta = 0,
-                        stack_key = status.status_id,
-                        stack_mode = "max",
-                        target_team_filter = "any",
-                        endpoint_mode = "target",
-                        footprint_mode = "any_cell",
-                        applies_to = "attack_advantage",
-                    }
-                );
-            }
-
-            int penalty = Math.Max(status?.source_bound_attack_roll_penalty ?? 0, 0);
-            if (penalty <= 0)
-                continue;
-            int minStacks = Math.Max(status.source_bound_attack_roll_penalty_min_stacks, 1);
-            if (Math.Max(status.stacks, 0) < minStacks)
-                continue;
-            if (ProgressionDataUtils.to_string_name(status.source_unit_id) != target.unit_id)
-                continue;
-
-            candidates.Add(
-                new BattleAttackRollModifierSpec
-                {
-                    source_domain = "status",
-                    source_id = status.status_id,
-                    source_instance_id = status.source_unit_id.ToString(),
-                    label = ResolveStatusModifierLabel(status),
-                    modifier_delta = -penalty,
-                    stack_key = status.status_id,
-                    stack_mode = "max",
-                    target_team_filter = "any",
-                    endpoint_mode = "target",
-                    footprint_mode = "any_cell",
-                    applies_to = "attack_roll",
-                }
-            );
-        }
-        foreach (BattleStatusEffectState status in target.GetStatusEffectsTyped())
-        {
-            int bonusPerStack = Math.Max(
-                status?.source_bound_incoming_attack_roll_bonus_per_stack ?? 0,
-                0
-            );
-            if (bonusPerStack <= 0)
-                continue;
-            int minStacks = Math.Max(
-                status.source_bound_incoming_attack_roll_bonus_min_stacks,
-                1
-            );
-            int stacks = Math.Max(status.stacks, 0);
-            if (stacks < minStacks)
-                continue;
-            if (ProgressionDataUtils.to_string_name(status.source_unit_id) != attacker.unit_id)
-                continue;
-
-            candidates.Add(
-                new BattleAttackRollModifierSpec
-                {
-                    source_domain = "status",
-                    source_id = status.status_id,
-                    source_instance_id = status.source_unit_id.ToString(),
-                    label = ResolveStatusModifierLabel(status),
-                    modifier_delta = bonusPerStack * stacks,
-                    stack_key = status.status_id,
-                    stack_mode = "max",
-                    target_team_filter = "any",
-                    endpoint_mode = "target",
-                    footprint_mode = "any_cell",
-                    applies_to = "attack_roll",
-                }
-            );
-        }
-        return candidates;
+        if (context == null)
+            return new List<BattleAttackRollModifierSpec>();
+        return CollectStatusModifierCandidates(context.attacker_view, context.target_view);
     }
 
     private static List<BattleAttackRollModifierSpec> CollectStatusModifierCandidates(
@@ -763,12 +612,6 @@ internal class BattleAttackCheckPolicyService
             );
         }
         return candidates;
-    }
-
-    private static string ResolveStatusModifierLabel(BattleStatusEffectState status)
-    {
-        string label = BattleStatusSemanticTable.GetDisplayLabel(status);
-        return string.IsNullOrWhiteSpace(label) ? status?.status_id.ToString() ?? "" : label;
     }
 
     private static string ResolveStatusModifierLabel(BattleStatusReadView status)
@@ -1164,55 +1007,19 @@ internal class BattleAttackCheckPolicyService
     private List<Vector2I> CollectEndpointCoords(BattleAttackCheckPolicyContext context)
     {
         var coords = new List<Vector2I>();
-        bool includeAttacker =
-            context != null && (context.attacker != null || context.attacker_view.IsValid);
-        bool includeTarget =
-            context != null && (context.target != null || context.target_view.IsValid);
-        if (includeAttacker)
+        if (context == null)
         {
-            if (context.attacker_view.IsValid)
-            {
-                AppendUnitCoords(coords, context.attacker_view, context.source_coord);
-            }
-            else
-            {
-                AppendUnitCoords(coords, context.attacker, context.source_coord);
-            }
+            return coords;
         }
-        if (includeTarget)
+        if (context.attacker_view.IsValid)
         {
-            if (context.target_view.IsValid)
-            {
-                AppendUnitCoords(coords, context.target_view, context.target_coord);
-            }
-            else
-            {
-                AppendUnitCoords(coords, context.target, context.target_coord);
-            }
+            AppendUnitCoords(coords, context.attacker_view, context.source_coord);
+        }
+        if (context.target_view.IsValid)
+        {
+            AppendUnitCoords(coords, context.target_view, context.target_coord);
         }
         return coords;
-    }
-
-    private void AppendUnitCoords(
-        List<Vector2I> coords,
-        BattleUnitState unitState,
-        Vector2I fallbackCoord
-    )
-    {
-        if (unitState == null)
-        {
-            return;
-        }
-        unitState.RefreshFootprint();
-        if (unitState.occupied_coords.Count == 0)
-        {
-            AppendCoordUnique(coords, fallbackCoord);
-            return;
-        }
-        foreach (Vector2I coord in unitState.occupied_coords)
-        {
-            AppendCoordUnique(coords, coord);
-        }
     }
 
     private void AppendUnitCoords(
@@ -1243,14 +1050,14 @@ internal class BattleAttackCheckPolicyService
         BattleAttackCheckPolicyContext context
     )
     {
-        bool attackerContains =
-            context != null && context.attacker_view.IsValid
-                ? UnitContainsCoord(context.attacker_view, coord)
-                : UnitContainsCoord(context?.attacker, coord);
-        bool targetContains =
-            context != null && context.target_view.IsValid
-                ? UnitContainsCoord(context.target_view, coord)
-                : UnitContainsCoord(context?.target, coord);
+        bool attackerContains = UnitContainsCoord(
+            context?.attacker_view ?? default,
+            coord
+        );
+        bool targetContains = UnitContainsCoord(
+            context?.target_view ?? default,
+            coord
+        );
         if (spec.EndpointModeKind == BattleAttackRollModifierEndpointMode.Attacker)
         {
             return attackerContains;
@@ -1264,20 +1071,6 @@ internal class BattleAttackCheckPolicyService
             return attackerContains && targetContains;
         }
         return attackerContains || targetContains;
-    }
-
-    private bool UnitContainsCoord(BattleUnitState unitState, Vector2I coord)
-    {
-        if (unitState == null)
-        {
-            return false;
-        }
-        unitState.RefreshFootprint();
-        if (unitState.occupied_coords.Count == 0)
-        {
-            return unitState.coord == coord;
-        }
-        return unitState.occupied_coords.Contains(coord);
     }
 
     private bool UnitContainsCoord(BattleUnitReadView unitState, Vector2I coord)
@@ -1323,39 +1116,12 @@ internal class BattleAttackCheckPolicyService
         {
             return false;
         }
-        if (context.HasReadView)
-        {
-            return BattleTargetTeamRules.IsUnitValidForFilter(
-                context.attacker_view,
-                context.target_view,
-                filter,
-                default
-            );
-        }
-        return TeamFilterApplies(filter, context.attacker, context.target);
-    }
-
-    private bool TeamFilterApplies(
-        StringName filter,
-        BattleUnitState attacker,
-        BattleUnitState targetUnit
-    )
-    {
         return BattleTargetTeamRules.IsUnitValidForFilter(
-            attacker,
-            targetUnit,
+            context.attacker_view,
+            context.target_view,
             filter,
             default
         );
-    }
-
-    private int ResolveDistance(BattleUnitState activeUnit, BattleUnitState targetUnit)
-    {
-        if (activeUnit == null || targetUnit == null)
-        {
-            return -1;
-        }
-        return BattleGridDistanceService.GetDistanceBetweenUnits(activeUnit, targetUnit);
     }
 
     private int ResolveDistance(BattleUnitReadView activeUnit, BattleUnitReadView targetUnit)

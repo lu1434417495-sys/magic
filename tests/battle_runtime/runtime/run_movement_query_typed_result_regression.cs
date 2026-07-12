@@ -61,7 +61,8 @@ public partial class run_movement_query_typed_result_regression : LifecycleTestS
         InstallUnit(gridService, state, actor);
         InstallUnit(gridService, state, target);
 
-        service.Setup(state, gridService, FixedMoveCost);
+        service.BeginBattle(1);
+        service.Setup(1, state, gridService, FixedMoveCost);
 
         MovementReachabilityResult reachable = service.CollectReachableAnchors(
             actor.unit_id,
@@ -105,6 +106,39 @@ public partial class run_movement_query_typed_result_regression : LifecycleTestS
         MovementPathTargetCandidate candidate = pathTargets.Candidates[0];
         _test.Eq(candidate.Coord, new Vector2I(1, 0), "path target query 应返回 typed 目标坐标。");
         _test.Eq(candidate.PathCost, 1, "path target query 应返回 typed path cost。");
+
+        BattleMovementQueryService.CacheDiagnostics firstDiagnostics =
+            service.CaptureCacheDiagnostics();
+        _test.Eq(firstDiagnostics.PathTargetCacheMissCount, 1L, "首次 path query 应记一次 miss。");
+        _test.Eq(firstDiagnostics.PathTargetCacheHitCount, 0L, "首次 path query 不应命中 cache。");
+
+        service.ClearRuntimeBindings();
+        _test.False(
+            service.CaptureCacheDiagnostics().DecisionBound,
+            "decision unbind 后不应保留 live state/grid/callback borrower。"
+        );
+        service.Setup(1, state, gridService, FixedMoveCost);
+        MovementPathTargetResult cachedPathTargets = service.CollectDistanceBandPathTargetsTyped(
+            actor.unit_id,
+            target.unit_id,
+            1,
+            1,
+            1,
+            0,
+            4,
+            0,
+            false,
+            true
+        );
+        BattleMovementQueryService.CacheDiagnostics reboundDiagnostics =
+            service.CaptureCacheDiagnostics();
+        _test.True(cachedPathTargets.Ok, "same-epoch decision rebind 后 path query 应成功。");
+        _test.Eq(
+            reboundDiagnostics.SnapshotRebuildCount,
+            firstDiagnostics.SnapshotRebuildCount,
+            "相同 geometry revision 的 decision rebind 不应重建 snapshot。"
+        );
+        _test.Eq(reboundDiagnostics.PathTargetCacheHitCount, 1L, "跨 decision 应复用纯 path cache。");
 
         service.Dispose();
     }
