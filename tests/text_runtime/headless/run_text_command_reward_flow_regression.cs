@@ -1,7 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_text_command_reward_flow_regression : LifecycleTestSceneTree
 {
@@ -51,11 +49,11 @@ public partial class run_text_command_reward_flow_regression : LifecycleTestScen
                 "close party 后应清空 modal。"
             );
 
-            runtime.SetPendingWorldPromotionPromptState(
-                new GDictionary
+            runtime.SetPendingWorldPromotionPromptStatePlain(
+                new Dictionary<string, object>(System.StringComparer.Ordinal)
                 {
                     ["member_id"] = "player_sword_01",
-                    ["choices"] = new GArray(),
+                    ["choices"] = new List<object>(),
                 }
             );
             _test.True(

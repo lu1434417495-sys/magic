@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_game_runtime_reward_flow_handler_regression : LifecycleTestSceneTree
@@ -26,15 +25,21 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
         GameRuntimeFacade runtime = BuildRuntime(BuildPartyState());
         try
         {
-            GDictionary prompt = new()
+            IReadOnlyDictionary<string, object> prompt = new Dictionary<string, object>(
+                System.StringComparer.Ordinal
+            )
             {
                 ["member_id"] = "hero",
-                ["choices"] = new GArray(),
+                ["choices"] = new List<object>(),
             };
-            runtime.SetPendingWorldPromotionPromptState(prompt);
-            using GodotProjectionLease<GDictionary> promotionPromptLease =
-                runtime.GetCurrentPromotionPromptLease();
-            _test.Eq(DictString(promotionPromptLease.Value, "member_id", ""), "hero", "GetCurrentPromotionPrompt() 应走正式 reward handler。");
+            runtime.SetPendingWorldPromotionPromptStatePlain(prompt);
+            IReadOnlyDictionary<string, object> promotionPrompt =
+                runtime.GetCurrentPromotionPromptSnapshotPlain();
+            _test.Eq(
+                PlainString(promotionPrompt, "member_id", ""),
+                "hero",
+                "GetCurrentPromotionPromptSnapshotPlain() 应返回正式 plain prompt。"
+            );
             _test.True(runtime.PresentPendingRewardIfReady(), "PresentPendingRewardIfReady() 应通过 reward handler 打开 promotion modal。");
             _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Promotion, "存在 world promotion prompt 时应切换到 promotion modal。");
 
@@ -149,11 +154,11 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
             _test.True(confirmActiveReward.Ok, "active reward 应能通过 typed confirm helper 结算。");
             _test.True(runtime.GetActiveReward() == null, "confirm active reward 后应清空 active reward。");
 
-            runtime.SetPendingWorldPromotionPromptState(
-                new GDictionary
+            runtime.SetPendingWorldPromotionPromptStatePlain(
+                new Dictionary<string, object>(System.StringComparer.Ordinal)
                 {
                     ["member_id"] = "hero",
-                    ["choices"] = new GArray(),
+                    ["choices"] = new List<object>(),
                 }
             );
             GameRuntimeFacade.RuntimeCommandResult cancelPromotionChoice =
@@ -172,16 +177,18 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
         GameRuntimeFacade runtime = BuildRuntime(BuildPartyState());
         try
         {
-            runtime.SetPendingWorldPromotionPromptState(
-                new GDictionary
+            runtime.SetPendingWorldPromotionPromptStatePlain(
+                new Dictionary<string, object>(System.StringComparer.Ordinal)
                 {
                     ["member_id"] = new StringName("hero"),
-                    ["choices"] = new GArray
+                    ["choices"] = new List<object>
                     {
-                        new GDictionary
+                        new Dictionary<string, object>(System.StringComparer.Ordinal)
                         {
                             ["profession_id"] = new StringName("warrior"),
-                            ["selection"] = new GDictionary(),
+                            ["selection"] = new Dictionary<string, object>(
+                                System.StringComparer.Ordinal
+                            ),
                         },
                     },
                 }
@@ -219,12 +226,16 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
         return runtime;
     }
 
-    private static string DictString(GDictionary dictionary, string key, string fallback)
-    {
-        return dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsString()
+    private static string PlainString(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key,
+        string fallback
+    ) =>
+        dictionary != null
+        && dictionary.TryGetValue(key, out object value)
+        && value is string text
+            ? text
             : fallback;
-    }
 
     private static PartyState BuildPartyState()
     {

@@ -735,9 +735,6 @@ public sealed class BattleSessionFacade : IDisposable
         return BattleRefreshMode.Full;
     }
 
-    internal void CapturePendingPromotionPrompt(Godot.Collections.Array progressionDeltas) =>
-        CapturePendingPromotionPrompt(ReadProgressionDeltas(progressionDeltas));
-
     internal void CapturePendingPromotionPrompt(
         IReadOnlyList<CharacterProgressionDelta> progressionDeltas
     )
@@ -748,19 +745,21 @@ public sealed class BattleSessionFacade : IDisposable
         {
             if (delta == null || !delta.needs_promotion_modal)
                 continue;
-            SetPendingPromotionPrompt(BuildPromotionPrompt(delta));
+            SetPendingPromotionPromptPlain(BuildPromotionPromptPlain(delta));
             if (HasPendingPromotionPrompt())
                 return;
         }
     }
 
-    internal Dictionary BuildPromotionPrompt(
+    internal IReadOnlyDictionary<string, object> BuildPromotionPromptPlain(
         CharacterProgressionDelta delta,
         string selectionHint = "确认后将在战斗中立即生效。"
     )
     {
         if (delta == null || delta.PendingProfessionChoicesTyped.Count == 0)
-            return new Dictionary();
+            return new System.Collections.Generic.Dictionary<string, object>(
+                StringComparer.Ordinal
+            );
         PartyState partyState = _runtime?.GetPartyState();
         GameContentCatalog contentCatalog = _runtime?.GetContentCatalogTyped();
         var memberId = delta.member_id;
@@ -774,7 +773,7 @@ public sealed class BattleSessionFacade : IDisposable
             contentCatalog != null
                 ? contentCatalog.GetProfessionDefsTyped()
                 : new System.Collections.Generic.Dictionary<StringName, ProfessionDefinition>();
-        var choiceEntries = new Godot.Collections.Array();
+        var choiceEntries = new List<object>();
         foreach (PendingProfessionChoice choiceObj in delta.PendingProfessionChoicesTyped)
         {
             if (choiceObj == null)
@@ -791,7 +790,7 @@ public sealed class BattleSessionFacade : IDisposable
                     continue;
                 if (!professionDefs.TryGetValue(pid, out ProfessionDefinition professionDef))
                     continue;
-                var grantedSkillIds = new Godot.Collections.Array();
+                var grantedSkillIds = new List<object>();
                 var grantedSkills = professionDef.GetGrantedSkillsForRank(targetRank);
                 foreach (ProfessionGrantedSkillDefinition skillObj in grantedSkills)
                 {
@@ -799,7 +798,9 @@ public sealed class BattleSessionFacade : IDisposable
                         grantedSkillIds.Add(skillObj.SkillId.ToString());
                 }
                 choiceEntries.Add(
-                    new Dictionary
+                    new System.Collections.Generic.Dictionary<string, object>(
+                        StringComparer.Ordinal
+                    )
                     {
                         ["profession_id"] = pid.ToString(),
                         ["display_name"] = !string.IsNullOrEmpty(
@@ -811,39 +812,23 @@ public sealed class BattleSessionFacade : IDisposable
                         ["description"] = professionDef.Description,
                         ["granted_skill_ids"] = grantedSkillIds,
                         ["selection_hint"] = selectionHint,
-                        ["selection"] = new Dictionary(),
+                        ["selection"] = new System.Collections.Generic.Dictionary<string, object>(
+                            StringComparer.Ordinal
+                        ),
                     }
                 );
             }
         }
         if (choiceEntries.Count == 0)
-            return new Dictionary();
-        return new Dictionary
+            return new System.Collections.Generic.Dictionary<string, object>(
+                StringComparer.Ordinal
+            );
+        return new System.Collections.Generic.Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["member_id"] = memberId.ToString(),
             ["member_name"] = memberName,
             ["choices"] = choiceEntries,
         };
-    }
-
-    private static IReadOnlyList<CharacterProgressionDelta> ReadProgressionDeltas(
-        Godot.Collections.Array values
-    )
-    {
-        var result = new List<CharacterProgressionDelta>();
-        if (values == null)
-            return result;
-        foreach (Variant value in values)
-        {
-            if (value.VariantType != Variant.Type.Dictionary)
-                continue;
-            CharacterProgressionDelta delta = CharacterProgressionDelta.FromDictionary(
-                value.AsGodotDictionary()
-            );
-            if (delta != null)
-                result.Add(delta);
-        }
-        return result;
     }
 
     public Vector2I GetDefaultBattleSelectedCoord()
@@ -1042,10 +1027,12 @@ public sealed class BattleSessionFacade : IDisposable
     private bool HasPendingPromotionPrompt() =>
         _runtime?.HasPendingPromotionPrompt() ?? false;
 
-    private void SetPendingPromotionPrompt(Dictionary prompt)
+    private void SetPendingPromotionPromptPlain(
+        IReadOnlyDictionary<string, object> prompt
+    )
     {
         if (_runtime != null)
-            _runtime.SetPendingPromotionPrompt(prompt);
+            _runtime.SetPendingPromotionPromptPlain(prompt);
     }
 
     private void SetBattleState(BattleState state)

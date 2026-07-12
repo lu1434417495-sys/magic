@@ -1471,11 +1471,9 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         else
             party_warehouse_window.HideWindow();
         if (modalId == "promotion")
-        {
-            using GodotProjectionLease<GDictionary> promptLease =
-                _runtime_proxy.GetCurrentPromotionPromptLease();
-            promotion_choice_window.ShowPromotion(promptLease.Value);
-        }
+            promotion_choice_window.ShowPromotion(
+                _runtime_proxy.GetCurrentPromotionPromptSnapshotPlain()
+            );
         else
             promotion_choice_window.HideWindow();
         if (modalId == "reward")

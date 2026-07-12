@@ -1,7 +1,7 @@
+using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_promotion_choice_window_schema_regression : LifecycleTestSceneTree
 {
@@ -51,12 +51,19 @@ public partial class run_promotion_choice_window_schema_regression : LifecycleTe
         PromotionChoiceWindow window = await CreateWindow();
         StringName submittedMemberId = "";
         StringName submittedProfessionId = "";
-        GDictionary submittedSelection = null;
+        bool submittedSelectionWasValid = false;
+        string submittedSelectionMode = "";
         window.choice_submitted += (memberId, professionId, selection) =>
         {
             submittedMemberId = memberId;
             submittedProfessionId = professionId;
-            submittedSelection = selection;
+            submittedSelectionWasValid =
+                selection != null
+                && selection.ContainsKey("mode")
+                && selection["mode"].VariantType == Variant.Type.String;
+            submittedSelectionMode = submittedSelectionWasValid
+                ? selection["mode"].AsString()
+                : "";
         };
 
         window.ShowPromotion(MakeFormalPromotionPayload());
@@ -78,7 +85,15 @@ public partial class run_promotion_choice_window_schema_regression : LifecycleTe
             new StringName("warrior"),
             "PromotionChoiceWindow 确认后应提交被选中的 profession_id。"
         );
-        _test.True(submittedSelection != null, "PromotionChoiceWindow 确认后应提交 selection payload。");
+        _test.True(
+            submittedSelectionWasValid,
+            "PromotionChoiceWindow 确认后应同步提交 selection payload。"
+        );
+        _test.Eq(
+            submittedSelectionMode,
+            "frontline",
+            "PromotionChoiceWindow 应保持 selection payload 的字段语义。"
+        );
         _test.False(window.Visible, "PromotionChoiceWindow 确认后应关闭窗口。");
         await DisposeWindow(window);
     }
@@ -97,42 +112,48 @@ public partial class run_promotion_choice_window_schema_regression : LifecycleTe
         await DisposeWindow(window);
     }
 
-    private static GDictionary MakeFormalPromotionPayload() =>
-        new()
+    private static IReadOnlyDictionary<string, object> MakeFormalPromotionPayload() =>
+        new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["member_id"] = "hero",
             ["member_name"] = "主角",
-            ["choices"] = new Godot.Collections.Array<GDictionary>
+            ["choices"] = new List<object>
             {
-                new()
+                new Dictionary<string, object>(StringComparer.Ordinal)
                 {
                     ["profession_id"] = "warrior",
                     ["display_name"] = "战士",
                     ["summary"] = "Rank 1",
                     ["description"] = "获得更稳定的前排姿态。",
-                    ["granted_skill_ids"] = new Godot.Collections.Array<string> { "slash", "guard" },
+                    ["granted_skill_ids"] = new List<object> { "slash", "guard" },
                     ["selection_hint"] = "确认后将在战斗中立即生效。",
-                    ["selection"] = new GDictionary(),
+                    ["selection"] = new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        ["mode"] = "frontline",
+                    },
                 },
             },
         };
 
-    private static GDictionary MakeStringNamePromotionPayload() =>
-        new()
+    private static IReadOnlyDictionary<string, object> MakeStringNamePromotionPayload() =>
+        new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["member_id"] = new StringName("hero"),
             ["member_name"] = new StringName("主角"),
-            ["choices"] = new Godot.Collections.Array<GDictionary>
+            ["choices"] = new List<object>
             {
-                new()
+                new Dictionary<string, object>(StringComparer.Ordinal)
                 {
                     ["profession_id"] = new StringName("warrior"),
                     ["display_name"] = new StringName("字符串战士"),
                     ["summary"] = new StringName("Rank 1"),
                     ["description"] = new StringName("StringName 技能摘要"),
-                    ["granted_skill_ids"] = new Godot.Collections.Array<StringName> { "slash" },
+                    ["granted_skill_ids"] = new List<object>
+                    {
+                        new StringName("slash"),
+                    },
                     ["selection_hint"] = new StringName("StringName hint"),
-                    ["selection"] = new GDictionary(),
+                    ["selection"] = new Dictionary<string, object>(StringComparer.Ordinal),
                 },
             },
         };

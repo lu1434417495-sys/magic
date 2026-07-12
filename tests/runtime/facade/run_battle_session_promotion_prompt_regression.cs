@@ -1,8 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_battle_session_promotion_prompt_regression : LifecycleTestSceneTree
 {
@@ -45,7 +42,7 @@ public partial class run_battle_session_promotion_prompt_regression : LifecycleT
 
             PendingProfessionChoice pendingChoice = new();
             pendingChoice.SetCandidateProfessionIds(
-                new GStringNameArray
+                new StringNameList
                 {
                     "warrior",
                     "rogue",
@@ -63,8 +60,11 @@ public partial class run_battle_session_promotion_prompt_regression : LifecycleT
             };
             delta.AddPendingProfessionChoice(pendingChoice);
 
-            GDictionary prompt = facade.BuildPromotionPrompt(delta, "确认后将在战斗中立即生效。");
-            GArray choices = DictArray(prompt, "choices");
+            IReadOnlyDictionary<string, object> prompt = facade.BuildPromotionPromptPlain(
+                delta,
+                "确认后将在战斗中立即生效。"
+            );
+            IReadOnlyList<object> choices = PlainArray(prompt, "choices");
             _test.Eq(
                 choices.Count,
                 1,
@@ -72,31 +72,38 @@ public partial class run_battle_session_promotion_prompt_regression : LifecycleT
             );
             if (choices.Count > 0)
             {
-                GDictionary firstChoice = choices[0].AsGodotDictionary();
                 _test.True(
-                    HasExactStringValue(firstChoice, "profession_id"),
+                    choices[0] is IReadOnlyDictionary<string, object>,
+                    "Prompt choice should remain a plain dictionary payload."
+                );
+                IReadOnlyDictionary<string, object> firstChoice =
+                    choices[0] as IReadOnlyDictionary<string, object>;
+                _test.True(
+                    PlainHasExactStringValue(firstChoice, "profession_id"),
                     "Prompt profession_id should stay on the formal string payload surface."
                 );
                 _test.Eq(
-                    DictString(firstChoice, "profession_id", ""),
+                    PlainString(firstChoice, "profession_id", ""),
                     "warrior",
                     "Prompt should keep the valid warrior candidate."
                 );
                 _test.True(
-                    ArrayHasOnlyExactStrings(DictArray(firstChoice, "granted_skill_ids")),
+                    PlainArrayHasOnlyExactStrings(
+                        PlainArray(firstChoice, "granted_skill_ids")
+                    ),
                     "Prompt granted_skill_ids should stay on the formal string-array payload surface."
                 );
             }
             _test.True(
-                HasExactStringValue(prompt, "member_id"),
+                PlainHasExactStringValue(prompt, "member_id"),
                 "Prompt member_id should stay on the formal string payload surface."
             );
             _test.True(
-                HasExactStringValue(prompt, "member_name"),
+                PlainHasExactStringValue(prompt, "member_name"),
                 "Prompt member_name should stay on the formal string payload surface."
             );
             _test.Eq(
-                DictString(prompt, "member_name", ""),
+                PlainString(prompt, "member_name", ""),
                 "Hero",
                 "Prompt should still include the member display name."
             );
@@ -106,7 +113,7 @@ public partial class run_battle_session_promotion_prompt_regression : LifecycleT
             facade.Dispose();
             runtime.Dispose();
             gameSession.ClearPersistedGame();
-            gameSession.Free();
+            gameSession.Dispose();
         }
     }
 
@@ -130,7 +137,7 @@ public partial class run_battle_session_promotion_prompt_regression : LifecycleT
             runtime.Setup(gameSession);
             facade.Setup(runtime);
 
-            BattleEventBatch batch = new();
+            using BattleEventBatch batch = new();
             batch.AddProgressionDelta(BuildPromotionDelta());
             IReadOnlyList<CharacterProgressionDelta> projectedDeltas = batch.progression_deltas;
 
@@ -138,20 +145,21 @@ public partial class run_battle_session_promotion_prompt_regression : LifecycleT
             if (projectedDeltas.Count == 0)
                 return;
             facade.CapturePendingPromotionPrompt(projectedDeltas);
-            using GodotProjectionLease<GDictionary> promptLease =
-                runtime.GetPendingPromotionPromptLease();
-            GDictionary prompt = promptLease.Value;
-            GArray choices = DictArray(prompt, "choices");
+            IReadOnlyDictionary<string, object> prompt =
+                runtime.GetPendingPromotionPromptSnapshotPlain();
+            IReadOnlyList<object> choices = PlainArray(prompt, "choices");
+            int choiceCount = choices.Count;
             _test.Eq(
-                choices.Count,
+                choiceCount,
                 1,
                 "Batch progression delta payload should still capture a promotion prompt."
             );
-            if (choices.Count > 0)
+            if (choiceCount > 0)
             {
-                GDictionary firstChoice = choices[0].AsGodotDictionary();
+                IReadOnlyDictionary<string, object> firstChoice =
+                    choices[0] as IReadOnlyDictionary<string, object>;
                 _test.Eq(
-                    DictString(firstChoice, "profession_id", ""),
+                    PlainString(firstChoice, "profession_id", ""),
                     "warrior",
                     "Captured prompt should keep the valid warrior candidate."
                 );
@@ -162,7 +170,7 @@ public partial class run_battle_session_promotion_prompt_regression : LifecycleT
             facade.Dispose();
             runtime.Dispose();
             gameSession.ClearPersistedGame();
-            gameSession.Free();
+            gameSession.Dispose();
         }
     }
 
@@ -172,7 +180,7 @@ public partial class run_battle_session_promotion_prompt_regression : LifecycleT
         {
             leader_member_id = "hero",
             main_character_member_id = "hero",
-            active_member_ids = new GStringNameArray { "hero" },
+            active_member_ids = new StringNameList { "hero" },
         };
         PartyMemberState member = new()
         {
@@ -188,7 +196,7 @@ public partial class run_battle_session_promotion_prompt_regression : LifecycleT
     private static CharacterProgressionDelta BuildPromotionDelta()
     {
         PendingProfessionChoice pendingChoice = new();
-        pendingChoice.SetCandidateProfessionIds(new GStringNameArray { "warrior" });
+        pendingChoice.SetCandidateProfessionIds(new StringNameList { "warrior" });
         pendingChoice.SetTargetRank("warrior", 1);
 
         CharacterProgressionDelta delta = new()
@@ -200,46 +208,49 @@ public partial class run_battle_session_promotion_prompt_regression : LifecycleT
         return delta;
     }
 
-    private static GArray DictArray(GDictionary dictionary, string key)
-    {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-        {
-            return new GArray();
-        }
-        Variant value = dictionary[key];
-        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
-    }
-
-    private static string DictString(GDictionary dictionary, string key, string defaultValue)
-    {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-        {
-            return defaultValue;
-        }
-        Variant value = dictionary[key];
-        if (value.VariantType != Variant.Type.String)
-        {
-            return defaultValue;
-        }
-        return value.AsString();
-    }
-
-    private static bool HasExactStringValue(GDictionary dictionary, string key)
+    private static IReadOnlyList<object> PlainArray(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key
+    )
     {
         return dictionary != null
-            && dictionary.ContainsKey(key)
-            && dictionary[key].VariantType == Variant.Type.String;
+            && dictionary.TryGetValue(key, out object value)
+            && value is IReadOnlyList<object> values
+            ? values
+            : System.Array.Empty<object>();
     }
 
-    private static bool ArrayHasOnlyExactStrings(GArray values)
+    private static string PlainString(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key,
+        string defaultValue
+    )
+    {
+        return dictionary != null
+            && dictionary.TryGetValue(key, out object value)
+            && value is string text
+            ? text
+            : defaultValue;
+    }
+
+    private static bool PlainHasExactStringValue(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key
+    ) =>
+        dictionary != null
+        && dictionary.TryGetValue(key, out object value)
+        && value is string;
+
+    private static bool PlainArrayHasOnlyExactStrings(IReadOnlyList<object> values)
     {
         if (values == null)
             return true;
-        foreach (Variant value in values)
+        foreach (object value in values)
         {
-            if (value.VariantType != Variant.Type.String)
+            if (value is not string)
                 return false;
         }
         return true;
     }
+
 }

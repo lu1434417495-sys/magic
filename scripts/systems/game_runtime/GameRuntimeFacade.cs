@@ -78,6 +78,19 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         }
     }
 
+    private static void ReplacePlainPayload(
+        Dictionary<string, object> target,
+        IReadOnlyDictionary<string, object> payload
+    )
+    {
+        Dictionary<string, object> cloned = RuntimePlainPayload.CloneDictionary(payload);
+        target.Clear();
+        foreach (KeyValuePair<string, object> entry in cloned)
+        {
+            target[entry.Key] = entry.Value;
+        }
+    }
+
     private static GodotProjectionLease<GDictionary> ProjectPlainPayloadLease(
         IReadOnlyDictionary<string, object> source,
         string ownerPath
@@ -1266,36 +1279,20 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     public int GetPendingRewardCount() =>
         _party_state != null ? _party_state.pending_character_rewards.Count : 0;
 
-    internal GodotProjectionLease<GDictionary> GetCurrentPromotionPromptLease() =>
-        _reward_flow_handler != null
-            ? _reward_flow_handler.GetCurrentPromotionPromptLease()
-            : RuntimePlainPayload.ProjectDictionaryLease(
-                new Dictionary<string, object>(StringComparer.Ordinal),
-                "GameRuntimeFacade.current_promotion_prompt",
-                LifetimeDomain.Request,
-                "GameRuntimeFacade.current_promotion_prompt"
-            );
-
     public IReadOnlyDictionary<string, object> GetCurrentPromotionPromptSnapshotPlain()
     {
         if (_pending_promotion_prompt.Count > 0)
-            return RuntimePlainPayload.CloneDictionary(_pending_promotion_prompt);
-        return RuntimePlainPayload.CloneDictionary(_pending_world_promotion_prompt);
+            return GetPendingPromotionPromptSnapshotPlain();
+        return GetPendingWorldPromotionPromptSnapshotPlain();
     }
 
-    internal GodotProjectionLease<GDictionary> GetPendingPromotionPromptLease() =>
-        ProjectPlainPayloadLease(
-            _pending_promotion_prompt,
-            "GameRuntimeFacade.pending_promotion_prompt"
-        );
+    internal IReadOnlyDictionary<string, object> GetPendingPromotionPromptSnapshotPlain() =>
+        RuntimePlainPayload.CloneDictionary(_pending_promotion_prompt);
 
     internal bool HasPendingPromotionPrompt() => _pending_promotion_prompt.Count > 0;
 
-    internal GodotProjectionLease<GDictionary> GetPendingWorldPromotionPromptStateLease() =>
-        ProjectPlainPayloadLease(
-            _pending_world_promotion_prompt,
-            "GameRuntimeFacade.pending_world_promotion_prompt"
-        );
+    internal IReadOnlyDictionary<string, object> GetPendingWorldPromotionPromptSnapshotPlain() =>
+        RuntimePlainPayload.CloneDictionary(_pending_world_promotion_prompt);
 
     internal bool HasPendingWorldPromotionPrompt() =>
         _pending_world_promotion_prompt.Count > 0;
@@ -1326,21 +1323,15 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             "GameRuntimeFacade.pending_battle_start_prompt"
         );
 
-    internal void SetPendingPromotionPrompt(GDictionary prompt) =>
-        ReplacePlainPayload(
-            _pending_promotion_prompt,
-            prompt,
-            "GameRuntimeFacade.pending_promotion_prompt"
-        );
+    internal void SetPendingPromotionPromptPlain(
+        IReadOnlyDictionary<string, object> prompt
+    ) => ReplacePlainPayload(_pending_promotion_prompt, prompt);
 
     internal void ClearPendingPromotionPrompt() => _pending_promotion_prompt.Clear();
 
-    internal void SetPendingWorldPromotionPromptState(GDictionary prompt) =>
-        ReplacePlainPayload(
-            _pending_world_promotion_prompt,
-            prompt,
-            "GameRuntimeFacade.pending_world_promotion_prompt"
-        );
+    internal void SetPendingWorldPromotionPromptStatePlain(
+        IReadOnlyDictionary<string, object> prompt
+    ) => ReplacePlainPayload(_pending_world_promotion_prompt, prompt);
 
     internal void ClearPendingWorldPromotionPromptState() =>
         _pending_world_promotion_prompt.Clear();
@@ -2198,17 +2189,16 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     internal BattleRefreshMode _issue_battle_command(BattleCommand command) =>
         _battle_session_facade.IssueBattleCommand(command);
 
-    internal void _capture_pending_promotion_prompt(GArray progression_deltas) =>
-        _battle_session_facade.CapturePendingPromotionPrompt(progression_deltas);
+    internal IReadOnlyDictionary<string, object> BuildRuntimePromotionPromptPlain(
+        CharacterProgressionDelta delta
+    ) =>
+        BuildRuntimePromotionPromptPlain(delta, "确认后将在战斗中立即生效。");
 
-    internal GDictionary BuildRuntimePromotionPromptInternal(CharacterProgressionDelta delta) =>
-        BuildRuntimePromotionPromptInternal(delta, "确认后将在战斗中立即生效。");
-
-    internal GDictionary BuildRuntimePromotionPromptInternal(
+    internal IReadOnlyDictionary<string, object> BuildRuntimePromotionPromptPlain(
         CharacterProgressionDelta delta,
         string selection_hint
     ) =>
-        _battle_session_facade.BuildPromotionPrompt(delta, selection_hint);
+        _battle_session_facade.BuildPromotionPromptPlain(delta, selection_hint);
 
     internal Vector2I _get_default_battle_selected_coord() =>
         _battle_session_facade.GetDefaultBattleSelectedCoord();

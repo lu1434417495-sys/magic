@@ -627,16 +627,27 @@ public sealed partial class GameRuntimeFacade
         StringName member_id,
         StringName profession_id,
         PromotionSelectionData selection
-    ) =>
-        ExecuteLoggedCommandTyped(
+    )
+    {
+        Dictionary<string, object> context = new(StringComparer.Ordinal)
+        {
+            ["member_id"] = member_id,
+            ["profession_id"] = profession_id,
+            ["selection"] =
+                selection?.ToPlainPayload()
+                ?? new Dictionary<string, object>(StringComparer.Ordinal),
+        };
+        using GodotProjectionLease<GDictionary> contextLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                context,
+                "GameRuntimeFacade.promotion.submit_choice",
+                LifetimeDomain.Request,
+                "GameRuntimeFacade.CommandSubmitPromotionChoiceTyped.context"
+            );
+        return ExecuteLoggedCommandTyped(
             "promotion.submit_choice",
             "promotion",
-            new GDictionary
-            {
-                ["member_id"] = member_id,
-                ["profession_id"] = profession_id,
-                ["selection"] = selection?.ToPayloadProjection() ?? new GDictionary(),
-            },
+            contextLease.Value,
             () =>
                 _reward_flow_handler != null
                     ? _reward_flow_handler.CommandSubmitPromotionChoiceTyped(
@@ -646,17 +657,28 @@ public sealed partial class GameRuntimeFacade
                     )
                     : BuildCommandErrorResult("运行时尚未初始化。")
         );
+    }
 
-    internal RuntimeCommandResult CommandCancelPromotionChoiceTyped() =>
-        ExecuteLoggedCommandTyped(
+    internal RuntimeCommandResult CommandCancelPromotionChoiceTyped()
+    {
+        Dictionary<string, object> context = new(StringComparer.Ordinal);
+        using GodotProjectionLease<GDictionary> contextLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                context,
+                "GameRuntimeFacade.promotion.cancel_choice",
+                LifetimeDomain.Request,
+                "GameRuntimeFacade.CommandCancelPromotionChoiceTyped.context"
+            );
+        return ExecuteLoggedCommandTyped(
             "promotion.cancel_choice",
             "promotion",
-            new GDictionary(),
+            contextLease.Value,
             () =>
                 _reward_flow_handler != null
                     ? _reward_flow_handler.CommandCancelPromotionChoiceTyped()
                     : BuildCommandErrorResult("运行时尚未初始化。")
         );
+    }
 
     internal RuntimeCommandResult CommandConfirmActiveRewardTyped() =>
         ExecuteLoggedCommandTyped(

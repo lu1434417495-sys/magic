@@ -315,14 +315,12 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetWarehouseWindowData() ?? new Dictionary();
     }
 
-    internal GodotProjectionLease<Dictionary> GetCurrentPromotionPromptLease()
+    internal System.Collections.Generic.IReadOnlyDictionary<string, object>
+        GetCurrentPromotionPromptSnapshotPlain()
     {
-        return _runtime?.GetCurrentPromotionPromptLease()
-            ?? RuntimePlainPayload.ProjectDictionaryLease(
-                new System.Collections.Generic.Dictionary<string, object>(System.StringComparer.Ordinal),
-                "WorldMapRuntimeProxy.current_promotion_prompt",
-                LifetimeDomain.Request,
-                "WorldMapRuntimeProxy.current_promotion_prompt"
+        return _runtime?.GetCurrentPromotionPromptSnapshotPlain()
+            ?? new System.Collections.Generic.Dictionary<string, object>(
+                System.StringComparer.Ordinal
             );
     }
 
