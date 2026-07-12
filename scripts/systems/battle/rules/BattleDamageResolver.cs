@@ -1208,7 +1208,7 @@ public partial class BattleDamageResolver : IDisposable
                 shieldHpAfter: targetPreview.current_shield_hp,
                 errorCode: damageOutcome.ErrorCode,
                 damageOutcome: ProjectDamageOutcomePayload(damageOutcome),
-                damageResult: new GDictionary(),
+                damageResult: new Dictionary<string, object>(StringComparer.Ordinal),
                 saveEstimate: BattleDamagePreviewSaveEstimate.None(0),
                 diagnostics: new List<object>
                 {
@@ -3122,11 +3122,13 @@ public partial class BattleDamageResolver : IDisposable
         return result;
     }
 
-    private static GDictionary ProjectAppliedDamagePayload(AppliedDamageResult result) =>
-        AttackEffectResolutionResultReader.BuildDamageEventPayload(result.Event);
+    private static Dictionary<string, object> ProjectAppliedDamagePayload(
+        AppliedDamageResult result
+    ) => AttackEffectResolutionPlainPayload.BuildDamageEvent(result.Event);
 
-    private static GDictionary ProjectDamageOutcomePayload(DamageOutcomeResult result) =>
-        AttackEffectResolutionResultReader.BuildDamageEventPayload(result.Event);
+    private static Dictionary<string, object> ProjectDamageOutcomePayload(
+        DamageOutcomeResult result
+    ) => AttackEffectResolutionPlainPayload.BuildDamageEvent(result.Event);
 
     private static DamageOutcomeResult WithDamagePreviewSaveEstimate(
         DamageOutcomeResult damageOutcome,

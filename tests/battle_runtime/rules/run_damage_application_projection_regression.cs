@@ -31,9 +31,11 @@ public partial class run_damage_application_projection_regression : LifecycleTes
     {
         BattleDamageResolver resolver = new();
         BattleUnitState target = Unit("legacy_target", hp: 20, shieldHp: 5);
+        using GodotProjectionLease<GDictionary> damageInputLease =
+            Input(resolvedDamage: 8).ToDictionaryLease();
         int hpDamage = resolver.ApplyDirectDamageToTargetTyped(
             target,
-            Input(resolvedDamage: 8).ToDictionary(),
+            damageInputLease.Value,
             Unit("legacy_source", "enemy")
         );
 
@@ -88,9 +90,11 @@ public partial class run_damage_application_projection_regression : LifecycleTes
         BattleDamageResolver resolver = new();
         resolver.SetDamageApplicationHook(new StaticDamageHook(_ => BattleDamageApplicationHookResult.Cancel()));
         BattleUnitState target = Unit("cancel_target", hp: 20, shieldHp: 5);
+        using GodotProjectionLease<GDictionary> damageInputLease =
+            Input(resolvedDamage: 8).ToDictionaryLease();
         int hpDamage = resolver.ApplyDirectDamageToTargetTyped(
             target,
-            Input(resolvedDamage: 8).ToDictionary(),
+            damageInputLease.Value,
             Unit("cancel_source", "enemy")
         );
 
@@ -104,9 +108,11 @@ public partial class run_damage_application_projection_regression : LifecycleTes
         BattleDamageResolver resolver = new();
         resolver.SetDamageApplicationHook(new StaticDamageHook(_ => BattleDamageApplicationHookResult.ModifyResolvedDamage(4)));
         BattleUnitState target = Unit("modify_target", hp: 20, shieldHp: 3);
+        using GodotProjectionLease<GDictionary> damageInputLease =
+            Input(resolvedDamage: 12).ToDictionaryLease();
         int hpDamage = resolver.ApplyDirectDamageToTargetTyped(
             target,
-            Input(resolvedDamage: 12).ToDictionary(),
+            damageInputLease.Value,
             Unit("modify_source", "enemy")
         );
 
@@ -126,9 +132,11 @@ public partial class run_damage_application_projection_regression : LifecycleTes
             })
         );
         BattleUnitState target = Unit("state_changed_target", hp: 20, shieldHp: 10);
+        using GodotProjectionLease<GDictionary> damageInputLease =
+            Input(resolvedDamage: 10).ToDictionaryLease();
         int hpDamage = resolver.ApplyDirectDamageToTargetTyped(
             target,
-            Input(resolvedDamage: 10).ToDictionary(),
+            damageInputLease.Value,
             Unit("state_changed_source", "enemy")
         );
 
@@ -158,11 +166,13 @@ public partial class run_damage_application_projection_regression : LifecycleTes
         _test.Eq(hook.CallCount, 0, "Preview damage should suppress BeforeDamageResolved hooks.");
 
         BattleUnitState suppressedTarget = Unit("suppressed_target", hp: 20, shieldHp: 5);
-        resolver.ApplyDirectDamageToTargetTyped(
-            suppressedTarget,
+        using GodotProjectionLease<GDictionary> suppressedDamageInputLease =
             Input(resolvedDamage: 8)
                 .WithSuppressDamageApplicationHook(true)
-                .ToDictionary(),
+                .ToDictionaryLease();
+        resolver.ApplyDirectDamageToTargetTyped(
+            suppressedTarget,
+            suppressedDamageInputLease.Value,
             Unit("suppressed_source", "enemy")
         );
         _test.Eq(hook.CallCount, 0, "Explicit hook suppression should skip hook invocation.");
@@ -172,9 +182,11 @@ public partial class run_damage_application_projection_regression : LifecycleTes
     {
         BattleDamageResolver resolver = new();
         BattleUnitState minHpTarget = Unit("min_hp_target", hp: 5, shieldHp: 0);
+        using GodotProjectionLease<GDictionary> minHpDamageInputLease =
+            Input(resolvedDamage: 10, minHpAfterDamage: 1).ToDictionaryLease();
         int minHpDamage = resolver.ApplyDirectDamageToTargetTyped(
             minHpTarget,
-            Input(resolvedDamage: 10, minHpAfterDamage: 1).ToDictionary(),
+            minHpDamageInputLease.Value,
             Unit("min_hp_source", "enemy")
         );
         _test.Eq(minHpDamage, 4, "min_hp_after_damage should still clamp actual HP damage.");
@@ -182,9 +194,11 @@ public partial class run_damage_application_projection_regression : LifecycleTes
         _test.True(minHpTarget.is_alive, "min_hp_after_damage should not mark the target dead.");
 
         BattleUnitState fatalTarget = Unit("fatal_target", hp: 5, shieldHp: 0);
+        using GodotProjectionLease<GDictionary> fatalDamageInputLease =
+            Input(resolvedDamage: 10).ToDictionaryLease();
         int fatalDamage = resolver.ApplyDirectDamageToTargetTyped(
             fatalTarget,
-            Input(resolvedDamage: 10).ToDictionary(),
+            fatalDamageInputLease.Value,
             Unit("fatal_source", "enemy")
         );
         _test.Eq(fatalDamage, 5, "Ordinary fatal damage should still report actual HP lost.");

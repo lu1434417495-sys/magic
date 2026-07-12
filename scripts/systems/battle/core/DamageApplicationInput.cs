@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -163,9 +164,10 @@ internal readonly record struct DamageApplicationInput(
     internal DamageApplicationInput WithSuppressDamageApplicationHook(bool suppress) =>
         this with { SuppressDamageApplicationHook = suppress };
 
-    internal GDictionary ToDictionary()
+    internal Dictionary<string, object> BuildSnapshotPlain()
     {
-        GDictionary payload = AttackEffectResolutionResultReader.BuildDamageEventPayload(Event);
+        Dictionary<string, object> payload =
+            AttackEffectResolutionPlainPayload.BuildDamageEvent(Event);
         payload["resolved_damage"] = Math.Max(ResolvedDamage, 0);
         payload["bypass_shield"] = BypassShield;
         payload["bypass_death_prevention"] = BypassDeathPrevention;
@@ -175,6 +177,14 @@ internal readonly record struct DamageApplicationInput(
         payload["suppress_damage_application_hook"] = SuppressDamageApplicationHook;
         return payload;
     }
+
+    internal GodotProjectionLease<GDictionary> ToDictionaryLease() =>
+        RuntimePlainPayload.ProjectDictionaryLease(
+            BuildSnapshotPlain(),
+            "DamageApplicationInput",
+            LifetimeDomain.Request,
+            "DamageApplicationInput.ToDictionaryLease"
+        );
 
     private static bool ReadBool(GDictionary payload, string key)
     {

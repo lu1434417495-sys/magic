@@ -91,7 +91,7 @@ internal static class AttackEffectResolutionPlainPayload
         return result;
     }
 
-    private static Dictionary<string, object> BuildDamageEvent(DamageEventResult value)
+    internal static Dictionary<string, object> BuildDamageEvent(DamageEventResult value)
     {
         var payload = new Dictionary<string, object>(StringComparer.Ordinal)
         {
