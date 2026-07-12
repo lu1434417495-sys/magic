@@ -71,7 +71,7 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
         AddUnitToState(runtime, state, archer, isEnemy: true);
         AddUnitToState(runtime, state, player, isEnemy: false);
 
-        MoveToRangeAction action = BuildScreeningAction("screening_close_in_probe");
+        MoveToRangeActionDefinition action = BuildScreeningAction("screening_close_in_probe");
         BattleAiContext aiContext = BuildAiContext(runtime, wolf);
         BattleAiDecision decision = Evaluate(action, aiContext);
         _test.Eq(
@@ -149,8 +149,10 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
         AddUnitToState(runtime, state, archer, isEnemy: true);
         AddUnitToState(runtime, state, player, isEnemy: false);
 
-        MoveToRangeAction action = BuildScreeningAction("path_cost_screening_probe");
-        action.screening_path_bonus = 300;
+        MoveToRangeActionDefinition action = BuildScreeningAction(
+            "path_cost_screening_probe",
+            screeningPathBonus: 300
+        );
         BattleAiDecision decision = Evaluate(action, BuildAiContext(runtime, wolf));
         _test.Eq(
             decision?.command?.target_coord ?? new Vector2I(-1, -1),
@@ -262,7 +264,7 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
         AddUnitToState(runtime, state, archer, isEnemy: true);
         AddUnitToState(runtime, state, player, isEnemy: false);
 
-        MoveToRangeAction action = BuildScreeningAction("locked_screening_probe");
+        MoveToRangeActionDefinition action = BuildScreeningAction("locked_screening_probe");
         BattleAiDecision lockedDecision = Evaluate(action, BuildAiContext(runtime, wolf));
         _test.True(
             lockedDecision == null,
@@ -281,19 +283,34 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
         );
     }
 
-    private static MoveToRangeAction BuildScreeningAction(StringName actionId)
+    private static MoveToRangeActionDefinition BuildScreeningAction(
+        StringName actionId,
+        int screeningPathBonus = 45
+    )
     {
-        return new MoveToRangeAction
-        {
-            action_id = actionId,
-            target_selector = "nearest_enemy",
-            desired_min_distance = 1,
-            desired_max_distance = 1,
-            screening_mode = BattleAiMoveToRangeActionEvaluator.ToStringName(
+        return new MoveToRangeActionDefinition(
+            actionId,
+            "",
+            "positioning",
+            "inline_decide",
+            "nearest_enemy",
+            1,
+            1,
+            Array.Empty<StringName>(),
+            BattleAiMoveToRangeActionEvaluator.ToStringName(
                 BattleAiMoveToRangeActionEvaluator.MoveToRangeScreeningMode.RangedAlly
             ),
-            screening_min_hp_basis_points = 4000,
-        };
+            true,
+            2,
+            140,
+            220,
+            1000,
+            4000,
+            4,
+            2,
+            2,
+            screeningPathBonus
+        );
     }
 
     private static BattleRuntimeScope BuildRuntimeWithEnemyContent()
@@ -499,13 +516,10 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
     }
 
     private static BattleAiDecision Evaluate(
-        MoveToRangeAction action,
+        MoveToRangeActionDefinition action,
         BattleAiContext context
     ) =>
-        new BattleAiMoveToRangeActionEvaluator().Evaluate(
-            (MoveToRangeActionDefinition)action.ToDefinition(),
-            context
-        );
+        new BattleAiMoveToRangeActionEvaluator().Evaluate(action, context);
 
     private sealed class BattleRuntimeScope : IDisposable
     {

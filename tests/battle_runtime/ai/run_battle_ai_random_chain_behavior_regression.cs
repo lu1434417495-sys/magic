@@ -63,18 +63,20 @@ public partial class run_battle_ai_random_chain_behavior_regression : LifecycleT
 
         BattleAiContext aiContext = BuildAiContext(runtime, chainUser);
         aiContext.trace_enabled = true;
-        var action = new UseRandomChainSkillAction
-        {
-            action_id = "random_chain_probe",
-            target_selector = "nearest_enemy",
-            desired_min_distance = 1,
-            desired_max_distance = 3,
-            distance_reference = "candidate_pool",
-        };
-        action.skill_ids.Add(randomChainSkill.SkillId);
+        var action = new UseRandomChainSkillActionDefinition(
+            "random_chain_probe",
+            "",
+            "positioning",
+            new[] { randomChainSkill.SkillId },
+            "nearest_enemy",
+            1,
+            3,
+            "candidate_pool",
+            1
+        );
 
         BattleAiDecision decision = new BattleAiRandomChainSkillEvaluator().Evaluate(
-            (UseRandomChainSkillActionDefinition)action.ToDefinition(),
+            action,
             aiContext
         );
         _test.True(decision?.command != null, "Random-chain action should produce a legal command.");

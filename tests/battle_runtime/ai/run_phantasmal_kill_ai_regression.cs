@@ -198,16 +198,14 @@ public partial class run_phantasmal_kill_ai_regression : LifecycleTestSceneTree
 
     private void TestGroundSkillFriendlyFireLimitsAreSoftConfigured()
     {
-        var defaultAction = new UseGroundSkillAction();
-        var softConfiguredAction = new UseGroundSkillAction
-        {
-            maximum_friendly_fire_target_count = 1,
-        };
-        var lethalConfiguredAction = new UseGroundSkillAction
-        {
-            maximum_friendly_fire_target_count = 1,
-            allow_friendly_lethal = true,
-        };
+        UseGroundSkillActionDefinition defaultDefinition = BuildGroundSkillActionDefinition();
+        UseGroundSkillActionDefinition softConfiguredDefinition =
+            BuildGroundSkillActionDefinition(maximumFriendlyFireTargetCount: 1);
+        UseGroundSkillActionDefinition lethalConfiguredDefinition =
+            BuildGroundSkillActionDefinition(
+                maximumFriendlyFireTargetCount: 1,
+                allowFriendlyLethal: true
+            );
 
         BattleAiScoreInput exposedAlly = new()
         {
@@ -226,12 +224,6 @@ public partial class run_phantasmal_kill_ai_regression : LifecycleTestSceneTree
             enemy_target_count = 1,
         };
         var evaluator = new BattleAiGroundSkillActionEvaluator();
-        var defaultDefinition =
-            (UseGroundSkillActionDefinition)defaultAction.ToDefinition();
-        var softConfiguredDefinition =
-            (UseGroundSkillActionDefinition)softConfiguredAction.ToDefinition();
-        var lethalConfiguredDefinition =
-            (UseGroundSkillActionDefinition)lethalConfiguredAction.ToDefinition();
 
         _test.False(
             evaluator.PassesFriendlyFireLimits(defaultDefinition, exposedAlly),
@@ -261,6 +253,29 @@ public partial class run_phantasmal_kill_ai_regression : LifecycleTestSceneTree
             "Enemy-only Phantasmal Kill location should satisfy minimum effective target limits."
         );
     }
+
+    private static UseGroundSkillActionDefinition BuildGroundSkillActionDefinition(
+        int maximumFriendlyFireTargetCount = 0,
+        bool allowFriendlyLethal = false
+    ) =>
+        new(
+            "",
+            "",
+            "positioning",
+            Array.Empty<StringName>(),
+            1,
+            false,
+            false,
+            1,
+            0,
+            maximumFriendlyFireTargetCount,
+            allowFriendlyLethal,
+            0,
+            0,
+            -1,
+            -1,
+            ""
+        );
 
     private void TestGradedSaveExecuteClassifiesAsHostileGroundAoeAndOffense()
     {
