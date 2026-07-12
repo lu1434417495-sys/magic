@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="EnemyTemplateDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="1_template"]
+[ext_resource type="Script" path="res://scripts/enemies/DropEntryDef.cs" id="2_dropdef"]
+
+[sub_resource type="Resource" id="Resource_drop_lizard_scale_hide"]
+script = ExtResource("2_dropdef")
+drop_entry_id = &"lizard_scale_hide"
+drop_type = &"item"
+item_id = &"beast_hide"
+quantity = 1
+
+[resource]
+script = ExtResource("1_template")
+template_id = &"lizardfolk"
+display_name = "蜥蜴人"
+brain_id = &"melee_aggressor"
+initial_state_id = &"engage"
+creature_level = 2
+hit_die_sides = 8
+action_threshold = 35
+tags = Array[StringName]([&"humanoid", &"reptile", &"lizardfolk"])
+save_advantage_tags = Array[StringName]([&"poison_advantage"])
+attack_equipment_item_id = &"guard_trident"
+base_attribute_overrides = {
+&"strength": 13,
+&"agility": 10,
+&"constitution": 13,
+&"perception": 12,
+&"intelligence": 7,
+&"willpower": 9,
+}
+skill_ids = Array[StringName]([&"basic_attack"])
+drop_entries = Array[Resource]([SubResource("Resource_drop_lizard_scale_hide")])
+attribute_overrides = {
+&"mp_max": 0,
+&"action_points": 2,
+&"deflection_bonus": 2,
+}

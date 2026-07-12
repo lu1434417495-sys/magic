@@ -217,7 +217,7 @@ public partial class EnemyTemplateDef : Resource
 
     internal int GetDerivedHpMaxTyped()
     {
-        int level = Mathf.Max(creature_level, 1);
+        int level = Mathf.Max(creature_level, 0);
         int sides = Mathf.Max(hit_die_sides, 1);
         IReadOnlyDictionary<StringName, int> baseAttributes =
             GetBaseAttributeOverridesResolvedTyped();
@@ -226,10 +226,10 @@ public partial class EnemyTemplateDef : Resource
             : 0;
         int constitutionModifier = AttributeSnapshot.CalculateScoreModifier(constitution);
         // 半点定点整数运算：×2 表示 0.5 粒度，末尾整除 2 取整。
-        // 首级取骰面最大值，后续每级取骰均值 (sides+1)/2；每级最低半点 2（即 1 HP）。
+        // 0 级即享受首级满骰底子；1 级起每级追加一颗骰均值 (sides+1)/2；每级最低半点 2（即 1 HP）。
         int firstLevelHalfPoints = Math.Max(2, (sides + constitutionModifier * 2) * 2);
         int perLevelHalfPoints = Math.Max(2, (sides + 1) + constitutionModifier * 4);
-        int totalHalfPoints = firstLevelHalfPoints + perLevelHalfPoints * (level - 1);
+        int totalHalfPoints = firstLevelHalfPoints + perLevelHalfPoints * Math.Max(level - 1, 0);
         return (totalHalfPoints / 2) * GetFootprintCellCountTyped();
     }
 
@@ -312,8 +312,8 @@ public partial class EnemyTemplateDef : Resource
             errors.Add($"Enemy template {template_id} must have enemy_count >= 1.");
         if (body_size <= 0)
             errors.Add($"Enemy template {template_id} must have body_size >= 1.");
-        if (creature_level < 1)
-            errors.Add($"Enemy template {template_id} must have creature_level >= 1.");
+        if (creature_level < 0)
+            errors.Add($"Enemy template {template_id} must have creature_level >= 0.");
         if (
             hit_die_sides != 4
             && hit_die_sides != 6

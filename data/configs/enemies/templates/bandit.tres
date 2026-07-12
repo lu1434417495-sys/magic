@@ -3,34 +3,35 @@
 [ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="1_template"]
 [ext_resource type="Script" path="res://scripts/enemies/DropEntryDef.cs" id="2_dropdef"]
 
-[sub_resource type="Resource" id="Resource_drop_spider_silk"]
+[sub_resource type="Resource" id="Resource_drop_bandit_insignia"]
 script = ExtResource("2_dropdef")
-drop_entry_id = &"spider_silk"
+drop_entry_id = &"bandit_insignia_drop"
 drop_type = &"item"
-item_id = &"linen_cloth"
-quantity = 2
+item_id = &"bandit_insignia"
+quantity = 1
 
 [resource]
 script = ExtResource("1_template")
-template_id = &"giant_spider"
-display_name = "巨蛛"
+template_id = &"bandit"
+display_name = "盗匪"
 brain_id = &"melee_aggressor"
 initial_state_id = &"engage"
-creature_level = 3
+enemy_count = 2
+creature_level = 1
 hit_die_sides = 8
-action_threshold = 30
-tags = Array[StringName]([&"beast", &"spider", &"bite"])
-save_advantage_tags = Array[StringName]([&"charm_advantage"])
+action_threshold = 35
+tags = Array[StringName]([&"humanoid", &"bandit"])
+attack_equipment_item_id = &"curved_scimitar"
 base_attribute_overrides = {
-&"strength": 14,
-&"agility": 15,
+&"strength": 12,
+&"agility": 12,
 &"constitution": 12,
-&"perception": 12,
-&"intelligence": 2,
-&"willpower": 8,
+&"perception": 10,
+&"intelligence": 10,
+&"willpower": 9,
 }
 skill_ids = Array[StringName]([&"basic_attack"])
-drop_entries = Array[Resource]([SubResource("Resource_drop_spider_silk")])
+drop_entries = Array[Resource]([SubResource("Resource_drop_bandit_insignia")])
 attribute_overrides = {
 &"mp_max": 0,
 &"action_points": 2,

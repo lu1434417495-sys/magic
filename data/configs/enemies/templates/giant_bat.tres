@@ -3,34 +3,35 @@
 [ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="1_template"]
 [ext_resource type="Script" path="res://scripts/enemies/DropEntryDef.cs" id="2_dropdef"]
 
-[sub_resource type="Resource" id="Resource_drop_spider_silk"]
+[sub_resource type="Resource" id="Resource_drop_bat_hide"]
 script = ExtResource("2_dropdef")
-drop_entry_id = &"spider_silk"
+drop_entry_id = &"bat_hide"
 drop_type = &"item"
-item_id = &"linen_cloth"
-quantity = 2
+item_id = &"beast_hide"
+quantity = 1
 
 [resource]
 script = ExtResource("1_template")
-template_id = &"giant_spider"
-display_name = "巨蛛"
+template_id = &"giant_bat"
+display_name = "巨蝠"
 brain_id = &"melee_aggressor"
 initial_state_id = &"engage"
-creature_level = 3
-hit_die_sides = 8
-action_threshold = 30
-tags = Array[StringName]([&"beast", &"spider", &"bite"])
-save_advantage_tags = Array[StringName]([&"charm_advantage"])
+enemy_count = 2
+creature_level = 0
+hit_die_sides = 6
+action_threshold = 25
+tags = Array[StringName]([&"beast", &"bat", &"bite"])
+save_advantage_tags = Array[StringName]([&"illusion_advantage"])
 base_attribute_overrides = {
-&"strength": 14,
-&"agility": 15,
-&"constitution": 12,
-&"perception": 12,
+&"strength": 6,
+&"agility": 16,
+&"constitution": 10,
+&"perception": 14,
 &"intelligence": 2,
-&"willpower": 8,
+&"willpower": 6,
 }
 skill_ids = Array[StringName]([&"basic_attack"])
-drop_entries = Array[Resource]([SubResource("Resource_drop_spider_silk")])
+drop_entries = Array[Resource]([SubResource("Resource_drop_bat_hide")])
 attribute_overrides = {
 &"mp_max": 0,
 &"action_points": 2,

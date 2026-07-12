@@ -9,6 +9,10 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
 {
     private readonly TestHarness _test = new();
 
+    // 共享一份内容装载：GameSession 构建（全内容扫描）约 1-2s，30 个正式模板逐个重建会把
+    // 单测试拖到 2 分钟以上。各用例仍各自新建 BattleRuntimeModule 保持运行时隔离。
+    private GameSession _sharedSession;
+
     public override void _Initialize()
     {
         CallDeferred(nameof(Run));
@@ -18,6 +22,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
     {
         try
         {
+            _sharedSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
             TestTemplateStartBattleStableIds();
             TestWolfTemplatesSpawnWithPositiveStaminaPool();
             TestUnitFactoryDoesNotBuildFallbackEnemy();
@@ -30,6 +35,11 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
         {
             _test.Fail($"Unhandled exception: {exception}");
             RequestTestExit(_test.Finish("Battle AI enemy template runtime regression", 1));
+        }
+        finally
+        {
+            _sharedSession?.Dispose();
+            _sharedSession = null;
         }
     }
 
@@ -127,17 +137,16 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
 
     private void TestUnitFactoryDoesNotBuildFallbackEnemy()
     {
-        using var gameSession = new GameSessionScope();
         var runtime = new BattleRuntimeModule();
         try
         {
             runtime.setup(
                 null,
-                gameSession.Session.GetSkillDefinitionsTyped(),
+                _sharedSession.GetSkillDefinitionsTyped(),
                 new Dictionary<StringName, EnemyTemplateDefinition>(),
                 new Dictionary<StringName, EnemyAiBrainDefinition>(),
                 null,
-                item_defs: gameSession.Session.GetItemDefsTyped()
+                item_defs: _sharedSession.GetItemDefsTyped()
             );
             var enemyUnits = runtime._unit_factory.BuildEnemyUnits(
                 BuildEncounterAnchor(
@@ -396,23 +405,22 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
         }
     }
 
-    private static BattleRuntimeScope BuildRuntimeWithEnemyContent()
+    private BattleRuntimeScope BuildRuntimeWithEnemyContent()
     {
-        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            gameSession.GetSkillDefinitionsTyped(),
-            gameSession.GetEnemyTemplateDefinitions(),
-            gameSession.GetEnemyAiBrainDefinitions(),
+            _sharedSession.GetSkillDefinitionsTyped(),
+            _sharedSession.GetEnemyTemplateDefinitions(),
+            _sharedSession.GetEnemyAiBrainDefinitions(),
             null,
-            item_defs: gameSession.GetItemDefsTyped()
+            item_defs: _sharedSession.GetItemDefsTyped()
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         var damageResolver = new FixedSuccessOneDamageResolver();
         damageResolver.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime.ConfigureDamageResolverForTests(damageResolver);
-        return new BattleRuntimeScope(runtime, gameSession);
+        return new BattleRuntimeScope(runtime);
     }
 
     private static EncounterAnchorData BuildEncounterAnchor(
@@ -449,11 +457,10 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
 
     private static bool IsStartedState(BattleState state) => state != null && !state.IsEmpty();
 
-    private static List<StringName> GetFormalEnemyTemplateIds()
+    private List<StringName> GetFormalEnemyTemplateIds()
     {
-        using var gameSession = new GameSessionScope();
         var results = new List<StringName>();
-        results.AddRange(gameSession.Session.GetEnemyTemplateDefinitions().Keys);
+        results.AddRange(_sharedSession.GetEnemyTemplateDefinitions().Keys);
         results.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
         return results;
     }
@@ -703,12 +710,9 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
 
     private sealed class BattleRuntimeScope : IDisposable
     {
-        private readonly GameSession _gameSession;
-
-        internal BattleRuntimeScope(BattleRuntimeModule runtime, GameSession gameSession)
+        internal BattleRuntimeScope(BattleRuntimeModule runtime)
         {
             Runtime = runtime;
-            _gameSession = gameSession;
         }
 
         internal BattleRuntimeModule Runtime { get; }
@@ -716,22 +720,6 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
         public void Dispose()
         {
             BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?._state);
-            _gameSession?.Dispose();
-        }
-    }
-
-    private sealed class GameSessionScope : IDisposable
-    {
-        internal GameSessionScope()
-        {
-            Session = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
-        }
-
-        internal GameSession Session { get; }
-
-        public void Dispose()
-        {
-            Session?.Dispose();
         }
     }
 }

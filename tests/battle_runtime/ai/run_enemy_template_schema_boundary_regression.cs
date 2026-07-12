@@ -355,11 +355,29 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
             "bad_level_schema_template",
             "bad_level_schema_weapon"
         );
-        levelTemplate.creature_level = 0;
+        levelTemplate.creature_level = -1;
         GStringArray levelErrors = ValidateWithReferenceTables(levelTemplate);
         _test.True(
             ContainsError(levelErrors, "creature_level"),
-            $"creature_level < 1 应被 schema 拒绝。 errors={FormatErrors(levelErrors)}"
+            $"creature_level < 0 应被 schema 拒绝。 errors={FormatErrors(levelErrors)}"
+        );
+
+        EnemyTemplateDef zeroLevelTemplate = BuildValidTemplate(
+            "zero_level_schema_template",
+            "zero_level_schema_weapon"
+        );
+        zeroLevelTemplate.creature_level = 0;
+        zeroLevelTemplate.hit_die_sides = 8;
+        zeroLevelTemplate.base_attribute_overrides[new StringName("constitution")] = 14;
+        GStringArray zeroLevelErrors = ValidateWithReferenceTables(zeroLevelTemplate);
+        _test.True(
+            zeroLevelErrors.Count == 0,
+            $"creature_level = 0 应是合法的杂兽等级。 errors={FormatErrors(zeroLevelErrors)}"
+        );
+        _test.Eq(
+            zeroLevelTemplate.GetDerivedHpMaxTyped(),
+            12,
+            "0 级生物同样享受首级满骰底子：d8满骰8 + 体质修正2×2 = 12。"
         );
 
         EnemyTemplateDef dieTemplate = BuildValidTemplate(

@@ -3,34 +3,34 @@
 [ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="1_template"]
 [ext_resource type="Script" path="res://scripts/enemies/DropEntryDef.cs" id="2_dropdef"]
 
-[sub_resource type="Resource" id="Resource_drop_spider_silk"]
+[sub_resource type="Resource" id="Resource_drop_bugbear_whetstone"]
 script = ExtResource("2_dropdef")
-drop_entry_id = &"spider_silk"
+drop_entry_id = &"bugbear_whetstone"
 drop_type = &"item"
-item_id = &"linen_cloth"
-quantity = 2
+item_id = &"whetstone"
+quantity = 1
 
 [resource]
 script = ExtResource("1_template")
-template_id = &"giant_spider"
-display_name = "巨蛛"
+template_id = &"bugbear"
+display_name = "熊地精"
 brain_id = &"melee_aggressor"
 initial_state_id = &"engage"
 creature_level = 3
 hit_die_sides = 8
 action_threshold = 30
-tags = Array[StringName]([&"beast", &"spider", &"bite"])
-save_advantage_tags = Array[StringName]([&"charm_advantage"])
+tags = Array[StringName]([&"humanoid", &"goblinoid", &"bugbear"])
+attack_equipment_item_id = &"iron_morningstar"
 base_attribute_overrides = {
-&"strength": 14,
-&"agility": 15,
-&"constitution": 12,
-&"perception": 12,
-&"intelligence": 2,
-&"willpower": 8,
+&"strength": 15,
+&"agility": 14,
+&"constitution": 13,
+&"perception": 10,
+&"intelligence": 8,
+&"willpower": 9,
 }
-skill_ids = Array[StringName]([&"basic_attack"])
-drop_entries = Array[Resource]([SubResource("Resource_drop_spider_silk")])
+skill_ids = Array[StringName]([&"warrior_heavy_strike"])
+drop_entries = Array[Resource]([SubResource("Resource_drop_bugbear_whetstone")])
 attribute_overrides = {
 &"mp_max": 0,
 &"action_points": 2,
