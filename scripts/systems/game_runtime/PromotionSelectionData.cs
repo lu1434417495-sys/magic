@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public sealed class PromotionSelectionData
 {
@@ -105,17 +104,6 @@ public sealed class PromotionSelectionData
     private static List<object> BuildPlainStringNameList(IEnumerable<StringName> values)
     {
         List<object> result = new();
-        if (values == null)
-            return result;
-        foreach (StringName value in values)
-            if (value != "")
-                result.Add(value);
-        return result;
-    }
-
-    internal static GStringNameArray BuildStringNameArray(IEnumerable<StringName> values)
-    {
-        GStringNameArray result = new();
         if (values == null)
             return result;
         foreach (StringName value in values)

@@ -2,10 +2,6 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
-
 public sealed class ProgressionService
 {
     private static readonly StringName HpMaxAttributeId = "hp_max";
@@ -340,8 +336,10 @@ public sealed class ProgressionService
         IReadOnlyList<StringName> consumedSkillIds = promotionSelection.AssignedCoreSkillIds;
         IReadOnlyList<StringName> qualifierSkillIds = promotionSelection.QualifierSkillIds;
         bool createdProfessionProgress = false;
-        GDictionary previousProfessionCoreSkillIds = SnapshotProfessionCoreSkillIds();
-        GDictionary previousSkillAssignments = SnapshotSkillAssignmentIds(consumedSkillIds);
+        Dictionary<StringName, List<StringName>> previousProfessionCoreSkillIds =
+            SnapshotProfessionCoreSkillIds();
+        Dictionary<StringName, StringName> previousSkillAssignments =
+            SnapshotSkillAssignmentIds(consumedSkillIds);
 
         if (professionProgress == null)
         {
@@ -381,8 +379,8 @@ public sealed class ProgressionService
         ProfessionPromotionRecord promotionRecord = new()
         {
             new_rank = targetRank,
-            consumed_skill_ids = PromotionSelectionData.BuildStringNameArray(consumedSkillIds),
-            qualifier_skill_ids = PromotionSelectionData.BuildStringNameArray(qualifierSkillIds),
+            consumed_skill_ids = new StringNameList(consumedSkillIds),
+            qualifier_skill_ids = new StringNameList(qualifierSkillIds),
             snapshot_unit_base_attributes = GetUnitBaseAttributesSnapshotTyped(),
             timestamp = (int)Time.GetUnixTimeFromSystem(),
         };
@@ -449,7 +447,7 @@ public sealed class ProgressionService
             if (skillProgress == null)
                 skillProgress = new UnitSkillProgress { skill_id = skillDefinition.SkillId };
             skillProgress.is_learned = true;
-            skillProgress.merged_from_skill_ids = new GStringNameArray(
+            skillProgress.merged_from_skill_ids = new StringNameList(
                 skillDefinition.UpgradeSourceSkillIds
             );
             _unit_progress.SetSkillProgress(skillProgress);
@@ -699,8 +697,12 @@ public sealed class ProgressionService
         IReadOnlyList<TagRequirementDefinition> qualifierRules = GetTagRulesForRole(tagRules, TagRequirementSelectionRole.Qualifier);
         IReadOnlyList<TagRequirementDefinition> assignedCoreRules = GetTagRulesForRole(tagRules, TagRequirementSelectionRole.AssignedCore);
         bool allowUnassigned = isUnlock;
-        GStringNameArray requiredSkillIds = GetRequiredSkillIdsForTarget(professionDef, isUnlock);
-        GStringNameArray previewAssignedSkillIds = GetPreviewAssignedCoreSkillIdsForSelection(professionId, isUnlock, requiredTriggerSkillId);
+        List<StringName> requiredSkillIds = GetRequiredSkillIdsForTarget(professionDef, isUnlock);
+        List<StringName> previewAssignedSkillIds = GetPreviewAssignedCoreSkillIdsForSelection(
+            professionId,
+            isUnlock,
+            requiredTriggerSkillId
+        );
         bool triggerAsQualifier = false;
 
         if (requiredTriggerSkillId != "")
@@ -721,11 +723,9 @@ public sealed class ProgressionService
         }
 
         bool hasExplicitAssignedCoreSelection = selection.HasAssignedCoreSkillIds;
-        GStringNameArray assignedCoreSkillIds = new();
+        List<StringName> assignedCoreSkillIds = new();
         if (hasExplicitAssignedCoreSelection)
-            assignedCoreSkillIds = PromotionSelectionData.BuildStringNameArray(
-                selection.AssignedCoreSkillIds
-            );
+            assignedCoreSkillIds = new List<StringName>(selection.AssignedCoreSkillIds);
         if (hasExplicitAssignedCoreSelection)
         {
             if (!ValidateExplicitSelection(
@@ -754,15 +754,13 @@ public sealed class ProgressionService
         }
 
         bool hasExplicitQualifierSelection = selection.HasQualifierSkillIds;
-        GStringNameArray qualifierSkillIds = new();
+        List<StringName> qualifierSkillIds = new();
         if (hasExplicitQualifierSelection)
-            qualifierSkillIds = PromotionSelectionData.BuildStringNameArray(
-                selection.QualifierSkillIds
-            );
+            qualifierSkillIds = new List<StringName>(selection.QualifierSkillIds);
 
-        GStringNameArray qualifierLockedSkillIds = new();
+        List<StringName> qualifierLockedSkillIds = new();
         if (AssignedCoreMustBeSubsetOfQualifiers(professionDef, isUnlock))
-            qualifierLockedSkillIds = new GStringNameArray(assignedCoreSkillIds);
+            qualifierLockedSkillIds = new List<StringName>(assignedCoreSkillIds);
         if (triggerAsQualifier && !qualifierLockedSkillIds.Contains(requiredTriggerSkillId))
             qualifierLockedSkillIds.Add(requiredTriggerSkillId);
 
@@ -813,19 +811,19 @@ public sealed class ProgressionService
     }
 
     private bool ValidateExplicitSelection(
-        GStringNameArray selectedSkillIds,
+        IReadOnlyList<StringName> selectedSkillIds,
         StringName professionId,
         IReadOnlyList<TagRequirementDefinition> tagRules,
         bool allowUnassigned,
-        GStringNameArray requiredSkillIds,
-        GStringNameArray previewAssignedSkillIds)
+        IReadOnlyList<StringName> requiredSkillIds,
+        IReadOnlyList<StringName> previewAssignedSkillIds)
     {
         if (!SelectionContainsRequiredSkillIds(selectedSkillIds, requiredSkillIds))
             return false;
 
         foreach (StringName skillId in selectedSkillIds)
         {
-            if (requiredSkillIds.Contains(skillId))
+            if (HasStringName(requiredSkillIds, skillId))
             {
                 if (!IsRequiredSkillIdSelectable(skillId, professionId, allowUnassigned, previewAssignedSkillIds))
                     return false;
@@ -838,11 +836,14 @@ public sealed class ProgressionService
         return AreTagRulesSatisfied(selectedSkillIds, professionId, tagRules, allowUnassigned, previewAssignedSkillIds);
     }
 
-    private static bool SelectionContainsRequiredSkillIds(GStringNameArray selectedSkillIds, GStringNameArray requiredSkillIds)
+    private static bool SelectionContainsRequiredSkillIds(
+        IReadOnlyList<StringName> selectedSkillIds,
+        IReadOnlyList<StringName> requiredSkillIds
+    )
     {
         foreach (StringName requiredSkillId in requiredSkillIds)
         {
-            if (!selectedSkillIds.Contains(requiredSkillId))
+            if (!HasStringName(selectedSkillIds, requiredSkillId))
                 return false;
         }
         return true;
@@ -852,7 +853,7 @@ public sealed class ProgressionService
         StringName skillId,
         StringName professionId,
         bool allowUnassigned,
-        GStringNameArray previewAssignedSkillIds)
+        IReadOnlyList<StringName> previewAssignedSkillIds)
     {
         if (_unit_progress == null)
             return false;
@@ -875,33 +876,44 @@ public sealed class ProgressionService
             return true;
         if (skillProgress.assigned_profession_id != "")
             return false;
-        return allowUnassigned || previewAssignedSkillIds.Contains(skillId);
+        return allowUnassigned || HasStringName(previewAssignedSkillIds, skillId);
     }
 
-    private GStringNameArray SelectSkillIdsForTagRules(
+    private List<StringName> SelectSkillIdsForTagRules(
         StringName professionId,
         IReadOnlyList<TagRequirementDefinition> tagRules,
         bool allowUnassigned,
-        GStringNameArray lockedSkillIds,
-        GStringNameArray previewAssignedSkillIds)
+        IReadOnlyList<StringName> lockedSkillIds,
+        IReadOnlyList<StringName> previewAssignedSkillIds)
     {
-        GStringNameArray selectedSkillIds = new();
-        GStringNameArray normalizedLockedSkillIds = NormalizeSkillIdSelection(lockedSkillIds);
+        List<StringName> selectedSkillIds = new();
+        List<StringName> normalizedLockedSkillIds = NormalizeSkillIdSelection(lockedSkillIds);
 
         foreach (StringName skillId in normalizedLockedSkillIds)
         {
             if (!CanIncludeSkillInSelection(skillId, professionId, tagRules, allowUnassigned, previewAssignedSkillIds))
-                return new GStringNameArray();
+                return new List<StringName>();
             selectedSkillIds.Add(skillId);
         }
 
         if (tagRules.Count == 0)
             return selectedSkillIds;
 
-        GStringNameArray candidateSkillIds = GetRoleCandidateSkillIds(professionId, tagRules, allowUnassigned, previewAssignedSkillIds);
+        List<StringName> candidateSkillIds = GetRoleCandidateSkillIds(
+            professionId,
+            tagRules,
+            allowUnassigned,
+            previewAssignedSkillIds
+        );
         while (true)
         {
-            GDictionary deficits = CalculateTagRuleDeficits(selectedSkillIds, professionId, tagRules, allowUnassigned, previewAssignedSkillIds);
+            Dictionary<int, int> deficits = CalculateTagRuleDeficits(
+                selectedSkillIds,
+                professionId,
+                tagRules,
+                allowUnassigned,
+                previewAssignedSkillIds
+            );
             if (deficits.Count == 0)
                 return PruneSelection(selectedSkillIds, professionId, tagRules, allowUnassigned, normalizedLockedSkillIds, previewAssignedSkillIds);
 
@@ -921,22 +933,22 @@ public sealed class ProgressionService
             }
 
             if (bestScore <= 0 || bestSkillId == "")
-                return new GStringNameArray();
+                return new List<StringName>();
 
             selectedSkillIds.Add(bestSkillId);
         }
     }
 
-    private GStringNameArray GetRoleCandidateSkillIds(
+    private List<StringName> GetRoleCandidateSkillIds(
         StringName professionId,
         IReadOnlyList<TagRequirementDefinition> tagRules,
         bool allowUnassigned,
-        GStringNameArray previewAssignedSkillIds)
+        IReadOnlyList<StringName> previewAssignedSkillIds)
     {
         if (_rule_service == null || tagRules.Count == 0)
-            return new GStringNameArray();
+            return new List<StringName>();
 
-        GStringNameArray candidateSkillIds = new();
+        List<StringName> candidateSkillIds = new();
         foreach (
             StringName skillId in _rule_service.GetEligibleSkillIds(
                 professionId,
@@ -963,21 +975,21 @@ public sealed class ProgressionService
         StringName professionId,
         IReadOnlyList<TagRequirementDefinition> tagRules,
         bool allowUnassigned,
-        GStringNameArray previewAssignedSkillIds)
+        IReadOnlyList<StringName> previewAssignedSkillIds)
     {
         if (tagRules.Count == 0)
             return IsRequiredSkillIdSelectable(skillId, professionId, allowUnassigned, previewAssignedSkillIds);
         return MatchesAnyTagRule(skillId, professionId, tagRules, allowUnassigned, previewAssignedSkillIds);
     }
 
-    private GDictionary CalculateTagRuleDeficits(
-        GStringNameArray selectedSkillIds,
+    private Dictionary<int, int> CalculateTagRuleDeficits(
+        IReadOnlyList<StringName> selectedSkillIds,
         StringName professionId,
         IReadOnlyList<TagRequirementDefinition> tagRules,
         bool allowUnassigned,
-        GStringNameArray previewAssignedSkillIds)
+        IReadOnlyList<StringName> previewAssignedSkillIds)
     {
-        GDictionary deficits = new();
+        Dictionary<int, int> deficits = new();
         for (int index = 0; index < tagRules.Count; index++)
         {
             TagRequirementDefinition tagRule = tagRules[index];
@@ -1011,16 +1023,16 @@ public sealed class ProgressionService
         StringName professionId,
         IReadOnlyList<TagRequirementDefinition> tagRules,
         bool allowUnassigned,
-        GDictionary deficits,
-        GStringNameArray previewAssignedSkillIds)
+        IReadOnlyDictionary<int, int> deficits,
+        IReadOnlyList<StringName> previewAssignedSkillIds)
     {
         if (_rule_service == null)
             return 0;
 
         int score = 0;
-        foreach (var rawIndex in deficits.Keys)
+        foreach (int ruleIndex in deficits.Keys)
         {
-            TagRequirementDefinition tagRule = tagRules[rawIndex.AsInt32()];
+            TagRequirementDefinition tagRule = tagRules[ruleIndex];
             if (tagRule == null)
                 continue;
             if (
@@ -1037,16 +1049,16 @@ public sealed class ProgressionService
         return score;
     }
 
-    private GStringNameArray PruneSelection(
-        GStringNameArray selectedSkillIds,
+    private List<StringName> PruneSelection(
+        IReadOnlyList<StringName> selectedSkillIds,
         StringName professionId,
         IReadOnlyList<TagRequirementDefinition> tagRules,
         bool allowUnassigned,
-        GStringNameArray lockedSkillIds,
-        GStringNameArray previewAssignedSkillIds)
+        IReadOnlyList<StringName> lockedSkillIds,
+        IReadOnlyList<StringName> previewAssignedSkillIds)
     {
-        GStringNameArray prunedSelection = new(selectedSkillIds);
-        GStringNameArray normalizedLockedSkillIds = NormalizeSkillIdSelection(lockedSkillIds);
+        List<StringName> prunedSelection = new(selectedSkillIds);
+        List<StringName> normalizedLockedSkillIds = NormalizeSkillIdSelection(lockedSkillIds);
 
         for (int index = prunedSelection.Count - 1; index >= 0; index--)
         {
@@ -1054,7 +1066,7 @@ public sealed class ProgressionService
             if (normalizedLockedSkillIds.Contains(skillId))
                 continue;
 
-            GStringNameArray trialSelection = new(prunedSelection);
+            List<StringName> trialSelection = new(prunedSelection);
             trialSelection.RemoveAt(index);
             if (AreTagRulesSatisfied(trialSelection, professionId, tagRules, allowUnassigned, previewAssignedSkillIds))
                 prunedSelection = trialSelection;
@@ -1063,11 +1075,11 @@ public sealed class ProgressionService
     }
 
     private bool AreTagRulesSatisfied(
-        GStringNameArray selectedSkillIds,
+        IReadOnlyList<StringName> selectedSkillIds,
         StringName professionId,
         IReadOnlyList<TagRequirementDefinition> tagRules,
         bool allowUnassigned,
-        GStringNameArray previewAssignedSkillIds)
+        IReadOnlyList<StringName> previewAssignedSkillIds)
     {
         return CalculateTagRuleDeficits(selectedSkillIds, professionId, tagRules, allowUnassigned, previewAssignedSkillIds).Count == 0;
     }
@@ -1077,7 +1089,7 @@ public sealed class ProgressionService
         StringName professionId,
         IReadOnlyList<TagRequirementDefinition> tagRules,
         bool allowUnassigned,
-        GStringNameArray previewAssignedSkillIds)
+        IReadOnlyList<StringName> previewAssignedSkillIds)
     {
         if (_rule_service == null)
             return false;
@@ -1098,34 +1110,16 @@ public sealed class ProgressionService
         return false;
     }
 
-    private static GStringNameArray NormalizeSkillIdSelection(GArray values)
+    private static List<StringName> NormalizeSkillIdSelection(IEnumerable<StringName> values)
     {
-        GStringNameArray normalizedSkillIds = new();
-        GDictionary seenSkillIds = new();
-        if (values == null)
-            return normalizedSkillIds;
-        foreach (var value in values)
-        {
-            StringName skillId = ProgressionDataUtils.to_string_name(value);
-            if (skillId == "" || seenSkillIds.ContainsKey(skillId))
-                continue;
-            seenSkillIds[skillId] = true;
-            normalizedSkillIds.Add(skillId);
-        }
-        return normalizedSkillIds;
-    }
-
-    private static GStringNameArray NormalizeSkillIdSelection(GStringNameArray values)
-    {
-        GStringNameArray normalizedSkillIds = new();
-        GDictionary seenSkillIds = new();
+        List<StringName> normalizedSkillIds = new();
+        HashSet<StringName> seenSkillIds = new();
         if (values == null)
             return normalizedSkillIds;
         foreach (StringName skillId in values)
         {
-            if (skillId == "" || seenSkillIds.ContainsKey(skillId))
+            if (skillId == "" || !seenSkillIds.Add(skillId))
                 continue;
-            seenSkillIds[skillId] = true;
             normalizedSkillIds.Add(skillId);
         }
         return normalizedSkillIds;
@@ -1143,11 +1137,14 @@ public sealed class ProgressionService
         return rankRequirement != null ? rankRequirement.RequiredTagRules : emptyRules;
     }
 
-    private static GStringNameArray GetRequiredSkillIdsForTarget(ProfessionDefinition professionDef, bool isUnlock)
+    private static List<StringName> GetRequiredSkillIdsForTarget(
+        ProfessionDefinition professionDef,
+        bool isUnlock
+    )
     {
         if (!isUnlock || professionDef == null || professionDef.UnlockRequirement == null)
-            return new GStringNameArray();
-        return new GStringNameArray(professionDef.UnlockRequirement.RequiredSkillIds);
+            return new List<StringName>();
+        return new List<StringName>(professionDef.UnlockRequirement.RequiredSkillIds);
     }
 
     private static bool AssignedCoreMustBeSubsetOfQualifiers(ProfessionDefinition professionDef, bool isUnlock)
@@ -1173,9 +1170,11 @@ public sealed class ProgressionService
         return roleRules;
     }
 
-    private GDictionary SnapshotSkillAssignmentIds(IEnumerable<StringName> skillIds)
+    private Dictionary<StringName, StringName> SnapshotSkillAssignmentIds(
+        IEnumerable<StringName> skillIds
+    )
     {
-        GDictionary snapshots = new();
+        Dictionary<StringName, StringName> snapshots = new();
         if (_unit_progress == null || skillIds == null)
             return snapshots;
 
@@ -1188,9 +1187,9 @@ public sealed class ProgressionService
         return snapshots;
     }
 
-    private GDictionary SnapshotProfessionCoreSkillIds()
+    private Dictionary<StringName, List<StringName>> SnapshotProfessionCoreSkillIds()
     {
-        GDictionary snapshots = new();
+        Dictionary<StringName, List<StringName>> snapshots = new();
         if (_unit_progress == null)
             return snapshots;
 
@@ -1198,7 +1197,9 @@ public sealed class ProgressionService
         {
             UnitProfessionProgress professionProgress = _unit_progress.GetProfessionProgress(professionId);
             if (professionProgress != null)
-                snapshots[professionId] = new GStringNameArray(professionProgress.core_skill_ids);
+                snapshots[professionId] = new List<StringName>(
+                    professionProgress.core_skill_ids
+                );
         }
         return snapshots;
     }
@@ -1206,59 +1207,60 @@ public sealed class ProgressionService
     private void RollbackPromotionAssignmentState(
         StringName professionId,
         bool createdProfessionProgress,
-        GDictionary previousProfessionCoreSkillIds,
-        GDictionary previousSkillAssignments)
+        IReadOnlyDictionary<StringName, List<StringName>> previousProfessionCoreSkillIds,
+        IReadOnlyDictionary<StringName, StringName> previousSkillAssignments)
     {
         if (_unit_progress == null)
             return;
 
-        foreach (var professionKey in previousProfessionCoreSkillIds.Keys)
+        foreach (
+            KeyValuePair<StringName, List<StringName>> snapshot in previousProfessionCoreSkillIds
+        )
         {
-            StringName snapshotProfessionId = ProgressionDataUtils.to_string_name(professionKey);
-            UnitProfessionProgress professionProgress = _unit_progress.GetProfessionProgress(snapshotProfessionId);
+            UnitProfessionProgress professionProgress = _unit_progress.GetProfessionProgress(
+                snapshot.Key
+            );
             if (professionProgress == null)
                 continue;
-            var coreSkillIdsValue = previousProfessionCoreSkillIds[professionKey];
-            professionProgress.core_skill_ids =
-                coreSkillIdsValue.VariantType == Variant.Type.Array
-                    ? NormalizeSkillIdSelection(coreSkillIdsValue.AsGodotArray())
-                    : new GStringNameArray();
+            professionProgress.core_skill_ids = new StringNameList(
+                NormalizeSkillIdSelection(snapshot.Value)
+            );
         }
 
         if (createdProfessionProgress)
             _unit_progress.RemoveProfessionProgress(professionId);
 
-        foreach (var skillKey in previousSkillAssignments.Keys)
+        foreach (KeyValuePair<StringName, StringName> snapshot in previousSkillAssignments)
         {
-            StringName skillId = ProgressionDataUtils.to_string_name(skillKey);
-            UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillId);
+            UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(snapshot.Key);
             if (skillProgress == null)
                 continue;
-            skillProgress.assigned_profession_id = ProgressionDataUtils.to_string_name(previousSkillAssignments[skillKey]);
+            skillProgress.assigned_profession_id = snapshot.Value;
             _unit_progress.SetSkillProgress(skillProgress);
         }
 
         _unit_progress.SyncActiveCoreSkillIds();
     }
 
-    private static GStringNameArray MergeUniqueSkillIds(GStringNameArray firstSkillIds, GStringNameArray secondSkillIds)
+    private static List<StringName> MergeUniqueSkillIds(
+        IReadOnlyList<StringName> firstSkillIds,
+        IReadOnlyList<StringName> secondSkillIds
+    )
     {
-        GStringNameArray mergedSkillIds = new();
-        GDictionary seenSkillIds = new();
+        List<StringName> mergedSkillIds = new();
+        HashSet<StringName> seenSkillIds = new();
 
         foreach (StringName skillId in firstSkillIds)
         {
-            if (skillId == "" || seenSkillIds.ContainsKey(skillId))
+            if (skillId == "" || !seenSkillIds.Add(skillId))
                 continue;
-            seenSkillIds[skillId] = true;
             mergedSkillIds.Add(skillId);
         }
 
         foreach (StringName skillId in secondSkillIds)
         {
-            if (skillId == "" || seenSkillIds.ContainsKey(skillId))
+            if (skillId == "" || !seenSkillIds.Add(skillId))
                 continue;
-            seenSkillIds[skillId] = true;
             mergedSkillIds.Add(skillId);
         }
         return mergedSkillIds;
@@ -1303,7 +1305,11 @@ public sealed class ProgressionService
         IReadOnlyList<TagRequirementDefinition> qualifierRules = GetTagRulesForRole(tagRules, TagRequirementSelectionRole.Qualifier);
         IReadOnlyList<TagRequirementDefinition> assignedCoreRules = GetTagRulesForRole(tagRules, TagRequirementSelectionRole.AssignedCore);
         bool allowUnassigned = isUnlock;
-        GStringNameArray previewAssignedSkillIds = GetPreviewAssignedCoreSkillIdsForSelection(professionId, isUnlock, triggerSkillId);
+        List<StringName> previewAssignedSkillIds = GetPreviewAssignedCoreSkillIdsForSelection(
+            professionId,
+            isUnlock,
+            triggerSkillId
+        );
 
         PendingProfessionChoice choice = new();
         choice.AddCandidateProfessionId(professionId);
@@ -1349,12 +1355,12 @@ public sealed class ProgressionService
         return choice;
     }
 
-    private GStringNameArray GetPreviewAssignedCoreSkillIdsForSelection(
+    private List<StringName> GetPreviewAssignedCoreSkillIdsForSelection(
         StringName professionId,
         bool isUnlock,
         StringName requiredTriggerSkillId)
     {
-        GStringNameArray previewSkillIds = new();
+        List<StringName> previewSkillIds = new();
         if (isUnlock || requiredTriggerSkillId == "")
             return previewSkillIds;
         if (requiredTriggerSkillId != GetReadyActiveLevelTriggerSkillId())
@@ -1530,13 +1536,7 @@ public sealed class ProgressionService
         return _unit_progress.unit_base_attributes.DuplicateState();
     }
 
-    private GStringNameArray GetSortedProfessionIds()
-    {
-        GStringNameArray sortedIds = new();
-        foreach (StringName professionId in SortedKeys(_profession_defs))
-            sortedIds.Add(professionId);
-        return sortedIds;
-    }
+    private List<StringName> GetSortedProfessionIds() => SortedKeys(_profession_defs);
 
     private static void CopyCatalog<T>(
         IReadOnlyDictionary<StringName, T> source,
