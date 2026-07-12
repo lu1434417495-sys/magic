@@ -1,9 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_hunter_axe_weapon_ability_regression : LifecycleTestSceneTree
 {
@@ -44,7 +41,7 @@ public partial class run_hunter_axe_weapon_ability_regression : LifecycleTestSce
         _test.True(fixture.Bindings.ContainsKey(HunterMarkBindingId), "真实装备能力内容应包含猎人标记 binding。");
         _test.True(fixture.SkillDefs.ContainsKey(HunterMarkSkillId), "猎人斧应复用真实猎人标记 SkillDef。");
 
-        using ItemDef rawItem = ResourceLoader.Load<ItemDef>(
+        ItemDef rawItem = fixture.LoadCanonicalItem(
             "res://data/configs/items/weapon_unique_battleaxe_hunter.tres"
         );
         _test.True(rawItem != null, "猎人之斧原始资源应能加载。");
@@ -95,6 +92,8 @@ public partial class run_hunter_axe_weapon_ability_regression : LifecycleTestSce
             "移除猎人之斧后武器 profile 应回到装备前状态。"
         );
         _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除猎人之斧后装备能力源应清空。");
+        BattleTestFixture.DisposeBattleUnit(equipped);
+        BattleTestFixture.DisposeBattleUnit(baseline);
     }
 
     private void TestUnlearnedEquipmentGrantedHunterMarkDoesNotGrantMastery()
@@ -125,7 +124,7 @@ public partial class run_hunter_axe_weapon_ability_regression : LifecycleTestSce
         );
         if (entry == null)
         {
-            BattleTestFixture.DisposeBattleState(state);
+            fixture.DisposeState(state);
             return;
         }
         _test.Eq(entry.SkillLevel, 3, "未学习猎人标记时，猎人之斧入口应保持固定 3 级。");
@@ -152,7 +151,7 @@ public partial class run_hunter_axe_weapon_ability_regression : LifecycleTestSce
 
         batch?.Dispose();
         BattleTestFixture.DisposeBattleCommand(command);
-        BattleTestFixture.DisposeBattleState(state);
+        fixture.DisposeState(state);
     }
 
     private void TestLearnedHunterMarkUsesHigherLevelAndGrantsMasteryOnMarkedWeaponDamage()
@@ -188,7 +187,7 @@ public partial class run_hunter_axe_weapon_ability_regression : LifecycleTestSce
         );
         if (entry == null)
         {
-            BattleTestFixture.DisposeBattleState(state);
+            fixture.DisposeState(state);
             return;
         }
         _test.Eq(entry.EntryRef.SourceKind, BattleSkillEntrySourceKind.EquipmentSkill, "已学习时使用的仍应是猎人之斧 equipment_skill 入口。");
@@ -238,10 +237,11 @@ public partial class run_hunter_axe_weapon_ability_regression : LifecycleTestSce
         );
 
         attackBatch?.Dispose();
+        BattleTestFixture.DisposeBattlePreview(attackPreview);
         BattleTestFixture.DisposeBattleCommand(attackCommand);
         batch?.Dispose();
         BattleTestFixture.DisposeBattleCommand(command);
-        BattleTestFixture.DisposeBattleState(state);
+        fixture.DisposeState(state);
     }
 
     private static BattleSkillAvailabilityView BuildEquipmentSkillView(
@@ -312,19 +312,26 @@ public partial class run_hunter_axe_weapon_ability_regression : LifecycleTestSce
 
     private sealed class HunterAxeFixture : IDisposable
     {
+        private readonly TestContentResourceLoader _contentLoader;
         private readonly ItemContentRegistry _itemRegistry;
         private readonly ProgressionContentRegistry _progressionRegistry;
+        private readonly CharacterManagementModule _characterManagement;
         private readonly PartyState _partyState;
+        private bool _disposed;
 
         private HunterAxeFixture(
+            TestContentResourceLoader contentLoader,
             ItemContentRegistry itemRegistry,
             ProgressionContentRegistry progressionRegistry,
+            CharacterManagementModule characterManagement,
             PartyState partyState,
             BattleRuntimeModule runtime
         )
         {
+            _contentLoader = contentLoader;
             _itemRegistry = itemRegistry;
             _progressionRegistry = progressionRegistry;
+            _characterManagement = characterManagement;
             _partyState = partyState;
             Runtime = runtime;
             ItemDefs = itemRegistry.GetItemDefsTyped();
@@ -341,31 +348,69 @@ public partial class run_hunter_axe_weapon_ability_regression : LifecycleTestSce
 
         internal static HunterAxeFixture Build()
         {
-            ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
-            ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
-            PartyState partyState = BuildPartyState("hero");
-            CharacterManagementModule characterManagement = new();
-            characterManagement.setup(
-                partyState,
-                progressionRegistry.GetSkillDefinitionsTyped(),
-                progressionRegistry.GetProfessionDefsTyped(),
-                progressionRegistry.GetAchievementDefsTyped(),
-                itemRegistry.GetItemDefsTyped(),
-                progressionRegistry.GetQuestDefsTyped(),
-                progressionRegistry.GetTraitDefsTyped(),
-                null,
-                new ProgressionIdentityCatalogData()
-            );
+            TestContentResourceLoader contentLoader = new();
+            ItemContentRegistry itemRegistry = null;
+            ProgressionContentRegistry progressionRegistry = null;
+            CharacterManagementModule characterManagement = null;
+            BattleRuntimeModule runtime = null;
+            try
+            {
+                itemRegistry = new ItemContentRegistry(contentLoader);
+                progressionRegistry = new ProgressionContentRegistry(contentLoader);
+                PartyState partyState = BuildPartyState("hero");
+                characterManagement = new CharacterManagementModule();
+                characterManagement.setup(
+                    partyState,
+                    progressionRegistry.GetSkillDefinitionsTyped(),
+                    progressionRegistry.GetProfessionDefsTyped(),
+                    progressionRegistry.GetAchievementDefsTyped(),
+                    itemRegistry.GetItemDefsTyped(),
+                    progressionRegistry.GetQuestDefsTyped(),
+                    progressionRegistry.GetTraitDefsTyped(),
+                    null,
+                    new ProgressionIdentityCatalogData()
+                );
 
-            BattleRuntimeModule runtime = new();
-            runtime.setup(
-                characterManagement,
-                progressionRegistry.GetSkillDefinitionsTyped(),
-                item_defs: itemRegistry.GetItemDefsTyped(),
-                trait_defs: progressionRegistry.GetTraitDefsTyped(),
-                equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
-            );
-            return new HunterAxeFixture(itemRegistry, progressionRegistry, partyState, runtime);
+                runtime = new BattleRuntimeModule();
+                runtime.setup(
+                    characterManagement,
+                    progressionRegistry.GetSkillDefinitionsTyped(),
+                    item_defs: itemRegistry.GetItemDefsTyped(),
+                    trait_defs: progressionRegistry.GetTraitDefsTyped(),
+                    equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
+                );
+                BattleTestFixture.ConfigureDamageResolverForTests(
+                    runtime,
+                    new FixedRollDamageResolver()
+                );
+                BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
+                return new HunterAxeFixture(
+                    contentLoader,
+                    itemRegistry,
+                    progressionRegistry,
+                    characterManagement,
+                    partyState,
+                    runtime
+                );
+            }
+            catch
+            {
+                BattleTestFixture.DisposeRuntime(runtime);
+                characterManagement?.Dispose();
+                itemRegistry?.Dispose();
+                progressionRegistry?.Dispose();
+                contentLoader.Dispose();
+                throw;
+            }
+        }
+
+        internal ItemDef LoadCanonicalItem(string resourcePath) =>
+            _contentLoader.LoadCanonical<ItemDef>(resourcePath);
+
+        internal void DisposeState(BattleState state)
+        {
+            Runtime?.SetupStateForTests(null);
+            BattleTestFixture.DisposeBattleState(state);
         }
 
         internal UnitSkillProgress SetLearnedHunterMark(
@@ -411,7 +456,7 @@ public partial class run_hunter_axe_weapon_ability_regression : LifecycleTestSce
             member.equipment_state.SetEquippedEntry(
                 "main_hand",
                 HunterAxeItemId,
-                new GStringNameArray { "main_hand" },
+                new StringName[] { "main_hand" },
                 EquipmentInstanceState.CreateInstance(HunterAxeItemId, $"eq_hunter_axe_{label}")
             );
             BattleUnitState unit = BuildSingleAllyUnit(label);
@@ -425,15 +470,20 @@ public partial class run_hunter_axe_weapon_ability_regression : LifecycleTestSce
 
         public void Dispose()
         {
-            Runtime?.dispose();
+            if (_disposed)
+                return;
+            _disposed = true;
+            BattleTestFixture.DisposeRuntime(Runtime);
+            _characterManagement?.Dispose();
             _itemRegistry?.Dispose();
             _progressionRegistry?.Dispose();
+            _contentLoader?.Dispose();
         }
 
         private BattleUnitState BuildSingleAllyUnit(string label)
         {
             IReadOnlyList<BattleUnitState> units =
-                Runtime._unit_factory.BuildAllyUnits(_partyState, new GDictionary());
+                Runtime._unit_factory.BuildAllyUnits(_partyState, null);
             if (units.Count != 1)
             {
                 throw new InvalidOperationException(
