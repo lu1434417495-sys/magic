@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_battle_ai_score_selection_regression : LifecycleTestSceneTree
 {
@@ -153,6 +151,7 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
             new StringName("score_probe_higher"),
             "melee AI 应能选中后声明但评分更高的技能 action。"
         );
+        decision?.ClearOwnedRuntimeReferences();
     }
 
     private void TestRangedScorePrefersUnitNukeOverSingleTargetAreaBlast()
@@ -264,17 +263,21 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
             "共享评分上下文应允许高收益目标压过默认最近目标。"
         );
 
-        var action = new UseUnitSkillAction
-        {
-            action_id = "score_pick_best_target",
-            target_selector = "nearest_enemy",
-            desired_min_distance = 0,
-            desired_max_distance = 6,
-            DistanceReferenceKind = EnemyAiDistanceReference.TargetUnit,
-        };
-        action.skill_ids.Add(skill.SkillId);
+        var action = new UseUnitSkillActionDefinition(
+            "score_pick_best_target",
+            "",
+            BattleAiActionIntent.Positioning,
+            new[] { skill.SkillId },
+            "nearest_enemy",
+            1,
+            0,
+            false,
+            0,
+            6,
+            EnemyAiDistanceReferences.ToStringName(EnemyAiDistanceReference.TargetUnit)
+        );
         BattleAiDecision decision = new BattleAiUnitSkillCandidateEvaluator().Evaluate(
-            (UseUnitSkillActionDefinition)action.ToDefinition(),
+            action,
             context
         );
         _test.True(decision != null && decision.command != null, "共享 unit score input 后应仍能生成合法指令。");
@@ -283,6 +286,7 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
             farScout.unit_id,
             "UseUnitSkillAction 应根据共享评分上下文选择更高命中收益的目标。"
         );
+        decision?.ClearOwnedRuntimeReferences();
     }
 
     private void TestMultiUnitPositionActionHonorsLockedMovePoints()
@@ -302,17 +306,19 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
         fixture.AddUnit(targetA);
         fixture.AddUnit(targetB);
 
-        var action = new MoveToMultiUnitSkillPositionAction
-        {
-            action_id = "locked_multishot_position",
-            target_selector = "nearest_enemy",
-            desired_min_distance = 3,
-            desired_max_distance = 5,
-            DistanceReferenceKind = EnemyAiDistanceReference.TargetUnit,
-        };
-        action.skill_ids.Add(multishot.SkillId);
-        MoveToMultiUnitSkillPositionActionDefinition actionDefinition =
-            (MoveToMultiUnitSkillPositionActionDefinition)action.ToDefinition();
+        var actionDefinition = new MoveToMultiUnitSkillPositionActionDefinition(
+            "locked_multishot_position",
+            "",
+            BattleAiActionIntent.Positioning,
+            new[] { multishot.SkillId },
+            "nearest_enemy",
+            3,
+            5,
+            EnemyAiDistanceReferences.ToStringName(EnemyAiDistanceReference.TargetUnit),
+            6,
+            12,
+            40
+        );
 
         BattleAiContext lockedContext = fixture.BuildContext(archer);
         InstallSimpleActionScoreInput(lockedContext);
@@ -336,6 +342,8 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
             new Vector2I(1, 2),
             "multi-unit 站位动作应选择能增加覆盖目标数的合法移动格。"
         );
+        lockedDecision?.ClearOwnedRuntimeReferences();
+        allowedDecision?.ClearOwnedRuntimeReferences();
     }
 
     private void TestRetreatActionHonorsLockedMovePoints()
@@ -349,14 +357,15 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
         fixture.AddUnit(archer);
         fixture.AddUnit(threat);
 
-        var action = new RetreatAction
-        {
-            action_id = "locked_retreat_probe",
-            target_selector = "nearest_enemy",
-            minimum_safe_distance = 3,
-        };
-        RetreatActionDefinition actionDefinition =
-            (RetreatActionDefinition)action.ToDefinition();
+        var actionDefinition = new RetreatActionDefinition(
+            "locked_retreat_probe",
+            "",
+            BattleAiActionIntent.Positioning,
+            "nearest_enemy",
+            3,
+            false,
+            1
+        );
 
         BattleAiContext lockedContext = fixture.BuildContext(archer);
         InstallSimpleActionScoreInput(lockedContext);
@@ -375,6 +384,8 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
             allowedDecision?.command?.IsMove() == true,
             "获得锁定移动力许可时，retreat 动作仍应能产出移动指令。"
         );
+        lockedDecision?.ClearOwnedRuntimeReferences();
+        allowedDecision?.ClearOwnedRuntimeReferences();
     }
 
     private static Fixture BuildFixture(string battleId, Vector2I mapSize) =>
@@ -658,6 +669,7 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
         {
             _runtime.Dispose();
             ScoreService.Dispose();
+            BattleTestFixture.DisposeBattleState(State);
         }
 
         public void AddSkill(SkillDefinition skillDefinition)
