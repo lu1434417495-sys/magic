@@ -72,8 +72,14 @@ jobs:
         run: |
           set -euo pipefail
 
+          test_jobs="$(nproc)"
+          if [[ -z "${test_jobs}" || "${test_jobs}" -lt 1 ]]; then
+            test_jobs=1
+          fi
+          echo "Running full regression suite with ${test_jobs} parallel job(s)."
+
           python tests/run_regression_suite.py \
-            --jobs 16 \
+            --jobs "${test_jobs}" \
             --test-timeout-seconds 180 \
             --fail-on-output-error \
             --lifecycle-correctness
