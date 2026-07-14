@@ -13,10 +13,7 @@ public partial class PartyWarehouseWindow : Control
     );
 
     [Signal]
-    public delegate void discard_all_requestedEventHandler(
-        StringName item_id,
-        StringName instance_id
-    );
+    public delegate void discard_all_requestedEventHandler(StringName item_id);
 
     [Signal]
     public delegate void use_requestedEventHandler(StringName item_id, StringName member_id);
@@ -269,7 +266,7 @@ public partial class PartyWarehouseWindow : Control
         string storageRuleText = entry.IsStackable
             ? $"每堆上限 {entry.StackLimit}"
             : "不可堆叠，按实例独立占格";
-        string storageModeText = entry.StorageMode == "stack" ? "堆叠条目" : "实例聚合条目";
+        string storageModeText = entry.StorageMode == "stack" ? "堆叠条目" : "装备实例条目";
         var lines = new List<string>
         {
             $"物品：{entry.DisplayName}",
@@ -299,11 +296,16 @@ public partial class PartyWarehouseWindow : Control
 
     private void _refresh_controls()
     {
-        bool hasSelection = _get_selected_entry_data().HasValue;
+        WarehouseEntry selectedEntry = _get_selected_entry_data();
+        bool hasSelection = selectedEntry.HasValue;
+        bool isStackEntry = hasSelection && selectedEntry.StorageMode == "stack";
+        bool isEquipmentEntry = hasSelection && selectedEntry.StorageMode == "instance";
         bool isSkillBook = _selected_entry_is_skill_book();
         bool canUseSelectedItem = _can_use_selected_item();
+        discard_one_button.Text = isEquipmentEntry ? "丢弃此装备" : "丢弃 1 件";
         discard_one_button.Disabled = !hasSelection;
-        discard_all_button.Disabled = !hasSelection;
+        discard_all_button.Visible = isStackEntry;
+        discard_all_button.Disabled = !isStackEntry;
         target_member_label.Visible = isSkillBook;
         target_member_selector.Visible = isSkillBook;
         target_member_selector.Disabled = !isSkillBook || _windowData.TargetMembers.Count == 0;
@@ -405,9 +407,14 @@ public partial class PartyWarehouseWindow : Control
 
     private void _on_discard_all_button_pressed()
     {
-        if (_selectedItemId == (StringName)"")
+        WarehouseEntry selectedEntry = _get_selected_entry_data();
+        if (
+            _selectedItemId == (StringName)""
+            || !selectedEntry.HasValue
+            || selectedEntry.StorageMode != "stack"
+        )
             return;
-        EmitSignal(SignalName.discard_all_requested, _selectedItemId, _selectedInstanceId);
+        EmitSignal(SignalName.discard_all_requested, _selectedItemId);
     }
 
     private void _on_use_button_pressed()

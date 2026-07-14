@@ -458,12 +458,9 @@ internal sealed class WorldMapRuntimeProxy
         return RunRuntimeCommand(() => _runtime.CommandWarehouseDiscardOneTyped(itemId, instanceId));
     }
 
-    internal RuntimeCommandResult CommandWarehouseDiscardAll(
-        StringName itemId,
-        StringName instanceId = default
-    )
+    internal RuntimeCommandResult CommandWarehouseDiscardAll(StringName itemId)
     {
-        return RunRuntimeCommand(() => _runtime.CommandWarehouseDiscardAllTyped(itemId, instanceId));
+        return RunRuntimeCommand(() => _runtime.CommandWarehouseDiscardAllTyped(itemId));
     }
 
     internal RuntimeCommandResult CommandWarehouseUseItem(

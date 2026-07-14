@@ -292,15 +292,12 @@ public sealed partial class GameRuntimeFacade
             () => _warehouse_handler.CommandDiscardOneTyped(item_id, instance_id)
         );
 
-    internal RuntimeCommandResult CommandWarehouseDiscardAllTyped(
-        StringName item_id,
-        StringName instance_id
-    ) =>
+    internal RuntimeCommandResult CommandWarehouseDiscardAllTyped(StringName item_id) =>
         ExecuteLoggedCommandTyped(
             "warehouse.discard_all",
             "warehouse",
-            new GDictionary { ["item_id"] = item_id, ["instance_id"] = instance_id },
-            () => _warehouse_handler.CommandDiscardAllTyped(item_id, instance_id)
+            new GDictionary { ["item_id"] = item_id },
+            () => _warehouse_handler.CommandDiscardAllTyped(item_id)
         );
 
     internal RuntimeCommandResult CommandWarehouseUseItemTyped(
@@ -756,10 +753,8 @@ public sealed partial class GameRuntimeFacade
         StringName instanceId
     ) => CommandWarehouseDiscardOneTyped(itemId, instanceId);
 
-    internal RuntimeCommandResult CommandWarehouseDiscardAll(
-        StringName itemId,
-        StringName instanceId
-    ) => CommandWarehouseDiscardAllTyped(itemId, instanceId);
+    internal RuntimeCommandResult CommandWarehouseDiscardAll(StringName itemId) =>
+        CommandWarehouseDiscardAllTyped(itemId);
 
     private GDictionary _command_ok() => _command_ok("", BattleRefreshMode.None);
 

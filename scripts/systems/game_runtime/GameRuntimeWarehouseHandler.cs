@@ -153,10 +153,7 @@ public sealed class GameRuntimeWarehouseHandler
         );
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandDiscardAllTyped(
-        StringName itemId,
-        StringName instanceId = default
-    )
+    internal GameRuntimeFacade.RuntimeCommandResult CommandDiscardAllTyped(StringName itemId)
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
@@ -167,6 +164,20 @@ public sealed class GameRuntimeWarehouseHandler
 
         var partyWarehouseService = GetPartyWarehouseService();
         var itemName = GetItemDisplayName(itemId);
+        ItemDefinition itemDef = partyWarehouseService.GetItemDef(itemId);
+        if (itemDef != null && itemDef.IsEquipment())
+        {
+            var unsupportedMessage = string.Format(
+                "{0} 是独立装备实例，不能丢弃全部同类。请选择具体装备后使用“丢弃此装备”。",
+                itemName
+            );
+            UpdateStatus(unsupportedMessage);
+            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+                unsupportedMessage,
+                GameRuntimeFacade.RuntimeCommandCode.InvalidArgument
+            );
+        }
+
         var totalQuantity = partyWarehouseService.CountItem(itemId);
         if (totalQuantity <= 0)
         {
@@ -176,12 +187,7 @@ public sealed class GameRuntimeWarehouseHandler
         }
 
         var snapshot = CaptureWarehouseTransactionSnapshot();
-        var result = RemoveWarehouseItemOrInstance(
-            partyWarehouseService,
-            itemId,
-            totalQuantity,
-            instanceId
-        );
+        var result = partyWarehouseService.RemoveItemTyped(itemId, totalQuantity);
         var removedQuantity = result.RemovedQuantity;
         if (removedQuantity <= 0)
         {

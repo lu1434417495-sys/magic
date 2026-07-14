@@ -157,6 +157,55 @@ public partial class run_text_command_warehouse_use_regression : LifecycleTestSc
                 0,
                 "warehouse discard-all 成功后共享仓库应清空该库存。"
             );
+
+            int equipmentCountBefore =
+                runtime.GetPartyWarehouseService()?.CountItem("bronze_sword") ?? -1;
+            GameTextCommandResult addEquipmentResult = runner.ExecuteLine(
+                "warehouse add bronze_sword 2"
+            );
+            _test.True(
+                addEquipmentResult.ok,
+                $"warehouse add bronze_sword 2 应创建两个独立装备实例。message={addEquipmentResult.message}"
+            );
+            int equipmentCountAfterAdd = equipmentCountBefore + 2;
+            _test.Eq(
+                runtime.GetPartyWarehouseService()?.CountItem("bronze_sword") ?? -1,
+                equipmentCountAfterAdd,
+                "warehouse add 装备后应保留两个独立实例。"
+            );
+
+            GameTextCommandResult discardAllEquipmentResult = runner.ExecuteLine(
+                "warehouse discard-all bronze_sword"
+            );
+            _test.False(discardAllEquipmentResult.ok, "warehouse discard-all 不应接受装备 item_id。");
+            _test.Eq(
+                discardAllEquipmentResult.code,
+                GameRuntimeFacade.RuntimeCommandCode.InvalidArgument,
+                "装备 discard-all 应返回 InvalidArgument。"
+            );
+            _test.Eq(
+                runtime.GetPartyWarehouseService()?.CountItem("bronze_sword") ?? -1,
+                equipmentCountAfterAdd,
+                "拒绝装备 discard-all 后不应删除任何装备实例。"
+            );
+
+            GameTextCommandResult discardAllWithInstanceResult = runner.ExecuteLine(
+                "warehouse discard-all bronze_sword instance_id=eq_unused"
+            );
+            _test.False(
+                discardAllWithInstanceResult.ok,
+                "warehouse discard-all 语法不应继续接受 instance_id 参数。"
+            );
+            _test.Eq(
+                discardAllWithInstanceResult.code,
+                GameRuntimeFacade.RuntimeCommandCode.InvalidArgument,
+                "带 instance_id 的旧 discard-all 形态应返回 InvalidArgument。"
+            );
+            _test.Eq(
+                runtime.GetPartyWarehouseService()?.CountItem("bronze_sword") ?? -1,
+                equipmentCountAfterAdd,
+                "非法 discard-all 命令不应改变装备库存。"
+            );
         }
         finally
         {

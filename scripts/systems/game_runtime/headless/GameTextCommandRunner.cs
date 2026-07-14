@@ -634,7 +634,7 @@ public sealed class GameTextCommandRunner : IDisposable
         if (tokens.Count < 3)
             return Result(
                 false,
-                "用法: warehouse add <item_id> <quantity> | warehouse use <item_id> [member_id] | warehouse discard-one|discard-all <item_id> [instance_id=<instance_id>] | warehouse capacity <value>"
+                "用法: warehouse add <item_id> <quantity> | warehouse use <item_id> [member_id] | warehouse discard-one <item_id> [instance_id=<instance_id>] | warehouse discard-all <item_id> | warehouse capacity <value>"
             );
 
         switch (tokens[1])
@@ -691,15 +691,14 @@ public sealed class GameTextCommandRunner : IDisposable
             }
             case "discard-all":
             {
-                if (!TryParseNamedStringArgs(tokens, 3, out var namedArgs, out string namedArgError))
-                    return Result(false, namedArgError);
+                if (tokens.Count != 3)
+                    return Result(
+                        false,
+                        "用法: warehouse discard-all <item_id>",
+                        GameRuntimeFacade.RuntimeCommandCode.InvalidArgument
+                    );
                 return ResultFromRuntimeOutcome(
-                    runtime.CommandWarehouseDiscardAllTyped(
-                        new StringName(tokens[2]),
-                        namedArgs.TryGetValue("instance_id", out string instanceId)
-                            ? new StringName(instanceId)
-                            : new StringName()
-                    )
+                    runtime.CommandWarehouseDiscardAllTyped(new StringName(tokens[2]))
                 );
             }
             default:

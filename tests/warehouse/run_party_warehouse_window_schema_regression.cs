@@ -13,6 +13,7 @@ public partial class run_party_warehouse_window_schema_regression : LifecycleTes
     public override async void _Initialize()
     {
         await TestPartyWarehouseWindowRendersFormalWindowPayload();
+        await TestPartyWarehouseWindowUsesInstanceOnlyDiscardForEquipment();
         await TestPartyWarehouseWindowRejectsStringNameTopLevelFields();
         await TestPartyWarehouseWindowRejectsStringNameEntryFields();
         await TestPartyWarehouseWindowRejectsStringNameTargetMemberFields();
@@ -36,12 +37,64 @@ public partial class run_party_warehouse_window_schema_regression : LifecycleTes
     private async Task TestPartyWarehouseWindowRendersFormalWindowPayload()
     {
         PartyWarehouseWindow window = await CreateWindow();
+        StringName discardedAllItemId = "";
+        window.discard_all_requested += itemId => discardedAllItemId = itemId;
         window.ShowWarehouse(MakeWarehousePayload());
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
 
         _test.True(window.Visible, "共享仓库窗口应在 ShowWarehouse 后保持可见。");
         _test.Eq(window.stack_list.ItemCount, 1, "formal entries 应渲染一条仓库条目。");
         _test.Eq(window.target_member_selector.GetItemCount(), 1, "formal target_members 应渲染一个目标角色。");
+        _test.Eq(window.discard_one_button.Text, "丢弃 1 件", "堆叠条目应提供按数量丢弃一件的操作。");
+        _test.True(window.discard_all_button.Visible, "堆叠条目应显示丢弃全部同类操作。");
+        _test.False(window.discard_all_button.Disabled, "有选中的堆叠条目时应允许丢弃全部同类。");
+
+        window.discard_all_button.EmitSignal(BaseButton.SignalName.Pressed);
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+        _test.Eq(
+            discardedAllItemId,
+            new StringName("potion"),
+            "堆叠条目的 discard-all 信号只应提交 item_id。"
+        );
+        await DisposeWindow(window);
+    }
+
+    private async Task TestPartyWarehouseWindowUsesInstanceOnlyDiscardForEquipment()
+    {
+        PartyWarehouseWindow window = await CreateWindow();
+        StringName discardedItemId = "";
+        StringName discardedInstanceId = "";
+        bool discardAllRequested = false;
+        window.discard_one_requested += (itemId, instanceId) =>
+        {
+            discardedItemId = itemId;
+            discardedInstanceId = instanceId;
+        };
+        window.discard_all_requested += _ => discardAllRequested = true;
+
+        window.ShowWarehouse(MakeEquipmentWarehousePayload());
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+
+        _test.Eq(window.discard_one_button.Text, "丢弃此装备", "装备条目应明确按当前实例丢弃。");
+        _test.False(window.discard_one_button.Disabled, "有选中的装备实例时应允许丢弃此装备。");
+        _test.False(window.discard_all_button.Visible, "装备条目不应显示丢弃全部同类操作。");
+        _test.True(window.discard_all_button.Disabled, "装备条目的 discard-all 控件应保持禁用。");
+        _test.True(
+            window.details_label.Text.Contains("装备实例条目"),
+            "装备详情应明确当前条目代表一个独立实例。"
+        );
+
+        window.discard_all_button.EmitSignal(BaseButton.SignalName.Pressed);
+        window.discard_one_button.EmitSignal(BaseButton.SignalName.Pressed);
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+
+        _test.False(discardAllRequested, "即使外部触发隐藏按钮，装备条目也不应发出 discard-all 信号。");
+        _test.Eq(discardedItemId, new StringName("bronze_sword"), "丢弃装备应提交装备 item_id。");
+        _test.Eq(
+            discardedInstanceId,
+            new StringName("eq_warehouse_bronze_sword_001"),
+            "丢弃装备应提交被选中的唯一 instance_id。"
+        );
         await DisposeWindow(window);
     }
 
@@ -123,4 +176,32 @@ public partial class run_party_warehouse_window_schema_regression : LifecycleTes
                 },
             },
         };
+
+    private static GDictionary MakeEquipmentWarehousePayload()
+    {
+        GDictionary payload = MakeWarehousePayload();
+        payload["entries"] = new Godot.Collections.Array<GDictionary>
+        {
+            new()
+            {
+                ["item_id"] = "bronze_sword",
+                ["instance_id"] = "eq_warehouse_bronze_sword_001",
+                ["display_name"] = "青铜短剑",
+                ["description"] = "一把独立记录属性的短剑。",
+                ["quantity"] = 1,
+                ["total_quantity"] = 2,
+                ["is_stackable"] = false,
+                ["stack_limit"] = 1,
+                ["item_category"] = "equipment",
+                ["granted_skill_id"] = "",
+                ["storage_mode"] = "instance",
+                ["icon"] = "",
+                ["rarity"] = 2,
+                ["current_durability"] = 80,
+                ["is_skill_book"] = false,
+                ["granted_skill_name"] = "",
+            },
+        };
+        return payload;
+    }
 }

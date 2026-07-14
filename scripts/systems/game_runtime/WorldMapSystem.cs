@@ -1116,14 +1116,11 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         }
     }
 
-    public void _on_party_warehouse_discard_all_requested(
-        StringName item_id,
-        StringName instance_id
-    )
+    public void _on_party_warehouse_discard_all_requested(StringName item_id)
     {
         if (_runtime != null)
         {
-            _runtime_proxy.CommandWarehouseDiscardAll(item_id, instance_id);
+            _runtime_proxy.CommandWarehouseDiscardAll(item_id);
             RenderFromRuntime();
         }
     }
