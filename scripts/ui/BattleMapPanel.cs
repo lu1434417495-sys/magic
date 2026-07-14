@@ -111,6 +111,7 @@ public partial class BattleMapPanel : Control
     public Label _battle_equipment_meta_label;
     public Label _battle_equipment_summary_label;
     public Label _battle_equipment_status_label;
+    public Label barrier_status_label;
     public VBoxContainer _battle_equipment_slot_list;
     public ItemList _battle_equipment_backpack_list;
     public Label _battle_equipment_details_label;
@@ -1199,6 +1200,11 @@ public partial class BattleMapPanel : Control
         aura_value_label.Visible = false;
         skill_subtitle_label.Text = "等待战斗数据";
         skill_subtitle_label.TooltipText = "";
+        if (barrier_status_label != null)
+        {
+            barrier_status_label.Text = "";
+            barrier_status_label.Visible = false;
+        }
         _rebuild_fate_badges(Array.Empty<BattleHudFateBadgeSnapshot>());
         _rebuild_skill_grid(Array.Empty<BattleHudSkillSlotSnapshot>());
         _rebuild_timeline_row(Array.Empty<BattleHudQueueEntrySnapshot>());
@@ -1284,6 +1290,14 @@ public partial class BattleMapPanel : Control
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
         };
         hint_label.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_SECONDARY());
+        barrier_status_label = new Label
+        {
+            Name = "BarrierStatusLabel",
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            Visible = false,
+        };
+        barrier_status_label.AddThemeFontSizeOverride("font_size", 11);
+        barrier_status_label.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_ACCENT());
         log_label = new Label
         {
             Name = "LogLabel",
@@ -1291,6 +1305,7 @@ public partial class BattleMapPanel : Control
         };
         log_label.AddThemeFontSizeOverride("font_size", 11);
         log_label.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_SECONDARY());
+        skillLayout.AddChild(barrier_status_label);
         skillLayout.AddChild(hint_label);
         skillLayout.AddChild(log_label);
     }
@@ -1339,6 +1354,11 @@ public partial class BattleMapPanel : Control
             command_summary_label.Text = _build_command_summary(snapshot);
         if (hint_label != null)
             hint_label.Text = snapshot?.HintText ?? "";
+        if (barrier_status_label != null)
+        {
+            barrier_status_label.Text = snapshot?.BarrierSummaryText ?? "";
+            barrier_status_label.Visible = !string.IsNullOrEmpty(barrier_status_label.Text);
+        }
         if (log_label != null)
             log_label.Text = _join_recent_log_lines(snapshot);
     }

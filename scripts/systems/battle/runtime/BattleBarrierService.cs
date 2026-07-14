@@ -11,6 +11,22 @@ internal readonly record struct BattleBarrierPassageResult(bool Applied, bool St
 {
 }
 
+internal readonly record struct BattleBarrierCoordClipResult(
+    IReadOnlyList<Vector2I> AllowedCoords,
+    IReadOnlyList<Vector2I> BlockedCoords
+)
+{
+}
+
+internal readonly record struct BattleGroundEffectBarrierClipResult(
+    BattleBarrierCoordClipResult UnitEffects,
+    BattleBarrierCoordClipResult TerrainEffects,
+    IReadOnlyList<Vector2I> VisibleCoords,
+    bool Applied
+)
+{
+}
+
 internal readonly record struct BattleLayeredBarrierApplyResult(
     bool Applied,
     StringName BarrierInstanceId,
@@ -37,6 +53,7 @@ internal class BattleBarrierService
 {
     private const int DEFAULT_DURATION_TU = 120;
     private const int DEFAULT_SAVE_DC = 16;
+    private static readonly StringName VerticalMeteorSwarmProfileId = "meteor_swarm";
 
     private readonly record struct BarrierApplyParams(
         StringName ProfileId,
@@ -258,6 +275,29 @@ internal class BattleBarrierService
             return new BattleBarrierInteractionResult(false, false);
         return _ResolveProjectedEffectBarrierInteractionResult(
             sourceUnit,
+            sourceUnit.coord,
+            targetUnit.coord,
+            targetUnit.display_name,
+            skillDefinition,
+            effectDefinitions,
+            batch
+        );
+    }
+
+    internal BattleBarrierInteractionResult ResolveSkillBarrierInteractionFromCoordResult(
+        BattleUnitState sourceUnit,
+        Vector2I effectOriginCoord,
+        BattleUnitState targetUnit,
+        SkillDefinition skillDefinition,
+        IEnumerable<CombatEffectDefinition> effectDefinitions,
+        BattleEventBatch batch
+    )
+    {
+        if (sourceUnit == null || targetUnit == null)
+            return new BattleBarrierInteractionResult(false, false);
+        return _ResolveProjectedEffectBarrierInteractionResult(
+            sourceUnit,
+            effectOriginCoord,
             targetUnit.coord,
             targetUnit.display_name,
             skillDefinition,
@@ -276,6 +316,7 @@ internal class BattleBarrierService
     {
         return _ResolveProjectedEffectBarrierInteractionResult(
             sourceUnit,
+            sourceUnit?.coord ?? new Vector2I(-1, -1),
             targetCoord,
             $"({targetCoord.X}, {targetCoord.Y})",
             skillDefinition,
@@ -284,8 +325,278 @@ internal class BattleBarrierService
         );
     }
 
+    internal BattleGroundEffectBarrierClipResult ResolveGroundEffectBarrierClipResult(
+        BattleUnitState sourceUnit,
+        SkillDefinition skillDefinition,
+        IReadOnlyList<CombatEffectDefinition> unitEffectDefinitions,
+        IReadOnlyList<CombatEffectDefinition> terrainEffectDefinitions,
+        IReadOnlyList<Vector2I> effectCoords,
+        BattleEventBatch batch
+    )
+    {
+        return _ResolveGroundEffectBarrierClipResult(
+            sourceUnit != null,
+            sourceUnit?.coord ?? new Vector2I(-1, -1),
+            sourceUnit?.display_name ?? "",
+            skillDefinition,
+            unitEffectDefinitions,
+            terrainEffectDefinitions,
+            effectCoords,
+            batch,
+            commit: true
+        );
+    }
+
+    internal BattleGroundEffectBarrierClipResult PreviewGroundEffectBarrierClipResult(
+        BattleUnitReadView sourceUnit,
+        SkillDefinition skillDefinition,
+        IReadOnlyList<CombatEffectDefinition> unitEffectDefinitions,
+        IReadOnlyList<CombatEffectDefinition> terrainEffectDefinitions,
+        IReadOnlyList<Vector2I> effectCoords
+    )
+    {
+        return _ResolveGroundEffectBarrierClipResult(
+            sourceUnit.IsValid,
+            sourceUnit.IsValid ? sourceUnit.Coord : new Vector2I(-1, -1),
+            sourceUnit.DisplayName,
+            skillDefinition,
+            unitEffectDefinitions,
+            terrainEffectDefinitions,
+            effectCoords,
+            batch: null,
+            commit: false
+        );
+    }
+
+    internal BattleGroundEffectBarrierClipResult PreviewGroundEffectBarrierClipResultAtCoord(
+        BattleUnitState sourceUnit,
+        Vector2I effectOriginCoord,
+        SkillDefinition skillDefinition,
+        IReadOnlyList<CombatEffectDefinition> unitEffectDefinitions,
+        IReadOnlyList<CombatEffectDefinition> terrainEffectDefinitions,
+        IReadOnlyList<Vector2I> effectCoords
+    )
+    {
+        return _ResolveGroundEffectBarrierClipResult(
+            sourceUnit != null,
+            effectOriginCoord,
+            sourceUnit?.display_name ?? "",
+            skillDefinition,
+            unitEffectDefinitions,
+            terrainEffectDefinitions,
+            effectCoords,
+            batch: null,
+            commit: false
+        );
+    }
+
+    internal BattleGroundEffectBarrierClipResult PreviewGroundEffectBarrierClipResultAtCoord(
+        BattleUnitReadView sourceUnit,
+        Vector2I effectOriginCoord,
+        SkillDefinition skillDefinition,
+        IReadOnlyList<CombatEffectDefinition> unitEffectDefinitions,
+        IReadOnlyList<CombatEffectDefinition> terrainEffectDefinitions,
+        IReadOnlyList<Vector2I> effectCoords
+    )
+    {
+        return _ResolveGroundEffectBarrierClipResult(
+            sourceUnit.IsValid,
+            effectOriginCoord,
+            sourceUnit.DisplayName,
+            skillDefinition,
+            unitEffectDefinitions,
+            terrainEffectDefinitions,
+            effectCoords,
+            batch: null,
+            commit: false
+        );
+    }
+
+    private BattleGroundEffectBarrierClipResult _ResolveGroundEffectBarrierClipResult(
+        bool sourceValid,
+        Vector2I sourceCoord,
+        string sourceDisplayName,
+        SkillDefinition skillDefinition,
+        IReadOnlyList<CombatEffectDefinition> unitEffectDefinitions,
+        IReadOnlyList<CombatEffectDefinition> terrainEffectDefinitions,
+        IReadOnlyList<Vector2I> effectCoords,
+        BattleEventBatch batch,
+        bool commit
+    )
+    {
+        IReadOnlyList<CombatEffectDefinition> normalizedUnitEffects =
+            unitEffectDefinitions ?? System.Array.Empty<CombatEffectDefinition>();
+        IReadOnlyList<CombatEffectDefinition> normalizedTerrainEffects =
+            terrainEffectDefinitions ?? System.Array.Empty<CombatEffectDefinition>();
+        List<Vector2I> normalizedEffectCoords = _SortUniqueCoords(effectCoords);
+        bool hasUnitEffects = normalizedUnitEffects.Count > 0;
+        bool hasTerrainEffects = normalizedTerrainEffects.Count > 0;
+        var unitAllowedCoords = hasUnitEffects
+            ? new List<Vector2I>(normalizedEffectCoords)
+            : new List<Vector2I>();
+        var terrainAllowedCoords = hasTerrainEffects
+            ? new List<Vector2I>(normalizedEffectCoords)
+            : new List<Vector2I>();
+        var unitBlockedCoords = new HashSet<Vector2I>();
+        var terrainBlockedCoords = new HashSet<Vector2I>();
+        bool applied = false;
+
+        BattleRuntimeModule runtime = _ResolveRuntime();
+        if (
+            runtime != null
+            && runtime._state != null
+            && sourceValid
+            && !_IsProjectedBarrierExempt(skillDefinition)
+        )
+        {
+            IReadOnlyList<StringName> unitCategories = hasUnitEffects
+                ? BattleEffectCategoryResolver.ResolveCategories(
+                    skillDefinition,
+                    normalizedUnitEffects
+                )
+                : System.Array.Empty<StringName>();
+            IReadOnlyList<StringName> terrainCategories = hasTerrainEffects
+                ? BattleEffectCategoryResolver.ResolveCategories(
+                    skillDefinition,
+                    normalizedTerrainEffects
+                )
+                : System.Array.Empty<StringName>();
+
+            foreach (StringName barrierKey in _SortedBarrierKeys())
+            {
+                if (!TryReadBarrier(barrierKey, out BattleBarrierInstanceState barrier))
+                    continue;
+                BattleBarrierLayerState activeLayer = _GetActiveLayer(barrier);
+                if (activeLayer == null)
+                    continue;
+
+                IReadOnlyList<Vector2I> barrierCoords = _GetBarrierCoords(barrier);
+                List<Vector2I> crossingUnitCoords = _CollectCrossingCoords(
+                    sourceCoord,
+                    unitAllowedCoords,
+                    barrierCoords
+                );
+                List<Vector2I> crossingTerrainCoords = _CollectCrossingCoords(
+                    sourceCoord,
+                    terrainAllowedCoords,
+                    barrierCoords
+                );
+                if (crossingUnitCoords.Count == 0 && crossingTerrainCoords.Count == 0)
+                    continue;
+
+                bool breaksActiveLayer = _SkillBreaksLayer(skillDefinition, activeLayer);
+                bool breaksDeeperLayer =
+                    !breaksActiveLayer && _SkillBreaksAnyRemainingLayer(skillDefinition, barrier);
+                BattleBarrierLayerState unitBlockingLayer = null;
+                BattleBarrierLayerState terrainBlockingLayer = null;
+                List<Vector2I> blockedUnitCoords = new();
+                List<Vector2I> blockedTerrainCoords = new();
+
+                if (breaksActiveLayer || breaksDeeperLayer)
+                {
+                    blockedUnitCoords.AddRange(crossingUnitCoords);
+                    blockedTerrainCoords.AddRange(crossingTerrainCoords);
+                }
+                else
+                {
+                    if (crossingUnitCoords.Count > 0)
+                    {
+                        unitBlockingLayer = _FindFirstBlockingLayer(barrier, unitCategories);
+                        if (unitBlockingLayer == null && barrier.CatchAllProjectedEffects)
+                            unitBlockingLayer = activeLayer;
+                        if (unitBlockingLayer != null)
+                            blockedUnitCoords.AddRange(crossingUnitCoords);
+                    }
+                    if (crossingTerrainCoords.Count > 0)
+                    {
+                        terrainBlockingLayer = _FindFirstBlockingLayer(barrier, terrainCategories);
+                        if (terrainBlockingLayer == null && barrier.CatchAllProjectedEffects)
+                            terrainBlockingLayer = activeLayer;
+                        if (terrainBlockingLayer != null)
+                            blockedTerrainCoords.AddRange(crossingTerrainCoords);
+                    }
+                }
+
+                if (blockedUnitCoords.Count == 0 && blockedTerrainCoords.Count == 0)
+                    continue;
+
+                _RemoveCoords(unitAllowedCoords, blockedUnitCoords);
+                _RemoveCoords(terrainAllowedCoords, blockedTerrainCoords);
+                _AddCoords(unitBlockedCoords, blockedUnitCoords);
+                _AddCoords(terrainBlockedCoords, blockedTerrainCoords);
+                applied = true;
+
+                if (!commit)
+                    continue;
+
+                int blockedCoordCount = _CountUniqueCoords(
+                    blockedUnitCoords,
+                    blockedTerrainCoords
+                );
+                string sourceLabel = string.IsNullOrEmpty(sourceDisplayName)
+                    ? "施法者"
+                    : sourceDisplayName;
+                string skillLabel = skillDefinition != null
+                    ? skillDefinition.DisplayName
+                    : "效果";
+                if (breaksActiveLayer)
+                {
+                    _BreakActiveLayer(barrierKey, barrier, activeLayer, batch);
+                    _AppendLog(
+                        batch,
+                        $"{sourceLabel} 的 {skillLabel} 破解了{_GetBarrierLabel(barrier)}，但本次跨界的 {blockedCoordCount} 个地格仍被阻挡。"
+                    );
+                    continue;
+                }
+                if (breaksDeeperLayer)
+                {
+                    _AppendLog(
+                        batch,
+                        $"{sourceLabel} 试图破解{_GetBarrierLabel(barrier)}，但必须先处理外层 {_GetLayerLabel(activeLayer)}；本次跨界的 {blockedCoordCount} 个地格被阻挡。"
+                    );
+                    continue;
+                }
+
+                _AppendGroundEffectBlockLogs(
+                    batch,
+                    sourceLabel,
+                    skillLabel,
+                    barrier,
+                    unitBlockingLayer,
+                    blockedUnitCoords,
+                    terrainBlockingLayer,
+                    blockedTerrainCoords
+                );
+            }
+        }
+
+        var visibleCoords = new List<Vector2I>();
+        if (hasUnitEffects || hasTerrainEffects)
+        {
+            visibleCoords.AddRange(unitAllowedCoords);
+            visibleCoords.AddRange(terrainAllowedCoords);
+        }
+        else
+        {
+            visibleCoords.AddRange(normalizedEffectCoords);
+        }
+        return new BattleGroundEffectBarrierClipResult(
+            new BattleBarrierCoordClipResult(
+                _SortUniqueCoords(unitAllowedCoords),
+                _SortUniqueCoords(unitBlockedCoords)
+            ),
+            new BattleBarrierCoordClipResult(
+                _SortUniqueCoords(terrainAllowedCoords),
+                _SortUniqueCoords(terrainBlockedCoords)
+            ),
+            _SortUniqueCoords(visibleCoords),
+            applied
+        );
+    }
+
     private BattleBarrierInteractionResult _ResolveProjectedEffectBarrierInteractionResult(
         BattleUnitState sourceUnit,
+        Vector2I effectOriginCoord,
         Vector2I targetCoord,
         string targetLabel,
         SkillDefinition skillDefinition,
@@ -293,6 +604,8 @@ internal class BattleBarrierService
         BattleEventBatch batch
     )
     {
+        if (_IsProjectedBarrierExempt(skillDefinition))
+            return new BattleBarrierInteractionResult(false, false);
         var runtime = _ResolveRuntime();
         if (
             runtime == null
@@ -304,7 +617,7 @@ internal class BattleBarrierService
         {
             if (!TryReadBarrier(barrierKey, out BattleBarrierInstanceState barrier))
                 continue;
-            if (!_ProjectedEffectCrossesBarrier(sourceUnit.coord, targetCoord, barrier))
+            if (!_ProjectedEffectCrossesBarrier(effectOriginCoord, targetCoord, barrier))
                 continue;
             var activeLayer = _GetActiveLayer(barrier);
             if (activeLayer == null)
@@ -341,6 +654,14 @@ internal class BattleBarrierService
             return new BattleBarrierInteractionResult(true, true);
         }
         return new BattleBarrierInteractionResult(false, false);
+    }
+
+    private static bool _IsProjectedBarrierExempt(SkillDefinition skillDefinition)
+    {
+        // meteor_swarm is a vertically falling disaster resolved by its dedicated profile,
+        // so a horizontal projected-effect barrier does not clip its impact plan.
+        return skillDefinition?.CombatProfile?.SpecialResolutionProfileId
+            == VerticalMeteorSwarmProfileId;
     }
 
     private BattleBarrierPassageResult _ApplyBarrierPassage(
@@ -496,6 +817,156 @@ internal class BattleBarrierService
                 return true;
         }
         return false;
+    }
+
+    private static List<Vector2I> _CollectCrossingCoords(
+        Vector2I sourceCoord,
+        IEnumerable<Vector2I> candidateCoords,
+        IReadOnlyList<Vector2I> barrierCoords
+    )
+    {
+        var result = new List<Vector2I>();
+        foreach (Vector2I coord in candidateCoords ?? System.Array.Empty<Vector2I>())
+        {
+            if (
+                BattleBarrierGeometryService.LineCrossesBarrierArea(
+                    sourceCoord,
+                    coord,
+                    barrierCoords
+                )
+            )
+            {
+                result.Add(coord);
+            }
+        }
+        return result;
+    }
+
+    private static void _RemoveCoords(
+        List<Vector2I> sourceCoords,
+        IEnumerable<Vector2I> removedCoords
+    )
+    {
+        if (sourceCoords == null || sourceCoords.Count == 0)
+            return;
+        var removedLookup = new HashSet<Vector2I>(
+            removedCoords ?? System.Array.Empty<Vector2I>()
+        );
+        if (removedLookup.Count == 0)
+            return;
+        sourceCoords.RemoveAll(removedLookup.Contains);
+    }
+
+    private static void _AddCoords(
+        HashSet<Vector2I> destination,
+        IEnumerable<Vector2I> sourceCoords
+    )
+    {
+        if (destination == null)
+            return;
+        foreach (Vector2I coord in sourceCoords ?? System.Array.Empty<Vector2I>())
+        {
+            destination.Add(coord);
+        }
+    }
+
+    private static int _CountUniqueCoords(
+        IEnumerable<Vector2I> firstCoords,
+        IEnumerable<Vector2I> secondCoords
+    )
+    {
+        var result = new HashSet<Vector2I>();
+        _AddCoords(result, firstCoords);
+        _AddCoords(result, secondCoords);
+        return result.Count;
+    }
+
+    private static List<Vector2I> _SortUniqueCoords(IEnumerable<Vector2I> coords)
+    {
+        var seen = new HashSet<Vector2I>();
+        var result = new List<Vector2I>();
+        foreach (Vector2I coord in coords ?? System.Array.Empty<Vector2I>())
+        {
+            if (seen.Add(coord))
+                result.Add(coord);
+        }
+        result.Sort((left, right) =>
+            left.Y != right.Y ? left.Y.CompareTo(right.Y) : left.X.CompareTo(right.X)
+        );
+        return result;
+    }
+
+    private void _AppendGroundEffectBlockLogs(
+        BattleEventBatch batch,
+        string sourceLabel,
+        string skillLabel,
+        BattleBarrierInstanceState barrier,
+        BattleBarrierLayerState unitBlockingLayer,
+        IReadOnlyList<Vector2I> blockedUnitCoords,
+        BattleBarrierLayerState terrainBlockingLayer,
+        IReadOnlyList<Vector2I> blockedTerrainCoords
+    )
+    {
+        bool sameBlockingLayer =
+            unitBlockingLayer != null
+            && terrainBlockingLayer != null
+            && unitBlockingLayer.LayerId == terrainBlockingLayer.LayerId;
+        if (sameBlockingLayer)
+        {
+            _AppendGroundEffectBlockLog(
+                batch,
+                sourceLabel,
+                skillLabel,
+                barrier,
+                unitBlockingLayer,
+                _CountUniqueCoords(blockedUnitCoords, blockedTerrainCoords),
+                ""
+            );
+            return;
+        }
+        if (unitBlockingLayer != null && blockedUnitCoords.Count > 0)
+        {
+            _AppendGroundEffectBlockLog(
+                batch,
+                sourceLabel,
+                skillLabel,
+                barrier,
+                unitBlockingLayer,
+                _CountUniqueCoords(blockedUnitCoords, System.Array.Empty<Vector2I>()),
+                "单位效果"
+            );
+        }
+        if (terrainBlockingLayer != null && blockedTerrainCoords.Count > 0)
+        {
+            _AppendGroundEffectBlockLog(
+                batch,
+                sourceLabel,
+                skillLabel,
+                barrier,
+                terrainBlockingLayer,
+                _CountUniqueCoords(blockedTerrainCoords, System.Array.Empty<Vector2I>()),
+                "地形效果"
+            );
+        }
+    }
+
+    private void _AppendGroundEffectBlockLog(
+        BattleEventBatch batch,
+        string sourceLabel,
+        string skillLabel,
+        BattleBarrierInstanceState barrier,
+        BattleBarrierLayerState blockingLayer,
+        int blockedCoordCount,
+        string effectScope
+    )
+    {
+        if (blockingLayer == null || blockedCoordCount <= 0)
+            return;
+        string scopeLabel = string.IsNullOrEmpty(effectScope) ? "" : $"上的{effectScope}";
+        _AppendLog(
+            batch,
+            $"{_GetBarrierLabel(barrier)}的 {_GetLayerLabel(blockingLayer)} 阻挡了 {blockedCoordCount} 个地格{scopeLabel}，{sourceLabel} 的 {skillLabel} 只能影响其余区域。"
+        );
     }
 
     private BattleBarrierLayerState _FindFirstBlockingLayer(

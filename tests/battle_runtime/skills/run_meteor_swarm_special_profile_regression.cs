@@ -22,6 +22,7 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
         TestMeteorAttemptMetricsStartAfterRuntimeValidation();
         TestMeteorSwarmTerrainPayloadSurface();
         TestMeteorSwarmDriftChangesFinalAnchorAndTerrain();
+        TestMeteorSwarmExplicitlyBypassesPrismaticSphere();
 
         return _test.Finish("Meteor swarm special profile regression");
     }
@@ -392,10 +393,138 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
         }
     }
 
+    private void TestMeteorSwarmExplicitlyBypassesPrismaticSphere()
+    {
+        BattleUnitState barrierOwner = BuildUnit(
+            "meteor_barrier_owner",
+            "法球持有者",
+            "enemy",
+            new Vector2I(4, 4),
+            240
+        );
+        BattleUnitState protectedTarget = BuildUnit(
+            "meteor_inside_target",
+            "法球内目标",
+            "enemy",
+            new Vector2I(4, 5),
+            240
+        );
+        Fixture setup = null;
+        try
+        {
+            IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfiles =
+                BarrierDefinitionTestContent.LoadValidated();
+            setup = BuildRuntimeFixture(
+                new Vector2I(9, 9),
+                new[] { barrierOwner, protectedTarget },
+                barrierProfileDefinitions: barrierProfiles
+            );
+            ApplyPrismaticSphere(setup.Runtime, barrierOwner);
+
+            SkillDefinition meteorSkill = GetSkillDefinition(
+                setup.SkillDefinitionIndex,
+                "mage_meteor_swarm"
+            );
+            _test.Eq(
+                meteorSkill?.CombatProfile?.SpecialResolutionProfileId ?? new StringName(""),
+                new StringName("meteor_swarm"),
+                "陨星雨豁免应绑定到专用 meteor_swarm 结算 profile。"
+            );
+            _test.False(
+                meteorSkill?.CombatProfile?.RequiresLos ?? true,
+                "陨星雨的垂直坠落语义应保持 requires_los=false。"
+            );
+            _test.True(
+                HasStringName(meteorSkill?.CombatProfile?.DeliveryCategories, "meteor")
+                    && HasStringName(meteorSkill?.CombatProfile?.DeliveryCategories, "disaster"),
+                "陨星雨应继续声明 meteor/disaster 投送类别。"
+            );
+
+            CombatEffectDefinition barrierProbeEffect = TestSkillDefinitionProjection.BuildEffect(
+                "damage",
+                power: 1,
+                damageTag: "fire"
+            );
+            CombatEffectDefinition[] barrierProbeEffects = { barrierProbeEffect };
+            using var barrierProbeBatch = new BattleEventBatch();
+            BattleBarrierInteractionResult projectedProbe = setup.Runtime
+                ._layered_barrier_service.ResolveSkillBarrierInteractionResult(
+                    setup.Caster,
+                    protectedTarget,
+                    meteorSkill,
+                    barrierProbeEffects,
+                    barrierProbeBatch
+                );
+            _test.False(
+                projectedProbe.Blocked,
+                "meteor_swarm profile 即使进入单体投射检查也应命中显式豁免。"
+            );
+            BattleGroundEffectBarrierClipResult groundProbe = setup.Runtime
+                ._layered_barrier_service.ResolveGroundEffectBarrierClipResult(
+                    setup.Caster,
+                    meteorSkill,
+                    barrierProbeEffects,
+                    Array.Empty<CombatEffectDefinition>(),
+                    new[] { protectedTarget.coord },
+                    barrierProbeBatch
+                );
+            _test.Eq(
+                groundProbe.UnitEffects.AllowedCoords.Count,
+                1,
+                "meteor_swarm profile 即使进入通用地格裁剪也应保留法球内落点。"
+            );
+            if (groundProbe.UnitEffects.AllowedCoords.Count > 0)
+            {
+                _test.Eq(
+                    groundProbe.UnitEffects.AllowedCoords[0],
+                    protectedTarget.coord,
+                    "meteor_swarm 通用裁剪豁免应保留原始落点坐标。"
+                );
+            }
+            _test.False(groundProbe.Applied, "陨星雨豁免不应伪造一次屏障交互。");
+            _test.False(
+                LogsContain(barrierProbeBatch.LogLinesTyped, "虹光法球"),
+                "陨星雨的显式屏障服务豁免不应写阻挡日志。"
+            );
+
+            BattleCommand command = setup.Track(BuildCommand(setup.Caster, new Vector2I(4, 4)));
+            BattlePreview preview = setup.Track(setup.Runtime.PreviewCommand(command));
+            _test.True(
+                preview != null && preview.allowed,
+                $"法球存在时陨星雨预览仍应允许。logs={FormatLogs(preview?.LogLinesTyped)}"
+            );
+            _test.True(
+                preview?.ContainsTargetUnitId(protectedTarget.unit_id) == true,
+                "垂直坠落的陨星雨预览不应裁掉法球内目标。"
+            );
+
+            int hpBefore = protectedTarget.current_hp;
+            BattleEventBatch batch = setup.Track(setup.Runtime.IssueCommand(command));
+            _test.True(
+                protectedTarget.current_hp < hpBefore,
+                $"垂直坠落的陨星雨执行不应被虹光法球阻挡。logs={FormatLogs(batch?.LogLinesTyped)}"
+            );
+            _test.Eq(
+                ActiveBarrierLayerId(setup.State),
+                new StringName("red"),
+                "陨星雨豁免不应破坏或推进虹光法球色层。"
+            );
+            _test.False(
+                LogsContain(batch?.LogLinesTyped, "虹光法球"),
+                "陨星雨豁免路径不应产生投射屏障阻挡日志。"
+            );
+        }
+        finally
+        {
+            setup?.Dispose();
+        }
+    }
+
     private Fixture BuildRuntimeFixture(
         Vector2I mapSize,
         BattleUnitState[] extraUnits,
-        bool poisonLegacyArea = false
+        bool poisonLegacyArea = false,
+        IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions = null
     )
     {
         SkillDefinition meteorSkillDefinition = TestSkillDefinitionProjection.LoadSkillDefinition(
@@ -428,7 +557,8 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
             battle_special_profile_view: BattleSpecialProfileRuntimeView.ForMeteorSwarm(
                 "meteor_swarm",
                 meteorProfile
-            )
+            ),
+            barrier_profile_definitions: barrierProfileDefinitions
         );
         BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
         BattleState state = BuildState(mapSize);
@@ -475,6 +605,79 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
             MeteorProfile = meteorProfile,
             SkillDefinitionIndex = typedSkillDefinitions,
         };
+    }
+
+    private static void ApplyPrismaticSphere(
+        BattleRuntimeModule runtime,
+        BattleUnitState sphereOwner
+    )
+    {
+        SkillDefinition sphereSkill = TestSkillDefinitionProjection.BuildSkill(
+            "mage_prismatic_sphere",
+            displayName: "虹光法球",
+            tags: new[] { new StringName("mage"), new StringName("magic") }
+        );
+        CombatEffectDefinition sphereEffect = TestSkillDefinitionProjection.BuildEffect(
+            "layered_barrier",
+            durationTu: 120,
+            saveDc: 15,
+            saveDcMode: "static",
+            saveAbility: "willpower",
+            saveTag: "magic",
+            parameters: new Dictionary<string, object>
+            {
+                ["area_pattern"] = "diamond",
+                ["profile_id"] = "prismatic_sphere",
+                ["radius_cells"] = 2,
+            }
+        );
+        using var batch = new BattleEventBatch();
+        runtime._layered_barrier_service.ApplyLayeredBarrierEffectResult(
+            sphereOwner,
+            sphereOwner,
+            sphereSkill,
+            sphereEffect,
+            batch
+        );
+    }
+
+    private static StringName ActiveBarrierLayerId(BattleState state)
+    {
+        foreach (BattleBarrierInstanceState barrier in state.LayeredBarrierStore.ValuesSorted())
+        {
+            foreach (BattleBarrierLayerState layer in barrier.GetLayersTyped())
+            {
+                if (layer != null && !layer.Broken)
+                {
+                    return layer.LayerId;
+                }
+            }
+        }
+        return "";
+    }
+
+    private static bool LogsContain(IEnumerable<string> logLines, string fragment)
+    {
+        foreach (string line in logLines ?? Array.Empty<string>())
+        {
+            if (line?.Contains(fragment, StringComparison.Ordinal) == true)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool HasStringName(IEnumerable<StringName> values, StringName expected)
+    {
+        foreach (StringName value in values ?? Array.Empty<StringName>())
+        {
+            if (value == expected)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static BattleState BuildState(Vector2I mapSize)

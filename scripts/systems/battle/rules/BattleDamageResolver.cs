@@ -1870,6 +1870,74 @@ public partial class BattleDamageResolver : IDisposable
         return ApplyDamageToTargetResult(targetUnit, rawDamage, sourceUnit).Damage;
     }
 
+    internal int ApplyTaggedDirectDamageToTargetTyped(
+        BattleUnitState targetUnit,
+        int rawDamage,
+        StringName damageTag,
+        BattleUnitState sourceUnit = null
+    )
+    {
+        int normalizedDamage = Math.Max(rawDamage, 0);
+        StringName normalizedDamageTag = ProgressionDataUtils.to_string_name(damageTag);
+        if (
+            targetUnit == null
+            || normalizedDamage <= 0
+            || DamageTagContentRules.ToDamageTagKind(normalizedDamageTag) == DamageTagKind.Unknown
+        )
+        {
+            return 0;
+        }
+
+        MitigationTierResolution mitigation = ResolveMitigationTierResult(
+            targetUnit,
+            normalizedDamageTag
+        );
+        int resolvedDamage = normalizedDamage;
+        if (mitigation.Tier == MitigationTierImmune)
+        {
+            resolvedDamage = 0;
+        }
+        else if (mitigation.Tier == MitigationTierHalf)
+        {
+            resolvedDamage /= 2;
+        }
+        else if (mitigation.Tier == MitigationTierDouble)
+        {
+            resolvedDamage *= 2;
+        }
+
+        DamageEventResult damageOutcome = new()
+        {
+            DamageTag = normalizedDamageTag,
+            MitigationTier = AttackEffectResolutionResultReader.ParseMitigationTier(
+                mitigation.Tier
+            ),
+            MitigationSources = mitigation.Sources,
+            BaseDamage = normalizedDamage,
+            OffenseMultiplier = 1.0,
+            RolledDamage = normalizedDamage,
+            TierAdjustedDamage = resolvedDamage,
+            ResolvedDamage = resolvedDamage,
+            BypassShield = false,
+            ShieldAbsorptionPercent = 100.0,
+            MinHpAfterDamage = 0,
+            FixedMitigationSourceLabels = Array.Empty<string>(),
+            FixedMitigationTotal = 0,
+            FullyAbsorbedByMitigation = false,
+            SourceBoundWeaponBonusSkillIds = Array.Empty<StringName>(),
+            TraitTriggerResults = Array.Empty<TraitTriggerEventResult>(),
+        };
+        return ApplyDamageToTargetResult(
+            targetUnit,
+            DamageApplicationInput.Create(
+                damageOutcome,
+                resolvedDamage,
+                shieldAbsorptionPercent: 100.0
+            ),
+            sourceUnit
+        ).Damage;
+    }
+
     internal int ApplyDirectDamageToTargetTyped(
         BattleUnitState targetUnit,
         GDictionary resolvedDamageInput,

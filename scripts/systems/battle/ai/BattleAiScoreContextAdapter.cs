@@ -13,6 +13,8 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
     private BattleAiScoreService _scoreService;
     private IReadOnlyDictionary<StringName, SkillDefinition> _skillDefinitions =
         EmptySkillDefinitions;
+    private IReadOnlyDictionary<StringName, BarrierProfileDefinition> _barrierProfileDefinitions =
+        new Dictionary<StringName, BarrierProfileDefinition>();
     private ISkillCatalog _skillCatalog;
 
     BattleState IBattleAiScoreContext.state => _state;
@@ -24,6 +26,9 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
     IReadOnlyDictionary<StringName, SkillDefinition> IBattleAiScoreContext.skill_definitions =>
         _skillDefinitions;
 
+    IReadOnlyDictionary<StringName, BarrierProfileDefinition> IBattleAiScoreContext.barrier_profile_definitions =>
+        _barrierProfileDefinitions;
+
     ISkillCatalog IBattleAiScoreContext.skill_catalog => _skillCatalog;
 
     internal void Setup(
@@ -32,7 +37,8 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
         BattleUnitState actorUnitState,
         BattleGridService battleGridService,
         ISkillCatalog skillCatalog = null,
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null,
+        IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions = null
     )
     {
         ClearRuntimeBindings();
@@ -76,6 +82,9 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
             ?? skillCatalog?.GetSkillDefinitionsTyped()
             ?? EmptySkillDefinitions;
         _skillCatalog = skillCatalog;
+        _barrierProfileDefinitions =
+            barrierProfileDefinitions
+            ?? new Dictionary<StringName, BarrierProfileDefinition>();
     }
 
     internal void ClearRuntimeBindings()
@@ -85,6 +94,7 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
         _unitState = null;
         _gridService = null;
         _skillDefinitions = EmptySkillDefinitions;
+        _barrierProfileDefinitions = new Dictionary<StringName, BarrierProfileDefinition>();
         _skillCatalog = null;
     }
 

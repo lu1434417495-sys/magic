@@ -62,6 +62,7 @@ public sealed class BattleAiScoreInput
     public Dictionary<StringName, List<DamageSaveEstimate>> save_estimates_by_target_id { get; set; } = new();
     public Dictionary<StringName, List<DamageEstimateBreakdown>> damage_estimates_by_target_id { get; set; } = new();
     public BattleSpecialProfilePreviewFacts special_profile_preview_facts { get; set; }
+    public BattleAiLayeredBarrierProjection layered_barrier_projection { get; set; }
     public List<MeteorSwarmNumericSummary> target_numeric_summary { get; set; } = new();
     public List<MeteorSwarmNumericSummary> friendly_fire_numeric_summary { get; set; } = new();
     public string friendly_fire_reject_reason { get; set; } = "";
@@ -296,6 +297,9 @@ public sealed class BattleAiScoreInput
             ["special_profile_preview_facts"] = ToTraceDictionary(
                 special_profile_preview_facts
             ),
+            ["layered_barrier_projection"] =
+                layered_barrier_projection?.ToTraceDictionary()
+                ?? new Dictionary<string, object>(System.StringComparer.Ordinal),
             ["target_numeric_summary"] = ToTraceNumericSummaryList(target_numeric_summary),
             ["friendly_fire_numeric_summary"] = ToTraceNumericSummaryList(
                 friendly_fire_numeric_summary
@@ -569,6 +573,11 @@ public sealed class BattleAiScoreInput
             builder,
             "special_profile_preview_facts",
             special_profile_preview_facts
+        );
+        AppendNamedValueFingerprint(
+            builder,
+            "layered_barrier_projection",
+            layered_barrier_projection
         );
         AppendNamedValueFingerprint(builder, "target_numeric_summary", target_numeric_summary);
         AppendNamedValueFingerprint(

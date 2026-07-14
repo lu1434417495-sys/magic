@@ -111,6 +111,24 @@ internal sealed class BattleChargeResolver
                 break;
             }
 
+            Vector2I previousAnchor = active_unit.coord;
+            BattleBarrierInteractionResult barrierResult =
+                Runtime._layered_barrier_service?.ResolveUnitBoundaryCrossingResult(
+                    active_unit,
+                    previousAnchor,
+                    nextAnchor,
+                    chargeBatch
+                ) ?? new BattleBarrierInteractionResult(false, false);
+            if (
+                barrierResult.Blocked
+                || !active_unit.is_alive
+                || active_unit.coord != previousAnchor
+            )
+            {
+                stopReason = "barrier";
+                break;
+            }
+
             List<Vector2I> previousCoords = DuplicateVector2IList(active_unit.occupied_coords);
             if (!GridService.MoveUnit(State, active_unit, nextAnchor))
             {
@@ -330,6 +348,7 @@ internal sealed class BattleChargeResolver
 
     internal List<Vector2I> BuildChargeStepAoePreviewCoords(
         BattleUnitState active_unit,
+        SkillDefinition skillDefinition,
         Vector2I direction,
         int distance,
         CombatEffectDefinition pathStepAoeEffect
@@ -347,18 +366,38 @@ internal sealed class BattleChargeResolver
             return new List<Vector2I>();
         }
 
+        CombatEffectDefinition stageEffect = pathStepAoeEffect.WithEffectType(DamageEffectType);
+        if (stageEffect == null)
+        {
+            return new List<Vector2I>();
+        }
+        CombatEffectDefinition[] stageEffects = { stageEffect };
         var coordSet = new HashSet<Vector2I>();
         foreach (
             Vector2I anchorCoord in BuildChargePathAnchorCoords(active_unit, direction, distance)
         )
         {
-            foreach (
-                Vector2I effectCoord in BuildChargeStepEffectCoordsForAnchor(
-                    active_unit,
-                    anchorCoord,
-                    pathStepAoeEffect
-                )
-            )
+            List<Vector2I> anchorEffectCoords = BuildChargeStepEffectCoordsForAnchor(
+                active_unit,
+                anchorCoord,
+                pathStepAoeEffect
+            );
+            IReadOnlyList<Vector2I> allowedEffectCoords = anchorEffectCoords;
+            BattleLayeredBarrierService barrierService = Runtime._layered_barrier_service;
+            if (barrierService != null)
+            {
+                allowedEffectCoords = barrierService
+                    .PreviewGroundEffectBarrierClipResultAtCoord(
+                        active_unit,
+                        anchorCoord,
+                        skillDefinition,
+                        stageEffects,
+                        Array.Empty<CombatEffectDefinition>(),
+                        anchorEffectCoords
+                    )
+                    .UnitEffects.AllowedCoords;
+            }
+            foreach (Vector2I effectCoord in allowedEffectCoords)
             {
                 if (coordSet.Add(effectCoord))
                 {
@@ -371,6 +410,7 @@ internal sealed class BattleChargeResolver
 
     internal List<Vector2I> BuildChargeStepAoePreviewCoords(
         BattleUnitReadView active_unit,
+        SkillDefinition skillDefinition,
         Vector2I direction,
         int distance,
         CombatEffectDefinition pathStepAoeEffect
@@ -388,18 +428,38 @@ internal sealed class BattleChargeResolver
             return new List<Vector2I>();
         }
 
+        CombatEffectDefinition stageEffect = pathStepAoeEffect.WithEffectType(DamageEffectType);
+        if (stageEffect == null)
+        {
+            return new List<Vector2I>();
+        }
+        CombatEffectDefinition[] stageEffects = { stageEffect };
         var coordSet = new HashSet<Vector2I>();
         foreach (
             Vector2I anchorCoord in BuildChargePathAnchorCoords(active_unit, direction, distance)
         )
         {
-            foreach (
-                Vector2I effectCoord in BuildChargeStepEffectCoordsForAnchor(
-                    active_unit,
-                    anchorCoord,
-                    pathStepAoeEffect
-                )
-            )
+            List<Vector2I> anchorEffectCoords = BuildChargeStepEffectCoordsForAnchor(
+                active_unit,
+                anchorCoord,
+                pathStepAoeEffect
+            );
+            IReadOnlyList<Vector2I> allowedEffectCoords = anchorEffectCoords;
+            BattleLayeredBarrierService barrierService = Runtime._layered_barrier_service;
+            if (barrierService != null)
+            {
+                allowedEffectCoords = barrierService
+                    .PreviewGroundEffectBarrierClipResultAtCoord(
+                        active_unit,
+                        anchorCoord,
+                        skillDefinition,
+                        stageEffects,
+                        Array.Empty<CombatEffectDefinition>(),
+                        anchorEffectCoords
+                    )
+                    .UnitEffects.AllowedCoords;
+            }
+            foreach (Vector2I effectCoord in allowedEffectCoords)
             {
                 if (coordSet.Add(effectCoord))
                 {
@@ -863,6 +923,22 @@ internal sealed class BattleChargeResolver
             return new PathStepResult(false);
         }
         CombatEffectDefinition[] stageEffects = { stageEffect };
+        BattleLayeredBarrierService barrierService = Runtime._layered_barrier_service;
+        if (barrierService != null)
+        {
+            effectCoords = new List<Vector2I>(
+                barrierService
+                    .ResolveGroundEffectBarrierClipResult(
+                        activeUnit,
+                        skillDefinition,
+                        stageEffects,
+                        Array.Empty<CombatEffectDefinition>(),
+                        effectCoords,
+                        batch
+                    )
+                    .UnitEffects.AllowedCoords
+            );
+        }
 
         foreach (BattleUnitState targetUnit in CollectUnitsInCoords(effectCoords))
         {
@@ -1398,6 +1474,22 @@ internal sealed class BattleChargeResolver
         SidePushResult sidePush = PickChargeSidePush(blocker, direction, reservedCoordSet);
         if (sidePush.Available)
         {
+            Vector2I blockerAnchor = blocker.coord;
+            BattleBarrierInteractionResult barrierResult =
+                Runtime._layered_barrier_service?.ResolveUnitBoundaryCrossingResult(
+                    blocker,
+                    blockerAnchor,
+                    sidePush.Coord,
+                    batch
+                ) ?? new BattleBarrierInteractionResult(false, false);
+            if (
+                barrierResult.Blocked
+                || !blocker.is_alive
+                || blocker.coord != blockerAnchor
+            )
+            {
+                return "stop";
+            }
             List<Vector2I> previousCoords = DuplicateVector2IList(blocker.occupied_coords);
             if (GridService.MoveUnitForce(State, blocker, sidePush.Coord))
             {
@@ -1425,6 +1517,25 @@ internal sealed class BattleChargeResolver
         Vector2I forwardCoord = blocker.coord + direction;
         if (!reservedCoordSet.Contains(forwardCoord))
         {
+            Vector2I blockerAnchor = blocker.coord;
+            if (GridService.CanPlaceUnit(State, blocker, forwardCoord))
+            {
+                BattleBarrierInteractionResult barrierResult =
+                    Runtime._layered_barrier_service?.ResolveUnitBoundaryCrossingResult(
+                        blocker,
+                        blockerAnchor,
+                        forwardCoord,
+                        batch
+                    ) ?? new BattleBarrierInteractionResult(false, false);
+                if (
+                    barrierResult.Blocked
+                    || !blocker.is_alive
+                    || blocker.coord != blockerAnchor
+                )
+                {
+                    return "stop";
+                }
+            }
             List<Vector2I> previousCoords = DuplicateVector2IList(blocker.occupied_coords);
             if (GridService.MoveUnit(State, blocker, forwardCoord))
             {

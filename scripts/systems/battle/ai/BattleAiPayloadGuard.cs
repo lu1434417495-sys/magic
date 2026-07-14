@@ -119,6 +119,15 @@ internal static class BattleAiPayloadGuard
     }
 
     internal static bool ValidateNoForbiddenObject(
+        BattleAiLayeredBarrierProjection value,
+        string context
+    )
+    {
+        string error = FindForbiddenInTypedObject(value, context, 0);
+        return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
+    }
+
+    internal static bool ValidateNoForbiddenObject(
         IEnumerable<MeteorSwarmNumericSummary> value,
         string context
     )
@@ -292,6 +301,10 @@ internal static class BattleAiPayloadGuard
             && ValidateNoForbiddenObject(
                 scoreInput.special_profile_preview_facts,
                 "score_input.special_profile_preview_facts"
+            )
+            && ValidateNoForbiddenObject(
+                scoreInput.layered_barrier_projection,
+                "score_input.layered_barrier_projection"
             )
             && ValidateNoForbiddenObject(
                 scoreInput.target_numeric_summary,

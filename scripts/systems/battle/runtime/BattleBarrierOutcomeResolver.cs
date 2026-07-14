@@ -376,7 +376,12 @@ internal sealed class BattleBarrierOutcomeResolver
         int normalizedDamage = Mathf.Max(damageAmount, 0);
         int damage = _ResolveRuntime()
             ._damage_resolver
-            .ApplyDirectDamageToTargetTyped(unitState, normalizedDamage, sourceUnit);
+            .ApplyTaggedDirectDamageToTargetTyped(
+                unitState,
+                normalizedDamage,
+                damageTag,
+                sourceUnit
+            );
         unitState.SetCurrentHp(unitState.current_hp);
         return damage;
     }

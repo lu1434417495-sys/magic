@@ -1033,8 +1033,25 @@ public partial class BattleAiScoreService
                 }
             }
             else if (
+                effectKind == BattleEffectKind.LayeredBarrier
+            )
+            {
+                BattleAiLayeredBarrierProjection projection =
+                    BattleAiLayeredBarrierProjection.Build(
+                        context,
+                        sourceUnit,
+                        targetUnit,
+                        effectDefinition
+                    );
+                if (projection.utility_control_count > 0)
+                {
+                    metrics.IsEmpty = false;
+                    metrics.BeneficialControlCount +=
+                        projection.utility_control_count * hitCount;
+                }
+            }
+            else if (
                 effectKind == BattleEffectKind.Shield
-                || effectKind == BattleEffectKind.LayeredBarrier
                 || effectKind == BattleEffectKind.StaminaRestore
                 || effectKind == BattleEffectKind.BodySizeCategoryOverride
             )

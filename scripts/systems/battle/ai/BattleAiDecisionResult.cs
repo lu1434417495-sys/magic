@@ -249,6 +249,7 @@ internal sealed class BattleAiDecisionResult
             special_profile_preview_facts = CloneSpecialProfileFacts(
                 source.special_profile_preview_facts
             ),
+            layered_barrier_projection = source.layered_barrier_projection?.Clone(),
             target_numeric_summary = CloneNumericSummaries(source.target_numeric_summary),
             friendly_fire_numeric_summary = CloneNumericSummaries(
                 source.friendly_fire_numeric_summary

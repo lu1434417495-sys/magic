@@ -79,11 +79,12 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             AssertTopLevelOrder(payload);
             AssertFixedLegacyGolden(payload);
             AssertMeteorSchema(payload);
+            AssertLayeredBarrierSchema(payload);
             AssertLegacyTraceReference(trace, payload);
             AssertFingerprint(
                 payload,
-                11935,
-                "96c30ae31b292a91941c2f6e58b1aaca0108559f72e36932bca23a675095b8c2",
+                11967,
+                "6530816ab192e9d20994f9026e429712d49812684a3c1bb4ac5530f908863426",
                 "full AI trace payload"
             );
             AssertDictionaryKeysAreStrings(payload, "trace");
@@ -505,6 +506,22 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
         _test.Eq(factSummaries.Count, 1, "Meteor facts must use the same numeric schema.");
     }
 
+    private void AssertLayeredBarrierSchema(GDictionary payload)
+    {
+        using GDictionary scoreInput = payload["score_input"].AsGodotDictionary();
+        _test.True(
+            scoreInput.ContainsKey("layered_barrier_projection"),
+            "AI trace score schema must expose layered-barrier tactical projection."
+        );
+        using GDictionary projection =
+            scoreInput["layered_barrier_projection"].AsGodotDictionary();
+        _test.Eq(
+            projection.Count,
+            0,
+            "Non-barrier score fixtures must project an empty layered-barrier value object."
+        );
+    }
+
     private void AssertLegacyLabelArray(
         GDictionary component,
         string key,
@@ -569,10 +586,21 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             using GArray fixedSources =
                 component["fixed_mitigation_sources"].AsGodotArray();
             _test.Eq(fixedSources.Count, 1, "Standalone fixed mitigation count golden.");
+            _test.True(
+                lease.Value.ContainsKey("layered_barrier_projection"),
+                "Standalone AI score schema must expose layered-barrier tactical projection."
+            );
+            using GDictionary barrierProjection =
+                lease.Value["layered_barrier_projection"].AsGodotDictionary();
+            _test.Eq(
+                barrierProjection.Count,
+                0,
+                "Standalone non-barrier score must project an empty layered-barrier value object."
+            );
             AssertFingerprint(
                 lease.Value,
-                9611,
-                "8a4ca1c4117d069f7e274413081f26b6e9510d6a3015dddb4dab60615b5acb44",
+                9643,
+                "de25e0c257cd77166495702c38be618a3856d1c52ca49c8ed7165cfc85951de5",
                 "full standalone AI score payload"
             );
         }
@@ -849,8 +877,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             _test.Eq(finalUnits.Count, 1, "Simulation final units golden.");
             AssertFingerprint(
                 reportLease.Value,
-                15363,
-                "4750e254c1242198496bc68862ebe8d058d1fdd60648c070ce640570ef34d598",
+                15395,
+                "1133a7a95f2d1c7ea593df67296ddb0e3136d1a606768c9495cbbccc29357536",
                 "full simulation report payload"
             );
         }

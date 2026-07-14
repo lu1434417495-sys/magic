@@ -70,14 +70,21 @@ internal sealed class BattleSkillMasteryService : IDisposable
         BattleUnitState targetUnit,
         SkillDefinition skillDefinition,
         AttackEffectResolutionResult result,
-        IReadOnlyList<CombatEffectDefinition> effectDefinitions = null
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions = null,
+        bool additionalEffectApplied = false
     )
     {
         if (sourceUnit == null || targetUnit == null)
             return;
         if (sourceUnit.source_member_id == "")
             return;
-        if (!_IsSkillMasteryQualifyingResult(result, skillDefinition))
+        if (
+            !_IsSkillMasteryQualifyingResult(
+                result,
+                skillDefinition,
+                additionalEffectApplied
+            )
+        )
             return;
         int amount = _ResolveSkillMasteryTargetAmount(sourceUnit, targetUnit, skillDefinition);
         if (amount <= 0)
@@ -417,7 +424,8 @@ internal sealed class BattleSkillMasteryService : IDisposable
 
     private bool _IsSkillMasteryQualifyingResult(
         AttackEffectResolutionResult result,
-        SkillDefinition skillDefinition
+        SkillDefinition skillDefinition,
+        bool additionalEffectApplied = false
     )
     {
         var triggerMode = _GetSkillMasteryTriggerMode(skillDefinition);
@@ -431,7 +439,7 @@ internal sealed class BattleSkillMasteryService : IDisposable
             case CombatSkillMasteryTriggerMode.StatusApplied:
                 return _ResultHasStatusApplied(result);
             case CombatSkillMasteryTriggerMode.EffectApplied:
-                return result.Applied;
+                return result.Applied || additionalEffectApplied;
             case CombatSkillMasteryTriggerMode.IncomingPhysicalHit:
                 return false;
             case CombatSkillMasteryTriggerMode.SecondaryHit:

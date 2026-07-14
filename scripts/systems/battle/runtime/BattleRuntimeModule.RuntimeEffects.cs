@@ -128,6 +128,20 @@ public sealed partial class BattleRuntimeModule
         );
     }
 
+    internal IReadOnlyList<CombatEffectDefinition> CollectGroundTerrainEffectDefinitionsTyped(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        BattleUnitReadView active_unit
+    )
+    {
+        _ensure_sidecars_ready();
+        return _ground_effect_service.CollectGroundTerrainEffectDefinitions(
+            skillDefinition,
+            castVariantDefinition,
+            active_unit
+        );
+    }
+
     internal IReadOnlyList<StringName> CollectGroundPreviewUnitIdsTyped(
         BattleUnitState sourceUnit,
         SkillDefinition skillDefinition,
@@ -167,7 +181,8 @@ public sealed partial class BattleRuntimeModule
         IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         IReadOnlyList<Vector2I> effect_coords,
         BattleEventBatch batch,
-        IReadOnlyList<Vector2I> target_coords = null
+        IReadOnlyList<Vector2I> target_coords = null,
+        IReadOnlyList<Vector2I> contingency_effect_coords = null
     )
     {
         _ensure_sidecars_ready();
@@ -178,7 +193,8 @@ public sealed partial class BattleRuntimeModule
             effectDefinitions ?? Array.Empty<CombatEffectDefinition>(),
             effect_coords ?? Array.Empty<Vector2I>(),
             batch,
-            target_coords ?? Array.Empty<Vector2I>()
+            target_coords ?? Array.Empty<Vector2I>(),
+            contingency_effect_coords
         );
     }
 

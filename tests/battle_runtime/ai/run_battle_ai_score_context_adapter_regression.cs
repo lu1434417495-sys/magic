@@ -34,13 +34,18 @@ public partial class run_battle_ai_score_context_adapter_regression : LifecycleT
                 fixture.Actor,
                 fixture.GridService,
                 null,
-                fixture.SkillDefinitions
+                fixture.SkillDefinitions,
+                fixture.BarrierDefinitions
             );
 
         IBattleAiScoreContext scoreContext = adapter;
         _test.True(
             scoreContext.skill_definitions.Count == 1,
             "IBattleAiScoreContext 应直接暴露 SkillDefinition 视图。"
+        );
+        _test.True(
+            scoreContext.barrier_profile_definitions.Count == 1,
+            "IBattleAiScoreContext 应借用 process-owned BarrierProfileDefinition 视图。"
         );
 
         BattleCommand command = new()
@@ -102,6 +107,11 @@ public partial class run_battle_ai_score_context_adapter_regression : LifecycleT
         finally
         {
             adapter.ClearRuntimeBindings();
+            _test.Eq(
+                ((IBattleAiScoreContext)adapter).barrier_profile_definitions.Count,
+                0,
+                "score context adapter 清理后不得残留 barrier profile 借用。"
+            );
         }
     }
 
@@ -162,6 +172,21 @@ public partial class run_battle_ai_score_context_adapter_regression : LifecycleT
         SkillDefinition skill = BuildSkill();
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             new Dictionary<StringName, SkillDefinition> { [skill.SkillId] = skill };
+        var barrier = new BarrierProfileDefinition(
+            "adapter_barrier_profile",
+            "Adapter Barrier Profile",
+            "fixed",
+            "diamond",
+            2,
+            120,
+            true,
+            Array.Empty<BarrierLayerDefinition>()
+        );
+        IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierDefinitions =
+            new Dictionary<StringName, BarrierProfileDefinition>
+            {
+                [barrier.ProfileId] = barrier,
+            };
 
         return new Fixture
         {
@@ -170,6 +195,7 @@ public partial class run_battle_ai_score_context_adapter_regression : LifecycleT
             Actor = actor,
             Skill = skill,
             SkillDefinitions = skillDefinitions,
+            BarrierDefinitions = barrierDefinitions,
         };
     }
 
@@ -270,5 +296,6 @@ public partial class run_battle_ai_score_context_adapter_regression : LifecycleT
         public BattleUnitState Actor;
         public SkillDefinition Skill;
         internal IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions;
+        internal IReadOnlyDictionary<StringName, BarrierProfileDefinition> BarrierDefinitions;
     }
 }

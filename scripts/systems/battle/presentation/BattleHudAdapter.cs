@@ -151,6 +151,9 @@ public sealed class BattleHudAdapter : IDisposable
         string headerTitle = !string.IsNullOrWhiteSpace(encounter_display_name)
             ? encounter_display_name
             : "战斗地图";
+        IReadOnlyList<BattleHudBarrierSnapshot> barrierSnapshots = BuildBarrierSnapshots(
+            battle_state
+        );
 
         return new BattleHudSnapshot(
             headerTitle: headerTitle,
@@ -208,8 +211,112 @@ public sealed class BattleHudAdapter : IDisposable
                 selectionInfo
             ),
             recentBattleLogLines: BuildRecentBattleLogLines(battle_state),
-            equipmentPanel: BuildEquipmentPanelSnapshot(battle_state, activeUnit)
+            equipmentPanel: BuildEquipmentPanelSnapshot(battle_state, activeUnit),
+            barriers: barrierSnapshots,
+            barrierSummaryText: BuildBarrierSummaryText(barrierSnapshots)
         );
+    }
+
+    private static IReadOnlyList<BattleHudBarrierSnapshot> BuildBarrierSnapshots(
+        BattleState battleState
+    )
+    {
+        var snapshots = new List<BattleHudBarrierSnapshot>();
+        foreach (
+            BattleBarrierInstanceState barrier in battleState?.LayeredBarrierStore.ValuesSorted()
+                ?? Array.Empty<BattleBarrierInstanceState>()
+        )
+        {
+            if (barrier == null || barrier.IsEmpty || barrier.RemainingTu <= 0)
+                continue;
+
+            List<BattleBarrierLayerState> layers = barrier.GetLayersTyped();
+            layers.RemoveAll(layer => layer == null || layer.LayerId == "");
+            layers.Sort(
+                static (left, right) =>
+                {
+                    int order = left.Order.CompareTo(right.Order);
+                    return order != 0
+                        ? order
+                        : string.CompareOrdinal(
+                            left.LayerId.ToString(),
+                            right.LayerId.ToString()
+                        );
+                }
+            );
+            BattleBarrierLayerState currentLayer = null;
+            var brokenLayerNames = new List<string>();
+            int activeLayerCount = 0;
+            foreach (BattleBarrierLayerState layer in layers)
+            {
+                if (layer.Broken)
+                {
+                    brokenLayerNames.Add(BarrierLayerLabel(layer));
+                    continue;
+                }
+                activeLayerCount += 1;
+                currentLayer ??= layer;
+            }
+
+            string displayName = !string.IsNullOrWhiteSpace(barrier.DisplayName)
+                ? barrier.DisplayName
+                : !IsEmpty(barrier.ProfileId)
+                    ? barrier.ProfileId.ToString()
+                    : "屏障";
+            string currentLayerName = currentLayer != null
+                ? BarrierLayerLabel(currentLayer)
+                : "全部破解";
+            string brokenSuffix = brokenLayerNames.Count > 0
+                ? $"（{string.Join("、", brokenLayerNames)}）"
+                : "";
+            string summary =
+                $"{displayName} · 锚点 ({barrier.AnchorCoord.X}, {barrier.AnchorCoord.Y}) · 半径 {Math.Max(barrier.RadiusCells, 0)} · 当前 {currentLayerName} · 已破 {brokenLayerNames.Count}/{layers.Count}{brokenSuffix} · 剩余 {Math.Max(barrier.RemainingTu, 0)} TU";
+            snapshots.Add(
+                new BattleHudBarrierSnapshot(
+                    barrier.BarrierInstanceId.ToString(),
+                    barrier.ProfileId.ToString(),
+                    displayName,
+                    barrier.SourceUnitId.ToString(),
+                    barrier.SourceSkillId.ToString(),
+                    barrier.AnchorCoord,
+                    Math.Max(barrier.RadiusCells, 0),
+                    barrier.AreaPattern.ToString(),
+                    Math.Max(barrier.RemainingTu, 0),
+                    currentLayer?.LayerId.ToString() ?? "",
+                    currentLayerName,
+                    activeLayerCount,
+                    brokenLayerNames.Count,
+                    layers.Count,
+                    brokenLayerNames,
+                    summary
+                )
+            );
+        }
+        return snapshots;
+    }
+
+    private static string BuildBarrierSummaryText(
+        IEnumerable<BattleHudBarrierSnapshot> barriers
+    )
+    {
+        var lines = new List<string>();
+        foreach (BattleHudBarrierSnapshot barrier in barriers ?? Array.Empty<BattleHudBarrierSnapshot>())
+        {
+            if (barrier != null && !string.IsNullOrWhiteSpace(barrier.SummaryText))
+                lines.Add(barrier.SummaryText);
+        }
+        return string.Join("\n", lines);
+    }
+
+    private static string BarrierLayerLabel(BattleBarrierLayerState layer)
+    {
+        if (layer == null)
+            return "屏障层";
+        return !string.IsNullOrWhiteSpace(layer.DisplayName)
+            ? layer.DisplayName
+            : !IsEmpty(layer.LayerId)
+                ? layer.LayerId.ToString()
+                : "屏障层";
     }
 
     internal BattleHoverSnapshot BuildHoverPreview(

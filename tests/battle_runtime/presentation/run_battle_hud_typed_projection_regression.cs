@@ -7,7 +7,7 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_battle_hud_typed_projection_regression : LifecycleTestSceneTree
 {
     private const string HudRootKeys =
-        "header_title|header_subtitle|round_badge|mode_text|queue_entries|focus_unit|skill_title|selected_skill_variant_name|skill_subtitle|skill_slots|tile_text|selected_skill_hit_preview_text|selected_skill_hit_preview_payload|selected_skill_hit_badge_text|selected_skill_hit_stage_rates|selected_skill_damage_preview_text|selected_skill_damage_min|selected_skill_damage_max|selected_skill_save_branch_preview_payload|selected_skill_save_branch_preview_text|selected_skill_fate_preview_text|selected_skill_fate_badges|selected_skill_preview_tooltip_text|selected_skill_target_selection_mode|selected_skill_target_min_count|selected_skill_target_max_count|selected_skill_target_count|selected_skill_confirm_ready|selected_skill_auto_cast_ready|command_dock|hint_text|recent_battle_log_lines|equipment_panel";
+        "header_title|header_subtitle|round_badge|mode_text|queue_entries|focus_unit|skill_title|selected_skill_variant_name|skill_subtitle|skill_slots|tile_text|selected_skill_hit_preview_text|selected_skill_hit_preview_payload|selected_skill_hit_badge_text|selected_skill_hit_stage_rates|selected_skill_damage_preview_text|selected_skill_damage_min|selected_skill_damage_max|selected_skill_save_branch_preview_payload|selected_skill_save_branch_preview_text|selected_skill_fate_preview_text|selected_skill_fate_badges|selected_skill_preview_tooltip_text|selected_skill_target_selection_mode|selected_skill_target_min_count|selected_skill_target_max_count|selected_skill_target_count|selected_skill_confirm_ready|selected_skill_auto_cast_ready|command_dock|hint_text|recent_battle_log_lines|equipment_panel|barriers|barrier_summary_text";
     private const string HoverRootKeys =
         "hover_coord|hover_is_valid_target|has_selected_skill|hit_preview|hit_stage_rates|hit_badge_text|fate_badges|save_branch_preview|save_branch_preview_text|damage_min|damage_max|damage_text|target_unit";
     private const string QueueEntryKeys =
@@ -22,6 +22,8 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
         "slot_id|slot_label|is_filled|is_entry_slot|entry_slot_id|item_id|item_display_name|instance_id|occupied_slot_ids|occupied_slot_labels|can_unequip|disabled_reason";
     private const string BackpackEntryKeys =
         "instance_id|item_id|display_name|description|icon|allowed_slot_ids|allowed_slot_labels|default_slot_id|occupied_slot_ids_by_default|can_equip|disabled_reason";
+    private const string BarrierKeys =
+        "barrier_instance_id|profile_id|display_name|source_unit_id|source_skill_id|anchor_coord|radius_cells|area_pattern|remaining_tu|current_layer_id|current_layer_name|active_layer_count|broken_layer_count|total_layer_count|broken_layer_names|summary_text";
     private const string HoverTargetKeys =
         "unit_id|name|glyph|portrait_key|primary_color|edge_color|hp_current|hp_max|mp_current|mp_max|mp_visible|stamina_current|stamina_max|aura_current|aura_max|aura_visible|ap_current|ap_max|is_enemy|is_self";
 
@@ -95,6 +97,10 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
             new(1, true),
         };
         var recentLines = new List<string> { "第一条", "第二条" };
+        var barrierInput = new List<BattleHudBarrierSnapshot>
+        {
+            BuildBarrierSnapshot(),
+        };
         var equipmentSlots = new List<BattleHudEquipmentSlotSnapshot>
         {
             new(
@@ -159,7 +165,9 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
             recentLines,
             equipmentSlots,
             backpackEntries,
-            BattlePresentationPayload.FromAttackPreview(attackPreview)
+            BattlePresentationPayload.FromAttackPreview(attackPreview),
+            barrierInput,
+            barrierInput[0].SummaryText
         );
 
         queueInput.Clear();
@@ -167,6 +175,7 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
         recentLines[0] = "污染";
         equipmentSlots.Clear();
         backpackEntries.Clear();
+        barrierInput.Clear();
         attackPreview.Stages[0] = new AttackPreviewStage(1, 1, 1, 20, 20, "污染");
 
         _test.Eq(snapshot.QueueEntries.Count, 2, "HUD typed snapshot should detach queue input.");
@@ -174,6 +183,7 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
         _test.Eq(snapshot.RecentBattleLogLines[0], "第一条", "HUD typed snapshot should detach log input.");
         _test.Eq(snapshot.EquipmentPanel.Slots.Count, 1, "HUD typed snapshot should detach equipment slots.");
         _test.Eq(snapshot.EquipmentPanel.BackpackEntries.Count, 1, "HUD typed snapshot should detach backpack entries.");
+        _test.Eq(snapshot.Barriers.Count, 1, "HUD typed snapshot should detach barrier input.");
 
         LifecycleAuditSnapshot baseline = LifecycleAuditRegistry.Shared.CaptureSnapshot();
         for (int index = 0; index < 20; index++)
@@ -211,6 +221,10 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
             GDictionary projectedBackpackEntry = DictionaryItem(lease, projectedBackpackEntries, 0, "backpack entry");
             _test.Eq(KeyOrder(projectedEquipmentSlot), EquipmentSlotKeys, "equipment slot schema must remain fixed.");
             _test.Eq(KeyOrder(projectedBackpackEntry), BackpackEntryKeys, "backpack entry schema must remain fixed.");
+            GArray projectedBarriers = ArrayValue(lease, root, "barriers");
+            GDictionary projectedBarrier = DictionaryItem(lease, projectedBarriers, 0, "barrier");
+            _test.Eq(KeyOrder(projectedBarrier), BarrierKeys, "barrier HUD schema must remain fixed.");
+            _test.Eq(projectedBarrier["remaining_tu"].AsInt32(), 90, "barrier HUD projection must retain remaining TU.");
 
             AssertArrayElementType(lease, root, "selected_skill_hit_stage_rates", Variant.Type.Int, "selected hit stage rates");
             AssertArrayElementType(lease, root, "recent_battle_log_lines", Variant.Type.String, "recent battle logs");
@@ -268,6 +282,38 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
             new[] { enemy }
         );
         using var adapter = new BattleHudAdapter();
+        var barrier = new BattleBarrierInstanceState
+        {
+            BarrierInstanceId = "hud_prismatic_sphere",
+            ProfileId = "prismatic_sphere",
+            DisplayName = "虹光法球",
+            SourceUnitId = caster.unit_id,
+            SourceSkillId = "mage_prismatic_sphere",
+            AnchorCoord = caster.coord,
+            RadiusCells = 2,
+            AreaPattern = "diamond",
+            RemainingTu = 90,
+        };
+        barrier.SetLayers(
+            new[]
+            {
+                new BattleBarrierLayerState
+                {
+                    LayerId = "red",
+                    DisplayName = "红色层",
+                    Order = 1,
+                    Broken = true,
+                },
+                new BattleBarrierLayerState
+                {
+                    LayerId = "orange",
+                    DisplayName = "橙色层",
+                    Order = 2,
+                    Broken = false,
+                },
+            }
+        );
+        fixture.State.PutLayeredBarrierField(barrier.BarrierInstanceId, barrier);
         LifecycleAuditSnapshot baseline = LifecycleAuditRegistry.Shared.CaptureSnapshot();
         for (int index = 0; index < 12; index++)
         {
@@ -286,6 +332,10 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
             );
             _test.Eq(snapshot.HeaderTitle, "测试遭遇", "adapter should return a named typed HUD snapshot.");
             _test.True(snapshot.CanonicalFacts is IReadOnlyDictionary<string, object>, "adapter canonical facts should remain managed/read-only.");
+            _test.Eq(snapshot.Barriers.Count, 1, "adapter should project active layered barriers.");
+            _test.Eq(snapshot.Barriers[0].CurrentLayerId, "orange", "adapter should project the first unbroken layer.");
+            _test.Eq(snapshot.Barriers[0].BrokenLayerCount, 1, "adapter should project broken layer count.");
+            _test.True(snapshot.BarrierSummaryText.Contains("剩余 90 TU", StringComparison.Ordinal), "visible barrier summary should expose remaining TU.");
         }
         AssertAuditBaseline(baseline, "repeated adapter reads");
     }
@@ -325,10 +375,15 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
                 Array.Empty<string>(),
                 Array.Empty<BattleHudEquipmentSlotSnapshot>(),
                 Array.Empty<BattleHudBackpackEntrySnapshot>(),
-                BattlePresentationPayload.Empty
+                BattlePresentationPayload.Empty,
+                new[] { BuildBarrierSnapshot() },
+                BuildBarrierSnapshot().SummaryText
             )
         );
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+
+        _test.True(panel.barrier_status_label?.Visible == true, "panel should show the active barrier HUD line.");
+        _test.True(panel.barrier_status_label?.Text.Contains("当前 橙色层", StringComparison.Ordinal) == true, "panel should render the current barrier layer.");
 
         TextureRect disabledIcon = FindDisabledSkillIcon(panel.skill_grid);
         ShaderMaterial material = disabledIcon?.Material as ShaderMaterial;
@@ -400,7 +455,9 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
         IEnumerable<string> recentLines,
         IEnumerable<BattleHudEquipmentSlotSnapshot> equipmentSlots,
         IEnumerable<BattleHudBackpackEntrySnapshot> backpackEntries,
-        BattlePresentationPayload hitPayload
+        BattlePresentationPayload hitPayload,
+        IEnumerable<BattleHudBarrierSnapshot> barriers = null,
+        string barrierSummaryText = ""
     )
     {
         BattleHudResourceLineSnapshot hp = new(30, 40, 0.75f, "HP", true);
@@ -473,9 +530,31 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
             new BattleHudCommandDockSnapshot(true, true, false, false),
             "hint",
             recentLines,
-            equipment
+            equipment,
+            barriers,
+            barrierSummaryText
         );
     }
+
+    private static BattleHudBarrierSnapshot BuildBarrierSnapshot() =>
+        new(
+            "hud_prismatic_sphere",
+            "prismatic_sphere",
+            "虹光法球",
+            "hud_typed_caster",
+            "mage_prismatic_sphere",
+            new Vector2I(1, 1),
+            2,
+            "diamond",
+            90,
+            "orange",
+            "橙色层",
+            1,
+            1,
+            2,
+            new[] { "红色层" },
+            "虹光法球 · 锚点 (1, 1) · 半径 2 · 当前 橙色层 · 已破 1/2（红色层） · 剩余 90 TU"
+        );
 
     private static BattleHoverSnapshot BuildHoverSnapshot(bool withTarget)
     {

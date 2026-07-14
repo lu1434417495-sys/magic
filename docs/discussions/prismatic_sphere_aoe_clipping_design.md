@@ -1,6 +1,6 @@
 # 虹光法球 AoE 局部裁剪设计修改文档
 
-状态：设计修改稿，待实现评审。
+状态：标准地面 AoE 与特殊入口均已实现（2026-07-14）。冲锋位移/推挤复用单位穿越结算，冲锋路径步 AoE 逐格裁剪，重复攻击与连锁跳跃逐目标检查；`meteor_swarm` 明确作为垂直坠落灾害豁免水平投射屏障。
 
 本文针对 `虹光法球` 与地面 AoE 技能的交互规则做设计修订。核心变化是：AoE 不再因为任意路径触碰屏障而整发失效，而是按最终生效地格逐格裁剪。没有越过法球边界的部分继续生效；越界的部分被当前屏障层阻挡，本次不生效。
 
@@ -79,7 +79,7 @@ AoE 裁剪后，单位是否受影响只看其占用格是否与裁剪后的 `ef
 本次修改不做以下事情：
 
 1. 不改变 `虹光法球` 的七层数据配置。
-2. 不改变单位移动穿越屏障的结算方式。
+2. 不改变单位移动穿越屏障的结算规则；冲锋与冲锋推挤等旁路必须复用该规则。
 3. 不改变单体技能的现有阻挡语义，除非实现时需要共享底层 helper。
 4. 不引入 Godot `Area2D`、物理查询或场景树碰撞。
 5. 不做真正的连续几何体碰撞；战斗系统继续使用格子坐标。
@@ -118,7 +118,13 @@ AoE 裁剪后，单位是否受影响只看其占用格是否与裁剪后的 `ef
 ```csharp
 internal readonly record struct BattleBarrierCoordClipResult(
     IReadOnlyList<Vector2I> AllowedCoords,
-    IReadOnlyList<Vector2I> BlockedCoords,
+    IReadOnlyList<Vector2I> BlockedCoords
+);
+
+internal readonly record struct BattleGroundEffectBarrierClipResult(
+    BattleBarrierCoordClipResult UnitEffects,
+    BattleBarrierCoordClipResult TerrainEffects,
+    IReadOnlyList<Vector2I> VisibleCoords,
     bool Applied
 );
 ```
@@ -129,19 +135,22 @@ internal readonly record struct BattleBarrierCoordClipResult(
 | --- | --- |
 | `AllowedCoords` | 本次屏障裁剪后仍允许生效的地格 |
 | `BlockedCoords` | 被一个或多个屏障阻挡的地格 |
+| `UnitEffects` / `TerrainEffects` | 单位效果与地形效果各自的 allowed / blocked 结果 |
+| `VisibleCoords` | 两组 allowed coords 的并集，用于预览、日志与后续触发 |
 | `Applied` | 屏障是否发生了可见交互，例如阻挡日志或破层 |
 
-`Applied` 需要参与地面技能最终 `applied` 计算。否则当整片 AoE 都被法球挡住时，技能消耗已经发生，但命令可能被错误视为“没有应用任何东西”。
+`BattleGroundEffectBarrierClipResult.Applied` 需要参与地面技能最终 `applied` 计算。否则当整片 AoE 都被法球挡住时，技能消耗已经发生，但命令可能被错误视为“没有应用任何东西”。
 
 ### 5.2 新增裁剪方法
 
 建议在 `BattleBarrierService.cs` 新增：
 
 ```csharp
-internal BattleBarrierCoordClipResult ResolveGroundEffectCoordClipResult(
+internal BattleGroundEffectBarrierClipResult ResolveGroundEffectBarrierClipResult(
     BattleUnitState sourceUnit,
     SkillDefinition skillDefinition,
-    IEnumerable<CombatEffectDefinition> effectDefinitions,
+    IReadOnlyList<CombatEffectDefinition> unitEffectDefinitions,
+    IReadOnlyList<CombatEffectDefinition> terrainEffectDefinitions,
     IReadOnlyList<Vector2I> effectCoords,
     BattleEventBatch batch
 )
@@ -200,7 +209,7 @@ private GroundEffectBarrierClipContext ResolveGroundEffectCoordsAfterBarrierClip
 
 1. 调用 `BuildGroundEffectCoordsTyped` 得到 `RawEffectCoords`。
 2. 收集 unit effect definitions 与 terrain effect definitions。
-3. 分别调用 `BattleBarrierService.ResolveGroundEffectCoordClipResult`。
+3. 一次调用 `BattleBarrierService.ResolveGroundEffectBarrierClipResult`，由它分别裁剪 unit / terrain 两组效果。
 4. 返回 unit / terrain 的裁剪后地格。
 5. 计算 `VisibleEffectCoords`，即 unit / terrain allowed coords 的并集，用于日志、预览和 AI 命中范围。
 
@@ -246,10 +255,13 @@ internal static bool ProjectedCoordCrossesBarrierArea(
 | 地面技能预览 | `BattleSkillExecutionOrchestrator._preview_ground_skill_command_impl` | 必须使用只读裁剪上下文，预览显示裁剪后范围 |
 | 自动地面技能 | `BattleSkillExecutionOrchestrator.ExecuteAutoGroundSkill` | 必须使用统一裁剪上下文 |
 | 读条/挂起地面施法完成 | `BattleSkillExecutionOrchestrator.ResolvePendingGroundCast` | 必须使用统一裁剪上下文 |
-| 冲锋路径步 AoE | `BattleChargeResolver.ApplyChargePathStepAoeEffects` | 若该 AoE 被视为投射/法术 AoE，必须直接调用同一屏障裁剪服务 |
-| 陨石术 | `BattleMeteorSwarmResolver` | 需策划确认是否受虹光法球裁剪；若确认受影响，必须直接调用同一屏障裁剪服务 |
+| 冲锋位移与推挤 | `BattleChargeResolver` | 每个实际位移步骤在移动前调用统一单位边界穿越结算 |
+| 冲锋路径步 AoE | `BattleChargeResolver.ApplyChargePathStepAoeEffects` | 每个路径锚点直接调用同一屏障裁剪服务；预览使用指定锚点的只读裁剪 |
+| 重复攻击 | `BattleRepeatAttackResolver.ApplyRepeatAttackSkillResult` | 在共享 resolver 内做一次目标屏障检查，覆盖手动、自动、随机链与 pending cast |
+| 连锁伤害 | `BattleSkillExecutionOrchestrator._apply_chain_damage_effects` | 保留每一跳的实际来源单位，并以该跳来源格检查次级目标 |
+| 陨石术 | `BattleMeteorSwarmResolver` / `BattleBarrierService` | `meteor_swarm` 是从上方坠落的灾害，明确豁免水平投射屏障，不裁剪影响范围 |
 
-常规执行、自动施法、读条完成和预览都位于 `BattleSkillExecutionOrchestrator`，应通过同一个 `ResolveGroundEffectCoordsAfterBarrierClip` 封装接入。冲锋路径步 AoE 和陨石术不在该管线中，不能隐式依赖 orchestrator helper；它们应直接复用 `BattleBarrierService.ResolveGroundEffectCoordClipResult`。
+常规执行、自动施法、读条完成和预览都位于 `BattleSkillExecutionOrchestrator`，通过同一个 `ResolveGroundEffectCoordsAfterBarrierClip` 封装接入。冲锋路径步 AoE 不在该管线中，因此直接复用 `BattleBarrierService.ResolveGroundEffectBarrierClipResult`；陨石术的豁免由屏障服务按 special profile 显式表达，即使未来误接入普通投射检查也不会被裁剪。
 
 ### 6.3 修改后常规执行流程
 
@@ -298,14 +310,13 @@ unit / terrain 分开裁剪的原因：
 
 这两条路径的最终单位效果、地形效果、Contingency payload 和日志数量必须与同一目标下的常规地面施法保持一致。
 
-### 6.6 特殊 AoE 入口要求
+### 6.6 特殊入口最终规则
 
-`BattleChargeResolver.ApplyChargePathStepAoeEffects` 的路径步 AoE 不经过 `BattleSkillExecutionOrchestrator` 的 ground command 主流程。如果设计上它属于会被虹光法球阻挡的投射/法术 AoE，则必须在 `BuildChargeStepEffectCoords` 后、`CollectUnitsInCoords` 前调用 `BattleBarrierService.ResolveGroundEffectCoordClipResult`。
-
-`BattleMeteorSwarmResolver` 属于特殊 profile。是否受虹光法球裁剪需要策划确认：
-
-- 如果陨石术被定义为从天外坠落、绕过水平投射屏障，则不接入本裁剪，但文档和测试必须明确该例外。
-- 如果陨石术被定义为地面 AoE 法术投射，则必须在每个陨石落点生成 affected coords 后调用同一屏障裁剪服务。
+- 冲锋者自身以及被冲锋侧推/前推的单位，都在每次实际位移前调用 `ResolveUnitBoundaryCrossingResult`；色层使单位停止、死亡或改变位置时，不再提交该步移动。
+- 冲锋路径步 AoE 属于会被虹光法球阻挡的投射范围效果。在 `BuildChargeStepEffectCoords` 后、`CollectUnitsInCoords` 前调用 `ResolveGroundEffectBarrierClipResult`；预览以每个路径锚点为效果起点调用 `PreviewGroundEffectBarrierClipResultAtCoord`，不得写屏障状态。
+- 重复攻击在 `BattleRepeatAttackResolver` 的共享入口检查屏障，避免手动、自动、随机攻击链与读条完成各自复制规则。
+- 连锁伤害不是始终从原施法者投射。收集次级目标时必须保存 `origin -> target` 跳跃，以该跳实际来源格调用 `ResolveSkillBarrierInteractionFromCoordResult`，日志与伤害归因仍保留原施法者和原技能。
+- `meteor_swarm` 被定义为从天外垂直坠落的灾害，不受水平投射屏障裁剪。`BattleBarrierService` 按 `SpecialResolutionProfileId == meteor_swarm` 显式放行投射与地格裁剪，预览和执行都保留完整落点计划，且不会破坏或推进法球色层。
 
 ### 6.7 地面单位效果服务契约调整
 
@@ -581,25 +592,39 @@ unit / terrain 分开裁剪的原因：
 场景：
 
 - 冲锋路径步 AoE 覆盖法球边界两侧单位。
-- 设计确认该路径步 AoE 应受虹光法球阻挡。
+- 冲锋者或被推单位跨过法球边界。
 
 期望：
 
 - 路径步 AoE 只影响未被阻挡的地格内单位。
 - 法球内被阻挡地格的单位不受影响。
+- 预览与执行都以当前路径锚点为投射起点，且预览不改变色层。
+- 冲锋者与被推单位都触发统一色层穿越结果；允许继续时再提交位移。
 
-如果设计确认路径步 AoE 不受虹光法球阻挡，则测试应反向锁定该例外，并在技能/效果描述中说明。
-
-### 9.12 陨石术裁剪或例外锁定
+### 9.12 陨石术例外锁定
 
 场景：
 
-- 陨石落点 affected coords 横跨虹光法球边界。
+- 陨石落点 affected coords 覆盖虹光法球内目标。
 
 期望：
 
-- 如果策划确认陨石术受法球阻挡，则只影响未被阻挡地格。
-- 如果策划确认陨石术绕过虹光法球，则测试明确锁定“陨石术不裁剪”的例外行为。
+- 预览保留法球内目标和完整落点计划。
+- 执行正常影响法球内目标。
+- 当前色层保持不变，也不产生投射阻挡日志。
+
+### 9.13 重复攻击与连锁跳跃
+
+场景：
+
+- 分别从手动、自动、随机攻击链与 pending cast 入口发动重复攻击，目标位于法球另一侧。
+- 连锁技能主目标与来源同侧，后续一跳跨入法球。
+
+期望：
+
+- 四种重复攻击入口都在共享 resolver 内被屏障阻挡，且屏障交互仍算有效处理。
+- 连锁主目标正常受击，跨界次级目标不受伤。
+- 次级跳跃的屏障日志保留原施法者与原技能归因。
 
 ## 十、实现文件清单
 
@@ -611,9 +636,11 @@ unit / terrain 分开裁剪的原因：
 
 新增：
 
-- `BattleBarrierCoordClipResult`
-- `ResolveGroundEffectCoordClipResult`
-- 只读裁剪入口，用于预览路径，例如 `PreviewGroundEffectCoordClipResult` 或在方法参数中显式传入 `mutateBarrierState = false`
+- `BattleBarrierCoordClipResult` 与 `BattleGroundEffectBarrierClipResult`
+- `ResolveGroundEffectBarrierClipResult`
+- `PreviewGroundEffectBarrierClipResult` 与支持特殊路径锚点的 `PreviewGroundEffectBarrierClipResultAtCoord`
+- 支持连锁跳跃实际起点的 `ResolveSkillBarrierInteractionFromCoordResult`
+- `meteor_swarm` special profile 的显式水平投射豁免
 - 私有 helper：判断单个 coord 是否被当前 barrier 阻挡。
 - 私有 helper：聚合 blocked coord 日志。
 
@@ -667,24 +694,21 @@ unit / terrain 分开裁剪的原因：
 
 ### 10.6 修改 `BattleChargeResolver.cs`
 
-如果确认冲锋路径步 AoE 受虹光法球影响：
-
-- 在 `ApplyChargePathStepAoeEffects` 中，`BuildChargeStepEffectCoords` 之后、`CollectUnitsInCoords` 之前调用 `BattleBarrierService.ResolveGroundEffectCoordClipResult`。
+- 冲锋者自身与被侧推/前推单位在移动提交前调用 `ResolveUnitBoundaryCrossingResult`。
+- 在 `ApplyChargePathStepAoeEffects` 中，`BuildChargeStepEffectCoords` 之后、`CollectUnitsInCoords` 之前调用 `BattleBarrierService.ResolveGroundEffectBarrierClipResult`。
 - 使用裁剪后的 coords 收集目标。
-- 将屏障 `Applied` 合入路径步结果。
+- 路径预览按每个预测锚点调用 `PreviewGroundEffectBarrierClipResultAtCoord`。
 
-如果确认该 AoE 不受虹光法球影响：
+### 10.7 修改重复攻击与连锁伤害所有者
 
-- 不修改运行时行为。
-- 添加测试锁定例外。
-- 在效果说明或设计文档中写明该路径步 AoE 不属于屏障可阻挡投射。
+- `BattleRepeatAttackResolver.ApplyRepeatAttackSkillResult` 在进入多段循环前调用统一单体投射屏障检查。
+- `CollectChainDamageTargets` 返回包含实际来源与目标的跳跃记录。
+- `_apply_chain_damage_effects` 在每个次级目标伤害前，以该跳来源格调用 `ResolveSkillBarrierInteractionFromCoordResult`。
 
-### 10.7 修改 `BattleMeteorSwarmResolver.cs`
+### 10.8 明确 `meteor_swarm` 豁免
 
-陨石术需要先做规则确认：
-
-- 若受虹光法球影响，则在每个陨石落点生成 affected coords 后调用同一裁剪服务。
-- 若不受虹光法球影响，则保留现状，并补测试明确该特殊 profile 的例外。
+- `BattleBarrierService` 对 `SpecialResolutionProfileId == meteor_swarm` 的技能显式跳过水平投射和地格裁剪。
+- `run_meteor_swarm_special_profile_regression.cs` 同时锁定 profile、`requires_los=false`、`meteor/disaster` 投送类别、预览目标、执行伤害和色层不变。
 
 ## 十一、风险与对策
 
@@ -733,13 +757,13 @@ unit / terrain 分开裁剪的原因：
 - `BattleBarrierCoordClipResult.Applied` 必须参与最终 applied。
 - 只要屏障发生阻挡或破层，本次命令就是有效交互。
 
-### 11.7 风险：特殊 AoE 规则未确认
+### 11.7 风险：特殊入口规则再次漂移
 
 对策：
 
-- 冲锋路径步 AoE 与陨石术在实现前必须明确是否受虹光法球裁剪。
-- 不论选择裁剪还是例外，都必须有测试锁定。
-- 例外行为必须写入对应技能或 resolver 设计说明，避免后续误判为遗漏。
+- 冲锋位移/推挤、路径步 AoE、重复攻击和连锁跳跃都由专项回归锁定。
+- 陨石术的例外同时写入屏障服务、设计文档与特殊 profile 回归，避免后续误判为遗漏。
+- 新增特殊 resolver 时必须判断它属于单位穿越、水平投射、逐格 AoE，还是有明确依据的垂直灾害例外。
 
 ## 十二、验收标准
 
@@ -755,8 +779,11 @@ unit / terrain 分开裁剪的原因：
 8. 深层 breaker 不能越级破层。
 9. 常规地面施法、自动地面施法、读条完成地面施法使用同一裁剪规则。
 10. 地面技能预览显示裁剪后的生效范围，并且预览无副作用。
-11. 冲锋路径步 AoE 和陨石术的裁剪/例外行为被明确测试锁定。
-12. 现有虹光法球单体投射、移动穿越、七层破解顺序测试继续通过。
+11. 冲锋自身/推挤穿越与路径步 AoE 裁剪被明确测试锁定。
+12. 手动、自动、随机链与读条完成的重复攻击均不能绕过法球。
+13. 连锁伤害按实际跳跃起点逐跳检查屏障。
+14. `meteor_swarm` 的垂直灾害豁免在预览和执行中被明确锁定。
+15. 现有虹光法球单体投射、移动穿越、七层破解顺序测试继续通过。
 
 ## 十三、推荐提交拆分
 
@@ -773,6 +800,6 @@ unit / terrain 分开裁剪的原因：
 5. `fix: remove per-target barrier checks from ground aoe effects`
    - 调整地面单位效果服务契约，移除锚点式二次屏障判断。
 6. `feat: handle special aoe barrier clipping decisions`
-   - 根据策划确认，为冲锋路径步 AoE 和陨石术接入同一裁剪服务，或补测试锁定例外。
+   - 接通冲锋穿越/推挤、路径步 AoE、重复攻击和连锁跳跃，并锁定 `meteor_swarm` 垂直灾害豁免。
 7. `test: preserve prismatic sphere single-target behavior`
    - 确认现有单体和移动穿越测试仍通过，必要时补单体回归。

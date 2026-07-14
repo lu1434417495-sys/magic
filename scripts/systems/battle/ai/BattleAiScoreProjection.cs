@@ -71,6 +71,9 @@ internal static class BattleAiScoreProjection
         result["special_profile_preview_facts"] = MeteorSwarmProjection.BuildPlain(
             input.special_profile_preview_facts
         );
+        result["layered_barrier_projection"] =
+            input.layered_barrier_projection?.ToTraceDictionary()
+            ?? new Dictionary<string, object>(StringComparer.Ordinal);
         result["target_numeric_summary"] = MeteorSwarmProjection.BuildNumericSummaryListPlain(
             input.target_numeric_summary
         );

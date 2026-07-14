@@ -91,6 +91,19 @@ internal sealed class BattleRepeatAttackResolver
             return false;
         }
 
+        BattleBarrierInteractionResult barrierResult =
+            _runtime?._layered_barrier_service?.ResolveSkillBarrierInteractionResult(
+                active_unit,
+                target_unit,
+                skill_definition,
+                stagedEffects,
+                batch
+            ) ?? new BattleBarrierInteractionResult(false, false);
+        if (barrierResult.Blocked)
+        {
+            return barrierResult.Applied;
+        }
+
         int totalDamage = 0;
         int totalHealing = 0;
         int totalKillCount = 0;

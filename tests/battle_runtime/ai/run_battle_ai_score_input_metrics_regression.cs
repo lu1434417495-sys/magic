@@ -15,6 +15,8 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
             TestGroundSkillScoreInputExposesMetrics();
             TestRepeatAttackScoreUsesStageSuccessRate();
             TestChainSkillScoresFriendlyBounceRisk();
+            TestLayeredBarrierProjectionTracksLayersAndLifetime();
+            TestLayeredBarrierProjectionRequiresNearbyBoundaryThreat();
         }
         catch (Exception exception)
         {
@@ -220,6 +222,71 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
         _test.True(score.estimated_friendly_fire_target_count >= 1, "链闪评分应把友军弹射计为友伤风险。");
     }
 
+    private void TestLayeredBarrierProjectionTracksLayersAndLifetime()
+    {
+        using Fixture fixture = BuildFixture("score_input_layered_barrier", new Vector2I(8, 5));
+        StringName profileId = "ai_layered_barrier_probe";
+        SkillDefinition skill = BuildLayeredBarrierSkill("ai_layered_barrier_skill", profileId);
+        fixture.AddSkill(skill);
+        fixture.AddBarrierProfile(BuildLayeredBarrierProfile(profileId));
+
+        BattleUnitState caster = BuildUnit("barrier_scorer", "hostile", new Vector2I(2, 2));
+        BattleUnitState enemy = BuildUnit("barrier_boundary_enemy", "player", new Vector2I(5, 2));
+        fixture.AddUnit(caster);
+        fixture.AddUnit(enemy);
+
+        BattleAiScoreInput freshScore = ScoreLayeredBarrier(fixture, caster, skill);
+        _test.True(freshScore?.layered_barrier_projection != null, "屏障评分应输出 typed 战术投影。");
+        if (freshScore?.layered_barrier_projection == null)
+            return;
+        _test.Eq(freshScore.layered_barrier_projection.utility_control_count, 1, "边界外存在近敌时，新法球应提供控场收益。");
+        _test.Eq(freshScore.layered_barrier_projection.reason, "tactical_boundary", "新法球应记录边界战术原因。");
+        _test.True(freshScore.hit_payoff_score > 0, "有效法球应贡献正向命中收益。");
+
+        fixture.PutBarrier(BuildLayeredBarrierState(profileId, caster.coord, 90, false, false));
+        BattleAiScoreInput redundantScore = ScoreLayeredBarrier(fixture, caster, skill);
+        _test.True(redundantScore.layered_barrier_projection.redundant_same_anchor, "同锚点完整法球且寿命充足时应判定重复。");
+        _test.Eq(redundantScore.layered_barrier_projection.utility_control_count, 0, "重复法球不应再次贡献控场收益。");
+        _test.Eq(redundantScore.hit_payoff_score, 0, "重复法球的效果收益应为零。");
+        _test.Eq(redundantScore.low_value_penalty_reason, "layered_barrier:redundant_same_anchor", "重复原因应进入评分输入。");
+
+        fixture.PutBarrier(BuildLayeredBarrierState(profileId, caster.coord, 90, true, false));
+        BattleAiScoreInput brokenLayerScore = ScoreLayeredBarrier(fixture, caster, skill);
+        _test.False(brokenLayerScore.layered_barrier_projection.redundant_same_anchor, "已有破层时，重建完整法球不应判定重复。");
+        _test.Eq(brokenLayerScore.layered_barrier_projection.strongest_same_anchor_active_layer_count, 1, "投影应读取现存有效层数。");
+        _test.Eq(brokenLayerScore.layered_barrier_projection.strongest_same_anchor_broken_layer_count, 1, "投影应读取现存破层数。");
+        _test.Eq(brokenLayerScore.layered_barrier_projection.utility_control_count, 1, "破层法球允许重建控场价值。");
+
+        fixture.PutBarrier(BuildLayeredBarrierState(profileId, caster.coord, 10, false, false));
+        BattleAiScoreInput expiringScore = ScoreLayeredBarrier(fixture, caster, skill);
+        _test.Eq(expiringScore.layered_barrier_projection.replacement_threshold_tu, 30, "替换阈值应由投影持续时间稳定导出。");
+        _test.False(expiringScore.layered_barrier_projection.redundant_same_anchor, "完整但即将过期的法球允许提前替换。");
+        _test.Eq(expiringScore.layered_barrier_projection.utility_control_count, 1, "低剩余 TU 法球应保留续场价值。");
+    }
+
+    private void TestLayeredBarrierProjectionRequiresNearbyBoundaryThreat()
+    {
+        using Fixture fixture = BuildFixture("score_input_layered_barrier_no_threat", new Vector2I(10, 5));
+        StringName profileId = "ai_layered_barrier_no_threat_probe";
+        SkillDefinition skill = BuildLayeredBarrierSkill("ai_layered_barrier_no_threat_skill", profileId);
+        fixture.AddSkill(skill);
+        fixture.AddBarrierProfile(BuildLayeredBarrierProfile(profileId));
+
+        BattleUnitState caster = BuildUnit("barrier_idle_scorer", "hostile", new Vector2I(1, 2));
+        BattleUnitState distantEnemy = BuildUnit("barrier_distant_enemy", "player", new Vector2I(8, 2));
+        fixture.AddUnit(caster);
+        fixture.AddUnit(distantEnemy);
+
+        BattleAiScoreInput score = ScoreLayeredBarrier(fixture, caster, skill);
+        _test.True(score?.layered_barrier_projection != null, "无近敌局面仍应输出可解释投影。");
+        if (score?.layered_barrier_projection == null)
+            return;
+        _test.Eq(score.layered_barrier_projection.nearby_outside_enemy_count, 0, "远敌不应伪装成法球边界威胁。");
+        _test.Eq(score.layered_barrier_projection.utility_control_count, 0, "没有近距离边界威胁时不应奖励施放法球。");
+        _test.Eq(score.layered_barrier_projection.reason, "no_nearby_outside_enemy", "投影应解释无收益原因。");
+        _test.Eq(score.hit_payoff_score, 0, "无边界威胁时法球效果收益应为零。");
+    }
+
     private static Fixture BuildFixture(string battleId, Vector2I mapSize) =>
         new(battleId, mapSize);
 
@@ -339,6 +406,120 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
             parameters: new Dictionary<string, object> { ["base_chain_radius"] = radius }
         );
 
+    private static SkillDefinition BuildLayeredBarrierSkill(
+        StringName skillId,
+        StringName profileId
+    )
+    {
+        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
+            "layered_barrier",
+            effectTargetTeamFilter: "self",
+            durationTu: 120,
+            parameters: new Dictionary<string, object>
+            {
+                ["profile_id"] = profileId,
+                ["radius_cells"] = 2L,
+                ["area_pattern"] = new StringName("diamond"),
+            }
+        );
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            "Layered Barrier AI Probe",
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: new[] { effect },
+                targetMode: "unit",
+                targetTeamFilter: "self",
+                rangeValue: 0,
+                areaPattern: "self"
+            )
+        );
+    }
+
+    private static BarrierProfileDefinition BuildLayeredBarrierProfile(StringName profileId) =>
+        new(
+            profileId,
+            "Layered Barrier AI Probe",
+            "fixed",
+            "diamond",
+            2,
+            120,
+            true,
+            new[]
+            {
+                new BarrierLayerDefinition(
+                    "red",
+                    "Red",
+                    1,
+                    Array.Empty<StringName>(),
+                    Array.Empty<StringName>(),
+                    Array.Empty<BarrierOutcomeDefinition>()
+                ),
+                new BarrierLayerDefinition(
+                    "orange",
+                    "Orange",
+                    2,
+                    Array.Empty<StringName>(),
+                    Array.Empty<StringName>(),
+                    Array.Empty<BarrierOutcomeDefinition>()
+                ),
+            }
+        );
+
+    private static BattleBarrierInstanceState BuildLayeredBarrierState(
+        StringName profileId,
+        Vector2I anchorCoord,
+        int remainingTu,
+        bool redBroken,
+        bool orangeBroken
+    )
+    {
+        var barrier = new BattleBarrierInstanceState
+        {
+            BarrierInstanceId = "ai_layered_barrier_instance",
+            ProfileId = profileId,
+            DisplayName = "Layered Barrier AI Probe",
+            AnchorCoord = anchorCoord,
+            RadiusCells = 2,
+            AreaPattern = "diamond",
+            RemainingTu = remainingTu,
+        };
+        barrier.SetLayers(
+            new[]
+            {
+                new BattleBarrierLayerState
+                {
+                    LayerId = "red",
+                    DisplayName = "Red",
+                    Order = 1,
+                    Broken = redBroken,
+                },
+                new BattleBarrierLayerState
+                {
+                    LayerId = "orange",
+                    DisplayName = "Orange",
+                    Order = 2,
+                    Broken = orangeBroken,
+                },
+            }
+        );
+        return barrier;
+    }
+
+    private static BattleAiScoreInput ScoreLayeredBarrier(
+        Fixture fixture,
+        BattleUnitState caster,
+        SkillDefinition skill
+    ) =>
+        fixture.ScoreService.BuildSkillScoreInput(
+            fixture.BuildContext(caster),
+            skill,
+            BuildCommand(caster, skill.SkillId, caster.coord, caster),
+            BuildPreview(caster),
+            new[] { skill.CombatProfile.EffectDefinitions[0] },
+            BuildPositionMetadata(caster, 0, 0)
+        );
+
     private static BattleCommand BuildCommand(
         BattleUnitState actor,
         StringName skillId,
@@ -417,6 +598,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
         public readonly BattleGridService GridService = new();
         public readonly BattleAiScoreService ScoreService = new();
         private readonly Dictionary<StringName, SkillDefinition> _skillDefinitions = new();
+        private readonly Dictionary<StringName, BarrierProfileDefinition> _barrierProfiles = new();
 
         public Fixture(string battleId, Vector2I mapSize)
         {
@@ -459,6 +641,20 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
             }
         }
 
+        public void AddBarrierProfile(BarrierProfileDefinition profile)
+        {
+            if (profile == null || profile.ProfileId == "")
+                return;
+            _barrierProfiles[profile.ProfileId] = profile;
+        }
+
+        public void PutBarrier(BattleBarrierInstanceState barrier)
+        {
+            if (barrier == null || barrier.BarrierInstanceId == "")
+                return;
+            State.LayeredBarrierStore.Put(barrier.BarrierInstanceId, barrier);
+        }
+
         public BattleAiContext BuildContext(BattleUnitState actor)
         {
             var context = new BattleAiContext
@@ -468,6 +664,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
                 grid_service = GridService,
             };
             context.SetSkillDefinitions(_skillDefinitions);
+            context.SetBarrierProfileDefinitions(_barrierProfiles);
             return context;
         }
     }

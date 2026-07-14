@@ -10,6 +10,7 @@ internal readonly struct BattleAiDecisionContextSetup
     internal readonly BattleGridService GridService;
     internal readonly BattleAiRuntimeActionPlan ActionPlan;
     internal readonly IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions;
+    internal readonly IReadOnlyDictionary<StringName, BarrierProfileDefinition> BarrierProfileDefinitions;
     internal readonly bool TraceEnabled;
     internal readonly ISkillCatalog SkillCatalog;
     internal readonly Func<BattleUnitState, Vector2I, int> MoveCostCallback;
@@ -42,6 +43,7 @@ internal readonly struct BattleAiDecisionContextSetup
         BattleGridService gridService,
         BattleAiRuntimeActionPlan actionPlan,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions,
         bool traceEnabled,
         ISkillCatalog skillCatalog,
         Func<BattleUnitState, Vector2I, int> moveCostCallback,
@@ -74,6 +76,7 @@ internal readonly struct BattleAiDecisionContextSetup
         GridService = gridService;
         ActionPlan = actionPlan;
         SkillDefinitions = skillDefinitions;
+        BarrierProfileDefinitions = barrierProfileDefinitions;
         TraceEnabled = traceEnabled;
         SkillCatalog = skillCatalog;
         MoveCostCallback = moveCostCallback;
@@ -90,6 +93,7 @@ internal readonly struct BattleAiHelperBindingContext
     internal readonly BattleGridService GridService;
     internal readonly BattleUnitState UnitState;
     internal readonly IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions;
+    internal readonly IReadOnlyDictionary<StringName, BarrierProfileDefinition> BarrierProfileDefinitions;
     internal readonly ISkillCatalog SkillCatalog;
     internal readonly BattleAiScoreService ScoreService;
     internal readonly Func<StringName, Vector2I, Vector2I, int> MoveQueryCostCallback;
@@ -133,6 +137,7 @@ internal readonly struct BattleAiHelperBindingContext
         BattleGridService gridService,
         BattleUnitState unitState,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions,
         ISkillCatalog skillCatalog,
         BattleAiScoreService scoreService,
         Func<StringName, Vector2I, Vector2I, int> moveQueryCostCallback,
@@ -176,6 +181,7 @@ internal readonly struct BattleAiHelperBindingContext
         GridService = gridService;
         UnitState = unitState;
         SkillDefinitions = skillDefinitions;
+        BarrierProfileDefinitions = barrierProfileDefinitions;
         SkillCatalog = skillCatalog;
         ScoreService = scoreService;
         MoveQueryCostCallback = moveQueryCostCallback;
@@ -253,7 +259,8 @@ internal sealed class BattleRuntimeServices : IDisposable
             context.ActionPlan,
             context.SkillDefinitions,
             context.TraceEnabled,
-            context.SkillCatalog
+            context.SkillCatalog,
+            context.BarrierProfileDefinitions
         );
         BindContextCallbacks(AiDecisionContext, context);
         return AiDecisionContext;
@@ -301,7 +308,8 @@ internal sealed class BattleRuntimeServices : IDisposable
                 context.UnitState,
                 context.GridService,
                 context.SkillCatalog,
-                context.SkillDefinitions
+                context.SkillDefinitions,
+                context.BarrierProfileDefinitions
             );
         }
 

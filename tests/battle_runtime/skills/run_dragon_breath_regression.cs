@@ -16,6 +16,7 @@ public partial class run_dragon_breath_regression : LifecycleTestSceneTree
     {
         TestOfficialDragonBreathSkillResourcesAreSchemaStable();
         TestSkillCastBlockReasonUsesTypedCooldown();
+        TestSkillCastRulesStayAlignedBetweenStateAndReadView();
         TestRacialSkillPerBattleChargeBlocksAndConsumes();
         TestRacialSkillConsumesPerBattleAndPerTurnChargesTogether();
         TestRacialSkillPerTurnChargeRefreshesFromIdentityProjection();
@@ -107,11 +108,98 @@ public partial class run_dragon_breath_regression : LifecycleTestSceneTree
             unit,
             skillDefinition
         );
+        BattleUnitReadView unitView = unit;
         _test.Eq(
             blockReason,
             BattleSkillCastBlockReasonKind.Cooldown,
             "skill turn resolver 应通过 typed cooldown accessor 返回冷却 block reason。"
         );
+        _test.Eq(
+            resolver.GetSkillCastBlockReason(unitView, skillDefinition),
+            blockReason,
+            "State 与 ReadView 入口应共享同一冷却阻断规则。"
+        );
+        _test.Eq(
+            resolver.GetSkillCommandBlockReason(unitView, skillDefinition, null),
+            resolver.GetSkillCommandBlockReason(unit, skillDefinition, null),
+            "State 与 ReadView 入口应格式化出相同的冷却阻断消息。"
+        );
+    }
+
+    private void TestSkillCastRulesStayAlignedBetweenStateAndReadView()
+    {
+        StringName skillId = "skill_cast_read_view_alignment";
+        var levelOverrides = new Dictionary<int, IReadOnlyDictionary<string, object>>
+        {
+            [2] = new Dictionary<string, object> { ["ap_cost"] = 2 },
+        };
+        SkillDefinition skillDefinition = TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: "只读规则对拍技能",
+            maxLevel: 3,
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                apCost: 0,
+                levelOverrides: levelOverrides
+            )
+        );
+        BattleUnitState unit = BuildUnit(
+            "skill_cast_read_view_alignment_user",
+            "player",
+            Vector2I.Zero,
+            new[] { skillId },
+            1
+        );
+        unit.SetKnownSkillLevelTyped(skillId, 2);
+        BattleUnitReadView unitView = unit;
+        var resolver = new BattleRuntimeSkillTurnResolver();
+
+        CombatSkillResourceCosts stateCosts = resolver.GetEffectiveSkillResourceCosts(
+            unit,
+            skillDefinition
+        );
+        CombatSkillResourceCosts viewCosts = resolver.GetEffectiveSkillResourceCosts(
+            unitView,
+            skillDefinition
+        );
+        _test.Eq(
+            stateCosts,
+            viewCosts,
+            "State 与 ReadView 入口应按相同技能等级计算资源消耗。"
+        );
+        _test.Eq(
+            stateCosts.ApCost,
+            2,
+            "2 级技能应应用 AP 消耗覆写，证明规则读取了有效技能等级。"
+        );
+
+        BattleSkillCastBlockReasonKind stateReason = resolver.GetSkillCastBlockReason(
+            unit,
+            skillDefinition
+        );
+        BattleSkillCastBlockReasonKind viewReason = resolver.GetSkillCastBlockReason(
+            unitView,
+            skillDefinition
+        );
+        _test.Eq(
+            stateReason,
+            BattleSkillCastBlockReasonKind.InsufficientAp,
+            "等级覆写后的 AP 消耗应阻断施放。"
+        );
+        _test.Eq(
+            viewReason,
+            stateReason,
+            "State 与 ReadView 入口应返回相同的技能施放阻断类型。"
+        );
+
+        string stateMessage = resolver.GetSkillCommandBlockReason(unit, skillDefinition, null);
+        string viewMessage = resolver.GetSkillCommandBlockReason(unitView, skillDefinition, null);
+        _test.Eq(
+            viewMessage,
+            stateMessage,
+            "State 与 ReadView 入口应返回相同的技能命令阻断消息。"
+        );
+        _test.True(stateMessage.Contains("AP"), "资源不足阻断消息应保留具体的 AP 反馈。");
     }
 
     private void TestRacialSkillPerBattleChargeBlocksAndConsumes()

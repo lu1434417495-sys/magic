@@ -16,7 +16,15 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         try
         {
             _barrierProfileDefinitions = BarrierDefinitionTestContent.LoadValidated();
+            TestPrismaticSphereCommandGrantsEffectAppliedMasteryOnce();
+            TestCombinedGenericAndSpecialEffectsDoNotDoubleGrantMastery();
             TestPrismaticSphereCreatesOrderedLayers();
+            TestLayerDamageUsesConfiguredDamageTagMitigation();
+            TestGroundAoePreviewAndExecutionClipAtBarrierBoundary();
+            TestGroundAoeTerrainClipAtBarrierBoundary();
+            TestGroundAoeBreakerClipsUnitAndTerrainWithoutSameCastPenetration();
+            TestGroundAoeAutoCastClipsAtBarrierBoundary();
+            TestGroundAoePendingCastClipsAtBarrierBoundary();
             TestPrismaticSphereBlocksDeeperBreakersUntilOuterLayerBreaks();
             TestProjectedEffectBarrierGeometryRespectsBoundary();
             TestDeathWardWithoutLastStandDoesNotBlockFatalPhysicalDamage();
@@ -33,6 +41,114 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         }
     }
 
+    private void TestPrismaticSphereCommandGrantsEffectAppliedMasteryOnce()
+    {
+        SkillDefinition sphereSkill = TestSkillDefinitionProjection.LoadSkillDefinition(
+            "res://data/configs/skills/mage_prismatic_sphere.tres",
+            "prismatic_sphere:mastery_command"
+        );
+        _test.True(
+            sphereSkill?.CombatProfile?.MasteryTriggerModeKind
+                == CombatSkillMasteryTriggerMode.EffectApplied,
+            "虹光法球正式资源应以 effect_applied 作为熟练度触发条件。"
+        );
+        AssertUnitSkillCommandGrantsMasteryOnce(
+            sphereSkill,
+            "虹光法球成功创建屏障后应恰好获得 1 点 effect_applied 熟练度。"
+        );
+    }
+
+    private void TestCombinedGenericAndSpecialEffectsDoNotDoubleGrantMastery()
+    {
+        CombatEffectDefinition statusEffect = TestSkillDefinitionProjection.BuildEffect(
+            "status",
+            effectTargetTeamFilter: "self",
+            statusId: "prismatic_mastery_marker",
+            appliedStatusDurationTu: 30
+        );
+        CombatEffectDefinition barrierEffect = BuildLayeredBarrierEffect();
+        SkillDefinition combinedSkill = TestSkillDefinitionProjection.BuildSkill(
+            "test_prismatic_combined_mastery",
+            displayName: "虹光法球复合熟练度测试",
+            tags: new[] { new StringName("test"), new StringName("magic") },
+            maxLevel: 2,
+            masteryCurve: new[] { 400, 800 },
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                "test_prismatic_combined_mastery",
+                effects: new[] { statusEffect, barrierEffect },
+                targetMode: "unit",
+                targetTeamFilter: "self",
+                rangeValue: 0,
+                areaPattern: "self",
+                targetSelectionMode: "self",
+                masteryTriggerMode: "effect_applied",
+                masteryAmountMode: "per_target_rank"
+            )
+        );
+        AssertUnitSkillCommandGrantsMasteryOnce(
+            combinedSkill,
+            "同一目标的通用状态与特殊屏障同时成功时，effect_applied 熟练度不得重复记账。"
+        );
+    }
+
+    private void AssertUnitSkillCommandGrantsMasteryOnce(
+        SkillDefinition skillDefinition,
+        string assertionMessage
+    )
+    {
+        _test.True(skillDefinition?.CombatProfile != null, "熟练度回归需要有效的技能定义。");
+        if (skillDefinition?.CombatProfile == null)
+        {
+            return;
+        }
+
+        using MasteryCommandFixture fixture = BuildMasteryCommandFixture(skillDefinition);
+        BattleCommand command = new()
+        {
+            CommandKind = BattleCommandKind.Skill,
+            unit_id = fixture.Caster.unit_id,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill(skillDefinition.SkillId),
+            skill_id = skillDefinition.SkillId,
+            target_unit_id = fixture.Caster.unit_id,
+            target_coord = fixture.Caster.coord,
+        };
+        command.AddTargetUnitId(fixture.Caster.unit_id);
+        BattlePreview preview = null;
+        BattleEventBatch batch = null;
+        try
+        {
+            preview = fixture.Runtime.PreviewCommand(command);
+            _test.True(
+                preview?.allowed == true,
+                $"{skillDefinition.DisplayName} 的真实单位指令应允许自施放。logs={string.Join(" | ", preview?.LogLinesTyped ?? Array.Empty<string>())}"
+            );
+            int masteryBefore = fixture.SkillProgress.current_mastery;
+
+            batch = fixture.Runtime.IssueCommand(command);
+
+            _test.True(
+                FirstBarrier(fixture.State) is { IsEmpty: false },
+                $"{skillDefinition.DisplayName} 指令成功后应创建分层屏障。"
+            );
+            _test.Eq(
+                fixture.SkillProgress.current_mastery,
+                masteryBefore + 1,
+                assertionMessage
+            );
+            _test.Eq(
+                batch?.ProgressionDeltasTyped.Count ?? 0,
+                1,
+                $"{skillDefinition.DisplayName} 应只产生一份熟练度 progression delta。"
+            );
+        }
+        finally
+        {
+            batch?.Dispose();
+            BattleTestFixture.DisposeBattlePreview(preview);
+            BattleTestFixture.DisposeBattleCommand(command);
+        }
+    }
+
     private void TestPrismaticSphereCreatesOrderedLayers()
     {
         using Fixture fixture = BuildRuntimeWithSphere();
@@ -40,6 +156,398 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         _test.True(barrier != null && !barrier.IsEmpty, "虹光法球应写入 battle_state.layered_barrier_fields。");
         _test.Eq(ActiveLayerId(barrier), new StringName("red"), "新建虹光法球的第一活动层应为红色层。");
         _test.Eq(barrier.Layers.Count, 7, "虹光法球应包含 7 层。");
+    }
+
+    private void TestLayerDamageUsesConfiguredDamageTagMitigation()
+    {
+        AssertRedLayerDamage("", 20, "无火焰抗性的目标应承受完整红层伤害。");
+        AssertRedLayerDamage("half", 10, "火焰半伤应把红层伤害减半。");
+        AssertRedLayerDamage("double", 40, "火焰易伤应把红层伤害翻倍。");
+        AssertRedLayerDamage("immune", 0, "火焰免疫应完全吸收红层伤害。");
+    }
+
+    private void AssertRedLayerDamage(
+        StringName mitigationTier,
+        int expectedDamage,
+        string message
+    )
+    {
+        using Fixture fixture = BuildRuntimeWithSphere();
+        BattleUnitState target = fixture.Enemy;
+        if (mitigationTier != "")
+        {
+            target.damage_resistances["fire"] = mitigationTier;
+        }
+        MarkLayersBroken(
+            fixture.State,
+            "orange",
+            "yellow",
+            "green",
+            "blue",
+            "indigo",
+            "violet"
+        );
+        SetLayerSaveRollOverride(fixture.State, "red", 1);
+        int hpBefore = target.current_hp;
+
+        fixture.Runtime._layered_barrier_service.ResolveUnitBoundaryCrossingResult(
+            target,
+            new Vector2I(5, 2),
+            new Vector2I(4, 2),
+            new BattleEventBatch()
+        );
+
+        _test.Eq(hpBefore - target.current_hp, expectedDamage, message);
+    }
+
+    private void TestGroundAoePreviewAndExecutionClipAtBarrierBoundary()
+    {
+        SkillDefinition groundAoe = BuildGroundAoeSkill("test_prismatic_ground_aoe");
+        using Fixture fixture = BuildRuntimeWithSphere(
+            groundAoe,
+            mapSize: new Vector2I(8, 5),
+            enemyCoord: new Vector2I(6, 2)
+        );
+        BattleRuntimeModule runtime = fixture.Runtime;
+        BattleState state = fixture.State;
+        BattleUnitState source = fixture.Enemy;
+        LearnSkill(source, groundAoe.SkillId);
+
+        BattleUnitState outsideTarget = BuildUnit(
+            "outside_target",
+            "法球外目标",
+            "player",
+            new Vector2I(4, 1)
+        );
+        BattleUnitState insideTarget = BuildUnit(
+            "inside_target",
+            "法球内目标",
+            "player",
+            new Vector2I(3, 2)
+        );
+        BattleUnitState boundaryTarget = BuildUnit(
+            "boundary_target",
+            "跨边界大体型目标",
+            "player",
+            new Vector2I(4, 2)
+        );
+        _test.True(
+            boundaryTarget.SetBodySizeCategory("large"),
+            "测试前置：跨边界目标应使用真实的大体型占用格。"
+        );
+        AddUnit(runtime, state, outsideTarget, false);
+        AddUnit(runtime, state, insideTarget, false);
+        AddUnit(runtime, state, boundaryTarget, false);
+        state.active_unit_id = source.unit_id;
+        runtime.SetupStateForTests(state);
+
+        BattleCommand command = BuildGroundSkillCommand(
+            source.unit_id,
+            groundAoe.SkillId,
+            new Vector2I(4, 2)
+        );
+        BattlePreview preview = runtime.PreviewCommand(command);
+
+        _test.True(preview.allowed, "跨越虹光法球边界的地面 AoE 应允许施放。");
+        _test.True(preview.ContainsTargetCoord(new Vector2I(5, 2)), "预览应保留法球外生效格。");
+        _test.False(preview.ContainsTargetCoord(new Vector2I(4, 2)), "预览应裁掉进入法球的目标格。");
+        _test.False(preview.ContainsTargetCoord(new Vector2I(3, 2)), "预览应裁掉继续深入法球的地格。");
+        _test.True(
+            preview.ContainsTargetUnitId(boundaryTarget.unit_id),
+            "大体型单位任一占用格仍在允许范围内时，预览应保留该单位。"
+        );
+        _test.False(
+            preview.ContainsTargetUnitId(insideTarget.unit_id),
+            "只有被裁剪占用格被覆盖的单位不应出现在预览中。"
+        );
+        _test.Eq(
+            ActiveLayerId(FirstBarrier(state)),
+            new StringName("red"),
+            "只读预览不得改变虹光法球活动层。"
+        );
+
+        int outsideHpBefore = outsideTarget.current_hp;
+        int insideHpBefore = insideTarget.current_hp;
+        int boundaryHpBefore = boundaryTarget.current_hp;
+        BattleEventBatch batch = runtime.IssueCommand(command);
+
+        _test.True(outsideTarget.current_hp < outsideHpBefore, "法球外允许地格上的单位应受到 AoE。");
+        _test.Eq(insideTarget.current_hp, insideHpBefore, "法球内被裁剪地格上的单位不应受到 AoE。");
+        _test.True(
+            boundaryTarget.current_hp < boundaryHpBefore,
+            "跨边界大体型单位应按允许占用格命中，而不是按锚点整只阻挡。"
+        );
+        _test.True(
+            LogsContain(batch.LogLinesTyped, "阻挡了") && LogsContain(batch.LogLinesTyped, "2 个地格"),
+            "执行日志应聚合报告本次被虹光法球裁剪的地格数量。"
+        );
+    }
+
+    private void TestGroundAoeAutoCastClipsAtBarrierBoundary()
+    {
+        SkillDefinition groundAoe = BuildGroundAoeSkill("test_prismatic_auto_ground_aoe");
+        using Fixture fixture = BuildRuntimeWithSphere(
+            groundAoe,
+            mapSize: new Vector2I(8, 5),
+            enemyCoord: new Vector2I(6, 2)
+        );
+        BattleRuntimeModule runtime = fixture.Runtime;
+        BattleState state = fixture.State;
+        BattleUnitState source = fixture.Enemy;
+        LearnSkill(source, groundAoe.SkillId);
+        BattleUnitState outsideTarget = BuildUnit(
+            "auto_outside_target",
+            "自动施法外侧目标",
+            "player",
+            new Vector2I(5, 2)
+        );
+        BattleUnitState insideTarget = BuildUnit(
+            "auto_inside_target",
+            "自动施法内侧目标",
+            "player",
+            new Vector2I(3, 2)
+        );
+        AddUnit(runtime, state, outsideTarget, false);
+        AddUnit(runtime, state, insideTarget, false);
+        runtime.SetupStateForTests(state);
+
+        ContingencyReleaseContext releaseContext = new()
+        {
+            InstanceId = "test:auto_ground_clip",
+            SetupId = "auto_ground_clip",
+            OwnerMemberId = "test_owner",
+            OwnerUnitId = source.unit_id,
+            CasterUnitId = source.unit_id,
+            TriggerType = "affected_by_spell",
+        };
+        AutoCastRequest request = new()
+        {
+            CasterUnitId = source.unit_id,
+            OwnerMemberId = "test_owner",
+            OwnerUnitId = source.unit_id,
+            SetupId = "auto_ground_clip",
+            InstanceId = "test:auto_ground_clip",
+            SourceSkillId = "test_contingency_source",
+            SourceSkillLevel = 1,
+            SourceSkillGrantSourceType = UnitSkillGrantSourceType.Player,
+            StoredSkillId = groundAoe.SkillId,
+            CastLevel = 1,
+            TargetResolution = ContingencyTargetResolutionResult.GroundTarget(
+                new Vector2I(4, 2),
+                new[]
+                {
+                    new Vector2I(4, 2),
+                    new Vector2I(5, 2),
+                    new Vector2I(3, 2),
+                    new Vector2I(4, 1),
+                    new Vector2I(4, 3),
+                }
+            ),
+            ReleaseContext = releaseContext,
+        };
+        int outsideHpBefore = outsideTarget.current_hp;
+        int insideHpBefore = insideTarget.current_hp;
+        var batch = new BattleEventBatch();
+
+        bool executed = runtime._skill_orchestrator.ExecuteAutoCast(request, batch);
+
+        _test.True(executed, "Contingency 自动地面施法应在部分地格被裁剪时成功执行。");
+        _test.True(
+            outsideTarget.current_hp < outsideHpBefore,
+            "Contingency 自动施法应影响法球外允许地格。"
+        );
+        _test.Eq(
+            insideTarget.current_hp,
+            insideHpBefore,
+            "Contingency 自动施法不应把效果送入法球内被裁剪地格。"
+        );
+    }
+
+    private void TestGroundAoeTerrainClipAtBarrierBoundary()
+    {
+        StringName terrainEffectId = "test_prismatic_terrain_clip";
+        SkillDefinition groundAoe = BuildGroundTerrainAoeSkill(
+            "test_prismatic_ground_terrain_aoe",
+            terrainEffectId
+        );
+        using Fixture fixture = BuildRuntimeWithSphere(
+            groundAoe,
+            mapSize: new Vector2I(8, 5),
+            enemyCoord: new Vector2I(6, 2)
+        );
+        BattleRuntimeModule runtime = fixture.Runtime;
+        BattleState state = fixture.State;
+        BattleUnitState source = fixture.Enemy;
+        LearnSkill(source, groundAoe.SkillId);
+        state.active_unit_id = source.unit_id;
+        runtime.SetupStateForTests(state);
+        BattleCommand command = BuildGroundSkillCommand(
+            source.unit_id,
+            groundAoe.SkillId,
+            new Vector2I(4, 2)
+        );
+
+        BattlePreview preview = runtime.PreviewCommand(command);
+        _test.True(preview.ContainsTargetCoord(new Vector2I(5, 2)), "地形预览应保留法球外地格。");
+        _test.False(preview.ContainsTargetCoord(new Vector2I(3, 2)), "地形预览应裁掉法球内地格。");
+
+        BattleEventBatch batch = runtime.IssueCommand(command);
+
+        _test.True(
+            CellHasTerrainEffect(runtime, state, new Vector2I(5, 2), terrainEffectId),
+            "地形效果应写入法球外允许地格。"
+        );
+        _test.False(
+            CellHasTerrainEffect(runtime, state, new Vector2I(3, 2), terrainEffectId),
+            "地形效果不应写入法球内被裁剪地格。"
+        );
+        _test.True(
+            CoordsContain(batch.ChangedCoordsTyped, new Vector2I(5, 2)),
+            "允许地格的地形变化应进入 changed coords。"
+        );
+        _test.False(
+            CoordsContain(batch.ChangedCoordsTyped, new Vector2I(3, 2)),
+            "被裁剪地格不应伪造地形 changed coord。"
+        );
+    }
+
+    private void TestGroundAoeBreakerClipsUnitAndTerrainWithoutSameCastPenetration()
+    {
+        StringName terrainEffectId = "test_prismatic_ground_mark";
+        SkillDefinition groundAoe = BuildGroundAoeSkillWithTerrain(
+            "mage_cone_of_cold",
+            terrainEffectId
+        );
+        using Fixture fixture = BuildRuntimeWithSphere(
+            groundAoe,
+            mapSize: new Vector2I(8, 5),
+            enemyCoord: new Vector2I(6, 2)
+        );
+        BattleRuntimeModule runtime = fixture.Runtime;
+        BattleState state = fixture.State;
+        BattleUnitState source = fixture.Enemy;
+        LearnSkill(source, groundAoe.SkillId);
+        BattleUnitState outsideTarget = BuildUnit(
+            "breaker_outside_target",
+            "破解法术外侧目标",
+            "player",
+            new Vector2I(5, 2)
+        );
+        BattleUnitState insideTarget = BuildUnit(
+            "breaker_inside_target",
+            "破解法术内侧目标",
+            "player",
+            new Vector2I(3, 2)
+        );
+        AddUnit(runtime, state, outsideTarget, false);
+        AddUnit(runtime, state, insideTarget, false);
+        state.active_unit_id = source.unit_id;
+        runtime.SetupStateForTests(state);
+        BattleCommand command = BuildGroundSkillCommand(
+            source.unit_id,
+            groundAoe.SkillId,
+            new Vector2I(4, 2)
+        );
+
+        BattlePreview preview = runtime.PreviewCommand(command);
+        _test.True(preview.allowed, "破解当前层的地面 AoE 应允许施放。");
+        _test.Eq(
+            ActiveLayerId(FirstBarrier(state)),
+            new StringName("red"),
+            "破解法术预览不得提前破坏红色层。"
+        );
+        int outsideHpBefore = outsideTarget.current_hp;
+        int insideHpBefore = insideTarget.current_hp;
+
+        runtime.IssueCommand(command);
+
+        _test.Eq(
+            ActiveLayerId(FirstBarrier(state)),
+            new StringName("orange"),
+            "一次地面 AoE 应只提交一次红层破解。"
+        );
+        _test.True(
+            outsideTarget.current_hp < outsideHpBefore,
+            "破解法术仍应影响法球外允许地格上的单位。"
+        );
+        _test.Eq(
+            insideTarget.current_hp,
+            insideHpBefore,
+            "本次施法不得借刚破解的红层继续影响法球内单位。"
+        );
+        _test.True(
+            CellHasTerrainEffect(runtime, state, new Vector2I(5, 2), terrainEffectId),
+            "破解法术的地形效果应写入法球外允许地格。"
+        );
+        _test.False(
+            CellHasTerrainEffect(runtime, state, new Vector2I(3, 2), terrainEffectId),
+            "本次施法的地形效果不得穿透刚破解的红层。"
+        );
+    }
+
+    private void TestGroundAoePendingCastClipsAtBarrierBoundary()
+    {
+        SkillDefinition groundAoe = BuildGroundAoeSkill(
+            "test_prismatic_pending_ground_aoe",
+            castingTimeTu: 10
+        );
+        using Fixture fixture = BuildRuntimeWithSphere(
+            groundAoe,
+            mapSize: new Vector2I(8, 5),
+            enemyCoord: new Vector2I(6, 2)
+        );
+        BattleRuntimeModule runtime = fixture.Runtime;
+        BattleState state = fixture.State;
+        BattleUnitState source = fixture.Enemy;
+        LearnSkill(source, groundAoe.SkillId);
+        BattleUnitState outsideTarget = BuildUnit(
+            "pending_outside_target",
+            "读条外侧目标",
+            "player",
+            new Vector2I(5, 2)
+        );
+        BattleUnitState insideTarget = BuildUnit(
+            "pending_inside_target",
+            "读条内侧目标",
+            "player",
+            new Vector2I(3, 2)
+        );
+        AddUnit(runtime, state, outsideTarget, false);
+        AddUnit(runtime, state, insideTarget, false);
+        runtime.SetupStateForTests(state);
+        BattlePendingCastState pendingCast = new()
+        {
+            SourceUnitId = source.unit_id,
+            SkillId = groundAoe.SkillId,
+            TargetMode = BattleTargetMode.Ground,
+            BindingMode = PendingCastBindingModeKind.GroundBind,
+            StartedCoord = source.coord,
+            StartedTu = state.timeline?.current_tu ?? 0,
+            BaseCastingTimeTu = 10,
+            RemainingCastProgress = 0,
+            LastMaintenanceCheckpointHp = source.current_hp,
+        };
+        pendingCast.SetTargetCoords(new[] { new Vector2I(4, 2) });
+        int outsideHpBefore = outsideTarget.current_hp;
+        int insideHpBefore = insideTarget.current_hp;
+        var batch = new BattleEventBatch();
+
+        bool resolved = runtime._skill_orchestrator.ResolvePendingCast(
+            source,
+            pendingCast,
+            batch
+        );
+
+        _test.True(resolved, "读条地面法术应在部分地格被裁剪时成功释放。");
+        _test.True(
+            outsideTarget.current_hp < outsideHpBefore,
+            "读条释放应影响法球外允许地格。"
+        );
+        _test.Eq(
+            insideTarget.current_hp,
+            insideHpBefore,
+            "读条释放不应影响法球内被裁剪地格。"
+        );
     }
 
     private void TestPrismaticSphereBlocksDeeperBreakersUntilOuterLayerBreaks()
@@ -416,31 +924,125 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         );
     }
 
-    private Fixture BuildRuntimeWithSphere()
+    private MasteryCommandFixture BuildMasteryCommandFixture(SkillDefinition skillDefinition)
+    {
+        var skillDefinitions = new Dictionary<StringName, SkillDefinition>
+        {
+            [skillDefinition.SkillId] = skillDefinition,
+        };
+        var progression = new UnitProgress
+        {
+            unit_id = "hero",
+            display_name = "虹光法球施法者",
+        };
+        var skillProgress = new UnitSkillProgress
+        {
+            skill_id = skillDefinition.SkillId,
+            is_learned = true,
+            skill_level = 1,
+            current_mastery = 0,
+            total_mastery_earned = 0,
+            granted_source_type = "player",
+        };
+        progression.SetSkillProgress(skillProgress);
+        var memberState = new PartyMemberState
+        {
+            member_id = "hero",
+            display_name = "虹光法球施法者",
+            progression = progression,
+            current_hp = 120,
+            current_mp = 240,
+        };
+        var partyState = new PartyState
+        {
+            leader_member_id = memberState.member_id,
+            main_character_member_id = memberState.member_id,
+            active_member_ids = new StringNameList { memberState.member_id },
+        };
+        partyState.SetMemberState(memberState);
+
+        var characterManagement = new CharacterManagementModule();
+        var runtime = new BattleRuntimeModule();
+        BattleState state = null;
+        BattleUnitState caster = null;
+        BattleUnitState enemy = null;
+        try
+        {
+            characterManagement.setup(partyState, skillDefinitions);
+            runtime.setup(
+                characterManagement,
+                skillDefinitions,
+                barrier_profile_definitions: _barrierProfileDefinitions
+            );
+            state = BuildState(new Vector2I(7, 5));
+            caster = BuildUnit("mastery_caster", "虹光法球施法者", "player", new Vector2I(2, 2));
+            caster.source_member_id = memberState.member_id;
+            caster.current_ap = 5;
+            caster.current_mp = 240;
+            caster.UnlockCombatResource(
+                CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)
+            );
+            caster.attribute_snapshot.SetValue(
+                AttributeService.ToStringName(AttributeIdKind.MpMax),
+                240
+            );
+            LearnSkill(caster, skillDefinition.SkillId);
+            enemy = BuildUnit("mastery_enemy", "熟练度见证者", "enemy", new Vector2I(5, 2));
+            AddUnit(runtime, state, caster, false);
+            AddUnit(runtime, state, enemy, true);
+            state.active_unit_id = caster.unit_id;
+            runtime.SetupStateForTests(state);
+            return new MasteryCommandFixture(
+                runtime,
+                state,
+                caster,
+                enemy,
+                characterManagement,
+                skillProgress
+            );
+        }
+        catch
+        {
+            runtime.Dispose();
+            characterManagement.Dispose();
+            BattleTestFixture.DisposeBattleUnit(caster);
+            BattleTestFixture.DisposeBattleUnit(enemy);
+            BattleTestFixture.DisposeBattleState(state);
+            throw;
+        }
+    }
+
+    private Fixture BuildRuntimeWithSphere(
+        SkillDefinition additionalSkill = null,
+        Vector2I? mapSize = null,
+        Vector2I? enemyCoord = null
+    )
     {
         var runtime = new BattleRuntimeModule();
-        runtime.setup(barrier_profile_definitions: _barrierProfileDefinitions);
-        BattleState state = BuildState(new Vector2I(7, 5));
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            additionalSkill != null
+                ? new Dictionary<StringName, SkillDefinition>
+                {
+                    [additionalSkill.SkillId] = additionalSkill,
+                }
+                : null;
+        runtime.setup(
+            skill_definitions: skillDefinitions,
+            barrier_profile_definitions: _barrierProfileDefinitions
+        );
+        BattleState state = BuildState(mapSize ?? new Vector2I(7, 5));
         runtime.SetupStateForTests(state);
         BattleUnitState caster = BuildUnit("caster", "施法者", "player", new Vector2I(2, 2));
-        BattleUnitState enemy = BuildUnit("enemy", "敌人", "enemy", new Vector2I(5, 2));
+        BattleUnitState enemy = BuildUnit(
+            "enemy",
+            "敌人",
+            "enemy",
+            enemyCoord ?? new Vector2I(5, 2)
+        );
         AddUnit(runtime, state, caster, false);
         AddUnit(runtime, state, enemy, true);
         SkillDefinition skill = BuildSkill("mage_prismatic_sphere", "虹光法球", "mage", "magic");
-        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
-            "layered_barrier",
-            durationTu: 120,
-            saveDc: 15,
-            saveDcMode: "static",
-            saveAbility: "willpower",
-            saveTag: "magic",
-            parameters: new Dictionary<string, object>
-            {
-                ["area_pattern"] = "diamond",
-                ["profile_id"] = "prismatic_sphere",
-                ["radius_cells"] = 2,
-            }
-        );
+        CombatEffectDefinition effect = BuildLayeredBarrierEffect();
         runtime._layered_barrier_service.ApplyLayeredBarrierEffectResult(
             caster,
             caster,
@@ -518,6 +1120,173 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             displayName: displayName,
             tags: tags
         );
+    }
+
+    private static CombatEffectDefinition BuildLayeredBarrierEffect()
+    {
+        return TestSkillDefinitionProjection.BuildEffect(
+            "layered_barrier",
+            durationTu: 120,
+            saveDc: 15,
+            saveDcMode: "static",
+            saveAbility: "willpower",
+            saveTag: "magic",
+            parameters: new Dictionary<string, object>
+            {
+                ["area_pattern"] = "diamond",
+                ["profile_id"] = "prismatic_sphere",
+                ["radius_cells"] = 2,
+            }
+        );
+    }
+
+    private static SkillDefinition BuildGroundAoeSkill(StringName skillId, int castingTimeTu = 0)
+    {
+        CombatEffectDefinition damageEffect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            effectTargetTeamFilter: "enemy",
+            power: 10,
+            damageTag: "force"
+        );
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: "测试地面范围法术",
+            tags: new[] { new StringName("test"), new StringName("magic") },
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: new[] { damageEffect },
+                targetMode: "ground",
+                targetTeamFilter: "enemy",
+                targetSelectionMode: "single_cell",
+                rangeValue: 4,
+                areaPattern: "cross",
+                areaValue: 1,
+                castingTimeTu: castingTimeTu,
+                pendingCastBindingMode: "ground_bind",
+                deliveryCategories: new[] { new StringName("magic") }
+            )
+        );
+    }
+
+    private static SkillDefinition BuildGroundAoeSkillWithTerrain(
+        StringName skillId,
+        StringName terrainEffectId
+    )
+    {
+        CombatEffectDefinition damageEffect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            effectTargetTeamFilter: "enemy",
+            power: 10,
+            damageTag: "freeze"
+        );
+        CombatEffectDefinition terrainEffect = TestSkillDefinitionProjection.BuildEffect(
+            "terrain_effect",
+            terrainEffectId: terrainEffectId,
+            displayName: "测试法球地形标记"
+        );
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: "测试地面范围破解法术",
+            tags: new[] { new StringName("test"), new StringName("magic") },
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: new[] { damageEffect, terrainEffect },
+                targetMode: "ground",
+                targetTeamFilter: "enemy",
+                targetSelectionMode: "single_cell",
+                rangeValue: 4,
+                areaPattern: "cross",
+                areaValue: 1,
+                deliveryCategories: new[] { new StringName("magic") }
+            )
+        );
+    }
+
+    private static SkillDefinition BuildGroundTerrainAoeSkill(
+        StringName skillId,
+        StringName terrainEffectId
+    )
+    {
+        CombatEffectDefinition terrainEffect = TestSkillDefinitionProjection.BuildEffect(
+            "terrain_effect",
+            terrainEffectId: terrainEffectId,
+            displayName: "测试法球地形裁剪"
+        );
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: "测试地面地形范围法术",
+            tags: new[] { new StringName("test"), new StringName("magic") },
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: new[] { terrainEffect },
+                targetMode: "ground",
+                targetTeamFilter: "enemy",
+                targetSelectionMode: "single_cell",
+                rangeValue: 4,
+                areaPattern: "cross",
+                areaValue: 1,
+                deliveryCategories: new[] { new StringName("magic") }
+            )
+        );
+    }
+
+    private static BattleCommand BuildGroundSkillCommand(
+        StringName sourceUnitId,
+        StringName skillId,
+        Vector2I targetCoord
+    )
+    {
+        var command = new BattleCommand
+        {
+            command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
+            unit_id = sourceUnitId,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId),
+            skill_id = skillId,
+            target_coord = targetCoord,
+        };
+        command.AddTargetCoord(targetCoord);
+        return command;
+    }
+
+    private static void LearnSkill(BattleUnitState unitState, StringName skillId)
+    {
+        unitState.known_active_skill_ids.Add(skillId);
+        unitState.known_skill_level_map[skillId] = 1;
+    }
+
+    private static bool LogsContain(IEnumerable<string> logLines, string fragment)
+    {
+        foreach (string line in logLines ?? Array.Empty<string>())
+        {
+            if (line?.Contains(fragment, StringComparison.Ordinal) == true)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool CellHasTerrainEffect(
+        BattleRuntimeModule runtime,
+        BattleState state,
+        Vector2I coord,
+        StringName terrainEffectId
+    )
+    {
+        BattleCellState cell = runtime?._grid_service?.GetCellState(state, coord);
+        return cell?.terrain_effect_ids?.Contains(terrainEffectId) == true;
+    }
+
+    private static bool CoordsContain(IEnumerable<Vector2I> coords, Vector2I expected)
+    {
+        foreach (Vector2I coord in coords ?? Array.Empty<Vector2I>())
+        {
+            if (coord == expected)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static IReadOnlyList<CombatEffectDefinition> EffectArray(
@@ -744,6 +1513,49 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             }
         }
         return false;
+    }
+
+    private sealed class MasteryCommandFixture : IDisposable
+    {
+        private bool _disposed;
+
+        public MasteryCommandFixture(
+            BattleRuntimeModule runtime,
+            BattleState state,
+            BattleUnitState caster,
+            BattleUnitState enemy,
+            CharacterManagementModule characterManagement,
+            UnitSkillProgress skillProgress
+        )
+        {
+            Runtime = runtime;
+            State = state;
+            Caster = caster;
+            Enemy = enemy;
+            CharacterManagement = characterManagement;
+            SkillProgress = skillProgress;
+        }
+
+        public BattleRuntimeModule Runtime { get; }
+        public BattleState State { get; }
+        public BattleUnitState Caster { get; }
+        public BattleUnitState Enemy { get; }
+        public CharacterManagementModule CharacterManagement { get; }
+        public UnitSkillProgress SkillProgress { get; }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+            _disposed = true;
+            Runtime?.Dispose();
+            CharacterManagement?.Dispose();
+            BattleTestFixture.DisposeBattleUnit(Caster);
+            BattleTestFixture.DisposeBattleUnit(Enemy);
+            BattleTestFixture.DisposeBattleState(State);
+        }
     }
 
     private readonly record struct Fixture(

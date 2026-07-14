@@ -41,6 +41,11 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         }
     }
 
+    private readonly record struct ChainDamageHop(
+        Vector2I OriginCoord,
+        BattleUnitState TargetUnit
+    );
+
     private WeakReference<BattleRuntimeModule> _runtimeRef;
 
     internal BattleSkillExecutionOrchestrator()
@@ -804,24 +809,17 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         }
 
         IReadOnlyList<Vector2I> targetCoords = validation.TargetCoords ?? Array.Empty<Vector2I>();
-        IReadOnlyList<Vector2I> effectCoords = Runtime.BuildGroundEffectCoordsTyped(
+        GroundEffectBarrierClipContext barrierClip = PreviewGroundEffectBarrierClipContext(
+            new BattleUnitReadView(activeUnit),
             skillDefinition,
-            targetCoords,
-            activeUnit.coord,
-            activeUnit,
-            castVariantDefinition
+            castVariantDefinition,
+            targetCoords
         );
-        IReadOnlyList<CombatEffectDefinition> effectDefinitions =
-            Runtime.CollectGroundUnitEffectDefinitionsTyped(
-                skillDefinition,
-                castVariantDefinition,
-                activeUnit
-            );
         IReadOnlyList<StringName> targetUnitIds = Runtime.CollectGroundPreviewUnitIdsTyped(
             activeUnit,
             skillDefinition,
-            effectDefinitions,
-            effectCoords
+            barrierClip.UnitEffectDefinitions,
+            barrierClip.UnitEffectCoords
         );
         return CaptureSkillUseOutcomeSnapshot(targetUnitIds);
     }
@@ -1125,43 +1123,37 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         {
             return false;
         }
-        IReadOnlyList<Vector2I> effectCoords = Runtime.BuildGroundEffectCoordsTyped(
-            skillDefinition,
-            targetCoords,
-            activeUnit != null ? activeUnit.coord : new Vector2I(-1, -1),
+        GroundEffectBarrierClipContext barrierClip = ResolveGroundEffectBarrierClipContext(
             activeUnit,
-            castVariantDefinition
+            skillDefinition,
+            castVariantDefinition,
+            targetCoords,
+            batch
         );
         BattleGroundUnitEffectsResult unitResult = Runtime.ApplyGroundUnitEffectsResultTyped(
             activeUnit,
             skillDefinition,
             castVariantDefinition,
-            Runtime.CollectGroundUnitEffectDefinitionsTyped(
-                skillDefinition,
-                castVariantDefinition,
-                activeUnit
-            ),
-            effectCoords,
+            barrierClip.UnitEffectDefinitions,
+            barrierClip.UnitEffectCoords,
             batch,
-            targetCoords
+            targetCoords,
+            barrierClip.VisibleEffectCoords
         );
         BattleGroundTerrainEffectsResult terrainResult =
             Runtime.ApplyGroundTerrainEffectsResultTyped(
                 activeUnit,
                 skillDefinition,
-                Runtime.CollectGroundTerrainEffectDefinitionsTyped(
-                    skillDefinition,
-                    castVariantDefinition,
-                    activeUnit
-                ),
-                effectCoords,
+                barrierClip.TerrainEffectDefinitions,
+                barrierClip.TerrainEffectCoords,
                 batch
             );
-        bool applied = unitResult.Applied || terrainResult.Applied;
+        bool applied =
+            barrierClip.BarrierApplied || unitResult.Applied || terrainResult.Applied;
         if (applied)
         {
             batch?.AddLogLine(
-                $"{activeUnit.display_name} 使用 {_format_skill_variant_label(skillDefinition, castVariantDefinition)}，影响了 {effectCoords.Count} 个地格、{unitResult.AffectedUnitCount} 个单位。"
+                $"{activeUnit.display_name} 使用 {_format_skill_variant_label(skillDefinition, castVariantDefinition)}，影响了 {barrierClip.VisibleEffectCoords.Count} 个地格、{unitResult.AffectedUnitCount} 个单位。"
             );
         }
         return applied;
@@ -1619,6 +1611,9 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         }
         preview.resolved_anchor_coord = validation.ResolvedAnchorCoord;
         bool allowed = validation.Allowed;
+        IReadOnlyList<CombatEffectDefinition> previewUnitEffectDefinitions;
+        IReadOnlyList<Vector2I> previewUnitEffectCoords;
+        bool chargePathPreview = false;
         if (allowed && Runtime?._charge_resolver != null)
         {
             CombatEffectDefinition pathStepAoeEffect = Runtime._charge_resolver
@@ -1629,13 +1624,37 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 );
             if (pathStepAoeEffect != null)
             {
+                chargePathPreview = true;
                 previewCoords = Runtime._charge_resolver.BuildChargeStepAoePreviewCoords(
                     active_unit,
+                    skillDefinition,
                     validation.Direction,
                     validation.Distance,
                     pathStepAoeEffect
                 );
             }
+        }
+        if (chargePathPreview)
+        {
+            previewUnitEffectDefinitions = Runtime?.CollectGroundUnitEffectDefinitionsTyped(
+                    skillDefinition,
+                    castVariantDefinition,
+                    active_unit
+                ) ?? Array.Empty<CombatEffectDefinition>();
+            previewUnitEffectCoords = previewCoords;
+        }
+        else
+        {
+            GroundEffectBarrierClipContext barrierClip = PreviewGroundEffectBarrierClipContext(
+                active_unit,
+                skillDefinition,
+                castVariantDefinition,
+                validation.TargetCoords,
+                previewCoords
+            );
+            previewCoords = barrierClip.VisibleEffectCoords;
+            previewUnitEffectDefinitions = barrierClip.UnitEffectDefinitions;
+            previewUnitEffectCoords = barrierClip.UnitEffectCoords;
         }
         foreach (Vector2I targetCoord in previewCoords)
         {
@@ -1647,12 +1666,8 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             Runtime?.CollectGroundPreviewUnitIdsTyped(
                 active_unit,
                 skillDefinition,
-                Runtime.CollectGroundUnitEffectDefinitionsTyped(
-                    skillDefinition,
-                    castVariantDefinition,
-                    active_unit
-                ),
-                preview.TargetCoordsTyped
+                previewUnitEffectDefinitions,
+                previewUnitEffectCoords
             ) ?? Array.Empty<StringName>();
         preview.SetTargetUnitIds(previewUnitIds);
         AiTraceRecorder.Exit("preview:ground_skill.collect_unit_ids");
@@ -2561,44 +2576,38 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 batch
             );
         }
-        IReadOnlyList<Vector2I> effectCoords = Runtime.BuildGroundEffectCoordsTyped(
-            skillDefinition,
-            targetCoords,
-            active_unit != null ? active_unit.coord : new Vector2I(-1, -1),
+        GroundEffectBarrierClipContext barrierClip = ResolveGroundEffectBarrierClipContext(
             active_unit,
-            castVariantDefinition
+            skillDefinition,
+            castVariantDefinition,
+            targetCoords,
+            batch
         );
         BattleGroundUnitEffectsResult unitResult = Runtime.ApplyGroundUnitEffectsResultTyped(
             active_unit,
             skillDefinition,
             castVariantDefinition,
-            Runtime.CollectGroundUnitEffectDefinitionsTyped(
-                skillDefinition,
-                castVariantDefinition,
-                active_unit
-            ),
-            effectCoords,
+            barrierClip.UnitEffectDefinitions,
+            barrierClip.UnitEffectCoords,
             batch,
-            targetCoords
+            targetCoords,
+            barrierClip.VisibleEffectCoords
         );
         BattleGroundTerrainEffectsResult terrainResult =
             Runtime.ApplyGroundTerrainEffectsResultTyped(
                 active_unit,
                 skillDefinition,
-                Runtime.CollectGroundTerrainEffectDefinitionsTyped(
-                    skillDefinition,
-                    castVariantDefinition,
-                    active_unit
-                ),
-                effectCoords,
+                barrierClip.TerrainEffectDefinitions,
+                barrierClip.TerrainEffectCoords,
                 batch
             );
-        bool applied = unitResult.Applied || terrainResult.Applied;
+        bool applied =
+            barrierClip.BarrierApplied || unitResult.Applied || terrainResult.Applied;
 
         if (applied)
         {
             batch?.AddLogLine(
-                $"{active_unit.display_name} 使用 {_format_skill_variant_label(skillDefinition, castVariantDefinition)}，影响了 {effectCoords.Count} 个地格、{unitResult.AffectedUnitCount} 个单位。"
+                $"{active_unit.display_name} 使用 {_format_skill_variant_label(skillDefinition, castVariantDefinition)}，影响了 {barrierClip.VisibleEffectCoords.Count} 个地格、{unitResult.AffectedUnitCount} 个单位。"
             );
         }
         return applied;
@@ -3348,13 +3357,6 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         );
         AttackEffectResolutionResult damageResult = effectResolution.Result;
         BattleSkillMasteryService skillMasteryService = Runtime?._skill_mastery_service;
-        skillMasteryService?.RecordTargetResult(
-            active_unit,
-            target_unit,
-            skillDefinition,
-            damageResult,
-            effectDefinitions
-        );
         Runtime?._apply_source_bound_weapon_bonus_mastery_grants(
             active_unit,
             target_unit,
@@ -3397,6 +3399,14 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         MarkAppliedStatusesForTurnTiming(
             target_unit,
             specialResult.StatusEffectIds
+        );
+        skillMasteryService?.RecordTargetResult(
+            active_unit,
+            target_unit,
+            skillDefinition,
+            damageResult,
+            effectDefinitions,
+            additionalEffectApplied: shieldResult.Applied || specialResult.Applied
         );
         var appliedStatusIds = new List<StringName>();
         if (damageResult.StatusEffectIds != null)
@@ -3725,7 +3735,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             {
                 continue;
             }
-            List<BattleUnitState> chainTargets = CollectChainDamageTargets(
+            List<ChainDamageHop> chainTargets = CollectChainDamageTargets(
                 source_unit,
                 primary_target,
                 skillDefinition,
@@ -3740,9 +3750,23 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             int totalDamage = 0;
             int totalHealing = 0;
             int totalKillCount = 0;
-            foreach (BattleUnitState chainTarget in chainTargets)
+            foreach (ChainDamageHop chainHop in chainTargets)
             {
+                BattleUnitState chainTarget = chainHop.TargetUnit;
                 if (chainTarget == null || !chainTarget.is_alive)
+                {
+                    continue;
+                }
+                BattleBarrierInteractionResult barrierResult =
+                    Runtime?._layered_barrier_service?.ResolveSkillBarrierInteractionFromCoordResult(
+                        source_unit,
+                        chainHop.OriginCoord,
+                        chainTarget,
+                        skillDefinition,
+                        chainTargetEffects,
+                        batch
+                    ) ?? new BattleBarrierInteractionResult(false, false);
+                if (barrierResult.Blocked)
                 {
                     continue;
                 }
@@ -3877,7 +3901,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         return chainTargetEffects;
     }
 
-    private List<BattleUnitState> CollectChainDamageTargets(
+    private List<ChainDamageHop> CollectChainDamageTargets(
         BattleUnitState source_unit,
         BattleUnitState primary_target,
         SkillDefinition skillDefinition,
@@ -3885,7 +3909,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         BattleSpellControlResult spell_control_context = default
     )
     {
-        var targets = new List<BattleUnitState>();
+        var targets = new List<ChainDamageHop>();
         BattleState state = RtState();
         if (state == null || source_unit == null || primary_target == null || chainEffect == null)
         {
@@ -3948,7 +3972,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 }
 
                 visited.Add(candidate.unit_id);
-                targets.Add(candidate);
+                targets.Add(new ChainDamageHop(current.coord, candidate));
                 queue.Add(candidate);
             }
         }
@@ -3956,19 +3980,21 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         targets.Sort(
             (a, b) =>
             {
-                int distanceA = gridService?.GetDistanceBetweenUnits(primary_target, a) ?? 0;
-                int distanceB = gridService?.GetDistanceBetweenUnits(primary_target, b) ?? 0;
+                BattleUnitState targetA = a.TargetUnit;
+                BattleUnitState targetB = b.TargetUnit;
+                int distanceA = gridService?.GetDistanceBetweenUnits(primary_target, targetA) ?? 0;
+                int distanceB = gridService?.GetDistanceBetweenUnits(primary_target, targetB) ?? 0;
                 if (distanceA != distanceB)
                     return distanceA.CompareTo(distanceB);
-                Vector2I ca = a?.coord ?? Vector2I.Zero;
-                Vector2I cb = b?.coord ?? Vector2I.Zero;
+                Vector2I ca = targetA?.coord ?? Vector2I.Zero;
+                Vector2I cb = targetB?.coord ?? Vector2I.Zero;
                 if (ca.Y != cb.Y)
                     return ca.Y.CompareTo(cb.Y);
                 if (ca.X != cb.X)
                     return ca.X.CompareTo(cb.X);
                 return string.CompareOrdinal(
-                    (a?.unit_id ?? new StringName("")).ToString(),
-                    (b?.unit_id ?? new StringName("")).ToString()
+                    (targetA?.unit_id ?? new StringName("")).ToString(),
+                    (targetB?.unit_id ?? new StringName("")).ToString()
                 );
             }
         );

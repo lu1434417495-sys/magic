@@ -828,6 +828,19 @@ internal class BattleGroundEffectService
             ) ?? new List<CombatEffectDefinition>();
     }
 
+    internal IReadOnlyList<CombatEffectDefinition> CollectGroundTerrainEffectDefinitions(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        BattleUnitReadView activeUnit
+    )
+    {
+        return SkillResolutionRules?.CollectGroundTerrainEffectDefinitions(
+                skillDefinition,
+                castVariantDefinition,
+                activeUnit
+            ) ?? new List<CombatEffectDefinition>();
+    }
+
     internal IReadOnlyList<StringName> CollectGroundPreviewUnitIds(
         BattleUnitState sourceUnit,
         SkillDefinition skillDefinition,
@@ -1040,20 +1053,15 @@ internal class BattleGroundEffectService
         BattleUnitState sourceUnit,
         SkillDefinition skillDefinition,
         CombatEffectDefinition effectDefinition,
-        IReadOnlyList<Vector2I> effectCoords,
-        BattleEventBatch batch,
-        HashSet<StringName> affectedUnitIds,
-        out bool applied
+        IReadOnlyList<Vector2I> effectCoords
     )
     {
-        applied = false;
         var units = new List<BattleUnitState>();
         if (effectDefinition == null)
         {
             return units;
         }
         StringName targetFilter = ResolveEffectTargetFilter(skillDefinition, effectDefinition);
-        BattleLayeredBarrierService layeredBarrierService = LayeredBarrierService;
         foreach (BattleUnitState targetUnit in CollectUnitsInCoords(effectCoords))
         {
             if (targetUnit == null || !targetUnit.is_alive)
@@ -1062,25 +1070,6 @@ internal class BattleGroundEffectService
             }
             if (!_is_unit_valid_for_effect(sourceUnit, targetUnit, targetFilter))
             {
-                continue;
-            }
-            BattleBarrierInteractionResult barrierResult =
-                layeredBarrierService != null
-                    ? layeredBarrierService.ResolveSkillBarrierInteractionResult(
-                        sourceUnit,
-                        targetUnit,
-                        skillDefinition,
-                        new[] { effectDefinition },
-                        batch
-                    )
-                    : new BattleBarrierInteractionResult(false, false);
-            if (barrierResult.Blocked)
-            {
-                if (barrierResult.Applied)
-                {
-                    applied = true;
-                    AppendAffectedUnitId(affectedUnitIds, targetUnit);
-                }
                 continue;
             }
             units.Add(targetUnit);
@@ -1245,12 +1234,8 @@ internal class BattleGroundEffectService
                 sourceUnit,
                 skillDefinition,
                 effectDefinition,
-                effectCoords,
-                batch,
-                affectedUnitIds,
-                out bool barrierApplied
+                effectCoords
             );
-            applied = applied || barrierApplied;
             if (targetUnits.Count == 0)
             {
                 continue;
@@ -1308,7 +1293,8 @@ internal class BattleGroundEffectService
         IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         IReadOnlyList<Vector2I> effectCoords,
         BattleEventBatch batch,
-        IReadOnlyList<Vector2I> targetCoords
+        IReadOnlyList<Vector2I> targetCoords,
+        IReadOnlyList<Vector2I> contingencyEffectCoords = null
     )
     {
         bool applied = false;
@@ -1324,30 +1310,29 @@ internal class BattleGroundEffectService
         IReadOnlyList<CombatEffectDefinition> effectDefinitionList =
             effectDefinitions ?? Array.Empty<CombatEffectDefinition>();
         IReadOnlyList<Vector2I> normalizedEffectCoords = effectCoords ?? Array.Empty<Vector2I>();
+        IReadOnlyList<Vector2I> normalizedContingencyEffectCoords =
+            contingencyEffectCoords ?? normalizedEffectCoords;
         IReadOnlyList<CombatEffectDefinition> windPushEffects =
             CollectWindPushEffectDefinitions(effectDefinitionList);
         HashSet<int> windPushEffectIds = BuildEffectInstanceIdSet(windPushEffects);
         StringName sourceEventId =
             Runtime?.AllocateContingencySourceEventId("ground_spell") ?? Empty;
-        var spellAffectedUnitIds = new List<StringName>();
-        foreach (BattleUnitState affectedUnit in CollectUnitsInCoords(normalizedEffectCoords))
-        {
-            if (
-                affectedUnit != null
-                && affectedUnit.is_alive
-                && !spellAffectedUnitIds.Contains(affectedUnit.unit_id)
-            )
-            {
-                spellAffectedUnitIds.Add(affectedUnit.unit_id);
-            }
-        }
-        Runtime?.EmitContingencySpellAffected(
+        IReadOnlyList<StringName> spellAffectedUnitIds = CollectGroundPreviewUnitIds(
             sourceUnit,
-            null,
-            spellAffectedUnitIds,
-            sourceEventId,
+            skillDefinition,
+            effectDefinitionList,
             normalizedEffectCoords
         );
+        if (spellAffectedUnitIds.Count > 0 || normalizedContingencyEffectCoords.Count > 0)
+        {
+            Runtime?.EmitContingencySpellAffected(
+                sourceUnit,
+                null,
+                spellAffectedUnitIds,
+                sourceEventId,
+                normalizedContingencyEffectCoords
+            );
+        }
 
         foreach (BattleUnitState targetUnit in CollectUnitsInCoords(normalizedEffectCoords))
         {
@@ -1381,27 +1366,6 @@ internal class BattleGroundEffectService
                 continue;
             }
 
-            BattleLayeredBarrierService layeredBarrierService = LayeredBarrierService;
-            BattleBarrierInteractionResult barrierResult =
-                layeredBarrierService != null
-                    ? layeredBarrierService.ResolveSkillBarrierInteractionResult(
-                        sourceUnit,
-                        targetUnit,
-                        skillDefinition,
-                        applicableEffects,
-                        batch
-                    )
-                    : new BattleBarrierInteractionResult(false, false);
-            if (barrierResult.Blocked)
-            {
-                applied = applied || barrierResult.Applied;
-                if (barrierResult.Applied)
-                {
-                    AppendAffectedUnitId(affectedUnitIds, targetUnit);
-                }
-                continue;
-            }
-
             int previousTargetHp = targetUnit.current_hp;
             GroundUnitEffectResolution effectResolution =
                 _resolve_ground_unit_effect_resolution(
@@ -1412,12 +1376,6 @@ internal class BattleGroundEffectService
                     batch
                 );
             AttackEffectResolutionResult damageResult = effectResolution.Result;
-            Runtime?._skill_mastery_service?.RecordTargetResult(
-                sourceUnit,
-                targetUnit,
-                skillDefinition,
-                damageResult
-            );
             BattleShieldApplyResult shieldResult = ApplyUnitShieldEffectsResult(
                 sourceUnit,
                 targetUnit,
@@ -1435,6 +1393,14 @@ internal class BattleGroundEffectService
                     batch,
                     forcedMoveContext
                 );
+            Runtime?._skill_mastery_service?.RecordTargetResult(
+                sourceUnit,
+                targetUnit,
+                skillDefinition,
+                damageResult,
+                applicableEffects,
+                additionalEffectApplied: shieldResult.Applied || specialResult.Applied
+            );
             RecordVajraBodyMasteryFromIncomingDamageTyped(
                 sourceUnit,
                 targetUnit,
@@ -1742,7 +1708,6 @@ internal class BattleGroundEffectService
         IReadOnlyList<CombatEffectDefinition> normalizedEffectDefinitions =
             effectDefinitions ?? Array.Empty<CombatEffectDefinition>();
         IReadOnlyList<Vector2I> normalizedEffectCoords = effectCoords ?? Array.Empty<Vector2I>();
-        BattleLayeredBarrierService layeredBarrierService = LayeredBarrierService;
         foreach (CombatEffectDefinition effectDefinition in normalizedEffectDefinitions)
         {
             if (effectDefinition == null)
@@ -1755,21 +1720,6 @@ internal class BattleGroundEffectService
                 requiresTopologyReconcile = true;
                 foreach (Vector2I effectCoord in normalizedEffectCoords)
                 {
-                    BattleBarrierInteractionResult barrierResult =
-                        layeredBarrierService != null
-                            ? layeredBarrierService.ResolveGroundBarrierInteractionResult(
-                                sourceUnit,
-                                effectCoord,
-                                skillDefinition,
-                                normalizedEffectDefinitions,
-                                batch
-                            )
-                            : new BattleBarrierInteractionResult(false, false);
-                    if (barrierResult.Blocked)
-                    {
-                        applied = applied || barrierResult.Applied;
-                        continue;
-                    }
                     if (
                         _apply_ground_cell_effect(
                             sourceUnit,
@@ -1797,21 +1747,6 @@ internal class BattleGroundEffectService
                     int appliedCoordCount = 0;
                     foreach (Vector2I effectCoord in normalizedEffectCoords)
                     {
-                        BattleBarrierInteractionResult barrierResult =
-                            layeredBarrierService != null
-                                ? layeredBarrierService.ResolveGroundBarrierInteractionResult(
-                                    sourceUnit,
-                                    effectCoord,
-                                    skillDefinition,
-                                    normalizedEffectDefinitions,
-                                    batch
-                                )
-                                : new BattleBarrierInteractionResult(false, false);
-                        if (barrierResult.Blocked)
-                        {
-                            applied = applied || barrierResult.Applied;
-                            continue;
-                        }
                         if (
                             Runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
                                 effectCoord,
@@ -1840,21 +1775,6 @@ internal class BattleGroundEffectService
                     int taggedCoordCount = 0;
                     foreach (Vector2I effectCoord in normalizedEffectCoords)
                     {
-                        BattleBarrierInteractionResult barrierResult =
-                            layeredBarrierService != null
-                                ? layeredBarrierService.ResolveGroundBarrierInteractionResult(
-                                    sourceUnit,
-                                    effectCoord,
-                                    skillDefinition,
-                                    normalizedEffectDefinitions,
-                                    batch
-                                )
-                                : new BattleBarrierInteractionResult(false, false);
-                        if (barrierResult.Blocked)
-                        {
-                            applied = applied || barrierResult.Applied;
-                            continue;
-                        }
                         BattleCellState cell = GridService.GetCellState(State, effectCoord);
                         if (cell == null)
                         {
@@ -1934,24 +1854,6 @@ internal class BattleGroundEffectService
         if (GridService.GetDistance(first, second) != 1)
         {
             return false;
-        }
-        BattleLayeredBarrierService layeredBarrierService = LayeredBarrierService;
-        foreach (Vector2I barrierCoord in new[] { first, second })
-        {
-            BattleBarrierInteractionResult barrierResult =
-                layeredBarrierService != null
-                    ? layeredBarrierService.ResolveGroundBarrierInteractionResult(
-                        sourceUnit,
-                        barrierCoord,
-                        skillDefinition,
-                        new[] { effectDefinition },
-                        batch
-                    )
-                    : new BattleBarrierInteractionResult(false, false);
-            if (barrierResult.Blocked)
-            {
-                return barrierResult.Applied;
-            }
         }
         EdgeAuthoringReference edgeRef = BuildEdgeAuthoringReference(first, second);
         if (!edgeRef.IsValid)

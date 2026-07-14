@@ -44,6 +44,8 @@ internal sealed class ContentSnapshotBuilder
             progression.GetSkillDefinitionsTyped();
         IReadOnlyDictionary<StringName, TraitDefinition> traitDefinitions =
             progression.GetTraitDefsTyped();
+        IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierDefinitions =
+            barrier.GetProfileDefsTyped();
         var itemDefinitionIndex = new Dictionary<StringName, ItemDefinition>(
             items.GetItemDefsTyped()
         );
@@ -82,6 +84,10 @@ internal sealed class ContentSnapshotBuilder
         );
         AppendErrors(
             validationErrors,
+            BarrierSkillContentValidator.Validate(skillDefinitions, barrierDefinitions)
+        );
+        AppendErrors(
+            validationErrors,
             QuestContentValidator.ValidateTyped(
                 progression.GetQuestDefsTyped(),
                 itemDefinitions,
@@ -114,7 +120,7 @@ internal sealed class ContentSnapshotBuilder
             progression.GetAscensionStageDefsTyped(),
             progression.GetStageAdvancementDefsTyped(),
             faith.GetFaithDeityDefsTyped(),
-            barrier.GetProfileDefsTyped(),
+            barrierDefinitions,
             progression.GetContingencySetupTemplatesTyped(),
             itemDefinitions,
             recipes.GetRecipeDefsTyped(),

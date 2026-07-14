@@ -368,6 +368,11 @@ public sealed partial class BattleAiScoreService : IDisposable
                 skillDefinition
             );
         PopulateHitMetrics(scoreInput, context, skillDefinition, effectiveEffectDefinitions);
+        PopulateLayeredBarrierProjection(
+            scoreInput,
+            context,
+            effectiveEffectDefinitions
+        );
         using (new BattleAiTraceSpan("score_input:ground_control"))
             PopulateGroundControlMetrics(scoreInput, effectiveEffectDefinitions);
         PopulateRandomChainMetrics(
@@ -1012,6 +1017,58 @@ public sealed partial class BattleAiScoreService : IDisposable
     {
         using BattleAiTraceSpan trace = new("_populate_hit_metrics");
         PopulateHitMetricsImpl(scoreInput, context, skillDefinition, effectDefinitions);
+    }
+
+    private static void PopulateLayeredBarrierProjection(
+        BattleAiScoreInput scoreInput,
+        IBattleAiScoreContext context,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions
+    )
+    {
+        BattleState state = ContextState(context);
+        BattleUnitState actor = ContextUnitState(context);
+        if (scoreInput == null || state == null || actor == null)
+            return;
+
+        CombatEffectDefinition layeredBarrierEffect = null;
+        foreach (
+            CombatEffectDefinition effect in effectDefinitions
+                ?? Array.Empty<CombatEffectDefinition>()
+        )
+        {
+            if (effect?.EffectKind == BattleEffectKind.LayeredBarrier)
+            {
+                layeredBarrierEffect = effect;
+                break;
+            }
+        }
+        if (layeredBarrierEffect == null)
+            return;
+
+        BattleUnitState target = actor;
+        foreach (StringName targetUnitId in scoreInput.target_unit_ids)
+        {
+            BattleUnitState resolvedTarget = GetUnit(state, targetUnitId);
+            if (resolvedTarget != null)
+            {
+                target = resolvedTarget;
+                break;
+            }
+        }
+        scoreInput.layered_barrier_projection = BattleAiLayeredBarrierProjection.Build(
+            context,
+            actor,
+            target,
+            layeredBarrierEffect
+        );
+        if (
+            scoreInput.layered_barrier_projection.utility_control_count <= 0
+            && string.IsNullOrEmpty(scoreInput.low_value_penalty_reason)
+        )
+        {
+            scoreInput.low_value_penalty_reason =
+                $"layered_barrier:{scoreInput.layered_barrier_projection.reason}";
+        }
     }
 
     private void PopulateHitMetricsImpl(

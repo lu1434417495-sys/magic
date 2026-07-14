@@ -615,6 +615,87 @@ internal sealed class BattleHudEquipmentPanelSnapshot : IBattlePresentationSnaps
         );
 }
 
+internal sealed class BattleHudBarrierSnapshot : IBattlePresentationSnapshotValue
+{
+    private readonly ReadOnlyCollection<string> _brokenLayerNames;
+
+    internal BattleHudBarrierSnapshot(
+        string barrierInstanceId,
+        string profileId,
+        string displayName,
+        string sourceUnitId,
+        string sourceSkillId,
+        Vector2I anchorCoord,
+        int radiusCells,
+        string areaPattern,
+        int remainingTu,
+        string currentLayerId,
+        string currentLayerName,
+        int activeLayerCount,
+        int brokenLayerCount,
+        int totalLayerCount,
+        IEnumerable<string> brokenLayerNames,
+        string summaryText
+    )
+    {
+        BarrierInstanceId = barrierInstanceId ?? "";
+        ProfileId = profileId ?? "";
+        DisplayName = displayName ?? "";
+        SourceUnitId = sourceUnitId ?? "";
+        SourceSkillId = sourceSkillId ?? "";
+        AnchorCoord = anchorCoord;
+        RadiusCells = radiusCells;
+        AreaPattern = areaPattern ?? "";
+        RemainingTu = remainingTu;
+        CurrentLayerId = currentLayerId ?? "";
+        CurrentLayerName = currentLayerName ?? "";
+        ActiveLayerCount = activeLayerCount;
+        BrokenLayerCount = brokenLayerCount;
+        TotalLayerCount = totalLayerCount;
+        _brokenLayerNames = new List<string>(
+            brokenLayerNames ?? Array.Empty<string>()
+        ).AsReadOnly();
+        SummaryText = summaryText ?? "";
+    }
+
+    internal string BarrierInstanceId { get; }
+    internal string ProfileId { get; }
+    internal string DisplayName { get; }
+    internal string SourceUnitId { get; }
+    internal string SourceSkillId { get; }
+    internal Vector2I AnchorCoord { get; }
+    internal int RadiusCells { get; }
+    internal string AreaPattern { get; }
+    internal int RemainingTu { get; }
+    internal string CurrentLayerId { get; }
+    internal string CurrentLayerName { get; }
+    internal int ActiveLayerCount { get; }
+    internal int BrokenLayerCount { get; }
+    internal int TotalLayerCount { get; }
+    internal IReadOnlyList<string> BrokenLayerNames => _brokenLayerNames;
+    internal string SummaryText { get; }
+
+    public IReadOnlyDictionary<string, object> CanonicalFacts =>
+        BattlePresentationSnapshotFacts.Map(
+            ("barrier_instance_id", BarrierInstanceId),
+            ("profile_id", ProfileId),
+            ("display_name", DisplayName),
+            ("source_unit_id", SourceUnitId),
+            ("source_skill_id", SourceSkillId),
+            ("anchor_coord", AnchorCoord),
+            ("radius_cells", RadiusCells),
+            ("area_pattern", AreaPattern),
+            ("remaining_tu", RemainingTu),
+            ("current_layer_id", CurrentLayerId),
+            ("current_layer_name", CurrentLayerName),
+            ("active_layer_count", ActiveLayerCount),
+            ("broken_layer_count", BrokenLayerCount),
+            ("total_layer_count", TotalLayerCount),
+            ("broken_layer_names", _brokenLayerNames),
+            ("summary_text", SummaryText)
+        );
+}
+
 internal sealed class BattleHudSnapshot : IBattlePresentationSnapshotValue
 {
     private readonly ReadOnlyCollection<BattleHudQueueEntrySnapshot> _queueEntries;
@@ -622,6 +703,7 @@ internal sealed class BattleHudSnapshot : IBattlePresentationSnapshotValue
     private readonly ReadOnlyCollection<int> _selectedSkillHitStageRates;
     private readonly ReadOnlyCollection<BattleHudFateBadgeSnapshot> _selectedSkillFateBadges;
     private readonly ReadOnlyCollection<string> _recentBattleLogLines;
+    private readonly ReadOnlyCollection<BattleHudBarrierSnapshot> _barriers;
     private readonly bool _isEmpty;
 
     internal static BattleHudSnapshot Empty { get; } = new();
@@ -634,6 +716,7 @@ internal sealed class BattleHudSnapshot : IBattlePresentationSnapshotValue
         _selectedSkillHitStageRates = new List<int>().AsReadOnly();
         _selectedSkillFateBadges = new List<BattleHudFateBadgeSnapshot>().AsReadOnly();
         _recentBattleLogLines = new List<string>().AsReadOnly();
+        _barriers = new List<BattleHudBarrierSnapshot>().AsReadOnly();
         RoundBadge = new BattleHudRoundBadgeSnapshot("TU --", "READY 0");
         HitPreviewPayload = BattlePresentationPayload.Empty;
         SaveBranchPreviewPayload = BattlePresentationPayload.Empty;
@@ -676,7 +759,9 @@ internal sealed class BattleHudSnapshot : IBattlePresentationSnapshotValue
         BattleHudCommandDockSnapshot commandDock,
         string hintText,
         IEnumerable<string> recentBattleLogLines,
-        BattleHudEquipmentPanelSnapshot equipmentPanel
+        BattleHudEquipmentPanelSnapshot equipmentPanel,
+        IEnumerable<BattleHudBarrierSnapshot> barriers = null,
+        string barrierSummaryText = ""
     )
     {
         HeaderTitle = headerTitle ?? "";
@@ -723,6 +808,10 @@ internal sealed class BattleHudSnapshot : IBattlePresentationSnapshotValue
             recentBattleLogLines ?? Array.Empty<string>()
         ).AsReadOnly();
         EquipmentPanel = equipmentPanel;
+        _barriers = new List<BattleHudBarrierSnapshot>(
+            barriers ?? Array.Empty<BattleHudBarrierSnapshot>()
+        ).AsReadOnly();
+        BarrierSummaryText = barrierSummaryText ?? "";
     }
 
     internal bool IsEmpty => _isEmpty;
@@ -760,6 +849,8 @@ internal sealed class BattleHudSnapshot : IBattlePresentationSnapshotValue
     internal string HintText { get; } = "";
     internal IReadOnlyList<string> RecentBattleLogLines => _recentBattleLogLines;
     internal BattleHudEquipmentPanelSnapshot EquipmentPanel { get; }
+    internal IReadOnlyList<BattleHudBarrierSnapshot> Barriers => _barriers;
+    internal string BarrierSummaryText { get; } = "";
 
     public IReadOnlyDictionary<string, object> CanonicalFacts =>
         _isEmpty
@@ -797,7 +888,9 @@ internal sealed class BattleHudSnapshot : IBattlePresentationSnapshotValue
                 ("command_dock", CommandDock),
                 ("hint_text", HintText),
                 ("recent_battle_log_lines", _recentBattleLogLines),
-                ("equipment_panel", EquipmentPanel)
+                ("equipment_panel", EquipmentPanel),
+                ("barriers", _barriers),
+                ("barrier_summary_text", BarrierSummaryText)
             );
 
     internal GodotProjectionLease<GDictionary> BuildLease() =>

@@ -426,43 +426,40 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         bool precastRelocationApplied =
             caster != null && caster.coord != casterCoordBeforePrecast;
 
-        IReadOnlyList<Vector2I> effectCoords = Runtime.BuildGroundEffectCoordsTyped(
-            skillDefinition,
-            targetCoords,
-            caster != null ? caster.coord : new Vector2I(-1, -1),
+        GroundEffectBarrierClipContext barrierClip = ResolveGroundEffectBarrierClipContext(
             caster,
-            castVariantDefinition
+            skillDefinition,
+            castVariantDefinition,
+            targetCoords,
+            batch
         );
         BattleGroundUnitEffectsResult unitResult = Runtime.ApplyGroundUnitEffectsResultTyped(
             caster,
             skillDefinition,
             castVariantDefinition,
-            Runtime.CollectGroundUnitEffectDefinitionsTyped(
-                skillDefinition,
-                castVariantDefinition,
-                caster
-            ),
-            effectCoords,
+            barrierClip.UnitEffectDefinitions,
+            barrierClip.UnitEffectCoords,
             batch,
-            targetCoords
+            targetCoords,
+            barrierClip.VisibleEffectCoords
         );
         BattleGroundTerrainEffectsResult terrainResult =
             Runtime.ApplyGroundTerrainEffectsResultTyped(
                 caster,
                 skillDefinition,
-                Runtime.CollectGroundTerrainEffectDefinitionsTyped(
-                    skillDefinition,
-                    castVariantDefinition,
-                    caster
-                ),
-                effectCoords,
+                barrierClip.TerrainEffectDefinitions,
+                barrierClip.TerrainEffectCoords,
                 batch
             );
-        bool applied = precastRelocationApplied || unitResult.Applied || terrainResult.Applied;
+        bool applied =
+            precastRelocationApplied
+            || barrierClip.BarrierApplied
+            || unitResult.Applied
+            || terrainResult.Applied;
         if (applied)
         {
             batch?.AddLogLine(
-                $"{caster.display_name} 触发 {_format_skill_variant_label(skillDefinition, castVariantDefinition)}，影响了 {effectCoords.Count} 个地格、{unitResult.AffectedUnitCount} 个单位。"
+                $"{caster.display_name} 触发 {_format_skill_variant_label(skillDefinition, castVariantDefinition)}，影响了 {barrierClip.VisibleEffectCoords.Count} 个地格、{unitResult.AffectedUnitCount} 个单位。"
             );
         }
         return applied;
