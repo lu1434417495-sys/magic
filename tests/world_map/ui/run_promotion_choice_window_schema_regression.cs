@@ -13,6 +13,7 @@ public partial class run_promotion_choice_window_schema_regression : LifecycleTe
     public override async void _Initialize()
     {
         await TestPromotionChoiceWindowAcceptsFormalStringPayload();
+        await TestPromotionChoiceWindowRendersBbcodeShapedContentLiterally();
         await TestPromotionChoiceWindowSubmitPreservesMemberId();
         await TestPromotionChoiceWindowRejectsStringNameStringFields();
         RequestTestExit(_test.Finish("Promotion choice window schema regression"));
@@ -98,6 +99,39 @@ public partial class run_promotion_choice_window_schema_regression : LifecycleTe
         await DisposeWindow(window);
     }
 
+    private async Task TestPromotionChoiceWindowRendersBbcodeShapedContentLiterally()
+    {
+        PromotionChoiceWindow window = await CreateWindow();
+        window.ShowPromotion(MakeBbcodeShapedPromotionPayload());
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+
+        var detailsLabel = window.GetNode<RichTextLabel>(
+            "CenterContainer/Panel/MarginContainer/Content/Body/DetailsLabel"
+        );
+        _test.True(
+            detailsLabel.BbcodeEnabled,
+            "晋升详情应继续启用受控 BBCode 样式，而不是通过关闭格式规避动态文本解析。"
+        );
+        string parsedText = detailsLabel.GetParsedText();
+        _test.True(
+            parsedText.Contains("[b]守卫[/b]"),
+            "晋升名称中的 BBCode 形态文本应按字面显示。"
+        );
+        _test.True(
+            parsedText.Contains("[color=red]仍是描述[/color]"),
+            "晋升描述中的 BBCode 形态文本应按字面显示。"
+        );
+        _test.True(
+            parsedText.Contains("[url=confirm]确认[/url]"),
+            "晋升提示中的 BBCode 形态文本应按字面显示。"
+        );
+        _test.True(
+            parsedText.Contains("slash[b]"),
+            "授予技能文本中的方括号内容也不应被当作 BBCode。"
+        );
+        await DisposeWindow(window);
+    }
+
     private async Task TestPromotionChoiceWindowRejectsStringNameStringFields()
     {
         PromotionChoiceWindow window = await CreateWindow();
@@ -153,6 +187,26 @@ public partial class run_promotion_choice_window_schema_regression : LifecycleTe
                         new StringName("slash"),
                     },
                     ["selection_hint"] = new StringName("StringName hint"),
+                    ["selection"] = new Dictionary<string, object>(StringComparer.Ordinal),
+                },
+            },
+        };
+
+    private static IReadOnlyDictionary<string, object> MakeBbcodeShapedPromotionPayload() =>
+        new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["member_id"] = "hero",
+            ["member_name"] = "主角",
+            ["choices"] = new List<object>
+            {
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["profession_id"] = "guardian",
+                    ["display_name"] = "[b]守卫[/b]",
+                    ["summary"] = "Rank 1",
+                    ["description"] = "[color=red]仍是描述[/color]",
+                    ["granted_skill_ids"] = new List<object> { "slash[b]" },
+                    ["selection_hint"] = "[url=confirm]确认[/url]",
                     ["selection"] = new Dictionary<string, object>(StringComparer.Ordinal),
                 },
             },

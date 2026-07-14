@@ -201,23 +201,33 @@ public partial class PromotionChoiceWindow : Control
         var skillNames = new List<string>();
         foreach (StringName skillId in choiceData.GrantedSkillIds)
             skillNames.Add(skillId.ToString());
-        string skillsText = skillNames.Count > 0 ? string.Join(", ", skillNames) : "暂无";
+        string displayNameText = _escape_bbcode(choiceData.DisplayName);
+        string descriptionText = !string.IsNullOrEmpty(choiceData.Description)
+            ? _escape_bbcode(choiceData.Description)
+            : "[i]暂无描述[/i]";
+        string skillsText = _escape_bbcode(
+            skillNames.Count > 0 ? string.Join(", ", skillNames) : "暂无"
+        );
+        string selectionHintText = _escape_bbcode(choiceData.SelectionHint);
 
         _detailsLabel.Text = string.Join(
             "\n",
             new[]
             {
-                $"[color=#fadc6f][b]{choiceData.DisplayName}[/b][/color]",
+                $"[color=#fadc6f][b]{displayNameText}[/b][/color]",
                 "",
-                !string.IsNullOrEmpty(choiceData.Description)
-                    ? choiceData.Description
-                    : "[i]暂无描述[/i]",
+                descriptionText,
                 "",
                 $"[color=#a3c1ee]授予技能：[/color]{skillsText}",
-                $"[color=#a3c1ee]说明：[/color][i]{choiceData.SelectionHint}[/i]",
+                $"[color=#a3c1ee]说明：[/color][i]{selectionHintText}[/i]",
             }
         );
         _confirmButton.Disabled = false;
+    }
+
+    private static string _escape_bbcode(string text)
+    {
+        return string.IsNullOrEmpty(text) ? (text ?? "") : text.Replace("[", "[lb]");
     }
 
     private void _on_card_gui_input(InputEvent @event, int index)
